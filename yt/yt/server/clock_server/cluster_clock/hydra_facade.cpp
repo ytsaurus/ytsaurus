@@ -79,33 +79,18 @@ public:
         TDistributedHydraManagerOptions hydraManagerOptions;
         hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
         hydraManagerOptions.UseFork = true;
-        if (Config_->UseNewHydra) {
-            HydraManager_ = NHydra2::CreateDistributedHydraManager(
-                Config_->HydraManager,
-                Bootstrap_->GetControlInvoker(),
-                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
-                Automaton_,
-                Bootstrap_->GetRpcServer(),
-                electionManagerThunk,
-                Bootstrap_->GetCellManager()->GetCellId(),
-                Bootstrap_->GetChangelogStoreFactory(),
-                Bootstrap_->GetSnapshotStore(),
-                /*authenticator*/ nullptr,
-                hydraManagerOptions);
-        } else {
-            HydraManager_ = NHydra::CreateDistributedHydraManager(
-                Config_->HydraManager,
-                Bootstrap_->GetControlInvoker(),
-                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
-                Automaton_,
-                Bootstrap_->GetRpcServer(),
-                electionManagerThunk,
-                Bootstrap_->GetCellManager()->GetCellId(),
-                Bootstrap_->GetChangelogStoreFactory(),
-                Bootstrap_->GetSnapshotStore(),
-                /*authenticator*/ nullptr,
-                hydraManagerOptions);
-        }
+        HydraManager_ = NHydra2::CreateDistributedHydraManager(
+            Config_->HydraManager,
+            Bootstrap_->GetControlInvoker(),
+            GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
+            Automaton_,
+            Bootstrap_->GetRpcServer(),
+            electionManagerThunk,
+            Bootstrap_->GetCellManager()->GetCellId(),
+            Bootstrap_->GetChangelogStoreFactory(),
+            Bootstrap_->GetSnapshotStore(),
+            /*authenticator*/ nullptr,
+            hydraManagerOptions);
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));

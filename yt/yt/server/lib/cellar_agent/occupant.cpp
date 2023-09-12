@@ -449,22 +449,8 @@ public:
                     hydraManagerOptions,
                     CellManager_);
                 hydraManager = StaticPointerCast<IDistributedHydraManager>(dryRunHydraManager);
-            } else if (Config_->UseNewHydra) {
-                hydraManager = NHydra2::CreateDistributedHydraManager(
-                    Config_->HydraManager,
-                    Bootstrap_->GetControlInvoker(),
-                    occupier->GetMutationAutomatonInvoker(),
-                    Automaton_,
-                    rpcServer,
-                    ElectionManagerThunk_,
-                    GetCellId(),
-                    ChangelogStoreFactoryThunk_,
-                    SnapshotStoreThunk_,
-                    Bootstrap_->GetNativeAuthenticator(),
-                    hydraManagerOptions,
-                    hydraManagerDynamicOptions);
             } else {
-                hydraManager = NHydra::CreateDistributedHydraManager(
+                hydraManager = NHydra2::CreateDistributedHydraManager(
                     Config_->HydraManager,
                     Bootstrap_->GetControlInvoker(),
                     occupier->GetMutationAutomatonInvoker(),

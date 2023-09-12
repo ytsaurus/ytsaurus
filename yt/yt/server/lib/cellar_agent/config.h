@@ -100,8 +100,6 @@ public:
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
-    bool UseNewHydra;
-
     bool EnableDryRun;
 
     REGISTER_YSON_STRUCT(TCellarOccupantConfig);
