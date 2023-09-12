@@ -30,7 +30,7 @@
     XX(AllowedProfilingTags, allowed_profiling_tags) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
-    XX(AllowRegularPreemption, allow_regular_preemption) \
+    XX(AllowNormalPreemption, allow_normal_preemption) \
     XX(Annotation, annotation) \
     XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \

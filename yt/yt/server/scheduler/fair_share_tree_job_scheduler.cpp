@@ -208,11 +208,11 @@ std::optional<bool> IsAggressivePreemptionAllowed(const TSchedulerElement* eleme
     }
 }
 
-bool IsRegularPreemptionAllowed(const TSchedulerElement* element)
+bool IsNormalPreemptionAllowed(const TSchedulerElement* element)
 {
     switch (element->GetType()) {
         case ESchedulerElementType::Pool:
-            return static_cast<const TSchedulerPoolElement*>(element)->GetConfig()->AllowRegularPreemption;
+            return static_cast<const TSchedulerPoolElement*>(element)->GetConfig()->AllowNormalPreemption;
         default:
             return true;
     }
@@ -1363,18 +1363,20 @@ const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
         return {};
     }
 
-    const TSchedulerElement* current = element;
-    while (current) {
-        // NB: This option is intended only for testing purposes.
-        if (!IsRegularPreemptionAllowed(current)) {
-            UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::ForbiddenInAncestorConfig);
-            return element;
-        }
+    if (targetOperationPreemptionPriority == EOperationPreemptionPriority::Normal) {
+        const TSchedulerElement* current = element;
+        while (current) {
+            // NB: This option is intended only for testing purposes.
+            if (!IsNormalPreemptionAllowed(current)) {
+                UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::ForbiddenInAncestorConfig);
+                return element;
+            }
 
-        current = current->GetParent();
+            current = current->GetParent();
+        }
     }
 
-    current = element;
+    const TSchedulerElement* current = element;
     while (current && !current->IsRoot()) {
         // NB(eshcherbin): A bit strange that we check for starvation here and then for satisfaction later.
         // Maybe just satisfaction is enough?
