@@ -1367,8 +1367,8 @@ public:
                             .NodeId = static_cast<ui32>(replica.GetNodeId()),
                             .IdHash = locationUuid.Parts32[0],
                             .LocationUuid = locationUuid,
+                            .ChunkId = chunkId,
                         },
-                        .ChunkId = chunkId,
                         .ReplicaIndex = replica.GetReplicaIndex(),
                     };
                     transaction->WriteRow(locationReplica);
@@ -3834,8 +3834,8 @@ private:
                             .NodeId = static_cast<ui32>(nodeId),
                             .IdHash = locationUuid.Parts32[0],
                             .LocationUuid = locationUuid,
+                            .ChunkId = chunkId,
                         },
-                        .ChunkId = chunkId,
                         .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
                     };
                     transaction->WriteRow(locationReplica);
@@ -3861,6 +3861,7 @@ private:
                         .NodeId = static_cast<ui32>(nodeId),
                         .IdHash = locationUuid.Parts32[0],
                         .LocationUuid = locationUuid,
+                        .ChunkId = chunkId,
                     };
                     transaction->DeleteRow(locationReplicaKey);
                 }

@@ -284,7 +284,7 @@ private:
         sequoiaRequest.set_node_id(ToProto<ui32>(node->GetId()));
         for (const auto& replica : sequoiaReplicas) {
             TChunkRemoveInfo chunkRemoveInfo;
-            ToProto(chunkRemoveInfo.mutable_chunk_id(), replica.ChunkId);
+            ToProto(chunkRemoveInfo.mutable_chunk_id(), replica.Key.ChunkId);
             chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(location->GetUuid()));
 
             *sequoiaRequest.add_removed_chunks() = chunkRemoveInfo;

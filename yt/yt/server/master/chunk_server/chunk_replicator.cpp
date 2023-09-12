@@ -2608,7 +2608,7 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
 
     const auto& sequoiaReplicas = sequoiaReplicasOrError.ValueOrThrow();
     for (const auto& replica : sequoiaReplicas) {
-        auto* chunk = chunkManager->FindChunk(replica.ChunkId);
+        auto* chunk = chunkManager->FindChunk(replica.Key.ChunkId);
         if (IsObjectAlive(chunk)) {
             ScheduleChunkRefresh(chunk);
         }
