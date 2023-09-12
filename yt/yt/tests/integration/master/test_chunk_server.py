@@ -353,18 +353,16 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"b"})
 
     @authors("kvk1920")
+    @flaky(max_runs=3)
     def test_missing_requisition_update_yt17756(self):
         with pytest.raises(WaitFailed):
             self._reproduce_missing_requisition_update()
 
     @authors("kvk1920")
+    @flaky(max_runs=3)
     def test_fix_missing_requisition_update_yt17756(self):
-        path = "//sys/@config/chunk_manager/enable_fix_requisition_update_on_merge"
-        set(path, True)
-        try:
-            self._reproduce_missing_requisition_update()
-        finally:
-            set(path, False)
+        set("//sys/@config/chunk_manager/enable_fix_requisition_update_on_merge", True)
+        self._reproduce_missing_requisition_update()
 
     @authors("gritukan")
     def test_historically_non_vital(self):
