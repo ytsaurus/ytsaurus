@@ -268,6 +268,10 @@ private:
         mutationRequest.set_address(address);
         ToProto(mutationRequest.mutable_ids(), ids);
 
+        std::sort(
+            mutationRequest.mutable_ids()->pointer_begin(),
+            mutationRequest.mutable_ids()->pointer_end());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(mutationRequest);
     }
