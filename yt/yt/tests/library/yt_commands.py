@@ -2182,8 +2182,9 @@ def create_domestic_medium(name, **kwargs):
     try:
         return execute_command("create", kwargs)
     except YtResponseError as err:
-        if err.contains_text("Error parsing"):
-            kwargs["type"] = "medium"
+        if not err.contains_text("Error parsing"):
+            raise
+        kwargs["type"] = "medium"
         return execute_command("create", kwargs)
 
 
