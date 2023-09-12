@@ -654,7 +654,7 @@ class YTEnvSetup(object):
                         {"name": "node_id", "type": "uint32", "sort_order": "ascending"},
                         {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
                         {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
-                        {"name": "chunk_id", "type": "string"},
+                        {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
                         {"name": "replica_index", "type": "int32"},
                     ],
                     "tablet_cell_bundle": "sequoia",
