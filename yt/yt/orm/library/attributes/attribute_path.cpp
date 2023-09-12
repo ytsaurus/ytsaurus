@@ -32,7 +32,9 @@ void SkipCommonTokens(TTokenizer& lhs, TTokenizer& rhs)
 
 void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathTokenizer)
 {
-    while (patternTokenizer.Advance() != ETokenType::EndOfStream && pathTokenizer.Advance() != ETokenType::EndOfStream) {
+    while (patternTokenizer.Advance() != ETokenType::EndOfStream &&
+        pathTokenizer.Advance() != ETokenType::EndOfStream)
+    {
         patternTokenizer.Expect(ETokenType::Slash);
         pathTokenizer.Expect(ETokenType::Slash);
 
@@ -47,7 +49,9 @@ void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathT
         pathTokenizer.Advance();
         pathTokenizer.Expect(ETokenType::Literal);
 
-        if (patternToken != ETokenType::Asterisk && patternTokenizer.GetLiteralValue() != pathTokenizer.GetLiteralValue()) {
+        if (patternToken == ETokenType::Literal &&
+            patternTokenizer.GetLiteralValue() != pathTokenizer.GetLiteralValue())
+        {
             return;
         }
     }
@@ -72,8 +76,8 @@ bool AreAttributesRelated(const TYPath& lhs, const TYPath& rhs)
     TTokenizer lhsTokenizer(lhs);
     TTokenizer rhsTokenizer(rhs);
     SkipCommonTokens(lhsTokenizer, rhsTokenizer);
-    return lhsTokenizer.GetType() == ETokenType::EndOfStream
-        || rhsTokenizer.GetType() == ETokenType::EndOfStream;
+    return lhsTokenizer.GetType() == ETokenType::EndOfStream ||
+        rhsTokenizer.GetType() == ETokenType::EndOfStream;
 }
 
 EAttributePathMatchResult MatchAttributePathToPattern(const NYPath::TYPath& pattern, const NYPath::TYPath& path)

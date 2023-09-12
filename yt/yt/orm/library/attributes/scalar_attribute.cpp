@@ -673,10 +673,9 @@ public:
             HandleMap(message, field, path);
         } else if (field->is_repeated()) {
             message->GetReflection()->ClearField(message, field);
-            if (Value_->GetType() == ENodeType::Entity) {
-                return;
+            if (Value_->GetType() != ENodeType::Entity) {
+                AppendValues(message, field, path, Value_->AsList()->GetChildren());
             }
-            AppendValues(message, field, path, Value_->AsList()->GetChildren());
         } else {
             SetValue(message, field, path, Value_);
         }
