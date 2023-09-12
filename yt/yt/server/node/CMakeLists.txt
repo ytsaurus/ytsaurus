@@ -161,6 +161,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/gpu_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_environment.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_info.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_directory_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_gpu_checker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_controller.cpp

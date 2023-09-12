@@ -45,8 +45,7 @@ public:
     //! Finds the job by its id, throws if no job is found.
     virtual TJobPtr GetJobOrThrow(TJobId jobId) const = 0;
 
-    //! Returns the list of all currently known jobs.
-    virtual std::vector<TJobPtr> GetJobs() const = 0;
+    virtual void OnControllerAgentIncarnationOutdated(const THashSet<TControllerAgentDescriptor>& outdatedDescriptors) = 0;
 
     //! Finds the job that is held after it has been removed.
     virtual TJobPtr FindRecentlyRemovedJob(TJobId jobId) const = 0;
