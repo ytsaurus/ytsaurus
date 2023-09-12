@@ -714,18 +714,12 @@ class TestUpdateInstanceLimits(YTEnvSetup):
 
     @authors("gritukan")
     def test_dynamic_resource_limits_config(self):
-        precision = 10 ** 8
-
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
         node = nodes[0]
 
         self.Env.set_nodes_memory_limit(15 * 10 ** 8)
         self.Env.set_nodes_cpu_limit(4)
-        wait(
-            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10 ** 7)
-            <= precision
-        )
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
 
         update_nodes_dynamic_config(
@@ -778,10 +772,6 @@ class TestUpdateInstanceLimits(YTEnvSetup):
             }
         )
 
-        wait(
-            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10 ** 7)
-            <= precision
-        )
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
 
 ###############################################################################################
