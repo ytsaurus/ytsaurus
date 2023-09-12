@@ -952,12 +952,13 @@ std::vector<std::vector<IYtGraph::TOperationNodeId>> TYtGraphV2::GetOperationLev
 
             operationNodeLevels.emplace_back();
             operationNodeLevels.back().reserve(readyOperations.size());
-            readyTables.clear();
-            for (const auto* operation : readyOperations) {
-                operationNodeLevels.back().push_back(idMap[operation]);
-                for (const auto& item : operation->OutputTables) {
-                    readyTables.push_back(item.second);
-                }
+        }
+
+        readyTables.clear();
+        for (const auto* operation : readyOperations) {
+            operationNodeLevels.back().push_back(idMap[operation]);
+            for (const auto& item : operation->OutputTables) {
+                readyTables.push_back(item.second);
             }
         }
     }
