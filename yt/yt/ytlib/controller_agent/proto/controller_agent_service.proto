@@ -76,6 +76,7 @@ message TPoolTreeControllerSettings
     optional int32 main_resource = 4;
     optional bool probing = 5;
     optional bool offloading = 6;
+    optional bool allow_idle_cpu_policy = 7;
 }
 
 message TPoolTreeControllerSettingsMap
@@ -303,4 +304,3 @@ message TRspUpdateOperationRuntimeParameters
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-

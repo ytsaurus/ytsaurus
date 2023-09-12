@@ -1654,6 +1654,15 @@ const TOffloadingSettings& TSchedulerPoolElement::GetOffloadingSettings() const
     return Config_->OffloadingSettings;
 }
 
+bool TSchedulerPoolElement::CpuIdlePolicyIsAllowed() const
+{
+    if (Config_->AllowIdleCpuPolicy.has_value()) {
+        return *Config_->AllowIdleCpuPolicy;
+    }
+
+    return Parent_->CpuIdlePolicyIsAllowed();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
@@ -2218,6 +2227,15 @@ void TSchedulerOperationElement::CollectResourceTreeOperationElements(std::vecto
     elements->push_back(ResourceTreeElement_);
 }
 
+bool TSchedulerOperationElement::CpuIdlePolicyIsAllowed() const
+{
+    if (Spec_->AllowIdleCpuPolicy.has_value()) {
+        return *Spec_->AllowIdleCpuPolicy;
+    }
+
+    return GetParent()->CpuIdlePolicyIsAllowed();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerRootElement::TSchedulerRootElement(
@@ -2537,6 +2555,12 @@ const TOffloadingSettings& TSchedulerRootElement::GetOffloadingSettings() const
 {
     return EmptyOffloadingSettings;
 }
+
+bool TSchedulerRootElement::CpuIdlePolicyIsAllowed() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

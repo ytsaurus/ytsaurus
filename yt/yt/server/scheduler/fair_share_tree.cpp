@@ -395,7 +395,7 @@ public:
         return OperationIdToElement_.size();
     }
 
-    void RegisterOperation(
+    TRegistrationInTreeResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
@@ -440,6 +440,10 @@ public:
             operationId,
             poolName.ToString(),
             isRunningInPool);
+
+        return TRegistrationInTreeResult {
+            .AllowIdleCpuPolicy = operationElement->CpuIdlePolicyIsAllowed()
+        };
     }
 
     void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) override
