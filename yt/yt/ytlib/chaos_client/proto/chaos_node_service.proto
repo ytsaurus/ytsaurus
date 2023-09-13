@@ -130,6 +130,7 @@ message TReqUpdateTableReplicaProgress
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
     required NYT.NProto.TGuid replica_id = 2; // NChaosClient::TReplicaId
     required TReplicationProgress replication_progress = 3;
+    optional bool force = 4 [default = false];
 }
 
 message TRspUpdateTableReplicaProgress
