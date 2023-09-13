@@ -241,6 +241,14 @@ void TParameterizedReassignSolver::Initialize()
             cellInfo->Metric);
     }
 
+    if (Bundle_->Config->EnableVerboseLogging) {
+        for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
+            YT_LOG_DEBUG("Calculated node metric (NodeAddress: %v, NodeMetric: %v)",
+                nodeAddress,
+                nodeInfo.Metric);
+        }
+    }
+
     CurrentMetric_ = CalculateTotalBundleMetric();
     YT_VERIFY(CurrentMetric_ >= 0.);
 
