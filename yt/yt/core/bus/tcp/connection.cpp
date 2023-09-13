@@ -3,6 +3,8 @@
 #include "config.h"
 #include "server.h"
 #include "dispatcher_impl.h"
+#include "ssl_context.h"
+#include "ssl_helpers.h"
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -21,10 +23,14 @@
 
 #include <util/system/error.h>
 #include <util/system/guard.h>
+#include <util/system/hostname.h>
 
 #ifdef __linux__
 #include <netinet/tcp.h>
 #endif
+
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include <cerrno>
 
@@ -43,13 +49,13 @@ static constexpr size_t ReadBufferSize = 16_KB;
 static constexpr size_t MaxBatchReadSize = 64_KB;
 static constexpr auto ReadTimeWarningThreshold = TDuration::MilliSeconds(100);
 
-static constexpr size_t MaxFragmentsPerWrite = 256;
 static constexpr size_t WriteBufferSize = 16_KB;
 static constexpr size_t MaxBatchWriteSize = 64_KB;
 static constexpr size_t MaxWriteCoalesceSize = 1_KB;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
 
 static constexpr auto HandshakePacketId = TPacketId(1, 0, 0, 0);
+static constexpr auto SslAckPacketId = TPacketId(2, 0, 0, 0);
 
 static constexpr i64 PendingOutBytesFlushThreshold = 1_MBs;
 
@@ -113,9 +119,11 @@ TTcpConnection::TTcpConnection(
     , UnixDomainSocketPath_(unixDomainSocketPath)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
-    , Logger(BusLogger.WithTag("ConnectionId: %v, RemoteAddress: %v",
+    , Logger(BusLogger.WithTag("ConnectionId: %v, ConnectionType: %v, RemoteAddress: %v, EncryptionMode: %v",
         Id_,
-        EndpointDescription_))
+        ConnectionType_,
+        EndpointDescription_,
+        Config_->EncryptionMode))
     , LoggingTag_(Format("ConnectionId: %v", Id_))
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
@@ -125,6 +133,8 @@ TTcpConnection::TTcpConnection(
     , Encoder_(packetTranscoderFactory->CreateEncoder(Logger))
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
     , SupportsHandshakes_(packetTranscoderFactory->SupportsHandshakes())
+    , EncryptionMode_(Config_->EncryptionMode)
+    , VerificationMode_(Config_->VerificationMode)
 { }
 
 TTcpConnection::~TTcpConnection()
@@ -134,6 +144,8 @@ TTcpConnection::~TTcpConnection()
 
 void TTcpConnection::Close()
 {
+    CloseSslSession(ESslState::Closed);
+
     {
         auto guard = Guard(Lock_);
 
@@ -182,6 +194,8 @@ void TTcpConnection::Close()
 
 void TTcpConnection::Start()
 {
+    YT_LOG_DEBUG("Starting TCP connection (SupportsHandshakes: %v)", SupportsHandshakes_);
+
     // Offline in PendingControl_ prevents retrying events until end of Open().
     YT_VERIFY(Any(static_cast<EPollControl>(PendingControl_.load()) & EPollControl::Offline));
 
@@ -211,7 +225,11 @@ void TTcpConnection::Start()
             SetupNetwork(EndpointNetworkAddress_);
             Open();
             guard.Release();
-            ReadyPromise_.TrySet();
+
+            if (!SupportsHandshakes_) {
+                // Set the connection ready on the server side.
+                ReadyPromise_.TrySet();
+            }
             break;
         }
 
@@ -266,9 +284,13 @@ const TString& TTcpConnection::GetLoggingTag() const
     return LoggingTag_;
 }
 
-void TTcpConnection::EnqueueHandshake()
+void TTcpConnection::TryEnqueueHandshake()
 {
     if (!SupportsHandshakes_) {
+        return;
+    }
+
+    if (std::exchange(HandshakeEnqueued_, true)) {
         return;
     }
 
@@ -277,6 +299,7 @@ void TTcpConnection::EnqueueHandshake()
     if (ConnectionType_ == EConnectionType::Client) {
         handshake.set_multiplexing_band(ToProto<int>(MultiplexingBand_.load()));
     }
+    handshake.set_encryption_mode(static_cast<int>(EncryptionMode_));
 
     auto message = MakeHandshakeMessage(handshake);
     auto messageSize = GetByteSize(message);
@@ -382,7 +405,7 @@ void TTcpConnection::Open()
 {
     State_ = EState::Open;
 
-    YT_LOG_DEBUG("Connection established (LocalPort: %v)", GetSocketPort());
+    YT_LOG_DEBUG("TCP connection has been established (LocalPort: %v)", GetSocketPort());
 
     if (LastIncompleteWriteTime_ != std::numeric_limits<NProfiling::TCpuInstant>::max()) {
         // Rewind stall detection if already armed by pending send
@@ -413,6 +436,13 @@ void TTcpConnection::ResolveAddress()
         }
 
         NetworkName_ = LocalNetworkName;
+        try {
+            EndpointHostName_ = FQDNHostName();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to resolve local host name");
+            EndpointHostName_ = "localhost";
+        }
+
         // NB(gritukan): Unix domain socket path cannot be longer than 108 symbols, so let's try to shorten it.
         OnAddressResolved(
             TNetworkAddress::CreateUnixDomainSocketAddress(GetShortestPath(*UnixDomainSocketPath_)));
@@ -424,6 +454,8 @@ void TTcpConnection::ResolveAddress()
             Abort(TError(ex).SetCode(NBus::EErrorCode::TransportError));
             return;
         }
+
+        EndpointHostName_ = hostName;
 
         TAddressResolver::Get()->Resolve(TString(hostName)).Subscribe(
             BIND(&TTcpConnection::OnAddressResolveFinished, MakeStrong(this))
@@ -456,7 +488,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& address)
 void TTcpConnection::SetupNetwork(const TNetworkAddress& address)
 {
     NetworkName_ = TTcpDispatcher::TImpl::Get()->GetNetworkNameForAddress(address);
-    NetworkCounters_ = TTcpDispatcher::TImpl::Get()->GetCounters(NetworkName_);
+    NetworkCounters_ = TTcpDispatcher::TImpl::Get()->GetCounters(NetworkName_, IsEncrypted());
 
     // Suppress checksum generation for local traffic.
     if (NetworkName_ == LocalNetworkName) {
@@ -466,6 +498,8 @@ void TTcpConnection::SetupNetwork(const TNetworkAddress& address)
 
 void TTcpConnection::Abort(const TError& error)
 {
+    AbortSslSession();
+
     // Fast path.
     if (State_ == EState::Aborted || State_ == EState::Closed) {
         return;
@@ -510,6 +544,9 @@ bool TTcpConnection::AbortIfNetworkingDisabled()
     if (!TTcpDispatcher::Get()->IsNetworkingDisabled()) {
         return false;
     }
+
+    YT_LOG_DEBUG("Aborting connection since networking is disabled");
+
     Abort(TError(NBus::EErrorCode::TransportError, "Networking is disabled"));
     return true;
 }
@@ -558,6 +595,8 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 
 void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
 {
+    YT_LOG_DEBUG("Dialer finished");
+
     DialerSession_.Reset();
 
     if (!socketOrError.IsOK()) {
@@ -586,7 +625,10 @@ void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
         Open();
     }
 
-    ReadyPromise_.TrySet();
+    if (!SupportsHandshakes_) {
+        // Set the connection ready on the client side.
+        ReadyPromise_.TrySet();
+    }
 }
 
 const TString& TTcpConnection::GetEndpointDescription() const
@@ -617,6 +659,11 @@ const TNetworkAddress& TTcpConnection::GetEndpointNetworkAddress() const
 bool TTcpConnection::IsEndpointLocal() const
 {
     return false;
+}
+
+bool TTcpConnection::IsEncrypted() const
+{
+    return SslState_ != ESslState::None;
 }
 
 TBusNetworkStatistics TTcpConnection::GetNetworkStatistics() const
@@ -806,6 +853,11 @@ void TTcpConnection::OnEvent(EPollControl control)
 
     YT_LOG_TRACE("Event processing started");
 
+    // Proceed with pending ssl handshake prior to reads or writes.
+    if (PendingSslHandshake_) {
+        PendingSslHandshake_ = DoSslHandshake();
+    }
+
     // NB: Try to read from the socket before writing into it to avoid
     // getting SIGPIPE when the other party closes the connection.
     if (Any(action & EPollControl::Read)) {
@@ -813,8 +865,9 @@ void TTcpConnection::OnEvent(EPollControl control)
     }
 
     if (State_ == EState::Open) {
-        if (!std::exchange(HandshakeEnqueued_, true)) {
-            EnqueueHandshake();
+        if (ConnectionType_ == EConnectionType::Client) {
+            // Client initiates a handshake.
+            TryEnqueueHandshake();
         }
         ProcessQueuedMessages();
         OnSocketWrite();
@@ -859,6 +912,8 @@ void TTcpConnection::OnSocketRead()
 {
     YT_LOG_TRACE("Started serving read request");
 
+    bool readOnlySslAckPacket = RemainingSslAckPacketBytes_ > 0;
+
     size_t bytesReadTotal = 0;
     while (true) {
         // Check if the decoder is expecting a chunk of large enough size.
@@ -868,26 +923,47 @@ void TTcpConnection::OnSocketRead()
         if (decoderChunkSize >= ReadBufferSize) {
             // Read directly into the decoder buffer.
             size_t bytesToRead = std::min(decoderChunkSize, MaxBatchReadSize);
+
+            if (RemainingSslAckPacketBytes_ > 0) {
+                bytesToRead = std::min(bytesToRead, RemainingSslAckPacketBytes_);
+            }
+
             YT_LOG_TRACE("Reading from socket into decoder (BytesToRead: %v)",bytesToRead);
 
             size_t bytesRead;
             if (!ReadSocket(decoderChunk.Begin(), bytesToRead, &bytesRead)) {
                 break;
             }
+
             bytesReadTotal += bytesRead;
+
+            if (RemainingSslAckPacketBytes_ > 0) {
+                RemainingSslAckPacketBytes_ -= bytesRead;
+            }
 
             if (!AdvanceDecoder(bytesRead)) {
                 return;
             }
         } else {
             // Read a chunk into the read buffer.
-            YT_LOG_TRACE("Reading from socket into buffer (BytesToRead: %v)", ReadBuffer_.Size());
+            size_t bytesToRead = ReadBuffer_.Size();
+
+            if (RemainingSslAckPacketBytes_ > 0) {
+                bytesToRead = std::min(bytesToRead, RemainingSslAckPacketBytes_);
+            }
+
+            YT_LOG_TRACE("Reading from socket into buffer (BytesToRead: %v)", bytesToRead);
 
             size_t bytesRead;
-            if (!ReadSocket(ReadBuffer_.Begin(), ReadBuffer_.Size(), &bytesRead)) {
+            if (!ReadSocket(ReadBuffer_.Begin(), bytesToRead, &bytesRead)) {
                 break;
             }
+
             bytesReadTotal += bytesRead;
+
+            if (RemainingSslAckPacketBytes_ > 0) {
+                RemainingSslAckPacketBytes_ -= bytesRead;
+            }
 
             // Feed the read buffer to the decoder.
             const char* recvBegin = ReadBuffer_.Begin();
@@ -909,6 +985,10 @@ void TTcpConnection::OnSocketRead()
             }
             YT_LOG_TRACE("Buffer exhausted");
         }
+
+        if (readOnlySslAckPacket && RemainingSslAckPacketBytes_ == 0) {
+            break;
+        }
     }
 
     LastIncompleteReadTime_ = HasUnreadData()
@@ -924,10 +1004,31 @@ bool TTcpConnection::HasUnreadData() const
     return Decoder_->IsInProgress();
 }
 
+ssize_t TTcpConnection::DoReadSocket(char* buffer, size_t size)
+{
+    switch (SslState_) {
+        case ESslState::None:
+            return HandleEintr(recv, Socket_, buffer, size, 0);
+        case ESslState::Established: {
+            auto result = SSL_read(Ssl_.get(), buffer, size);
+            if (PendingSslHandshake_ && result > 0) {
+                YT_LOG_DEBUG("TLS/SSL connection has been established by SSL_read (VerificationMode: %v)", VerificationMode_);
+                PendingSslHandshake_ = false;
+                ReadyPromise_.TrySet();
+            }
+            return result;
+        }
+        default:
+            break;
+    }
+
+    return 0;
+}
+
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
     NProfiling::TWallTimer timer;
-    auto result = HandleEintr(recv, Socket_, buffer, size, 0);
+    auto result = DoReadSocket(buffer, size);
     auto elapsed = timer.GetElapsedTime();
     if (elapsed > ReadTimeWarningThreshold) {
         YT_LOG_DEBUG("Socket read took too long (Elapsed: %v)",
@@ -953,7 +1054,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     return true;
 }
 
-bool TTcpConnection::CheckReadError(ssize_t result)
+bool TTcpConnection::CheckTcpReadError(ssize_t result)
 {
     if (result == 0) {
         Abort(TError(NBus::EErrorCode::TransportError, "Socket was closed"));
@@ -971,6 +1072,15 @@ bool TTcpConnection::CheckReadError(ssize_t result)
     }
 
     return true;
+}
+
+bool TTcpConnection::CheckReadError(ssize_t result)
+{
+    if (SslState_ == ESslState::None) {
+        return CheckTcpReadError(result);
+    }
+
+    return CheckSslReadError(result);
 }
 
 bool TTcpConnection::AdvanceDecoder(size_t size)
@@ -996,6 +1106,8 @@ bool TTcpConnection::OnPacketReceived() noexcept
     switch (Decoder_->GetPacketType()) {
         case EPacketType::Ack:
             return OnAckPacketReceived();
+        case EPacketType::SslAck:
+            return OnSslAckPacketReceived();
         case EPacketType::Message:
             return OnMessagePacketReceived();
         default:
@@ -1004,6 +1116,8 @@ bool TTcpConnection::OnPacketReceived() noexcept
                 Decoder_->GetPacketType());
             break;
     }
+
+    return false;
 }
 
 bool TTcpConnection::OnAckPacketReceived()
@@ -1059,6 +1173,8 @@ bool TTcpConnection::OnMessagePacketReceived()
 
 bool TTcpConnection::OnHandshakePacketReceived()
 {
+    YT_LOG_DEBUG("Handshake received");
+
     auto optionalHandshake = TryParseHandshakeMessage(Decoder_->GrabMessage());
     if (!optionalHandshake) {
         return false;
@@ -1069,15 +1185,45 @@ bool TTcpConnection::OnHandshakePacketReceived()
         ? std::make_optional(FromProto<EMultiplexingBand>(handshake.multiplexing_band()))
         : std::nullopt;
 
-    YT_LOG_DEBUG("Handshake received (ForeignConnectionId: %v, MultiplexingBand: %v)",
+    YT_LOG_DEBUG("Handshake received (ForeignConnectionId: %v, MultiplexingBand: %v, ForeignEncryptionMode: %v)",
         FromProto<TConnectionId>(handshake.foreign_connection_id()),
-        optionalMultiplexingBand);
+        optionalMultiplexingBand,
+        static_cast<EEncryptionMode>(handshake.encryption_mode()));
 
     if (ConnectionType_ == EConnectionType::Server && optionalMultiplexingBand) {
         auto guard = Guard(Lock_);
         UpdateConnectionCount(-1);
         MultiplexingBand_.store(*optionalMultiplexingBand);
         UpdateConnectionCount(+1);
+    }
+
+    HandshakeReceived_ = true;
+
+    if (ConnectionType_ == EConnectionType::Server) {
+        // Server responds to client's handshake.
+        TryEnqueueHandshake();
+    }
+
+    auto otherEncryptionMode = handshake.has_encryption_mode() ? static_cast<EEncryptionMode>(handshake.encryption_mode()) : EEncryptionMode::Disabled;
+
+    if (EncryptionMode_ == EEncryptionMode::Required || otherEncryptionMode == EEncryptionMode::Required) {
+        if (EncryptionMode_ == EEncryptionMode::Disabled || otherEncryptionMode == EEncryptionMode::Disabled) {
+            Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL client/server encryption mode compatibility error")
+                << TErrorAttribute("mode", EncryptionMode_)
+                << TErrorAttribute("other_mode", otherEncryptionMode));
+        } else {
+            EstablishSslSession_ = true;
+            // Expect ssl ack from the other side.
+            RemainingSslAckPacketBytes_ = GetSslAckPacketSize();
+            if (ConnectionType_ == EConnectionType::Client) {
+                // Client initiates ssl ack.
+                TryEnqueueSslAck();
+            }
+
+            // ReadyPromise_ is set either after successful establishment of ssl session or in Abort().
+        }
+    } else {
+        ReadyPromise_.TrySet();
     }
 
     return true;
@@ -1147,6 +1293,32 @@ bool TTcpConnection::HasUnsentData() const
     return !EncodedFragments_.empty() || !QueuedPackets_.empty() || !EncodedPackets_.empty();
 }
 
+ssize_t TTcpConnection::DoWriteFragments(const std::vector<struct iovec>& vec)
+{
+    if (vec.empty()) {
+        return 0;
+    }
+
+    switch (SslState_) {
+        case ESslState::None:
+            return HandleEintr(::writev, Socket_, vec.data(), vec.size());
+        case ESslState::Established: {
+            YT_ASSERT(vec.size() == 1);
+            auto result = SSL_write(Ssl_.get(), vec[0].iov_base, vec[0].iov_len);
+            if (PendingSslHandshake_ && result > 0) {
+                YT_LOG_DEBUG("TLS/SSL connection has been established by SSL_write (VerificationMode: %v)", VerificationMode_);
+                PendingSslHandshake_ = false;
+                ReadyPromise_.TrySet();
+            }
+            return result;
+        }
+        default:
+            break;
+    }
+
+    return 0;
+}
+
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 {
     YT_LOG_TRACE("Writing fragments (EncodedFragments: %v)", EncodedFragments_.size());
@@ -1172,7 +1344,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     }
 
     NProfiling::TWallTimer timer;
-    auto result = HandleEintr(::writev, Socket_, SendVector_.data(), SendVector_.size());
+    auto result = DoWriteFragments(SendVector_);
     auto elapsed = timer.GetElapsedTime();
     if (elapsed > WriteTimeWarningThreshold) {
         YT_LOG_DEBUG("Socket write took too long (Elapsed: %v)",
@@ -1332,7 +1504,7 @@ bool TTcpConnection::MaybeEncodeFragments()
     return true;
 }
 
-bool TTcpConnection::CheckWriteError(ssize_t result)
+bool TTcpConnection::CheckTcpWriteError(ssize_t result)
 {
     if (result < 0) {
         int error = LastSystemError();
@@ -1347,12 +1519,25 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
     return true;
 }
 
+bool TTcpConnection::CheckWriteError(ssize_t result)
+{
+    if (SslState_ == ESslState::None) {
+        return CheckTcpWriteError(result);
+    }
+
+    return CheckSslWriteError(result);
+}
+
 void TTcpConnection::OnPacketSent()
 {
     const auto& packet = EncodedPackets_.front();
     switch (packet->Type) {
         case EPacketType::Ack:
             OnAckPacketSent(*packet);
+            break;
+
+        case EPacketType::SslAck:
+            OnSslAckPacketSent();
             break;
 
         case EPacketType::Message:
@@ -1398,6 +1583,8 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
 void TTcpConnection::OnHandshakePacketSent()
 {
     YT_LOG_DEBUG("Handshake sent");
+
+    HandshakeSent_ = true;
 }
 
 void TTcpConnection::OnTerminate()
@@ -1587,6 +1774,299 @@ void TTcpConnection::FlushBusStatistics()
         ITERATE_BUS_NETWORK_STATISTICS_FIELDS(XX)
 #undef XX
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTcpConnection::AbortSslSession()
+{
+    CloseSslSession(ESslState::Aborted);
+}
+
+bool TTcpConnection::CheckSslReadError(ssize_t result)
+{
+    switch (SSL_get_error(Ssl_.get(), result)) {
+        case SSL_ERROR_NONE:
+            return true;
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
+            // Try again.
+            break;
+        case SSL_ERROR_SYSCALL:
+        case SSL_ERROR_SSL:
+            // This check is probably unnecessary in new versions of openssl.
+            if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN) {
+                break;
+            }
+            SslState_ = ESslState::Error;
+            [[fallthrough]];
+        default:
+            UpdateBusCounter(&TBusNetworkBandCounters::ReadErrors, 1);
+            Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL read error")
+                << TErrorAttribute("ssl_error", GetLastSslErrorString())
+                << TErrorAttribute("sys_error", TError::FromSystem(LastSystemError())));
+            break;
+    }
+
+    return false;
+}
+
+bool TTcpConnection::CheckSslWriteError(ssize_t result)
+{
+    switch (SSL_get_error(Ssl_.get(), result)) {
+        case SSL_ERROR_NONE:
+            return true;
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
+            // Try again.
+            break;
+        case SSL_ERROR_SYSCALL:
+        case SSL_ERROR_SSL:
+            // This check is probably unnecessary in new versions of openssl.
+            if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN) {
+                break;
+            }
+            SslState_ = ESslState::Error;
+            [[fallthrough]];
+        default:
+            UpdateBusCounter(&TBusNetworkBandCounters::WriteErrors, 1);
+            Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL write error")
+                << TErrorAttribute("ssl_error", GetLastSslErrorString())
+                << TErrorAttribute("sys_error", TError::FromSystem(LastSystemError())));
+            break;
+    }
+
+    return false;
+}
+
+void TTcpConnection::CloseSslSession(ESslState newSslState)
+{
+    switch (SslState_) {
+        case ESslState::None:
+        case ESslState::Aborted:
+        case ESslState::Closed:
+            // Nothing to do.
+            return;
+        case ESslState::Established:
+            SSL_shutdown(Ssl_.get());
+            break;
+        case ESslState::Error:
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    SslState_ = newSslState;
+}
+
+bool TTcpConnection::DoSslHandshake()
+{
+    auto result = SSL_do_handshake(Ssl_.get());
+    switch (SSL_get_error(Ssl_.get(), result)) {
+        case SSL_ERROR_NONE:
+            YT_LOG_DEBUG("TLS/SSL connection has been established by SSL_do_handshake (VerificationMode %v)", VerificationMode_);
+            MaxFragmentsPerWrite = 1;
+            SslState_ = ESslState::Established;
+            ReadyPromise_.TrySet();
+            return false;
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
+            MaxFragmentsPerWrite = 1;
+            SslState_ = ESslState::Established;
+            // Ssl session establishment will be finished by the following SSL_do_handshake()/SSL_read()/SSL_write() calls.
+            // Since SSL handshake is pending, don't set the ReadyPromise_ yet.
+            return true;
+        case SSL_ERROR_ZERO_RETURN:
+            // The TLS/SSL peer has closed the TLS/SSL session.
+            break;
+        case SSL_ERROR_SYSCALL:
+        case SSL_ERROR_SSL:
+            SslState_ = ESslState::Error;
+            break;
+        default:
+            // Use default handler for other error types.
+            break;
+    }
+
+    Abort(TError(NBus::EErrorCode::SslError, "Failed to establish TLS/SSL session")
+        << TErrorAttribute("ssl_error", GetLastSslErrorString())
+        << TErrorAttribute("sys_error", TError::FromSystem(LastSystemError())));
+    return false;
+}
+
+size_t TTcpConnection::GetSslAckPacketSize()
+{
+    return Encoder_->GetPacketSize(EPacketType::SslAck, {}, 0);
+}
+
+void TTcpConnection::TryEnqueueSslAck()
+{
+    if (!HandshakeSent_ || !HandshakeReceived_ || !EstablishSslSession_) {
+        return;
+    }
+
+    if (std::exchange(SslAckEnqueued_, true)) {
+        return;
+    }
+
+    EnqueuePacket(
+        // COMPAT(babenko)
+        EPacketType::SslAck,
+        EPacketFlags::None,
+        0,
+        SslAckPacketId);
+
+    YT_LOG_DEBUG("TLS/SSL acknowledgement enqueued");
+}
+
+void TTcpConnection::TryEstablishSslSession()
+{
+    if (!SslAckReceived_ || !SslAckSent_ || Ssl_) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Starting TLS/SSL connection (VerificationMode: %v)", VerificationMode_);
+
+    if (Config_->LoadCertsFromBusCertsDirectory && !TTcpDispatcher::TImpl::Get()->GetBusCertsDirectoryPath()) {
+        Abort(TError(NBus::EErrorCode::SslError, "bus_certs_directory_path is not set in tcp_dispatcher config"));
+        return;
+    }
+
+    Ssl_.reset(SSL_new(TSslContext::Get()->GetSslCtx()));
+    if (!Ssl_) {
+        Abort(TError(NBus::EErrorCode::SslError, "Failed to create a new SSL structure: %v", GetLastSslErrorString()));
+        return;
+    }
+
+    if (SSL_set_fd(Ssl_.get(), Socket_) != 1) {
+        Abort(TError(NBus::EErrorCode::SslError, "Failed to bind socket to SSL handle: %v", GetLastSslErrorString()));
+        return;
+    }
+
+    if (Config_->CipherList) {
+        if (SSL_set_cipher_list(Ssl_.get(), Config_->CipherList->data()) != 1) {
+            Abort(TError(NBus::EErrorCode::SslError, "Failed to set cipher list: %v", GetLastSslErrorString()));
+            return;
+        }
+    }
+
+#define GET_CERT_FILE_PATH(file)    \
+    (Config_->LoadCertsFromBusCertsDirectory ? JoinPaths(*TTcpDispatcher::TImpl::Get()->GetBusCertsDirectoryPath(), (file)) : (file))
+
+    if (ConnectionType_ == EConnectionType::Server) {
+        SSL_set_accept_state(Ssl_.get());
+
+        if (!Config_->CertificateChain) {
+            Abort(TError(NBus::EErrorCode::SslError, "Certificate chain file is not set in bus config"));
+            return;
+        }
+
+        if (Config_->CertificateChain->FileName) {
+            const auto& certChainFile = GET_CERT_FILE_PATH(*Config_->CertificateChain->FileName);
+            if (SSL_use_certificate_chain_file(Ssl_.get(), certChainFile.data()) != 1) {
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to load certificate chain file: %v", GetLastSslErrorString()));
+                return;
+            }
+        } else {
+            if (!UseCertificateChain(*Config_->CertificateChain->Value, Ssl_.get())) {
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to load certificate chain: %v", GetLastSslErrorString()));
+                return;
+            }
+        }
+
+        if (!Config_->PrivateKey) {
+            Abort(TError(NBus::EErrorCode::SslError, "The private key file is not set in bus config"));
+            return;
+        }
+
+        if (Config_->PrivateKey->FileName) {
+            const auto& privateKeyFile = GET_CERT_FILE_PATH(*Config_->PrivateKey->FileName);
+            if (SSL_use_RSAPrivateKey_file(Ssl_.get(), privateKeyFile.data(), SSL_FILETYPE_PEM) != 1) {
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to load private key file: %v", GetLastSslErrorString()));
+                return;
+            }
+        } else {
+            if (!UsePrivateKey(*Config_->PrivateKey->Value, Ssl_.get())) {
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to load private key: %v", GetLastSslErrorString()));
+                return;
+            }
+        }
+
+        if (SSL_check_private_key(Ssl_.get()) != 1) {
+            Abort(TError(NBus::EErrorCode::SslError, "Failed to check the consistency of a private key with the corresponding certificate: %v", GetLastSslErrorString()));
+            return;
+        }
+    } else {
+        SSL_set_connect_state(Ssl_.get());
+    }
+
+    switch (VerificationMode_) {
+        case EVerificationMode::Full:
+            // Set the hostname for the peer certificate verification.
+            if (SSL_set1_host(Ssl_.get(), EndpointHostName_.data()) != 1) {
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to set hostname %v for the peer certificate verification", EndpointHostName_));
+                return;
+            }
+            [[fallthrough]];
+        case EVerificationMode::Ca: {
+            if (!Config_->CA) {
+                Abort(TError(NBus::EErrorCode::SslError, "CA file is not set in bus config"));
+                return;
+            }
+
+            if (Config_->CA->FileName) {
+                const auto& caFile = GET_CERT_FILE_PATH(*Config_->CA->FileName);
+                TSslContext::Get()->LoadCAFileIfNotLoaded(caFile);
+            } else {
+                TSslContext::Get()->UseCAIfNotUsed(*Config_->CA->Value);
+            }
+
+            // Enable verification of the peer's certificate with the CA.
+            SSL_set_verify(Ssl_.get(), SSL_VERIFY_PEER, /* callback */ nullptr);
+            break;
+        }
+        case EVerificationMode::None:
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    PendingSslHandshake_ = DoSslHandshake();
+
+    // Check that connection hasn't been aborted in DoSslHandshake().
+    if (State_ == EState::Open) {
+        UpdateConnectionCount(-1);
+        FlushBusStatistics();
+        NetworkCounters_.Exchange(TTcpDispatcher::TImpl::Get()->GetCounters(NetworkName_, IsEncrypted()));
+        UpdateConnectionCount(1);
+    }
+
+#undef GET_CERT_FILE_PATH
+}
+
+bool TTcpConnection::OnSslAckPacketReceived()
+{
+    YT_LOG_DEBUG("TLS/SSL acknowledgement received");
+
+    SslAckReceived_ = true;
+
+    if (ConnectionType_ == EConnectionType::Server) {
+        // Server responds to client's ssl ack.
+        TryEnqueueSslAck();
+    }
+
+    TryEstablishSslSession();
+
+    return true;
+}
+
+void TTcpConnection::OnSslAckPacketSent()
+{
+    YT_LOG_DEBUG("TLS/SSL acknowledgement sent");
+
+    SslAckSent_ = true;
+
+    TryEstablishSslSession();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

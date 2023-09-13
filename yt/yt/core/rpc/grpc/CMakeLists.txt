@@ -32,7 +32,6 @@ target_link_libraries(core-rpc-grpc PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  yt-core-crypto
   contrib-libs-grpc
   contrib-libs-protobuf
 )

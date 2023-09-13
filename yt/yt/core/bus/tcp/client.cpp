@@ -81,6 +81,12 @@ public:
         return Connection_->IsEndpointLocal();
     }
 
+    bool IsEncrypted() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->IsEncrypted();
+    }
+
     TBusNetworkStatistics GetNetworkStatistics() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -148,6 +154,8 @@ public:
         EndpointAttributes_ = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("address").Value(EndpointDescription_)
+                .Item("encryption_mode").Value(Config_->EncryptionMode)
+                .Item("verification_mode").Value(Config_->VerificationMode)
             .EndMap());
     }
 
@@ -167,10 +175,11 @@ public:
 
         auto id = TConnectionId::Create();
 
-        YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v, MultiplexingBand: %v)",
+        YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v, MultiplexingBand: %v, EncryptionMode: %v)",
             EndpointDescription_,
             id,
-            options.MultiplexingBand);
+            options.MultiplexingBand,
+            Config_->EncryptionMode);
 
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()

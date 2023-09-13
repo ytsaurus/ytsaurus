@@ -97,6 +97,9 @@ struct IBus
     //! Returns true if the bus' endpoint belongs to our process.
     virtual bool IsEndpointLocal() const = 0;
 
+    //! Returns true if the bus' communication is encrypted.
+    virtual bool IsEncrypted() const = 0;
+
     //! Returns a future indicating the moment when the bus is actually ready to send messages.
     /*!
      *  Some bus implementaions are not immediately ready upon creation. E.g. a client socket

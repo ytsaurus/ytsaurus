@@ -105,6 +105,11 @@ public:
         return false;
     }
 
+    bool IsEncrypted() const override
+    {
+        return false;
+    }
+
     TBusNetworkStatistics GetNetworkStatistics() const override
     {
         return {};

@@ -17,7 +17,6 @@ target_link_libraries(yt-core-https PUBLIC
   yutil
   yt-yt-core
   yt-core-http
-  yt-core-crypto
   core-rpc-grpc
   cpp-http-io
 )

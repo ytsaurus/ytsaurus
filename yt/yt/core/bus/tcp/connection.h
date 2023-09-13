@@ -2,6 +2,7 @@
 
 #include "packet.h"
 #include "dispatcher_impl.h"
+#include "ssl_helpers.h"
 
 #include <yt/yt/core/bus/private.h>
 #include <yt/yt/core/bus/bus.h>
@@ -27,6 +28,8 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/network/init.h>
+
+#include <openssl/ssl.h>
 
 #ifdef _win_
 #include <winsock2.h>
@@ -55,6 +58,14 @@ DEFINE_ENUM(EPacketState,
     (Queued)
     (Encoded)
     (Canceled)
+);
+
+DEFINE_ENUM(ESslSessionState,
+    (None)
+    (Established)
+    (Error)
+    (Closed)
+    (Aborted)
 );
 
 class TTcpConnection
@@ -97,6 +108,7 @@ public:
     const TString& GetEndpointAddress() const override;
     const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override;
     bool IsEndpointLocal() const override;
+    bool IsEncrypted() const override;
     TBusNetworkStatistics GetNetworkStatistics() const override;
     TFuture<void> GetReadyFuture() const override;
     TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
@@ -107,6 +119,8 @@ public:
 
 private:
     using EState = ETcpConnectionState;
+
+    using ESslState = ESslSessionState;
 
     struct TQueuedMessage
     {
@@ -187,6 +201,8 @@ private:
     const TPromise<void> ReadyPromise_ = NewPromise<void>();
 
     TString NetworkName_;
+    // Endpoint host name is used for peer's certificate verification.
+    TString EndpointHostName_;
 
     TBusNetworkCounters BusCounters_;
     TBusNetworkCounters BusCountersDelta_;
@@ -242,12 +258,33 @@ private:
 
     bool SupportsHandshakes_ = false;
     bool HandshakeEnqueued_ = false;
+    bool HandshakeReceived_ = false;
+    bool HandshakeSent_ = false;
+
+    // How many bytes of SSL ACK packet remains to be read.
+    size_t RemainingSslAckPacketBytes_ = 0;
+    // TLS/SSL connection needs to be set up.
+    bool EstablishSslSession_ = false;
+    // TLS/SSL handshake has been started but hasn't been completed yet.
+    bool PendingSslHandshake_ = false;
+    bool SslAckEnqueued_ = false;
+    bool SslAckReceived_ = false;
+    bool SslAckSent_ = false;
+    std::unique_ptr<SSL, TDeleter> Ssl_;
+    std::atomic<ESslState> SslState_ = ESslState::None;
+
+    const EEncryptionMode EncryptionMode_;
+    const EVerificationMode VerificationMode_;
+
+    size_t MaxFragmentsPerWrite = 256;
 
     void Open();
     void Close();
+    void CloseSslSession(ESslState newSslState);
 
     void Abort(const TError& error);
     bool AbortIfNetworkingDisabled();
+    void AbortSslSession();
 
     void InitBuffers();
 
@@ -278,6 +315,7 @@ private:
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
     bool OnHandshakePacketReceived();
+    bool OnSslAckPacketReceived();
 
     TPacket* EnqueuePacket(
         EPacketType type,
@@ -298,12 +336,14 @@ private:
     void OnAckPacketSent(const TPacket& packet);
     void OnMessagePacketSent(const TPacket& packet);
     void OnHandshakePacketSent();
+    void OnSslAckPacketSent();
     void OnTerminate();
     void ProcessQueuedMessages();
     void DiscardOutcomingMessages();
     void DiscardUnackedMessages();
 
-    void EnqueueHandshake();
+    void TryEnqueueHandshake();
+    void TryEnqueueSslAck();
     TSharedRefArray MakeHandshakeMessage(const NProto::THandshake& handshake);
     std::optional<NProto::THandshake> TryParseHandshakeMessage(const TSharedRefArray& message);
 
@@ -321,6 +361,17 @@ private:
     void FlushBusStatistics();
 
     void InitSocketTosLevel(int tosLevel);
+
+    bool CheckSslReadError(ssize_t result);
+    bool CheckSslWriteError(ssize_t result);
+    bool CheckTcpReadError(ssize_t result);
+    bool CheckTcpWriteError(ssize_t result);
+    bool DoSslHandshake();
+    size_t GetSslAckPacketSize();
+    void TryEstablishSslSession();
+
+    ssize_t DoReadSocket(char* buffer, size_t size);
+    ssize_t DoWriteFragments(const std::vector<struct iovec>& vec);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpConnection)

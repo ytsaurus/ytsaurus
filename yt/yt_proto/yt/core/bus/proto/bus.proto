@@ -8,4 +8,6 @@ message THandshake
 
     // Only passed from client to server.
     optional int32 multiplexing_band = 2; // EMultiplexingBand
+
+    optional int32 encryption_mode = 3; // EEncryptionMode
 }

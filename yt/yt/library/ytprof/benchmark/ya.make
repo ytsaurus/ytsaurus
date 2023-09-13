@@ -22,8 +22,8 @@ SRCS(
 ALLOCATOR(TCMALLOC_256K)
 
 PEERDIR(
+    yt/yt/core
     yt/yt/library/ytprof
-    yt/yt/core/crypto
 )
 
 END()

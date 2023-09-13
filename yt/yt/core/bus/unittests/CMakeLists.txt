@@ -23,7 +23,6 @@ target_link_libraries(unittester-core-bus PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-core
-  yt-core-crypto
   yt-core-test_framework
   cpp-testing-common
 )
@@ -40,6 +39,7 @@ target_link_options(unittester-core-bus PRIVATE
 )
 target_sources(unittester-core-bus PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/unittests/bus_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/unittests/ssl_ut.cpp
 )
 add_test(
   NAME

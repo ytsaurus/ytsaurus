@@ -5,6 +5,8 @@
 #include <yt/yt/core/net/config.h>
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/crypto/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NBus {
@@ -42,6 +44,9 @@ public:
 
     TTcpDispatcherConfigPtr ApplyDynamic(const TTcpDispatcherDynamicConfigPtr& dynamicConfig) const;
 
+    //! Used to store TLS/SSL certificate files.
+    std::optional<TString> BusCertsDirectoryPath;
+
     REGISTER_YSON_STRUCT(TTcpDispatcherConfig);
 
     static void Register(TRegistrar registrar);
@@ -62,6 +67,9 @@ public:
     std::optional<THashMap<TString, std::vector<NNet::TIP6Network>>> Networks;
 
     std::optional<TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr>> MultiplexingBands;
+
+     //! Used to store TLS/SSL certificate files.
+    std::optional<TString> BusCertsDirectoryPath;
 
     REGISTER_YSON_STRUCT(TTcpDispatcherDynamicConfig);
 
@@ -86,6 +94,15 @@ public:
 
     bool VerifyChecksums;
     bool GenerateChecksums;
+
+    // Ssl options.
+    EEncryptionMode EncryptionMode;
+    EVerificationMode VerificationMode;
+    NCrypto::TPemBlobConfigPtr CA;
+    NCrypto::TPemBlobConfigPtr CertificateChain;
+    NCrypto::TPemBlobConfigPtr PrivateKey;
+    std::optional<TString> CipherList;
+    bool LoadCertsFromBusCertsDirectory;
 
     REGISTER_YSON_STRUCT(TBusConfig);
 

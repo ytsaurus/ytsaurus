@@ -30,6 +30,9 @@ void TTcpDispatcherConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("multiplexing_bands", &TThis::MultiplexingBands)
         .Default();
+
+    registrar.Parameter("bus_certs_directory_path", &TThis::BusCertsDirectoryPath)
+        .Default();
 }
 
 TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
@@ -39,6 +42,11 @@ TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
     mergedConfig->ThreadPoolSize = dynamicConfig->ThreadPoolSize.value_or(ThreadPoolSize);
     mergedConfig->Networks = dynamicConfig->Networks.value_or(Networks);
     mergedConfig->MultiplexingBands = dynamicConfig->MultiplexingBands.value_or(MultiplexingBands);
+    if (dynamicConfig->BusCertsDirectoryPath) {
+        mergedConfig->BusCertsDirectoryPath = dynamicConfig->BusCertsDirectoryPath;
+    } else {
+        mergedConfig->BusCertsDirectoryPath = BusCertsDirectoryPath;
+    }
     mergedConfig->Postprocess();
     return mergedConfig;
 }
@@ -59,6 +67,9 @@ void TTcpDispatcherDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("multiplexing_bands", &TThis::MultiplexingBands)
         .Optional();
+
+    registrar.Parameter("bus_certs_directory_path", &TThis::BusCertsDirectoryPath)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +118,20 @@ void TBusConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("generate_checksums", &TThis::GenerateChecksums)
         .Default(true);
+    registrar.Parameter("encryption_mode", &TThis::EncryptionMode)
+        .Default(EEncryptionMode::Optional);
+    registrar.Parameter("verification_mode", &TThis::VerificationMode)
+        .Default(EVerificationMode::None);
+    registrar.Parameter("ca", &TThis::CA)
+        .Default();
+    registrar.Parameter("cert_chain", &TThis::CertificateChain)
+        .Default();
+    registrar.Parameter("private_key", &TThis::PrivateKey)
+        .Default();
+    registrar.Parameter("cipher_list", &TThis::CipherList)
+        .Default();
+    registrar.Parameter("load_certs_from_bus_certs_directory", &TThis::LoadCertsFromBusCertsDirectory)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

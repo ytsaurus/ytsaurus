@@ -12,7 +12,6 @@ SRCS(
 
 PEERDIR(
     yt/yt/core
-    yt/yt/core/crypto
     yt/yt/core/test_framework
 )
 

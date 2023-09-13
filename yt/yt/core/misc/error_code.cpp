@@ -62,6 +62,10 @@ void TErrorCodeRegistry::RegisterErrorCode(int code, const TErrorCodeInfo& error
         if (code == 100) {
             return;
         }
+        // TODO(yuryalekseev): Deal with duplicate SslError in NRpc and NBus.
+        if (code == 119) {
+            return;
+        }
         auto Logger = GetLogger();
         YT_LOG_FATAL(
             "Duplicate error code (Code: %v, StoredCodeInfo: %v, NewCodeInfo: %v)",
