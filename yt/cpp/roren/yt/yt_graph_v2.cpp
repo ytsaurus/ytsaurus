@@ -174,9 +174,6 @@ class TMapReduceOperationNode
     : public TYtGraphV2::TOperationNode
 {
 public:
-    TRowVtable MapperIntermediateOutputVtable;
-    TParDoTreeBuilder::TPCollectionNodeId MapperIntermediateOutputNodeId;
-
     std::vector<TParDoTreeBuilder> MapperBuilderList;
     TParDoTreeBuilder ReducerBuilder;
 
@@ -199,8 +196,6 @@ public:
     {
         auto result = std::make_shared<TMapReduceOperationNode>(GetFirstName(), ssize(MapperBuilderList));
         result->MapperBuilderList = MapperBuilderList;
-        result->MapperIntermediateOutputNodeId = MapperIntermediateOutputNodeId;
-        result->MapperIntermediateOutputVtable = MapperIntermediateOutputVtable;
         result->ReducerBuilder = ReducerBuilder;
         return result;
     }
@@ -890,10 +885,16 @@ public:
                 auto* inputTable = GetPCollectionImage(sourcePCollection);
 
                 auto* mapReduceOperation = PlainGraph_->CreateMapReduceOperation({inputTable}, transformNode->GetName());
-                mapReduceOperation->MapperIntermediateOutputNodeId = 0;
-                mapReduceOperation->MapperIntermediateOutputVtable = inputTable->Vtable;
+                auto nodeIdList = mapReduceOperation->MapperBuilderList[0].AddParDo(
+                    CreateOutputParDo(
+                        CreateKvJobOutput(0, std::vector{inputTable->Vtable}),
+                        inputTable->Vtable
+                    ),
+                    0
+                );
+                Y_VERIFY(nodeIdList.size() == 0);
 
-                auto nodeIdList = mapReduceOperation->ReducerBuilder.AddParDo(
+                nodeIdList = mapReduceOperation->ReducerBuilder.AddParDo(
                     CreateGbkImpulseReadParDo(transformNode->GetRawTransform()->AsRawGroupByKey()),
                     TParDoTreeBuilder::RootNodeId
                 );
@@ -1108,14 +1109,6 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         break;
                 }
             }
-
-            tmpMapperBuilder.AddParDo(
-                CreateOutputParDo(
-                    CreateKvJobOutput(0, std::vector{mapReduceOperation->MapperIntermediateOutputVtable}),
-                    mapReduceOperation->MapperIntermediateOutputVtable
-                ),
-                mapReduceOperation->MapperIntermediateOutputNodeId
-            );
 
             TParDoTreeBuilder mapBuilder;
             auto impulseOutputIdList = mapBuilder.AddParDo(
