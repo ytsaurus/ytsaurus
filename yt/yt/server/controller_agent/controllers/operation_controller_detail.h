@@ -1395,6 +1395,7 @@ private:
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
+    bool IsIdleCpuPolicyAllowedIn(const TString& treeId) const override;
     bool IsTreeTentative(const TString& treeId) const;
     bool IsTreeProbing(const TString& treeId) const;
     void MaybeBanInTentativeTree(const TString& treeId);

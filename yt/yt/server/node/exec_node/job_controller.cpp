@@ -668,7 +668,7 @@ private:
             : nullptr;
 
         TJobResourceAttributes resourceAttributes;
-        resourceAttributes.AllowCpuIdlePolicy = jobSpecExt->allow_cpu_idle_policy();
+        resourceAttributes.AllowIdleCpuPolicy = jobSpecExt->allow_idle_cpu_policy();
 
         if (userJobSpec) {
             if (userJobSpec->has_disk_request() && userJobSpec->disk_request().has_medium_index()) {

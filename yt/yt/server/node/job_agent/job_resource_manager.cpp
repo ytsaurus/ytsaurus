@@ -530,7 +530,7 @@ public:
 
         NScheduler::NProto::TCpuRequest cpuRequest;
         cpuRequest.set_cpu(neededResources.Cpu);
-        cpuRequest.set_allow_cpu_idle_policy(resourceAttributes.AllowCpuIdlePolicy);
+        cpuRequest.set_allow_idle_cpu_policy(resourceAttributes.AllowIdleCpuPolicy);
 
         YT_LOG_INFO("Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
             diskRequest,

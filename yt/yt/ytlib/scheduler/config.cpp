@@ -624,9 +624,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("suspend_operation_if_account_limit_exceeded", &TThis::SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
-    registrar.Parameter("allow_cpu_idle_policy", &TThis::AllowCpuIdlePolicy)
-        .Default(false);
-
     registrar.Parameter("suspend_operation_after_materialization", &TThis::SuspendOperationAfterMaterialization)
         .Default(false);
 
@@ -2070,6 +2067,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
         .Default();
+
+    registrar.Parameter("allow_idle_cpu_policy", &TThis::AllowIdleCpuPolicy)
+        .Default();
 }
 
 void TPoolConfig::Validate(const TString& poolName)
@@ -2201,6 +2201,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("apply_specified_resource_limits_to_demand", &TThis::ApplySpecifiedResourceLimitsToDemand)
         .Default(false);
+    registrar.Parameter("allow_idle_cpu_policy", &TThis::AllowIdleCpuPolicy)
+        .Default();
 
     registrar.Postprocessor([] (TStrategyOperationSpec* spec) {
         if (spec->SchedulingSegmentModules && spec->SchedulingSegmentModules->size() >= MaxSchedulingSegmentModuleCount) {

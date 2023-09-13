@@ -121,7 +121,7 @@ void Serialize(
 
 struct TJobResourceAttributes
 {
-    bool AllowCpuIdlePolicy = false;
+    bool AllowIdleCpuPolicy = false;
 
     std::optional<TString> CudaToolkitVersion;
 

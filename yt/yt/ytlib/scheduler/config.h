@@ -295,6 +295,8 @@ public:
 
     std::optional<bool> UsePoolSatisfactionForScheduling;
 
+    std::optional<bool> AllowIdleCpuPolicy;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);
@@ -462,6 +464,9 @@ public:
     bool EraseTreesWithPoolLimitViolations;
 
     bool ApplySpecifiedResourceLimitsToDemand;
+
+    //! Allow to run operation's jobs with cpu_policy=idle.
+    std::optional<bool> AllowIdleCpuPolicy;
 
     REGISTER_YSON_STRUCT(TStrategyOperationSpec);
 
@@ -933,9 +938,6 @@ public:
 
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
-
-    //! Allow to run operation's jobs with cpu_policy=idle.
-    bool AllowCpuIdlePolicy;
 
     //! Suspend operation right after the materialization phase.
     bool SuspendOperationAfterMaterialization;

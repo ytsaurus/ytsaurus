@@ -32,7 +32,7 @@ message TDiskRequest
 message TCpuRequest
 {
     optional double cpu = 1;
-    optional bool allow_cpu_idle_policy = 2 [default = false];
+    optional bool allow_idle_cpu_policy = 2 [default = false];
 }
 
 // TODO(babenko): consider renaming
