@@ -4758,6 +4758,11 @@ bool TOperationControllerBase::IsTreeProbing(const TString& treeId) const
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Probing;
 }
 
+bool TOperationControllerBase::IsIdleCpuPolicyAllowedIn(const TString& treeId) const
+{
+    return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).AllowIdleCpuPolicy;
+}
+
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
 {
     if (!BannedTreeIds_.insert(treeId).second) {

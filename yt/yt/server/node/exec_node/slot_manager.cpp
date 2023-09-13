@@ -329,7 +329,7 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest,
     }
 
     auto slotType = ESlotType::Common;
-    if (cpuRequest.allow_cpu_idle_policy() &&
+    if (cpuRequest.allow_idle_cpu_policy() &&
         IdlePolicyRequestedCpu_ + cpuRequest.cpu() <= JobEnvironment_->GetCpuLimit(ESlotType::Idle))
     {
         slotType = ESlotType::Idle;

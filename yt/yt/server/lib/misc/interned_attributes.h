@@ -22,6 +22,7 @@
     XX(Addresses, addresses) \
     XX(Aevum, aevum) \
     XX(AlertCount, alert_count) \
+    XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(Alerts, alerts) \
     XX(Aliases, aliases) \
     XX(AlienConfigVersions, alien_config_versions) \

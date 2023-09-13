@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_buil
 
 from yt_commands import (
     authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
-    events_on_fs, create,
+    events_on_fs, create, create_pool,
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
     write_file, read_table,
@@ -2631,7 +2631,7 @@ class TestIdleSlots(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                    "idle_cpu_fraction": 0.2,
+                    "idle_cpu_fraction": 0.1,
                 },
             },
         }
@@ -2671,9 +2671,7 @@ class TestIdleSlots(YTEnvSetup):
         return run_test_vanilla(
             with_breakpoint("portoctl get self cpu_policy >&2; BREAKPOINT", breakpoint_id),
             task_patch={"cpu_limit": cpu_limit, "enable_porto": "isolate"},
-            spec={
-                "allow_cpu_idle_policy": True,
-            }
+            spec={"allow_idle_cpu_policy": True}
         )
 
     @authors("nadya73")
@@ -2710,7 +2708,7 @@ class TestIdleSlots(YTEnvSetup):
         op = self._run_idle_operation(cpu_limit=1, breakpoint_id="1")
 
         wait_breakpoint("1")
-        job_id, node = self._get_job_info(op)
+        job_id, _ = self._get_job_info(op)
         release_breakpoint("1")
         op.track()
         assert self._get_actual_cpu_policy(op, job_id) == "idle"
@@ -2718,7 +2716,7 @@ class TestIdleSlots(YTEnvSetup):
         self._update_cpu_fraction(fraction=0.04)
         op = self._run_idle_operation(cpu_limit=1, breakpoint_id="2")
         wait_breakpoint("2")
-        job_id, node = self._get_job_info(op)
+        job_id, _ = self._get_job_info(op)
         release_breakpoint("2")
         op.track()
         assert self._get_actual_cpu_policy(op, job_id) == "normal"
@@ -2745,6 +2743,27 @@ class TestIdleSlots(YTEnvSetup):
 
         wait(lambda: self._check_slot_count(node, 0, 0))
 
+    @authors("renadeen")
+    def test_allow_idle_cpu_policy_on_pool(self):
+        self._update_cpu_fraction()
+        create_pool("idle_pool", attributes={"allow_idle_cpu_policy": True})
+
+        op = run_test_vanilla(
+            with_breakpoint("portoctl get self cpu_policy >&2; BREAKPOINT"),
+            task_patch={"enable_porto": "isolate"},
+            spec={"pool": "idle_pool"}
+        )
+
+        job_id, node = self._get_job_info(op)
+        wait_breakpoint()
+
+        wait(lambda: self._check_slot_count(node, 0, 1))
+
+        release_breakpoint()
+        op.track()
+        assert self._get_actual_cpu_policy(op, job_id) == "idle"
+
+        self._check_slot_count(node, 0, 0)
 
 ##################################################################
 

@@ -248,13 +248,12 @@ public:
             std::make_pair(operation->GetId(), state)).second);
 
         auto runtimeParameters = operation->GetRuntimeParameters();
-        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
-            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
-            GetTree(treeId)->RegisterOperation(state, operation->GetStrategySpecForTree(treeId), treeParams);
-        }
-
         for (const auto& [treeName, poolName] : state->TreeIdToPoolNameMap()) {
+            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeName);
             auto tree = GetTree(treeName);
+
+            auto registrationResult = tree->RegisterOperation(state, operation->GetStrategySpecForTree(treeName), treeParams);
+
             poolTreeControllerSettingsMap->emplace(
                 treeName,
                 TPoolTreeControllerSettings{
@@ -263,6 +262,7 @@ public:
                     .Probing = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Probing,
                     .Offloading = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Offloading,
                     .MainResource = tree->GetConfig()->MainResource,
+                    .AllowIdleCpuPolicy = registrationResult.AllowIdleCpuPolicy,
                 });
         }
     }

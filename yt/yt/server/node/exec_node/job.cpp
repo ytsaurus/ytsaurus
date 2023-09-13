@@ -303,7 +303,7 @@ void TJob::Start()
 
             NScheduler::NProto::TCpuRequest cpuRequest;
             cpuRequest.set_cpu(RequestedCpu_);
-            cpuRequest.set_allow_cpu_idle_policy(SchedulerJobSpecExt_->allow_cpu_idle_policy());
+            cpuRequest.set_allow_idle_cpu_policy(SchedulerJobSpecExt_->allow_idle_cpu_policy());
 
             YT_LOG_INFO("Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
                 diskRequest,

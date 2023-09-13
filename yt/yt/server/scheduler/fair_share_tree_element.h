@@ -492,6 +492,8 @@ public:
 
     virtual const TOffloadingSettings& GetOffloadingSettings() const = 0;
 
+    virtual bool CpuIdlePolicyIsAllowed() const = 0;
+
 protected:
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
@@ -657,6 +659,8 @@ public:
     TGuid GetObjectId() const override;
 
     const TOffloadingSettings& GetOffloadingSettings() const override;
+
+    bool CpuIdlePolicyIsAllowed() const override;
 
 protected:
     //! Pre fair share update methods.
@@ -863,6 +867,8 @@ public:
 
     bool IsLimitingAncestorCheckEnabled() const;
 
+    bool CpuIdlePolicyIsAllowed() const;
+
 protected:
     //! Pre update methods.
     void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
@@ -986,6 +992,8 @@ public:
     TGuid GetObjectId() const override;
 
     const TOffloadingSettings& GetOffloadingSettings() const override;
+
+    bool CpuIdlePolicyIsAllowed() const override;
 
 protected:
     //! Post update methods.

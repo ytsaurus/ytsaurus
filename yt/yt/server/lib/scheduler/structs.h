@@ -67,6 +67,7 @@ struct TPoolTreeControllerSettings
     bool Probing;
     bool Offloading;
     EJobResourceType MainResource;
+    bool AllowIdleCpuPolicy;
 };
 
 using TPoolTreeControllerSettingsMap = THashMap<TString, TPoolTreeControllerSettings>;

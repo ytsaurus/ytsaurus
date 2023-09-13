@@ -170,6 +170,8 @@ struct ITaskHost
 
     virtual const std::vector<TString>& GetOffloadingPoolTrees() = 0;
     virtual TJobExperimentBasePtr GetJobExperiment() = 0;
+
+    virtual bool IsIdleCpuPolicyAllowedIn(const TString& treeId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

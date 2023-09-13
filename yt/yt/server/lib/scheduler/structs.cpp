@@ -59,6 +59,7 @@ void ToProto(
         protoTreeSettings->set_probing(settings.Probing);
         protoTreeSettings->set_offloading(settings.Offloading);
         protoTreeSettings->set_main_resource(static_cast<int>(settings.MainResource));
+        protoTreeSettings->set_allow_idle_cpu_policy(settings.AllowIdleCpuPolicy);
     }
 }
 
@@ -79,6 +80,7 @@ void FromProto(
                 .MainResource = protoTreeSettings.has_main_resource()
                     ? static_cast<EJobResourceType>(protoTreeSettings.main_resource())
                     : EJobResourceType::Cpu,
+                .AllowIdleCpuPolicy = protoTreeSettings.allow_idle_cpu_policy(),
             });
     }
 }
