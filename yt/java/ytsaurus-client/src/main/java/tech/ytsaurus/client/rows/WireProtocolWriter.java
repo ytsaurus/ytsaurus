@@ -10,7 +10,9 @@ import java.util.function.Function;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
+import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 
 public class WireProtocolWriter {
     private static final int INITIAL_BUFFER_CAPACITY = 1024;
@@ -348,5 +350,9 @@ public class WireProtocolWriter {
         for (VersionedRow row : rows) {
             writeVersionedRow(row);
         }
+    }
+
+    public void writeTableSchema(TableSchema schema) {
+        writeMessage(ApiServiceUtil.serializeTableSchema(schema));
     }
 }

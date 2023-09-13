@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.UnversionedRowsetDeserializer;
@@ -88,6 +89,46 @@ public class ApiServiceUtil {
             }
             row.add(new UnversionedValue(id, type, aggregate, value));
         }
+    }
+
+    public static TTableSchema serializeTableSchema(TableSchema schema) {
+        TTableSchema.Builder builder = TTableSchema.newBuilder();
+        builder.setUniqueKeys(schema.isUniqueKeys());
+
+        for (ColumnSchema columnSchema : schema.getColumns()) {
+            TColumnSchema.Builder columnBuilder = TColumnSchema.newBuilder();
+
+            String name = columnSchema.getName();
+            TiType type = columnSchema.getTypeV3();
+            ColumnSortOrder sortOrder = columnSchema.getSortOrder();
+            String aggregate = columnSchema.getAggregate();
+            String lock = columnSchema.getLock();
+            String expression = columnSchema.getExpression();
+            String group = columnSchema.getGroup();
+
+            columnBuilder.setName(name);
+            columnBuilder.setTypeV3(ByteString.copyFromUtf8(TypeIO.serializeToTextYson(type)));
+            columnBuilder.setRequired(columnSchema.isRequired());
+            if (sortOrder != null) {
+                columnBuilder.setSortOrder(sortOrder.getId());
+            }
+            if (aggregate != null) {
+                columnBuilder.setAggregate(aggregate);
+            }
+            if (lock != null) {
+                columnBuilder.setLock(lock);
+            }
+            if (expression != null) {
+                columnBuilder.setExpression(expression);
+            }
+            if (group != null) {
+                columnBuilder.setGroup(group);
+            }
+
+            builder.addColumns(columnBuilder.build());
+        }
+
+        return builder.build();
     }
 
     public static TableSchema deserializeTableSchema(TTableSchema schema) {
