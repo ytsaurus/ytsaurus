@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NClient.NHedging.NRpc;
 
 import public "yt_proto/yt/client/cache/proto/config.proto";

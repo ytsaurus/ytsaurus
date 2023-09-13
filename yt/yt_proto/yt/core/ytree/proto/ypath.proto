@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NYTree.NProto;
 
 import "yt_proto/yt/core/rpc/proto/rpc.proto";

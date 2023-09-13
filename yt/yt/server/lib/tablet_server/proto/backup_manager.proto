@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NTabletServer.NProto;
 
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
