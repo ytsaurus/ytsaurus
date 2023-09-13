@@ -16,6 +16,9 @@ namespace NRoren::NPrivate {
 
 NYT::IRawJobPtr CreateImpulseJob(const IRawParDoPtr& rawParDo);
 IRawParDoPtr CreateGbkImpulseReadParDo(IRawGroupByKeyPtr rawComputation);
+IRawParDoPtr CreateCoGbkImpulseReadParDo(
+    IRawCoGroupByKeyPtr rawCoGbk,
+    std::vector<TRowVtable> rowVtable);
 
 NYT::IRawJobPtr CreateParDoMap(
     const IRawParDoPtr& rawParDo,

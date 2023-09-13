@@ -107,6 +107,30 @@ public:
     }
 };
 
+class TAddTableIndexDoFn
+    : public IDoFn<NYT::TNode, NYT::TNode>
+{
+public:
+    TAddTableIndexDoFn() = default;
+
+    TAddTableIndexDoFn(ssize_t tableIndex)
+        : TableIndex_(tableIndex)
+    {
+        Y_VERIFY(tableIndex >= 0);
+    }
+
+    void Do(const NYT::TNode& row, TOutput<NYT::TNode>& output) override
+    {
+        auto result = row;
+        result["table_index"] = TableIndex_;
+        output.Add(result);
+    }
+
+private:
+    ssize_t TableIndex_ = 0;
+    Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYtGraphV2::TOperationNode
@@ -119,7 +143,9 @@ public:
 public:
     TOperationNode(TString firstName)
         : FirstName_(std::move(firstName))
-    { }
+    {
+        Y_VERIFY(!FirstName_.empty());
+    }
 
     virtual ~TOperationNode() = default;
 
@@ -229,8 +255,9 @@ public:
     virtual ~TTableNode() = default;
 
     virtual ETableType GetTableType() const = 0;
-    virtual IYtJobInputPtr CreateJobInput() const = 0;
-    virtual IYtJobOutputPtr CreateJobOutput(ssize_t sinkIndex) const = 0;
+
+    virtual IRawParDoPtr CreateTNodeDecodingParDo() const = 0;
+    virtual IRawParDoPtr CreateTNodeEncodingParDo() const = 0;
 
     virtual NYT::TRichYPath GetPath() const = 0;
 
@@ -256,19 +283,19 @@ public:
         return ETableType::Input;
     }
 
-    IYtJobInputPtr CreateJobInput() const override
-    {
-        return RawYtRead_->CreateJobInput();
-    }
-
-    IYtJobOutputPtr CreateJobOutput(ssize_t /*sinkIndex*/) const override
-    {
-        Y_FAIL("input table is not expected to be written");
-    }
-
     NYT::TRichYPath GetPath() const override
     {
         return RawYtRead_->GetPath();
+    }
+
+    IRawParDoPtr CreateTNodeDecodingParDo() const override
+    {
+        return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
+    }
+
+    IRawParDoPtr CreateTNodeEncodingParDo() const override
+    {
+        Y_FAIL("TInputTableNode is not expected to be written into");
     }
 
 private:
@@ -297,14 +324,14 @@ public:
         return ETableType::Output;
     }
 
-    IYtJobInputPtr CreateJobInput() const override
+    IRawParDoPtr CreateTNodeDecodingParDo() const override
     {
-        Y_FAIL("input table is not expected to be read");
+        return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
     }
 
-    IYtJobOutputPtr CreateJobOutput(ssize_t sinkIndex) const override
+    IRawParDoPtr CreateTNodeEncodingParDo() const override
     {
-        return RawYtWrite_->CreateJobOutput(sinkIndex);
+        return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
     }
 
     NYT::TRichYPath GetPath() const override
@@ -360,14 +387,14 @@ public:
         return ETableType::Intermediate;
     }
 
-    virtual IYtJobInputPtr CreateJobInput() const override
+    IRawParDoPtr CreateTNodeDecodingParDo() const override
     {
-        return CreateDecodingJobInput(Vtable);
+        return CreateDecodingValueNodeParDo(Vtable);
     }
 
-    virtual IYtJobOutputPtr CreateJobOutput(ssize_t sinkIndex) const override
+    IRawParDoPtr CreateTNodeEncodingParDo() const override
     {
-        return CreateEncodingJobOutput(Vtable, sinkIndex);
+        return CreateEncodingValueNodeParDo(Vtable);
     }
 
     virtual NYT::TRichYPath GetPath() const override
@@ -857,6 +884,7 @@ public:
                 auto rawParDo = rawTransform->AsRawParDo();
 
                 // Наша нода-источник это таблица, надо проверить есть ли уже операции с её участием?
+                Y_VERIFY(!transformNode->GetName().empty());
                 auto* mapOperation = PlainGraph_->CreateMapOperation({inputTable}, transformNode->GetName());
                 auto outputIdList = mapOperation->MapperBuilder.AddParDo(
                     rawParDo,
@@ -885,32 +913,71 @@ public:
                 auto* inputTable = GetPCollectionImage(sourcePCollection);
 
                 auto* mapReduceOperation = PlainGraph_->CreateMapReduceOperation({inputTable}, transformNode->GetName());
-                auto nodeIdList = mapReduceOperation->MapperBuilderList[0].AddParDo(
-                    CreateOutputParDo(
-                        CreateKvJobOutput(0, std::vector{inputTable->Vtable}),
-                        inputTable->Vtable
-                    ),
-                    0
+                mapReduceOperation->MapperBuilderList[0].AddParDoChainVerifyNoOutput(
+                    TParDoTreeBuilder::RootNodeId,
+                    {
+                        CreateEncodingKeyValueNodeParDo(inputTable->Vtable),
+                        CreateWriteNodeParDo(0)
+                    }
                 );
-                Y_VERIFY(nodeIdList.size() == 0);
 
-                nodeIdList = mapReduceOperation->ReducerBuilder.AddParDo(
+                auto nodeId = mapReduceOperation->ReducerBuilder.AddParDoVerifySingleOutput(
                     CreateGbkImpulseReadParDo(transformNode->GetRawTransform()->AsRawGroupByKey()),
                     TParDoTreeBuilder::RootNodeId
                 );
-                Y_VERIFY(nodeIdList.size() == 1);
 
                 const auto* sinkPCollection = VerifiedGetSingleSink(transformNode);
                 auto* outputTable = PlainGraph_->CreateIntermediateTable(
                     mapReduceOperation,
-                    {EJobType::Reduce, nodeIdList[0]},
+                    {EJobType::Reduce, nodeId},
                     sinkPCollection->GetRowVtable(),
                     Config_->GetWorkingDir()
                 );
                 RegisterPCollection(sinkPCollection, outputTable);
                 break;
             }
-            case ERawTransformType::CoGroupByKey:
+            case ERawTransformType::CoGroupByKey: {
+                std::vector<TTableNode*> inputTableList;
+                std::vector<TRowVtable> inputRowVtableList;
+                for (const auto& sourcePCollection : transformNode->GetSourceList()) {
+                    auto* inputTable = GetPCollectionImage(sourcePCollection.Get());
+                    inputTableList.push_back(inputTable);
+                    inputRowVtableList.push_back(inputTable->Vtable);
+                }
+
+                auto* mapReduceOperation = PlainGraph_->CreateMapReduceOperation(inputTableList, transformNode->GetName());
+                Y_VERIFY(mapReduceOperation->MapperBuilderList.size() == inputTableList.size());
+                for (ssize_t i = 0; i < std::ssize(inputTableList); ++i) {
+                    auto* inputTable = inputTableList[i];
+
+                    mapReduceOperation->MapperBuilderList[i].AddParDoChainVerifyNoOutput(
+                        TParDoTreeBuilder::RootNodeId,
+                        {
+                            CreateEncodingKeyValueNodeParDo(inputTable->Vtable),
+                            MakeRawParDo(::MakeIntrusive<TAddTableIndexDoFn>(i)),
+                            CreateWriteNodeParDo(0)
+                        }
+                    );
+                }
+
+                auto nodeId = mapReduceOperation->ReducerBuilder.AddParDoVerifySingleOutput(
+                    CreateCoGbkImpulseReadParDo(
+                        transformNode->GetRawTransform()->AsRawCoGroupByKey(),
+                        inputRowVtableList
+                    ),
+                    TParDoTreeBuilder::RootNodeId
+                );
+
+                const auto* sinkPCollection = VerifiedGetSingleSink(transformNode);
+                auto* outputTable = PlainGraph_->CreateIntermediateTable(
+                    mapReduceOperation,
+                    {EJobType::Reduce, nodeId},
+                    sinkPCollection->GetRowVtable(),
+                    Config_->GetWorkingDir()
+                );
+                RegisterPCollection(sinkPCollection, outputTable);
+                break;
+            }
             case ERawTransformType::StatefulTimerParDo:
             case ERawTransformType::CombinePerKey:
             case ERawTransformType::CombineGlobally:
@@ -1031,14 +1098,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
         case EOperationType::Map: {
             const auto* mapOperation = operation->VerifiedAsPtr<TMapOperationNode>();
 
-            NYT::TRawMapOperationSpec spec;
-            Y_VERIFY(operation->InputTables.size() == 1);
-            const auto* inputTable = operation->InputTables[0];
-            spec.AddInput(inputTable->GetPath());
-            auto jobInput = inputTable->CreateJobInput();
-
-            TParDoTreeBuilder mapBuilder = mapOperation->MapperBuilder;
-            if (mapBuilder.Empty()) {
+            if (mapOperation->MapperBuilder.Empty()) {
                 NYT::TMergeOperationSpec spec;
                 for (const auto *table : operation->InputTables) {
                     spec.AddInput(table->GetPath());
@@ -1051,6 +1111,12 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 }
                 return client->Merge(spec, NYT::TOperationOptions{}.Wait(false));
             } else {
+                NYT::TRawMapOperationSpec spec;
+                Y_VERIFY(operation->InputTables.size() == 1);
+                const auto* inputTable = operation->InputTables[0];
+                spec.AddInput(inputTable->GetPath());
+
+                TParDoTreeBuilder tmpMapBuilder = mapOperation->MapperBuilder;
                 std::vector<IYtJobOutputPtr> jobOutputs;
                 ssize_t sinkIndex = 0;
                 for (const auto &[key, table] : operation->OutputTables) {
@@ -1060,50 +1126,68 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         output.Schema(outputTable->GetSchema());
                     }
                     spec.AddOutput(table->GetPath());
-                    mapBuilder.MarkAsOutput(key.second);
-                    jobOutputs.push_back(table->CreateJobOutput(sinkIndex));
+                    auto nodeId = tmpMapBuilder.AddParDoVerifySingleOutput(
+                        table->CreateTNodeEncodingParDo(),
+                        key.second
+                    );
+                    tmpMapBuilder.AddParDoVerifyNoOutput(
+                        CreateWriteNodeParDo(sinkIndex),
+                        nodeId
+                    );
+
                     ++sinkIndex;
                 }
+                TParDoTreeBuilder mapperBuilder;
+                auto nodeId = mapperBuilder.AddParDoVerifySingleOutput(
+                    CreateReadNodeImpulseParDo(1),
+                    TParDoTreeBuilder::RootNodeId
+                );
+                nodeId = mapperBuilder.AddParDoVerifySingleOutput(
+                    inputTable->CreateTNodeDecodingParDo(),
+                    nodeId
+                );
+                mapperBuilder.Fuse(tmpMapBuilder, nodeId);
+
                 spec.Format(NYT::TFormat::YsonBinary());
-
-                NYT::IRawJobPtr job = CreateParDoMap(mapBuilder.Build(), jobInput, jobOutputs);
-
+                NYT::IRawJobPtr job = CreateImpulseJob(mapperBuilder.Build());
                 return client->RawMap(spec, job, NYT::TOperationOptions().Wait(false));
             }
         }
         case EOperationType::MapReduce: {
             const auto* mapReduceOperation = operation->VerifiedAsPtr<TMapReduceOperationNode>();
 
-            Y_VERIFY(operation->InputTables.size() == 1, "Multiple MapReduce inputs are not supported yet");
             Y_VERIFY(operation->InputTables.size() == mapReduceOperation->MapperBuilderList.size());
 
             NYT::TRawMapReduceOperationSpec spec;
-            const auto* inputTable = operation->InputTables[0];
-            spec.AddInput(inputTable->GetPath());
+            auto tmpMapperBuilderList = mapReduceOperation->MapperBuilderList;
+            for (const auto* inputTable : operation->InputTables) {
+                spec.AddInput(inputTable->GetPath());
+            }
 
-            // For now we support only single input MapReduces and we checked it several lines above.
-            auto tmpMapperBuilder = mapReduceOperation->MapperBuilderList[0];
             auto reducerBuilder = mapReduceOperation->ReducerBuilder;
             ssize_t mapperOutputIndex = 1;
             ssize_t reducerOutputIndex = 0;
             for (const auto& [connector, outputTable] : mapReduceOperation->OutputTables) {
-                std::vector<TParDoTreeBuilder::TPCollectionNodeId> nodeIdList;
                 switch (connector.first) {
                     case EJobType::Map:
-                        nodeIdList = tmpMapperBuilder.AddParDo(
-                            CreateOutputParDo(outputTable->CreateJobOutput(mapperOutputIndex), outputTable->Vtable),
-                            connector.second
+                        tmpMapperBuilderList[0].AddParDoChainVerifyNoOutput(
+                            connector.second,
+                            {
+                                outputTable->CreateTNodeEncodingParDo(),
+                                CreateWriteNodeParDo(mapperOutputIndex)
+                            }
                         );
-                        Y_VERIFY(nodeIdList.empty());
                         spec.AddMapOutput(outputTable->GetPath());
                         ++mapperOutputIndex;
                         break;
                     case EJobType::Reduce:
-                        nodeIdList = reducerBuilder.AddParDo(
-                            CreateOutputParDo(outputTable->CreateJobOutput(reducerOutputIndex), outputTable->Vtable),
-                            connector.second
+                        reducerBuilder.AddParDoChainVerifyNoOutput(
+                            connector.second,
+                            {
+                                outputTable->CreateTNodeEncodingParDo(),
+                                CreateWriteNodeParDo(reducerOutputIndex)
+                            }
                         );
-                        Y_VERIFY(nodeIdList.empty());
                         spec.AddOutput(outputTable->GetPath());
                         ++reducerOutputIndex;
                         break;
@@ -1112,15 +1196,18 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
             TParDoTreeBuilder mapBuilder;
             auto impulseOutputIdList = mapBuilder.AddParDo(
-                CreateImpulseInputParDo(
-                    inputTable->CreateJobInput(),
-                    std::vector<TDynamicTypeTag>{{"ImpulseOutput", inputTable->Vtable}},
-                    0
-                ),
+                CreateReadNodeImpulseParDo(std::ssize(operation->InputTables)),
                 TParDoTreeBuilder::RootNodeId
             );
-            Y_VERIFY(impulseOutputIdList.size() == 1);
-            mapBuilder.Fuse(tmpMapperBuilder, impulseOutputIdList[0]);
+            Y_VERIFY(impulseOutputIdList.size() == tmpMapperBuilderList.size());
+            Y_VERIFY(impulseOutputIdList.size() == operation->InputTables.size());
+            for (ssize_t i = 0; i < std::ssize(impulseOutputIdList); ++i) {
+                auto decodedId = mapBuilder.AddParDoVerifySingleOutput(
+                    CreateDecodingValueNodeParDo(operation->InputTables[i]->Vtable),
+                    impulseOutputIdList[i]
+                );
+                mapBuilder.Fuse(tmpMapperBuilderList[i], decodedId);
+            }
 
             auto mapperJob = CreateImpulseJob(mapBuilder.Build());
             auto reducerJob = CreateImpulseJob(reducerBuilder.Build());

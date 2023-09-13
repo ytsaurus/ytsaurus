@@ -304,6 +304,44 @@ std::vector<TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::AddParDo(
     return outputs;
 }
 
+TParDoTreeBuilder::TPCollectionNodeId TParDoTreeBuilder::AddParDoVerifySingleOutput(IRawParDoPtr parDo, TPCollectionNodeId input)
+{
+    auto result = AddParDo(std::move(parDo), input);
+    Y_VERIFY(result.size() == 1, "Expected single output, actual output count: %d", static_cast<int>(result.size()));
+    return result[0];
+}
+
+void TParDoTreeBuilder::AddParDoVerifyNoOutput(IRawParDoPtr parDo, TPCollectionNodeId input)
+{
+    auto result = AddParDo(std::move(parDo), input);
+    Y_VERIFY(result.empty(), "Expected no output, actual output count: %d", static_cast<int>(result.size()));
+}
+
+std::vector<TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::AddParDoChain(TPCollectionNodeId input, const std::vector<IRawParDoPtr>& parDoList)
+{
+    auto result = std::vector({input});
+
+    for (const auto& parDo : parDoList) {
+        Y_VERIFY(result.size() == 1);
+        result = AddParDo(parDo, result[0]);
+    }
+
+    return result;
+}
+
+TParDoTreeBuilder::TPCollectionNodeId TParDoTreeBuilder::AddParDoChainVerifySingleOutput(TPCollectionNodeId input, const std::vector<IRawParDoPtr>& parDoList)
+{
+    auto result = AddParDoChain(input, parDoList);
+    Y_VERIFY(result.size() == 1, "Expected single output, actual output count: %d", static_cast<int>(result.size()));
+    return result[0];
+}
+
+void TParDoTreeBuilder::AddParDoChainVerifyNoOutput(TPCollectionNodeId input, const std::vector<IRawParDoPtr>& parDoList)
+{
+    auto result = AddParDoChain(input, parDoList);
+    Y_VERIFY(result.empty(), "Expected no output, actual output count: %d", static_cast<int>(result.size()));
+}
+
 TParDoTreeBuilder::TPCollectionNodeId TParDoTreeBuilder::AddPCollectionNode(const TRowVtable& rowVtable)
 {
     Y_VERIFY(!Built_);

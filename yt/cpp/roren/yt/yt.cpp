@@ -39,7 +39,7 @@ public:
 
     bool EnableDefaultPipelineOptimization() const override
     {
-        return true;
+        return !Config_.GetEnableV2Optimizer();
     }
 
     void Run(const TPipeline& pipeline) override

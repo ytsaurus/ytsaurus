@@ -387,6 +387,83 @@ REGISTER_RAW_JOB(TMultiJoinKvReduce);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCoGbkImpulseReadParDo
+    : public IRawParDo
+{
+public:
+    TCoGbkImpulseReadParDo() = default;
+
+    TCoGbkImpulseReadParDo(IRawCoGroupByKeyPtr rawCoGbk, std::vector<TRowVtable> rowVtable)
+        : RawCoGroupByKey_(rawCoGbk)
+        , InputRowVtableList_(rowVtable)
+    { }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+
+        Y_VERIFY(outputs.size() == 1);
+        Processed_ = false;
+        Output_ = outputs[0];
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_VERIFY(count == 1);
+        Y_VERIFY(*static_cast<const int*>(rows) == 0);
+        Y_VERIFY(!Processed_);
+        Processed_ = true;
+
+
+        auto rangesReader = CreateRangesTableReader(&Cin);
+
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            auto range = &rangesReader->GetRange();
+            auto input = CreateSplitKvJobInput(InputRowVtableList_, range);
+            ProcessOneGroup(RawCoGroupByKey_, input, Output_);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static TFnAttributes attributes;
+        return attributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TCoGbkImpulseReadParDo>();
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {
+            {"input", MakeRowVtable<int>()}
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return RawCoGroupByKey_->GetOutputTags();
+    }
+
+private:
+    IRawCoGroupByKeyPtr RawCoGroupByKey_;
+    std::vector<TRowVtable> InputRowVtableList_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawCoGroupByKey_, InputRowVtableList_);
+
+    IRawOutputPtr Output_;
+    bool Processed_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCombineCombiner
     : public NYT::IRawJob
 {
@@ -591,6 +668,13 @@ IRawJobPtr CreateMultiJoinKvReduce(
     const IYtJobOutputPtr& output)
 {
     return ::MakeIntrusive<TMultiJoinKvReduce>(rawComputation, inVtables, output);
+}
+
+IRawParDoPtr CreateCoGbkImpulseReadParDo(
+    IRawCoGroupByKeyPtr rawCoGbk,
+    std::vector<TRowVtable> rowVtableList)
+{
+    return ::MakeIntrusive<TCoGbkImpulseReadParDo>(std::move(rawCoGbk), std::move(rowVtableList));
 }
 
 IRawJobPtr CreateCombineCombiner(

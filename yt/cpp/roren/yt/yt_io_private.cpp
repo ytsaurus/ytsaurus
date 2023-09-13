@@ -929,4 +929,474 @@ IRawParDoPtr CreateImpulseInputParDo(IYtJobInputPtr input, std::vector<TDynamicT
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDecodingValueNodeParDo
+    : public IRawParDo
+{
+public:
+    TDecodingValueNodeParDo() = default;
+
+    explicit TDecodingValueNodeParDo(TRowVtable rowVtable)
+        : OutputRowVtable_(rowVtable)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TDecodingValueNodeParDo.Input", MakeRowVtable<TNode>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {TDynamicTypeTag("TDecodingValueNodeParDo.Output", OutputRowVtable_)};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_VERIFY(outputs.size() == 1);
+        Output_ = outputs[0];
+        if (!Coder_) {
+            Coder_ = OutputRowVtable_.RawCoderFactory();
+            OutputRowHolder_.Reset(OutputRowVtable_);
+        }
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        const auto* curRow = static_cast<const TNode*>(rows);
+        for (int i = 0; i < count; ++i, ++curRow) {
+            Coder_->DecodeRow((*curRow)["value"].AsString(), OutputRowHolder_.GetData());
+            Output_->AddRaw(OutputRowHolder_.GetData(), 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TDecodingValueNodeParDo>();
+        };
+    }
+
+private:
+    TRowVtable OutputRowVtable_;
+
+    IRawOutputPtr Output_;
+    IRawCoderPtr Coder_;
+    TRawRowHolder OutputRowHolder_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(OutputRowVtable_);
+};
+
+
+IRawParDoPtr CreateDecodingValueNodeParDo(TRowVtable rowVtable)
+{
+    return ::MakeIntrusive<TDecodingValueNodeParDo>(rowVtable);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEncodingValueNodeParDo
+    : public IRawParDo
+{
+public:
+    TEncodingValueNodeParDo() = default;
+
+    explicit TEncodingValueNodeParDo(TRowVtable rowVtable)
+        : InputRowVtable_(rowVtable)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TEncodingValueNodeParDo.Input", InputRowVtable_)};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {TDynamicTypeTag("TEncodingValueNodeParDo.Output", MakeRowVtable<TNode>())};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_VERIFY(outputs.size() == 1);
+        Output_ = outputs[0];
+        if (!Coder_) {
+            Coder_ = InputRowVtable_.RawCoderFactory();
+        }
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        const auto* curRow = static_cast<const std::byte*>(rows);
+        for (int i = 0; i < count; ++i, curRow += InputRowVtable_.DataSize) {
+            Buffer_.clear();
+            auto out = TStringOutput(Buffer_);
+            Coder_->EncodeRow(&out, curRow);
+            ResultNode_["value"] = Buffer_;
+            Output_->AddRaw(&ResultNode_, 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TEncodingValueNodeParDo>();
+        };
+    }
+
+private:
+    TRowVtable InputRowVtable_;
+
+    IRawOutputPtr Output_;
+    IRawCoderPtr Coder_;
+    TNode ResultNode_;
+    TString Buffer_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(InputRowVtable_);
+};
+
+IRawParDoPtr CreateEncodingValueNodeParDo(TRowVtable rowVtable)
+{
+    return ::MakeIntrusive<TEncodingValueNodeParDo>(rowVtable);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecodingKeyValueNodeParDo
+    : public IRawParDo
+{
+public:
+    TDecodingKeyValueNodeParDo() = default;
+
+    explicit TDecodingKeyValueNodeParDo(TRowVtable rowVtable)
+        : OutputRowVtable_(rowVtable)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TDecodingKeyValueNodeParDo.Input", MakeRowVtable<TNode>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {TDynamicTypeTag("TDecodingKeyValueNodeParDo.Output", OutputRowVtable_)};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_VERIFY(outputs.size() == 1);
+        Output_ = outputs[0];
+        if (!KeyCoder_) {
+            KeyCoder_ = OutputRowVtable_.KeyVtableFactory().RawCoderFactory();
+            ValueCoder_ = OutputRowVtable_.ValueVtableFactory().RawCoderFactory();
+            OutputRowHolder_.Reset(OutputRowVtable_);
+        }
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        const auto* curRow = static_cast<const TNode*>(rows);
+        for (int i = 0; i < count; ++i, ++curRow) {
+            KeyCoder_->DecodeRow((*curRow)["key"].AsString(), OutputRowHolder_.GetKeyOfKV());
+            ValueCoder_->DecodeRow((*curRow)["value"].AsString(), OutputRowHolder_.GetValueOfKV());
+            Output_->AddRaw(OutputRowHolder_.GetData(), 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TDecodingKeyValueNodeParDo>();
+        };
+    }
+
+private:
+    TRowVtable OutputRowVtable_;
+
+    IRawOutputPtr Output_;
+    IRawCoderPtr KeyCoder_;
+    IRawCoderPtr ValueCoder_;
+    TRawRowHolder OutputRowHolder_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(OutputRowVtable_);
+};
+
+IRawParDoPtr CreateDecodingKeyValueNodeParDo(TRowVtable rowVtable)
+{
+    return ::MakeIntrusive<TDecodingKeyValueNodeParDo>(rowVtable);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEncodingKeyValueNodeParDo
+    : public IRawParDo
+{
+public:
+    TEncodingKeyValueNodeParDo() = default;
+
+    explicit TEncodingKeyValueNodeParDo(TRowVtable rowVtable)
+        : InputRowVtable_(rowVtable)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TEncodingKeyValueNodeParDo.Input", InputRowVtable_)};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {TDynamicTypeTag("TEncodingKeyValueNodeParDo.Output", MakeRowVtable<TNode>())};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_VERIFY(outputs.size() == 1);
+        Output_ = outputs[0];
+        if (!KeyCoder_) {
+            KeyCoder_ = InputRowVtable_.KeyVtableFactory().RawCoderFactory();
+            ValueCoder_ = InputRowVtable_.ValueVtableFactory().RawCoderFactory();
+        }
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        const auto* curRow = static_cast<const std::byte*>(rows);
+        for (int i = 0; i < count; ++i, curRow += InputRowVtable_.DataSize) {
+            KeyBuffer_.clear();
+            ValueBuffer_.clear();
+            {
+                auto keyOut = TStringOutput(KeyBuffer_);
+                auto valueOut = TStringOutput(ValueBuffer_);
+                KeyCoder_->EncodeRow(&keyOut, GetKeyOfKv(InputRowVtable_, curRow));
+                ValueCoder_->EncodeRow(&valueOut, GetValueOfKv(InputRowVtable_, curRow));
+            }
+            ResultNode_["key"] = KeyBuffer_;
+            ResultNode_["value"] = ValueBuffer_;
+            Output_->AddRaw(&ResultNode_, 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TEncodingKeyValueNodeParDo>();
+        };
+    }
+
+private:
+    TRowVtable InputRowVtable_;
+
+    IRawOutputPtr Output_;
+    IRawCoderPtr KeyCoder_;
+    IRawCoderPtr ValueCoder_;
+    TNode ResultNode_;
+    TString KeyBuffer_;
+    TString ValueBuffer_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(InputRowVtable_);
+};
+
+IRawParDoPtr CreateEncodingKeyValueNodeParDo(TRowVtable rowVtable)
+{
+    return ::MakeIntrusive<TEncodingKeyValueNodeParDo>(rowVtable);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReadNodeImpulseParDo
+    : public IRawParDo
+{
+public:
+    TReadNodeImpulseParDo() = default;
+
+    explicit TReadNodeImpulseParDo(ssize_t tableCount)
+        : TableCount_(tableCount)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TReadNodeImpulseParDo.Input", MakeRowVtable<int>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        std::vector<TDynamicTypeTag> result;
+        for (ssize_t i = 0; i < TableCount_; ++i) {
+            result.emplace_back("TReadNodeImpulseParDo.Output." + ToString(i), MakeRowVtable<TNode>());
+        }
+        return result;
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_VERIFY(std::ssize(outputs) == TableCount_);
+        Outputs_ = outputs;
+        Processed_ = false;
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_VERIFY(!Processed_);
+        Processed_ = true;
+        Y_VERIFY(count == 1);
+        Y_VERIFY(*static_cast<const int*>(rows) == 0);
+
+        auto reader = NYT::CreateTableReader<NYT::TNode>(&Cin);
+
+        for (; reader->IsValid(); reader->Next()) {
+            auto tableIndex = reader->GetTableIndex();
+            Y_VERIFY(tableIndex < TableCount_);
+            Outputs_[tableIndex]->AddRaw(&reader->GetRow(), 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TReadNodeImpulseParDo>();
+        };
+    }
+
+private:
+    ssize_t TableCount_ = 0;
+
+    std::vector<IRawOutputPtr> Outputs_;
+    bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(TableCount_);
+};
+
+IRawParDoPtr CreateReadNodeImpulseParDo(ssize_t tableCount)
+{
+    return ::MakeIntrusive<TReadNodeImpulseParDo>(tableCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWriteNodeParDo
+    : public IRawParDo
+{
+public:
+    TWriteNodeParDo() = default;
+
+    explicit TWriteNodeParDo(ssize_t tableCount)
+        : TableIndex_(tableCount)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TWriteNodeParDo.Input", MakeRowVtable<TNode>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_VERIFY(outputs.empty());
+
+        auto fd = TableIndex_ * 3 + 1;
+        Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
+        YsonWriter_ = std::make_unique<::NYson::TYsonWriter>(
+            Stream_.get(),
+            NYson::EYsonFormat::Binary,
+            ::NYson::EYsonType::ListFragment);
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        const auto* current = static_cast<const TNode*>(rows);
+        for (ssize_t i = 0; i < count; ++i, ++current) {
+            const NYT::TNode& row = *static_cast<const NYT::TNode*>(current);
+            NYT::TNodeVisitor visitor(YsonWriter_.get());
+            visitor.Visit(row);
+        }
+    }
+
+    void Finish() override
+    {
+        YsonWriter_.reset();
+        Stream_->Finish();
+        Stream_.reset();
+    }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TWriteNodeParDo>();
+        };
+    }
+
+private:
+    ssize_t TableIndex_ = 0;
+
+    std::unique_ptr<NYT::NYson::IYsonConsumer> YsonWriter_;
+    std::unique_ptr<IOutputStream> Stream_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
+};
+
+IRawParDoPtr CreateWriteNodeParDo(ssize_t tableIndex)
+{
+    return ::MakeIntrusive<TWriteNodeParDo>(tableIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoren::NPrivate

@@ -28,6 +28,13 @@ public:
 
 public:
     std::vector<TPCollectionNodeId> AddParDo(IRawParDoPtr parDo, TPCollectionNodeId input);
+    TPCollectionNodeId AddParDoVerifySingleOutput(IRawParDoPtr parDo, TPCollectionNodeId input);
+    void AddParDoVerifyNoOutput(IRawParDoPtr parDo, TPCollectionNodeId input);
+
+    std::vector<TPCollectionNodeId> AddParDoChain(TPCollectionNodeId input, const std::vector<IRawParDoPtr>& parDoList);
+    TPCollectionNodeId AddParDoChainVerifySingleOutput(TPCollectionNodeId input, const std::vector<IRawParDoPtr>& parDoList);
+    void AddParDoChainVerifyNoOutput(TPCollectionNodeId input, const std::vector<IRawParDoPtr>& parDoList);
+
     THashMap<TPCollectionNodeId, TPCollectionNodeId> Fuse(const TParDoTreeBuilder& other, TPCollectionNodeId input);
 
     void MarkAsOutput(TPCollectionNodeId nodeId, const TDynamicTypeTag& typeTag = {});

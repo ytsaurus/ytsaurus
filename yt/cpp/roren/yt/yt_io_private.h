@@ -208,6 +208,23 @@ IRawParDoPtr CreateOutputParDo(IYtJobOutputPtr output, TRowVtable rowVtable);
 // When it receives it it starts reading data and passes it down the pipeline.
 IRawParDoPtr CreateImpulseInputParDo(IYtJobInputPtr input, std::vector<TDynamicTypeTag> dynamicTypeTag, ssize_t outputIndex);
 
+//
+// Create ParDo that Encodes/Decodes roren rows to TNode.
+//
+// Create{Decoding,Encoding}**Value**NodeParDo works with TNode with single column "value"
+// and roren row of arbitrary type. That value contains encoded representatino of row.
+//
+// CreateDecoding,Encoding**KeyValue**NodeParDo works with TNode with columns "key", "value"
+// and roren rows that are TKV<?,?>. Key part of TKV goes into "key" column and value part into "value".
+IRawParDoPtr CreateDecodingValueNodeParDo(TRowVtable rowVtable);
+IRawParDoPtr CreateEncodingValueNodeParDo(TRowVtable rowVtable);
+
+IRawParDoPtr CreateDecodingKeyValueNodeParDo(TRowVtable rowVtable);
+IRawParDoPtr CreateEncodingKeyValueNodeParDo(TRowVtable rowVtable);
+
+IRawParDoPtr CreateReadNodeImpulseParDo(ssize_t tableCount);
+IRawParDoPtr CreateWriteNodeParDo(ssize_t tableIndex);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren::NPrivate
