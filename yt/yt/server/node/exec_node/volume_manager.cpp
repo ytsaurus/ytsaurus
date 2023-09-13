@@ -2124,6 +2124,7 @@ public:
                 tag,
                 options)
             .AsyncVia(GetCurrentInvoker()))
+            .ToImmediatelyCancelable()
             .As<IVolumePtr>();
     }
 
