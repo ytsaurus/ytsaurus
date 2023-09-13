@@ -452,11 +452,10 @@ private:
                 Context_.UserSandboxOptions)
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
-                        YT_LOG_DEBUG("Failed to prepare root volume");
+                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
-                        THROW_ERROR_EXCEPTION(
-                            TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
-                                << volumeOrError);
+                        THROW_ERROR_EXCEPTION(EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                            << volumeOrError;
                     }
 
                     YT_LOG_DEBUG("Root volume prepared");
@@ -642,7 +641,7 @@ private:
             return Executor_->PullImage(imageDescriptor)
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCriImageDescriptor>& imageOrError) {
                     if (!imageOrError.IsOK()) {
-                        YT_LOG_DEBUG("Failed to prepare root volume (Image: %v)", imageDescriptor);
+                        YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
                         THROW_ERROR_EXCEPTION(
                             TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare docker image")

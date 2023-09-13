@@ -119,7 +119,7 @@ private:
         T(TPortoExecutor::*Method)(TArgs1...),
         const TString& command,
         TArgs2&&... args) {
-        YT_LOG_DEBUG("Enqueue porti api action (Command: %v)", command);
+        YT_LOG_DEBUG("Enqueue Porto Api action (Command: %v)", command);
         return BIND(Method, MakeStrong(this), std::forward<TArgs2>(args)...)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
