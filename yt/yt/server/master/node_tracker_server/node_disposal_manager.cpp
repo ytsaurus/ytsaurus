@@ -268,6 +268,7 @@ private:
         auto sequoiaReplicasFuture = chunkManager->GetSequoiaLocationReplicas(node->GetId(), location->GetUuid());
         auto errorOrSequoiaReplicas = WaitFor(sequoiaReplicasFuture);
         if (!errorOrSequoiaReplicas.IsOK()) {
+            location->SetBeingDisposed(false);
             YT_LOG_ERROR(errorOrSequoiaReplicas, "Error getting sequoia location replicas");
             return;
         }

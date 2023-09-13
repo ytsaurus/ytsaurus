@@ -3162,7 +3162,7 @@ private:
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         if (!config->SequoiaManager->Enable) {
-            return {};
+            return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
         }
 
         auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
