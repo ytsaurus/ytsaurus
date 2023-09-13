@@ -197,7 +197,9 @@ TTabletActionBatch BalanceAndPrintDescriptors(
     const TString& parameterizedConfig)
 {
     ValidateBundle(bundle);
+    YT_LOG_INFO("Balancing iteration started");
     auto descriptors = Balance(mode, bundle, group, parameterizedConfig);
+    YT_LOG_INFO("Balancing iteration finished");
     PrintDescriptors(descriptors);
     return descriptors;
 }
