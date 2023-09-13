@@ -1955,6 +1955,7 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<TTableId>(request->replica_id());
         auto newProgress = FromProto<TReplicationProgress>(request->replication_progress());
+        auto force = request->force();
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
@@ -1965,13 +1966,18 @@ private:
                 << TErrorAttribute("replica_id", replicaId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, OldProgress: %v, NewProgress: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, Force: %v OldProgress: %v, NewProgress: %v)",
             replicationCardId,
             replicaId,
+            force,
             replicaInfo->ReplicationProgress,
             newProgress);
 
-        NChaosClient::UpdateReplicationProgress(&replicaInfo->ReplicationProgress, newProgress);
+        if (force) {
+            replicaInfo->ReplicationProgress = std::move(newProgress);
+        } else {
+            NChaosClient::UpdateReplicationProgress(&replicaInfo->ReplicationProgress, newProgress);
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v)",
             replicationCardId,
