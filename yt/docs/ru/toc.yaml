@@ -379,5 +379,6 @@ items:
   - name: Как сообщить о проблеме
     href: user-guide/problems/howtoreport.md
   - name: Выступления на мероприятиях, публикации и семинары
+    when: audience == "public"
     href: other/video-posts.md
 
