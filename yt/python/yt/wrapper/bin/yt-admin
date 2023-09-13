@@ -90,11 +90,12 @@ def main():
     build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
 
     exit_read_only_parser = subparsers.add_parser("exit-read-only", help="Exit read-only mode at given master cell")
-    exit_read_only.set_defaults(func=exit_read_only)
+    exit_read_only_parser.set_defaults(func=exit_read_only)
     exit_read_only_parser.add_argument("--cell-id", required=True)
 
     master_exit_read_only_parser = subparsers.add_parser("master-exit-read-only",
                                                          help="Exit read-only at all master cells")
+    master_exit_read_only_parser.set_defaults(func=master_exit_read_only)
     master_exit_read_only_parser.add_argument("--retry", action="store_true", default=True)
 
     add_switch_leader_parser(subparsers)
