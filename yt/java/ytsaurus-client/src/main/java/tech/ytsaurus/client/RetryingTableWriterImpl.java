@@ -22,7 +22,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tech.ytsaurus.client.request.ColumnFilter;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.LockNode;
@@ -184,7 +183,7 @@ class RetryingTableWriterBaseImpl<T> {
                             .thenCompose(unused -> transaction.getNode(
                                     GetNode.builder()
                                             .setPath(path.justPath())
-                                            .setAttributes(ColumnFilter.of("schema"))
+                                            .setAttributes(List.of("schema"))
                                             .build()))
                             .thenApply(node -> new InitResult(
                                     transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))

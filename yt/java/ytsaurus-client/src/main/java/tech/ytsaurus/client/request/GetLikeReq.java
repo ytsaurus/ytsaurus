@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -13,7 +14,7 @@ public abstract class GetLikeReq<
         TRequest extends RequestBase<TBuilder, TRequest>> extends TransactionalRequest<TBuilder, TRequest> {
     protected YPath path;
     @Nullable
-    protected ColumnFilter attributes;
+    protected List<String> attributes;
     @Nullable
     protected Integer maxSize;
     @Nullable
@@ -49,7 +50,11 @@ public abstract class GetLikeReq<
         return path;
     }
 
-    public Optional<ColumnFilter> getAttributes() {
+    /**
+     * @return optional with unmodifiable list or empty optional,
+     * that represents universal attribute filter
+     */
+    public Optional<List<String>> getAttributes() {
         return Optional.ofNullable(attributes);
     }
 
@@ -79,8 +84,7 @@ public abstract class GetLikeReq<
                 .apply(super::toTree)
                 .key("path").apply(path::toTree)
                 .when(masterReadOptions != null, b -> b.key("read_from").apply(masterReadOptions::toTree))
-                .when(attributes != null && attributes.isPresent(),
-                        b2 -> b2.key("attributes").apply(attributes::toTree));
+                .when(attributes != null, b2 -> b2.key("attributes").value(attributes));
     }
 
     public abstract static class Builder<
@@ -90,7 +94,7 @@ public abstract class GetLikeReq<
         @Nullable
         protected YPath path;
         @Nullable
-        protected ColumnFilter attributes;
+        protected List<String> attributes;
         @Nullable
         protected Integer maxSize;
         @Nullable
@@ -119,8 +123,15 @@ public abstract class GetLikeReq<
             return self();
         }
 
-        public TBuilder setAttributes(@Nullable ColumnFilter cf) {
-            this.attributes = cf;
+        /**
+         * @param attributes must not contain any null elements,
+         *                   null value of list represents universal attribute filter.
+         * @throws NullPointerException if attributes contains any nulls
+         */
+        public TBuilder setAttributes(@Nullable List<String> attributes) {
+            if (attributes != null) {
+                this.attributes = List.copyOf(attributes);
+            }
             return self();
         }
 
@@ -144,7 +155,11 @@ public abstract class GetLikeReq<
             return path;
         }
 
-        public Optional<ColumnFilter> getAttributes() {
+        /**
+         * @return optional with unmodifiable list or empty optional,
+         * that represents universal attribute filter
+         */
+        public Optional<List<String>> getAttributes() {
             return Optional.ofNullable(attributes);
         }
 
@@ -176,8 +191,7 @@ public abstract class GetLikeReq<
                     .apply(super::toTree)
                     .key("path").apply(path::toTree)
                     .when(masterReadOptions != null, b -> b.key("read_from").apply(masterReadOptions::toTree))
-                    .when(attributes != null && attributes.isPresent(),
-                            b2 -> b2.key("attributes").apply(attributes::toTree));
+                    .when(attributes != null, b2 -> b2.key("attributes").value(attributes));
         }
     }
 }

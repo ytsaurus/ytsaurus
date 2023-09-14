@@ -39,7 +39,6 @@ import tech.ytsaurus.client.request.BaseOperation;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CheckPermission;
-import tech.ytsaurus.client.request.ColumnFilter;
 import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
@@ -1237,7 +1236,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 .thenCompose(transaction -> transaction.lockNode(new LockNode(path, lockMode))
                         .thenCompose(lockNodeResult -> transaction.getNode(GetNode.builder()
                                                 .setPath(YPath.objectRoot(lockNodeResult.nodeId))
-                                                .setAttributes(ColumnFilter.of("schema"))
+                                                .setAttributes(List.of("schema"))
                                                 .build()
                                         )
                                         .thenApply(node ->

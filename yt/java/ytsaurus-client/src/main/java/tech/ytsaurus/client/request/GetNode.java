@@ -1,12 +1,12 @@
 package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-import tech.ytsaurus.rpcproxy.TLegacyAttributeKeys;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
 import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
 import tech.ytsaurus.rpcproxy.TReqGetNode;
 import tech.ytsaurus.rpcproxy.TSuppressableAccessTrackingOptions;
 import tech.ytsaurus.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.ytree.TAttributeFilter;
 
 public class GetNode extends GetLikeReq<GetNode.Builder, GetNode> implements HighLevelRequest<TReqGetNode.Builder> {
     public GetNode(BuilderBase<?> builder) {
@@ -24,8 +24,7 @@ public class GetNode extends GetLikeReq<GetNode.Builder, GetNode> implements Hig
     public void writeTo(RpcClientRequestBuilder<TReqGetNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());
         if (attributes != null) {
-            // TODO(max42): switch to modern "attributes" field.
-            builder.body().setLegacyAttributes(attributes.writeTo(TLegacyAttributeKeys.newBuilder()));
+            builder.body().setAttributes(TAttributeFilter.newBuilder().addAllKeys(attributes));
         }
         if (maxSize != null) {
             builder.body().setMaxSize(maxSize);

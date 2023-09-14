@@ -1,11 +1,11 @@
 package tech.ytsaurus.example;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import tech.ytsaurus.client.YTsaurusClient;
-import tech.ytsaurus.client.request.ColumnFilter;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -53,7 +53,7 @@ public class ExampleCypressOperations {
             CompletableFuture<YTreeNode> getResult = client.getNode(
                     GetNode.builder()
                             .setPath(YPath.simple("//home/dev/tutorial"))
-                            .setAttributes(ColumnFilter.of("account", "row_count"))
+                            .setAttributes(List.of("account", "row_count"))
                             .setTimeout(Duration.ofSeconds(10))
                             .build()
             );
