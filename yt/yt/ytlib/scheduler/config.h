@@ -297,6 +297,8 @@ public:
 
     std::optional<bool> AllowIdleCpuPolicy;
 
+    bool ComputePromisedGuaranteeFairShare;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

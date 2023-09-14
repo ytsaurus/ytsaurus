@@ -1,3 +1,5 @@
+#pragma once
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NVectorHdrf {

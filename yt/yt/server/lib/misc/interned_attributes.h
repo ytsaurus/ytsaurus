@@ -103,6 +103,7 @@
     XX(CompressionRatio, compression_ratio) \
     XX(CompressionStatistics, compression_statistics) \
     XX(CollocationType, collocation_type) \
+    XX(ComputePromisedGuaranteeFairShare, compute_promised_guarantee_fair_share) \
     XX(Config, config) \
     XX(ConfigPreset, config_preset) \
     XX(ConfigVersion, config_version) \

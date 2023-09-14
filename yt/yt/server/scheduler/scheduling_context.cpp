@@ -65,7 +65,8 @@ TString FormatPreemptibleInfoCompact(const TScheduleJobsStatistics& statistics)
 
 TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics)
 {
-    return Format("{RM: %v, PSA: %v, PSN: %v, PA: %v, PN: %v, C: %v, TO: %v, MNPSI: %v}",
+    return Format("{RH: %v, RM: %v, PSA: %v, PSN: %v, PA: %v, PN: %v, C: %v, TO: %v, MNPSI: %v}",
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::RegularHighPriority],
         statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::RegularMediumPriority],
         statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveSsdAggressive],
         statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveSsdNormal],

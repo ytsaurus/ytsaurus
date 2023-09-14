@@ -1317,6 +1317,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
             THashMap<TSchedulerElement*, int> operationToIndex;
             for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
                 auto* element = getBestOperation(context->DynamicAttributesOf(pool.Get()));
+
+                ASSERT_TRUE(element);
+
                 EmplaceOrCrash(
                     operationToIndex,
                     element,
@@ -1496,14 +1499,14 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
                 const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
-                EXPECT_TRUE(dynamicAttributes.Active);
+                ASSERT_TRUE(dynamicAttributes.Active);
             }
             for (int i = FirstBatchOperationCount; i < OperationCount; ++i) {
                 const auto& operationElement = sortedOperationElements[i];
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
                 const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
-                EXPECT_FALSE(dynamicAttributes.Active);
+                ASSERT_FALSE(dynamicAttributes.Active);
             }
 
             for (int iter = 0; iter < 2; ++iter) {
@@ -1539,14 +1542,14 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
                 const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
-                EXPECT_FALSE(dynamicAttributes.Active);
+                ASSERT_FALSE(dynamicAttributes.Active);
             }
             for (int i = FirstBatchOperationCount; i < OperationCount; ++i) {
                 const auto& operationElement = sortedOperationElements[i];
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
                 const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
-                EXPECT_TRUE(dynamicAttributes.Active);
+                ASSERT_TRUE(dynamicAttributes.Active);
             }
 
             TJobResources FallbackMinSpareResources;
@@ -1838,8 +1841,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
                 return std::find(children.begin(), children.end(), child) != children.end();
             };
 
-            for (const auto& child : pool->SchedulableChildren()) {
-                EXPECT_EQ(expectedActiveElements.contains(child.Get()), isChildInSet(child.Get()));
+            for (auto* child : pool->SchedulableChildren()) {
+                EXPECT_EQ(expectedActiveElements.contains(child), isChildInSet(child));
             }
         }
     };
@@ -1988,6 +1991,110 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
         EXPECT_TRUE(childSet.has_value());
         EXPECT_TRUE(childSet->GetChildren().empty());
     }
+}
+
+TEST_F(TFairShareTreeJobSchedulerTest, TestGuaranteePriorityScheduling)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto strategyHost = CreateTestStrategyHost({execNode});
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
+
+    // Create pools.
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "poolA");
+
+    poolA->AttachParent(rootElement.Get());
+
+    TJobResourcesConfigPtr poolBGuaranteeConfig = New<TJobResourcesConfig>();
+    poolBGuaranteeConfig->Cpu = 70;
+
+    auto poolConfig = New<TPoolConfig>();
+    poolConfig->ComputePromisedGuaranteeFairShare = true;
+    poolConfig->StrongGuaranteeResources = poolBGuaranteeConfig;
+    auto poolB = CreateTestPool(strategyHost.Get(), "poolB", poolConfig);
+
+    poolB->AttachParent(rootElement.Get());
+
+    // Create operations.
+    TJobResourcesWithQuota jobResources;
+    jobResources.SetCpu(10);
+    jobResources.SetMemory(10);
+    jobResources.SetDiskQuota(CreateDiskQuota(0));
+
+    auto operationA1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementA1 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA1.Get(), poolA.Get());
+    auto operationA2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementA2 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA2.Get(), poolA.Get());
+    auto operationB1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementB1 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB1.Get(), poolB.Get());
+    auto operationB2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementB2 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB2.Get(), poolB.Get());
+
+    // Create usage for operations.
+    int jobCount = 0;
+    for (const auto& operationElement : {operationElementA1, operationElementA2, operationElementB1, operationElementB2}) {
+        for (int jobIndex = 0; jobIndex < jobCount; ++jobIndex) {
+            treeScheduler->OnJobStartedInTest(operationElement.Get(), TJobId::Create(), jobResources);
+        }
+
+        ++jobCount;
+    }
+
+    auto vectorContains = [&] (const auto& vector, const auto& value) {
+        return std::find(vector.begin(), vector.end(), value) != vector.end();
+    };
+
+    auto doTestCase = [&] (
+        bool enableGuaranteePriorityScheduling,
+        const std::vector<TSchedulerOperationElementPtr> expectedHighPriorityOperations,
+        const std::vector<TSchedulerOperationElementPtr> expectedMediumPriorityOperations)
+    {
+        TreeConfig_->EnableGuaranteePriorityScheduling = enableGuaranteePriorityScheduling;
+
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+
+        const auto& staticAttributesList = treeSnapshot->SchedulingSnapshot()->StaticAttributesList();
+        const auto& schedulableOperationsHigh = treeSnapshot->SchedulingSnapshot()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::High];
+        const auto& schedulableOperationsMedium = treeSnapshot->SchedulingSnapshot()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
+
+        EXPECT_EQ(std::ssize(expectedHighPriorityOperations), std::ssize(schedulableOperationsHigh));
+        for (const auto& operationElement : expectedHighPriorityOperations) {
+            EXPECT_TRUE(vectorContains(schedulableOperationsHigh, operationElement));
+            EXPECT_EQ(EOperationSchedulingPriority::High, staticAttributesList.AttributesOf(operationElement.Get()).SchedulingPriority);
+        }
+
+        EXPECT_EQ(std::ssize(expectedMediumPriorityOperations), std::ssize(schedulableOperationsMedium));
+        for (const auto& operationElement : expectedMediumPriorityOperations) {
+            EXPECT_TRUE(vectorContains(schedulableOperationsMedium, operationElement));
+            EXPECT_EQ(EOperationSchedulingPriority::Medium, staticAttributesList.AttributesOf(operationElement.Get()).SchedulingPriority);
+        }
+
+        int expectedSchedulingIndex = 0;
+        for (const auto& operationElement : expectedHighPriorityOperations) {
+            EXPECT_EQ(expectedSchedulingIndex, staticAttributesList.AttributesOf(operationElement.Get()).SchedulingIndex);
+            ++expectedSchedulingIndex;
+        }
+    };
+
+    // Scheduling with priority.
+    doTestCase(
+        /*enableGuaranteePriorityScheduling*/ true,
+        /*expectedHighPriorityOperations*/ {operationElementB1, operationElementB2},
+        /*expectedMediumPriorityOperations*/ {operationElementA1, operationElementA2});
+
+    // Scheduling without priority.
+    doTestCase(
+        /*enableGuaranteePriorityScheduling*/ false,
+        /*expectedHighPriorityOperations*/ {},
+        /*expectedMediumPriorityOperations*/ {operationElementA1, operationElementA2, operationElementB1, operationElementB2});
 }
 
 TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapshot)

@@ -95,7 +95,7 @@ public:
         return Attributes_;
     }
 
-    TElement* GetParentElement() const override
+    TCompositeElement* GetParentElement() const override
     {
         return Parent_;
     }
@@ -229,6 +229,11 @@ public:
         return IntegralGuaranteesConfig_->ShouldDistributeFreeVolumeAmongChildren;
     }
 
+    bool ShouldComputePromisedGuaranteeFairShare() const override
+    {
+        return PromisedGuaranteeFairShareComputationEnabled_;
+    }
+
     void AddChild(TElementMock* child)
     {
         Children_.push_back(child);
@@ -258,11 +263,17 @@ public:
         FairShareTruncationInFifoPoolEnabled_ = enabled;
     }
 
+    void SetPromisedGuaranteeFairShareComputationEnabled(bool enabled)
+    {
+        PromisedGuaranteeFairShareComputationEnabled_ = enabled;
+    }
+
 private:
     std::vector<TElementMockPtr> Children_;
 
     ESchedulingMode Mode_ = ESchedulingMode::FairShare;
     bool FairShareTruncationInFifoPoolEnabled_ = false;
+    bool PromisedGuaranteeFairShareComputationEnabled_ = false;
 };
 
 using TCompositeElementMockPtr = TIntrusivePtr<TCompositeElementMock>;
@@ -503,7 +514,7 @@ protected:
         return onePercentOfCluster;
     }
 
-    void DoFairShareUpdate(
+    TFairShareUpdateContext DoFairShareUpdate(
         const TJobResources& totalResourceLimits,
         const TRootElementMockPtr& rootElement,
         TInstant now = TInstant(),
@@ -511,7 +522,7 @@ protected:
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-        NVectorHdrf::TFairShareUpdateContext context(
+        TFairShareUpdateContext context(
             totalResourceLimits,
             /*mainResource*/ EJobResourceType::Cpu,
             /*integralPoolCapacitySaturationPeriod*/ TDuration::Days(1),
@@ -521,8 +532,10 @@ protected:
 
         rootElement->PreUpdate(totalResourceLimits);
 
-        NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
+        TFairShareUpdateExecutor updateExecutor(rootElement, &context);
         updateExecutor.Run();
+
+        return context;
     }
 
 private:
@@ -1047,6 +1060,98 @@ TEST_F(TFairShareUpdateTest, TestTruncateUnsatisfiedChildFairShareInFifoPools)
 
     EXPECT_RV_NEAR(TResourceVector(unit * 0.3), poolA->Attributes().FairShare.Total);
     EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolB->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestPromisedGuaranteeFairShare)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    auto rootElement = CreateRootElement();
+    auto poolA = CreateSimplePool("poolA", /*strongGuaranteeCpu*/ 30.0);
+    auto poolA1 = CreateSimplePool("poolA1", /*strongGuaranteeCpu*/ 10.0);
+    auto poolA2 = CreateSimplePool("poolA2");
+    auto poolA3 = CreateSimplePool("poolA3");
+    auto poolB = CreateSimplePool("poolB", /*strongGuaranteeCpu*/ 30.0);
+    poolA->AttachParent(rootElement.Get());
+    poolA1->AttachParent(poolA.Get());
+    poolA2->AttachParent(poolA.Get());
+    poolA3->AttachParent(poolA.Get());
+    poolB->AttachParent(rootElement.Get());
+
+    poolA->SetPromisedGuaranteeFairShareComputationEnabled(true);
+    // Test that only the uppermost pool's config takes effect.
+    poolA2->SetPromisedGuaranteeFairShareComputationEnabled(true);
+
+    auto largeResourceDemand = totalResourceLimits;
+    auto operationA1 = CreateOperation(poolA1.Get(), largeResourceDemand);
+    auto operationA2 = CreateOperation(poolA2.Get(), largeResourceDemand);
+    auto operationB = CreateOperation(poolB.Get(), largeResourceDemand);
+
+    TJobResources smallResourceDemand;
+    smallResourceDemand.SetUserSlots(2);
+    smallResourceDemand.SetCpu(2);
+    smallResourceDemand.SetMemory(20_MB);
+
+    auto operationA3 = CreateOperation(poolA3.Get(), smallResourceDemand);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement);
+
+    const TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.29), operationA1->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), operationA2->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), operationA3->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), operationB->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolA->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.29), poolA1->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), poolA2->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), poolA3->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolB->Attributes().FairShare.Total);
+
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), operationA1->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.09), operationA2->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), operationA3->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), operationB->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), poolA->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), poolA1->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.09), poolA2->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), poolA3->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), poolB->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), rootElement->Attributes().PromisedGuaranteeFairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestNestedPromisedGuaranteeFairSharePools)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    auto rootElement = CreateRootElement();
+    auto poolA = CreateSimplePool("poolA");
+    auto poolA1 = CreateSimplePool("poolA1");
+    poolA->AttachParent(rootElement.Get());
+    poolA1->AttachParent(poolA.Get());
+
+    poolA->SetPromisedGuaranteeFairShareComputationEnabled(true);
+    poolA1->SetPromisedGuaranteeFairShareComputationEnabled(true);
+
+    auto checkErrors = [&] (const auto& errors) {
+        for (const auto& error : errors) {
+            if (error.FindMatching(EErrorCode::NestedPromisedGuaranteeFairSharePools)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    {
+        auto context = DoFairShareUpdate(totalResourceLimits, rootElement);
+        EXPECT_TRUE(checkErrors(context.Errors));
+    }
+
+    poolA1->SetPromisedGuaranteeFairShareComputationEnabled(false);
+
+    {
+        auto context = DoFairShareUpdate(totalResourceLimits, rootElement);
+        EXPECT_FALSE(checkErrors(context.Errors));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

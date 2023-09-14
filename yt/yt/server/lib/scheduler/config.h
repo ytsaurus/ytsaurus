@@ -428,6 +428,8 @@ public:
     THistogramDigestConfigPtr PerPoolSatisfactionDigest;
     std::vector<double> PerPoolSatisfactionProfilingQuantiles;
 
+    bool EnableGuaranteePriorityScheduling;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

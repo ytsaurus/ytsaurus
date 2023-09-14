@@ -222,6 +222,19 @@ bool IsNormalPreemptionAllowed(const TSchedulerElement* element)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EJobSchedulingStage GetRegularSchedulingStageByPriority(EOperationSchedulingPriority priority) {
+    switch (priority) {
+        case EOperationSchedulingPriority::High:
+            return EJobSchedulingStage::RegularHighPriority;
+        case EOperationSchedulingPriority::Medium:
+            return EJobSchedulingStage::RegularMediumPriority;
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsSsdJobPreemptionLevel(EJobPreemptionLevel jobPreemptionLevel)
 {
     switch (jobPreemptionLevel) {
@@ -242,6 +255,55 @@ bool IsSsdOperationPreemptionPriority(EOperationPreemptionPriority operationPree
         default:
             return false;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Builds the subtree induced by |operationSubset| and returns the list of children in this subtree for each pool.
+//! Children lists are returned in a vector indexed by elements' tree indexes, like dynamic attributes list (for performance reasons).
+// TODO(eshcherbin): Add a class which would represent a subtree.
+std::vector<TNonOwningElementList> BuildOperationSubsetInducedSubtree(
+    TSchedulerRootElement* rootElement,
+    const TNonOwningOperationElementList& operationSubset)
+{
+    //! NB(eshcherbin): All operations in |operationSubset| must be schedulable.
+    std::vector<TNonOwningElementList> subtreeChildrenPerPool(rootElement->SchedulableElementCount());
+    for (auto* operationElement : operationSubset) {
+        TSchedulerElement* element = operationElement;
+        while (auto* parent = element->GetMutableParent()) {
+            auto& parentSubtreeChildren = GetSchedulerElementAttributesFromVector(subtreeChildrenPerPool, parent);
+
+            bool firstVisit = false;
+            if (parentSubtreeChildren.empty()) {
+                // For fewer reallocations.
+                parentSubtreeChildren.reserve(parent->SchedulableChildren().size());
+                firstVisit = true;
+            }
+
+            parentSubtreeChildren.push_back(element);
+
+            if (!firstVisit) {
+                break;
+            }
+
+            element = parent;
+        }
+    }
+
+    return subtreeChildrenPerPool;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using EOperationSchedulingPriorityList = TCompactVector<EOperationSchedulingPriority, TEnumTraits<EOperationSchedulingPriority>::GetDomainSize()>;
+const EOperationSchedulingPriorityList& GetDescendingSchedulingPriorities()
+{
+    static const EOperationSchedulingPriorityList DescendingSchedulingPriorities = {
+        EOperationSchedulingPriority::High,
+        EOperationSchedulingPriority::Medium,
+    };
+
+    return DescendingSchedulingPriorities;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -477,11 +539,7 @@ void TDynamicAttributesManager::InitializeAttributesAtCompositeElement(
 {
     // COMPAT(eshcherbin)
     if (useChildHeap && !consideredSchedulableChildren) {
-        consideredSchedulableChildren.emplace();
-        consideredSchedulableChildren->reserve(element->SchedulableChildren().size());
-        for (const auto& child : element->SchedulableChildren()) {
-            consideredSchedulableChildren->push_back(child.Get());
-        }
+        consideredSchedulableChildren = element->SchedulableChildren();
     }
 
     if (consideredSchedulableChildren) {
@@ -663,13 +721,13 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChild(TSchedulerCompo
 TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFifo(TSchedulerCompositeElement* element) const
 {
     TSchedulerElement* bestChild = nullptr;
-    for (const auto& child : element->SchedulableChildren()) {
-        if (!AttributesOf(child.Get()).Active) {
+    for (auto* child : element->SchedulableChildren()) {
+        if (!AttributesOf(child).Active) {
             continue;
         }
 
-        if (!bestChild || element->HasHigherPriorityInFifoMode(child.Get(), bestChild)) {
-            bestChild = child.Get();
+        if (!bestChild || element->HasHigherPriorityInFifoMode(child, bestChild)) {
+            bestChild = child;
         }
     }
     return bestChild;
@@ -679,14 +737,14 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFairShare(TSched
 {
     TSchedulerElement* bestChild = nullptr;
     double bestChildSatisfactionRatio = InfiniteSatisfactionRatio;
-    for (const auto& child : element->SchedulableChildren()) {
-        if (!AttributesOf(child.Get()).Active) {
+    for (auto* child : element->SchedulableChildren()) {
+        if (!AttributesOf(child).Active) {
             continue;
         }
 
-        double childSatisfactionRatio = AttributesOf(child.Get()).SatisfactionRatio;
+        double childSatisfactionRatio = AttributesOf(child).SatisfactionRatio;
         if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio) {
-            bestChild = child.Get();
+            bestChild = child;
             bestChildSatisfactionRatio = childSatisfactionRatio;
         }
     }
@@ -751,8 +809,8 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtCompositeElement(con
     auto& attributes = context->AttributesList->AttributesOf(element);
 
     auto resourceUsage = element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
-    for (const auto& child : element->SchedulableChildren()) {
-        resourceUsage += FillResourceUsage(child.Get(), context);
+    for (auto* child : element->SchedulableChildren()) {
+        resourceUsage += FillResourceUsage(child, context);
     }
     SetResourceUsage(element, &attributes, resourceUsage);
 
@@ -983,14 +1041,9 @@ void TScheduleJobsContext::PrepareForScheduling()
                 /*resourceUsageSnapshot*/ nullptr,
                 SchedulingContext_->GetNow());
         DynamicAttributesManager_.SetAttributesList(std::move(dynamicAttributesList));
-
-        ConsideredSchedulableChildrenPerPool_.resize(TreeSnapshot_->RootElement()->SchedulableElementCount());
     } else {
         DynamicAttributesManager_.Clear();
-
-        for (auto& consideredChildren : ConsideredSchedulableChildrenPerPool_) {
-            consideredChildren.reset();
-        }
+        ConsideredSchedulableChildrenPerPool_.reset();
     }
 }
 
@@ -1549,43 +1602,9 @@ void TScheduleJobsContext::CollectConsideredSchedulableChildrenPerPool(
         return;
     }
 
-    // NB: In case there are no considered operations.
-    {
-        auto& rootConsideredChildren = GetConsideredSchedulableChildrenForPool(TreeSnapshot_->RootElement().Get());
-        rootConsideredChildren.emplace();
-        rootConsideredChildren->reserve(TreeSnapshot_->RootElement()->SchedulableChildren().size());
-    }
-
-    for (auto* operationElement : *consideredSchedulableOperations) {
-        TSchedulerElement* element = operationElement;
-        while (auto* parent = element->GetMutableParent()) {
-            auto& parentConsideredChildren = GetConsideredSchedulableChildrenForPool(parent);
-
-            bool firstVisit = false;
-            if (!parentConsideredChildren) {
-                parentConsideredChildren.emplace();
-                // For fewer reallocations.
-                parentConsideredChildren->reserve(parent->SchedulableChildren().size());
-
-                firstVisit = true;
-            }
-
-            parentConsideredChildren->push_back(element);
-
-            if (!firstVisit) {
-                break;
-            }
-
-            element = parent;
-        }
-    }
-}
-
-std::optional<TNonOwningElementList>& TScheduleJobsContext::GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element)
-{
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(ConsideredSchedulableChildrenPerPool_));
-    return ConsideredSchedulableChildrenPerPool_[index];
+    ConsideredSchedulableChildrenPerPool_ = BuildOperationSubsetInducedSubtree(
+        TreeSnapshot_->RootElement().Get(),
+        *consideredSchedulableOperations);
 }
 
 void TScheduleJobsContext::PrescheduleJob(
@@ -1624,22 +1643,23 @@ void TScheduleJobsContext::PrescheduleJobAtCompositeElement(
         return;
     }
 
-    auto consideredSchedulableChildren = std::move(GetConsideredSchedulableChildrenForPool(element));
-    if (consideredSchedulableChildren) {
-        for (auto* child : *consideredSchedulableChildren) {
-            PrescheduleJob(child, targetOperationPreemptionPriority);
-        }
-    } else {
-        // COMPAT(eshcherbin): Leave old code as it is for now to have a fallback option.
-        for (const auto& child : element->SchedulableChildren()) {
-            PrescheduleJob(child.Get(), targetOperationPreemptionPriority);
-        }
+    std::optional<TNonOwningElementList> consideredSchedulableChildren;
+    if (ConsideredSchedulableChildrenPerPool_) {
+        // NB(eshcherbin): We move children list out of |ConsideredSchedulableChildrenPerPool_| to avoid extra copying.
+        // This is the only place |ConsideredSchedulableChildrenPerPool_| is accessed after it is initialized.
+        consideredSchedulableChildren = std::move(GetSchedulerElementAttributesFromVector(*ConsideredSchedulableChildrenPerPool_, element));
+    }
+
+    // COMPAT(eshcherbin): Use all of element's schedulable children if we don't compute considered subset.
+    const TNonOwningElementList& children = consideredSchedulableChildren
+        ? *consideredSchedulableChildren
+        : element->SchedulableChildren();
+    for (auto* child : children) {
+        PrescheduleJob(child, targetOperationPreemptionPriority);
     }
 
     bool useChildHeap = false;
-    int schedulableChildrenCount = consideredSchedulableChildren
-        ? std::ssize(*consideredSchedulableChildren)
-        : std::ssize(element->SchedulableChildren());
+    int schedulableChildrenCount = std::ssize(children);
     if (schedulableChildrenCount >= TreeSnapshot_->TreeConfig()->MinChildHeapSize) {
         useChildHeap = true;
         StageState_->TotalHeapElementCount += schedulableChildrenCount;
@@ -1899,8 +1919,8 @@ void TScheduleJobsContext::PrepareConditionalUsageDiscountsAtCompositeElement(
     }
 
     context->CurrentConditionalDiscount += deltaConditionalDiscount;
-    for (const auto& child : element->SchedulableChildren()) {
-        PrepareConditionalUsageDiscounts(child.Get(), context);
+    for (auto* child : element->SchedulableChildren()) {
+        PrepareConditionalUsageDiscounts(child, context);
     }
     context->CurrentConditionalDiscount -= deltaConditionalDiscount;
 }
@@ -2927,6 +2947,7 @@ void TFairShareTreeJobScheduler::BuildOperationProgress(
         .Item("preemptible_job_count").Value(operationSharedState->GetPreemptibleJobCount())
         .Item("aggressively_preemptible_job_count").Value(operationSharedState->GetAggressivelyPreemptibleJobCount())
         .Item("scheduling_index").Value(attributes.SchedulingIndex)
+        .Item("scheduling_priority").Value(attributes.SchedulingPriority)
         .Item("deactivation_reasons").Value(operationSharedState->GetDeactivationReasons())
         .Item("min_needed_resources_unsatisfied_count").Value(operationSharedState->GetMinNeededResourcesUnsatisfiedCount())
         .Item("disk_quota_usage").BeginMap()
@@ -2993,11 +3014,9 @@ void TFairShareTreeJobScheduler::PostUpdate(
         UpdateCachedJobPreemptionStatuses(fairSharePostUpdateContext, postUpdateContext);
     }
 
-    TDynamicAttributesManager dynamicAttributesManager(/*schedulingSnapshot*/ {}, postUpdateContext->RootElement->GetTreeSize());
-    ComputeDynamicAttributesAtUpdateRecursively(postUpdateContext->RootElement, &dynamicAttributesManager);
-    BuildSchedulableIndices(&dynamicAttributesManager, postUpdateContext);
-
     CollectSchedulableOperationsPerPriority(fairSharePostUpdateContext, postUpdateContext);
+
+    ComputeOperationSchedulingIndexes(fairSharePostUpdateContext, postUpdateContext);
 
     CollectKnownSchedulingTagFilters(fairSharePostUpdateContext, postUpdateContext);
 
@@ -3078,12 +3097,13 @@ void TFairShareTreeJobScheduler::BuildElementLoggingStringAttributes(
             : TStaticAttributes{};
         delimitedBuilder->AppendFormat(
             "PreemptibleRunningJobs: %v, AggressivelyPreemptibleRunningJobs: %v, PreemptionStatusStatistics: %v, "
-            "SchedulingIndex: %v, DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v, "
+            "SchedulingIndex: %v, SchedulingPriority: %v, DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v, "
             "SchedulingSegment: %v, SchedulingSegmentModule: %v",
             operationSharedState->GetPreemptibleJobCount(),
             operationSharedState->GetAggressivelyPreemptibleJobCount(),
             operationSharedState->GetPreemptionStatusStatistics(),
             attributes.SchedulingIndex,
+            attributes.SchedulingPriority,
             operationSharedState->GetDeactivationReasons(),
             operationSharedState->GetMinNeededResourcesUnsatisfiedCount(),
             operationState->SchedulingSegment,
@@ -3245,8 +3265,22 @@ void TFairShareTreeJobScheduler::DoRegularJobScheduling(TScheduleJobsContext* co
         }
     };
 
-    if (treeConfig->BatchOperationScheduling) {
-        const auto& schedulableOperationsPerPriority = context->TreeSnapshot()->SchedulingSnapshot()->SchedulableOperationsPerPriority();
+    const auto& schedulableOperationsPerPriority = context->TreeSnapshot()->SchedulingSnapshot()->SchedulableOperationsPerPriority();
+    if (treeConfig->EnableGuaranteePriorityScheduling) {
+        for (auto priority : GetDescendingSchedulingPriorities()) {
+            const auto& operations = schedulableOperationsPerPriority[priority];
+            auto stage = GetRegularSchedulingStageByPriority(priority);
+            if (treeConfig->BatchOperationScheduling) {
+                runRegularSchedulingStageWithBatching(stage, operations);
+            } else {
+                runRegularSchedulingStage(
+                    stage,
+                    TRegularSchedulingParameters{
+                        .ConsideredOperations = operations,
+                    });
+            }
+        }
+    } else if (treeConfig->BatchOperationScheduling) {
         runRegularSchedulingStageWithBatching(
             EJobSchedulingStage::RegularMediumPriority,
             schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
@@ -3516,19 +3550,21 @@ void TFairShareTreeJobScheduler::CollectSchedulableOperationsPerPriority(
     TFairSharePostUpdateContext* fairSharePostUpdateContext,
     TJobSchedulerPostUpdateContext* postUpdateContext) const
 {
-    TNonOwningOperationElementList sortedOperationElements;
-    sortedOperationElements.reserve(postUpdateContext->RootElement->SchedulableElementCount());
-    for (const auto& [_, operationElement] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
-        if (operationElement->IsSchedulable()) {
-            sortedOperationElements.push_back(operationElement);
+    for (const auto& [_, element] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
+        if (!element->IsSchedulable()) {
+            continue;
         }
+
+        bool useHighPriority = fairSharePostUpdateContext->TreeConfig->EnableGuaranteePriorityScheduling &&
+            element->IsStrictlyDominatesNonBlocked(
+                element->Attributes().PromisedGuaranteeFairShare.Total,
+                element->Attributes().UsageShare);
+        auto priority = useHighPriority
+            ? EOperationSchedulingPriority::High
+            : EOperationSchedulingPriority::Medium;
+        postUpdateContext->StaticAttributesList.AttributesOf(element).SchedulingPriority = priority;
+        postUpdateContext->SchedulableOperationsPerPriority[priority].push_back(element);
     }
-
-    SortBy(sortedOperationElements, [&] (const TSchedulerOperationElement* element) {
-        return postUpdateContext->StaticAttributesList.AttributesOf(element).SchedulingIndex;
-    });
-
-    postUpdateContext->SchedulableOperationsPerPriority[EOperationSchedulingPriority::Medium] = std::move(sortedOperationElements);
 }
 
 void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributes(
@@ -3627,37 +3663,62 @@ void TFairShareTreeJobScheduler::UpdateCachedJobPreemptionStatuses(
     };
 }
 
-void TFairShareTreeJobScheduler::ComputeDynamicAttributesAtUpdateRecursively(
+void TFairShareTreeJobScheduler::ComputeOperationSchedulingIndexes(
+    TFairSharePostUpdateContext* fairSharePostUpdateContext,
+    TJobSchedulerPostUpdateContext* postUpdateContext)
+{
+    int currentSchedulingIndex = 0;
+    auto doComputeOperationSchedulingIndexes = [&] (TNonOwningOperationElementList& operations) {
+        TDynamicAttributesManager dynamicAttributesManager(/*schedulingSnapshot*/ {}, postUpdateContext->RootElement->SchedulableElementCount());
+        auto consideredSchedulableChildrenPerPool = BuildOperationSubsetInducedSubtree(postUpdateContext->RootElement, operations);
+        InitializeDynamicAttributesAtUpdateRecursively(
+            postUpdateContext->RootElement,
+            &consideredSchedulableChildrenPerPool,
+            &dynamicAttributesManager);
+
+        // NB(eshcherbin): For brevity reasons we rely on the fact that reference to the root's attributes is never invalidated.
+        const auto& rootDynamicAttributes = const_cast<const TDynamicAttributesManager&>(dynamicAttributesManager).AttributesOf(postUpdateContext->RootElement);
+        while (rootDynamicAttributes.Active) {
+            auto* bestLeafDescendant = rootDynamicAttributes.BestLeafDescendant;
+            postUpdateContext->StaticAttributesList.AttributesOf(bestLeafDescendant).SchedulingIndex = currentSchedulingIndex++;
+            dynamicAttributesManager.DeactivateOperation(bestLeafDescendant);
+        }
+
+        // NB(eshcherbin): Need to sort operations by scheduling index for batching to work properly.
+        SortBy(operations, [&] (TSchedulerOperationElement* element) {
+            return postUpdateContext->StaticAttributesList.AttributesOf(element).SchedulingIndex;
+        });
+    };
+
+
+    if (fairSharePostUpdateContext->TreeConfig->EnableGuaranteePriorityScheduling) {
+        for (auto priority : GetDescendingSchedulingPriorities()) {
+            doComputeOperationSchedulingIndexes(postUpdateContext->SchedulableOperationsPerPriority[priority]);
+        }
+    } else {
+        // NB(eshcherbin): If priority scheduling is disabled, all operations have medium priority.
+        doComputeOperationSchedulingIndexes(postUpdateContext->SchedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
+    }
+}
+
+void TFairShareTreeJobScheduler::InitializeDynamicAttributesAtUpdateRecursively(
     TSchedulerElement* element,
+    std::vector<TNonOwningElementList>* consideredSchedulableChildrenPerPool,
     TDynamicAttributesManager* dynamicAttributesManager) const
 {
     dynamicAttributesManager->InitializeResourceUsageAtPostUpdate(element, element->ResourceUsageAtUpdate());
     if (element->IsOperation()) {
         dynamicAttributesManager->InitializeAttributesAtOperation(static_cast<TSchedulerOperationElement*>(element));
-    } else {
-        auto* compositeElement = static_cast<TSchedulerCompositeElement*>(element);
-        TNonOwningElementList children;
-        children.reserve(compositeElement->SchedulableChildren().size());
-        for (const auto& child : compositeElement->SchedulableChildren()) {
-            ComputeDynamicAttributesAtUpdateRecursively(child.Get(), dynamicAttributesManager);
-            children.push_back(child.Get());
-        }
-
-        dynamicAttributesManager->InitializeAttributesAtCompositeElement(compositeElement, std::move(children));
+        return;
     }
-}
 
-void TFairShareTreeJobScheduler::BuildSchedulableIndices(
-    TDynamicAttributesManager* dynamicAttributesManager,
-    TJobSchedulerPostUpdateContext* context) const
-{
-    const auto& dynamicAttributes = const_cast<const TDynamicAttributesManager*>(dynamicAttributesManager)->AttributesOf(context->RootElement);
-    int schedulingIndex = 0;
-    while (dynamicAttributes.Active) {
-        auto* bestLeafDescendant = dynamicAttributes.BestLeafDescendant;
-        context->StaticAttributesList.AttributesOf(bestLeafDescendant).SchedulingIndex = schedulingIndex++;
-        dynamicAttributesManager->DeactivateOperation(bestLeafDescendant);
+    auto* compositeElement = static_cast<TSchedulerCompositeElement*>(element);
+    auto& children = GetSchedulerElementAttributesFromVector(*consideredSchedulableChildrenPerPool, element);
+    for (auto* child : children) {
+        InitializeDynamicAttributesAtUpdateRecursively(child, consideredSchedulableChildrenPerPool, dynamicAttributesManager);
     }
+
+    dynamicAttributesManager->InitializeAttributesAtCompositeElement(compositeElement, std::move(children));
 }
 
 void TFairShareTreeJobScheduler::CollectKnownSchedulingTagFilters(

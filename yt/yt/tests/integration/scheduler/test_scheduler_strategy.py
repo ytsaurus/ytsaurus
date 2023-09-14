@@ -3966,3 +3966,64 @@ class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
         def check():
             path = scheduler_orchid_operation_path(op.id) + "/starvation_status"
             assert not exists(path) or get(path) == "starving"
+
+
+##################################################################
+
+
+class TestGuaranteePriorityScheduling(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 4,
+                    "cpu": 4,
+                }
+            }
+        }
+    }
+
+    @authors("eshcherbin")
+    def test_simple(self):
+        update_pool_tree_config("default", {
+            "enable_limiting_ancestor_check": False,
+            "enable_guarantee_priority_scheduling": True,
+        })
+
+        create_pool("root", attributes={
+            "resource_limits": {"user_slots": 0},
+            "strong_guarantee_resources": {"cpu": 4.0},
+            "allow_regular_preemption": False,
+        })
+        create_pool("prod", parent_name="root", attributes={
+            "resource_limits": {"user_slots": 1},
+            "strong_guarantee_resources": {"cpu": 3.0},
+            "compute_promised_guarantee_fair_share": True,
+        })
+        create_pool("research", parent_name="root")
+
+        prod_op = run_sleeping_vanilla(job_count=2, task_patch={"cpu_limit": 2.0}, spec={"pool": "prod"})
+        research_op = run_sleeping_vanilla(spec={"pool": "research"})
+
+        wait(lambda: exists(scheduler_orchid_operation_path(research_op.id)))
+
+        set("//sys/pool_trees/default/root/@resource_limits/user_slots", 1)
+
+        wait(lambda: get(scheduler_orchid_operation_path(prod_op.id) + "/resource_usage/user_slots") == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(research_op.id) + "/resource_usage/user_slots") == 0)
+
+        remove("//sys/pool_trees/default/root/prod/@resource_limits")
+        remove("//sys/pool_trees/default/root/@resource_limits")
+
+        wait(lambda: get(scheduler_orchid_operation_path(prod_op.id) + "/resource_usage/user_slots") == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(research_op.id) + "/resource_usage/user_slots") == 0)

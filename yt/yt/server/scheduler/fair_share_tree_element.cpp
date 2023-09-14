@@ -135,7 +135,7 @@ void TSchedulerElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrap
 {
     delimitedBuilder->AppendFormat(
         "Status: %v, DominantResource: %v, DemandShare: %.6g, UsageShare: %.6g, LimitsShare: %.6g, "
-        "StrongGuaranteeShare: %.6g, FairShare: %.6g, Satisfaction: %.4lg, LocalSatisfaction: %.4lg, "
+        "StrongGuaranteeShare: %.6g, TotalFairShare: %.6g, FairShare: %.6g, Satisfaction: %.4lg, LocalSatisfaction: %.4lg, "
         "PromisedFairShare: %.6g, StarvationStatus: %v, Weight: %v, Volume: %v",
         GetStatus(),
         Attributes_.DominantResource,
@@ -143,6 +143,7 @@ void TSchedulerElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrap
         Attributes_.UsageShare,
         Attributes_.LimitsShare,
         Attributes_.StrongGuaranteeShare,
+        Attributes_.FairShare.Total,
         Attributes_.FairShare,
         PostUpdateAttributes_.SatisfactionRatio,
         PostUpdateAttributes_.LocalSatisfactionRatio,
@@ -253,7 +254,7 @@ const TSchedulerCompositeElement* TSchedulerElement::GetParent() const
     return Parent_;
 }
 
-NVectorHdrf::TElement* TSchedulerElement::GetParentElement() const
+NVectorHdrf::TCompositeElement* TSchedulerElement::GetParentElement() const
 {
     return Parent_;
 }
@@ -425,6 +426,7 @@ bool TSchedulerElement::AreAllResourcesBlocked() const
 //      If |IsStrictlyDominatesNonBlocked(vec, rhs)| and the set of blocked resources increases,
 //      then |IsStrictlyDominatesNonBlocked(vec, rhs)|.
 // These properties are important for sensible scheduling.
+// TODO(eshcherbin): Rename to StrictlyDominatesNonBlocked.
 bool TSchedulerElement::IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const
 {
     if (AreAllResourcesBlocked()) {
@@ -766,7 +768,7 @@ void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpd
             child->BuildSchedulableChildrenLists(context);
             PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
             if (child->IsSchedulable()) {
-                SchedulableChildren_.push_back(child);
+                SchedulableChildren_.push_back(child.Get());
                 updateSchedulableCounters(child);
             }
         }
@@ -1406,6 +1408,11 @@ bool TSchedulerPoolElement::IsFairShareTruncationInFifoPoolEnabled() const
 {
     return Config_->EnableFairShareTruncationInFifoPool.value_or(
         TreeConfig_->EnableFairShareTruncationInFifoPool);
+}
+
+bool TSchedulerPoolElement::ShouldComputePromisedGuaranteeFairShare() const
+{
+    return Config_->ComputePromisedGuaranteeFairShare;
 }
 
 bool TSchedulerPoolElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
@@ -2416,6 +2423,11 @@ THashSet<TString> TSchedulerRootElement::GetAllowedProfilingTags() const
 bool TSchedulerRootElement::IsFairShareTruncationInFifoPoolEnabled() const
 {
     return TreeConfig_->EnableFairShareTruncationInFifoPool;
+}
+
+bool TSchedulerRootElement::ShouldComputePromisedGuaranteeFairShare() const
+{
+    return false;
 }
 
 bool TSchedulerRootElement::CanAcceptFreeVolume() const
