@@ -1373,6 +1373,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
         sync_mount_table("//tmp/t")
+        if in_memory_mode != "none":
+            wait(lambda: get("//tmp/t/@preload_state") == "complete")
 
         read_rows = lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}], versioned=versioned)
         if not versioned:
