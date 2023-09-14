@@ -672,6 +672,8 @@ TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
     // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
+
+    EXPECT_TRUE(TabletSlot_->GetTotalMutationWaitTime() > TDuration::Zero());
 }
 
 TEST_F(TTestOrderedTabletWriteBasic, TestDelayedWrite1PC)

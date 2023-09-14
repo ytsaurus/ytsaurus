@@ -467,6 +467,10 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
     if (!isRecovery) {
         MutationWaitTimer_.Record(waitTime);
+
+        if (WaitTimeObserver_) {
+            WaitTimeObserver_(waitTime);
+        }
     }
 
     if (mutationType.empty()) {
@@ -614,6 +618,11 @@ void TCompositeAutomaton::CheckInvariants()
             part->CheckInvariants();
         }
     }
+}
+
+void TCompositeAutomaton::RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver)
+{
+    WaitTimeObserver_ = waitTimeObserver;
 }
 
 void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* request)

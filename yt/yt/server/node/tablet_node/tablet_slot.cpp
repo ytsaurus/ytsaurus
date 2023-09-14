@@ -16,6 +16,7 @@
 #include "tablet_snapshot_store.h"
 #include "hint_manager.h"
 #include "distributed_throttler_manager.h"
+#include "overload_controller.h"
 
 #include <yt/yt/server/node/data_node/config.h>
 
@@ -103,6 +104,10 @@ using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString TabletCellHydraTracker = "TabletCellHydra";
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletSlot
     : public TAutomatonInvokerHood<EAutomatonThreadQueue>
     , public ITabletSlot
@@ -122,6 +127,7 @@ public:
         , SnapshotQueue_(New<TActionQueue>(
             Format("TabletSnap/%v", slotIndex)))
         , Logger(TabletNodeLogger)
+        , SlotIndex_(slotIndex)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -303,9 +309,20 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return New<TTabletAutomaton>(
+        auto automation = New<TTabletAutomaton>(
             SnapshotQueue_->GetInvoker(),
             GetCellId());
+
+        if (auto controller = Bootstrap_->GetOverloadController()) {
+            automation->RegisterWaitTimeObserver(controller->CreateGenericTracker(
+                TabletCellHydraTracker,
+                Format("%v.%v", TabletCellHydraTracker, SlotIndex_)));
+        } else {
+            YT_LOG_WARNING("Failed to register tablet cell hydra wait time tracker for OverloadController (SlotIndex: %v)",
+                SlotIndex_);
+        }
+
+        return automation;
     }
 
     TCellTag GetNativeCellTag() override
@@ -536,6 +553,8 @@ private:
     std::atomic<bool> TabletEpochActive_;
 
     NRpc::IServicePtr TabletService_;
+
+    const int SlotIndex_;
 
 
     void OnStartEpoch()

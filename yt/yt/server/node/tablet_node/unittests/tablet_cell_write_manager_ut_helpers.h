@@ -62,11 +62,16 @@ public:
     static constexpr TCellId CellId = {0, 42};
     static constexpr TCellTag CellTag = 42;
 
-    explicit TSimpleTabletSlot(TTabletOptions options)
+    TSimpleTabletSlot(TTabletOptions options)
     {
         AutomatonQueue_ = New<TActionQueue>("Automaton");
         AutomatonInvoker_ = AutomatonQueue_->GetInvoker();
         Automaton_ = New<TTabletAutomaton>(/*asyncSnapshotInvoker*/ AutomatonInvoker_, CellId);
+
+        Automaton_->RegisterWaitTimeObserver([&] (TDuration mutationWaitTime) {
+            TotalMutationWaitTime_ += mutationWaitTime.MicroSeconds() + 1;
+        });
+
         HydraManager_ = New<TSimpleHydraManagerMock>(Automaton_, AutomatonInvoker_, NTabletNode::GetCurrentReign());
         TransactionManager_ = New<TTransactionManager>(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
@@ -183,6 +188,11 @@ public:
         return TransactionSupervisor_;
     }
 
+    TDuration GetTotalMutationWaitTime()
+    {
+        return TDuration::MicroSeconds(TotalMutationWaitTime_.load());
+    }
+
 private:
     TSimpleHydraManagerMockPtr HydraManager_;
     TActionQueuePtr AutomatonQueue_;
@@ -193,6 +203,8 @@ private:
     TSimpleTabletManagerPtr TabletManager_;
     ITabletCellWriteManagerPtr TabletCellWriteManager_;
     NApi::NNative::IConnectionPtr DummyNativeConnection_;
+
+    std::atomic<i64> TotalMutationWaitTime_;
 
     TTimestamp LatestTimestamp_ = 4242;
 };
