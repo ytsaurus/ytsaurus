@@ -57,8 +57,8 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
       build-ytsaurus: true
-      build-query-tracker: true
-      build-chyt: true
+      build-query-tracker: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
+      build-chyt: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
       build-python: true
     uses: ./.github/workflows/build-jobs.yaml
 
@@ -96,10 +96,10 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-ytsaurus: true
-      publish-query-tracker: true
-      publish-chyt: true
+      publish-query-tracker: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
+      publish-chyt: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
       publish-local: true
-      publish-strawberry: true
+      publish-strawberry: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
     secrets:
       DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
@@ -124,6 +124,7 @@ jobs:
       - tag
       - check
     runs-on: ${{ needs.start-vm.outputs.label }}
+    if: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
     steps:
       - name: Mark latest nightly
         run: |
