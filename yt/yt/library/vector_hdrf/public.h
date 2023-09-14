@@ -9,6 +9,11 @@ namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFairShareType,
+    (Regular)
+    (PromisedGuarantee)
+);
+
 DEFINE_ENUM(ESchedulingMode,
     (Fifo)
     (FairShare)
@@ -22,6 +27,7 @@ DEFINE_ENUM(EIntegralGuaranteeType,
 
 YT_DEFINE_ERROR_ENUM(
     ((PoolTreeGuaranteesOvercommit) (29000))
+    ((NestedPromisedGuaranteeFairSharePools) (29001))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -48,16 +48,19 @@ struct TIntegralResourcesState
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Sadly, this struct has to become class.
 struct TSchedulableAttributes
 {
     EJobResourceType DominantResource = EJobResourceType::Cpu;
 
     TDetailedFairShare FairShare;
+    TDetailedFairShare PromisedGuaranteeFairShare;
     TResourceVector UsageShare;
     TResourceVector DemandShare;
     TResourceVector LimitsShare;
     TResourceVector StrongGuaranteeShare;
     TResourceVector ProposedIntegralShare;
+    // TODO(eshcherbin): Remove this attribute.
     TResourceVector PromisedFairShare;
     TResourceVector EstimatedGuaranteeShare;
 
@@ -77,7 +80,12 @@ struct TSchedulableAttributes
 
     TResourceVector GetGuaranteeShare() const;
 
-    void SetFairShare(const TResourceVector& fairShare);
+    const TDetailedFairShare& GetFairShare(EFairShareType type = EFairShareType::Regular) const;
+    TDetailedFairShare& GetFairShare(EFairShareType type = EFairShareType::Regular);
+    void SetDetailedFairShare(const TResourceVector& fairShare, EFairShareType type = EFairShareType::Regular);
+
+private:
+    TDetailedFairShare TSchedulableAttributes::* GetFairShareField(EFairShareType type) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +116,7 @@ public:
     virtual TSchedulableAttributes& Attributes() = 0;
     virtual const TSchedulableAttributes& Attributes() const = 0;
 
-    virtual TElement* GetParentElement() const = 0;
+    virtual TCompositeElement* GetParentElement() const = 0;
 
     virtual bool IsRoot() const;
     virtual bool IsOperation() const;
@@ -129,7 +137,7 @@ private:
     std::optional<TVectorPiecewiseLinearFunction> FairShareBySuggestion_;
     std::optional<TScalarPiecewiseLinearFunction> MaxFitFactorBySuggestion_;
 
-    TResourceVector TotalTruncatedFairShare_;
+    TEnumIndexedVector<EFairShareType, TResourceVector> TotalTruncatedFairShare_;
 
     virtual void PrepareFairShareFunctions(TFairShareUpdateContext* context);
     virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) = 0;
@@ -137,21 +145,26 @@ private:
 
     virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context);
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context);
-    virtual void ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context) = 0;
-    virtual void TruncateFairShareInFifoPools() = 0;
 
-    void CheckFairShareFeasibility() const;
+    virtual void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) = 0;
+    virtual void TruncateFairShareInFifoPools(EFairShareType fairShareType) = 0;
+
+    virtual void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) = 0;
+
+    void CheckFairShareFeasibility(EFairShareType fairShareType) const;
 
     virtual TResourceVector ComputeLimitsShare(const TFairShareUpdateContext* context) const;
     void UpdateAttributes(const TFairShareUpdateContext* context);
 
     TResourceVector GetVectorSuggestion(double suggestion) const;
 
+    virtual void ValidatePoolConfigs(TFairShareUpdateContext* context);
+
     virtual void AdjustStrongGuarantees(const TFairShareUpdateContext* context);
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context);
     virtual void DistributeFreeVolume();
 
-    TResourceVector GetTotalTruncatedFairShare() const;
+    TResourceVector GetTotalTruncatedFairShare(EFairShareType type) const;
 
     friend class TCompositeElement;
     friend class TPool;
@@ -183,6 +196,8 @@ public:
     virtual bool CanAcceptFreeVolume() const = 0;
     virtual bool ShouldDistributeFreeVolumeAmongChildren() const = 0;
 
+    virtual bool ShouldComputePromisedGuaranteeFairShare() const = 0;
+
 private:
     using TChildSuggestions = std::vector<double>;
 
@@ -193,6 +208,8 @@ private:
     void PrepareFairShareByFitFactorFifo(TFairShareUpdateContext* context);
     void PrepareFairShareByFitFactorNormal(TFairShareUpdateContext* context);
 
+    void ValidatePoolConfigs(TFairShareUpdateContext* context) override;
+
     void AdjustStrongGuarantees(const TFairShareUpdateContext* context) override;
     void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
     void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
@@ -202,8 +219,11 @@ private:
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
     void UpdateOverflowAndAcceptableVolumesRecursively();
     void DistributeFreeVolume() override;
-    void ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context) override;
-    void TruncateFairShareInFifoPools() override;
+
+    void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
+    void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
+
+    void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
 
     void PrepareFifoPool();
 
@@ -266,7 +286,9 @@ public:
 private:
     void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
-    void TruncateFairShareInFifoPools() override;
+    void TruncateFairShareInFifoPools(EFairShareType type) override;
+
+    void ValidatePoolConfigs(TFairShareUpdateContext* context) override;
 
     void ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context);
 
@@ -293,8 +315,11 @@ public:
 private:
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
 
-    void ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context) override;
-    void TruncateFairShareInFifoPools() override;
+    void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
+    void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
+
+    void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
+
     TResourceVector ComputeLimitsShare(const TFairShareUpdateContext* context) const override;
 
     friend class TFairShareUpdateExecutor;
@@ -325,6 +350,7 @@ struct TFairShareUpdateContext
     const TInstant Now;
     const std::optional<TInstant> PreviousUpdateTime;
 
+    std::vector<TCompositeElement*> NestedPromisedGuaranteeFairSharePools;
     std::vector<TError> Errors;
 
     NProfiling::TCpuDuration PrepareFairShareByFitFactorTotalTime = {};

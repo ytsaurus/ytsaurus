@@ -2070,6 +2070,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_idle_cpu_policy", &TThis::AllowIdleCpuPolicy)
         .Default();
+
+    registrar.Parameter("compute_promised_guarantee_fair_share", &TThis::ComputePromisedGuaranteeFairShare)
+        .Default(false);
 }
 
 void TPoolConfig::Validate(const TString& poolName)

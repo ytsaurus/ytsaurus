@@ -278,7 +278,7 @@ public:
     TSchedulableAttributes& Attributes() override;
     const TSchedulableAttributes& Attributes() const override;
 
-    TElement* GetParentElement() const override;
+    NVectorHdrf::TCompositeElement* GetParentElement() const override;
     const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
 
     TInstant GetStartTime() const;
@@ -390,7 +390,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
 
     // Computed in fair share update and used in schedule jobs.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TSchedulerElementPtr>, SchedulableChildren);
+    DEFINE_BYREF_RO_PROPERTY(TNonOwningElementList, SchedulableChildren);
 
     // Computed in post update and used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(EFifoPoolSchedulingOrder, EffectiveFifoPoolSchedulingOrder);
@@ -637,6 +637,8 @@ public:
     TIntegralResourcesState& IntegralResourcesState() override;
 
     bool IsFairShareTruncationInFifoPoolEnabled() const override;
+
+    bool ShouldComputePromisedGuaranteeFairShare() const override;
 
     //! Post fair share update methods.
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
@@ -962,6 +964,10 @@ public:
     double GetSpecifiedBurstRatio() const override;
     double GetSpecifiedResourceFlowRatio() const override;
 
+    bool IsFairShareTruncationInFifoPoolEnabled() const override;
+
+    bool ShouldComputePromisedGuaranteeFairShare() const override;
+
     //! Post update methods.
     void PostUpdate(TFairSharePostUpdateContext* postUpdateContext);
 
@@ -978,8 +984,6 @@ public:
 
     //! Other methods.
     THashSet<TString> GetAllowedProfilingTags() const override;
-
-    bool IsFairShareTruncationInFifoPoolEnabled() const override;
 
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& parentKey,
@@ -1016,6 +1020,14 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerRootElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Use in all relevant places.
+template <class TAttributes>
+const TAttributes& GetSchedulerElementAttributesFromVector(const std::vector<TAttributes>& vector, const TSchedulerElement* element);
+template <class TAttributes>
+TAttributes& GetSchedulerElementAttributesFromVector(std::vector<TAttributes>& vector, const TSchedulerElement* element);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1029,3 +1041,9 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerRootElement)
             YT_LOG_TRACE(__VA_ARGS__); \
         } \
     } while(false)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define FAIR_SHARE_TREE_ELEMENT_INL_H_
+#include "fair_share_tree_element-inl.h"
+#undef FAIR_SHARE_TREE_ELEMENT_INL_H_

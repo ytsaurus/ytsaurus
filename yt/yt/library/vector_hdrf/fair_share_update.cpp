@@ -1,6 +1,6 @@
+#include "private.h"
 #include "fair_share_update.h"
 #include "resource_helpers.h"
-#include "private.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -22,7 +22,7 @@ TString ToString(const TDetailedFairShare& detailedFairShare)
     return ToStringViaBuilder(detailedFairShare);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */)
+void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /*format*/)
 {
     builder->AppendFormat(
         "{StrongGuarantee: %.6g, IntegralGuarantee: %.6g, WeightProportional: %.6g}",
@@ -38,12 +38,35 @@ TResourceVector TSchedulableAttributes::GetGuaranteeShare() const
     return StrongGuaranteeShare + ProposedIntegralShare;
 }
 
-void TSchedulableAttributes::SetFairShare(const TResourceVector& fairShare)
+const TDetailedFairShare& TSchedulableAttributes::GetFairShare(EFairShareType type) const
 {
-    FairShare.Total = fairShare;
-    FairShare.StrongGuarantee = TResourceVector::Min(fairShare, StrongGuaranteeShare);
-    FairShare.IntegralGuarantee = TResourceVector::Min(fairShare - FairShare.StrongGuarantee, ProposedIntegralShare);
-    FairShare.WeightProportional = fairShare - FairShare.StrongGuarantee - FairShare.IntegralGuarantee;
+    return this->*GetFairShareField(type);
+}
+
+TDetailedFairShare& TSchedulableAttributes::GetFairShare(EFairShareType type)
+{
+    return this->*GetFairShareField(type);
+}
+
+void TSchedulableAttributes::SetDetailedFairShare(const TResourceVector& totalFairShare, EFairShareType type)
+{
+    auto& fairShare = GetFairShare(type);
+    fairShare.Total = totalFairShare;
+    fairShare.StrongGuarantee = TResourceVector::Min(totalFairShare, StrongGuaranteeShare);
+    fairShare.IntegralGuarantee = TResourceVector::Min(totalFairShare - fairShare.StrongGuarantee, ProposedIntegralShare);
+    fairShare.WeightProportional = totalFairShare - fairShare.StrongGuarantee - fairShare.IntegralGuarantee;
+}
+
+TDetailedFairShare TSchedulableAttributes::* TSchedulableAttributes::GetFairShareField(EFairShareType type) const
+{
+    switch (type) {
+        case EFairShareType::Regular:
+            return &TSchedulableAttributes::FairShare;
+        case EFairShareType::PromisedGuarantee:
+            return &TSchedulableAttributes::PromisedGuaranteeFairShare;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,10 +159,10 @@ void TElement::UpdateCumulativeAttributes(TFairShareUpdateContext* context)
     UpdateAttributes(context);
 }
 
-void TElement::CheckFairShareFeasibility() const
+void TElement::CheckFairShareFeasibility(EFairShareType fairShareType) const
 {
     const auto& demandShare = Attributes().DemandShare;
-    const auto& fairShare = Attributes().FairShare.Total;
+    const auto& fairShare = Attributes().GetFairShare(fairShareType).Total;
     bool isFairShareSignificantlyGreaterThanDemandShare =
         !Dominates(demandShare + TResourceVector::SmallEpsilon(), fairShare);
     if (isFairShareSignificantlyGreaterThanDemandShare) {
@@ -153,7 +176,8 @@ void TElement::CheckFairShareFeasibility() const
         const auto& Logger = GetLogger();
         YT_LOG_WARNING(
             "Fair share is significantly greater than demand share "
-            "(FairShare: %v, DemandShare: %v, SignificantlyGreaterResources: %v)",
+            "(FairShareType: %v, FairShare: %v, DemandShare: %v, SignificantlyGreaterResources: %v)",
+            fairShareType,
             fairShare,
             demandShare,
             significantlyGreaterResources);
@@ -260,12 +284,15 @@ TResourceVector TElement::GetVectorSuggestion(double suggestion) const
     return vectorSuggestion;
 }
 
+void TElement::ValidatePoolConfigs(TFairShareUpdateContext* /*context*/)
+{ }
+
 void TElement::DistributeFreeVolume()
 { }
 
-TResourceVector TElement::GetTotalTruncatedFairShare() const
+TResourceVector TElement::GetTotalTruncatedFairShare(EFairShareType type) const
 {
-    return TotalTruncatedFairShare_;
+    return TotalTruncatedFairShare_[type];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -694,12 +721,12 @@ TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsNorma
     return childSuggestions;
 }
 
-void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context)
+void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context)
 {
     const auto& Logger = GetLogger();
 
     if (GetChildCount() == 0) {
-        Attributes().SetFairShare(TResourceVector::Zero());
+        Attributes().SetDetailedFairShare(TResourceVector::Zero(), fairShareType);
         return;
     }
 
@@ -763,8 +790,8 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
     for (int childIndex = 0; childIndex < std::ssize(children); ++childIndex) {
         const auto& child = children[childIndex];
         auto childSuggestion = childSuggestions[childIndex];
-        child->ComputeAndSetFairShare(childSuggestion, context);
-        childrenUsedFairShare += child->Attributes().FairShare.Total;
+        child->ComputeAndSetFairShare(childSuggestion, fairShareType, context);
+        childrenUsedFairShare += child->Attributes().GetFairShare(fairShareType).Total;
     }
 
     // Validate children total fair share.
@@ -775,6 +802,7 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
 
     YT_LOG_WARNING_UNLESS(usedShareNearSuggestedShare && suggestedShareNearlyDominatesChildrenUsedShare,
         "Fair share significantly differs from predicted in pool ("
+        "FairShareType: %v, "
         "Mode: %v, "
         "Suggestion: %.20v, "
         "VectorSuggestion: %.20v, "
@@ -785,6 +813,7 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
         "FSBFFPredicted: %.20v, "
         "ChildrenSuggestedFairShare: %.20v, "
         "ChildrenCount: %v)",
+        fairShareType,
         GetMode(),
         suggestion,
         GetVectorSuggestion(suggestion),
@@ -799,13 +828,14 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
     YT_VERIFY(suggestedShareNearlyDominatesChildrenUsedShare);
 
     // Set fair share.
-
-    Attributes().SetFairShare(suggestedFairShare);
-    CheckFairShareFeasibility();
+    Attributes().SetDetailedFairShare(suggestedFairShare, fairShareType);
+    CheckFairShareFeasibility(fairShareType);
 }
 
-void TCompositeElement::TruncateFairShareInFifoPools()
+void TCompositeElement::TruncateFairShareInFifoPools(EFairShareType fairShareType)
 {
+    auto& totalTruncatedFairShare = TotalTruncatedFairShare_[fairShareType];
+
     THashSet<TElement*> truncatedChildren;
     if (GetMode() == ESchedulingMode::Fifo && IsFairShareTruncationInFifoPoolEnabled()) {
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
@@ -814,7 +844,7 @@ void TCompositeElement::TruncateFairShareInFifoPools()
             YT_VERIFY(childOperation);
 
             const auto& childAttributes = childOperation->Attributes();
-            auto childFairShare = childAttributes.FairShare.Total;
+            auto childFairShare = childAttributes.GetFairShare(fairShareType).Total;
             if (childFairShare == TResourceVector::Zero()) {
                 continue;
             }
@@ -826,12 +856,13 @@ void TCompositeElement::TruncateFairShareInFifoPools()
             if (shouldTruncate) {
                 const auto& Logger = GetLogger();
 
-                TotalTruncatedFairShare_ += childFairShare;
-                childOperation->Attributes().SetFairShare(TResourceVector::Zero());
+                totalTruncatedFairShare += childFairShare;
+                childOperation->Attributes().SetDetailedFairShare(TResourceVector::Zero(), fairShareType);
                 truncatedChildren.insert(childOperation);
 
-                YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, TruncatedFairShare: %v)",
+                YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, FairShareType: %v, TruncatedFairShare: %v)",
                     childOperation->GetId(),
+                    fairShareType,
                     childFairShare);
             }
         }
@@ -840,15 +871,48 @@ void TCompositeElement::TruncateFairShareInFifoPools()
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
         if (!truncatedChildren.contains(child)) {
-            child->TruncateFairShareInFifoPools();
-            TotalTruncatedFairShare_ += child->GetTotalTruncatedFairShare();
+            child->TruncateFairShareInFifoPools(fairShareType);
+            totalTruncatedFairShare += child->GetTotalTruncatedFairShare(fairShareType);
         }
     }
 
     // TODO(eshcherbin): Should we use epsilon here?
-    if (TotalTruncatedFairShare_ != TResourceVector::Zero()) {
-        auto fairShare = TResourceVector::Max(Attributes().FairShare.Total - TotalTruncatedFairShare_, TResourceVector::Zero());
-        Attributes().SetFairShare(fairShare);
+    if (totalTruncatedFairShare != TResourceVector::Zero()) {
+        auto fairShare = TResourceVector::Max(Attributes().GetFairShare(fairShareType).Total - totalTruncatedFairShare, TResourceVector::Zero());
+        Attributes().SetDetailedFairShare(fairShare, fairShareType);
+    }
+}
+
+void TCompositeElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context)
+{
+    if (ShouldComputePromisedGuaranteeFairShare()) {
+        ComputeAndSetFairShare(/*suggestion*/ 0.0, EFairShareType::PromisedGuarantee, context);
+        TruncateFairShareInFifoPools(EFairShareType::PromisedGuarantee);
+
+        return;
+    }
+
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        GetChild(childIndex)->ComputePromisedGuaranteeFairShare(context);
+    }
+}
+
+void TCompositeElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
+{
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        GetChild(childIndex)->ValidatePoolConfigs(context);
+    }
+
+    if (ShouldComputePromisedGuaranteeFairShare()) {
+        TCompositeElement* element = this;
+        while (auto* parent = element->GetParentElement()) {
+            if (parent->ShouldComputePromisedGuaranteeFairShare()) {
+                context->NestedPromisedGuaranteeFairSharePools.push_back(this);
+                break;
+            }
+
+            element = parent;
+        }
     }
 }
 
@@ -1069,16 +1133,39 @@ void TRootElement::UpdateCumulativeAttributes(TFairShareUpdateContext* context)
     }
 }
 
-void TRootElement::TruncateFairShareInFifoPools()
+void TRootElement::TruncateFairShareInFifoPools(EFairShareType fairShareType)
 {
     const auto& Logger = GetLogger();
 
-    TCompositeElement::TruncateFairShareInFifoPools();
+    TCompositeElement::TruncateFairShareInFifoPools(fairShareType);
 
-    YT_LOG_DEBUG_UNLESS(TotalTruncatedFairShare_ == TResourceVector::Zero(),
-        "Truncated fair share in FIFO pools (NewFairShare: %v, TotalTruncatedFairShare: %v)",
-        Attributes().FairShare.Total,
-        TotalTruncatedFairShare_);
+    const auto& totalTruncatedFairShare = TotalTruncatedFairShare_[fairShareType];
+    YT_LOG_DEBUG_UNLESS(totalTruncatedFairShare == TResourceVector::Zero(),
+        "Truncated fair share in FIFO pools (FairShareType: %v, NewFairShare: %v, TotalTruncatedFairShare: %v)",
+        fairShareType,
+        Attributes().GetFairShare(fairShareType).Total,
+        totalTruncatedFairShare);
+}
+
+void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
+{
+    TCompositeElement::ValidatePoolConfigs(context);
+
+    if (!context->NestedPromisedGuaranteeFairSharePools.empty()) {
+        std::vector<TString> poolIds;
+        poolIds.reserve(std::ssize(context->NestedPromisedGuaranteeFairSharePools));
+        for (auto* pool : context->NestedPromisedGuaranteeFairSharePools) {
+            poolIds.push_back(pool->GetId());
+        }
+
+        context->Errors.push_back(
+            TError(
+                EErrorCode::NestedPromisedGuaranteeFairSharePools,
+                "Found pools with enabled promised fair share computation which are nested inside other such pools")
+            << TErrorAttribute("nested_promised_fair_share_pools", poolIds));
+    }
+
+    // TODO(eshcherbin): Add validation for integral pools as well?
 }
 
 void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context)
@@ -1171,11 +1258,11 @@ void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* con
     FairShareByFitFactor_ = builder.Finish();
 }
 
-void TOperationElement::ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* /*context*/)
+void TOperationElement::ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* /*context*/)
 {
     auto fairShare = FairShareBySuggestion_->ValueAt(suggestion);
-    Attributes().SetFairShare(fairShare);
-    CheckFairShareFeasibility();
+    Attributes().SetDetailedFairShare(fairShare, fairShareType);
+    CheckFairShareFeasibility(fairShareType);
 
     if (AreDetailedLogsEnabled()) {
         const auto& Logger = GetLogger();
@@ -1186,6 +1273,7 @@ void TOperationElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
 
         YT_LOG_DEBUG(
             "Updated operation fair share ("
+            "FairShareType: %v, "
             "Suggestion: %.10g, "
             "UsedFairShare: %.10g, "
             "FSBSSegmentArguments: {%.10g, %.10g}, "
@@ -1203,7 +1291,10 @@ void TOperationElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
     }
 }
 
-void TOperationElement::TruncateFairShareInFifoPools()
+void TOperationElement::TruncateFairShareInFifoPools(EFairShareType /*fairShareType*/)
+{ }
+
+void TOperationElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* /*context*/)
 { }
 
 TResourceVector TOperationElement::ComputeLimitsShare(const TFairShareUpdateContext* context) const
@@ -1268,6 +1359,8 @@ void TFairShareUpdateExecutor::Run()
 
     TWallTimer timer;
 
+    RootElement_->ValidatePoolConfigs(Context_);
+
     RootElement_->DetermineEffectiveStrongGuaranteeResources(Context_);
     RootElement_->InitIntegralPoolLists(Context_);
     RootElement_->UpdateCumulativeAttributes(Context_);
@@ -1278,8 +1371,10 @@ void TFairShareUpdateExecutor::Run()
     UpdateRelaxedPoolIntegralShares();
 
     RootElement_->PrepareFairShareFunctions(Context_);
-    RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, Context_);
-    RootElement_->TruncateFairShareInFifoPools();
+    RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, EFairShareType::Regular, Context_);
+    RootElement_->TruncateFairShareInFifoPools(EFairShareType::Regular);
+
+    RootElement_->ComputePromisedGuaranteeFairShare(Context_);
 
     UpdateRootFairShare();
 
@@ -1464,13 +1559,13 @@ void TFairShareUpdateExecutor::UpdateRootFairShare()
     }
 
     // NB(eshcherbin): In order to compute the detailed fair share components correctly,
-    // we need to set |Attributes_.StrongGuaranteeShare| to the actual used strong guarantee share before calling |SetFairShare|.
+    // we need to set |Attributes_.StrongGuaranteeShare| to the actual used strong guarantee share before calling |SetDetailedFairShare|.
     // However, afterwards it seems more natural to restore the previous value, which shows
     // the total configured strong guarantee shares in the tree.
     {
         auto staticStrongGuaranteeShare = RootElement_->Attributes().StrongGuaranteeShare;
         RootElement_->Attributes().StrongGuaranteeShare = totalUsedStrongGuaranteeShare;
-        RootElement_->Attributes().SetFairShare(totalFairShare);
+        RootElement_->Attributes().SetDetailedFairShare(totalFairShare);
         RootElement_->Attributes().StrongGuaranteeShare = staticStrongGuaranteeShare;
     }
 }

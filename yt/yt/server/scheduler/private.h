@@ -77,6 +77,7 @@ DEFINE_ENUM(EResourceTreeElementKind,
 );
 
 DEFINE_ENUM(EOperationSchedulingPriority,
+    (High)
     (Medium)
 );
 
@@ -111,6 +112,7 @@ DEFINE_ENUM(EJobPreemptionStatus,
 );
 
 DEFINE_ENUM(EJobSchedulingStage,
+    (RegularHighPriority)
     (RegularMediumPriority)
     (RegularPackingFallback)
 

@@ -49,6 +49,7 @@ struct TStaticAttributes
     bool IsAliveAtUpdate = false;
 
     // Only for operations.
+    EOperationSchedulingPriority SchedulingPriority = EOperationSchedulingPriority::Medium;
     TFairShareTreeJobSchedulerOperationStatePtr OperationState;
     TFairShareTreeJobSchedulerOperationSharedStatePtr OperationSharedState;
     bool AreRegularJobsOnSsdNodesAllowed = true;
@@ -453,7 +454,7 @@ private:
     TJobResourcesMap LocalUnconditionalUsageDiscountMap_;
 
     // Indexed with tree index like static/dynamic attributes list.
-    std::vector<std::optional<TNonOwningElementList>> ConsideredSchedulableChildrenPerPool_;
+    std::optional<std::vector<TNonOwningElementList>> ConsideredSchedulableChildrenPerPool_;
 
     TNonOwningOperationElementList BadPackingOperations_;
 
@@ -469,7 +470,6 @@ private:
 
     void CollectConsideredSchedulableChildrenPerPool(
         const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations);
-    std::optional<TNonOwningElementList>& GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element);
 
     void PrescheduleJob(TSchedulerElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
     void PrescheduleJobAtCompositeElement(TSchedulerCompositeElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
@@ -849,11 +849,15 @@ private:
 
     void ProcessUpdatedStarvationStatuses(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext);
     void UpdateCachedJobPreemptionStatuses(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext);
-    void ComputeDynamicAttributesAtUpdateRecursively(TSchedulerElement* element, TDynamicAttributesManager* dynamicAttributesManager) const;
-    void BuildSchedulableIndices(TDynamicAttributesManager* dynamicAttributesManager, TJobSchedulerPostUpdateContext* context) const;
+    void ComputeOperationSchedulingIndexes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* context);
     void CollectKnownSchedulingTagFilters(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
     void UpdateSsdNodeSchedulingAttributes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
     void CountOperationsByPreemptionPriority(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
+
+    void InitializeDynamicAttributesAtUpdateRecursively(
+        TSchedulerElement* element,
+        std::vector<TNonOwningElementList>* consideredSchedulableChildrenPerPool,
+        TDynamicAttributesManager* dynamicAttributesManager) const;
 
     //! Miscellaneous
     const TFairShareTreeJobSchedulerNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId) const;
