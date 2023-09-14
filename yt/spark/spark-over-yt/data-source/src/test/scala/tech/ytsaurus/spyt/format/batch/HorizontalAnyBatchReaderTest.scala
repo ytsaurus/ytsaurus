@@ -46,6 +46,7 @@ class HorizontalAnyBatchReaderTest extends FlatSpec with Matchers with ReadBatch
     val req = WriteTable.builder()
       .setPath(path)
       .setSerializationContext(new WriteSerializationContext(new UnversionedRowSerializer))
+      .setNeedRetries(false)
       .build()
     val writer = yt.writeTable(req).join()
 

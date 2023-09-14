@@ -105,6 +105,7 @@ trait TestUtils {
     val req = WriteTable.builder[String]()
       .setPath(path)
       .setSerializationContext(new SerializationContext(serializer))
+      .setNeedRetries(false)
     val writer = yt.writeTable(req).join()
 
     @tailrec
@@ -131,6 +132,7 @@ trait TestUtils {
     val req = WriteTable.builder[UnversionedRow]()
       .setPath(path)
       .setSerializationContext(new WriteSerializationContext(new UnversionedRowSerializer(physicalSchema)))
+      .setNeedRetries(false)
     val writer = yt.writeTable(req).join()
 
     @tailrec

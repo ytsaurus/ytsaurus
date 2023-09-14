@@ -12,7 +12,7 @@ import tech.ytsaurus.spyt.wrapper.client.{YtClientConfiguration, YtRpcClient}
 import tech.ytsaurus.spyt.wrapper.{LogLazy, YtWrapper}
 import tech.ytsaurus.TError
 import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.client.rpc.RpcError
+import tech.ytsaurus.core.common.YTsaurusError
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
 import java.io.FileNotFoundException
@@ -159,7 +159,7 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
     def unapply(ex: Throwable): Option[FileNotFoundException] = ex match {
       case err: CompletionException if err.getCause != null =>
         unapply(err.getCause)
-      case err: RpcError =>
+      case err: YTsaurusError =>
         findFileNotFound(err.getError).foreach(file => {
           throw new FileNotFoundException(file) {
             override def getCause: Throwable = err

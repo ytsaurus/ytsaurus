@@ -154,6 +154,7 @@ class YtOutputWriter(val path: String,
       .setPath(appendPath())
       .setSerializationContext(new WriteSerializationContext(new InternalRowSerializer(schema, schemaHint, typeV3Format)))
       .setTransactionalOptions(new TransactionalOptions(GUID.valueOf(transactionGuid)))
+      .setNeedRetries(false)
       .build()
     client.writeTable(request).join()
   }

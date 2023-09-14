@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.HostAndPort
 import tech.ytsaurus.spyt.wrapper.YtJavaConverters._
 import tech.ytsaurus.spyt.wrapper.system.SystemUtils
-import tech.ytsaurus.client.{CompoundClient, DiscoveryMethod, YTsaurusClient, YtCluster}
+import tech.ytsaurus.client.{CompoundClient, DiscoveryMethod, YTsaurusClient, YTsaurusCluster}
 import tech.ytsaurus.client.bus.DefaultBusConnector
 import tech.ytsaurus.client.rpc.{RpcOptions, YTsaurusClientAuth}
 
@@ -41,7 +41,6 @@ trait YtClientUtils {
     try {
       val rpcOptions = new RpcOptions()
       rpcOptions.setTimeouts(timeout)
-      rpcOptions.setDiscoveryThreadFactory(daemonThreadFactory)
 
       val yt = client(connector, rpcOptions)
       log.info(s"YtClient $id created")
@@ -123,11 +122,11 @@ trait YtClientUtils {
     )
   }
 
-  private def buildYTsaurusClient(connector: DefaultBusConnector, cluster: YtCluster,
+  private def buildYTsaurusClient(connector: DefaultBusConnector, cluster: YTsaurusCluster,
                                   clientAuth: YTsaurusClientAuth, rpcOptions: RpcOptions): YTsaurusClient = {
     YTsaurusClient.builder()
       .setSharedBusConnector(connector)
-      .setClusters(java.util.List.of[YtCluster](cluster))
+      .setClusters(java.util.List.of[YTsaurusCluster](cluster))
       .setAuth(clientAuth)
       .setRpcOptions(rpcOptions)
       .build()
@@ -136,7 +135,7 @@ trait YtClientUtils {
   private def createRemoteProxiesClient(connector: DefaultBusConnector,
                                         rpcOptions: RpcOptions,
                                         config: YtClientConfiguration): YTsaurusClient = {
-    val cluster = new YtCluster(
+    val cluster = new YTsaurusCluster(
       config.shortProxy,
       config.fullProxy,
       config.port,
@@ -163,7 +162,7 @@ trait YtClientUtils {
                                             rpcOptions: RpcOptions,
                                             config: YtClientConfiguration,
                                             byopDiscoveryEndpoint: HostAndPort): YTsaurusClient = {
-    val cluster = new YtCluster(
+    val cluster = new YTsaurusCluster(
       s"${config.shortProxy}-byop",
       byopDiscoveryEndpoint.host,
       byopDiscoveryEndpoint.port
