@@ -192,6 +192,8 @@ TString FormatToMime(const NFormats::TFormat& format)
             return "application/octet-stream";
         case EFormatType::WebJson:
             return "application/json";
+        case EFormatType::Arrow:
+            return "application/vnd.apache.arrow.stream";
         default:
             THROW_ERROR_EXCEPTION("Cannot determine mime-type for format")
                 << TErrorAttribute("format", format);
