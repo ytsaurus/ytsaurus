@@ -29,6 +29,7 @@ public:
     {
         NProfiling::TSummary Overloaded;
         NProfiling::TEventTimer MeanWaitTime;
+        NProfiling::TTimeGauge MeanWaitTimeThreshold;
     };
 
     using TMethodIndex = std::pair<TString, TString>;
@@ -40,7 +41,7 @@ public:
 
         TOverloadControllerConfigPtr Config;
         TMethodsCongestionControllers CongestionControllers;
-        std::vector<TMeanWaitTimeTrackerPtr> Trackers;
+        THashMap<TString, TMeanWaitTimeTrackerPtr> Trackers;
         THashMap<TString, TTrackerSensors> TrackerSensors;
     };
 
@@ -48,6 +49,9 @@ public:
 
     void TrackInvoker(const TString& name, const IInvokerPtr& invoker);
     void TrackFSHThreadPool(const TString& name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool);
+
+    using TWaitTimeObserver = std::function<void(TDuration)>;
+    TWaitTimeObserver CreateGenericTracker(const TString& trackerType, const std::optional<TString>& id = {});
 
     TOverloadedStatus GetOverloadStatus(
         TDuration totalThrottledTime,
@@ -81,9 +85,6 @@ private:
     void DoReconfigure(TOverloadControllerConfigPtr config);
     THazardPtr<TState> GetStateSnapshot() const;
     void UpdateStateSnapshot(const TState& state, TSpinLockGuard guard);
-
-    template <class TExecutorPtr>
-    void AddTracker(const TString& name, const TExecutorPtr& executor);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOverloadController);
