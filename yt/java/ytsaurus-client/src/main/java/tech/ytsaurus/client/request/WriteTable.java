@@ -72,6 +72,13 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         this.chunkSize = builder.chunkSize;
     }
 
+    /**
+     * Use {@link #builder(Class)} instead if you don't need specific SerializationContext.
+     */
+    public static <T> Builder<T> builder() {
+        return new Builder<>();
+    }
+
     public static <T> Builder<T> builder(Class<T> rowClass) {
         return new Builder<T>().setSerializationContext(new SerializationContext<>(rowClass));
     }

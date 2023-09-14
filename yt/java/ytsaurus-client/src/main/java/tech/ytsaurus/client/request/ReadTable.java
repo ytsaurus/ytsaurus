@@ -58,6 +58,13 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
                 .setSerializationContext(new SerializationContext<>(objectClass)));
     }
 
+    /**
+     * Use {@link #builder(Class)} instead if you don't need specific SerializationContext.
+     */
+    public static <T> Builder<T> builder() {
+        return new Builder<>();
+    }
+
     public static <T> Builder<T> builder(Class<T> rowClass) {
         return new Builder<T>().setSerializationContext(new SerializationContext<>(rowClass));
     }
