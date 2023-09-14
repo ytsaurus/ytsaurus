@@ -48,7 +48,7 @@ public:
 
     size_t GetLimit() const noexcept override;
 
-    const TString &GetName() const noexcept override;
+    const TString& GetName() const noexcept override;
 
     void Acquire(size_t lockAmount, EResourceLimiterLockType lockType) override;
 

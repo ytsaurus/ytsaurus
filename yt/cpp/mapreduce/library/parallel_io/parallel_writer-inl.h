@@ -94,10 +94,12 @@ public:
         const TParallelTableWriterOptions& options)
         : Transaction_(client->StartTransaction())
         , Path_(path)
+        , ThreadCount_(options.ThreadCount_)
         , ThreadPool_(threadPool)
         , WritersPool_(options.ThreadCount_)
         , Options_(options.TableWriterOptions_)
         , RamLimiter_(options.RamLimiter_)
+        , AcquireRamForBuffers_(options.AcquireRamForBuffers_)
     {
         if (options.TaskCount_ > 0) {
             TaskCountLimiter_ = MakeIntrusive<TResourceLimiter>(options.TaskCount_, ::TStringBuilder() << "TParallelUnorderedTableWriterBase[" << NodeToYsonString(PathToNode(Path_)) << "]_TaskCounter");
@@ -128,7 +130,13 @@ public:
         StartWritersFuture_ = ::NThreading::Async([this, threadCount = options.ThreadCount_]() mutable {
             try {
                 for (size_t i = 0; i < threadCount; ++i) {
-                    WritersPool_.Push(Transaction_->CreateTableWriter<T>(Path_, Options_));
+                    auto writer = Transaction_->CreateTableWriter<T>(Path_, Options_);
+
+                    if (RamLimiter_ && AcquireRamForBuffers_) {
+                        WriterMemoryGuards_.push_back({RamLimiter_, writer->GetBufferMemoryUsage(), EResourceLimiterLockType::HARD});
+                    }
+
+                    WritersPool_.Push(std::move(writer));
                 }
                 YT_LOG_DEBUG("All %v writers were created", threadCount);
             } catch (std::exception& ex) {
@@ -156,6 +164,11 @@ public:
         Stopped_ = true;
         WaitAndFinish();
         State_ = EWriterState::Finished;
+    }
+
+    size_t GetBufferMemoryUsage() const override
+    {
+        throw TApiUsageError() << "Unimplemented method";
     }
 
     size_t GetTableCount() const override
@@ -186,13 +199,12 @@ private:
         StartWritersFuture_.GetValueSync();
 
         if (WritersCreationWasFailed_) {
-          WritersPool_.Stop();
+            WritersPool_.Stop();
         }
 
         ::NThreading::WaitAll(Futures_).GetValueSync();
 
         WritersPool_.Stop();
-
 
         while (auto writer = WritersPool_.Pop()) {
             try {
@@ -273,6 +285,7 @@ private:
     ITransactionPtr Transaction_;
     TRichYPath Path_;
 
+    const size_t ThreadCount_ = 0;
     std::shared_ptr<IThreadPool> ThreadPool_;
     std::atomic<bool> Stopped_{false};
     std::atomic<bool> WritersCreationWasFailed_{false};
@@ -285,6 +298,10 @@ private:
 
     IResourceLimiterPtr TaskCountLimiter_;
     IResourceLimiterPtr RamLimiter_;
+
+    bool AcquireRamForBuffers_;
+
+    std::vector<TResourceGuard> WriterMemoryGuards_;
 
     std::atomic<EWriterState> State_ = EWriterState::Ok;
 };

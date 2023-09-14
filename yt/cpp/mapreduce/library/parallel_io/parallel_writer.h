@@ -25,6 +25,8 @@ struct TParallelTableWriterOptions
     // Allows to limit RAM usage of received rows.
     FLUENT_FIELD(IResourceLimiterPtr, RamLimiter);
 
+    FLUENT_FIELD_DEFAULT(bool, AcquireRamForBuffers, false);
+
     // @ref NYT::TTableWriterOptions
     FLUENT_FIELD_DEFAULT(TTableWriterOptions, TableWriterOptions, TTableWriterOptions());
 };
