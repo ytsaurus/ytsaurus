@@ -508,7 +508,7 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
 template <class TValue, class TTraits>
 template <class TContext>
-void TEntityMap<TValue, TTraits>::LoadValues(TContext& context)
+void TEntityMap<TValue, TTraits>::LoadValues(TContext& context, std::optional<int> firstBatchEntityCount)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
@@ -522,12 +522,14 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context)
 
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 
-    int batchEntityCount = std::ssize(LoadKeys_);
-    if (BatchedValuesFormat_ && !LoadKeys_.empty()) {
+    int batchEntityCount = AllEntitiesBatchEntityCount;
+    if (firstBatchEntityCount) {
+        batchEntityCount = *firstBatchEntityCount;
+    } else if (BatchedValuesFormat_ && !LoadKeys_.empty()) {
         Load(context, batchEntityCount);
     }
 
-    bool areSizePrefixesPresent = BatchedValuesFormat_ && batchEntityCount != AllEntitiesBatchEntityCount;
+    bool areSizePrefixesPresent = batchEntityCount != AllEntitiesBatchEntityCount;
     if (batchEntityCount == AllEntitiesBatchEntityCount) {
         batchEntityCount = std::ssize(LoadKeys_);
     }
@@ -574,16 +576,13 @@ void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
     int batchEntityCount = AllEntitiesBatchEntityCount;
     if (BatchedValuesFormat_ && !LoadKeys_.empty()) {
         Load(context, batchEntityCount);
-        BatchedValuesFormat_ = false;
     }
 
     auto backgroundInvoker = context.GetBackgroundInvoker();
     if (!backgroundInvoker || batchEntityCount == AllEntitiesBatchEntityCount) {
-        LoadValues(context);
+        LoadValues(context, batchEntityCount);
         return;
     }
-
-    SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 
     int batchesRunning = 0;
     std::vector<TFuture<void>> batchFutures;
@@ -595,7 +594,6 @@ void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
                 Load(context, batchEntityCount);
             }
             auto batchByteSize = TSizeSerializer::Load(context);
-            SERIALIZATION_DUMP_WRITE(context, "batchEntityCount: %v, batchByteSize: %v", batchEntityCount, batchByteSize);
 
             int entityEndIndex = std::min<int>(entityStartIndex + batchEntityCount, std::ssize(LoadKeys_));
 
@@ -632,11 +630,9 @@ void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
         return true;
     };
 
-    SERIALIZATION_DUMP_INDENT(context) {
-        do {
-            startMoreBatches();
-        } while (waitForBatch());
-    }
+    do {
+        startMoreBatches();
+    } while (waitForBatch());
 }
 
 template <class TValue, class TTraits>

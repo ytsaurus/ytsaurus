@@ -529,9 +529,9 @@ void TNode::ClearChunkLocations()
     RealChunkLocations_.clear();
 }
 
-TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocation(int mediumIndex, bool duringSnapshotLoading)
+TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocation(int mediumIndex, bool ignoreHydraContext)
 {
-    YT_VERIFY(duringSnapshotLoading || NHydra::HasHydraContext());
+    YT_VERIFY(ignoreHydraContext || NHydra::HasHydraContext());
     YT_VERIFY(UseImaginaryChunkLocations_);
 
     auto [it, inserted] = ImaginaryChunkLocations_.emplace(
@@ -546,6 +546,20 @@ TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocation(int mediumInde
     }
 
     return location.get();
+}
+
+TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocationDuringSnapshotLoading(int mediumIndex)
+{
+    {
+        auto guard = ReaderGuard(SpinLock_);
+        if (ImaginaryChunkLocations_.contains(mediumIndex)) {
+            return GetImaginaryChunkLocation(mediumIndex);
+        }
+    }
+    {
+        auto guard = WriterGuard(SpinLock_);
+        return GetOrCreateImaginaryChunkLocation(mediumIndex, /*ignoreHydraContext*/ true);
+    }
 }
 
 TImaginaryChunkLocation* TNode::GetImaginaryChunkLocation(int mediumIndex)
