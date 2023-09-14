@@ -44,12 +44,22 @@ public:
         *static_cast<TOutputRow*>(output) = CombineFn_->ExtractOutput(*static_cast<const TAccumRow*>(accum));
     }
 
-    TRowVtable GetAccumVtable() override
+    TRowVtable GetInputVtable() const override
+    {
+        return InputVtable_;
+    }
+
+    TRowVtable GetAccumVtable() const override
     {
         return MakeRowVtable<TAccumRow>();
     }
 
-    IRawCoderPtr GetAccumCoder() override
+    TRowVtable GetOutputVtable() const override
+    {
+        return OutputVtable_;
+    }
+
+    IRawCoderPtr GetAccumCoder() const override
     {
         return MakeDefaultRawCoder<TAccumRow>();
     }

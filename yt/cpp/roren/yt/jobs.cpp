@@ -7,6 +7,7 @@
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 #include <yt/cpp/mapreduce/io/node_table_reader.h>
 #include <yt/cpp/mapreduce/io/stream_table_reader.h>
+#include <yt/cpp/roren/interface/private/par_do_tree.h>
 
 #include <library/cpp/yson/writer.h>
 
@@ -80,6 +81,7 @@ public:
 
         try {
             auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
+            Y_VERIFY(ParDo_->GetOutputTags().empty());
             ParDo_->Start(executionContext, {});
             int impulse = 0;
             ParDo_->Do(&impulse, 1);
@@ -464,128 +466,182 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCombineCombiner
-    : public NYT::IRawJob
+class TCombineCombinerImpulseReadParDo
+    : public IRawParDo
 {
 public:
-    TCombineCombiner() = default;
+    TCombineCombinerImpulseReadParDo() = default;
 
-    TCombineCombiner(const IRawCombinePtr& combine, const TRowVtable& inRowVtable)
+    explicit TCombineCombinerImpulseReadParDo(IRawCombinePtr rawCombine)
+        : RawCombine_(std::move(rawCombine))
+    { }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        State_[ComputationKey_] = SerializableToNode(*combine);
-        State_[InVtableKey_] = SaveToNode(inRowVtable);
+        Y_VERIFY(context->GetExecutorName() == "yt");
+
+        Y_VERIFY(outputs.size() == 0);
+        Processed_ = false;
     }
 
-    void Do(const TRawJobContext& /*jobContext*/) override
+    void Do(const void* rows, int count) override
     {
-        try {
-            auto rawComputation = SerializableFromNode<IRawCombine>(State_.At(ComputationKey_));
-            auto inRowVtable = LoadVtableFromNode(State_.At(InVtableKey_));
-            auto accumVtable = rawComputation->GetAccumVtable();
+        Y_VERIFY(count == 1);
+        Y_VERIFY(*static_cast<const int*>(rows) == 0);
+        Y_VERIFY(!Processed_);
+        Processed_ = true;
 
-            auto rangesReader = CreateRangesTableReader(&Cin);
-            auto kvOutput = CreateKvJobOutput(
-                /*sinkIndex*/ 0,
-                inRowVtable.KeyVtableFactory().RawCoderFactory(),
-                accumVtable.RawCoderFactory());
+        auto rangesReader = CreateRangesTableReader(&Cin);
 
-            TRawRowHolder accum(accumVtable);
-            TRawRowHolder currentKey(inRowVtable.KeyVtableFactory());
-            for (; rangesReader->IsValid(); rangesReader->Next()) {
-                auto range = &rangesReader->GetRange();
-                auto input = CreateSplitKvJobInput(std::vector{inRowVtable}, range);
+        auto accumVtable = RawCombine_->GetAccumVtable();
+        auto inputVtable = RawCombine_->GetInputVtable();
+        auto kvOutput = CreateKvJobOutput(
+            /*sinkIndex*/ 0,
+            inputVtable.KeyVtableFactory().RawCoderFactory(),
+            accumVtable.RawCoderFactory());
 
-                bool first = true;
-                rawComputation->CreateAccumulator(accum.GetData());
-                while (const auto* row = input->NextRaw()) {
-                    const auto* key = GetKeyOfKv(inRowVtable, row);
-                    const auto* value = GetValueOfKv(inRowVtable, row);
+        TRawRowHolder accum(accumVtable);
+        TRawRowHolder currentKey(inputVtable.KeyVtableFactory());
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            auto range = &rangesReader->GetRange();
+            auto input = CreateSplitKvJobInput(std::vector{inputVtable}, range);
 
-                    rawComputation->AddInput(accum.GetData(), value);
+            bool first = true;
+            RawCombine_->CreateAccumulator(accum.GetData());
+            while (const auto* row = input->NextRaw()) {
+                const auto* key = GetKeyOfKv(inputVtable, row);
+                const auto* value = GetValueOfKv(inputVtable, row);
 
-                    if (first) {
-                        first = false;
-                        currentKey.CopyFrom(key);
-                    }
+                RawCombine_->AddInput(accum.GetData(), value);
+
+                if (first) {
+                    first = false;
+                    currentKey.CopyFrom(key);
                 }
-                kvOutput->AddKvToTable(currentKey.GetData(), accum.GetData(), /*tableIndex*/ 0);
             }
-
-            kvOutput->Close();
-        } catch (...) {
-            Cerr << "Error in TCombineCombiner" << Endl;
-            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
-            throw;
+            kvOutput->AddKvToTable(currentKey.GetData(), accum.GetData(), /*tableIndex*/ 0);
         }
+
+        kvOutput->Close();
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static TFnAttributes attributes;
+        return attributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TCombineCombinerImpulseReadParDo>();
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {
+            {"input", MakeRowVtable<int>()}
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {};
     }
 
 private:
-    TNode State_;
+    IRawCombinePtr RawCombine_;
 
-private:
-    static constexpr TStringBuf ComputationKey_ = "computation";
-    static constexpr TStringBuf InVtableKey_ = "in_row_vtable";
+    bool Processed_ = false;
 
-public:
-    Y_SAVELOAD_JOB(State_);
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawCombine_);
 };
-REGISTER_RAW_JOB(TCombineCombiner);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCombineReducer
-    : public NYT::IRawJob
+class TCombineReducerImpulseReadParDo
+    : public IRawParDo
 {
 public:
-    TCombineReducer() = default;
+    TCombineReducerImpulseReadParDo() = default;
 
-    TCombineReducer(const IRawCombinePtr& combine, const TRowVtable& outRowVtable, const IYtJobOutputPtr& output)
+    explicit TCombineReducerImpulseReadParDo(IRawCombinePtr rawCombine)
+        : RawCombine_(std::move(rawCombine))
+    { }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        State_[ComputationKey_] = SerializableToNode(*combine);
-        State_[OutVtableKey_] = SaveToNode(outRowVtable);
-        State_[OutputKey_] = SerializableToNode(*output);
+        Y_VERIFY(context->GetExecutorName() == "yt");
+
+        Y_VERIFY(outputs.size() == 1);
+        Processed_ = false;
+        Output_ = outputs[0];
     }
 
-    void Do(const TRawJobContext& /*jobContext*/) override
+    void Do(const void* rows, int count) override
     {
-        try {
-            auto rawCombine = SerializableFromNode<IRawCombine>(State_.At(ComputationKey_));
-            auto outRowVtable = LoadVtableFromNode(State_.At(OutVtableKey_));
-            auto accumVtable = rawCombine->GetAccumVtable();
-            auto keyVtable = outRowVtable.KeyVtableFactory();
+        Y_VERIFY(count == 1);
+        Y_VERIFY(*static_cast<const int*>(rows) == 0);
+        Y_VERIFY(!Processed_);
+        Processed_ = true;
 
-            auto rangesReader = CreateRangesTableReader(&Cin);
-            auto output = SerializableFromNode<IYtJobOutput>(State_.At(OutputKey_));
+        auto outRowVtable = RawCombine_->GetOutputVtable();
+        auto accumVtable = RawCombine_->GetAccumVtable();
+        auto keyVtable = outRowVtable.KeyVtableFactory();
 
-            TRawRowHolder accum(accumVtable);
-            TRawRowHolder currentKey(outRowVtable.KeyVtableFactory());
-            TRawRowHolder out(outRowVtable);
-            rawCombine->CreateAccumulator(accum.GetData());
-            for (; rangesReader->IsValid(); rangesReader->Next()) {
-                auto range = &rangesReader->GetRange();
-                auto keySavingInput = ::MakeIntrusive<TKeySavingInput>(keyVtable, accumVtable, range);
-                keySavingInput->SaveNextKeyTo(out.GetKeyOfKV());
-                rawCombine->MergeAccumulators(accum.GetData(), keySavingInput);
-                rawCombine->ExtractOutput(out.GetValueOfKV(), accum.GetData());
+        auto rangesReader = CreateRangesTableReader(&Cin);
 
-                output->AddRaw(out.GetData(), 1);
-            }
-            output->Close();
-        } catch (...) {
-            Cerr << "Error in TCombineReducer" << Endl;
-            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
-            throw;
+        TRawRowHolder accum(accumVtable);
+        TRawRowHolder currentKey(outRowVtable.KeyVtableFactory());
+        TRawRowHolder out(outRowVtable);
+        RawCombine_->CreateAccumulator(accum.GetData());
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            auto range = &rangesReader->GetRange();
+            auto keySavingInput =
+                ::MakeIntrusive<TKeySavingInput>(keyVtable, accumVtable, range);
+            keySavingInput->SaveNextKeyTo(out.GetKeyOfKV());
+            RawCombine_->MergeAccumulators(accum.GetData(), keySavingInput);
+            RawCombine_->ExtractOutput(out.GetValueOfKV(), accum.GetData());
+
+            Output_->AddRaw(out.GetData(), 1);
         }
     }
 
-private:
-    TNode State_;
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static TFnAttributes attributes;
+        return attributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TCombineReducerImpulseReadParDo>();
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {
+            {"input", MakeRowVtable<int>()}
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {
+            {"TCombineReducerImpulseReadParDo.Output", RawCombine_->GetOutputVtable()},
+        };
+    }
 
 private:
-    static constexpr TStringBuf ComputationKey_ = "computation";
-    static constexpr TStringBuf OutputKey_ = "output";
-    static constexpr TStringBuf OutVtableKey_ = "out_row_vtable";
-
     class TKeySavingInput
         : public IRawInput
     {
@@ -630,10 +686,15 @@ private:
         void* KeyOutput_ = nullptr;
     };
 
-public:
-    Y_SAVELOAD_JOB(State_);
+
+private:
+    IRawCombinePtr RawCombine_;
+
+    IRawOutputPtr Output_;
+    bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawCombine_);
 };
-REGISTER_RAW_JOB(TCombineReducer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -679,9 +740,14 @@ IRawParDoPtr CreateCoGbkImpulseReadParDo(
 
 IRawJobPtr CreateCombineCombiner(
     const IRawCombinePtr& combine,
-    const TRowVtable& inRowVtable)
+    const TRowVtable& /*inRowVtable*/)
 {
-    return ::MakeIntrusive<TCombineCombiner>(combine, inRowVtable);
+    return ::MakeIntrusive<TImpulseRawJob>(CreateCombineCombinerImpulseReadParDo(combine));
+}
+
+IRawParDoPtr CreateCombineCombinerImpulseReadParDo(IRawCombinePtr rawCombine)
+{
+    return ::MakeIntrusive<TCombineCombinerImpulseReadParDo>(std::move(rawCombine));
 }
 
 IRawJobPtr CreateCombineReducer(
@@ -689,7 +755,20 @@ IRawJobPtr CreateCombineReducer(
     const TRowVtable& outRowVtable,
     const IYtJobOutputPtr& output)
 {
-    return ::MakeIntrusive<TCombineReducer>(combine, outRowVtable, output);
+    TParDoTreeBuilder builder;
+    builder.AddParDoChain(
+        TParDoTreeBuilder::RootNodeId,
+        {
+            CreateCombineReducerImpulseReadParDo(std::move(combine)),
+            CreateOutputParDo(output, outRowVtable),
+        }
+    );
+    return ::MakeIntrusive<TImpulseRawJob>(builder.Build());
+}
+
+IRawParDoPtr CreateCombineReducerImpulseReadParDo(IRawCombinePtr rawCombine)
+{
+    return ::MakeIntrusive<TCombineReducerImpulseReadParDo>(std::move(rawCombine));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -201,6 +201,7 @@ class TMapReduceOperationNode
 {
 public:
     std::vector<TParDoTreeBuilder> MapperBuilderList;
+    TParDoTreeBuilder CombinerBuilder;
     TParDoTreeBuilder ReducerBuilder;
 
 public:
@@ -978,8 +979,46 @@ public:
                 RegisterPCollection(sinkPCollection, outputTable);
                 break;
             }
+            case ERawTransformType::CombinePerKey: {
+                const auto* sourcePCollection = VerifiedGetSingleSource(transformNode);
+                auto* inputTable = GetPCollectionImage(sourcePCollection);
+                auto rawCombinePerKey = transformNode->GetRawTransform()->AsRawCombine();
+
+                auto* mapReduceOperation = PlainGraph_->CreateMapReduceOperation({inputTable}, transformNode->GetName());
+                mapReduceOperation->MapperBuilderList[0].AddParDoChainVerifyNoOutput(
+                    TParDoTreeBuilder::RootNodeId,
+                    {
+                        CreateEncodingKeyValueNodeParDo(inputTable->Vtable),
+                        CreateWriteNodeParDo(0)
+                    }
+                );
+
+                mapReduceOperation->CombinerBuilder.AddParDoChainVerifyNoOutput(
+                    TParDoTreeBuilder::RootNodeId,
+                    {
+                        CreateCombineCombinerImpulseReadParDo(rawCombinePerKey),
+                    }
+                );
+
+                auto nodeId = mapReduceOperation->ReducerBuilder.AddParDoChainVerifySingleOutput(
+                    TParDoTreeBuilder::RootNodeId,
+                    {
+                        CreateCombineReducerImpulseReadParDo(rawCombinePerKey),
+                    }
+                );
+
+                const auto* sinkPCollection = VerifiedGetSingleSink(transformNode);
+                auto* outputTable = PlainGraph_->CreateIntermediateTable(
+                    mapReduceOperation,
+                    {EJobType::Reduce, nodeId},
+                    sinkPCollection->GetRowVtable(),
+                    Config_->GetWorkingDir()
+                );
+                RegisterPCollection(sinkPCollection, outputTable);
+                break;
+
+            }
             case ERawTransformType::StatefulTimerParDo:
-            case ERawTransformType::CombinePerKey:
             case ERawTransformType::CombineGlobally:
             case ERawTransformType::Flatten:
 
@@ -1211,6 +1250,13 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
             auto mapperJob = CreateImpulseJob(mapBuilder.Build());
             auto reducerJob = CreateImpulseJob(reducerBuilder.Build());
+
+            NYT::IRawJobPtr combinerJob = nullptr;
+            if (!mapReduceOperation->CombinerBuilder.Empty()) {
+                spec.ForceReduceCombiners(true);
+                auto combinerBuilder = mapReduceOperation->CombinerBuilder;
+                combinerJob = CreateImpulseJob(combinerBuilder.Build());
+            }
 
             spec.MapperFormat(NYT::TFormat::YsonBinary());
             spec.ReducerFormat(NYT::TFormat::YsonBinary());

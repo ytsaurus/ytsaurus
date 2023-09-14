@@ -224,8 +224,10 @@ public:
     virtual void MergeAccumulators(void* accumResult, const IRawInputPtr& accums) = 0;
     virtual void ExtractOutput(void* output, const void* accum) = 0;
 
-    virtual TRowVtable GetAccumVtable() = 0;
-    virtual IRawCoderPtr GetAccumCoder() = 0;
+    virtual TRowVtable GetInputVtable() const = 0;
+    virtual TRowVtable GetAccumVtable() const = 0;
+    virtual TRowVtable GetOutputVtable() const = 0;
+    virtual IRawCoderPtr GetAccumCoder() const = 0;
 
 private:
     const ERawTransformType Type_;
