@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/rpc/config.h>
 
+#include <yt/yt/core/ytree/request_complexity_limits.h>
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
@@ -122,15 +123,37 @@ DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMaxReadRequestComplexityLimitsConfig
+class TReadRequestComplexityLimitsConfigBase
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<i64> NodeCount;
-    std::optional<i64> ResultSize;
+    i64 NodeCount;
+    i64 ResultSize;
 
-    void ToReadRequestComplexity(NYTree::TReadRequestComplexity& limits) const;
+    NYTree::TReadRequestComplexity ToReadRequestComplexity() const noexcept;
 
+    REGISTER_YSON_STRUCT(TReadRequestComplexityLimitsConfigBase);
+
+    static void Register(TRegistrar registrar);
+
+protected:
+    static void DoRegister(TRegistrar registrar, i64 nodeCount, i64 resultSize);
+};
+
+class TDefaultReadRequestComplexityLimitsConfig
+    : public TReadRequestComplexityLimitsConfigBase
+{
+public:
+    REGISTER_YSON_STRUCT(TDefaultReadRequestComplexityLimitsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+
+class TMaxReadRequestComplexityLimitsConfig
+    : public TReadRequestComplexityLimitsConfigBase
+{
+public:
     REGISTER_YSON_STRUCT(TMaxReadRequestComplexityLimitsConfig);
 
     static void Register(TRegistrar registrar);
@@ -151,6 +174,7 @@ public:
 
     TDuration ProcessSessionsPeriod;
 
+    TDefaultReadRequestComplexityLimitsConfigPtr DefaultReadRequestComplexityLimits;
     TMaxReadRequestComplexityLimitsConfigPtr MaxReadRequestComplexityLimits;
 
     bool EnableReadRequestComplexityLimits;

@@ -478,6 +478,8 @@ private:
         // may be either committed in the ordinary fashion or posted as a boomerang.
         // Mutually exclusive with RemoteTransactionReplicationFuture.
         TFuture<TMutationResponse> MutationResponseFuture;
+
+        TReadRequestComplexityOverrides ReadRequestComplexityOverrides;
     };
 
     // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
@@ -496,7 +498,13 @@ private:
     TCancelableContextPtr EpochCancelableContext_;
 
     TEphemeralObjectPtr<TUser> User_;
-    TReadRequestComplexity ReadRequestComplexityLimits_;
+
+    struct TReadRequestComplexityLimits
+    {
+        TReadRequestComplexity Default;
+        TReadRequestComplexity Max;
+    };
+    std::optional<TReadRequestComplexityLimits> ReadRequestComplexityLimits_;
 
     bool SuppressTransactionCoordinatorSync_ = false;
     bool NeedsUserAccessValidation_ = true;
@@ -658,6 +666,10 @@ private:
                 subrequest.ProfilingCounters->TotalWriteRequestCounter.Increment();
             } else {
                 subrequest.ProfilingCounters->TotalReadRequestCounter.Increment();
+            }
+
+            if (ypathExt->has_read_complexity_limits()) {
+                FromProto(&subrequest.ReadRequestComplexityOverrides, ypathExt->read_complexity_limits());
             }
         }
 
@@ -1469,12 +1481,23 @@ private:
 
             const auto& config = Owner_->GetDynamicConfig();
             if (config->EnableReadRequestComplexityLimits && user != securityManager->GetRootUser()) {
-                const auto& userConfig = user->GetObjectServiceRequestLimits()->ReadRequestComplexityLimits;
-                ReadRequestComplexityLimits_ = userConfig->GetValue();
+                ReadRequestComplexityLimits_ = TReadRequestComplexityLimits{
+                    .Default = config->DefaultReadRequestComplexityLimits->ToReadRequestComplexity(),
+                    .Max = config->MaxReadRequestComplexityLimits->ToReadRequestComplexity(),
+                };
 
-                TReadRequestComplexity maxReadRequestComplexity;
-                config->MaxReadRequestComplexityLimits->ToReadRequestComplexity(maxReadRequestComplexity);
-                ReadRequestComplexityLimits_.Sanitize(maxReadRequestComplexity);
+                const auto& userConfig = user->GetObjectServiceRequestLimits();
+
+                userConfig
+                    ->DefaultReadRequestComplexityLimits
+                    ->ToReadRequestComplexityOverrides()
+                    .ApplyTo(ReadRequestComplexityLimits_->Default);
+
+
+                userConfig
+                    ->MaxReadRequestComplexityLimits
+                    ->ToReadRequestComplexityOverrides()
+                    .ApplyTo(ReadRequestComplexityLimits_->Max);
             }
         }
 
@@ -1808,8 +1831,15 @@ private:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
-            const auto& complexityLimiter = rpcContext->GetReadRequestComplexityLimiter();
-            complexityLimiter->Reconfigure(ReadRequestComplexityLimits_);
+            if (ReadRequestComplexityLimits_) {
+                auto explicitLimits = subrequest->ReadRequestComplexityOverrides;
+                explicitLimits.Validate(ReadRequestComplexityLimits_->Max);
+
+                auto limits = ReadRequestComplexityLimits_->Default;
+                subrequest->ReadRequestComplexityOverrides.ApplyTo(limits);
+                auto limiter = New<TReadRequestComplexityLimiter>(limits);
+                rpcContext->SetReadRequestComplexityLimiter(std::move(limiter));
+            }
 
             ExecuteVerb(rootService, rpcContext);
 

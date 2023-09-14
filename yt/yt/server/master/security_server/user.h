@@ -9,11 +9,11 @@
 
 #include <yt/yt/core/yson/consumer.h>
 
+#include <yt/yt/core/ytree/request_complexity_limits.h>
+
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/concurrency/public.h>
-
-#include <yt/yt/core/ytree/request_complexity_limiter.h>
 
 namespace NYT::NSecurityServer {
 
@@ -71,10 +71,10 @@ class TUserReadRequestComplexityLimitsOptions
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<i64> DefaultNodeCount;
-    std::optional<i64> DefaultResultSize;
+    std::optional<i64> NodeCount;
+    std::optional<i64> ResultSize;
 
-    NYTree::TReadRequestComplexity GetValue() const;
+    NYTree::TReadRequestComplexityOverrides ToReadRequestComplexityOverrides() const noexcept;
 
     REGISTER_YSON_STRUCT(TUserReadRequestComplexityLimitsOptions);
 
@@ -92,7 +92,8 @@ public:
     TUserRequestLimitsOptionsPtr ReadRequestRateLimits;
     TUserRequestLimitsOptionsPtr WriteRequestRateLimits;
     TUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits;
-    TUserReadRequestComplexityLimitsOptionsPtr ReadRequestComplexityLimits;
+    TUserReadRequestComplexityLimitsOptionsPtr DefaultReadRequestComplexityLimits;
+    TUserReadRequestComplexityLimitsOptionsPtr MaxReadRequestComplexityLimits;
 
     REGISTER_YSON_STRUCT(TUserRequestLimitsConfig);
 
@@ -163,8 +164,8 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    std::optional<i64> DefaultNodeCount_;
-    std::optional<i64> DefaultResultSize_;
+    std::optional<i64> NodeCount_;
+    std::optional<i64> ResultSize_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableUserReadRequestComplexityLimitsOptions)
@@ -189,7 +190,8 @@ private:
     TSerializableUserRequestLimitsOptionsPtr ReadRequestRateLimits_;
     TSerializableUserRequestLimitsOptionsPtr WriteRequestRateLimits_;
     TSerializableUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits_;
-    TSerializableUserReadRequestComplexityLimitsOptionsPtr ReadRequestComplexityLimits_;
+    TSerializableUserReadRequestComplexityLimitsOptionsPtr DefaultReadRequestComplexityLimits_;
+    TSerializableUserReadRequestComplexityLimitsOptionsPtr MaxReadRequestComplexityLimits_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableUserRequestLimitsConfig)

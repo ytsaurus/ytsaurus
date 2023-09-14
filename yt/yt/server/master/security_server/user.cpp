@@ -107,22 +107,21 @@ int TUserQueueSizeLimitsOptions::GetValue(TCellTag cellTag) const
 
 void TUserReadRequestComplexityLimitsOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("node_count", &TThis::DefaultNodeCount)
-        .Default(200'000);
-    registrar.Parameter("result_size", &TThis::DefaultResultSize)
-        .Default(10'000'000);
-
-    registrar.Postprocessor([] (TThis* config) {
-        THROW_ERROR_EXCEPTION_IF(config->DefaultNodeCount.value_or(0) < 0,
-            "\"node_count\" cannot be negative");
-        THROW_ERROR_EXCEPTION_IF(config->DefaultResultSize.value_or(0) < 0,
-            "\"result_size\" cannot be negative");
-    });
+    registrar.Parameter("node_count", &TThis::NodeCount)
+        .Optional()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("result_size", &TThis::ResultSize)
+        .Optional()
+        .GreaterThanOrEqual(0);
 }
 
-TReadRequestComplexity TUserReadRequestComplexityLimitsOptions::GetValue() const
+TReadRequestComplexityOverrides
+TUserReadRequestComplexityLimitsOptions::ToReadRequestComplexityOverrides() const noexcept
 {
-    return TReadRequestComplexity(DefaultNodeCount, DefaultResultSize);
+    return {
+        .NodeCount = NodeCount,
+        .ResultSize = ResultSize,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +134,9 @@ void TUserRequestLimitsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("request_queue_size", &TThis::RequestQueueSizeLimits)
         .DefaultNew();
-    registrar.Parameter("read_request_complexity", &TThis::ReadRequestComplexityLimits)
+    registrar.Parameter("default_read_request_complexity", &TThis::DefaultReadRequestComplexityLimits)
+        .DefaultNew();
+    registrar.Parameter("max_read_request_complexity", &TThis::MaxReadRequestComplexityLimits)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
@@ -148,8 +149,11 @@ void TUserRequestLimitsConfig::Register(TRegistrar registrar)
         if (!config->RequestQueueSizeLimits) {
             THROW_ERROR_EXCEPTION("\"request_queue_size\" must be set");
         }
-        if (!config->ReadRequestComplexityLimits) {
-            THROW_ERROR_EXCEPTION("\"read_request_complexity\" must be set");
+        if (!config->DefaultReadRequestComplexityLimits) {
+            THROW_ERROR_EXCEPTION("\"default_read_request_complexity\" must be set");
+        }
+        if (!config->MaxReadRequestComplexityLimits) {
+            THROW_ERROR_EXCEPTION("\"max_read_request_complexity\" must be set");
         }
     });
 }
@@ -222,17 +226,12 @@ TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimits
 
 void TSerializableUserReadRequestComplexityLimitsOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("node_count", &TThis::DefaultNodeCount_)
-        .Default(200'000);
-    registrar.Parameter("result_size", &TThis::DefaultResultSize_)
-        .Default(10'000'000);
-
-    registrar.Postprocessor([] (TThis* config) {
-        THROW_ERROR_EXCEPTION_IF(config->DefaultNodeCount_.value_or(0) < 0,
-            "\"node_count\" cannot be negative");
-        THROW_ERROR_EXCEPTION_IF(config->DefaultResultSize_.value_or(0) < 0,
-            "\"result_size\" cannot be negative");
-    });
+    registrar.Parameter("node_count", &TThis::NodeCount_)
+        .Optional()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("result_size", &TThis::ResultSize_)
+        .Optional()
+        .GreaterThanOrEqual(0);
 }
 
 TSerializableUserReadRequestComplexityLimitsOptionsPtr TSerializableUserReadRequestComplexityLimitsOptions::CreateFrom(
@@ -240,8 +239,8 @@ TSerializableUserReadRequestComplexityLimitsOptionsPtr TSerializableUserReadRequ
 {
     auto result = New<TSerializableUserReadRequestComplexityLimitsOptions>();
 
-    result->DefaultNodeCount_ = options->DefaultNodeCount;
-    result->DefaultResultSize_ = options->DefaultResultSize;
+    result->NodeCount_ = options->NodeCount;
+    result->ResultSize_ = options->ResultSize;
 
     return result;
 }
@@ -249,8 +248,8 @@ TSerializableUserReadRequestComplexityLimitsOptionsPtr TSerializableUserReadRequ
 TUserReadRequestComplexityLimitsOptionsPtr TSerializableUserReadRequestComplexityLimitsOptions::ToLimitsOrThrow() const
 {
     auto result = New<TUserReadRequestComplexityLimitsOptions>();
-    result->DefaultNodeCount = DefaultNodeCount_;
-    result->DefaultResultSize = DefaultResultSize_;
+    result->NodeCount = NodeCount_;
+    result->ResultSize = ResultSize_;
     return result;
 }
 
@@ -265,7 +264,9 @@ void TSerializableUserRequestLimitsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("request_queue_size", &TThis::RequestQueueSizeLimits_)
         .DefaultNew();
-    registrar.Parameter("read_request_complexity", &TThis::ReadRequestComplexityLimits_)
+    registrar.Parameter("default_read_request_complexity", &TThis::DefaultReadRequestComplexityLimits_)
+        .DefaultNew();
+    registrar.Parameter("max_read_request_complexity", &TThis::MaxReadRequestComplexityLimits_)
         .DefaultNew();
 }
 
@@ -278,7 +279,8 @@ TSerializableUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::Cr
     result->ReadRequestRateLimits_ = TSerializableUserRequestLimitsOptions::CreateFrom(config->ReadRequestRateLimits, multicellManager);
     result->WriteRequestRateLimits_ = TSerializableUserRequestLimitsOptions::CreateFrom(config->WriteRequestRateLimits, multicellManager);
     result->RequestQueueSizeLimits_ = TSerializableUserQueueSizeLimitsOptions::CreateFrom(config->RequestQueueSizeLimits, multicellManager);
-    result->ReadRequestComplexityLimits_ = TSerializableUserReadRequestComplexityLimitsOptions::CreateFrom(config->ReadRequestComplexityLimits);
+    result->DefaultReadRequestComplexityLimits_ = TSerializableUserReadRequestComplexityLimitsOptions::CreateFrom(config->DefaultReadRequestComplexityLimits);
+    result->MaxReadRequestComplexityLimits_ = TSerializableUserReadRequestComplexityLimitsOptions::CreateFrom(config->MaxReadRequestComplexityLimits);
 
     return result;
 }
@@ -290,7 +292,8 @@ TUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::ToConfigOrThro
     result->ReadRequestRateLimits = ReadRequestRateLimits_->ToLimitsOrThrow(multicellManager);
     result->WriteRequestRateLimits = WriteRequestRateLimits_->ToLimitsOrThrow(multicellManager);
     result->RequestQueueSizeLimits = RequestQueueSizeLimits_->ToLimitsOrThrow(multicellManager);
-    result->ReadRequestComplexityLimits = ReadRequestComplexityLimits_->ToLimitsOrThrow();
+    result->DefaultReadRequestComplexityLimits = DefaultReadRequestComplexityLimits_->ToLimitsOrThrow();
+    result->MaxReadRequestComplexityLimits = MaxReadRequestComplexityLimits_->ToLimitsOrThrow();
     return result;
 }
 

@@ -41,6 +41,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/core/rpc/proto/rpc.proto")
         include("yt/yt_proto/yt/core/yson/proto/protobuf_interop.proto")
         include("yt/yt_proto/yt/core/ytree/proto/attributes.proto")
+        include("yt/yt_proto/yt/core/ytree/proto/request_complexity_limits.proto")
         include("yt/yt_proto/yt/core/ytree/proto/ypath.proto")
     }
     into(buildProtoDir)

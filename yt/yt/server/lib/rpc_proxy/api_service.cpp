@@ -1552,6 +1552,9 @@ private:
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
         }
+        if (request->has_complexity_limits()) {
+            FromProto(&options.ComplexityLimits, request->complexity_limits());
+        }
         if (request->has_options()) {
             options.Options = NYTree::FromProto(request->options());
         }
@@ -1587,6 +1590,9 @@ private:
         }
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
+        }
+        if (request->has_complexity_limits()) {
+            FromProto(&options.ComplexityLimits, request->complexity_limits());
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
