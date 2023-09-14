@@ -366,7 +366,9 @@ int TImaginaryChunkLocation::GetEffectiveMediumIndex() const
 
 TImaginaryChunkLocation* TImaginaryChunkLocation::GetOrCreate(NNodeTrackerServer::TNode* node, int mediumIndex, bool duringSnapshotLoading)
 {
-    return node->GetOrCreateImaginaryChunkLocation(mediumIndex, duringSnapshotLoading);
+    return duringSnapshotLoading
+        ? node->GetOrCreateImaginaryChunkLocationDuringSnapshotLoading(mediumIndex)
+        : node->GetOrCreateImaginaryChunkLocation(mediumIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

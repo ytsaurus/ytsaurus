@@ -154,7 +154,7 @@ public:
     void LoadKeys(TContext& context);
 
     template <class TContext>
-    void LoadValues(TContext& context);
+    void LoadValues(TContext& context, std::optional<int> firstBatchEntityCount = {});
 
     template <class TContext>
     void LoadValuesParallel(TContext& context);

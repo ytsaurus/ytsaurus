@@ -158,6 +158,7 @@ protected:
         }
 
         if (dumpSnapshot) {
+            config->HydraManager->SnapshotBackgroundThreadCount = 0;
             config->Logging = NLogging::TLogManagerConfig::CreateSilent();
         } else if (validateSnapshot) {
             NHydra::ConfigureDryRunLogging(config);

@@ -177,7 +177,10 @@ public:
     // COMPAT(shakurov)
     DEFINE_BYREF_RW_PROPERTY(TMediumMap<std::unique_ptr<NChunkServer::TImaginaryChunkLocation>>, ImaginaryChunkLocations);
 
-    NChunkServer::TImaginaryChunkLocation* GetOrCreateImaginaryChunkLocation(int mediumIndex, bool duringSnapshotLoading = false);
+    NChunkServer::TImaginaryChunkLocation* GetOrCreateImaginaryChunkLocation(int mediumIndex, bool ignoreHydraContext = false);
+    // COMPAT(danilalexeev)
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    NChunkServer::TImaginaryChunkLocation* GetOrCreateImaginaryChunkLocationDuringSnapshotLoading(int mediumIndex);
     NChunkServer::TImaginaryChunkLocation* GetImaginaryChunkLocation(int mediumIndex);
 
     DEFINE_BYVAL_RO_PROPERTY(THost*, Host);
