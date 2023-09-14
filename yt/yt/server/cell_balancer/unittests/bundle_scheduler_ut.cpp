@@ -4763,6 +4763,51 @@ TEST(TDataCentersPriority, Forbidden)
     EXPECT_EQ(assigningDC, dataCenters);
 }
 
+TEST(TDataCentersPriority, PerBundleForbidden)
+{
+    constexpr int SlotCount = 5;
+
+    auto input = GenerateMultiDCInputContext(9, SlotCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+
+    // Add new node to bundle
+    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+
+    input.Bundles["bigd"]->ForbiddenDataCenters = { offlineDC };
+
+    for (const auto& dataCenter : dataCenters) {
+        auto flags = TGenerateNodeOptions{.SetFilterTag=false, .SlotCount=SlotCount, .DC=dataCenter};
+        GenerateNodesForBundle(input, "bigd", 3, flags);
+    }
+
+
+    GenerateTabletCellsForBundle(input, "bigd", SlotCount * 6);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(6, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
+
+    THashSet<TString> assigningDC;
+    for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeAssignments) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        assigningDC.insert(*nodeInfo->Annotations->DataCenter);
+    }
+
+    // Releasing data centers are all from single datacenter.
+    EXPECT_EQ(2, std::ssize(assigningDC));
+    dataCenters.erase(offlineDC);
+    EXPECT_EQ(assigningDC, dataCenters);
+
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_has_forbidden_dc");
+}
+
 TEST(TDataCentersPriority, DisruptionMinimizing)
 {
     constexpr int SlotCount = 5;

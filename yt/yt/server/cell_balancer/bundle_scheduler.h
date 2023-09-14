@@ -122,6 +122,8 @@ struct TSchedulerInputState
     THashMap<TQualifiedDCName, TDataCenterDisruptedState> DatacenterDisrupted;
 
     THashMap<TString, TString> BundleToShortName;
+
+    TSysConfigPtr SysConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

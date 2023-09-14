@@ -671,10 +671,11 @@ THashSet<TString> GetDataCentersToPopulate(
             input);
 
         int assignedTabletCount = GetAssignedTabletCount(dataCenter, perDataCenterAliveNodes, input);
+        bool perBundleForbidden = bundleInfo->ForbiddenDataCenters.count(dataCenter) != 0;
 
         dataCentersOrder.push_back({
             .Unfeasible = availableNodeCount < requiredNodeCount,
-            .Forbidden = dataCenterInfo->Forbidden,
+            .Forbidden = dataCenterInfo->Forbidden || perBundleForbidden,
             .AssignedTabletCount = -1 * assignedTabletCount,
             .RequiredNodeAssignmentCount = requiredNodeCount - assignedNodeCount,
             .DataCenter = dataCenter,
@@ -768,6 +769,15 @@ void SetNodeTagFilter(
         perDataCenterAliveNodes,
         perDataCenterSpareNodes,
         input);
+
+    if (!bundleInfo->ForbiddenDataCenters.empty()) {
+        mutations->AlertsToFire.push_back({
+            .Id = "bundle_has_forbidden_dc",
+            .BundleName = bundleName,
+            .Description = Format("Data centers %Qv are forbidden for bundle %Qv",
+                bundleName,
+                bundleInfo->ForbiddenDataCenters)});
+    }
 
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
