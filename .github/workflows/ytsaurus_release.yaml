@@ -58,7 +58,7 @@ jobs:
       - start-vm
       - build
     outputs:
-      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+      image-tag: stable-${{ steps.tag.outputs.IMAGE_TAG }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Parse tag

@@ -121,7 +121,7 @@ jobs:
           ninja
 
           cd ../build_relwithdebinfo
-          ninja ytserver-all ytserver-yql-agent
+          ninja ytserver-all
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
@@ -187,6 +187,9 @@ jobs:
           ninja libstring_udf.so
           ninja liburl_udf.so
           ninja mrjob
+
+          cd ../build_relwithdebinfo
+          ninja ytserver-yql-agent
 
       - name: Build Python packages
         if: ${{ inputs.build-python }}

@@ -80,11 +80,11 @@ jobs:
           elif [[ $GITHUB_REF =~ test ]];
           then
             IMAGE_TAG=test
-          elif [[ $GITHUB_REF =~ releases ]];
+          elif [[ $GITHUB_REF =~ stable ]];
           then
             IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
           else
-            IMAGE_TAG=nopush
+            IMAGE_TAG=dev-test
           fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
