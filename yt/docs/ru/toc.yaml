@@ -345,6 +345,8 @@ items:
                 href: api/python/start.md
               - name: Пользовательская документация
                 href: api/python/userdoc.md
+              - name: Справочник
+                href: https://pydoc.ytsaurus.tech
               - name: Классы данных
                 href: api/python/dataclass.md
               - name: Примеры

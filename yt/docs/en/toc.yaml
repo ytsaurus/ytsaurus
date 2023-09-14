@@ -343,6 +343,8 @@ items:
                  href: api/python/start.md
                - name: User guide
                  href: api/python/userdoc.md
+               - name: Reference
+                 href: https://pydoc.ytsaurus.tech
                - name: Data classes
                  href: api/python/dataclass.md
                - name: Python API with examples
