@@ -201,6 +201,7 @@ public:
             .Apply(BIND(
                 &TLegacyCypressTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
+                std::move(token),
                 std::move(tokenHash)));
     }
 
@@ -209,9 +210,23 @@ private:
     const IClientPtr Client_;
 
 private:
-    TAuthenticationResult OnCallResult(const TString& tokenHash, const TErrorOr<TYsonString>& callResult)
+    static void SanitizeToken(TError* error, const TString& token)
+    {
+        TString message = error->GetMessage();
+        SubstGlobal(message, token, "<hidden_token>");
+        error->SetMessage(message);
+        for (auto& innerError : *(error->MutableInnerErrors())) {
+            SanitizeToken(&innerError, token);
+        }
+    }
+
+    TAuthenticationResult OnCallResult(const TString& token, const TString& tokenHash, const TErrorOr<TYsonString>& callResult)
     {
         if (!callResult.IsOK()) {
+            TError error = callResult;
+            if (!Config_->Secure) {
+                SanitizeToken(&error, token);
+            }
             if (callResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
                     tokenHash);
