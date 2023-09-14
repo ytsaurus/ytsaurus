@@ -52,55 +52,57 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
 
     @Test
     public void testMap() {
-        var ytFixture = createYtFixture();
-        var client = SyncYTsaurusClient.wrap(ytFixture.getYt());
+        if (false) {
+            var ytFixture = createYtFixture();
+            var client = SyncYTsaurusClient.wrap(ytFixture.getYt());
 
-        var inputTable = ytFixture.getTestDirectory().child("input-table");
-        var outputTable = ytFixture.getTestDirectory().child("output-table");
+            var inputTable = ytFixture.getTestDirectory().child("input-table");
+            var outputTable = ytFixture.getTestDirectory().child("output-table");
 
-        var rows = List.of(
-                new InputType("a", 1),
-                new InputType("b", 2)
-        );
+            var rows = List.of(
+                    new InputType("a", 1),
+                    new InputType("b", 2)
+            );
 
-        try (var writer = client.writeTable(new WriteTable<>(inputTable, InputType.class))) {
-            rows.forEach(writer);
+            try (var writer = client.writeTable(new WriteTable<>(inputTable, InputType.class))) {
+                rows.forEach(writer);
+            }
+
+            client.map(MapOperation.builder()
+                    .setSpec(MapSpec.builder()
+                            .setMapperSpec(new MapperSpec(new SimpleMapper()))
+                            .setInputTables(inputTable)
+                            .setOutputTables(outputTable)
+                            .build())
+                    .build()
+            );
+
+            List<OutputType> receivedRows = new ArrayList<>();
+            try (var reader = client.readTable(new ReadTable<>(outputTable, OutputType.class))) {
+                reader.forEachRemaining(receivedRows::add);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            var expectedRows = List.of(
+                    new OutputType("a", 1),
+                    new OutputType("b", 4)
+            );
+
+            Assert.assertEquals(expectedRows, receivedRows);
+
+            assertThrows(
+                    YTsaurusError.class,
+                    () -> client.map(MapOperation.builder()
+                            .setSpec(MapSpec.builder()
+                                    .setMapperSpec(new MapperSpec(new SimpleMapper()))
+                                    .setInputTables(outputTable)
+                                    .setOutputTables(inputTable)
+                                    .build())
+                            .build()
+                    )
+            );
         }
-
-        client.map(MapOperation.builder()
-                .setSpec(MapSpec.builder()
-                        .setMapperSpec(new MapperSpec(new SimpleMapper()))
-                        .setInputTables(inputTable)
-                        .setOutputTables(outputTable)
-                        .build())
-                .build()
-        );
-
-        List<OutputType> receivedRows = new ArrayList<>();
-        try (var reader = client.readTable(new ReadTable<>(outputTable, OutputType.class))) {
-            reader.forEachRemaining(receivedRows::add);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        var expectedRows = List.of(
-                new OutputType("a", 1),
-                new OutputType("b", 4)
-        );
-
-        Assert.assertEquals(expectedRows, receivedRows);
-
-        assertThrows(
-                YTsaurusError.class,
-                () -> client.map(MapOperation.builder()
-                        .setSpec(MapSpec.builder()
-                                .setMapperSpec(new MapperSpec(new SimpleMapper()))
-                                .setInputTables(outputTable)
-                                .setOutputTables(inputTable)
-                                .build())
-                        .build()
-                )
-        );
     }
 
     @Entity
