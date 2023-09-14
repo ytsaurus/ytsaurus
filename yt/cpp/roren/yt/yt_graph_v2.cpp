@@ -1131,6 +1131,14 @@ std::vector<std::vector<IYtGraph::TOperationNodeId>> TYtGraphV2::GetOperationLev
 
 NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId nodeId) const
 {
+    auto addLocalFiles = [] (const IRawParDoPtr& parDo, NYT::TUserJobSpec* spec) {
+        const auto& resourceFileList = TFnAttributesOps::GetResourceFileList(parDo->GetFnAttributes());
+
+        for (const auto& resourceFile : resourceFileList) {
+            spec->AddLocalFile(resourceFile);
+        }
+    };
+
     Y_VERIFY(nodeId >= 0 && nodeId < std::ssize(PlainGraph_->Operations));
     const auto& operation = PlainGraph_->Operations[nodeId];
     switch (operation->GetOperationType()) {
@@ -1188,7 +1196,9 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 mapperBuilder.Fuse(tmpMapBuilder, nodeId);
 
                 spec.Format(NYT::TFormat::YsonBinary());
-                NYT::IRawJobPtr job = CreateImpulseJob(mapperBuilder.Build());
+                auto mapperParDo = mapperBuilder.Build();
+                addLocalFiles(mapperParDo, &spec.MapperSpec_);
+                NYT::IRawJobPtr job = CreateImpulseJob(mapperParDo);
                 return client->RawMap(spec, job, NYT::TOperationOptions().Wait(false));
             }
         }
@@ -1248,14 +1258,21 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 mapBuilder.Fuse(tmpMapperBuilderList[i], decodedId);
             }
 
-            auto mapperJob = CreateImpulseJob(mapBuilder.Build());
-            auto reducerJob = CreateImpulseJob(reducerBuilder.Build());
+            auto mapperParDo = mapBuilder.Build();
+            addLocalFiles(mapperParDo, &spec.MapperSpec_);
+            auto mapperJob = CreateImpulseJob(mapperParDo);
+
+            auto reducerParDo = reducerBuilder.Build();
+            addLocalFiles(reducerParDo, &spec.ReducerSpec_);
+            auto reducerJob = CreateImpulseJob(reducerParDo);
 
             NYT::IRawJobPtr combinerJob = nullptr;
             if (!mapReduceOperation->CombinerBuilder.Empty()) {
                 spec.ForceReduceCombiners(true);
                 auto combinerBuilder = mapReduceOperation->CombinerBuilder;
-                combinerJob = CreateImpulseJob(combinerBuilder.Build());
+                auto combinerParDo = combinerBuilder.Build();
+                addLocalFiles(combinerParDo, &spec.ReduceCombinerSpec_);
+                combinerJob = CreateImpulseJob(combinerParDo);
             }
 
             spec.MapperFormat(NYT::TFormat::YsonBinary());

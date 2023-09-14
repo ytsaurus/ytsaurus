@@ -202,12 +202,6 @@ IYtJobOutputPtr CreateParDoJobOutput(IRawParDoPtr rawParDo, std::vector<IYtJobOu
 // This ParDo returns void
 IRawParDoPtr CreateOutputParDo(IYtJobOutputPtr output, TRowVtable rowVtable);
 
-// Creates ParDo that wraps given input.
-//
-// ParDo expects "impulse" as input (i.e. single integer of value '0')
-// When it receives it it starts reading data and passes it down the pipeline.
-IRawParDoPtr CreateImpulseInputParDo(IYtJobInputPtr input, std::vector<TDynamicTypeTag> dynamicTypeTag, ssize_t outputIndex);
-
 //
 // Create ParDo that Encodes/Decodes roren rows to TNode.
 //
@@ -222,6 +216,11 @@ IRawParDoPtr CreateEncodingValueNodeParDo(TRowVtable rowVtable);
 IRawParDoPtr CreateDecodingKeyValueNodeParDo(TRowVtable rowVtable);
 IRawParDoPtr CreateEncodingKeyValueNodeParDo(TRowVtable rowVtable);
 
+//
+// Create ParDo that reads TNode rows from stdin.
+//
+// ParDo expects "impulse" as input (i.e. single integer of value '0')
+// When it receives it it starts reading data and passes it down the pipeline.
 IRawParDoPtr CreateReadNodeImpulseParDo(ssize_t tableCount);
 IRawParDoPtr CreateWriteNodeParDo(ssize_t tableIndex);
 
