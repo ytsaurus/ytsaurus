@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NTabletNode.NProto;
 
 import "yt/ytlib/chunk_client/proto/session_id.proto";

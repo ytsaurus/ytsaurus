@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NChunkClient.NProto;
 
 // Basic YPath RPC for all types of chunk list owners (tables, files, and journals).

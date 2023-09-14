@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NTransactionServer.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";

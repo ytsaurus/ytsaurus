@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NTableServer.NProto;
 
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";

@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NQueryClient.NProto;
 import "yt/library/query/proto/query.proto";
 import "yt/library/query/proto/functions_cache.proto";

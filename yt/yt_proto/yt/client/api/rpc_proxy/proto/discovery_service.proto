@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NApi.NRpcProxy.NProto;
 
 option java_package = "tech.ytsaurus";

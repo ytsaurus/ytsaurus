@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NDiscoveryClient.NProto;
 
 import "yt_proto/yt/core/ytree/proto/attributes.proto";

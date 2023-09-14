@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NChaosNode.NProto;
 
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
