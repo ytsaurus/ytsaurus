@@ -689,8 +689,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerMode)
         .SetWritable(true)
         .SetReplicated(true)
-        .SetExternal(isExternal)
-        .SetOpaque(true));
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IsBeingMerged)
         .SetExternal(isExternal)
         .SetOpaque(true));
