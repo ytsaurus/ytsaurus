@@ -27,4 +27,4 @@ six==1.16.0
 charset-normalizer==2.0.10
 typing-extensions==4.5.0
 attrs==22.2.0
-pyarrow==5.0.0
+pyarrow==13.0.0
