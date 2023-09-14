@@ -38,9 +38,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          path: ytsaurus
 
   build:
-    name: Run build
+    name: Build
     needs:
       - start-vm
       - checkout
@@ -71,10 +73,10 @@ jobs:
           cmake \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            ../ytsaurus
+            ../ytsaurus/ytsaurus
 
       - name: Build C++
         run: |
@@ -90,16 +92,19 @@ jobs:
           echo "RELEASE_VERSION: ${{ steps.tag.outputs.RELEASE_VERSION }}"
           echo "PACKAGE_NAME: ${{ steps.tag.outputs.PACKAGE_NAME }}"
           echo "RELEASE_TYPE: ${{ steps.tag.outputs.RELEASE_TYPE }}"
+
           python3.11 -m venv ../venv
           source ../venv/bin/activate
-          pip3 install -r ./yt/yt/scripts/pytest_requirements.txt
-          YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
+          pip3 install -r ./ytsaurus/yt/yt/scripts/pytest_requirements.txt
+
+          YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
+
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
 
           pip3 install sphinx
 
-          cp -r ./yt/python/packages/docs "${ytsaurus_python}"
+          cp -r ./ytsaurus/yt/python/packages/docs "${ytsaurus_python}"
 
           cd "${ytsaurus_python}"
 
