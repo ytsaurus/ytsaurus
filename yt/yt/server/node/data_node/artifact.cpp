@@ -45,6 +45,14 @@ TArtifactKey::TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& desc
     if (descriptor.has_format()) {
         set_format(descriptor.format());
     }
+
+    if (descriptor.has_filesystem()) {
+        set_filesystem(descriptor.filesystem());
+    }
+
+    if (descriptor.has_file_name()) {
+        set_file_name(descriptor.file_name());
+    }
 }
 
 i64 TArtifactKey::GetCompressedDataSize() const

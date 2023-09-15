@@ -42,6 +42,7 @@ IVolumeChunkCachePtr CreateVolumeChunkCacheAdapter(TChunkCachePtr chunkCache);
 struct IVolume
     : public virtual TRefCounted
 {
+    virtual const TGuid& GetId() const = 0;
     virtual const TString& GetPath() const = 0;
     virtual TFuture<void> Remove() = 0;
 };
@@ -56,7 +57,7 @@ struct IVolumeManager
     : public virtual TRefCounted
 {
     virtual TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<NDataNode::TArtifactKey>& layers,
+        const std::vector<NDataNode::TArtifactKey>& artifactKeys,
         const TArtifactDownloadOptions& downloadOptions,
         const TUserSandboxOptions& options) = 0;
 

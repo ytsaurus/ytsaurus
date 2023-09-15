@@ -176,6 +176,58 @@ struct TVolumeMeta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TLayer)
+DECLARE_REFCOUNTED_CLASS(TNbdVolume)
+
+class TOverlayData
+{
+public:
+    TOverlayData() = default;
+
+    TOverlayData(TLayerPtr layer)
+        : Variant_(std::move(layer))
+    { }
+
+    TOverlayData(TNbdVolumePtr nbdVolume)
+        : Variant_(std::move(nbdVolume))
+    { }
+
+    const TString& GetPath() const;
+    const TArtifactKey& GetArtifactKey() const;
+
+    bool IsLayer() const
+    {
+        return std::holds_alternative<TLayerPtr>(Variant_);
+    }
+
+    const TLayerPtr& GetLayer() const
+    {
+        return std::get<TLayerPtr>(Variant_);
+    }
+
+    bool IsNbdVolume() const
+    {
+        return !IsLayer();
+    }
+
+    const TNbdVolumePtr& GetNbdVolume() const
+    {
+        return std::get<TNbdVolumePtr>(Variant_);
+    }
+
+private:
+    std::variant<TLayerPtr, TNbdVolumePtr> Variant_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EVolumeType,
+    ((Overlay)  (0))
+    ((Nbd)      (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TLayerLocationPerformanceCounters
 {
     TLayerLocationPerformanceCounters() = default;
@@ -290,11 +342,21 @@ public:
             .Run();
     }
 
-    TFuture<TVolumeMeta> CreateVolume(
-        const std::vector<TLayerMeta>& layers,
-        const TUserSandboxOptions& options)
+    TFuture<TVolumeMeta> CreateNbdVolume(
+        TGuid tag,
+        const TArtifactKey& artifactKey)
     {
-        return BIND(&TLayerLocation::DoCreateVolume, MakeStrong(this), layers, options)
+        return BIND(&TLayerLocation::DoCreateNbdVolume, MakeStrong(this), tag, artifactKey)
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run();
+    }
+
+    TFuture<TVolumeMeta> CreateOverlayVolume(
+        TGuid tag,
+        const TUserSandboxOptions& options,
+        const std::vector<TOverlayData>& overlayDataArray)
+    {
+        return BIND(&TLayerLocation::DoCreateOverlayVolume, MakeStrong(this), tag, options, overlayDataArray)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -880,75 +942,46 @@ private:
     }
 
     TVolumeMeta DoCreateVolume(
-        const std::vector<TLayerMeta>& layers,
-        const TUserSandboxOptions& options)
+        TGuid tag,
+        TVolumeMeta&& volumeMeta,
+        THashMap<TString, TString>&& volumeProperties)
     {
         ValidateEnabled();
 
-        auto id = TVolumeId::Create();
-        auto volumePath = GetVolumePath(id);
+        auto volumeId = TVolumeId::Create();
+        auto volumePath = GetVolumePath(volumeId);
 
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
-            YT_LOG_DEBUG("Creating volume (VolumeId: %v)",
-                id);
+            YT_LOG_DEBUG("Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
+                tag,
+                static_cast<EVolumeType>(volumeMeta.type()),
+                volumeId);
 
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            THashMap<TString, TString> properties;
-            properties["backend"] = "overlay";
-
-            if (options.EnableDiskQuota && options.HasRootFSQuota) {
-                properties["user"] = ToString(options.UserId);
-                properties["permissions"] = "0777";
-
-                if (options.DiskSpaceLimit) {
-                    properties["space_limit"] = ToString(*options.DiskSpaceLimit);
-                }
-
-                if (options.InodeLimit) {
-                    properties["inode_limit"] = ToString(*options.InodeLimit);
-                }
-            }
-
-            properties["place"] = PlacePath_;
-
-            TStringBuilder builder;
-            for (const auto& layer : layers) {
-                if (builder.GetLength() > 0) {
-                    builder.AppendChar(';');
-                }
-                builder.AppendString(layer.Path);
-            }
-            properties["layers"] = builder.Flush();
-
-            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, properties))
+            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, std::move(volumeProperties)))
                 .ValueOrThrow();
 
             YT_VERIFY(volumePath == mountPath);
 
-            YT_LOG_INFO("Volume created (VolumeId: %v, VolumeMountPath: %v)",
-                id,
+            YT_LOG_INFO("Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
+                tag,
+                static_cast<EVolumeType>(volumeMeta.type()),
+                volumeId,
                 mountPath);
 
-            TVolumeMeta volumeMeta;
-
-            for (const auto& layer : layers) {
-                volumeMeta.add_layer_artifact_keys()->MergeFrom(layer.artifact_key());
-                volumeMeta.add_layer_paths(layer.Path);
-            }
-
-            ToProto(volumeMeta.mutable_id(), id);
+            ToProto(volumeMeta.mutable_id(), volumeId);
             volumeMeta.MountPath = mountPath;
-            volumeMeta.Id = id;
+            volumeMeta.Id = volumeId;
 
             auto metaBlob = SerializeProtoToRefWithEnvelope(volumeMeta);
 
             TLayerMetaHeader header;
             header.MetaChecksum = GetChecksum(metaBlob);
 
-            auto volumeMetaFileName = GetVolumeMetaPath(id);
+            auto volumeMetaFileName = GetVolumeMetaPath(volumeId);
             auto tempVolumeMetaFileName = volumeMetaFileName + NFS::TempFileSuffix;
 
             {
@@ -962,13 +995,15 @@ private:
 
             NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
 
-            YT_LOG_INFO("Volume meta created (VolumeId: %v, MetaFileName: %v)",
-                id,
+            YT_LOG_INFO("Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
+                tag,
+                static_cast<EVolumeType>(volumeMeta.type()),
+                volumeId,
                 volumeMetaFileName);
 
             {
                 auto guard = Guard(SpinLock_);
-                YT_VERIFY(Volumes_.emplace(id, volumeMeta).second);
+                YT_VERIFY(Volumes_.emplace(volumeId, volumeMeta).second);
 
                 if (VolumesReleaseEvent_.IsSet()) {
                     VolumesReleaseEvent_ = NewPromise<void>();
@@ -977,11 +1012,110 @@ private:
 
             return volumeMeta;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to create volume %v", id)
-                << ex;
+            YT_LOG_ERROR("Failed to create volume (Tag: %v, Type: %v, VolumeId: %v, Error: %v)",
+                tag,
+                static_cast<EVolumeType>(volumeMeta.type()),
+                volumeId,
+                ex.what());
+
+            auto error = TError("Failed to create %v volume %v",
+                static_cast<EVolumeType>(volumeMeta.type()), volumeId) << ex;
             Disable(error);
             YT_ABORT();
         }
+    }
+
+    TVolumeMeta DoCreateNbdVolume(
+        TGuid tag,
+        const TArtifactKey& artifactKey)
+    {
+        ValidateEnabled();
+
+        YT_VERIFY(artifactKey.has_filesystem());
+
+        THashMap<TString, TString> volumeProperties;
+        volumeProperties["backend"] = "nbd";
+        volumeProperties["read_only"] = "true";
+        volumeProperties["place"] = PlacePath_;
+
+        // TODO(yuryalekseev): NbdConfig, tcp:// + host + port or unix+tcp: + path
+        TStringBuilder builder;
+        if (false /* options.NbdConfig */) {
+            if (false /* nbd server host + port in NbdConfig */) {
+                builder.AppendString("tcp://localhost:port/?");
+            } else {
+                builder.AppendString("unix+tcp://path/to/nbd_socket/?");
+            }
+            auto timeout = 5; // take timeout from NbdConfig
+            builder.AppendString("&timeout=" + ToString(timeout));
+        } else {
+            builder.AppendString("tcp://man0-1092.search.yandex.net:9011/?");
+            builder.AppendString("&timeout=5");
+        }
+        builder.AppendString("&export=" + artifactKey.nbd_export_id());
+        builder.AppendString("&fs-type=" + artifactKey.filesystem());
+        volumeProperties["storage"] = builder.Flush();
+
+        TVolumeMeta volumeMeta;
+        volumeMeta.set_type(static_cast<int>(EVolumeType::Nbd));
+        volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
+        volumeMeta.add_layer_paths("nbd:" + artifactKey.file_name());
+
+        return DoCreateVolume(
+            tag,
+            std::move(volumeMeta),
+            std::move(volumeProperties)
+        );
+    }
+
+    TVolumeMeta DoCreateOverlayVolume(
+        TGuid tag,
+        const TUserSandboxOptions& options,
+        const std::vector<TOverlayData>& overlayDataArray)
+    {
+        ValidateEnabled();
+
+        THashMap<TString, TString> volumeProperties;
+        volumeProperties["backend"] = "overlay";
+
+        if (options.EnableDiskQuota && options.HasRootFSQuota) {
+            volumeProperties["user"] = ToString(options.UserId);
+            volumeProperties["permissions"] = "0777";
+
+            if (options.DiskSpaceLimit) {
+                volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
+            }
+
+            if (options.InodeLimit) {
+                volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
+            }
+        }
+
+        volumeProperties["place"] = PlacePath_;
+
+        TStringBuilder builder;
+        for (const auto& volumeOrLayer : overlayDataArray) {
+            if (builder.GetLength() > 0) {
+                builder.AppendChar(';');
+            }
+            builder.AppendString(volumeOrLayer.GetPath());
+        }
+        volumeProperties["layers"] = builder.Flush();
+
+        TVolumeMeta volumeMeta;
+        volumeMeta.set_type(static_cast<int>(EVolumeType::Overlay));
+
+        for (const auto& volumeOrLayer : overlayDataArray) {
+            YT_ASSERT(!volumeOrLayer.GetPath().empty());
+            volumeMeta.add_layer_artifact_keys()->MergeFrom(volumeOrLayer.GetArtifactKey());
+            volumeMeta.add_layer_paths(volumeOrLayer.GetPath());
+        }
+
+        return DoCreateVolume(
+            tag,
+            std::move(volumeMeta),
+            std::move(volumeProperties)
+        );
     }
 
     void DoRemoveVolume(const TVolumeId& volumeId)
@@ -1025,7 +1159,7 @@ private:
                 auto guard = Guard(SpinLock_);
                 YT_VERIFY(Volumes_.erase(volumeId));
 
-                if (Volumes_.size() == 0) {
+                if (Volumes_.empty()) {
                     VolumesReleaseEvent_.Set();
                 }
             }
@@ -1145,7 +1279,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayer)
-DECLARE_REFCOUNTED_CLASS(TLayer)
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1938,22 +2071,22 @@ DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLayeredVolume
+class TOverlayVolume
     : public IVolume
 {
 public:
-    TLayeredVolume(
+    TOverlayVolume(
         const TVolumeMeta& meta,
         TPortoVolumeManagerPtr owner,
         TLayerLocationPtr location,
-        const std::vector<TLayerPtr>& layers)
+        const std::vector<TOverlayData>& overlayDataArray)
         : VolumeMeta_(meta)
         , Owner_(std::move(owner))
         , Location_(std::move(location))
-        , Layers_(layers)
+        , OverlayDataArray_(overlayDataArray)
     { }
 
-    ~TLayeredVolume() override
+    ~TOverlayVolume() override
     {
         Remove();
     }
@@ -1968,28 +2101,111 @@ public:
         return RemoveFuture_;
     }
 
+    const TGuid& GetId() const override
+    {
+        return VolumeMeta_.Id;
+    }
+
     const TString& GetPath() const override
     {
         return VolumeMeta_.MountPath;
     }
 
-    const std::vector<TLayerPtr>& GetLayers() const
+    const std::vector<TOverlayData>& GetoverlayDataArray() const
     {
-        return Layers_;
+        return OverlayDataArray_;
     }
 
 private:
     const TVolumeMeta VolumeMeta_;
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
-
-    std::vector<TLayerPtr> Layers_;
+    // Hold volumes and layers (so that they are not destroyed) while they are needed.
+    const std::vector<TOverlayData> OverlayDataArray_;
 
     TFuture<void> RemoveFuture_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TLayeredVolume)
-DEFINE_REFCOUNTED_TYPE(TLayeredVolume)
+DECLARE_REFCOUNTED_CLASS(TOverlayVolume)
+DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNbdVolume
+    : public IVolume
+{
+public:
+    TNbdVolume(
+        const TVolumeMeta& meta,
+        TPortoVolumeManagerPtr owner,
+        TLayerLocationPtr location,
+        const TArtifactKey& artifactKey)
+        : VolumeMeta_(meta)
+        , Owner_(std::move(owner))
+        , Location_(std::move(location))
+        , ArtifactKey_(artifactKey)
+    { }
+
+    ~TNbdVolume()
+    {
+        Remove();
+    }
+
+    TFuture<void> Remove() override
+    {
+        if (RemoveFuture_) {
+            return RemoveFuture_;
+        }
+
+        RemoveFuture_ = Location_->RemoveVolume(VolumeMeta_.Id);
+        return RemoveFuture_;
+    }
+
+    const TGuid& GetId() const override
+    {
+        return VolumeMeta_.Id;
+    }
+
+    const TString& GetPath() const override
+    {
+        return VolumeMeta_.MountPath;
+    }
+
+    const TArtifactKey& GetArtifactKey() const
+    {
+        return ArtifactKey_;
+    }
+
+private:
+    const TVolumeMeta VolumeMeta_;
+    const TPortoVolumeManagerPtr Owner_;
+    const TLayerLocationPtr Location_;
+    const TArtifactKey ArtifactKey_;
+
+    TFuture<void> RemoveFuture_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString& TOverlayData::GetPath() const
+{
+    if (std::holds_alternative<TLayerPtr>(Variant_)) {
+        return std::get<TLayerPtr>(Variant_)->GetPath();
+    }
+
+    return std::get<TNbdVolumePtr>(Variant_)->GetPath();
+}
+
+const TArtifactKey& TOverlayData::GetArtifactKey() const
+{
+    if (std::holds_alternative<TLayerPtr>(Variant_)) {
+        return std::get<TLayerPtr>(Variant_)->GetKey();
+    }
+
+    return std::get<TNbdVolumePtr>(Variant_)->GetArtifactKey();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2100,26 +2316,60 @@ public:
     }
 
     TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<TArtifactKey>& layers,
+        const std::vector<TArtifactKey>& artifactKeys,
         const TArtifactDownloadOptions& downloadOptions,
         const TUserSandboxOptions& options) override
     {
-        YT_VERIFY(!layers.empty());
+        YT_VERIFY(!artifactKeys.empty());
 
         auto tag = TGuid::Create();
 
-        std::vector<TFuture<TLayerPtr>> layerFutures;
-        layerFutures.reserve(layers.size());
-        for (const auto& layerKey : layers) {
-            layerFutures.push_back(LayerCache_->PrepareLayer(layerKey, downloadOptions, tag));
+        YT_LOG_DEBUG("Prepare volume (Tag: %v, Artifacts: %v)",
+            tag,
+            artifactKeys.size());
+
+        std::vector<size_t> nbdArtifactPositions;
+        std::vector<TArtifactKey> nbdArtifactKeys;
+        std::vector<size_t> overlayArtifactPositions;
+        std::vector<TArtifactKey> overlayArtifactKeys;
+        for (auto i = 0u; i < artifactKeys.size(); ++i) {
+            const auto& artifactKey = artifactKeys[i];
+            if (artifactKey.has_filesystem()) {
+                nbdArtifactPositions.push_back(i);
+                nbdArtifactKeys.push_back(artifactKey);
+            } else {
+                overlayArtifactPositions.push_back(i);
+                overlayArtifactKeys.push_back(artifactKey);
+            }
+        }
+
+        std::vector<TFuture<TOverlayData>> overlayDataFutures;
+        overlayDataFutures.resize(artifactKeys.size());
+
+        if (!overlayArtifactKeys.empty()) {
+            auto futures = PrepareLayers(tag, overlayArtifactKeys, downloadOptions);
+            YT_VERIFY(overlayArtifactKeys.size() == futures.size());
+            for (auto i = 0u; i < futures.size(); ++i) {
+                auto position = overlayArtifactPositions[i];
+                overlayDataFutures[position] = std::move(futures[i]);
+            }
+        }
+
+        if (!nbdArtifactKeys.empty()) {
+            auto futures = PrepareNbdVolumes(tag, nbdArtifactKeys);
+            YT_VERIFY(nbdArtifactKeys.size() == futures.size());
+            for (auto i = 0u; i < futures.size(); ++i) {
+                auto position = nbdArtifactPositions[i];
+                overlayDataFutures[position] = std::move(futures[i]);
+            }
         }
 
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
-        return AllSucceeded(std::move(layerFutures))
+        return AllSucceeded(std::move(overlayDataFutures))
             .ToImmediatelyCancelable()
             .Apply(BIND(
-                &TPortoVolumeManager::CreateVolume,
+                &TPortoVolumeManager::CreateOverlayVolume,
                 MakeStrong(this),
                 tag,
                 options)
@@ -2165,38 +2415,126 @@ private:
         LayerCache_->BuildOrchidYson(fluent);
     }
 
-    TLayeredVolumePtr CreateVolume(
+    std::vector<TFuture<TOverlayData>> PrepareNbdVolumes(
         TGuid tag,
-        const TUserSandboxOptions& options,
-        const TErrorOr<std::vector<TLayerPtr>>& errorOrLayers)
+        const std::vector<TArtifactKey>& artifactKeys)
     {
-        YT_LOG_DEBUG(errorOrLayers, "All layers prepared (Tag: %v)",
-            tag);
+        YT_VERIFY(!artifactKeys.empty());
 
-        const auto& layers = errorOrLayers
-            .ValueOrThrow();
+        YT_LOG_DEBUG("Prepare NBD volumes (Tag: %v, Artifacts: %v)",
+            tag,
+            artifactKeys.size());
 
-        std::vector<TLayerMeta> layerMetas;
-        layerMetas.reserve(layers.size());
-        for (const auto& layer : layers) {
-            layerMetas.push_back(layer->GetMeta());
-            LayerCache_->Touch(layer);
-            YT_LOG_DEBUG("Using layer to create new volume (LayerId: %v, Tag: %v)",
-                layer->GetMeta().Id,
-                tag);
+        std::vector<TFuture<TOverlayData>> futures;
+        futures.reserve(artifactKeys.size());
+
+        for (const auto& artifactKey : artifactKeys) {
+            YT_VERIFY(artifactKey.has_filesystem());
+
+            auto future = BIND(
+                &TPortoVolumeManager::CreateNbdVolume,
+                MakeStrong(this),
+                tag,
+                artifactKey
+            ).AsyncVia(GetCurrentInvoker()).Run().As<TOverlayData>();
+
+            futures.push_back(std::move(future));
         }
 
+        return futures;
+    }
+
+    std::vector<TFuture<TOverlayData>> PrepareLayers(
+        TGuid tag,
+        const std::vector<TArtifactKey>& artifactKeys,
+        const TArtifactDownloadOptions& downloadOptions)
+    {
+        YT_VERIFY(!artifactKeys.empty());
+
+        YT_LOG_DEBUG("Prepare layers (Tag: %v, Artifacts: %v)",
+            tag,
+            artifactKeys.size());
+
+        std::vector<TFuture<TOverlayData>> futures;
+        futures.reserve(artifactKeys.size());
+
+        for (const auto& artifactKey : artifactKeys) {
+            YT_VERIFY(!artifactKey.has_filesystem());
+            futures.push_back(LayerCache_->PrepareLayer(artifactKey, downloadOptions, tag).As<TOverlayData>());
+        }
+
+        return futures;
+    }
+
+    TNbdVolumePtr CreateNbdVolume(
+        TGuid tag,
+        const TArtifactKey& artifactKey)
+    {
+        YT_VERIFY(artifactKey.has_filesystem());
+
+        YT_LOG_DEBUG("Creating NBD volume (Tag: %v, Path: %v, Filesytem: %v)",
+            tag,
+            artifactKey.data_source().path(),
+            artifactKey.filesystem());
+
         auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateVolume(layerMetas, options))
+        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, artifactKey))
             .ValueOrThrow();
 
-        auto volume = New<TLayeredVolume>(
+        auto volume = New<TNbdVolume>(
             volumeMeta,
             this,
             location,
-            layers);
+            artifactKey
+        );
 
-        YT_LOG_DEBUG("Created volume (Tag: %v, VolumeId: %v)",
+        YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, Path: %v, Filesytem: %v)",
+            tag,
+            volumeMeta.Id,
+            artifactKey.data_source().path(),
+            artifactKey.filesystem());
+
+        return volume;
+    }
+
+    TOverlayVolumePtr CreateOverlayVolume(
+        TGuid tag,
+        const TUserSandboxOptions& options,
+        const std::vector<TOverlayData>& overlayDataArray)
+    {
+        YT_LOG_INFO("All layers and NBD volumes have been prepared (Tag: %v, OverlayDataArraySize: %v)",
+            tag,
+            overlayDataArray.size());
+
+        YT_LOG_DEBUG("Creating Overlay volume (Tag: %v, OverlayDataArraySize: %v)",
+            tag,
+            overlayDataArray.size());
+
+        for (const auto& volumeOrLayer : overlayDataArray) {
+            if (volumeOrLayer.IsLayer()) {
+                LayerCache_->Touch(volumeOrLayer.GetLayer());
+
+                YT_LOG_DEBUG("Using layer to create new Overlay volume (Tag: %v, LayerId: %v)",
+                    tag,
+                    volumeOrLayer.GetLayer()->GetMeta().Id);
+            } else {
+                YT_LOG_DEBUG("Using NBD volume to create new Overlay volume (Tag: %v, VolumeId: %v)",
+                    tag,
+                    volumeOrLayer.GetNbdVolume()->GetId());
+            }
+        }
+
+        auto location = PickLocation();
+        auto volumeMeta = WaitFor(location->CreateOverlayVolume(tag, options, overlayDataArray))
+            .ValueOrThrow();
+
+        auto volume = New<TOverlayVolume>(
+            volumeMeta,
+            this,
+            location,
+            overlayDataArray);
+
+        YT_LOG_DEBUG("Created Overlay volume (Tag: %v, VolumeId: %v)",
             tag,
             volumeMeta.Id);
 
