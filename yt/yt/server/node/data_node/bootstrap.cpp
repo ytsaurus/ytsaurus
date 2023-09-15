@@ -255,7 +255,7 @@ public:
             ChunkStore_,
             LocationManager_,
             GetControlInvoker(),
-            RebootManager_);
+            RestartManager_);
         LocationHealthChecker_->Initialize();
     }
 
@@ -439,7 +439,7 @@ private:
     TMediumDirectoryManagerPtr MediumDirectoryManager_;
     TMediumUpdaterPtr MediumUpdater_;
 
-    TRebootManagerPtr RebootManager_;
+    TRestartManagerPtr RestartManager_;
 
     TEnumIndexedVector<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedVector<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;

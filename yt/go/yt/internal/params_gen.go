@@ -711,7 +711,7 @@ func writeResurrectChunkLocationsOptions(w *yson.Writer, o *yt.ResurrectChunkLoc
 	}
 }
 
-func writeRequestRebootOptions(w *yson.Writer, o *yt.RequestRebootOptions) {
+func writeRequestRestartOptions(w *yson.Writer, o *yt.RequestRestartOptions) {
 	if o == nil {
 		return
 	}
@@ -3241,42 +3241,42 @@ func (p *ResurrectChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
 	writeResurrectChunkLocationsOptions(w, p.options)
 }
 
-type RequestRebootParams struct {
+type RequestRestartParams struct {
 	verb        Verb
 	nodeAddress string
-	options     *yt.RequestRebootOptions
+	options     *yt.RequestRestartOptions
 }
 
-func NewRequestRebootParams(
+func NewRequestRestartParams(
 	nodeAddress string,
-	options *yt.RequestRebootOptions,
-) *RequestRebootParams {
+	options *yt.RequestRestartOptions,
+) *RequestRestartParams {
 	if options == nil {
-		options = &yt.RequestRebootOptions{}
+		options = &yt.RequestRestartOptions{}
 	}
-	return &RequestRebootParams{
-		Verb("request_reboot"),
+	return &RequestRestartParams{
+		Verb("request_restart"),
 		nodeAddress,
 		options,
 	}
 }
 
-func (p *RequestRebootParams) HTTPVerb() Verb {
+func (p *RequestRestartParams) HTTPVerb() Verb {
 	return p.verb
 }
-func (p *RequestRebootParams) YPath() (ypath.YPath, bool) {
+func (p *RequestRestartParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
-func (p *RequestRebootParams) Log() []log.Field {
+func (p *RequestRestartParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("nodeAddress", p.nodeAddress),
 	}
 }
 
-func (p *RequestRebootParams) MarshalHTTP(w *yson.Writer) {
+func (p *RequestRestartParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("node_address")
 	w.Any(p.nodeAddress)
-	writeRequestRebootOptions(w, p.options)
+	writeRequestRestartOptions(w, p.options)
 }
 
 type LockNodeParams struct {

@@ -53,5 +53,5 @@ const (
 	MethodDisableChunkLocations     Method = "DisableChunkLocations"
 	MethodDestroyChunkLocations     Method = "DestroyChunkLocations"
 	MethodResurrectChunkLocations   Method = "ResurrectChunkLocations"
-	MethodRequestReboot             Method = "RequestReboot"
+	MethodRequestRestart            Method = "RequestRestart"
 )

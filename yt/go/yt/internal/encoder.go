@@ -735,12 +735,12 @@ func (e *Encoder) ResurrectChunkLocations(
 	return
 }
 
-func (e *Encoder) RequestReboot(
+func (e *Encoder) RequestRestart(
 	ctx context.Context,
 	nodeAddress string,
-	options *yt.RequestRebootOptions,
-) (response *yt.RequestRebootResponse, err error) {
-	call := e.newCall(NewRequestRebootParams(nodeAddress, options))
+	options *yt.RequestRestartOptions,
+) (response *yt.RequestRestartResponse, err error) {
+	call := e.newCall(NewRequestRestartParams(nodeAddress, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})

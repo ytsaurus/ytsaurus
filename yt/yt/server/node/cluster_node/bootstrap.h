@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/node/chaos_node/public.h>
 
-#include <yt/yt/server/lib/misc/reboot_manager.h>
+#include <yt/yt/server/lib/misc/restart_manager.h>
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
@@ -156,8 +156,8 @@ struct IBootstrapBase
     // Job resource manager.
     virtual const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const = 0;
 
-    // Reboot manager for hot swap functionality.
-    virtual const TRebootManagerPtr& GetRebootManager() const = 0;
+    // Restart manager for hot swap functionality.
+    virtual const TRestartManagerPtr& GetRestartManager() const = 0;
 
     // Job environment.
     virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const = 0;
@@ -290,7 +290,7 @@ public:
 
     const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const override;
 
-    const TRebootManagerPtr& GetRebootManager() const override;
+    const TRestartManagerPtr& GetRestartManager() const override;
 
     NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
 

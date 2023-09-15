@@ -992,21 +992,21 @@ func (r ResurrectChunkLocationsRequest) Path() (string, bool) {
 	return "", false
 }
 
-type RequestRebootRequest struct {
-	*rpc_proxy.TReqRequestReboot
+type RequestRestartRequest struct {
+	*rpc_proxy.TReqRequestRestart
 }
 
-func NewRequestRebootRequest(r *rpc_proxy.TReqRequestReboot) *RequestRebootRequest {
-	return &RequestRebootRequest{TReqRequestReboot: r}
+func NewRequestRestartRequest(r *rpc_proxy.TReqRequestRestart) *RequestRestartRequest {
+	return &RequestRestartRequest{TReqRequestRestart: r}
 }
 
-func (r RequestRebootRequest) Log() []log.Field {
+func (r RequestRestartRequest) Log() []log.Field {
 	return []log.Field{
 		log.String("node_address", r.GetNodeAddress()),
 	}
 }
 
-func (r RequestRebootRequest) Path() (string, bool) {
+func (r RequestRestartRequest) Path() (string, bool) {
 	return "", false
 }
 

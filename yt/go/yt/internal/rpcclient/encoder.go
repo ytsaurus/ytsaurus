@@ -1476,24 +1476,24 @@ func (e *Encoder) ResurrectChunkLocations(
 	return
 }
 
-func (e *Encoder) RequestReboot(
+func (e *Encoder) RequestRestart(
 	ctx context.Context,
 	nodeAddress string,
-	opts *yt.RequestRebootOptions,
-) (response *yt.RequestRebootResponse, err error) {
-	req := &rpc_proxy.TReqRequestReboot{
+	opts *yt.RequestRestartOptions,
+) (response *yt.RequestRestartResponse, err error) {
+	req := &rpc_proxy.TReqRequestRestart{
 		NodeAddress: &nodeAddress,
 	}
 
-	call := e.newCall(MethodRequestReboot, NewRequestRebootRequest(req), nil)
+	call := e.newCall(MethodRequestRestart, NewRequestRestartRequest(req), nil)
 
-	var rsp rpc_proxy.TRspRequestReboot
+	var rsp rpc_proxy.TRspRequestRestart
 	err = e.Invoke(ctx, call, &rsp)
 	if err != nil {
 		return
 	}
 
-	response, err = makeRequestRebootResponse(&rsp)
+	response, err = makeRequestRestartResponse(&rsp)
 	if err != nil {
 		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}

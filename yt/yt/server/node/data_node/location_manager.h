@@ -104,7 +104,7 @@ public:
         TChunkStorePtr chunkStore,
         TLocationManagerPtr locationManager,
         IInvokerPtr invoker,
-        TRebootManagerPtr rebootManager,
+        TRestartManagerPtr restartManager,
         const NProfiling::TProfiler& profiler);
 
     void Initialize();
@@ -119,7 +119,7 @@ private:
     const TChunkStorePtr ChunkStore_;
     const TLocationManagerPtr LocationManager_;
     const IInvokerPtr Invoker_;
-    const TRebootManagerPtr RebootManager_;
+    const TRestartManagerPtr RestartManager_;
 
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
     const NProfiling::TProfiler Profiler_;
@@ -147,7 +147,7 @@ TLocationHealthCheckerPtr CreateLocationHealthChecker(
     TChunkStorePtr chunkStore,
     TLocationManagerPtr locationManager,
     IInvokerPtr invoker,
-    TRebootManagerPtr rebootManager);
+    TRestartManagerPtr restartManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
