@@ -278,7 +278,7 @@ Or simply read the data:
 
 * When you are using [Reduce](../../../user-guide/data-processing/operations/reduce.md), and the input table has a monster key meaning that a single row in the first table corresponds to a large number of rows in another, as a result of the [Reduce](../../../user-guide/data-processing/operations/reduce.md) guarantee, all rows with this key must go into a single job, and the job will run indefinitely. You should use [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) with the trivial mapper and the reduce combiner to pre-process monster keys.
 * There are very many input tables being fed to an operation (100 or more) because chunks at the range boundary are not being counted precisely. The general observation is that the more input tables the less efficient the use of sorted input. You may want to use [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md).
-* When using [Merge](../../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. You should contact the mailbox `community_ru@ytsaurus.tech`.
+* When using [Merge](../../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. You should contact the mailbox `community@ytsaurus.tech`.
 
 The above recommendations notwithstanding, if you are certain that you would like to launch the operation anyway and are ready for it to take a very long time, you can increase the value of the `max_data_weight_per_job` parameter, which will start the operation.
 

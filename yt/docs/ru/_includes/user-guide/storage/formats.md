@@ -142,12 +142,12 @@ yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/s
 - **enable_integral_to_double_conversion** (`false`) — включить приведение `uint64` и `int64` к `double`. Например, целое число `42` превратится в дробное число `42.0`.
 - **enable_type_conversion** (`false`) — включить все опции выше. В большинстве случаев достаточно пользоваться только этой опцией.
 - **complex_type_mode** (`named`) — режим представления композитных типов, структур и вариантов,
-  возможные значения `named` или `positional`, подробнее в [разделе](../../../user-guide/storage/data_types#yson).
-- **string_keyed_dict_mode** (`positional`) - режим представления словей со строковыми ключами, возможные значения `named` или `positional`, подробнее в [специальном разделе](../../../user-guide/storage/data_types#yson).
+  возможные значения `named` или `positional`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
+- **string_keyed_dict_mode** (`positional`) - режим представления словей со строковыми ключами, возможные значения `named` или `positional`, подробнее в [специальном разделе](../../../user-guide/storage/data-types.md#yson).
 - **decimal_mode** (`binary`) — режим представления типа `decimal`,
-  возможные значения `text`, `binary`, подробнее в [разделе](../../../user-guide/storage/data_types#yson).
-- **time_mode** (`binary`) — режим представления типов `date`, `datetime`, `timestamp`, возможные значения `text` или `binary`, подробнее в [разделе](../../../user-guide/storage/data_types#yson).
-- **uuid_mode** (`binary`) — режим представления типа `uuid`, возможные значения `binary`, `text_yql` или `text_yt` подробнее в [разделе](../../../user-guide/storage/data_types#yson).
+  возможные значения `text`, `binary`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
+- **time_mode** (`binary`) — режим представления типов `date`, `datetime`, `timestamp`, возможные значения `text` или `binary`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
+- **uuid_mode** (`binary`) — режим представления типа `uuid`, возможные значения `binary`, `text_yql` или `text_yt` подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
 
 ## JSON { #json }
 
