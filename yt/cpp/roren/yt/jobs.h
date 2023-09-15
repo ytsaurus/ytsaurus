@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yt/cpp/roren/yt/state.h>
 #include "yt_io_private.h"
 
 #include <yt/cpp/roren/interface/fwd.h>
@@ -34,10 +35,20 @@ NYT::IRawJobPtr CreateSplitKvMap(
 NYT::IRawJobPtr CreateSplitKvMap(
     const std::vector<TRowVtable>& rowVtables);
 
+NYT::IRawJobPtr CreateSplitStateKvMap(
+    const std::vector<TRowVtable>& rowVtables,
+    TYtStateVtable stateVtable);
+
 NYT::IRawJobPtr CreateMultiJoinKvReduce(
     const IRawCoGroupByKeyPtr& rawComputation,
     const std::vector<TRowVtable>& inVtables,
     const IYtJobOutputPtr& output);
+
+NYT::IRawJobPtr CreateStatefulKvReduce(
+    const IRawStatefulParDoPtr& rawComputation,
+    const std::vector<TRowVtable>& inVtables,
+    const std::vector<IYtJobOutputPtr>& outputs,
+    TYtStateVtable stateVtable);
 
 NYT::IRawJobPtr CreateCombineCombiner(
     const IRawCombinePtr& combine,

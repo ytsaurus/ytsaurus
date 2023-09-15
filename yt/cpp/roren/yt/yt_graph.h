@@ -2,6 +2,7 @@
 
 #include <yt/cpp/roren/interface/fwd.h>
 #include <yt/cpp/roren/interface/private/fwd.h>
+#include <yt/cpp/roren/yt/state.h>
 
 #include <yt/cpp/mapreduce/interface/fwd.h>
 
@@ -66,7 +67,8 @@ private:
         std::vector<TTableNodeId> inputs,
         std::vector<TTableNodeId> mapOutputs,
         std::vector<TTableNodeId> outputs,
-        NPrivate::IRawTransformPtr rawTransform);
+        NPrivate::IRawTransformPtr rawTransform,
+        NPrivate::TYtStateVtable stateVtable);
 
     TOperationNodeId AddOperationNode(std::unique_ptr<TOperationNode> operationNode);
 

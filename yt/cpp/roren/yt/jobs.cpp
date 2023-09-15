@@ -223,6 +223,67 @@ REGISTER_RAW_JOB(TSplitKvMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Takes as input rows with TKV in "value" column.
+// Puts key part into "key" column and value part into "value" column.
+class TSplitStateKvMap
+    : public NYT::IRawJob
+{
+public:
+    TSplitStateKvMap() = default;
+
+    explicit TSplitStateKvMap(const std::vector<TRowVtable>& rowVtables, TYtStateVtable stateVtable)
+        : RowVtables_(rowVtables), StateVtable_(std::move(stateVtable))
+    { }
+
+    void Do(const TRawJobContext& /*jobContext*/) override
+    {
+        std::vector<IRawCoderPtr> decoders;
+        std::vector<TRawRowHolder> rowHolders;
+        TRawRowHolder stateHolder(StateVtable_.StateTKVvtable);
+        try {
+            auto reader = NYT::CreateTableReader<TNode>(&Cin);
+            decoders.reserve(RowVtables_.size());
+            rowHolders.reserve(RowVtables_.size());
+
+            for (const auto& rowVtable : RowVtables_) {
+                decoders.emplace_back(rowVtable.RawCoderFactory());
+                rowHolders.emplace_back(rowVtable);
+            }
+
+            auto writer = CreateKvJobOutput(/*sinkIndex*/ 0, RowVtables_);
+
+            for (;reader->IsValid(); reader->Next()) {
+                auto node = reader->GetRow();
+                size_t inputIndex = reader->GetTableIndex();
+                auto& rowHolder = rowHolders[inputIndex];
+                if (inputIndex == 0) {
+                    // convert TNode to TStateTKV
+                    StateVtable_.LoadState(rowHolder, node);
+                } else {
+                    // convert TNode['value'] to KV
+                    decoders[inputIndex]->DecodeRow(node["value"].AsString(), rowHolder.GetData());
+                }
+                writer->AddRawToTable(rowHolder.GetData(), 1, inputIndex);
+            }
+            writer->Close();
+        } catch (...) {
+            Cerr << "Error in TSplitStateKvMap" << Endl;
+            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
+            throw;
+        }
+    }
+
+private:
+    std::vector<TRowVtable> RowVtables_;
+    TYtStateVtable StateVtable_;
+
+public:
+    Y_SAVELOAD_JOB(RowVtables_, StateVtable_);
+};
+REGISTER_RAW_JOB(TSplitStateKvMap);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGbkImpulseReadParDo
     : public IRawParDo
 {
@@ -386,6 +447,122 @@ public:
     Y_SAVELOAD_JOB(State_);
 };
 REGISTER_RAW_JOB(TMultiJoinKvReduce);
+
+class TStatefulKvReduce
+    : public NYT::IRawJob
+{
+public:
+    TStatefulKvReduce() = default;
+
+    TStatefulKvReduce(const IRawStatefulParDoPtr& rawComputation, const std::vector<TRowVtable>& inVtables, const std::vector<IYtJobOutputPtr>& outputs, TYtStateVtable stateVtable)
+    {
+        State_[ComputationKey_] = SerializableToNode(*rawComputation);
+        State_[InVtablesKey_] = SaveToNode(inVtables);
+        State_[OutputsKey_] = TNode::CreateList();
+        for (const auto& o : outputs) {
+            State_[OutputsKey_].Add(SerializableToNode(*o));
+        }
+        State_[StateVtableKey_] = TYtStateVtable::SerializableToNode(stateVtable);
+    }
+
+    class TRawStateStore
+        : public IRawStateStore
+    {
+    public:
+        TRawStateStore(TRawRowHolder& stateHolder):
+            StateHolder_(stateHolder)
+        {
+        }
+
+        void* GetStateRaw(const void* key) final
+        {
+            Y_UNUSED(key);
+            return StateHolder_.get().GetData();
+        }
+
+    protected:
+        std::reference_wrapper<TRawRowHolder> StateHolder_;
+    };
+
+    void Do(const TRawJobContext& /*jobContext*/) override
+    {
+        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_FAIL("FAIL");});
+        try {
+            auto inRowVtables = LoadVtablesFromNode(State_.At(InVtablesKey_));
+            auto statefulParDo = SerializableFromNode<IRawStatefulParDo>(State_.At(ComputationKey_));
+            auto stateVtable = TYtStateVtable::SerializableFromNode(State_[StateVtableKey_]);
+
+            for (auto rangesReader = CreateRangesTableReader(&Cin); rangesReader->IsValid(); rangesReader->Next()) {
+                auto range = &rangesReader->GetRange();
+                auto input = CreateSplitKvJobInput(inRowVtables, range);
+                TRowVtable keyVtable;
+                TRawRowHolder keyHolder;
+
+                std::deque<std::vector<TRawRowHolder>> values;
+                values.resize(inRowVtables.size());
+
+                // read all values for key
+                while (const void* raw = input->NextRaw()) {
+                    auto inputIndex = input->GetInputIndex();
+                    Y_ENSURE(inputIndex < inRowVtables.size(), "Input index must be less than input tags count");
+                    auto inputVtable = inRowVtables[inputIndex];
+
+                    if (!IsDefined(keyVtable)) {
+                        keyVtable = inputVtable.KeyVtableFactory();
+                        keyHolder = TRawRowHolder{keyVtable};
+                        keyHolder.CopyFrom(reinterpret_cast<const char*>(raw) + inputVtable.KeyOffset);
+                    }
+
+                    values[inputIndex].emplace_back(inputVtable);
+                    values[inputIndex].back().CopyFrom(raw);
+                }
+
+                Y_VERIFY(IsDefined(keyVtable));
+                Y_VERIFY(values[0].size() <= 1);
+                TRawRowHolder state = values[0].empty()?
+                    stateVtable.StateFromKey(keyHolder.GetData())
+                    : stateVtable.StateFromTKV(std::move(values[0][0].GetData()));
+                values.pop_front();
+
+                auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
+                std::vector<IRawOutputPtr> outputs;
+                const auto& rawOutputs = State_[OutputsKey_].AsList();
+                for (auto it = rawOutputs.begin() + 1; it != rawOutputs.end(); ++it) {
+                    auto output = SerializableFromNode<IYtJobOutput>(*it);
+                    outputs.emplace_back(std::move(output));
+                }
+
+                IRawStateStorePtr rawStateStore = ::MakeIntrusive<TRawStateStore>(state);
+                statefulParDo->Start(executionContext, rawStateStore, outputs);
+                statefulParDo->Do(values[0].data(), values[0].size());
+                statefulParDo->Finish();
+
+                // TODO: write State to output
+
+                for (const auto& output : outputs) {
+                    output->Close();
+                }
+            }
+        } catch (...) {
+            Cerr << "Error in TStatefulKvReduce" << Endl;
+            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
+            throw;
+        }
+    }
+
+private:
+    TNode State_;
+
+private:
+    static constexpr TStringBuf ComputationKey_ = "computation";
+    static constexpr TStringBuf InVtablesKey_ = "in_row_vtables";
+    static constexpr TStringBuf OutputsKey_ = "out_row_vtable";
+    static constexpr TStringBuf StateVtableKey_ = "state_vtable_key";
+
+public:
+    Y_SAVELOAD_JOB(State_);
+};
+REGISTER_RAW_JOB(TStatefulKvReduce);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -718,6 +895,13 @@ IRawJobPtr CreateSplitKvMap(
     return CreateSplitKvMap(std::vector{std::move(rowVtable)});
 }
 
+IRawJobPtr CreateSplitStateKvMap(
+    const std::vector<TRowVtable>& rowVtables,
+    TYtStateVtable stateVtable)
+{
+    return ::MakeIntrusive<TSplitStateKvMap>(rowVtables, std::move(stateVtable));
+}
+
 IRawParDoPtr CreateGbkImpulseReadParDo(IRawGroupByKeyPtr rawGroupByKey)
 {
     return ::MakeIntrusive<TGbkImpulseReadParDo>(std::move(rawGroupByKey));
@@ -736,6 +920,15 @@ IRawParDoPtr CreateCoGbkImpulseReadParDo(
     std::vector<TRowVtable> rowVtableList)
 {
     return ::MakeIntrusive<TCoGbkImpulseReadParDo>(std::move(rawCoGbk), std::move(rowVtableList));
+}
+
+IRawJobPtr CreateStatefulKvReduce(
+    const IRawStatefulParDoPtr& rawComputation,
+    const std::vector<TRowVtable>& inVtables,
+    const std::vector<IYtJobOutputPtr>& outputs,
+    TYtStateVtable stateVtable)
+{
+    return ::MakeIntrusive<TStatefulKvReduce>(rawComputation, inVtables, outputs, std::move(stateVtable));
 }
 
 IRawJobPtr CreateCombineCombiner(

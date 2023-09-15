@@ -1,3 +1,5 @@
+#include "yt.h"
+#include "state.h"
 #include "yt_graph.h"
 
 #include "jobs.h"
@@ -301,13 +303,16 @@ public:
         std::vector<TTableNodeId> inputs,
         std::vector<TTableNodeId> mapOutputs,
         std::vector<TTableNodeId> outputs,
-        IRawTransformPtr rawTransform)
+        IRawTransformPtr rawTransform,
+        TYtStateVtable stateVtable
+        )
         : Config_(config)
         , Graph_(graph)
         , Inputs_(std::move(inputs))
         , MapOutputs_(std::move(mapOutputs))
         , Outputs_(std::move(outputs))
         , RawTransform_(std::move(rawTransform))
+        , StateVtable_(std::move(stateVtable))
     {
         Init();
     }
@@ -450,7 +455,11 @@ private:
 
     void OptimizeOutputs()
     {
-        Y_VERIFY(Outputs_.size() == 1);
+        if (RawTransform_->GetType() != ERawTransformType::StatefulParDo) {
+            Y_VERIFY(Outputs_.size() == 1);
+        } else {
+            return;  // TODO: optimize multiple outputs
+        }
         auto& outputTable = Graph_->TableNodes_[Outputs_[0]];
         std::vector<TOperationNodeId> newOutputs;
         std::vector<IYtJobOutputPtr> newJobOutputs;
@@ -493,9 +502,10 @@ private:
             addOutputOperation(map);
         }
 
+        auto outputVtables = GetRowVtables(Outputs_);
         if (needOldOutput) {
             newOutputs.push_back(Outputs_[0]);
-            newJobOutputs.push_back(CreateEncodingJobOutput(OutputVtable_, nextSinkIndex()));
+            newJobOutputs.push_back(CreateEncodingJobOutput(outputVtables[0], nextSinkIndex()));
         } else {
             Graph_->RemoveTable(Outputs_[0]);
         }
@@ -508,13 +518,14 @@ private:
             ? newJobOutputs[0]
             : CreateTeeJobOutput(std::move(newJobOutputs));
 
-        Reducer_ = CreateReducer(std::move(jobOutput));
+        auto intermediateVtables = GetRowVtables(Inputs_);
+        Reducer_ = CreateReducer(intermediateVtables, outputVtables, {jobOutput});
     }
 
     void Init()
     {
-        IntermediateVtables_ = GetRowVtables(Inputs_);
-        OutputVtable_ = GetTableNode(Outputs_[0]).RowVtable_;
+        auto intermediateVtables = GetRowVtables(Inputs_);
+        auto outputVtables = GetRowVtables(Outputs_);
 
         switch (RawTransform_->GetType()) {
             case ERawTransformType::GroupByKey: {
@@ -523,31 +534,41 @@ private:
                 ForceReduceCombiners_ = false;
                 break;
             }
+            case ERawTransformType::StatefulParDo: {
+                Mapper_ = CreateSplitStateKvMap(intermediateVtables, StateVtable_);
+                ReduceCombiner_ = nullptr;
+                ForceReduceCombiners_ = false;
+                break;
+            }
             case ERawTransformType::CoGroupByKey: {
-                Mapper_ = CreateSplitKvMap(IntermediateVtables_);
+                Mapper_ = CreateSplitKvMap(intermediateVtables);
                 ReduceCombiner_ = nullptr;
                 ForceReduceCombiners_ = false;
                 break;
             }
             case ERawTransformType::CombinePerKey: {
-                Y_VERIFY(IntermediateVtables_.size() == 1);
-                Mapper_ = CreateSplitKvMap(IntermediateVtables_.front());
-                ReduceCombiner_ = CreateCombineCombiner(RawTransform_->AsRawCombine(), IntermediateVtables_.front());
+                Y_VERIFY(intermediateVtables.size() == 1);
+                Mapper_ = CreateSplitKvMap(intermediateVtables.front());
+                ReduceCombiner_ = CreateCombineCombiner(RawTransform_->AsRawCombine(), intermediateVtables.front());
                 ForceReduceCombiners_ = true;
                 break;
             }
             default:
                 Y_FAIL();
         }
-
-        Reducer_ = CreateReducer(CreateEncodingJobOutput(OutputVtable_, 0));
+        std::vector<IYtJobOutputPtr> jobOutputs;
+        for (size_t outputIndex = 0; outputIndex < outputVtables.size(); ++outputIndex) {
+            const auto& outputRowVtable = outputVtables[outputIndex];
+            jobOutputs.emplace_back(CreateEncodingJobOutput(outputRowVtable, outputIndex));
+        }
+        Reducer_ = CreateReducer(intermediateVtables, outputVtables, jobOutputs);
     }
 
-    ::TIntrusivePtr<IRawJob> CreateReducer(const IYtJobOutputPtr& output)
+    ::TIntrusivePtr<IRawJob> CreateReducer(const std::vector<TRowVtable>& intermediateVtables, const std::vector<TRowVtable>& outputVtables, const std::vector<IYtJobOutputPtr>& jobOutputs)
     {
         switch (RawTransform_->GetType()) {
             case ERawTransformType::GroupByKey: {
-                Y_VERIFY(IntermediateVtables_.size() == 1);
+                Y_VERIFY(intermediateVtables.size() == 1);
                 TParDoTreeBuilder userLogic;
                 auto nodeIdList = userLogic.AddParDo(
                     CreateGbkImpulseReadParDo(RawTransform_->AsRawGroupByKey()),
@@ -555,16 +576,19 @@ private:
                 );
                 Y_VERIFY(nodeIdList.size() == 1);
                 nodeIdList = userLogic.AddParDo(
-                    CreateOutputParDo(output, OutputVtable_),
+                    CreateOutputParDo(jobOutputs[0], outputVtables[0]),
                     nodeIdList[0]
                 );
                 Y_VERIFY(nodeIdList.size() == 0);
                 return CreateImpulseJob(userLogic.Build());
             }
             case ERawTransformType::CoGroupByKey:
-                return CreateMultiJoinKvReduce(RawTransform_->AsRawCoGroupByKey(), IntermediateVtables_, output);
+                return CreateMultiJoinKvReduce(RawTransform_->AsRawCoGroupByKey(), intermediateVtables, jobOutputs[0]);
+            case ERawTransformType::StatefulParDo: {
+                return CreateStatefulKvReduce(RawTransform_->AsRawStatefulParDo(), intermediateVtables, jobOutputs, StateVtable_);
+            }
             case ERawTransformType::CombinePerKey:
-                return CreateCombineReducer(RawTransform_->AsRawCombine(), OutputVtable_, output);
+                return CreateCombineReducer(RawTransform_->AsRawCombine(), outputVtables[0], jobOutputs[0]);
             default:
                 Y_FAIL();
         }
@@ -577,9 +601,7 @@ private:
     std::vector<TTableNodeId> MapOutputs_;
     std::vector<TTableNodeId> Outputs_;
     IRawTransformPtr RawTransform_;
-
-    std::vector<TRowVtable> IntermediateVtables_;
-    TRowVtable OutputVtable_;
+    TYtStateVtable StateVtable_;
 
     ::TIntrusivePtr<IRawJob> Mapper_;
     ::TIntrusivePtr<IRawJob> ReduceCombiner_;
@@ -652,7 +674,8 @@ TYtGraph::TOperationNodeId TYtGraph::AddMapReduceOperationNode(
     std::vector<TTableNodeId> inputs,
     std::vector<TTableNodeId> mapOutputs,
     std::vector<TTableNodeId> outputs,
-    IRawTransformPtr rawTransform)
+    IRawTransformPtr rawTransform,
+    TYtStateVtable stateVtable)
 {
     return AddOperationNode(std::make_unique<TMapReduceOperationNode>(
         Config_,
@@ -660,7 +683,8 @@ TYtGraph::TOperationNodeId TYtGraph::AddMapReduceOperationNode(
         std::move(inputs),
         std::move(mapOutputs),
         std::move(outputs),
-        std::move(rawTransform)
+        std::move(rawTransform),
+        std::move(stateVtable)
     ));
 }
 
@@ -850,7 +874,8 @@ public:
                     /*inputs*/ {inputNode},
                     /*mapOutputs*/ {},
                     /*outputs*/ outputNodes,
-                    transform->GetRawTransform()
+                    transform->GetRawTransform(),
+                    {}
                 );
                 break;
             }
@@ -861,7 +886,8 @@ public:
                     /*inputs*/ inputNodes,
                     /*mapOutputs*/ {},
                     /*outputs*/ outputNodes,
-                    transform->GetRawTransform()
+                    transform->GetRawTransform(),
+                    {}
                 );
                 break;
             }
@@ -872,7 +898,33 @@ public:
                 break;
             }
             case ERawTransformType::StatefulParDo: {
-                THROW_NOT_IMPLEMENTED_YET();
+                const TYtStateVtable* stateVtable = NPrivate::GetAttribute(*transform->GetPStateNode(), YtStateVtableTag);
+                const TString* stateInPath = NPrivate::GetAttribute(*transform->GetPStateNode(), YtStateInPathTag);
+                const TString* stateOutPath = NPrivate::GetAttribute(*transform->GetPStateNode(), YtStateOutPathTag);
+                Y_VERIFY(stateVtable);
+                Y_VERIFY(stateInPath);
+                Y_VERIFY(stateOutPath);
+
+                auto stateInNode = Graph_.AddTableNode(
+                    *stateInPath,
+                    /*schema*/ std::nullopt,
+                    stateVtable->StateTKVvtable);
+                auto stateOutNode = Graph_.AddTableNode(
+                    *stateOutPath,
+                    /*schema*/ std::nullopt,
+                    stateVtable->StateTKVvtable);
+
+                auto inputNode = MapPCollectionToTableNode(transform->GetSource(0));
+                auto outputNodes = AddTemporaryTableNodes(transform->GetSinkList());
+                outputNodes.emplace(outputNodes.begin(), stateOutNode);
+                Graph_.AddMapReduceOperationNode(
+                    /*inputs*/ {stateInNode, inputNode},
+                    /*mapOutputs*/ {},
+                    /*outputs*/ outputNodes,
+                    transform->GetRawTransform(),
+                    *stateVtable
+                );
+                break;
             }
             default:
                 Y_FAIL();
