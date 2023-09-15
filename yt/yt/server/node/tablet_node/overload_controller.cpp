@@ -31,8 +31,9 @@ class TMeanWaitTimeTracker
     : public TRefCounted
 {
 public:
-    explicit TMeanWaitTimeTracker(TString name)
+    TMeanWaitTimeTracker(TString name, TString trackerId)
         : Name_(std::move(name))
+        , Id_(std::move(trackerId))
         , Counter_(New<TPerCpuDurationSummary>())
     { }
 
@@ -50,9 +51,9 @@ public:
             meanValue = summary.Sum() / summary.Count();
         }
 
-        YT_LOG_DEBUG("Reporting mean wait time for invoker "
-            "(Invoker: %v, TotalWaitTime: %v, TotalCount: %v, MeanValue: %v)",
-            Name_,
+        YT_LOG_DEBUG("Reporting mean wait time for tracker "
+            "(Tracker: %v, TotalWaitTime: %v, TotalCount: %v, MeanValue: %v)",
+            Id_,
             summary.Sum(),
             summary.Count(),
             meanValue);
@@ -69,6 +70,7 @@ private:
     using TPerCpuDurationSummary = TPerCpuSummary<TDuration>;
 
     const TString Name_;
+    const TString Id_;
     TIntrusivePtr<TPerCpuDurationSummary> Counter_;
 };
 
@@ -96,7 +98,9 @@ public:
     {
         auto window = Window_.load(std::memory_order::relaxed);
         bool overloaded = static_cast<int>(RandomNumber<ui32>(MaxWindow_)) + 1 > window;
-        bool skipCall = totalThrottledTime + ThrottlingStepTime_ >= requestTimeout.value_or(MaxThrottlingTime_);
+
+        auto skipThreshold = std::min(requestTimeout.value_or(MaxThrottlingTime_), MaxThrottlingTime_);
+        bool skipCall = totalThrottledTime + ThrottlingStepTime_ >= skipThreshold;
 
         ThrottledRequestCount_.Increment(static_cast<int>(overloaded && totalThrottledTime == TDuration::Zero()));
         SkippedRequestCount_.Increment(static_cast<int>(skipCall));
@@ -181,32 +185,37 @@ TOverloadController::TOverloadController(TOverloadControllerConfigPtr config)
 
 void TOverloadController::TrackInvoker(const TString& name, const IInvokerPtr& invoker)
 {
-    AddTracker(name, invoker);
+    invoker->RegisterWaitTimeObserver(CreateGenericTracker(name));
 }
 
 void TOverloadController::TrackFSHThreadPool(const TString& name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool)
 {
-    AddTracker(name, threadPool);
+    threadPool->RegisterWaitTimeObserver(CreateGenericTracker(name));
 }
 
-template <class TExecutorPtr>
-void TOverloadController::AddTracker(const TString& name, const TExecutorPtr& invoker)
+TOverloadController::TWaitTimeObserver TOverloadController::CreateGenericTracker(const TString& trackerType, const std::optional<TString>& id)
 {
-    auto tracker = New<TMeanWaitTimeTracker>(name);
+    YT_LOG_DEBUG("Creating overload tracker (TrackerType: %v, Id: %v)",
+        trackerType,
+        id);
 
-    invoker->RegisterWaitTimeObserver([tracker] (TDuration waitTime) {
-        tracker->Record(waitTime);
-    });
+    auto trackerId = id.value_or(trackerType);
 
-    auto profiler = Profiler.WithTag("tracker", name);
+    auto tracker = New<TMeanWaitTimeTracker>(trackerType, trackerId);
+    auto profiler = Profiler.WithTag("tracker", trackerId);
 
     auto guard = Guard(SpinLock_);
-    State_.Trackers.push_back(tracker);
-    auto& sensors = State_.TrackerSensors[name];
+    State_.Trackers[trackerId] = tracker;
+    auto& sensors = State_.TrackerSensors[trackerId];
     sensors.Overloaded = profiler.Summary("/overloaded");
     sensors.MeanWaitTime = profiler.Timer("/mean_wait_time");
+    sensors.MeanWaitTimeThreshold = profiler.TimeGauge("/mean_wait_time_threshold");
 
     UpdateStateSnapshot(State_, std::move(guard));
+
+    return [tracker] (TDuration waitTime) {
+        tracker->Record(waitTime);
+    };
 }
 
 TOverloadedStatus TOverloadController::GetOverloadStatus(
@@ -272,31 +281,32 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
 
     const auto& config = state->Config;
 
-    for (const auto& [_, tracker] : config->Trackers) {
-        for (const auto& method : tracker->MethodsToThrottle) {
+    for (const auto& [_, trackerConfig] : config->Trackers) {
+        for (const auto& method : trackerConfig->MethodsToThrottle) {
             methodOverloaded[std::make_pair(method->Service, method->Method)] = false;
         }
     }
 
-    for (const auto& tracker : state->Trackers) {
-        auto it = config->Trackers.find(tracker->GetName());
-        if (it == config->Trackers.end()) {
+    for (const auto& [trackerId, tracker] : state->Trackers) {
+        auto trackerIt = config->Trackers.find(tracker->GetName());
+        if (trackerIt == config->Trackers.end()) {
             continue;
         }
 
         auto movingMeanValue = tracker->GetAndReset();
-        bool trackerOverloaded = movingMeanValue > it->second->MeanWaitTimeThreshold;
+        bool trackerOverloaded = movingMeanValue > trackerIt->second->MeanWaitTimeThreshold;
 
-        if (auto it = state->TrackerSensors.find(tracker->GetName()); it != state->TrackerSensors.end()) {
+        if (auto it = state->TrackerSensors.find(trackerId); it != state->TrackerSensors.end()) {
             it->second.Overloaded.Record(static_cast<int>(trackerOverloaded));
             it->second.MeanWaitTime.Record(movingMeanValue);
+            it->second.MeanWaitTimeThreshold.Update(trackerIt->second->MeanWaitTimeThreshold);
         }
 
         if (!trackerOverloaded) {
             continue;
         }
 
-        for (const auto& method : it->second->MethodsToThrottle) {
+        for (const auto& method : trackerIt->second->MethodsToThrottle) {
             methodOverloaded[std::make_pair(method->Service, method->Method)] = true;
         }
     }

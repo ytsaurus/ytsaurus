@@ -148,6 +148,9 @@ public:
 
     void CheckInvariants() override;
 
+    using TWaitTimeObserver = std::function<void(TDuration)>;
+    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver);
+
 protected:
     bool SerializationDumpEnabled_ = false;
     bool EnableTotalWriteCountReport_ = false;
@@ -156,6 +159,8 @@ protected:
 
     const NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler_;
+
+    TWaitTimeObserver WaitTimeObserver_;
 
 protected:
     TCompositeAutomaton(

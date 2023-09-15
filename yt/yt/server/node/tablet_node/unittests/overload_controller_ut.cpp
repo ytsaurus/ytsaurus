@@ -270,7 +270,7 @@ TEST(TOverloadControllerTest, TestThrottlingAndSkips)
             config->MaxThrottlingTime * 4);
 
         EXPECT_TRUE(status.Overloaded);
-        EXPECT_FALSE(status.SkipCall);
+        EXPECT_TRUE(status.SkipCall);
         EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
     }
 
