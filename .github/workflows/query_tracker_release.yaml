@@ -81,6 +81,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-query-tracker: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
     secrets:
       DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
