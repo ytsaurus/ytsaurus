@@ -130,6 +130,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 builder.builder.clusters,
                 builder.builder.preferredClusterName,
                 builder.builder.proxyRole,
+                builder.builder.config.getUseTLS(),
                 builder.builder.config.getTvmOnly(),
                 builder.builder.config.getIgnoreBalancers(),
                 builder.auth,
@@ -278,6 +279,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 List<YTsaurusCluster> clusters,
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
+                boolean useTLS,
                 boolean tvmOnly,
                 boolean ignoreBalancers,
                 YTsaurusClientAuth auth,
@@ -304,8 +306,10 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                     dataCenterList.add(
                             ClientPoolService.httpBuilder()
                                     .setDataCenterName(curCluster.getName())
-                                    .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
+                                    .setBalancerFqdn(curCluster.balancerFqdn)
+                                    .setBalancerPort(curCluster.port)
                                     .setRole(proxyRole)
+                                    .setUseTLS(useTLS)
                                     .setTvmOnly(tvmOnly)
                                     .setIgnoreBalancers(ignoreBalancers)
                                     .setToken(auth.getToken().orElse(null))

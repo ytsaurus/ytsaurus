@@ -17,7 +17,8 @@ public class YTsaurusCluster {
     static List<String> httpPrefixes = Arrays.asList("http://", "https://");
 
     final String balancerFqdn;
-    int httpPort;
+    @Nullable
+    final Integer port;
     final String name;
     final List<String> addresses;
     @Nullable
@@ -26,27 +27,31 @@ public class YTsaurusCluster {
     public YTsaurusCluster(
             String name,
             String balancerFqdn,
-            int httpPort,
+            int port,
             List<String> addresses,
             @Nullable String proxyRole
     ) {
         this.name = removeHttp(name);
         this.balancerFqdn = balancerFqdn;
-        this.httpPort = httpPort;
+        this.port = port;
         this.addresses = addresses;
         this.proxyRole = proxyRole;
     }
 
-    public YTsaurusCluster(String name, String balancerFqdn, int httpPort, List<String> addresses) {
-        this(name, balancerFqdn, httpPort, addresses, null);
+    public YTsaurusCluster(String name, String balancerFqdn, int port, List<String> addresses) {
+        this(name, balancerFqdn, port, addresses, null);
     }
 
-    public YTsaurusCluster(String name, String balancerFqdn, int httpPort) {
-        this(name, balancerFqdn, httpPort, new ArrayList<>());
+    public YTsaurusCluster(String name, String balancerFqdn, int port) {
+        this(name, balancerFqdn, port, new ArrayList<>());
     }
 
     public YTsaurusCluster(String name) {
-        this(name, getFqdn(name), getPort(name), new ArrayList<>());
+        this.name = removeHttp(name);
+        this.balancerFqdn = getFqdn(name);
+        this.port = getPort(name);
+        this.addresses = new ArrayList<>();
+        this.proxyRole = null;
     }
 
     public String getName() {
@@ -80,14 +85,14 @@ public class YTsaurusCluster {
         }
     }
 
-    static int getPort(String name) {
+    @Nullable
+    private static Integer getPort(String name) {
         name = removeHttp(name);
         int index = name.lastIndexOf(":");
         if (index < 0) {
-            return 80;
-        } else {
-            return Integer.parseInt(name.substring(index + 1));
+            return null;
         }
+        return Integer.parseInt(name.substring(index + 1));
     }
 
     private static String removeHttp(String name) {

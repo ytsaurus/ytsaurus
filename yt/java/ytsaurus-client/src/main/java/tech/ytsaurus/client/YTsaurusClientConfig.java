@@ -36,6 +36,7 @@ public class YTsaurusClientConfig {
     private final JavaOptions javaOptions;
     private final String version;
     private final Duration operationPingPeriod;
+    private final boolean useTLS;
     private final boolean tvmOnly;
     private final boolean ignoreBalancers;
 
@@ -58,6 +59,7 @@ public class YTsaurusClientConfig {
         this.specPatch = builder.specPatch;
         this.jobSpecPatch = builder.jobSpecPatch;
         this.operationPingPeriod = builder.operationPingPeriod;
+        this.useTLS = builder.useTLS;
         this.tvmOnly = builder.tvmOnly;
         this.ignoreBalancers = builder.ignoreBalancers;
     }
@@ -78,6 +80,7 @@ public class YTsaurusClientConfig {
                 .setJavaOptions(javaOptions)
                 .setVersion(version)
                 .setOperationPingPeriod(operationPingPeriod)
+                .setUseTLS(useTLS)
                 .setTvmOnly(tvmOnly)
                 .setIgnoreBalancers(ignoreBalancers);
     }
@@ -120,6 +123,10 @@ public class YTsaurusClientConfig {
 
     public Duration getOperationPingPeriod() {
         return operationPingPeriod;
+    }
+
+    public boolean getUseTLS() {
+        return useTLS;
     }
 
     public boolean getTvmOnly() {
@@ -181,6 +188,7 @@ public class YTsaurusClientConfig {
         @Nullable
         private YTreeNode specPatch;
 
+        private boolean useTLS = false;
         private boolean tvmOnly = false;
         private boolean ignoreBalancers = false;
 
@@ -251,6 +259,11 @@ public class YTsaurusClientConfig {
 
         public Builder setSpecPatch(@Nullable YTreeNode specPatch) {
             this.specPatch = specPatch;
+            return this;
+        }
+
+        public Builder setUseTLS(boolean useTLS) {
+            this.useTLS = useTLS;
             return this;
         }
 

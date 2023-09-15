@@ -22,14 +22,14 @@ public class LocalYTsaurus {
     /**
      * Get host part of local YTsaurus instance address.
      */
-    static String getHost() {
+    public static String getHost() {
         return getAddressInstance().host;
     }
 
     /**
      * Get port part of local YTsaurus instance address.
      */
-    static int getPort() {
+    public static int getPort() {
         return getAddressInstance().port;
     }
 

@@ -47,11 +47,9 @@ public class HttpProxyGetterTest extends YTsaurusClientTestBase {
     public void testGetProxy() throws InterruptedException, ExecutionException, TimeoutException {
         HttpProxyGetter getter = new HttpProxyGetter(
                 httpClient,
-                getYTsaurusAddress(),
-                null,
-                false,
-                false,
-                null
+                ClientPoolService.httpBuilder()
+                        .setBalancerFqdn(getYTsaurusHost())
+                        .setBalancerPort(getYTsaurusPort())
         );
         final var hostPortComparator = Comparator
                 .comparing(HostPort::getHost)

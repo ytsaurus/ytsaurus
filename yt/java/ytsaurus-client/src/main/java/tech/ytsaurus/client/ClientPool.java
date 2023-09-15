@@ -277,17 +277,14 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 Objects.requireNonNull(httpBuilder.random),
                 Objects.requireNonNull(httpBuilder.options.getRpcProxySelector())
         );
+
         HttpClient httpClient = HttpClient.newBuilder()
                 .executor(httpBuilder.eventLoop)
                 .build();
 
         proxyGetter = new HttpProxyGetter(
                 httpClient,
-                Objects.requireNonNull(httpBuilder.balancerAddress),
-                httpBuilder.role,
-                httpBuilder.tvmOnly,
-                httpBuilder.ignoreBalancers,
-                httpBuilder.token
+                httpBuilder
         );
 
         executorService = httpBuilder.eventLoop;
@@ -400,6 +397,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     abstract static class BaseBuilder<T extends BaseBuilder<T>> {
         @Nullable
         String role;
+        boolean useTLS = false;
         boolean tvmOnly = false;
         boolean ignoreBalancers = false;
         @Nullable
@@ -451,6 +449,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
             return (T) this;
         }
 
+        T setUseTLS(boolean useTLS) {
+            this.useTLS = useTLS;
+            //noinspection unchecked
+            return (T) this;
+        }
+
         T setTvmOnly(boolean tvmOnly) {
             this.tvmOnly = tvmOnly;
             //noinspection unchecked
@@ -477,22 +481,26 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     static class HttpBuilder extends BaseBuilder<HttpBuilder> {
         private static final String IP_V6_REG_EX = "[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}";
         @Nullable
-        String balancerAddress;
+        String balancerFqdn;
+        @Nullable
+        Integer balancerPort;
 
-        HttpBuilder setBalancerAddress(String host, int port) {
-            // We could use InetSocketAddress.createUnresolved(host, port).toString()
-            // but it handles ipv6 addresses properly only starting from JDK15 :(
-            if (port < 0 || port > 65535) {
+        HttpBuilder setBalancerFqdn(String fqdn) {
+            if (fqdn.matches(IP_V6_REG_EX)) {
+                this.balancerFqdn = String.format("[%s]", fqdn);
+            } else if (fqdn.matches("\\[" + IP_V6_REG_EX + "]") || !fqdn.contains(":")) {
+                this.balancerFqdn = fqdn;
+            } else {
+                throw new IllegalArgumentException("Bad FQDN: " + fqdn);
+            }
+            return this;
+        }
+
+        HttpBuilder setBalancerPort(@Nullable Integer port) {
+            if (port != null && (port < 0 || port > 65535)) {
                 throw new IllegalArgumentException("Bad port: " + port);
             }
-
-            if (host.matches(IP_V6_REG_EX)) {
-                this.balancerAddress = String.format("[%s]:%d", host, port);
-            } else if (host.matches("\\[" + IP_V6_REG_EX + "]") || !host.contains(":")) {
-                this.balancerAddress = host + ":" + port;
-            } else {
-                throw new IllegalArgumentException("Bad hostname: " + host);
-            }
+            this.balancerPort = port;
             return this;
         }
 
@@ -821,28 +829,43 @@ interface ProxyGetter {
 @NonNullApi
 @NonNullFields
 class HttpProxyGetter implements ProxyGetter {
-    HttpClient httpClient;
-    String balancerHost;
-    @Nullable
-    String role;
-    boolean tvmOnly;
-    boolean ignoreBalancers;
-    @Nullable
-    String token;
+    private static final int HTTP_PROXY_PORT = 80;
+    private static final int HTTPS_PROXY_PORT = 443;
 
-    HttpProxyGetter(HttpClient httpClient, String balancerHost, @Nullable String role,
-                    boolean tvmOnly, boolean ignoreBalancers, @Nullable String token) {
+    private static final int TVM_ONLY_HTTP_PROXY_PORT = 9026;
+    private static final int TVM_ONLY_HTTPS_PROXY_PORT = 9443;
+
+    private static final String HTTP_SCHEME = "http";
+    private static final String HTTPS_SCHEME = "https";
+
+    private final HttpClient httpClient;
+    private final String balancerFqdn;
+    @Nullable
+    private final Integer balancerPort;
+    @Nullable
+    private final String role;
+    private final boolean useTLS;
+    private final boolean tvmOnly;
+    private final boolean ignoreBalancers;
+    @Nullable
+    private final String token;
+
+    HttpProxyGetter(HttpClient httpClient, ClientPoolService.HttpBuilder httpBuilder) {
         this.httpClient = httpClient;
-        this.balancerHost = balancerHost;
-        this.role = role;
-        this.tvmOnly = tvmOnly;
-        this.ignoreBalancers = ignoreBalancers;
-        this.token = token;
+        this.balancerFqdn = Objects.requireNonNull(httpBuilder.balancerFqdn);
+        this.balancerPort = httpBuilder.balancerPort;
+        this.role = httpBuilder.role;
+        this.useTLS = httpBuilder.useTLS;
+        this.tvmOnly = httpBuilder.tvmOnly;
+        this.ignoreBalancers = httpBuilder.ignoreBalancers;
+        this.token = httpBuilder.token;
     }
 
     @Override
     public CompletableFuture<List<HostPort>> getProxies() {
-        String discoverProxiesUrl = String.format("http://%s/api/v4/discover_proxies?type=rpc", balancerHost);
+        var discoverProxiesUrl = String.format(
+                "%s://%s/api/v4/discover_proxies?type=rpc", createScheme(), createFqdnWithPort()
+        );
         if (role != null) {
             discoverProxiesUrl += "&role=" + role;
         }
@@ -876,8 +899,8 @@ class HttpProxyGetter implements ProxyGetter {
                     builder.append("\n");
                 }
 
-                try {
-                    builder.append(new String(response.body().readAllBytes()));
+                try (var responseBody = response.body()) {
+                    builder.append(new String(responseBody.readAllBytes()));
                     builder.append("\n");
                 } catch (IOException ignored) {
                 }
@@ -896,8 +919,6 @@ class HttpProxyGetter implements ProxyGetter {
                     .collect(Collectors.toList());
         });
 
-        resultFuture.whenComplete((result, error) -> responseFuture.cancel(true));
-
         String finalDiscoverProxiesUrl = discoverProxiesUrl;
         return resultFuture.handle((result, error) -> {
             if (error != null) {
@@ -905,6 +926,30 @@ class HttpProxyGetter implements ProxyGetter {
             }
             return result;
         });
+    }
+
+    private String createScheme() {
+        if (useTLS) {
+            return HTTPS_SCHEME;
+        }
+        return HTTP_SCHEME;
+    }
+
+    private String createFqdnWithPort() {
+        if (balancerPort != null) {
+            return balancerFqdn + ":" + balancerPort;
+        }
+        int port;
+        if (tvmOnly) {
+            port = useTLS
+                    ? TVM_ONLY_HTTPS_PROXY_PORT
+                    : TVM_ONLY_HTTP_PROXY_PORT;
+        } else {
+            port = useTLS
+                    ? HTTPS_PROXY_PORT
+                    : HTTP_PROXY_PORT;
+        }
+        return String.format("%s:%s", balancerFqdn, port);
     }
 }
 

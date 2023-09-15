@@ -134,6 +134,14 @@ public class YTsaurusClientTestBase {
                 : LocalYTsaurus.getAddress();
     }
 
+    protected static String getYTsaurusHost() {
+        return localYTsaurus != null ? localYTsaurus.getHost() : LocalYTsaurus.getHost();
+    }
+
+    protected static int getYTsaurusPort() {
+        return localYTsaurus != null ? localYTsaurus.getMappedPort(80) : LocalYTsaurus.getPort();
+    }
+
     protected void writeTable(YTsaurusClient yt, YPath path, TableSchema tableSchema, List<YTreeMapNode> data) {
         try {
             yt.createNode(path.justPath().toString(), CypressNodeType.TABLE).join();
