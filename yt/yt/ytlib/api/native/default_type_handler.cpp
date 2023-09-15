@@ -53,6 +53,13 @@ public:
         return Client_->CreateNodeImpl(type, path, *attributes, options);
     }
 
+    void SetComplexityLimits(TYPathRequest& req, const auto& options)
+    {
+        auto& header = req.Header();
+        auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        ToProto(ypathExt->mutable_read_complexity_limits(), options.ComplexityLimits);
+    }
+
     std::optional<TYsonString> GetNode(
         const TYPath& path,
         const TGetNodeOptions& options) override
@@ -73,6 +80,7 @@ public:
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
+        SetComplexityLimits(*req, options);
         if (options.Options) {
             ToProto(req->mutable_options(), *options.Options);
         }
@@ -106,6 +114,7 @@ public:
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
+        SetComplexityLimits(*req, options);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())

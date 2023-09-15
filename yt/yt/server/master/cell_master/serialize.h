@@ -153,6 +153,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidIrreversibleChanges)                                    (2422))  // vovamelnikov
     ((AddSchemafulNodeTypeHandler)                                  (2423))  // h0pless
     ((UseSequoiaReplicas)                                           (2424))  // aleksandra-zh
+    ((PerRequestReadComplexityLimits)                               (2425))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

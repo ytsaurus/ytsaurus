@@ -53,6 +53,7 @@
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node_detail.h>
+#include <yt/yt/core/ytree/request_complexity_limiter.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 

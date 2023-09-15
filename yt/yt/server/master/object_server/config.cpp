@@ -78,20 +78,41 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMaxReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
+TReadRequestComplexity
+TReadRequestComplexityLimitsConfigBase::ToReadRequestComplexity() const noexcept
+{
+    return {
+        .NodeCount = NodeCount,
+        .ResultSize = ResultSize,
+    };
+}
+
+void TReadRequestComplexityLimitsConfigBase::Register(TRegistrar /*registrar*/)
+{ }
+
+void TReadRequestComplexityLimitsConfigBase::DoRegister(
+    TRegistrar registrar,
+    i64 nodeCount,
+    i64 resultSize)
 {
     registrar.Parameter("node_count", &TThis::NodeCount)
-        .Default(5'000'000)
+        .Default(nodeCount)
         .GreaterThanOrEqual(0);
     registrar.Parameter("result_size", &TThis::ResultSize)
-        .Default(5'000'000'000)
+        .Default(resultSize)
         .GreaterThanOrEqual(0);
 }
 
-void TMaxReadRequestComplexityLimitsConfig::ToReadRequestComplexity(TReadRequestComplexity& limits) const
+void TDefaultReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
 {
-    limits.NodeCount = NodeCount;
-    limits.ResultSize = ResultSize;
+    DoRegister(registrar, /*nodeCount*/ 1'000'000, /*resultSize*/ 100_MB);
+}
+
+DEFINE_REFCOUNTED_TYPE(TDefaultReadRequestComplexityLimitsConfig)
+
+void TMaxReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
+{
+    DoRegister(registrar, /*nodeCount*/ 100'000'000, /*resultSize*/ 2_GB);
 }
 
 DEFINE_REFCOUNTED_TYPE(TMaxReadRequestComplexityLimitsConfig)
@@ -115,6 +136,9 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("process_sessions_period", &TThis::ProcessSessionsPeriod)
         .Default(TDuration::MilliSeconds(10));
+
+    registrar.Parameter("default_read_request_complexity_limits", &TThis::DefaultReadRequestComplexityLimits)
+        .DefaultNew();
 
     registrar.Parameter("max_read_request_complexity_limits", &TThis::MaxReadRequestComplexityLimits)
         .DefaultNew();
