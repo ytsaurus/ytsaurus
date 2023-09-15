@@ -94,7 +94,6 @@ var (
 		"timestamp_provider",
 		"tvm_id",
 		"chyt",
-		"table_mount_cache",
 	}
 )
 
