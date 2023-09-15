@@ -1535,6 +1535,12 @@ class TestSchedulerAttributes(YTEnvSetup):
         wait(lambda: exists(op.get_path() + "/@brief_progress"))
         assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
 
+        assert get(op.get_path() + "/@brief_progress/input_transaction_id") == \
+            get_operation(op.id)["brief_progress"]["input_transaction_id"]
+
+        assert get(op.get_path() + "/@brief_progress/output_transaction_id") == \
+            get_operation(op.id)["brief_progress"]["output_transaction_id"]
+
     @authors("omgronny")
     @pytest.mark.parametrize("enable_spec_archivation", [True, False])
     def test_specs_in_archive(self, enable_spec_archivation):

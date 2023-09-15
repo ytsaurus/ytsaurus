@@ -8757,7 +8757,9 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
             .Item("total_job_counter").Do(BIND([&] (TFluentAny fluent) {
                 SerializeBriefVersion(GetTotalJobCounter(), fluent.GetConsumer());
             }))
-            .Item("build_time").Value(TInstant::Now());
+            .Item("build_time").Value(TInstant::Now())
+            .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
+            .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
     }
 }
 
