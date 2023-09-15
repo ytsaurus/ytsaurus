@@ -105,9 +105,9 @@ tx->Commit();
 
 Метод `ITransaction::GetId()` возвращает `TGUID` — идентификатор данной транзакции.
 
-Транзакция, создаваемая через `StartTransaction()`, автоматически пингуется C++ клиентом и полностью контролируется.
+Транзакция, создаваемая через `StartTransaction()`, автоматически пингуется и управляется C++ клиентом.
 
-Существует способ работать из-под транзакции, контролируемой извне. Для этого необходимо вызвать метод `IClient::AttachTransaction(transactionId)`. Все команды, вызываемые в таком объекте, будут выполняться в контексте транзакции с этим идентификатором, но пинговаться клиентом эта транзакция не будет.
+Существует способ работать из-под транзакции, созданной извне. Для этого необходимо вызвать метод `IClient::AttachTransaction(transactionId)`. Все команды, вызываемые в таком объекте, будут выполняться в контексте транзакции с этим идентификатором, но пинговаться клиентом эта транзакция не будет.
 
 Более подробно об устройстве транзакций можно почитать в разделе [Транзакции](../../../user-guide/storage/transactions.md).
 
@@ -186,7 +186,7 @@ Cout << client->Get("//tmp/table/@sorted").AsBool() << Endl;
 
 ### Create
 
-[Создать](../../../api/commands.md#create) узел. [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#create).
+[Создать](../../../api/commands.md#create) узел. [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#create).
 
 ```c++
 TNodeId Create(
@@ -208,7 +208,7 @@ TNodeId Create(
 
 ### Remove
 
-[Удалить](../../../api/commands.md#remove) узел. [См. аналог в утилите {{product-name}}saurus](../../../user-guide/storage/cypress-example.md#create).
+[Удалить](../../../api/commands.md#remove) узел. [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#remove).
 
 ```c++
 void Remove(
@@ -240,7 +240,7 @@ bool Exists(
 
 ### Get
 
-[Получить содержимое узла Кипариса](../../../api/commands.md#get) в формате  `TNode`. [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#get).
+[Получить содержимое узла Кипариса](../../../api/commands.md#get) в формате  `TNode`. [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#get).
 
 ```c++
 TNode Get(
@@ -257,7 +257,7 @@ TNode Get(
 
 ### Set
 
-[Записать новое содержимое узла Кипариса](../../../api/commands.md#set). [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#get).
+[Записать новое содержимое узла Кипариса](../../../api/commands.md#set). [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#set).
 
 ```c++
 void Set(
@@ -276,7 +276,7 @@ void Set(
 
 ### List
 
-[Получить список потомков узла](../../../api/commands.md#list). [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#list).
+[Получить список потомков узла](../../../api/commands.md#list). [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#list).
 
 ```c++
 TNode::TListType List(
@@ -293,7 +293,7 @@ TNode::TListType List(
 
 ### Copy
 
-[Скопировать узел Кипариса по новому адресу](../../../api/commands.md#copy). [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#copy_move).
+[Скопировать узел Кипариса по новому адресу](../../../api/commands.md#copy). [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#copy_move).
 
 {% note info "Примечание" %}
 
@@ -322,7 +322,7 @@ TNodeId Copy(
 
 ### Move
 
-[Перенести узел по новому адресу](../../../api/commands.md#move). [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#copy_move).
+[Перенести узел по новому адресу](../../../api/commands.md#move). [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#copy_move).
 
 ```c++
 TNodeId Move(
@@ -344,7 +344,7 @@ TNodeId Move(
 
 ### Link
 
-[Создать](../../../api/commands.md#move) [символическую ссылку](../../../user-guide/storage/links.md) на объект по новому адресу. [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#link).
+[Создать](../../../api/commands.md#link) [символическую ссылку](../../../user-guide/storage/links.md) на объект по новому адресу. [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#link).
 
 ```c++
 TNodeId Link(
@@ -365,7 +365,7 @@ TNodeId Link(
 
 ### Concatenate
 
-[Склеить](../../../api/commands.md#concatenate) набор файлов или таблиц (в том порядке, в котором указаны пути). [См. аналог в утилите {{product-name}}](../../../user-guide/storage/cypress-example.md#concatenate).
+[Склеить](../../../api/commands.md#concatenate) набор файлов или таблиц (в том порядке, в котором указаны пути). [См. аналог в CLI](../../../user-guide/storage/cypress-example.md#concatenate).
 
 Слияние данных происходит на уровне метаинформации исключительно на мастер-сервере [Кипариса](../../../user-guide/storage/cypress.md) .
 
@@ -638,7 +638,7 @@ REGISTER_MAPPER(TExtractKeyMapper);
 REGISTER_NAMED_MAPPER("The best extract key mapper in the world", TExtractKeyMapper);
 ```
 
-Функции для запуска отдельных операций приведены ниже:
+Функции для запуска отдельных видов операций приведены ниже:
 
 Map:
 
@@ -712,8 +712,13 @@ spec.AddInput<TYaMRRow>("//tmp/table")
 client->Map(spec, new TExtractKeyMapper);
 ```
 
-
 Это безопасно, поскольку внутри на объект джоба создаётся `TIntrusivePtr`.
+
+{% if audience == "internal" %}
+
+Также существуют перегрузки вызовов операций, которые позволяют писать чуть меньше кода: [новые перегрузки функций для запуска операций в С++ API](https://clubs.at.yandex-team.ru/yt/3462)
+
+{% else %}{% endif %}
 
 ### Передача пользовательских файлов
 
@@ -945,7 +950,7 @@ IFileReaderPtr GetJobFailContext(
     const TGetJobFailContextOptions& options)
 ```
 
-| **Параметр**ы                                    | **Описание**    |
+| **Параметр**                                 | **Описание**    |
 | -------------------------------------------- | ----------- |
 | `operationId`                                | Id операции. |
 | `jobId`                                      | Id джоба.    |
