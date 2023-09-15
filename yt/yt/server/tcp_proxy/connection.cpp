@@ -42,6 +42,7 @@ void PipeConnectionReaderToWriter(
                 .ValueOrThrow();
             if (readSize == 0) {
                 YT_LOG_DEBUG("Connection terminated");
+                break;
             }
             auto data = buffer.Slice(0, readSize);
             WaitFor(writer->Write(data))
