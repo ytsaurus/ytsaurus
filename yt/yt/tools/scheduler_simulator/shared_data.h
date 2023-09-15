@@ -7,7 +7,7 @@
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
-#include <yt/yt/server/scheduler/job.h>
+#include <yt/yt/server/scheduler/allocation.h>
 #include <yt/yt/server/scheduler/operation.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>

@@ -1,12 +1,12 @@
 #pragma once
 
 #include "private.h"
-#include "fair_share_tree_job_scheduler_structs.h"
-#include "fair_share_tree_job_scheduler_operation_shared_state.h"
+#include "fair_share_tree_allocation_scheduler_structs.h"
+#include "fair_share_tree_allocation_scheduler_operation_shared_state.h"
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_snapshot.h"
 #include "fields_filter.h"
-#include "persistent_fair_share_tree_job_scheduler_state.h"
+#include "persistent_fair_share_tree_allocation_scheduler_state.h"
 #include "scheduling_segment_manager.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>

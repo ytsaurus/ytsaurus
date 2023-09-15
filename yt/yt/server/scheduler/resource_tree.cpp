@@ -1,6 +1,6 @@
 #include "resource_tree.h"
-#include "private.h"
 
+#include "private.h"
 #include "resource_tree_element.h"
 
 namespace NYT::NScheduler {

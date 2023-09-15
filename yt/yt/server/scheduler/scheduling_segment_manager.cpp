@@ -1,6 +1,7 @@
 #include "scheduling_segment_manager.h"
+
 #include "private.h"
-#include "persistent_fair_share_tree_job_scheduler_state.h"
+#include "persistent_fair_share_tree_allocation_scheduler_state.h"
 #include "fair_share_tree_snapshot.h"
 
 #include <util/generic/algorithm.h>

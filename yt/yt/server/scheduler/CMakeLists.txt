@@ -34,15 +34,15 @@ target_sources(yt-server-scheduler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_element.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_job_scheduler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_job_scheduler_operation_shared_state.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_job_scheduler_structs.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler_operation_shared_state.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler_structs.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_profiling.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_snapshot.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy_operation_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/allocation.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job_prober_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job_resources_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/master_connector.cpp
@@ -55,7 +55,7 @@ target_sources(yt-server-scheduler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/packing.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/packing_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/persistent_fair_share_tree_job_scheduler_state.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/persistent_fair_share_tree_allocation_scheduler_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/persistent_scheduler_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/pools_config_parser.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree.cpp

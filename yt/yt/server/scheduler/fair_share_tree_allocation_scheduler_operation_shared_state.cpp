@@ -1,4 +1,4 @@
-#include "fair_share_tree_job_scheduler_operation_shared_state.h"
+#include "fair_share_tree_allocation_scheduler_operation_shared_state.h"
 
 namespace NYT::NScheduler {
 

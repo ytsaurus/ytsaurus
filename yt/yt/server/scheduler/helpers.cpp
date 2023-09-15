@@ -1,7 +1,8 @@
 #include "helpers.h"
+
 #include "public.h"
 #include "exec_node.h"
-#include "job.h"
+#include "allocation.h"
 #include "operation.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>

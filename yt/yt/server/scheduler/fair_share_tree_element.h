@@ -2,7 +2,7 @@
 
 #include "fair_share_strategy_operation_controller.h"
 #include "helpers.h"
-#include "job.h"
+#include "allocation.h"
 #include "private.h"
 #include "resource_tree.h"
 #include "resource_tree_element.h"

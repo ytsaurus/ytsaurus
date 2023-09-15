@@ -1,4 +1,5 @@
 #include "shared_data.h"
+
 #include "node_shard.h"
 
 #include <yt/yt/server/scheduler/fair_share_strategy.h>

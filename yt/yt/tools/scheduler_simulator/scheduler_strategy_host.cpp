@@ -1,4 +1,5 @@
 #include "scheduler_strategy_host.h"
+
 #include "node_shard.h"
 
 #include "event_log.h"

@@ -1,5 +1,6 @@
-#include "private.h"
 #include "operations_cleaner.h"
+
+#include "private.h"
 #include "operation.h"
 #include "bootstrap.h"
 #include "scheduler.h"

@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/scheduler/fair_share_tree.h>
 #include <yt/yt/server/scheduler/fair_share_tree_element.h>
-#include <yt/yt/server/scheduler/fair_share_tree_job_scheduler.h>
+#include <yt/yt/server/scheduler/fair_share_tree_allocation_scheduler.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
 #include <yt/yt/server/scheduler/resource_tree.h>
 

@@ -1,4 +1,5 @@
 #include "master_connector.h"
+
 #include "helpers.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"

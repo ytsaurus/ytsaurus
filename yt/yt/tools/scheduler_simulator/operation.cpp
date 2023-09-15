@@ -1,6 +1,6 @@
 #include "operation.h"
-#include "operation_controller.h"
 
+#include "operation_controller.h"
 
 namespace NYT::NSchedulerSimulator {
 

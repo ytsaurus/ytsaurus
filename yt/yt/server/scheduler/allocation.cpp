@@ -1,5 +1,6 @@
+#include "allocation.h"
+
 #include "private.h"
-#include "job.h"
 #include "exec_node.h"
 #include "helpers.h"
 #include "operation.h"

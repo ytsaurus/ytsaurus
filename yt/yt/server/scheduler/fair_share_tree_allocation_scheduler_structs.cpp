@@ -1,4 +1,4 @@
-#include "fair_share_tree_job_scheduler_structs.h"
+#include "fair_share_tree_allocation_scheduler_structs.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 

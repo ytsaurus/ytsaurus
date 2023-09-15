@@ -1,6 +1,7 @@
 #include "scheduling_context_detail.h"
+
 #include "exec_node.h"
-#include "job.h"
+#include "allocation.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
