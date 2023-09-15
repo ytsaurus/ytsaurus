@@ -3,9 +3,12 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create_user, ls, get, add_maintenance, remove_maintenance,
     raises_yt_error, make_ace, set,
-    create_host, remove_host)
+    create_host, remove_host,
+    externalize)
 
 from yt.common import YtError
+
+import pytest
 
 import builtins
 from contextlib import suppress
@@ -18,6 +21,24 @@ class TestMaintenanceTracker(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     TEST_MAINTENANCE_FLAGS = True
+    NUM_RPC_PROXIES = 2
+    NUM_HTTP_PROXIES = 2
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
+    DELTA_PROXY_CONFIG = {
+        "coordinator": {
+            "heartbeat_interval": 100,
+            "death_age": 500,
+            "cypress_timeout": 50,
+        },
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "discovery_service": {
+            "proxy_update_period": 100
+        },
+    }
 
     _KIND_TO_FLAG = {
         "ban": "banned",
@@ -260,6 +281,23 @@ class TestMaintenanceTracker(YTEnvSetup):
         # Another hosts must not be affected.
         assert list(get(f"//sys/cluster_nodes/{nodes[2]}/@maintenance_requests")) == [h2_maintenance]
 
+    @authors("kvk1920")
+    @pytest.mark.parametrize("proxy_type", ["http", "rpc"])
+    def test_proxy_maintenance(self, proxy_type):
+        if self.DRIVER_BACKEND == proxy_type:
+            pytest.skip("Rpc proxies cannot be used if they are banned")
+        proxy = ls(f"//sys/{proxy_type}_proxies")[1]
+        proxy_path = f"//sys/{proxy_type}_proxies/{proxy}"
+        maintenance_id = add_maintenance(f"{proxy_type}_proxy", proxy, "ban", comment="ABCDEF")
+        assert get(f"{proxy_path}/@banned")
+        maintenances = get(f"{proxy_path}/@maintenance_requests")
+        assert len(maintenances) == 1
+        assert maintenances[maintenance_id]["type"] == "ban"
+        assert maintenances[maintenance_id]["comment"] == "ABCDEF"
+
+        remove_maintenance(f"{proxy_type}_proxy", proxy, id=maintenance_id)
+        assert not get(f"{proxy_path}/@banned")
+
 
 ################################################################################
 
@@ -267,19 +305,15 @@ class TestMaintenanceTracker(YTEnvSetup):
 class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @classmethod
+    def setup_class(cls):
+        super(TestMaintenanceTrackerMulticell, cls).setup_class()
+        externalize("//sys/rpc_proxies", 11)
+        externalize("//sys/http_proxies", 12)
+
 
 ################################################################################
 
 
 class TestMaintenanceTrackerWithRpc(TestMaintenanceTracker):
     DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    NUM_RPC_PROXIES = 1
-
-
-################################################################################
-
-
-class TestMaintenanceTrackerWithRpcMulticell(TestMaintenanceTrackerWithRpc):
-    NUM_SECONDARY_MASTER_CELLS = 2

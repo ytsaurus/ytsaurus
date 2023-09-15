@@ -50,6 +50,8 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node_type_handler.h>
+
 #include <yt/yt/server/master/object_server/object_detail.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
@@ -101,6 +103,7 @@ using namespace NCellMaster;
 using namespace NChunkServer;
 using namespace NCypressClient::NProto;
 using namespace NHydra;
+using namespace NMaintenanceTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
@@ -1046,6 +1049,7 @@ public:
         RegisterHandler(CreateScionTypeHandler(Bootstrap_));
         RegisterHandler(CreateRootstockMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateScionMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateClusterProxyNodeTypeHandler(Bootstrap_));
 
         RegisterLoader(
             "CypressManager.Keys",

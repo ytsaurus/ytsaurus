@@ -16,6 +16,8 @@ using NApi::TMaintenanceCounts;
 
 DECLARE_REFCOUNTED_STRUCT(IMaintenanceTracker)
 
+class TClusterProxyNode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int TypicalMaintenanceRequestCount = 6;

@@ -138,6 +138,7 @@ TCoordinator::TCoordinator(
             .Item("start_time").Value(TInstant::Now().ToString())
             .Item("annotations").Value(Bootstrap_->GetConfig()->CypressAnnotations)
             .Finish();
+        options.NodeType = EObjectType::ClusterProxyNode;
         CypressRegistrar_ = CreateCypressRegistrar(
             std::move(options),
             Config_->CypressRegistrar,

@@ -287,9 +287,16 @@ private:
             type,
             request->comment());
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            THROW_ERROR_EXCEPTION("Maintenance can only be added via primary master");
+        if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (!multicellManager->IsPrimaryMaster()) {
+                THROW_ERROR_EXCEPTION("Cluster node maintenance can only be added via primary master");
+            }
+        }
+
+        std::optional<NCypressServer::TNodeId> componentRegistry;
+        if (request->has_component_registry_id()) {
+            FromProto(&componentRegistry.emplace(), request->component_registry_id());
         }
 
         const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
@@ -297,7 +304,8 @@ private:
             component,
             request->address(),
             type,
-            request->comment());
+            request->comment(),
+            componentRegistry);
 
         ToProto(response->mutable_id(), id);
         context->Reply();
@@ -337,21 +345,29 @@ private:
             user,
             type);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            THROW_ERROR_EXCEPTION("Maintenance can only be added via primary master");
+        if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (!multicellManager->IsPrimaryMaster()) {
+                THROW_ERROR_EXCEPTION("Cluster node maintenance can only be added via primary master");
+            }
         }
+
 
         THROW_ERROR_EXCEPTION_IF(request->has_user() && request->mine(),
             "At most one of {\"mine\", \"user\"} can be specified");
 
         const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
+        std::optional<NCypressServer::TNodeId> componentRegistry;
+        if (request->has_component_registry_id()) {
+            FromProto(&componentRegistry.emplace(), request->component_registry_id());
+        }
         auto removed = maintenanceTracker->RemoveMaintenance(
             component,
             request->address(),
             ids,
             user,
-            type);
+            type,
+            componentRegistry);
 
         response->set_ban(removed[EMaintenanceType::Ban]);
         response->set_decommission(removed[EMaintenanceType::Decommission]);

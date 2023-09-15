@@ -18,6 +18,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium_base.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/helpers.h>
+
 #include <yt/yt/server/master/node_tracker_server/config.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
@@ -96,8 +98,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PendingRestart)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaintenanceRequests)
-            .SetWritable(false));
+        descriptors->emplace_back(EInternedAttributeKey::MaintenanceRequests)
+            .SetWritable(false);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Rack)
             .SetPresent(node->GetRack())
             .SetWritable(true)
@@ -202,25 +204,9 @@ private:
                     .Value(node->IsPendingRestart());
                 return true;
 
-            case EInternedAttributeKey::MaintenanceRequests: {
-                TCompactVector<std::pair<TMaintenanceId, TMaintenanceRequest>, TypicalMaintenanceRequestCount> requests(
-                    node->MaintenanceRequests().begin(),
-                    node->MaintenanceRequests().end());
-                Sort(requests, [] (const auto& lhs, const auto& rhs) {
-                    return lhs.second.Type < rhs.second.Type;
-                });
-                BuildYsonFluently(consumer)
-                    .DoMapFor(requests, [] (TFluentMap map, const auto& request) {
-                        map.Item(ToString(request.first))
-                            .BeginMap()
-                                .Item("user").Value(request.second.User)
-                                .Item("comment").Value(request.second.Comment)
-                                .Item("timestamp").Value(request.second.Timestamp)
-                                .Item("type").Value(request.second.Type)
-                            .EndMap();
-                    });
+            case EInternedAttributeKey::MaintenanceRequests:
+                SerializeMaintenanceRequestsOf(node, consumer);
                 return true;
-            }
 
             case EInternedAttributeKey::Rack:
                 if (!node->GetRack()) {

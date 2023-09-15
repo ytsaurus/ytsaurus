@@ -17,14 +17,16 @@ struct IMaintenanceTracker
         EMaintenanceComponent component,
         const TString& address,
         EMaintenanceType type,
-        const TString& comment) = 0;
+        const TString& comment,
+        std::optional<NCypressServer::TNodeId> targetMapNodeId) = 0;
 
     virtual TMaintenanceCounts RemoveMaintenance(
         EMaintenanceComponent component,
         const TString& address,
         const std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids,
         std::optional<TStringBuf> user,
-        std::optional<EMaintenanceType> type) = 0;
+        std::optional<EMaintenanceType> type,
+        std::optional<NCypressServer::TNodeId> componentRegistry) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMaintenanceTracker)
