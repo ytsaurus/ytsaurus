@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/scheduler/job.h>
+#include <yt/yt/server/scheduler/allocation.h>
 
 #include <yt/yt/core/misc/intrusive_ptr.h>
 

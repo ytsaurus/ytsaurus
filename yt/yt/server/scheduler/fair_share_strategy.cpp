@@ -1,4 +1,5 @@
 #include "fair_share_strategy.h"
+
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_snapshot.h"

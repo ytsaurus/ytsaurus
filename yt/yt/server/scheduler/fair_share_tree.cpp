@@ -1,6 +1,7 @@
 #include "fair_share_tree.h"
+
 #include "fair_share_tree_element.h"
-#include "fair_share_tree_job_scheduler.h"
+#include "fair_share_tree_allocation_scheduler.h"
 #include "fair_share_tree_snapshot.h"
 #include "persistent_scheduler_state.h"
 #include "public.h"

@@ -1,5 +1,6 @@
-#include "node_shard.h"
 #include "node_manager.h"
+
+#include "node_shard.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "operation_controller.h"

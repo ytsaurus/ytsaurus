@@ -1,4 +1,5 @@
 #include "fair_share_tree_snapshot.h"
+
 #include "fair_share_tree.h"
 
 namespace NYT::NScheduler {

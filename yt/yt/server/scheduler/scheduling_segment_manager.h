@@ -3,7 +3,7 @@
 #include "public.h"
 #include "persistent_scheduler_state.h"
 #include "scheduler_strategy.h"
-#include "fair_share_tree_job_scheduler_structs.h"
+#include "fair_share_tree_allocation_scheduler_structs.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 

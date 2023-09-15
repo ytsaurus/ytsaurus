@@ -1,6 +1,6 @@
 #pragma once
 
-#include "job.h"
+#include "allocation.h"
 #include "operation.h"
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>

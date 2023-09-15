@@ -1,6 +1,7 @@
+#include "packing.h"
+
 #include "fair_share_tree_element.h"
 #include "private.h"
-#include "packing.h"
 #include "packing_detail.h"
 
 namespace NYT::NScheduler {

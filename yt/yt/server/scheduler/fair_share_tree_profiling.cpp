@@ -1,5 +1,6 @@
 #include "fair_share_tree_profiling.h"
-#include "fair_share_tree_job_scheduler.h"
+
+#include "fair_share_tree_allocation_scheduler.h"
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 

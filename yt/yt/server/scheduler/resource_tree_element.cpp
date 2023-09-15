@@ -1,4 +1,5 @@
 #include "resource_tree_element.h"
+
 #include "resource_tree.h"
 
 namespace NYT::NScheduler {
