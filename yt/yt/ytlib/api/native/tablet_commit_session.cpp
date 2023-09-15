@@ -381,11 +381,11 @@ private:
             return;
         }
 
-        auto retryIndex = BackoffStrategy_.GetInvocationIndex();
+        auto retryIndex = BackoffStrategy_.GetRetryIndex();
 
         YT_LOG_DEBUG("Committing tablet sessions (AttemptIndex: %v/%v)",
             retryIndex,
-            BackoffStrategy_.GetInvocationCount());
+            BackoffStrategy_.GetRetryCount());
 
         YT_UNUSED_FUTURE(DoCommitSessions(retryIndex)
             .Apply(BIND(&TTabletSessionsCommitter::OnSessionsCommitted, MakeStrong(this))));
@@ -393,12 +393,12 @@ private:
 
     void OnSessionsCommitted(const TError& error)
     {
-        auto retryIndex = BackoffStrategy_.GetInvocationIndex();
+        auto retryIndex = BackoffStrategy_.GetRetryIndex();
 
         if (error.IsOK()) {
             YT_LOG_DEBUG("Tablet sessions committed (AttemptIndex: %v/%v)",
                 retryIndex,
-                BackoffStrategy_.GetInvocationCount());
+                BackoffStrategy_.GetRetryCount());
 
             Counters_.SuccessfulTabletSessionCommitCounter.Increment();
             if (retryIndex > 0) {
@@ -413,7 +413,7 @@ private:
 
         YT_LOG_DEBUG(error, "Tablet sessions commit attempt failed (AttemptIndex: %v/%v)",
             retryIndex,
-            BackoffStrategy_.GetInvocationCount());
+            BackoffStrategy_.GetRetryCount());
 
         if (BackoffStrategy_.Next()) {
             auto backoff = BackoffStrategy_.GetBackoff();
