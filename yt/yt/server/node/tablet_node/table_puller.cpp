@@ -263,6 +263,7 @@ private:
             if (replicationRound < ReplicationRound_) {
                 YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (ReplicationRound: %v)",
                     replicationRound);
+                return;
             }
             ReplicationRound_ = replicationRound;
 
