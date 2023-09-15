@@ -40,8 +40,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           path: ytsaurus
-          with:
-            fetch-depth: 0
+          fetch-depth: 0
 
       - name: Checkout ydb
         uses: actions/checkout@v3
