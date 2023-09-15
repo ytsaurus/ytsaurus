@@ -816,7 +816,7 @@ private:
         sensors->OfflineProxyThreshold = zoneProfiler.Gauge("/offline_proxy_threshold");
 
         sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/free_spare_node_count");
-        sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/externally_decommissioned_node_count");
+        sensors->ExternallyDecommissionedNodeCount = zoneProfiler.Gauge("/externally_decommissioned_node_count");
         sensors->FreeSpareProxyCount = zoneProfiler.Gauge("/free_spare_proxy_count");
         sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_nodes_count");
 
