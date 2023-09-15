@@ -99,7 +99,8 @@ public class ApiServiceUtil {
             TColumnSchema.Builder columnBuilder = TColumnSchema.newBuilder();
 
             String name = columnSchema.getName();
-            TiType type = columnSchema.getTypeV3();
+            ColumnValueType type = columnSchema.getType();
+            TiType typeV3 = columnSchema.getTypeV3();
             ColumnSortOrder sortOrder = columnSchema.getSortOrder();
             String aggregate = columnSchema.getAggregate();
             String lock = columnSchema.getLock();
@@ -107,7 +108,8 @@ public class ApiServiceUtil {
             String group = columnSchema.getGroup();
 
             columnBuilder.setName(name);
-            columnBuilder.setTypeV3(ByteString.copyFromUtf8(TypeIO.serializeToTextYson(type)));
+            columnBuilder.setType(type.getValue());
+            columnBuilder.setTypeV3(ByteString.copyFromUtf8(TypeIO.serializeToTextYson(typeV3)));
             columnBuilder.setRequired(columnSchema.isRequired());
             if (sortOrder != null) {
                 columnBuilder.setSortOrder(sortOrder.getId());
