@@ -11,6 +11,8 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node.h>
+
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/user.h>
 
@@ -1209,6 +1211,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
 template class TMapNodeTypeHandlerImpl<TMapNode>;
 template class TMapNodeTypeHandlerImpl<TPortalExitNode>;
 template class TMapNodeTypeHandlerImpl<TScionNode>;
+template class TMapNodeTypeHandlerImpl<NMaintenanceTrackerServer::TClusterProxyNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

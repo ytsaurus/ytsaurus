@@ -1,9 +1,13 @@
 #include "maintenance_tracker.h"
 
 #include "private.h"
+#include "cluster_proxy_node.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
+
+#include <yt/yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h>
 
@@ -48,9 +52,10 @@ public:
         EMaintenanceComponent component,
         const TString& address,
         EMaintenanceType type,
-        const TString& comment) override
+        const TString& comment,
+        std::optional<NCypressServer::TNodeId> componentRegistryId) override
     {
-        VerifyPrimaryMasterMutation();
+        MaybeVerifyPrimaryMasterMutation(component);
         ValidateMaintenanceComment(comment);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -77,7 +82,7 @@ public:
                     node->GetDefaultAddress());
             }
         } else {
-            auto* target = GetComponentOrThrow(component, address);
+            auto* target = GetComponentOrThrow(component, address, componentRegistryId);
             ValidatePermission(target->AsObject(), EPermission::Write);
 
             targets.emplace_back(
@@ -87,7 +92,7 @@ public:
         }
 
         for (const auto& [id, component, address] : targets) {
-            DoAddMaintenance(component, address, id, user, type, comment);
+            DoAddMaintenance(component, address, id, user, type, comment, componentRegistryId);
         }
 
         return targets.size() == 1 ? std::get<TMaintenanceId>(targets.front()) : TMaintenanceId{};
@@ -98,9 +103,10 @@ public:
         const TString& address,
         const std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids,
         std::optional<TStringBuf> user,
-        std::optional<EMaintenanceType> type) override
+        std::optional<EMaintenanceType> type,
+        std::optional<NCypressServer::TNodeId> componentRegistryId) override
     {
-        VerifyPrimaryMasterMutation();
+        MaybeVerifyPrimaryMasterMutation(component);
 
         TCompactVector<std::tuple<EMaintenanceComponent, TString, TNontemplateMaintenanceTargetBase*>, 2> targets;
 
@@ -120,7 +126,7 @@ public:
                     node);
             }
         } else {
-            auto* target = GetComponentOrThrow(component, address);
+            auto* target = GetComponentOrThrow(component, address, componentRegistryId);
             ValidatePermission(target->AsObject(), EPermission::Write);
             targets.emplace_back(component, address, target);
         }
@@ -146,35 +152,48 @@ public:
                 }
             }
 
-            DoRemoveMaintenances(component, address, filteredIds);
+            DoRemoveMaintenances(component, address, filteredIds, componentRegistryId);
         }
 
         return result;
     }
 
 private:
+    void VerifyMaintenanceReplication(EMaintenanceComponent component)
+    {
+        YT_VERIFY(component == EMaintenanceComponent::ClusterNode);
+        YT_VERIFY(HasMutationContext());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
+    }
+
     void HydraReplicateMaintenanceRequestCreation(TReqReplicateMaintenanceRequestCreation* request)
     {
-        VerifySecondaryMasterMutation();
+        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+        VerifyMaintenanceReplication(component);
 
         DoAddMaintenance(
-            CheckedEnumCast<EMaintenanceComponent>(request->component()),
+            component,
             request->address(),
             FromProto<TMaintenanceId>(request->id()),
             request->user(),
             CheckedEnumCast<EMaintenanceType>(request->type()),
-            request->comment());
+            request->comment(),
+            /*componentRegistryId*/ std::nullopt);
     }
 
     void HydraReplicateMaintenanceRequestRemoval(TReqReplicateMaintenanceRequestRemoval* request)
     {
-        VerifySecondaryMasterMutation();
+        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+        VerifyMaintenanceReplication(component);
 
         auto ids = FromProto<TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>>(request->ids());
         DoRemoveMaintenances(
             CheckedEnumCast<EMaintenanceComponent>(request->component()),
             request->address(),
-            ids);
+            ids,
+            /*componentRegistryId*/ std::nullopt);
     }
 
     void DoAddMaintenance(
@@ -183,11 +202,12 @@ private:
         TMaintenanceId id,
         const TString& user,
         EMaintenanceType type,
-        const TString& comment)
+        const TString& comment,
+        std::optional<NCypressServer::TNodeId> componentMapNodeId)
     {
         YT_VERIFY(HasMutationContext());
 
-        auto* target = FindComponentOrAlert(component, address);
+        auto* target = FindComponentOrAlert(component, address, componentMapNodeId);
         if (!target) {
             return;
         }
@@ -212,7 +232,7 @@ private:
             type,
             comment);
 
-        if (!IsReplicationToSecondaryMastersNeeded()) {
+        if (!IsReplicationToSecondaryMastersNeeded(component)) {
             return;
         }
 
@@ -231,11 +251,12 @@ private:
     void DoRemoveMaintenances(
         EMaintenanceComponent component,
         const TString& address,
-        const TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>& ids)
+        const TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>& ids,
+        std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
         YT_VERIFY(HasMutationContext());
 
-        auto* target = FindComponentOrAlert(component, address);
+        auto* target = FindComponentOrAlert(component, address, componentRegistryId);
         if (!target) {
             return;
         }
@@ -259,7 +280,7 @@ private:
             address,
             ids);
 
-        if (ids.empty() || !IsReplicationToSecondaryMastersNeeded()) {
+        if (ids.empty() || !IsReplicationToSecondaryMastersNeeded(component)) {
             return;
         }
 
@@ -276,8 +297,14 @@ private:
         multicellManager->PostToSecondaryMasters(mutationRequest);
     }
 
-    bool IsReplicationToSecondaryMastersNeeded() const
+    bool IsReplicationToSecondaryMastersNeeded(EMaintenanceComponent component) const
     {
+        YT_VERIFY(component != EMaintenanceComponent::Host);
+
+        if (component != EMaintenanceComponent::ClusterNode) {
+            return false;
+        }
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         return multicellManager->IsPrimaryMaster() && multicellManager->IsMulticell();
     }
@@ -288,59 +315,119 @@ private:
         securityManager->ValidatePermission(object, permission);
     }
 
-    TNontemplateMaintenanceTargetBase* GetComponentOrThrow(EMaintenanceComponent component, const TString& address)
+    TErrorOr<TNontemplateMaintenanceTargetBase*> DoFindComponent(
+        EMaintenanceComponent component,
+        const TString& address,
+        std::optional<NCypressServer::TNodeId> componentRegistryId)
+    {
+        switch (component) {
+            case NYT::NApi::EMaintenanceComponent::ClusterNode: {
+                const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                auto* node = nodeTracker->FindNodeByAddress(address);
+                if (!IsObjectAlive(node)) {
+                    return TError("No such node %Qv", address)
+                        << TErrorAttribute("address", address);
+                }
+
+                return node;
+            }
+            case EMaintenanceComponent::HttpProxy: [[fallthrough]];
+            case EMaintenanceComponent::RpcProxy: {
+                if (!componentRegistryId) {
+                    return TError(
+                        "For rpc and http proxies \"component_registry_id\" must be specified; "
+                        "this request probably were made by an obsolete version of ytlib");
+                }
+
+                const auto& cypressManager = Bootstrap_->GetCypressManager();
+                auto* targetMapNode = cypressManager->FindNode(NCypressServer::TVersionedNodeId(*componentRegistryId));
+                if (!targetMapNode) {
+                    return TError("%Qv not found",
+                        component == EMaintenanceComponent::HttpProxy
+                            ? NApi::HttpProxiesPath
+                            : NApi::RpcProxiesPath);
+                }
+
+                const auto& targetMap = targetMapNode->As<NCypressServer::TMapNode>()->KeyToChild();
+                auto it = targetMap.find(address);
+                if (it == targetMap.end()) {
+                    return TError("No such proxy %Qv", address)
+                        << TErrorAttribute("address", address);
+                }
+
+                if (it->second->GetType() != EObjectType::ClusterProxyNode) {
+                    return TError("Proxy has to be represented by %Qlv instead of %Qlv to be able store maintenance requests",
+                        EObjectType::ClusterProxyNode,
+                        EObjectType::MapNode)
+                        << TErrorAttribute("address", address);
+                }
+
+                return it->second->As<TClusterProxyNode>();
+            }
+            default:
+                return TError("Maintenance component %Qlv is not supported", component)
+                    << TErrorAttribute("component", component);
+        }
+    }
+
+    TNontemplateMaintenanceTargetBase* GetComponentOrThrow(
+        EMaintenanceComponent component,
+        const TString& address,
+        std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
         YT_VERIFY(component != EMaintenanceComponent::Host);
 
-        if (component != EMaintenanceComponent::ClusterNode) {
-            THROW_ERROR_EXCEPTION("Maintenance component %Qlv is not supported", component)
-                << TErrorAttribute("component", component);
-        }
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->FindNodeByAddress(address);
-        if (!IsObjectAlive(node)) {
-            THROW_ERROR_EXCEPTION("No such node %Qv", address)
-                << TErrorAttribute("address", address);
-        }
-
-        return node;
+        return DoFindComponent(component, address, componentRegistryId)
+            .ValueOrThrow();
     }
 
     TNontemplateMaintenanceTargetBase* FindComponentOrAlert(
         EMaintenanceComponent component,
-        const TString& address)
+        const TString& address,
+        std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
-        if (component != EMaintenanceComponent::ClusterNode) {
+        if (component != EMaintenanceComponent::ClusterNode &&
+            component != EMaintenanceComponent::HttpProxy &&
+            component != EMaintenanceComponent::RpcProxy)
+        {
             YT_LOG_ALERT("Maintenance component is not supported yet (Component: %v)",
                 component);
             return nullptr;
         }
 
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->FindNodeByAddress(address);
-        if (!IsObjectAlive(node)) {
-            YT_LOG_ALERT("No such node (Address: %v)", address);
+        auto errorOrComponent = DoFindComponent(component, address, componentRegistryId);
+        if (!errorOrComponent.IsOK()) {
+            const char *componentName;
+            switch (component) {
+                case EMaintenanceComponent::ClusterNode:
+                    componentName = "node";
+                    break;
+                case EMaintenanceComponent::HttpProxy:
+                    componentName = "http proxy";
+                    break;
+                case EMaintenanceComponent::RpcProxy:
+                    componentName = "rpc proxy";
+                    break;
+                default:
+                    YT_ABORT();
+            }
+            YT_LOG_ALERT("No such %v (Address: %v)",
+                componentName,
+                address);
             return nullptr;
         }
 
-        return node;
+        return errorOrComponent.Value();
     }
 
-    void VerifyPrimaryMasterMutation()
+    void MaybeVerifyPrimaryMasterMutation(EMaintenanceComponent component)
     {
         YT_VERIFY(HasMutationContext());
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
-    }
-
-    void VerifySecondaryMasterMutation()
-    {
-        YT_VERIFY(HasMutationContext());
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsSecondaryMaster());
+        if (component == EMaintenanceComponent::Host || component == EMaintenanceComponent::ClusterNode) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            YT_VERIFY(multicellManager->IsPrimaryMaster());
+        }
     }
 
     static TMaintenanceId GenerateMaintenanceId(const TNontemplateMaintenanceTargetBase* target)

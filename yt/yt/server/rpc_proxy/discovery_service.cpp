@@ -128,7 +128,8 @@ public:
                     .Item(StartTimeAttributeName).Value(TInstant::Now())
                     .Item(AnnotationsAttributeName).Value(Config_->CypressAnnotations)
                     .Item(AddressesAttributeName).Value(descriptor.Addresses)
-                    .Finish()
+                    .Finish(),
+                .NodeType = EObjectType::ClusterProxyNode,
             };
             CypressRegistrars_.push_back(CreateCypressRegistrar(
                 std::move(options),

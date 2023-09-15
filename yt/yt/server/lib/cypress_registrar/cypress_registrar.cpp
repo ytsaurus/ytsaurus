@@ -157,17 +157,58 @@ private:
         bool createdRoot = false;
 
         // Create root node.
-        if (!WaitFor(Client_->NodeExists(RootPath_)).ValueOrThrow()) {
+        if (!WaitFor(Client_->NodeExists(RootPath_)).ValueOrThrow())
+        {
+            YT_LOG_DEBUG("Creating new nodes");
             createdRoot = true;
 
             TCreateNodeOptions options;
             SetRequestOptions(options);
             options.Recursive = true;
             options.Attributes = Options_.AttributesOnCreation;
-            WaitFor(Client_->CreateNode(RootPath_, EObjectType::MapNode, options))
-                .ThrowOnError();
+            auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, options));
+            // COMPAT(kvk1920): Remove after all masters are updated to 23.2.
+            if (errorOrId.GetMessage().Contains("EObjectType(1500)")) {
+                // Old master does not support this type.
+                YT_LOG_DEBUG(
+                    errorOrId,
+                    "Failed to create cluster proxy node; fall back to map node");
+                errorOrId = WaitFor(Client_->CreateNode(RootPath_, EObjectType::MapNode, options));
+            } else {
+                YT_LOG_DEBUG("Cluster proxy node successfully created");
+            }
+            errorOrId.ThrowOnError();
 
             YT_LOG_INFO("Root node created");
+        } else if (Options_.NodeType == EObjectType::ClusterProxyNode) {
+            // COMPAT(kvk1920): Remove after all masters are updated to 23.2.
+            TGetNodeOptions getOptions;
+            getOptions.Attributes = {"type", "banned"};
+            auto result = ConvertToNode(WaitFor(Client_->GetNode(RootPath_ + "/@", getOptions))
+                .ValueOrThrow())->AsMap();
+            auto type = result->FindChildValue<TString>("type");
+            YT_LOG_DEBUG("Existing entry type: %Qv", type);
+            if (type == "map_node") {
+                YT_LOG_INFO("Trying to recreate root node as %Qlv", Options_.NodeType);
+                auto banned = result->FindChildValue<bool>("banned");
+
+                TCreateNodeOptions options;
+                SetRequestOptions(options);
+                options.Recursive = true;
+                options.Attributes = Options_.AttributesOnCreation->Clone();
+                options.Attributes->Set("banned", banned);
+                options.Force = true;
+
+                auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, options));
+
+                if (errorOrId.IsOK()) {
+                    YT_LOG_INFO("Root node recreated");
+                } else if (errorOrId.GetMessage().Contains("EObjectType(1500)")) {
+                    YT_LOG_INFO("Root node is not recreated: cluster still does not support \"cluster_proxy_node\"");
+                } else {
+                    errorOrId.ThrowOnError();
+                }
+            }
         }
 
         // Create orchid node.
@@ -203,12 +244,26 @@ private:
         YT_LOG_INFO("Finished creating nodes");
     }
 
+    bool IsMigrationNeeded()
+    {
+        if (Options_.NodeType != EObjectType::ClusterProxyNode) {
+            return false;
+        }
+
+        auto rsp = WaitFor(Client_->GetNode(RootPath_ + "/@type", {}));
+        if (!rsp.IsOK()) {
+            return false;
+        }
+
+        return ConvertTo<TString>(rsp.Value()) == "map_node";
+    }
+
     void DoUpdateNodes(IAttributeDictionaryPtr attributes)
     {
-        YT_LOG_INFO("Started updating nodes");
+        YT_LOG_INFO("Started updating nodes", Initialized_, Options_.EnableImplicitInitialization);
 
         // Create nodes if needed.
-        if (Options_.EnableImplicitInitialization && !Initialized_) {
+        if (Options_.EnableImplicitInitialization && (!Initialized_ || IsMigrationNeeded())) {
             // NB: may throw.
             DoCreateNodes();
             Initialized_ = true;

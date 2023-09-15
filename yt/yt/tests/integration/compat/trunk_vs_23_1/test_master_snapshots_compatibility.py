@@ -3,7 +3,7 @@ import builtins
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry, start_transaction, create, wait, write_table, get_driver, lock)
+    ls, get, set, retry, start_transaction, create, wait, write_table, get_driver, lock, remove, exists)
 
 from yt_helpers import profiler_factory, master_exit_read_only_sync
 
@@ -173,8 +173,35 @@ def check_replication_queue_list():
     assert builtins.set(get(revisions_path)["queues"].keys()) == {"//tmp/q1", "//tmp/rep_q1", "//tmp/chaos_rep_q1"}
 
 
+def do_check_proxy_maintenance_requests():
+    http = ls("//sys/http_proxies")[0]
+    set(f"//sys/http_proxies/{http}/@banned", True)
+
+    rpc = ls("//sys/rpc_proxies")[0]
+    set(f"//sys/rpc_proxies/{rpc}/@banned", True)
+
+    yield
+
+    wait(lambda: get(f"//sys/http_proxies/{http}/@type") == "cluster_proxy_node")
+    maintenance_requests = list(get(f"//sys/http_proxies/{http}/@maintenance_requests").values())
+    assert len(maintenance_requests) == 1
+    assert maintenance_requests[0]["type"] == "ban"
+    assert get(f"//sys/http_proxies/{http}/@banned")
+
+    # NB: RPC proxies don't register themselves.
+    for rpc in ls("//sys/rpc_proxies"):
+        remove(f"//sys/rpc_proxies/{rpc}")
+
+    wait(lambda: exists(f"//sys/rpc_proxies/{rpc}"))
+    assert get(f"//sys/rpc_proxies/{rpc}/@type") == "cluster_proxy_node"
+
+
 class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibilityBase):
     TEST_MAINTENANCE_FLAGS = True
+    NUM_RPC_PROXIES = 2
+    ENABLE_RPC_PROXY = True
+    NUM_HTTP_PROXIES = 2
+    ENABLE_HTTP_PROXY = True
 
     DELTA_MASTER_CONFIG = {
         "logging": {
@@ -186,7 +213,6 @@ class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibili
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):
-
         # Preparation cell bundle for chaos table.
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
@@ -195,6 +221,7 @@ class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibili
             check_maintenance_flags,
             check_chunk_creation_time_histogram,
             check_replication_queue_list,
+            do_check_proxy_maintenance_requests,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

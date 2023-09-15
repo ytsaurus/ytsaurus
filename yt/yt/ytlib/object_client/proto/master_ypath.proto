@@ -74,6 +74,8 @@ message TReqAddMaintenance
     required string address = 2;
     required int32 type = 3; // EMaintenanceType
     required string comment = 4;
+    // Required for rpc and http proxies.
+    optional NYT.NProto.TGuid component_registry_id = 5;
 }
 
 message TRspAddMaintenance
@@ -91,6 +93,8 @@ message TReqRemoveMaintenance
     optional string user = 4;
     optional int32 type = 5; // EMaintenanceType
     optional bool mine = 6 [default = false];
+    // Required for rpc and http proxies.
+    optional NYT.NProto.TGuid component_registry_id = 7;
 }
 
 message TRspRemoveMaintenance
@@ -101,12 +105,11 @@ message TRspRemoveMaintenance
     optional int32 disable_scheduler_jobs = 3;
     optional int32 disable_write_sessions = 4;
     optional int32 disable_tablet_cells = 5;
+    optional int32 pending_restart = 8;
 
     // COMPAT(kvk1920)
     optional bool use_map_instead_of_fields = 6 [default = false];
     map<int32, int32> removed_maintenance_counts = 7; // Key: EMaintenanceType
-
-    optional int32 pending_restart = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

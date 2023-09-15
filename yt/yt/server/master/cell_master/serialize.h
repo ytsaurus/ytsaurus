@@ -154,6 +154,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddSchemafulNodeTypeHandler)                                  (2423))  // h0pless
     ((UseSequoiaReplicas)                                           (2424))  // aleksandra-zh
     ((PerRequestReadComplexityLimits)                               (2425))  // kvk1920
+    ((ProxyMaintenanceRequests)                                     (2426))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

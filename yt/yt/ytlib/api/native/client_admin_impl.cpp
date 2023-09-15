@@ -608,6 +608,49 @@ void TClient::DoResumeTabletCells(
         .ThrowOnError();
 }
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMaintenanceTargetInfo
+{
+    TCellTag CellTag;
+    std::optional<NCypressClient::TNodeId> ComponentRegistryId = std::nullopt;
+};
+
+TMaintenanceTargetInfo GetCellTagForMaintenanceComponent(
+    EMaintenanceComponent component,
+    TClient* client)
+{
+    if (component == EMaintenanceComponent::RpcProxy || component == EMaintenanceComponent::HttpProxy) {
+        auto path = (component == EMaintenanceComponent::HttpProxy ? HttpProxiesPath : RpcProxiesPath) + "/@";
+
+        TGetNodeOptions options;
+        options.Attributes = {"native_cell_tag", "id"};
+
+        auto response = WaitFor(client->GetNode(path, options));
+
+        if (response.IsOK()) {
+            auto result = ConvertToNode(response.Value())->AsMap();
+            auto cellTag = result->GetChildValueOrThrow<ui64>("native_cell_tag");
+            auto nodeId = result->GetChildValueOrThrow<NCypressClient::TNodeId>("id");
+            return {TCellTag(cellTag), nodeId};
+        }
+
+        THROW_ERROR_EXCEPTION(
+            "Maintenance request for %v proxies requires \"%v\" to exist somewhere",
+            component == EMaintenanceComponent::RpcProxy ? "rpc" : "http",
+            path)
+            << response;
+    }
+
+    return {PrimaryMasterCellTagSentinel};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
 TMaintenanceId TClient::DoAddMaintenance(
     EMaintenanceComponent component,
     const TString& address,
@@ -617,7 +660,8 @@ TMaintenanceId TClient::DoAddMaintenance(
 {
     ValidateMaintenanceComment(comment);
 
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto [cellTag, componentRegistryId] = GetCellTagForMaintenanceComponent(component, this);
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
     auto batchRequest = proxy->ExecuteBatch();
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
@@ -626,6 +670,9 @@ TMaintenanceId TClient::DoAddMaintenance(
     request->set_address(address);
     request->set_type(static_cast<int>(type));
     request->set_comment(comment);
+    if (componentRegistryId) {
+        ToProto(request->mutable_component_registry_id(), *componentRegistryId);
+    }
     batchRequest->AddRequest(request);
     batchRequest->SetTimeout(options.Timeout);
 
@@ -645,7 +692,8 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
     const TMaintenanceFilter& filter,
     const TRemoveMaintenanceOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto [cellTag, componentRegistryId] = GetCellTagForMaintenanceComponent(component, this);
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
     auto batchRequest = proxy->ExecuteBatch();
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
@@ -669,6 +717,10 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
         [&] (const TString& user) {
             request->set_user(user);
         });
+
+    if (componentRegistryId) {
+        ToProto(request->mutable_component_registry_id(), *componentRegistryId);
+    }
 
     batchRequest->AddRequest(request);
     batchRequest->SetTimeout(options.Timeout);

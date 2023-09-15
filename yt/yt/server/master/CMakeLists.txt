@@ -460,6 +460,10 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/journal_server/journal_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/journal_server/journal_node_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/journal_server/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/maintenance_request.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/maintenance_target.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.cpp
