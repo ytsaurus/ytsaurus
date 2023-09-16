@@ -722,7 +722,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestReboot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestRestart));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -4505,11 +4505,11 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RequestReboot)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RequestRestart)
     {
         auto nodeAddress = request->node_address();
 
-        TRequestRebootOptions options;
+        TRequestRestartOptions options;
         SetTimeoutOptions(&options, context.Get());
 
         context->SetRequestInfo("NodeAddress: %v", nodeAddress);
@@ -4519,7 +4519,7 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->RequestReboot(
+                return client->RequestRestart(
                     nodeAddress,
                     options);
             },

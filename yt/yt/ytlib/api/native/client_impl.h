@@ -450,9 +450,9 @@ public:
         const TResurrectChunkLocationsOptions& options),
         (nodeAddress, locationUuids, options))
 
-    IMPLEMENT_METHOD(TRequestRebootResult, RequestReboot, (
+    IMPLEMENT_METHOD(TRequestRestartResult, RequestRestart, (
         const TString& nodeAddress,
-        const TRequestRebootOptions& options),
+        const TRequestRestartOptions& options),
         (nodeAddress, options))
 
     IMPLEMENT_METHOD(TMultiTablePartitions, PartitionTables, (
@@ -990,9 +990,9 @@ private:
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options);
 
-    TRequestRebootResult DoRequestReboot(
+    TRequestRestartResult DoRequestRestart(
         const TString& nodeAddress,
-        const TRequestRebootOptions& options);
+        const TRequestRestartOptions& options);
 
     TMultiTablePartitions DoPartitionTables(
         const std::vector<NYPath::TRichYPath>& paths,

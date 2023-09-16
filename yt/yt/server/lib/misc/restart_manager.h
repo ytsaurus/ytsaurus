@@ -16,15 +16,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRebootManager
+class TRestartManager
     : public TRefCounted
 {
 public:
-    explicit TRebootManager(IInvokerPtr invoker);
+    explicit TRestartManager(IInvokerPtr invoker);
 
-    void RequestReboot();
+    void RequestRestart();
 
-    bool IsRebootNeeded();
+    bool IsRestartNeeded();
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -32,14 +32,14 @@ private:
     const IInvokerPtr Invoker_;
     const NYTree::IYPathServicePtr OrchidService_;
 
-    std::atomic<bool> NeedReboot_ = false;
+    std::atomic<bool> NeedRestart_ = false;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 
     void BuildOrchid(NYT::NYson::IYsonConsumer* consumer);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRebootManager)
+DEFINE_REFCOUNTED_TYPE(TRestartManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

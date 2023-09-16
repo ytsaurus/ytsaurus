@@ -117,8 +117,8 @@ class TestHotSwap(YTEnvSetup):
                 return False
 
         for node in nodes:
-            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
-            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/need_reboot".format(node)))
+            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/restart_manager".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/restart_manager/need_restart".format(node)))
             wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 
@@ -233,8 +233,8 @@ class TestHotSwap(YTEnvSetup):
                 return False
 
         for node in nodes:
-            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
-            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/need_reboot".format(node)))
+            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/restart_manager".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/restart_manager/need_restart".format(node)))
             wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 
@@ -303,8 +303,8 @@ class TestHotSwap(YTEnvSetup):
                 return False
 
         for node in nodes:
-            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
-            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/need_reboot".format(node)))
+            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/restart_manager".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/restart_manager/need_restart".format(node)))
             wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 

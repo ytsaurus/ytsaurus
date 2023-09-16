@@ -1937,17 +1937,17 @@ TFuture<TResurrectChunkLocationsResult> TClient::ResurrectChunkLocations(
     }));
 }
 
-TFuture<TRequestRebootResult> TClient::RequestReboot(
+TFuture<TRequestRestartResult> TClient::RequestRestart(
     const TString& nodeAddress,
-    const TRequestRebootOptions& /*options*/)
+    const TRequestRestartOptions& /*options*/)
 {
     auto proxy = CreateApiServiceProxy();
 
-    auto req = proxy.RequestReboot();
+    auto req = proxy.RequestRestart();
     ToProto(req->mutable_node_address(), nodeAddress);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspRequestRebootPtr& /*rsp*/) {
-        return TRequestRebootResult();
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspRequestRestartPtr& /*rsp*/) {
+        return TRequestRestartResult();
     }));
 }
 

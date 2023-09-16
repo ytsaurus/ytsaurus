@@ -4,7 +4,7 @@
 #include "batching_chunk_service.h"
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
-#include "reboot_service.h"
+#include "restart_service.h"
 #include "master_connector.h"
 #include "private.h"
 
@@ -552,9 +552,9 @@ public:
         return JobResourceManager_;
     }
 
-    const TRebootManagerPtr& GetRebootManager() const override
+    const TRestartManagerPtr& GetRestartManager() const override
     {
-        return RebootManager_;
+        return RestartManager_;
     }
 
     const IIOTrackerPtr& GetIOTracker() const override
@@ -695,7 +695,7 @@ private:
     IOrchidServiceProviderPtr JobsOrchidServiceProvider_;
     IJobResourceManagerPtr JobResourceManager_;
 
-    TRebootManagerPtr RebootManager_;
+    TRestartManagerPtr RestartManager_;
 
     IMasterConnectorPtr MasterConnector_;
 
@@ -917,7 +917,7 @@ private:
 
         JobResourceManager_ = IJobResourceManager::CreateJobResourceManager(this);
 
-        RebootManager_ = New<TRebootManager>(GetControlInvoker());
+        RestartManager_ = New<TRestartManager>(GetControlInvoker());
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
@@ -928,7 +928,7 @@ private:
             CreateTimestampProviderChannel(timestampProviderConfig, Connection_->GetChannelFactory()));
         RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider, /*authenticator*/ nullptr));
 
-        RpcServer_->RegisterService(CreateRebootService(this));
+        RpcServer_->RegisterService(CreateRestartService(this));
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
             Config_->CachingObjectService,
@@ -1099,8 +1099,8 @@ private:
             CreateVirtualNode(ConfigNode_));
         SetNodeByYPath(
             OrchidRoot_,
-            "/reboot_manager",
-            CreateVirtualNode(RebootManager_->GetOrchidService()));
+            "/restart_manager",
+            CreateVirtualNode(RestartManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/job_controller",
@@ -1656,9 +1656,9 @@ const NJobAgent::IJobResourceManagerPtr& TBootstrapBase::GetJobResourceManager()
     return Bootstrap_->GetJobResourceManager();
 }
 
-const TRebootManagerPtr& TBootstrapBase::GetRebootManager() const
+const TRestartManagerPtr& TBootstrapBase::GetRestartManager() const
 {
-    return Bootstrap_->GetRebootManager();
+    return Bootstrap_->GetRestartManager();
 }
 
 EJobEnvironmentType TBootstrapBase::GetJobEnvironmentType() const

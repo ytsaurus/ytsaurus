@@ -411,9 +411,9 @@ public:
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options) override;
 
-    TFuture<TRequestRebootResult> RequestReboot(
+    TFuture<TRequestRestartResult> RequestRestart(
         const TString& nodeAddress,
-        const TRequestRebootOptions& options) override;
+        const TRequestRestartOptions& options) override;
 
     // Query tracker
 

@@ -1636,11 +1636,11 @@ struct TResurrectChunkLocationsResult
     std::vector<TGuid> LocationUuids;
 };
 
-struct TRequestRebootOptions
+struct TRequestRestartOptions
     : public TTimeoutOptions
 { };
 
-struct TRequestRebootResult
+struct TRequestRestartResult
 { };
 
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
@@ -2393,9 +2393,9 @@ struct IClient
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options = {}) = 0;
 
-    virtual TFuture<TRequestRebootResult> RequestReboot(
+    virtual TFuture<TRequestRestartResult> RequestRestart(
         const TString& nodeAddress,
-        const TRequestRebootOptions& options = {}) = 0;
+        const TRequestRestartOptions& options = {}) = 0;
 
     // Query tracker
 

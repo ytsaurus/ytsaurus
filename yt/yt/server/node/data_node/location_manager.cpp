@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/node/data_node/chunk_store.h>
 
-#include <yt/yt/server/lib/misc/reboot_manager.h>
+#include <yt/yt/server/lib/misc/restart_manager.h>
 
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 
@@ -274,13 +274,13 @@ TLocationHealthChecker::TLocationHealthChecker(
     TChunkStorePtr chunkStore,
     TLocationManagerPtr locationManager,
     IInvokerPtr invoker,
-    TRebootManagerPtr rebootManager,
+    TRestartManagerPtr restartManager,
     const TProfiler& profiler)
     : DynamicConfig_(New<TLocationHealthCheckerDynamicConfig>())
     , ChunkStore_(std::move(chunkStore))
     , LocationManager_(std::move(locationManager))
     , Invoker_(std::move(invoker))
-    , RebootManager_(std::move(rebootManager))
+    , RestartManager_(std::move(restartManager))
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TLocationHealthChecker::OnHealthCheck, MakeWeak(this)),
@@ -509,13 +509,13 @@ TLocationHealthCheckerPtr CreateLocationHealthChecker(
     TChunkStorePtr chunkStore,
     TLocationManagerPtr locationManager,
     IInvokerPtr invoker,
-    TRebootManagerPtr rebootManager)
+    TRestartManagerPtr restartManager)
 {
     return New<TLocationHealthChecker>(
         chunkStore,
         locationManager,
         invoker,
-        rebootManager,
+        restartManager,
         NProfiling::TProfiler("/data_node"));
 }
 
