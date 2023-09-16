@@ -38,6 +38,24 @@ int CompareRowUsingMapping(TRow lhs, TRow rhs, TRange<int> mapping)
     return 0;
 }
 
+int GetEqualPrefixUsingMapping(TRow lhs, TRow rhs, TRange<int> mapping)
+{
+    int equalPrefix = 0;
+    for (auto index : mapping) {
+        if (index == -1) {
+            ++equalPrefix;
+            continue;
+        }
+
+        if (lhs.Begin()[index] != rhs.Begin()[index]) {
+            break;
+        }
+
+        ++equalPrefix;
+    }
+    return equalPrefix;
+}
+
 TConstraintRef TConstraintsHolder::ExtractFromExpression(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
@@ -139,12 +157,6 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
         TRange<TRow> values = inExpr->Values;
         auto rowCount = std::ssize(values);
 
-        std::vector<ui32> startOffsets;
-        startOffsets.reserve(size());
-        for (const auto& columnConstraints : *this) {
-            startOffsets.push_back(columnConstraints.size());
-        }
-
         auto keyMapping = BuildKeyMapping(keyColumns, inExpr->Arguments);
 
         bool orderedMapping = true;
@@ -164,37 +176,56 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             values = sortedValues;
         }
 
-        int lastKeyPart = -1;
+        std::vector<int> commonKeyPrefixes(1, 0);
+
+        for (int rowIndex = 1; rowIndex < rowCount; ++rowIndex) {
+            commonKeyPrefixes.push_back(GetEqualPrefixUsingMapping(values[rowIndex - 1], values[rowIndex], keyMapping));
+        }
+
+        ui32 lastKeyStartOffset = 0;
+
+        int lastKeyIndex = -1;
         for (int keyIndex = keyMapping.size() - 1; keyIndex >= 0; --keyIndex) {
             auto index = keyMapping[keyIndex];
             if (index >= 0) {
                 auto& columnConstraints = (*this)[keyIndex];
 
-                for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-                    auto next = TConstraintRef::Universal();
-                    if (lastKeyPart >= 0) {
-                        next.ColumnId = lastKeyPart;
-                        next.StartIndex = startOffsets[lastKeyPart] + rowIndex;
-                        next.EndIndex = next.StartIndex + 1;
-                    }
+                int currentNextOffset = lastKeyStartOffset;
+                lastKeyStartOffset = columnConstraints.size();
 
+                for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
                     const auto& value = values[rowIndex][index];
 
-                    columnConstraints.push_back(TConstraint::Make(
-                        TValueBound{value, false},
-                        TValueBound{value, true},
-                        next));
+                    if (commonKeyPrefixes[rowIndex] > keyIndex) {
+                        if (lastKeyIndex >= 0 && commonKeyPrefixes[rowIndex] <= lastKeyIndex) {
+                            ++currentNextOffset;
+                            columnConstraints.back().Next.EndIndex = currentNextOffset;
+                        }
+                    } else {
+                        auto next = TConstraintRef::Universal();
+                        if (lastKeyIndex >= 0) {
+                            next.ColumnId = lastKeyIndex;
+                            next.StartIndex = currentNextOffset;
+                            ++currentNextOffset;
+                            next.EndIndex = currentNextOffset;
+                        }
+
+                        columnConstraints.push_back(TConstraint::Make(
+                            TValueBound{value, false},
+                            TValueBound{value, true},
+                            next));
+                    }
                 }
 
-                lastKeyPart = keyIndex;
+                lastKeyIndex = keyIndex;
             }
         }
 
         auto result = TConstraintRef::Universal();
-        if (lastKeyPart >= 0) {
-            result.ColumnId = lastKeyPart;
-            result.StartIndex = startOffsets[lastKeyPart];
-            result.EndIndex = result.StartIndex + rowCount;
+        if (lastKeyIndex >= 0) {
+            result.ColumnId = lastKeyIndex;
+            result.StartIndex = lastKeyStartOffset;
+            result.EndIndex = (*this)[lastKeyIndex].size();
         }
 
         return result;
@@ -221,8 +252,6 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             return TConstraintRef::Universal();
         }
 
-        size_t startOffsetForFirstColumn = (*this)[keyColumnIds.front()].size();
-
         // BETWEEN (a, b, c) and (k, l, m) generates the following constraints:
         // [a-, a+]    [b-, b+]   [c-, c+]
         //                        [c+, +inf]
@@ -231,6 +260,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
         // [k-, k+]    [-inf, l-]
         //             [l-, l+]   [-inf, m-]
         //                        [m-, m+]
+
+        std::vector<TConstraintRef> rangeConstraints;
 
         for (int rowIndex = 0; rowIndex < std::ssize(betweenExpr->Ranges); ++rowIndex) {
             auto literalRange = betweenExpr->Ranges[rowIndex];
@@ -345,14 +376,27 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                     },
                     keyColumnIndex);
             }
+
+            rangeConstraints.push_back(current);
         }
 
-        TConstraintRef result;
-        result.StartIndex = startOffsetForFirstColumn;
-        result.EndIndex = (*this)[keyColumnIds.front()].size();
-        result.ColumnId = keyColumnIds.front();
+        while (rangeConstraints.size() > 1) {
+            int index = 0;
 
-        return result;
+            while (2 * index + 1 < std::ssize(rangeConstraints)) {
+                rangeConstraints[index] = TConstraintsHolder::Unite(rangeConstraints[2 * index], rangeConstraints[2 * index + 1]);
+                ++index;
+            }
+
+            if (2 * index < std::ssize(rangeConstraints)) {
+                rangeConstraints[index] = rangeConstraints[2 * index];
+                ++index;
+            }
+
+            rangeConstraints.resize(index);
+        }
+
+        return rangeConstraints.front();
     } else if (const auto* literalExpr = expr->As<TLiteralExpression>()) {
         TValue value = literalExpr->Value;
         if (value.Type == EValueType::Boolean) {

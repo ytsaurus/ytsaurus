@@ -1207,7 +1207,10 @@ INSTANTIATE_TEST_SUITE_P(
         TArithmeticTestParam(EValueType::Int64, "1", "!=", "#", MakeBoolean(true)),
         TArithmeticTestParam(EValueType::Int64, "1", "<>", "#", MakeBoolean(true)),
 
-        TArithmeticTestParam(EValueType::Int64, "1", "+", "#", MakeNull())
+        TArithmeticTestParam(EValueType::Int64, "1", "+", "#", MakeNull()),
+
+        TArithmeticTestParam(EValueType::Boolean, "%false", "<", "%true", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Boolean, "%true", "<", "%false", MakeBoolean(false))
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
