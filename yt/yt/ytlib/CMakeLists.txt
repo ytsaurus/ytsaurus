@@ -936,7 +936,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
 )
 target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/admin_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/reboot_service.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto

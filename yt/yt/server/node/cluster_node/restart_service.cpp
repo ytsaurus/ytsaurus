@@ -1,11 +1,11 @@
-#include "reboot_service.h"
+#include "restart_service.h"
 
 #include "config.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/yt/ytlib/admin/reboot_service_proxy.h>
+#include <yt/yt/ytlib/admin/restart_service_proxy.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -18,14 +18,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRebootService
+class TRestartService
     : public TServiceBase
 {
 public:
-    explicit TRebootService(IBootstrap* bootstrap)
+    explicit TRestartService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
-            NAdmin::TRebootServiceProxy::GetDescriptor(),
+            NAdmin::TRestartServiceProxy::GetDescriptor(),
             ClusterNodeLogger,
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
@@ -33,7 +33,7 @@ public:
     {
         YT_VERIFY(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestReboot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestRestart));
     }
 
 private:
@@ -41,12 +41,12 @@ private:
 
     // Endpoint is necessary for manual configuration regeneration, disk partitioning and node restart.
     // Important part of Hot Swap mechanic.
-    DECLARE_RPC_SERVICE_METHOD(NAdmin::NProto, RequestReboot)
+    DECLARE_RPC_SERVICE_METHOD(NAdmin::NProto, RequestRestart)
     {
-        auto manager = Bootstrap_->GetRebootManager();
+        auto manager = Bootstrap_->GetRestartManager();
 
         if (manager) {
-            manager->RequestReboot();
+            manager->RequestRestart();
         }
 
         context->Reply();
@@ -55,9 +55,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateRebootService(IBootstrap* bootstrap)
+IServicePtr CreateRestartService(IBootstrap* bootstrap)
 {
-    return New<TRebootService>(bootstrap);
+    return New<TRestartService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

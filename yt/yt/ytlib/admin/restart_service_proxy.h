@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/admin/proto/reboot_service.pb.h>
+#include <yt/yt/ytlib/admin/proto/restart_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 
@@ -8,13 +8,13 @@ namespace NYT::NAdmin {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRebootServiceProxy
+class TRestartServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TRebootServiceProxy, RebootService);
+    DEFINE_RPC_PROXY(TRestartServiceProxy, RestartService);
 
-    DEFINE_RPC_PROXY_METHOD(NProto, RequestReboot);
+    DEFINE_RPC_PROXY_METHOD(NProto, RequestRestart);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

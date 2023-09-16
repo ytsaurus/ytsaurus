@@ -826,7 +826,7 @@ type DestroyChunkLocationsOptions struct {
 type ResurrectChunkLocationsOptions struct {
 }
 
-type RequestRebootOptions struct {
+type RequestRestartOptions struct {
 }
 
 type CheckPermissionResult struct {
@@ -878,7 +878,7 @@ type ResurrectChunkLocationsResponse struct {
 	LocationUUIDs []guid.GUID
 }
 
-type RequestRebootResponse struct {
+type RequestRestartResponse struct {
 }
 
 type AdminClient interface {
@@ -990,13 +990,13 @@ type AdminClient interface {
 		options *ResurrectChunkLocationsOptions,
 	) (result *ResurrectChunkLocationsResponse, err error)
 
-	// http:verb:"request_reboot"
+	// http:verb:"request_restart"
 	// http:params:"node_address"
-	RequestReboot(
+	RequestRestart(
 		ctx context.Context,
 		nodeAddress string,
-		options *RequestRebootOptions,
-	) (result *RequestRebootResponse, err error)
+		options *RequestRestartOptions,
+	) (result *RequestRestartResponse, err error)
 }
 
 type LockNodeOptions struct {

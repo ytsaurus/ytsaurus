@@ -43,7 +43,7 @@ const (
 	VerbDestroyChunkLocations   Verb = "destroy_chunk_locations"
 	VerbResurrectChunkLocations Verb = "resurrect_chunk_locations"
 
-	VerbRequestReboot Verb = "request_reboot"
+	VerbRequestRestart Verb = "request_restart"
 
 	VerbTransferAccountResources Verb = "transfer_account_resources"
 	VerbTransferPoolResources    Verb = "transfer_pool_resources"
