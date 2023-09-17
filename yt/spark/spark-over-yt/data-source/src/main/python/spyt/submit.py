@@ -65,7 +65,7 @@ def launch_gateway(memory="512m",
         shutil.rmtree(conn_info_dir)
 
     # Connect to the gateway (or client server to pin the thread between JVM and Python)
-    address = '::-1' if prefer_ipv6 else '127.0.0.1'
+    address = '::1' if prefer_ipv6 else '127.0.0.1'
     gateway = JavaGateway(
         gateway_parameters=GatewayParameters(address=address, port=gateway_port,
                                              auth_token=gateway_secret,
