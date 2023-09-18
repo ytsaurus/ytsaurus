@@ -2138,18 +2138,16 @@ def add_dirtable_parser(root_subparsers):
 
 
 def add_spark_parser(root_subparsers):
-    # NB: py2 does not support aliases.
-    if sys.version_info.major == 2:
+    # NB: py2 version of argparse library does not support aliases in add_parser.
+    # Rewrite it when py2 support is dropped or deprecate a legacy "spark" alias.
+    for name in ("spyt", "spark"):
         parser = populate_argument_help(root_subparsers.add_parser(
-            "spyt", description="Spark over YT commands"))
-    else:
-        parser = populate_argument_help(root_subparsers.add_parser(
-            "spyt", aliases=["spark"], description="Spark over YT commands"))
+            name, description="Spark over YT commands"))
 
-    spark_subparsers = parser.add_subparsers(metavar="spark_command", **SUBPARSER_KWARGS)
-    add_spark_subparser = add_subparser(spark_subparsers, params_argument=False)
-    add_start_spark_cluster_parser(add_spark_subparser)
-    add_find_spark_cluster_parser(add_spark_subparser)
+        spark_subparsers = parser.add_subparsers(metavar="spark_command", **SUBPARSER_KWARGS)
+        add_spark_subparser = add_subparser(spark_subparsers, params_argument=False)
+        add_start_spark_cluster_parser(add_spark_subparser)
+        add_find_spark_cluster_parser(add_spark_subparser)
 
 
 @copy_docstring_from(chyt.start_clique)
@@ -2220,30 +2218,22 @@ def add_clickhouse_execute_parser(add_parser):
 
 
 def add_chyt_parser(root_subparsers):
-    # NB: py2 does not support aliases.
-    if sys.version_info.major == 2:
+    # NB: py2 version of argparse library does not support aliases in add_parser.
+    # Rewrite it when py2 support is dropped or deprecate a legacy "clickhouse" alias.
+    for name in ("chyt", "clickhouse"):
         parser = populate_argument_help(root_subparsers.add_parser(
-            "chyt", description="ClickHouse over YT commands"))
-    else:
-        parser = populate_argument_help(root_subparsers.add_parser(
-            "chyt", aliases=["clickhouse"], description="ClickHouse over YT commands"))
+            name, description="ClickHouse over YT commands"))
 
-    clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command", **SUBPARSER_KWARGS)
-
-    add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
-    add_clickhouse_start_clique_parser(add_clickhouse_subparser)
-    add_clickhouse_execute_parser(add_clickhouse_subparser)
-    add_strawberry_ctl_parser(add_clickhouse_subparser, "chyt")
+        clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command", **SUBPARSER_KWARGS)
+        add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
+        add_clickhouse_start_clique_parser(add_clickhouse_subparser)
+        add_clickhouse_execute_parser(add_clickhouse_subparser)
+        add_strawberry_ctl_parser(add_clickhouse_subparser, "chyt")
 
 
 def add_jupyt_parser(root_subparsers):
-    # NB: py2 does not support aliases.
-    if sys.version_info.major == 2:
-        parser = populate_argument_help(root_subparsers.add_parser(
-            "jupyt", description="Jupyter over YT commands"))
-    else:
-        parser = populate_argument_help(root_subparsers.add_parser(
-            "jupyt", aliases=["jupyter"], description="Jupyter over YT commands"))
+    parser = populate_argument_help(root_subparsers.add_parser(
+        "jupyt", description="Jupyter over YT commands"))
 
     jupyter_subparsers = parser.add_subparsers(metavar="jupyter_command", **SUBPARSER_KWARGS)
 
