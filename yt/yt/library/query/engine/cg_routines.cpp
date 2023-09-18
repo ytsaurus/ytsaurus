@@ -150,7 +150,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 
         if (!shouldNotWait) {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
-            WaitFor(writer->GetReadyEvent())
+            WaitForFast(writer->GetReadyEvent())
                 .ThrowOnError();
         }
         batch.clear();
@@ -212,7 +212,7 @@ void ScanOpHelper(
 
         if (batch->IsEmpty()) {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
-            WaitFor(reader->GetReadyEvent())
+            WaitForFast(reader->GetReadyEvent())
                 .ThrowOnError();
             continue;
         }
@@ -948,7 +948,7 @@ void WriteOpHelper(
 
         if (!shouldNotWait) {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-            WaitFor(writer->GetReadyEvent())
+            WaitForFast(writer->GetReadyEvent())
                 .ThrowOnError();
         }
     }
@@ -956,7 +956,7 @@ void WriteOpHelper(
     YT_LOG_DEBUG("Closing writer");
     {
         TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-        WaitFor(context->Writer->Close())
+        WaitForFast(context->Writer->Close())
             .ThrowOnError();
     }
 }
