@@ -11,12 +11,11 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/bus"
-	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type Retrier struct {
-	Config *yt.Config
+	RequestTimeout time.Duration
 
 	Log log.Structured
 }
@@ -27,7 +26,7 @@ type ReadRetryRequest interface {
 
 func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	var cancel func()
-	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
+	if timeout := r.RequestTimeout; timeout != 0 {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}

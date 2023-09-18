@@ -37,7 +37,7 @@ type client struct {
 	httpClient *http.Client
 	proxySet   *internal.ProxySet
 
-	connPool *connPool
+	connPool *ConnPool
 	stop     *internal.StopGroup
 }
 
@@ -92,7 +92,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 	requestLogger := &LoggingInterceptor{Structured: c.log}
 	requestTracer := &TracingInterceptor{Tracer: c.tracer}
 	mutationRetrier := &MutationRetrier{Log: c.log}
-	readRetrier := &Retrier{Config: c.conf, Log: c.log}
+	readRetrier := &Retrier{RequestTimeout: conf.GetLightRequestTimeout(), Log: c.log}
 	errorWrapper := &ErrorWrapper{}
 
 	c.Encoder.Invoke = c.Encoder.Invoke.
@@ -214,11 +214,11 @@ func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error)
 	return credentials, nil
 }
 
-func (c *client) getConn(ctx context.Context, addr string) (*conn, error) {
+func (c *client) getConn(ctx context.Context, addr string) (*Conn, error) {
 	dial, ok := GetDialer(ctx)
 	if ok {
 		conn := dial(ctx, addr)
-		wrapped := newConn(addr, conn, nil)
+		wrapped := NewConn(addr, conn, nil)
 		return wrapped, nil
 	}
 	return c.connPool.Conn(ctx, addr)

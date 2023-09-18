@@ -12,18 +12,17 @@ const idleConnTimeout = time.Minute
 
 var cleanupConn = closeConn
 
-func closeConn(conn *conn) {
+func closeConn(conn *Conn) {
 	conn.Close()
 }
 
-type connPool struct {
+type ConnPool struct {
 	dialFunc Dialer
 
 	mu    sync.Mutex
-	conns map[string]*conn
+	conns map[string]*Conn
 
-	stop    chan struct{}
-	stopped bool
+	stop chan struct{}
 
 	IdleConnTimeout time.Duration
 
@@ -31,10 +30,10 @@ type connPool struct {
 }
 
 // NewConnPool creates connection pool and starts periodic gc.
-func NewConnPool(dialFunc Dialer, log log.Structured) *connPool {
-	pool := &connPool{
+func NewConnPool(dialFunc Dialer, log log.Structured) *ConnPool {
+	pool := &ConnPool{
 		dialFunc:        dialFunc,
-		conns:           make(map[string]*conn),
+		conns:           make(map[string]*Conn),
 		stop:            make(chan struct{}),
 		IdleConnTimeout: idleConnTimeout,
 		log:             log,
@@ -45,7 +44,7 @@ func NewConnPool(dialFunc Dialer, log log.Structured) *connPool {
 	return pool
 }
 
-func (p *connPool) run() {
+func (p *ConnPool) run() {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 
@@ -59,11 +58,11 @@ func (p *connPool) run() {
 	}
 }
 
-func (p *connPool) gc() {
+func (p *ConnPool) gc() {
 	p.log.Debug("gc started")
 
 	p.mu.Lock()
-	var deleted []*conn
+	var deleted []*Conn
 	for addr, conn := range p.conns {
 		if conn.Expired() {
 			p.log.Debug("gc: conn expired -> deleting",
@@ -88,7 +87,7 @@ func (p *connPool) gc() {
 	p.log.Debug("gc finished")
 }
 
-func (p *connPool) idleConnTimeout() time.Duration {
+func (p *ConnPool) idleConnTimeout() time.Duration {
 	if p.IdleConnTimeout != 0 {
 		return p.IdleConnTimeout
 	} else {
@@ -99,12 +98,12 @@ func (p *connPool) idleConnTimeout() time.Duration {
 // Conn returns a connection from the pool.
 //
 // Uses cached conn if present and dials otherwise.
-func (p *connPool) Conn(ctx context.Context, addr string) (*conn, error) {
+func (p *ConnPool) Conn(ctx context.Context, addr string) (*Conn, error) {
 	p.mu.Lock()
 
 	p.log.Debug("getting conn", log.String("addr", addr))
 
-	var expiredConn *conn
+	var expiredConn *Conn
 	conn, ok := p.conns[addr]
 	if !ok || conn.Expired() || conn.Err() != nil {
 		expiredConn, conn = conn, nil
@@ -122,7 +121,7 @@ func (p *connPool) Conn(ctx context.Context, addr string) (*conn, error) {
 	c := p.dialFunc(ctx, addr)
 
 	p.log.Debug("dialed", log.String("addr", addr))
-	wrapped := newConn(addr, c, p)
+	wrapped := NewConn(addr, c, p)
 	p.conns[addr] = wrapped
 	wrapped.inflight++
 
@@ -136,7 +135,7 @@ func (p *connPool) Conn(ctx context.Context, addr string) (*conn, error) {
 }
 
 // Discard removes connection from the connection pool and closes it.
-func (p *connPool) Discard(addr string) {
+func (p *ConnPool) Discard(addr string) {
 	p.log.Debug("discarding conn", log.String("addr", addr))
 
 	p.mu.Lock()
@@ -149,7 +148,7 @@ func (p *connPool) Discard(addr string) {
 	}
 }
 
-func (p *connPool) discard(conn *conn) {
+func (p *ConnPool) discard(conn *Conn) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -162,7 +161,7 @@ func (p *connPool) discard(conn *conn) {
 	cleanupConn(conn)
 }
 
-func (p *connPool) tryPutIdleConn(conn *conn) {
+func (p *ConnPool) tryPutIdleConn(conn *Conn) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -177,7 +176,7 @@ func (p *connPool) tryPutIdleConn(conn *conn) {
 }
 
 // Stop closes every connection in the pool and stops gc.
-func (p *connPool) Stop() {
+func (p *ConnPool) Stop() {
 	close(p.stop)
 
 	p.mu.Lock()
@@ -189,25 +188,25 @@ func (p *connPool) Stop() {
 	}
 }
 
-type conn struct {
+type Conn struct {
 	BusConn
 
 	addr string
-	pool *connPool
+	pool *ConnPool
 
 	inflight  int
 	expiresAt time.Time
 }
 
-func newConn(addr string, c BusConn, pool *connPool) *conn {
-	return &conn{
+func NewConn(addr string, c BusConn, pool *ConnPool) *Conn {
+	return &Conn{
 		addr:    addr,
 		BusConn: c,
 		pool:    pool,
 	}
 }
 
-func (c *conn) Release() {
+func (c *Conn) Release() {
 	if c.pool == nil {
 		return
 	}
@@ -215,10 +214,10 @@ func (c *conn) Release() {
 	c.pool.tryPutIdleConn(c)
 }
 
-func (c *conn) Discard() {
+func (c *Conn) Discard() {
 	c.pool.discard(c)
 }
 
-func (c *conn) Expired() bool {
+func (c *Conn) Expired() bool {
 	return c.inflight == 0 && time.Now().After(c.expiresAt)
 }

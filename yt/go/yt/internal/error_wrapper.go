@@ -12,7 +12,7 @@ type ErrorWrapper struct{}
 
 func annotateError(call *Call, err error) error {
 	args := []any{
-		// put call_id into message, so in is present even in short error message.
+		// put call_id into message, so it is present even in short error message.
 		fmt.Sprintf("call %s failed", call.CallID.String()),
 		err,
 		yterrors.Attr("method", call.Params.HTTPVerb()),
