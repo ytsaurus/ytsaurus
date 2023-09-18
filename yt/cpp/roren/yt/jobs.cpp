@@ -454,7 +454,7 @@ class TStatefulKvReduce
 public:
     TStatefulKvReduce() = default;
 
-    TStatefulKvReduce(const IRawStatefulParDoPtr& rawComputation, const std::vector<TRowVtable>& inVtables, const std::vector<IYtJobOutputPtr>& outputs, TYtStateVtable stateVtable)
+    TStatefulKvReduce(const IRawStatefulParDoPtr& rawComputation, const std::vector<TRowVtable>& inVtables, const std::vector<IYtJobOutputPtr>& outputs, const TYtStateVtable& stateVtable)
     {
         State_[ComputationKey_] = SerializableToNode(*rawComputation);
         State_[InVtablesKey_] = SaveToNode(inVtables);
@@ -469,32 +469,50 @@ public:
         : public IRawStateStore
     {
     public:
-        TRawStateStore(TRawRowHolder& stateHolder):
-            StateHolder_(stateHolder)
+        TRawStateStore()
         {
+        }
+
+        void SetState(TRawRowHolder& stateHolder)
+        {
+            RawState_ = stateHolder.GetData();
         }
 
         void* GetStateRaw(const void* key) final
         {
             Y_UNUSED(key);
-            return StateHolder_.get().GetData();
+            return RawState_;
         }
 
     protected:
-        std::reference_wrapper<TRawRowHolder> StateHolder_;
+        void* RawState_ = nullptr;
     };
 
     void Do(const TRawJobContext& /*jobContext*/) override
     {
         signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_FAIL("FAIL");});
+
         try {
-            auto inRowVtables = LoadVtablesFromNode(State_.At(InVtablesKey_));
-            auto statefulParDo = SerializableFromNode<IRawStatefulParDo>(State_.At(ComputationKey_));
-            auto stateVtable = TYtStateVtable::SerializableFromNode(State_[StateVtableKey_]);
+            const auto inRowVtables = LoadVtablesFromNode(State_.At(InVtablesKey_));
+            const auto statefulParDo = SerializableFromNode<IRawStatefulParDo>(State_.At(ComputationKey_));
+            const auto stateVtable = TYtStateVtable::SerializableFromNode(State_[StateVtableKey_]);
+
+            auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
+            auto rawStateStore = ::MakeIntrusive<TRawStateStore>();
+
+            std::vector<IRawOutputPtr> outputs;
+            const auto& rawOutputs = State_[OutputsKey_].AsList();
+            for (auto it = rawOutputs.begin() + 1; it != rawOutputs.end(); ++it) {
+                auto output = SerializableFromNode<IYtJobOutput>(*it);
+                outputs.emplace_back(std::move(output));
+            }
+
+            statefulParDo->Start(executionContext, rawStateStore, outputs);
 
             for (auto rangesReader = CreateRangesTableReader(&Cin); rangesReader->IsValid(); rangesReader->Next()) {
                 auto range = &rangesReader->GetRange();
                 auto input = CreateSplitKvJobInput(inRowVtables, range);
+
                 TRowVtable keyVtable;
                 TRawRowHolder keyHolder;
 
@@ -505,7 +523,7 @@ public:
                 while (const void* raw = input->NextRaw()) {
                     auto inputIndex = input->GetInputIndex();
                     Y_ENSURE(inputIndex < inRowVtables.size(), "Input index must be less than input tags count");
-                    auto inputVtable = inRowVtables[inputIndex];
+                    const auto& inputVtable = inRowVtables[inputIndex];
 
                     if (!IsDefined(keyVtable)) {
                         keyVtable = inputVtable.KeyVtableFactory();
@@ -519,23 +537,16 @@ public:
 
                 Y_VERIFY(IsDefined(keyVtable));
                 Y_VERIFY(values[0].size() <= 1);
+
                 TRawRowHolder state = values[0].empty()?
                     stateVtable.StateFromKey(keyHolder.GetData())
                     : stateVtable.StateFromTKV(std::move(values[0][0].GetData()));
                 values.pop_front();
 
-                auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
-                std::vector<IRawOutputPtr> outputs;
-                const auto& rawOutputs = State_[OutputsKey_].AsList();
-                for (auto it = rawOutputs.begin() + 1; it != rawOutputs.end(); ++it) {
-                    auto output = SerializableFromNode<IYtJobOutput>(*it);
-                    outputs.emplace_back(std::move(output));
+                rawStateStore->SetState(state);
+                for (const auto& rawRowHolder : values[0]) {
+                    statefulParDo->Do(rawRowHolder.GetData(), 1);
                 }
-
-                IRawStateStorePtr rawStateStore = ::MakeIntrusive<TRawStateStore>(state);
-                statefulParDo->Start(executionContext, rawStateStore, outputs);
-                statefulParDo->Do(values[0].data(), values[0].size());
-                statefulParDo->Finish();
 
                 // TODO: write State to output
 
@@ -543,6 +554,8 @@ public:
                     output->Close();
                 }
             }
+
+            statefulParDo->Finish();
         } catch (...) {
             Cerr << "Error in TStatefulKvReduce" << Endl;
             Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
@@ -926,9 +939,9 @@ IRawJobPtr CreateStatefulKvReduce(
     const IRawStatefulParDoPtr& rawComputation,
     const std::vector<TRowVtable>& inVtables,
     const std::vector<IYtJobOutputPtr>& outputs,
-    TYtStateVtable stateVtable)
+    const TYtStateVtable& stateVtable)
 {
-    return ::MakeIntrusive<TStatefulKvReduce>(rawComputation, inVtables, outputs, std::move(stateVtable));
+    return ::MakeIntrusive<TStatefulKvReduce>(rawComputation, inVtables, outputs, stateVtable);
 }
 
 IRawJobPtr CreateCombineCombiner(

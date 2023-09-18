@@ -14,9 +14,9 @@ struct TYtStateVtable
     template <class TState>
     using TStateTKV = TKV<typename TState::TKey, typename TState::TValue>;
     using TLoadState = void (*)(TRawRowHolder& row, const NYT::TNode&);  // NYT::TNode->TStateTKV
-    using TSaveState = void*;
-    using TStateFromKey = TRawRowHolder (*)(const void* rawKey);
-    using TStateFromTKV = TRawRowHolder (*)(void* rawTKV);
+    using TSaveState = void*; // TState -> Cout
+    using TStateFromKey = TRawRowHolder (*)(const void* rawKey); // TState::TKey -> TState
+    using TStateFromTKV = TRawRowHolder (*)(void* rawTKV); // TVK<TState::TKey, TState::TValue> -> TState
 
     TRowVtable StateTKVvtable;
     TLoadState LoadState = nullptr;
@@ -26,9 +26,6 @@ struct TYtStateVtable
 
     static NYT::TNode SerializableToNode(const TYtStateVtable& stateVtable);
     static TYtStateVtable SerializableFromNode(const NYT::TNode& node);
-//TKV vtable
-//TKV -> TState
-//TState -> TNode
 }; // struct YtStateVtable
 
 extern TTypeTag<TYtStateVtable> YtStateVtableTag;
@@ -79,9 +76,10 @@ void StateLoader(TRawRowHolder& row, const NYT::TNode& node)
 template <class TState>
 TRawRowHolder StateFromKey(const void* rawKey)
 {
-    TRawRowHolder result(MakeRowVtable<TState>());
     auto* key = reinterpret_cast<const typename TState::TKey*>(rawKey);
-    *reinterpret_cast<TState*>(result.GetData()) = TState(*key);
+    TRawRowHolder result(MakeRowVtable<TState>());
+    TState& state = *reinterpret_cast<TState*>(result.GetData());
+    state = TState(*key);
     return result;
 }
 

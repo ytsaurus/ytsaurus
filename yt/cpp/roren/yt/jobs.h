@@ -48,7 +48,7 @@ NYT::IRawJobPtr CreateStatefulKvReduce(
     const IRawStatefulParDoPtr& rawComputation,
     const std::vector<TRowVtable>& inVtables,
     const std::vector<IYtJobOutputPtr>& outputs,
-    TYtStateVtable stateVtable);
+    const TYtStateVtable& stateVtable);
 
 NYT::IRawJobPtr CreateCombineCombiner(
     const IRawCombinePtr& combine,
