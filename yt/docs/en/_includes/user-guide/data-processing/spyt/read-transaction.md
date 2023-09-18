@@ -12,7 +12,7 @@ Python example:
 
 ```python
 with yt.Transaction() as tr:
-    df = spark.read.transaction(tr.transaction_id).yt("//sys/spark/examples/example_1")
+    df = spark.read.option("transaction", tr.transaction_id).yt("//sys/spark/examples/example_1")
     df.show()
 ```
 
@@ -20,7 +20,7 @@ At the time of the call to `spark.read.yt`, a lock is taken out on the table (sn
 
 ```python
 with yt.Transaction() as tr:
-    df = spark.read.transaction(tr.transaction_id).yt("//sys/spark/examples/example_1")
+    df = spark.read.option("transaction", tr.transaction_id).yt("//sys/spark/examples/example_1")
     df.show()
     time.sleep(60)
     df.show()
