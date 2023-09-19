@@ -1029,6 +1029,27 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
         ]
         self._validate_output(expected_content)
 
+    @authors("akozhikhov")
+    def test_indexed_format_in_operation(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table(
+            "//tmp/t",
+            sort_order="ascending",
+            chunk_format="table_versioned_indexed",
+            compression_codec="none")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+        )
+        assert read_table("//tmp/t_out") == rows
 
 ##################################################################
 
