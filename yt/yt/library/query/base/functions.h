@@ -39,32 +39,16 @@ public:
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
-        TType resultType)
-        : TypeParameterConstraints_(std::move(typeParameterConstraints))
-        , ArgumentTypes_(std::move(argumentTypes))
-        , RepeatedArgumentType_(repeatedArgumentType)
-        , ResultType_(resultType)
-    { }
+        TType resultType);
 
     TFunctionTypeInferrer(
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
-        TType resultType)
-        : TFunctionTypeInferrer(
-            std::move(typeParameterConstraints),
-            std::move(argumentTypes),
-            EValueType::Null,
-            resultType)
-    { }
+        TType resultType);
 
     TFunctionTypeInferrer(
         std::vector<TType> argumentTypes,
-        TType resultType)
-        : TFunctionTypeInferrer(
-            std::unordered_map<TTypeParameter, TUnionType>(),
-            std::move(argumentTypes),
-            resultType)
-    { }
+        TType resultType);
 
     int GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,
@@ -86,12 +70,7 @@ public:
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         TType argumentType,
         TType resultType,
-        TType stateType)
-        : TypeParameterConstraints_(std::move(typeParameterConstraints))
-        , ArgumentType_(argumentType)
-        , ResultType_(resultType)
-        , StateType_(stateType)
-    { }
+        TType stateType);
 
     void GetNormalizedConstraints(
         TTypeSet* constraint,
@@ -114,12 +93,7 @@ public:
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType stateType,
-        TType resultType)
-        : TypeParameterConstraints_(std::move(typeParameterConstraints))
-        , ArgumentTypes_(std::move(argumentTypes))
-        , StateType_(stateType)
-        , ResultType_(resultType)
-    { }
+        TType resultType);
 
     std::pair<int, int> GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,

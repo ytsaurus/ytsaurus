@@ -47,6 +47,403 @@ TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& columnType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TExpression::TExpression(NTableClient::TLogicalTypePtr type)
+    : LogicalType(std::move(type))
+{ }
+
+TExpression::TExpression(EValueType type)
+    : LogicalType(MakeLogicalType(GetLogicalType(type), false))
+{ }
+
+EValueType TExpression::GetWireType() const
+{
+    return NTableClient::GetWireType(LogicalType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLiteralExpression::TLiteralExpression(EValueType type)
+    : TExpression(type)
+{ }
+
+TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
+    : TExpression(type)
+    , Value(std::move(value))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
+    : TExpression(ToQLType(type))
+{ }
+
+TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, TString columnName)
+    : TExpression(ToQLType(type))
+    , ColumnName(std::move(columnName))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFunctionExpression::TFunctionExpression(EValueType type)
+    : TExpression(type)
+{ }
+
+TFunctionExpression::TFunctionExpression(
+    EValueType type,
+    TString functionName,
+    std::vector<TConstExpressionPtr> arguments)
+    : TExpression(type)
+    , FunctionName(std::move(functionName))
+    , Arguments(std::move(arguments))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAggregateFunctionExpression::TAggregateFunctionExpression(
+    const NTableClient::TLogicalTypePtr& type,
+    TString exprName,
+    std::vector<TConstExpressionPtr> arguments,
+    EValueType stateType,
+    EValueType resultType,
+    TString functionName)
+    : TReferenceExpression(type, std::move(exprName))
+    , Arguments(std::move(arguments))
+    , StateType(stateType)
+    , ResultType(resultType)
+    , FunctionName(std::move(functionName))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnaryOpExpression::TUnaryOpExpression(EValueType type)
+    : TExpression(type)
+{ }
+
+TUnaryOpExpression::TUnaryOpExpression(
+    EValueType type,
+    EUnaryOp opcode,
+    TConstExpressionPtr operand)
+    : TExpression(type)
+    , Opcode(opcode)
+    , Operand(operand)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBinaryOpExpression::TBinaryOpExpression(EValueType type)
+    : TExpression(type)
+{ }
+
+TBinaryOpExpression::TBinaryOpExpression(
+    EValueType type,
+    EBinaryOp opcode,
+    TConstExpressionPtr lhs,
+    TConstExpressionPtr rhs)
+    : TExpression(type)
+    , Opcode(opcode)
+    , Lhs(lhs)
+    , Rhs(rhs)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInExpression::TInExpression(EValueType type)
+    : TExpression(type)
+{
+    YT_VERIFY(type == EValueType::Boolean);
+}
+
+TInExpression::TInExpression(
+    std::vector<TConstExpressionPtr> arguments,
+    TSharedRange<TRow> values)
+    : TExpression(EValueType::Boolean)
+    , Arguments(std::move(arguments))
+    , Values(std::move(values))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBetweenExpression::TBetweenExpression(EValueType type)
+    : TExpression(type)
+{
+    YT_VERIFY(type == EValueType::Boolean);
+}
+
+TBetweenExpression::TBetweenExpression(
+    std::vector<TConstExpressionPtr> arguments,
+    TSharedRange<TRowRange> ranges)
+    : TExpression(EValueType::Boolean)
+    , Arguments(std::move(arguments))
+    , Ranges(std::move(ranges))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransformExpression::TTransformExpression(EValueType type)
+    : TExpression(type)
+{ }
+
+TTransformExpression::TTransformExpression(
+    EValueType type,
+    std::vector<TConstExpressionPtr> arguments,
+    TSharedRange<TRow> values,
+    TConstExpressionPtr defaultExpression)
+    : TExpression(type)
+    , Arguments(std::move(arguments))
+    , Values(std::move(values))
+    , DefaultExpression(std::move(defaultExpression))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNamedItem::TNamedItem(
+    TConstExpressionPtr expression,
+    TString name)
+    : Expression(std::move(expression))
+    , Name(std::move(name))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAggregateItem::TAggregateItem(
+    std::vector<TConstExpressionPtr> arguments,
+    TString aggregateFunction,
+    TString name,
+    EValueType stateType,
+    EValueType resultType)
+    : Arguments(std::move(arguments))
+    , Name(std::move(name))
+    , AggregateFunction(std::move(aggregateFunction))
+    , StateType(stateType)
+    , ResultType(resultType)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TColumnDescriptor> TMappedSchema::GetOrderedSchemaMapping() const
+{
+    auto orderedSchemaMapping = Mapping;
+    std::sort(orderedSchemaMapping.begin(), orderedSchemaMapping.end(),
+        [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
+            return lhs.Index < rhs.Index;
+        });
+    return orderedSchemaMapping;
+}
+
+TKeyColumns TMappedSchema::GetKeyColumns() const
+{
+    TKeyColumns result(Original->GetKeyColumnCount());
+    for (const auto& item : Mapping) {
+        if (item.Index < Original->GetKeyColumnCount()) {
+            result[item.Index] = item.Name;
+        }
+    }
+    return result;
+}
+
+TTableSchemaPtr TMappedSchema::GetRenamedSchema() const
+{
+    TSchemaColumns result;
+    for (const auto& item : GetOrderedSchemaMapping()) {
+        result.emplace_back(item.Name, Original->Columns()[item.Index].LogicalType());
+    }
+    return New<TTableSchema>(std::move(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableSchemaPtr TJoinClause::GetRenamedSchema() const
+{
+    return Schema.GetRenamedSchema();
+}
+
+TKeyColumns TJoinClause::GetKeyColumns() const
+{
+    return Schema.GetKeyColumns();
+}
+
+TTableSchemaPtr TJoinClause::GetTableSchema(const TTableSchema& source) const
+{
+    TSchemaColumns result;
+
+    auto selfColumnNames = SelfJoinedColumns;
+    std::sort(selfColumnNames.begin(), selfColumnNames.end());
+    for (const auto& column : source.Columns()) {
+        if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name())) {
+            result.push_back(column);
+        }
+    }
+
+    auto foreignColumnNames = ForeignJoinedColumns;
+    std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
+    auto renamedSchema = Schema.GetRenamedSchema();
+    for (const auto& column : renamedSchema->Columns()) {
+        if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
+            result.push_back(column);
+        }
+    }
+
+    return New<TTableSchema>(std::move(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGroupClause::AddGroupItem(TNamedItem namedItem)
+{
+    GroupItems.push_back(std::move(namedItem));
+}
+
+void TGroupClause::AddGroupItem(TConstExpressionPtr expression, TString name)
+{
+    AddGroupItem(TNamedItem(std::move(expression), std::move(name)));
+}
+
+TTableSchemaPtr TGroupClause::GetTableSchema(bool isFinal) const
+{
+    TSchemaColumns result;
+
+    for (const auto& item : GroupItems) {
+        result.emplace_back(item.Name, item.Expression->LogicalType);
+    }
+
+    for (const auto& item : AggregateItems) {
+        result.emplace_back(item.Name, isFinal ? item.ResultType : item.StateType);
+    }
+
+    return New<TTableSchema>(std::move(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProjectClause::AddProjection(TNamedItem namedItem)
+{
+    Projections.push_back(std::move(namedItem));
+}
+
+void TProjectClause::AddProjection(TConstExpressionPtr expression, TString name)
+{
+    AddProjection(TNamedItem(std::move(expression), std::move(name)));
+}
+
+TTableSchemaPtr TProjectClause::GetTableSchema() const
+{
+    TSchemaColumns result;
+
+    for (const auto& item : Projections) {
+        result.emplace_back(item.Name, item.Expression->LogicalType);
+    }
+
+    return New<TTableSchema>(std::move(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBaseQuery::TBaseQuery(TGuid id)
+    : Id(id)
+{ }
+
+TBaseQuery::TBaseQuery(const TBaseQuery& other)
+    : Id(TGuid::Create())
+    , IsFinal(other.IsFinal)
+    , GroupClause(other.GroupClause)
+    , HavingClause(other.HavingClause)
+    , OrderClause(other.OrderClause)
+    , ProjectClause(other.ProjectClause)
+    , Offset(other.Offset)
+    , Limit(other.Limit)
+    , UseDisjointGroupBy(other.UseDisjointGroupBy)
+    , InferRanges(other.InferRanges)
+{ }
+
+bool TBaseQuery::IsOrdered() const
+{
+    if (Limit < std::numeric_limits<i64>::max()) {
+        return !OrderClause;
+    } else {
+        YT_VERIFY(!OrderClause);
+        return false;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQuery::TQuery(TGuid id)
+    : TBaseQuery(id)
+{ }
+
+TKeyColumns TQuery::GetKeyColumns() const
+{
+    return Schema.GetKeyColumns();
+}
+
+TTableSchemaPtr TQuery::GetReadSchema() const
+{
+    TSchemaColumns result;
+
+    for (const auto& item : Schema.GetOrderedSchemaMapping()) {
+        result.emplace_back(
+            Schema.Original->Columns()[item.Index].Name(),
+            Schema.Original->Columns()[item.Index].LogicalType());
+    }
+
+    return New<TTableSchema>(std::move(result));
+}
+
+TTableSchemaPtr TQuery::GetRenamedSchema() const
+{
+    return Schema.GetRenamedSchema();
+}
+
+TTableSchemaPtr TQuery::GetTableSchema() const
+{
+    if (ProjectClause) {
+        return ProjectClause->GetTableSchema();
+    }
+
+    if (GroupClause) {
+        return GroupClause->GetTableSchema(IsFinal);
+    }
+
+    auto result = GetRenamedSchema();
+
+    for (const auto& joinClause : JoinClauses) {
+        result = joinClause->GetTableSchema(*result);
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFrontQuery::TFrontQuery(TGuid id)
+    : TBaseQuery(id)
+{ }
+
+TTableSchemaPtr TFrontQuery::GetReadSchema() const
+{
+    return Schema;
+}
+
+TTableSchemaPtr TFrontQuery::GetRenamedSchema() const
+{
+    return Schema;
+}
+
+TTableSchemaPtr TFrontQuery::GetTableSchema() const
+{
+    if (ProjectClause) {
+        return ProjectClause->GetTableSchema();
+    }
+
+    if (GroupClause) {
+        return GroupClause->GetTableSchema(IsFinal);
+    }
+
+    return Schema;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TExpressionPrinter
     : TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>
 {

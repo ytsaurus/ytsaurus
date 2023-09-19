@@ -53,18 +53,11 @@ struct TExpression
 {
     NTableClient::TLogicalTypePtr LogicalType;
 
-    explicit TExpression(NTableClient::TLogicalTypePtr type)
-        : LogicalType(std::move(type))
-    { }
+    explicit TExpression(NTableClient::TLogicalTypePtr type);
 
-    explicit TExpression(EValueType type)
-        : LogicalType(MakeLogicalType(GetLogicalType(type), false))
-    { }
+    explicit TExpression(EValueType type);
 
-    EValueType GetWireType() const
-    {
-        return NTableClient::GetWireType(LogicalType);
-    }
+    EValueType GetWireType() const;
 
     template <class TDerived>
     const TDerived* As() const
@@ -86,14 +79,9 @@ struct TLiteralExpression
 {
     TOwningValue Value;
 
-    explicit TLiteralExpression(EValueType type)
-        : TExpression(type)
-    { }
+    explicit TLiteralExpression(EValueType type);
 
-    TLiteralExpression(EValueType type, TOwningValue value)
-        : TExpression(type)
-        , Value(value)
-    { }
+    TLiteralExpression(EValueType type, TOwningValue value);
 };
 
 struct TReferenceExpression
@@ -101,14 +89,9 @@ struct TReferenceExpression
 {
     TString ColumnName;
 
-    explicit TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
-        : TExpression(ToQLType(type))
-    { }
+    explicit TReferenceExpression(const NTableClient::TLogicalTypePtr& type);
 
-    TReferenceExpression(const NTableClient::TLogicalTypePtr& type, TStringBuf columnName)
-        : TExpression(ToQLType(type))
-        , ColumnName(columnName)
-    { }
+    TReferenceExpression(const NTableClient::TLogicalTypePtr& type, TString columnName);
 };
 
 struct TFunctionExpression
@@ -117,18 +100,12 @@ struct TFunctionExpression
     TString FunctionName;
     std::vector<TConstExpressionPtr> Arguments;
 
-    explicit TFunctionExpression(EValueType type)
-        : TExpression(type)
-    { }
+    explicit TFunctionExpression(EValueType type);
 
     TFunctionExpression(
         EValueType type,
-        const TString& functionName,
-        const std::vector<TConstExpressionPtr>& arguments)
-        : TExpression(type)
-        , FunctionName(functionName)
-        , Arguments(arguments)
-    { }
+        TString functionName,
+        std::vector<TConstExpressionPtr> arguments);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
@@ -143,17 +120,11 @@ struct TAggregateFunctionExpression
 
     TAggregateFunctionExpression(
         const NTableClient::TLogicalTypePtr& type,
-        const TString& exprName,
-        const std::vector<TConstExpressionPtr>& arguments,
+        TString exprName,
+        std::vector<TConstExpressionPtr> arguments,
         EValueType stateType,
         EValueType resultType,
-        const TString& functionName)
-        : TReferenceExpression(type, exprName)
-        , Arguments(arguments)
-        , StateType(stateType)
-        , ResultType(resultType)
-        , FunctionName(functionName)
-    { }
+        TString functionName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAggregateFunctionExpression)
@@ -164,18 +135,12 @@ struct TUnaryOpExpression
     EUnaryOp Opcode;
     TConstExpressionPtr Operand;
 
-    explicit TUnaryOpExpression(EValueType type)
-        : TExpression(type)
-    { }
+    explicit TUnaryOpExpression(EValueType type);
 
     TUnaryOpExpression(
         EValueType type,
         EUnaryOp opcode,
-        TConstExpressionPtr operand)
-        : TExpression(type)
-        , Opcode(opcode)
-        , Operand(operand)
-    { }
+        TConstExpressionPtr operand);
 };
 
 struct TBinaryOpExpression
@@ -185,20 +150,13 @@ struct TBinaryOpExpression
     TConstExpressionPtr Lhs;
     TConstExpressionPtr Rhs;
 
-    explicit TBinaryOpExpression(EValueType type)
-        : TExpression(type)
-    { }
+    explicit TBinaryOpExpression(EValueType type);
 
     TBinaryOpExpression(
         EValueType type,
         EBinaryOp opcode,
         TConstExpressionPtr lhs,
-        TConstExpressionPtr rhs)
-        : TExpression(type)
-        , Opcode(opcode)
-        , Lhs(lhs)
-        , Rhs(rhs)
-    { }
+        TConstExpressionPtr rhs);
 };
 
 struct TExpressionRowsetTag
@@ -210,19 +168,11 @@ struct TInExpression
     std::vector<TConstExpressionPtr> Arguments;
     TSharedRange<TRow> Values;
 
-    explicit TInExpression(EValueType type)
-        : TExpression(type)
-    {
-        YT_VERIFY(type == EValueType::Boolean);
-    }
+    explicit TInExpression(EValueType type);
 
     TInExpression(
         std::vector<TConstExpressionPtr> arguments,
-        TSharedRange<TRow> values)
-        : TExpression(EValueType::Boolean)
-        , Arguments(std::move(arguments))
-        , Values(std::move(values))
-    { }
+        TSharedRange<TRow> values);
 };
 
 struct TBetweenExpression
@@ -231,19 +181,11 @@ struct TBetweenExpression
     std::vector<TConstExpressionPtr> Arguments;
     TSharedRange<TRowRange> Ranges;
 
-    explicit TBetweenExpression(EValueType type)
-        : TExpression(type)
-    {
-        YT_VERIFY(type == EValueType::Boolean);
-    }
+    explicit TBetweenExpression(EValueType type);
 
     TBetweenExpression(
         std::vector<TConstExpressionPtr> arguments,
-        TSharedRange<TRowRange> ranges)
-        : TExpression(EValueType::Boolean)
-        , Arguments(std::move(arguments))
-        , Ranges(std::move(ranges))
-    { }
+        TSharedRange<TRowRange> ranges);
 };
 
 struct TTransformExpression
@@ -253,20 +195,13 @@ struct TTransformExpression
     TSharedRange<TRow> Values;
     TConstExpressionPtr DefaultExpression;
 
-    explicit TTransformExpression(EValueType type)
-        : TExpression(type)
-    { }
+    explicit TTransformExpression(EValueType type);
 
     TTransformExpression(
         EValueType type,
         std::vector<TConstExpressionPtr> arguments,
         TSharedRange<TRow> values,
-        TConstExpressionPtr defaultExpression)
-        : TExpression(type)
-        , Arguments(std::move(arguments))
-        , Values(std::move(values))
-        , DefaultExpression(std::move(defaultExpression))
-    { }
+        TConstExpressionPtr defaultExpression);
 };
 
 void ThrowTypeMismatchError(
@@ -285,12 +220,7 @@ struct TNamedItem
 
     TNamedItem() = default;
 
-    TNamedItem(
-        TConstExpressionPtr expression,
-        const TString& name)
-        : Expression(expression)
-        , Name(name)
-    { }
+    TNamedItem(TConstExpressionPtr expression, TString name);
 };
 
 using TNamedItemList = std::vector<TNamedItem>;
@@ -307,16 +237,10 @@ struct TAggregateItem
 
     TAggregateItem(
         std::vector<TConstExpressionPtr> arguments,
-        const TString& aggregateFunction,
-        const TString& name,
+        TString aggregateFunction,
+        TString name,
         EValueType stateType,
-        EValueType resultType)
-        : Arguments(std::move(arguments))
-        , Name(name)
-        , AggregateFunction(aggregateFunction)
-        , StateType(stateType)
-        , ResultType(resultType)
-    { }
+        EValueType resultType);
 };
 
 using TAggregateItemList = std::vector<TAggregateItem>;
@@ -328,35 +252,11 @@ struct TMappedSchema
     TTableSchemaPtr Original;
     std::vector<TColumnDescriptor> Mapping;
 
-    std::vector<TColumnDescriptor> GetOrderedSchemaMapping() const
-    {
-        auto orderedSchemaMapping = Mapping;
-        std::sort(orderedSchemaMapping.begin(), orderedSchemaMapping.end(),
-            [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
-                return lhs.Index < rhs.Index;
-            });
-        return orderedSchemaMapping;
-    }
+    std::vector<TColumnDescriptor> GetOrderedSchemaMapping() const;
 
-    TKeyColumns GetKeyColumns() const
-    {
-        TKeyColumns result(Original->GetKeyColumnCount());
-        for (const auto& item : Mapping) {
-            if (item.Index < Original->GetKeyColumnCount()) {
-                result[item.Index] = item.Name;
-            }
-        }
-        return result;
-    }
+    TKeyColumns GetKeyColumns() const;
 
-    TTableSchemaPtr GetRenamedSchema() const
-    {
-        TSchemaColumns result;
-        for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, Original->Columns()[item.Index].LogicalType());
-        }
-        return New<TTableSchema>(std::move(result));
-    }
+    TTableSchemaPtr GetRenamedSchema() const;
 };
 
 struct TSelfEquation
@@ -387,39 +287,11 @@ struct TJoinClause
     //! See #TDataSource::CellId.
     NObjectClient::TCellId ForeignCellId;
 
-    TTableSchemaPtr GetRenamedSchema() const
-    {
-        return Schema.GetRenamedSchema();
-    }
+    TTableSchemaPtr GetRenamedSchema() const;
 
-    TKeyColumns GetKeyColumns() const
-    {
-        return Schema.GetKeyColumns();
-    }
+    TKeyColumns GetKeyColumns() const;
 
-    TTableSchemaPtr GetTableSchema(const TTableSchema& source) const
-    {
-        TSchemaColumns result;
-
-        auto selfColumnNames = SelfJoinedColumns;
-        std::sort(selfColumnNames.begin(), selfColumnNames.end());
-        for (const auto& column : source.Columns()) {
-            if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name())) {
-                result.push_back(column);
-            }
-        }
-
-        auto foreignColumnNames = ForeignJoinedColumns;
-        std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
-        auto renamedSchema = Schema.GetRenamedSchema();
-        for (const auto& column : renamedSchema->Columns()) {
-            if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
-                result.push_back(column);
-            }
-        }
-
-        return New<TTableSchema>(std::move(result));
-    }
+    TTableSchemaPtr GetTableSchema(const TTableSchema& source) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
@@ -432,30 +304,11 @@ struct TGroupClause
     ETotalsMode TotalsMode;
     size_t CommonPrefixWithPrimaryKey = 0;
 
-    void AddGroupItem(const TNamedItem& namedItem)
-    {
-        GroupItems.push_back(namedItem);
-    }
+    void AddGroupItem(TNamedItem namedItem);
 
-    void AddGroupItem(TConstExpressionPtr expression, TString name)
-    {
-        AddGroupItem(TNamedItem(expression, name));
-    }
+    void AddGroupItem(TConstExpressionPtr expression, TString name);
 
-    TTableSchemaPtr GetTableSchema(bool isFinal) const
-    {
-        TSchemaColumns result;
-
-        for (const auto& item : GroupItems) {
-            result.emplace_back(item.Name, item.Expression->LogicalType);
-        }
-
-        for (const auto& item : AggregateItems) {
-            result.emplace_back(item.Name, isFinal ? item.ResultType : item.StateType);
-        }
-
-        return New<TTableSchema>(std::move(result));
-    }
+    TTableSchemaPtr GetTableSchema(bool isFinal) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
@@ -479,26 +332,11 @@ struct TProjectClause
 {
     TNamedItemList Projections;
 
-    void AddProjection(const TNamedItem& namedItem)
-    {
-        Projections.push_back(namedItem);
-    }
+    void AddProjection(TNamedItem namedItem);
 
-    void AddProjection(TConstExpressionPtr expression, TString name)
-    {
-        AddProjection(TNamedItem(expression, name));
-    }
+    void AddProjection(TConstExpressionPtr expression, TString name);
 
-    TTableSchemaPtr GetTableSchema() const
-    {
-        TSchemaColumns result;
-
-        for (const auto& item : Projections) {
-            result.emplace_back(item.Name, item.Expression->LogicalType);
-        }
-
-        return New<TTableSchema>(std::move(result));
-    }
+    TTableSchemaPtr GetTableSchema() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProjectClause)
@@ -528,32 +366,11 @@ struct TBaseQuery
     bool UseDisjointGroupBy = false;
     bool InferRanges = true;
 
-    explicit TBaseQuery(TGuid id = TGuid::Create())
-        : Id(id)
-    { }
+    explicit TBaseQuery(TGuid id = TGuid::Create());
 
-    TBaseQuery(const TBaseQuery& other)
-        : Id(TGuid::Create())
-        , IsFinal(other.IsFinal)
-        , GroupClause(other.GroupClause)
-        , HavingClause(other.HavingClause)
-        , OrderClause(other.OrderClause)
-        , ProjectClause(other.ProjectClause)
-        , Offset(other.Offset)
-        , Limit(other.Limit)
-        , UseDisjointGroupBy(other.UseDisjointGroupBy)
-        , InferRanges(other.InferRanges)
-    { }
+    TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered() const
-    {
-        if (Limit < std::numeric_limits<i64>::max()) {
-            return !OrderClause;
-        } else {
-            YT_VERIFY(!OrderClause);
-            return false;
-        }
-    }
+    bool IsOrdered() const;
 
     virtual TTableSchemaPtr GetReadSchema() const = 0;
     virtual TTableSchemaPtr GetTableSchema() const = 0;
@@ -570,53 +387,17 @@ struct TQuery
     std::vector<TConstJoinClausePtr> JoinClauses;
     TConstExpressionPtr WhereClause;
 
-    explicit TQuery(TGuid id = TGuid::Create())
-        : TBaseQuery(id)
-    { }
+    explicit TQuery(TGuid id = TGuid::Create());
 
     TQuery(const TQuery& other) = default;
 
-    TKeyColumns GetKeyColumns() const
-    {
-        return Schema.GetKeyColumns();
-    }
+    TKeyColumns GetKeyColumns() const;
 
-    TTableSchemaPtr GetReadSchema() const override
-    {
-        TSchemaColumns result;
+    TTableSchemaPtr GetReadSchema() const override;
 
-        for (const auto& item : Schema.GetOrderedSchemaMapping()) {
-            result.emplace_back(
-                Schema.Original->Columns()[item.Index].Name(),
-                Schema.Original->Columns()[item.Index].LogicalType());
-        }
+    TTableSchemaPtr GetRenamedSchema() const;
 
-        return New<TTableSchema>(std::move(result));
-    }
-
-    TTableSchemaPtr GetRenamedSchema() const
-    {
-        return Schema.GetRenamedSchema();
-    }
-
-    TTableSchemaPtr GetTableSchema() const override
-    {
-        if (ProjectClause) {
-            return ProjectClause->GetTableSchema();
-        }
-
-        if (GroupClause) {
-            return GroupClause->GetTableSchema(IsFinal);
-        }
-
-        auto result = GetRenamedSchema();
-
-        for (const auto& joinClause : JoinClauses) {
-            result = joinClause->GetTableSchema(*result);
-        }
-
-        return result;
-    }
+    TTableSchemaPtr GetTableSchema() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
@@ -624,36 +405,17 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 struct TFrontQuery
     : public TBaseQuery
 {
-    explicit TFrontQuery(TGuid id = TGuid::Create())
-        : TBaseQuery(id)
-    { }
+    explicit TFrontQuery(TGuid id = TGuid::Create());
 
     TFrontQuery(const TFrontQuery& other) = default;
 
     TTableSchemaPtr Schema;
 
-    TTableSchemaPtr GetReadSchema() const override
-    {
-        return Schema;
-    }
+    TTableSchemaPtr GetReadSchema() const override;
 
-    TTableSchemaPtr GetRenamedSchema() const
-    {
-        return Schema;
-    }
+    TTableSchemaPtr GetRenamedSchema() const;
 
-    TTableSchemaPtr GetTableSchema() const override
-    {
-        if (ProjectClause) {
-            return ProjectClause->GetTableSchema();
-        }
-
-        if (GroupClause) {
-            return GroupClause->GetTableSchema(IsFinal);
-        }
-
-        return Schema;
-    }
+    TTableSchemaPtr GetTableSchema() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)

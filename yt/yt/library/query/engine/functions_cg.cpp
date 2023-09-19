@@ -792,7 +792,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 
             auto mergeType = this_->CallingConvention_->GetCalleeType(
                 builder,
-                std::vector<EValueType>{
+                std::vector{
                     stateType,
                     stateType},
                 stateType,
@@ -801,7 +801,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 
             auto finalizeType = this_->CallingConvention_->GetCalleeType(
                 builder,
-                std::vector<EValueType>{stateType},
+                std::vector{stateType},
                 resultType,
                 false);
             auto finalize = std::make_pair(finalizeName, finalizeType);

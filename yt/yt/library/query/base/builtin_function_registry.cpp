@@ -62,7 +62,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Int64,
             EValueType::Uint64,
             EValueType::Boolean,
-            EValueType::String
+            EValueType::String,
         },
         EValueType::Uint64,
         "farm_hash");
@@ -84,7 +84,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Boolean,
             EValueType::Double,
             EValueType::String,
-            EValueType::Any
+            EValueType::Any,
         },
         EValueType::Any,
         "make_map");
@@ -190,13 +190,14 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     const TTypeParameter typeParameter = 0;
     auto anyConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    anyConstraints[typeParameter] = std::vector<EValueType>{
+    anyConstraints[typeParameter] = {
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::Double,
         EValueType::String,
-        EValueType::Any};
+        EValueType::Any
+    };
 
     builder->RegisterAggregate(
         "first",
@@ -209,9 +210,10 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         true);
 
     auto xdeltaConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    xdeltaConstraints[typeParameter] = std::vector<EValueType>{
+    xdeltaConstraints[typeParameter] = {
         EValueType::Null,
-        EValueType::String};
+        EValueType::String,
+    };
     builder->RegisterAggregate(
         "xdelta",
         xdeltaConstraints,
@@ -233,12 +235,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "cardinality",
         std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector<EValueType>{
+        std::vector{
             EValueType::String,
             EValueType::Uint64,
             EValueType::Int64,
             EValueType::Double,
-            EValueType::Boolean},
+            EValueType::Boolean,
+        },
         EValueType::Uint64,
         EValueType::String,
         "hyperloglog",
@@ -256,7 +259,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "timestamp_floor_day",
         "timestamp_floor_week",
         "timestamp_floor_month",
-        "timestamp_floor_year"};
+        "timestamp_floor_year"
+    };
 
     for (const auto& name : timestampFloorFunctions) {
         builder->RegisterFunction(
@@ -286,7 +290,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         {"try_get_string", EValueType::String},
         {"get_string", EValueType::String},
         {"try_get_any", EValueType::Any},
-        {"get_any", EValueType::Any}};
+        {"get_any", EValueType::Any},
+    };
 
     for (const auto& fns : ypathGetFunctions) {
         auto&& name = fns.first;
@@ -309,7 +314,9 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
                 EValueType::Double,
                 EValueType::Boolean,
                 EValueType::Any,
-                EValueType::Composite}},
+                EValueType::Composite,
+            },
+        },
         EValueType::Any,
         "to_any",
         ECallingConvention::UnversionedValue);
@@ -324,7 +331,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
                 EValueType::Double,
                 EValueType::Boolean,
                 EValueType::String,
-            }},
+            },
+        },
         EValueType::Boolean,
         "list_contains",
         ECallingConvention::UnversionedValue);

@@ -6,6 +6,37 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFunctionTypeInferrer::TFunctionTypeInferrer(
+    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgumentType,
+    TType resultType)
+    : TypeParameterConstraints_(std::move(typeParameterConstraints))
+    , ArgumentTypes_(std::move(argumentTypes))
+    , RepeatedArgumentType_(repeatedArgumentType)
+    , ResultType_(resultType)
+{ }
+
+TFunctionTypeInferrer::TFunctionTypeInferrer(
+    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
+    std::vector<TType> argumentTypes,
+    TType resultType)
+    : TFunctionTypeInferrer(
+        std::move(typeParameterConstraints),
+        std::move(argumentTypes),
+        EValueType::Null,
+        resultType)
+{ }
+
+TFunctionTypeInferrer::TFunctionTypeInferrer(
+    std::vector<TType> argumentTypes,
+    TType resultType)
+    : TFunctionTypeInferrer(
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        std::move(argumentTypes),
+        resultType)
+{ }
+
 int TFunctionTypeInferrer::GetNormalizedConstraints(
     std::vector<TTypeSet>* typeConstraints,
     std::vector<int>* formalArguments,
@@ -30,7 +61,8 @@ int TFunctionTypeInferrer::GetNormalizedConstraints(
                             EValueType::Double,
                             EValueType::Boolean,
                             EValueType::String,
-                            EValueType::Any}));
+                            EValueType::Any,
+                        }));
                     } else {
                         typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
                     }
@@ -64,6 +96,17 @@ int TFunctionTypeInferrer::GetNormalizedConstraints(
 
     return getIndex(ResultType_);
 }
+
+TAggregateTypeInferrer::TAggregateTypeInferrer(
+    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
+    TType argumentType,
+    TType resultType,
+    TType stateType)
+    : TypeParameterConstraints_(std::move(typeParameterConstraints))
+    , ArgumentType_(argumentType)
+    , ResultType_(resultType)
+    , StateType_(stateType)
+{ }
 
 void TAggregateTypeInferrer::GetNormalizedConstraints(
     TTypeSet* constraint,
@@ -113,6 +156,17 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
         });
 }
 
+TAggregateFunctionTypeInferrer::TAggregateFunctionTypeInferrer(
+    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
+    std::vector<TType> argumentTypes,
+    TType stateType,
+    TType resultType)
+    : TypeParameterConstraints_(std::move(typeParameterConstraints))
+    , ArgumentTypes_(std::move(argumentTypes))
+    , StateType_(stateType)
+    , ResultType_(resultType)
+{ }
+
 std::pair<int, int> TAggregateFunctionTypeInferrer::GetNormalizedConstraints(
     std::vector<TTypeSet>* typeConstraints,
     std::vector<int>* argumentConstraintIndexes) const
@@ -140,7 +194,8 @@ std::pair<int, int> TAggregateFunctionTypeInferrer::GetNormalizedConstraints(
                             EValueType::Double,
                             EValueType::Boolean,
                             EValueType::String,
-                            EValueType::Any}));
+                            EValueType::Any,
+                        }));
                     } else {
                         typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
                     }

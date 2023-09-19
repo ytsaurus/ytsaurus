@@ -121,11 +121,11 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
     const TTypeParameter castable = 1;
     auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    castConstraints[castable] = std::vector<EValueType>{
+    castConstraints[castable] = {
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double,
-        EValueType::Any
+        EValueType::Any,
     };
 
     result->emplace("int64", New<TFunctionTypeInferrer>(
@@ -169,7 +169,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Boolean,
         EValueType::String,
         EValueType::Composite,
-        EValueType::Any
+        EValueType::Any,
     };
     result->emplace("coalesce", New<TFunctionTypeInferrer>(
         coalesceConstraints,
@@ -179,10 +179,10 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
     const TTypeParameter summable = 3;
     auto sumConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    sumConstraints[summable] = std::vector<EValueType>{
+    sumConstraints[summable] = {
         EValueType::Int64,
         EValueType::Uint64,
-        EValueType::Double
+        EValueType::Double,
     };
 
     result->emplace("sum", New<TAggregateTypeInferrer>(
@@ -193,12 +193,12 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
     const TTypeParameter comparable = 4;
     auto minMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    minMaxConstraints[comparable] = std::vector<EValueType>{
+    minMaxConstraints[comparable] = {
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::Double,
-        EValueType::String
+        EValueType::String,
     };
     for (const auto& name : {"min", "max"}) {
         result->emplace(name, New<TAggregateTypeInferrer>(
@@ -209,12 +209,12 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     }
 
     auto argMinMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    argMinMaxConstraints[comparable] = std::vector<EValueType>{
+    argMinMaxConstraints[comparable] = {
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::Double,
-        EValueType::String
+        EValueType::String,
     };
     for (const auto& name : {"argmin", "argmax"}) {
         result->emplace(name, New<TAggregateFunctionTypeInferrer>(

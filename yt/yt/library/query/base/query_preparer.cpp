@@ -923,7 +923,7 @@ std::vector<EValueType> RefineFunctionTypes(
     (*genericAssignments)[formalResultType] = TTypeSet({resultType});
 
     std::vector<EValueType> genericAssignmentsMin;
-    for (auto& constraint : *genericAssignments) {
+    for (const auto& constraint : *genericAssignments) {
         genericAssignmentsMin.push_back(GetFrontWithCheck(constraint, source));
     }
 
