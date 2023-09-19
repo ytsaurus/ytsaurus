@@ -507,6 +507,13 @@ public:
                 outputs.emplace_back(std::move(output));
             }
 
+            auto stateStream = std::make_unique<TFileOutput>(Duplicate(GetOutputFD(0)));
+            auto stateYsonWriter = std::make_unique<::NYson::TYsonWriter>(
+                stateStream.get(),
+                ::NYson::EYsonFormat::Binary,
+                ::NYson::EYsonType::ListFragment
+            );
+
             statefulParDo->Start(executionContext, rawStateStore, outputs);
 
             for (auto rangesReader = CreateRangesTableReader(&Cin); rangesReader->IsValid(); rangesReader->Next()) {
@@ -538,9 +545,10 @@ public:
                 Y_VERIFY(IsDefined(keyVtable));
                 Y_VERIFY(values[0].size() <= 1);
 
+                TRawRowHolder stateTKV = values[0].empty()? TRawRowHolder(inRowVtables[0]) : std::move(values[0][0]);
                 TRawRowHolder state = values[0].empty()?
                     stateVtable.StateFromKey(keyHolder.GetData())
-                    : stateVtable.StateFromTKV(std::move(values[0][0].GetData()));
+                    : stateVtable.StateFromTKV(stateTKV.GetData());
                 values.pop_front();
 
                 rawStateStore->SetState(state);
@@ -548,7 +556,7 @@ public:
                     statefulParDo->Do(rawRowHolder.GetData(), 1);
                 }
 
-                // TODO: write State to output
+                stateVtable.SaveState(*stateYsonWriter, state.GetData(), stateTKV.GetData());
 
                 for (const auto& output : outputs) {
                     output->Close();
@@ -556,6 +564,10 @@ public:
             }
 
             statefulParDo->Finish();
+
+            stateYsonWriter.reset();
+            stateStream->Finish();
+            stateStream.reset();
         } catch (...) {
             Cerr << "Error in TStatefulKvReduce" << Endl;
             Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;

@@ -3,6 +3,12 @@
 #include <yt/cpp/roren/interface/type_tag.h>
 #include <yt/cpp/roren/interface/private/raw_pipeline.h>
 #include <util/generic/fwd.h>
+#include <tuple>
+#include <concepts>
+#include <optional>
+
+template <typename T>
+concept is_optional = std::same_as<T, std::optional<typename T::value_type>>;
 
 namespace NRoren {
 
@@ -14,9 +20,9 @@ struct TYtStateVtable
     template <class TState>
     using TStateTKV = TKV<typename TState::TKey, typename TState::TValue>;
     using TLoadState = void (*)(TRawRowHolder& row, const NYT::TNode&);  // NYT::TNode->TStateTKV
-    using TSaveState = void*; // TState -> Cout
+    using TSaveState = void (*)(::NYson::TYsonWriter& writer, void* rawState, const void* rawTKV); // TState -> Cout
     using TStateFromKey = TRawRowHolder (*)(const void* rawKey); // TState::TKey -> TState
-    using TStateFromTKV = TRawRowHolder (*)(void* rawTKV); // TVK<TState::TKey, TState::TValue> -> TState
+    using TStateFromTKV = TRawRowHolder (*)(const void* rawTKV); // TVK<TState::TKey, TState::TValue> -> TState
 
     TRowVtable StateTKVvtable;
     TLoadState LoadState = nullptr;
@@ -45,38 +51,127 @@ inline TStringBuf Name(const T& column) {
 }
 
 template <class TColumnNames, class T>
-inline void Unpack(T& dst, size_t i, const TColumnNames& columns, NYT::TNode node)
+inline void LoadStateItem(T& dst, size_t i, const TColumnNames& columns, NYT::TNode node)
 {
-    if constexpr (std::is_same_v<std::optional<typename T::value_type>, T>) {
-        dst = node[Name(columns[i])].template As<typename T::value_type>();
+    auto column = Name(columns[i]);
+    if (!node.HasKey(column)) {
+        return;
+    }
+    const auto& data = node[column];
+    if (data.IsNull()) {
+        return;
+    }
+
+    if constexpr (is_optional<T>) {
+        dst = data.template As<typename T::value_type>();
     } else {
-        dst = node[Name(columns[i])].template As<T>();
+        dst = data.template As<T>();
     }
 }
 
-template <class TColumnNames, class TValuesPack>
-inline void Unpack(TValuesPack& vp, const TColumnNames& columns, NYT::TNode node)
+template <class TColumnNames, class TItemsPack>
+inline void LoadState(TItemsPack& vp, const TColumnNames& columns, NYT::TNode node)
 {
     auto f = [&] (auto& ... v) {
         size_t i = 0;
-        (Unpack(v, i++, columns, node), ...);
+        (LoadStateItem(v, i++, columns, node), ...);
     };
     std::apply(f, vp);
 }
 
 
 template <class TState>
-void StateLoader(TRawRowHolder& row, const NYT::TNode& node)
+void LoadStateEntry(TRawRowHolder& row, const NYT::TNode& node)
 {
-    Unpack(*static_cast<typename TState::TKey*>(row.GetKeyOfKV()), TState::Schema().KeyColumns, node);
-    Unpack(*static_cast<typename TState::TValue*>(row.GetValueOfKV()), TState::Schema().ValueColumns, node);
+    LoadState(*static_cast<typename TState::TKey*>(row.GetKeyOfKV()), TState::Schema().KeyColumns, node);
+    LoadState(*static_cast<typename TState::TValue*>(row.GetValueOfKV()), TState::Schema().ValueColumns, node);
 }
 
+template <typename T>
+void unsupported_type(const T&) = delete;
+
+template <class TColumnNames, class T>
+inline void SaveStateItem(::NYson::TYsonWriter& writer, const T& item, size_t i, const TColumnNames& columns)
+{
+    if constexpr (is_optional<T>) {
+        if (item) {
+            SaveStateItem(writer, item.value(), i, columns);
+        }
+    } else {
+        const auto& columnName = Name(columns[i]);
+        writer.OnKeyedItem(columnName);
+        if constexpr (std::is_same_v<T, bool>) {
+            writer.OnBooleanScalar(item);
+        } else if constexpr (std::is_same_v<T, TString> || std::is_same_v<T, TStringBuf>) {
+            writer.OnStringScalar(item);
+        } else if constexpr (std::is_same_v<T, i64>) {
+            writer.OnInt64Scalar(item);
+        } else if constexpr (std::is_same_v<T, ui64>) {
+            writer.OnUint64Scalar(item);
+        } else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+            writer.OnDoubleScalar(item);
+        } else {
+            unsupported_type(item);
+        }
+    }
+}
+
+template <class TColumnNames, class TItemsPack>
+inline void SaveState(::NYson::TYsonWriter& writer, const TColumnNames& columns, const TItemsPack& ip)
+{
+    auto f = [&] (auto& ... item) {
+        size_t i = 0;
+        (SaveStateItem(writer, item, i++, columns), ...);
+    };
+    std::apply(f, ip);
+}
+
+template <class T>
+inline void UpdateValue(T& value, const std::optional<T>& update)
+{
+    if (update) {
+        value = update.value();
+    }
+}
+
+template <typename TValues, typename TMutationValues, std::size_t... I>
+inline void UpdateValues(TValues& result, const TMutationValues& update, std::index_sequence<I...>)
+{
+    (UpdateValue(std::get<I>(result), std::get<I>(update)), ...);
+}
+
+template <typename TValues, typename TMutationValues>
+inline void UpdateValues(TValues& result, const TMutationValues& update)
+{
+    auto seq = std::make_index_sequence<std::tuple_size_v<TValues>>{};
+    UpdateValues(result, update, seq);
+}
+
+template <class TState>
+inline void SaveStateEntry(::NYson::TYsonWriter& writer, void* rawState, const void* rawTKV)
+{
+    const auto* tkv = reinterpret_cast<const TYtStateVtable::TStateTKV<TState>*>(rawTKV);
+    TState* state = static_cast<TState*>(rawState);
+
+    auto mutation = state->Flush();
+    if (mutation.IsClearing) {
+        return;
+    }
+
+    typename TState::TValue values = tkv->Value();
+    UpdateValues(values, mutation.Value);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+    SaveState(writer, TState::Schema().KeyColumns, state->GetKey());
+    SaveState(writer, TState::Schema().ValueColumns, values);
+    writer.OnEndMap();
+}
 
 template <class TState>
 TRawRowHolder StateFromKey(const void* rawKey)
 {
-    auto* key = reinterpret_cast<const typename TState::TKey*>(rawKey);
+    const auto* key = reinterpret_cast<const typename TState::TKey*>(rawKey);
     TRawRowHolder result(MakeRowVtable<TState>());
     TState& state = *reinterpret_cast<TState*>(result.GetData());
     state = TState(*key);
@@ -84,12 +179,12 @@ TRawRowHolder StateFromKey(const void* rawKey)
 }
 
 template <class TState>
-TRawRowHolder StateFromTVK(void* rawTKV)
+TRawRowHolder StateFromTVK(const void* rawTKV)
 {
-    auto* tkv = reinterpret_cast<TYtStateVtable::TStateTKV<TState>*>(rawTKV);
+    const auto* tkv = reinterpret_cast<const TYtStateVtable::TStateTKV<TState>*>(rawTKV);
     TRawRowHolder result(MakeRowVtable<TState>());
     TState& state = *reinterpret_cast<TState*>(result.GetData());
-    state = TState(std::move(tkv->Key()), std::move(tkv->Value()));
+    state = TState(tkv->Key(), typename TState::TValue(tkv->Value()));
     return result;
 }
 
@@ -104,7 +199,8 @@ TPState<typename TState::TKey, TState> MakeYtProfilePState(const TPipeline& YtPi
     using NPrivate::TRawRowHolder;
     using NPrivate::MakeRowVtable;
     using NPrivate::TYtStateVtable;
-    using NPrivate::StateLoader;
+    using NPrivate::LoadStateEntry;
+    using NPrivate::SaveStateEntry;
     using NPrivate::StateFromKey;
     using NPrivate::StateFromTVK;
 
@@ -117,8 +213,8 @@ TPState<typename TState::TKey, TState> MakeYtProfilePState(const TPipeline& YtPi
 
     NPrivate::TYtStateVtable stateVtable;
     stateVtable.StateTKVvtable = MakeRowVtable<TYtStateVtable::TStateTKV<TState>>();
-    stateVtable.LoadState = &StateLoader<TState>;
-    //stateVtable.SaveState =
+    stateVtable.LoadState = &LoadStateEntry<TState>;
+    stateVtable.SaveState = &SaveStateEntry<TState>;
     stateVtable.StateFromKey = &StateFromKey<TState>;
     stateVtable.StateFromTKV = &StateFromTVK<TState>;
     NPrivate::SetAttribute(*rawPState, NPrivate::YtStateVtableTag, std::move(stateVtable));
