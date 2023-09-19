@@ -7,6 +7,7 @@ namespace NYT {
 void TSerializableExponentialBackoffOptions::Register(TRegistrar registrar)
 {
     registrar.BaseClassParameter("invocation_count", &TThis::InvocationCount)
+        .Alias("retry_count")
         .Default(DefaultInvocationCount);
     registrar.BaseClassParameter("min_backoff", &TThis::MinBackoff)
         .Default(DefaultMinBackoff);
@@ -22,7 +23,8 @@ void TSerializableExponentialBackoffOptions::Register(TRegistrar registrar)
 
 void TSerializableConstantBackoffOptions::Register(TRegistrar registrar)
 {
-    registrar.BaseClassParameter("retry_count", &TThis::InvocationCount)
+    registrar.BaseClassParameter("invocation_count", &TThis::InvocationCount)
+        .Alias("retry_count")
         .Default(DefaultInvocationCount);
     registrar.BaseClassParameter("backoff", &TThis::Backoff)
         .Default(DefaultBackoff);
