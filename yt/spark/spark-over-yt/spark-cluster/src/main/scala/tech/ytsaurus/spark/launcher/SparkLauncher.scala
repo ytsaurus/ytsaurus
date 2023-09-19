@@ -63,9 +63,32 @@ trait SparkLauncher {
     Files.copy(preparedConfPath, dst)
   }
 
+  private def isIpv6PreferenceEnabled: Boolean = sys.env.get("SPARK_YT_IPV6_PREFERENCE_ENABLED").exists(_.toBoolean)
+
+  private def getLivyClientSparkConf(): Seq[String] = {
+    if (isIpv6PreferenceEnabled) {
+      Seq(
+        "spark.driver.extraJavaOptions = -Djava.net.preferIPv6Addresses=true",
+        "spark.executor.extraJavaOptions = -Djava.net.preferIPv6Addresses=true"
+      )
+    } else {
+      Seq()
+    }
+  }
+
+  def prepareLivyClientConf(): Unit = {
+    val src = Path.of(home, "livy-client.template.conf")
+    val preparedConfPath = createFromTemplate(src.toFile) { content =>
+      content
+        .replaceAll("\\$EXTRA_SPARK_CONF", getLivyClientSparkConf().mkString("\n"))
+    }.toPath
+    val dst = Path.of(livyHome, "conf", "livy-client.conf")
+
+    Files.copy(preparedConfPath, dst)
+  }
+
   private def configureJavaOptions(): Seq[String] = {
-    val ipv6PreferenceEnabled = sys.env.get("SPARK_YT_IPV6_PREFERENCE_ENABLED").exists(_.toBoolean)
-    if (ipv6PreferenceEnabled) {
+    if (isIpv6PreferenceEnabled) {
       Seq("-Djava.net.preferIPv6Addresses=true")
     } else {
       Seq()

@@ -23,6 +23,7 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
     val address = HostAndPort(ytHostnameOrIpAddress, port)
     log.info(f"Server will started on address $address")
     prepareLivyConf(address, masterAddress, maxSessions)
+    prepareLivyClientConf()
 
     withService(startLivyServer(address)) { livyServer =>
       discoveryService.registerLivy(address)
