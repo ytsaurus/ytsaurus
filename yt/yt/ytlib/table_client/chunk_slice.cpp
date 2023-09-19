@@ -62,6 +62,7 @@ public:
             case EChunkFormat::TableUnversionedColumnar:
             case EChunkFormat::TableVersionedSimple:
             case EChunkFormat::TableVersionedSlim:
+            case EChunkFormat::TableVersionedIndexed:
             case EChunkFormat::TableVersionedColumnar:
                 break;
             default:
@@ -421,6 +422,7 @@ i64 GetChunkSliceDataWeight(
         case EChunkFormat::TableUnversionedColumnar:
         case EChunkFormat::TableVersionedSimple:
         case EChunkFormat::TableVersionedSlim:
+        case EChunkFormat::TableVersionedIndexed:
         case EChunkFormat::TableVersionedColumnar:
             break;
         default:
