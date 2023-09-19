@@ -106,7 +106,7 @@ TNode TGenerateRandomRowMapper::Generate(TCallState* state) const
         }
         case NProto::EColumnType::ELatinString100: {
             TString result;
-            std::uniform_int_distribution<char> distribution('a', 'z');
+            std::uniform_int_distribution<int> distribution('a', 'z');
             for (int i = 0; i < 100; i++) {
                 result += distribution(*state->RandomEngine);
             }
@@ -116,7 +116,7 @@ TNode TGenerateRandomRowMapper::Generate(TCallState* state) const
             TString result;
             const int size = 64 << 10;
             result.reserve(size);
-            std::uniform_int_distribution<char> distribution;
+            std::uniform_int_distribution<int> distribution;
             for (int i = 0; i < size; i++) {
                 result += distribution(*state->RandomEngine);
             }
