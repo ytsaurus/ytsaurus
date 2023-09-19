@@ -908,7 +908,9 @@ protected:
                 }
             }
 
-            // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
+            // NB: this should be done not only in OnTaskCompleted:
+            // 1) jobs may run after the task has been completed;
+            // 2) ShuffleStartThreshold can be less than one.
             // Kick-start sort and unordered merge tasks.
             Controller_->CheckSortStartThreshold();
             Controller_->CheckMergeStartThreshold();
@@ -1006,11 +1008,6 @@ protected:
 
                 Controller_->AssignPartitions();
 
-                // NB: this is required at least to mark tasks completed, when there are no pending jobs.
-                // This couldn't have been done earlier since we've just finished populating shuffle pool.
-                Controller_->CheckSortStartThreshold();
-                Controller_->CheckMergeStartThreshold();
-
                 {
                     int twoPhasePartitionCount = 0;
                     int threePhasePartitionCount = 0;
@@ -1029,6 +1026,11 @@ protected:
                         threePhasePartitionCount);
                 }
             }
+
+            // NB: this is required at least to mark tasks completed, when there are no pending jobs.
+            // This couldn't have been done earlier since we've just finished populating shuffle pool.
+            Controller_->CheckSortStartThreshold();
+            Controller_->CheckMergeStartThreshold();
         }
 
         TJobSplitterConfigPtr GetJobSplitterConfig() const override
