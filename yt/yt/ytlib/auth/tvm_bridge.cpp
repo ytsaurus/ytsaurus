@@ -137,8 +137,8 @@ private:
             YT_LOG_INFO("Fetching missing service tickets (ServiceIds: %v, Count: %v, AttemptIndex: %v/%v)",
                 MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount),
                 serviceIds.size(),
-                backoff.GetRetryIndex(),
-                backoff.GetRetryCount());
+                backoff.GetInvocationIndex(),
+                backoff.GetInvocationCount());
 
             auto req = Proxy_.FetchTickets();
             req->set_source(Config_->SelfTvmId);

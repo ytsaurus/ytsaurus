@@ -49,7 +49,7 @@ void TTvmBridgeConfig::Register(TRegistrar registrar)
     registrar.Preprocessor([] (TThis* config) {
         config->EnsureTicketsBackoff->MinBackoff = TDuration::Seconds(1);
         config->EnsureTicketsBackoff->MaxBackoff = TDuration::Seconds(5);
-        config->EnsureTicketsBackoff->RetryCount = 20;
+        config->EnsureTicketsBackoff->InvocationCount = 20;
     });
 }
 
