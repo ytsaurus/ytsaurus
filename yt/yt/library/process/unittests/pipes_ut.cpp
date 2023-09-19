@@ -281,7 +281,7 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
 
     BIND([&] () {
         auto dice = std::bind(
-            std::uniform_int_distribution<char>(0, 127),
+            std::uniform_int_distribution<int>(0, 127),
             std::default_random_engine());
         for (size_t i = 0; i < data.size(); ++i) {
             data[i] = dice();
