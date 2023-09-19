@@ -133,7 +133,7 @@ std::vector<TString> GetRandomData(std::mt19937& gen, int blocksCount, int block
 {
     std::vector<TString> result;
     result.reserve(blocksCount);
-    std::uniform_int_distribution<char> dist('a', 'z');
+    std::uniform_int_distribution<int> dist('a', 'z');
     for (int i = 0; i < blocksCount; ++i) {
         TString curData;
         curData.resize(blockSize);
