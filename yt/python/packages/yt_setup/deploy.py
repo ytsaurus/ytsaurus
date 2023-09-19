@@ -191,7 +191,7 @@ def deploy_package(package, package_type, python_binary, debian_dist_user=None, 
 
     if package_type in ("debian", "all"):
         logging.info("Deploying {}:debian...".format(package))
-        ok = deploy_debian_package(package, version, version_branch, repos=repos)
+        ok = deploy_debian_package(package, version, version_branch, debian_dist_user=debian_dist_user, repos=repos)
         logging.info("Deployment of {}:debian {}".format(package, "OK" if ok else "FAILED"))
 
     if package_type in ("pypi", "all"):
