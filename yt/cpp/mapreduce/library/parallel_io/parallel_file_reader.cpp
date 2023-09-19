@@ -157,6 +157,10 @@ TParallelFileReader::~TParallelFileReader()
 void TParallelFileReader::SupervisorJob() noexcept
 {
     Y_VERIFY(FileSize_);
+    if (FileSize_.value() == 0) {
+        Batches_.Stop();
+        return;
+    }
     TSplitter splitter(
         FileSize_.value(),
         Options_.BatchSize_,
