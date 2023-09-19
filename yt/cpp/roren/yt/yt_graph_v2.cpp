@@ -337,7 +337,12 @@ public:
 
     NYT::TRichYPath GetPath() const override
     {
-        return RawYtWrite_->GetPath();
+        auto path = RawYtWrite_->GetPath();
+        path.Schema(RawYtWrite_->GetSchema());
+        if (!path.OptimizeFor_.Defined()) {
+            path.OptimizeFor_ = NYT::EOptimizeForAttr::OF_SCAN_ATTR;
+        }
+        return path;
     }
 
     const NYT::TTableSchema& GetSchema() const
