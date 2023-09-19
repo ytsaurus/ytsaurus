@@ -95,6 +95,8 @@ struct TBundleSensors final
 
     TTimeGauge ProxyAllocationRequestAge;
     TTimeGauge ProxyDeallocationRequestAge;
+
+    THashMap<TString, TGauge> AssignedBundleNodesPerDC;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -631,11 +633,18 @@ private:
         }
 
         for (const auto& [bundleName, dataCenterNodes] : input.BundleNodes) {
+            auto sensors = GetBundleSensors(bundleName);
+
+            THashMap<TString, int> assignedNodesByDC;
+            for (const auto& [dataCenter, _] : sensors->AssignedBundleNodesPerDC) {
+                assignedNodesByDC[dataCenter] = 0;
+            }
+
             int offlineNodeCount = 0;
             int decommissionedNodeCount = 0;
             int maintenanceRequestedNodeCount = 0;
 
-            for (const auto& [_, nodes] : dataCenterNodes) {
+            for (const auto& [dataCenter, nodes] : dataCenterNodes) {
                 for (const auto& nodeName : nodes) {
                     const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
@@ -653,13 +662,24 @@ private:
                         ++decommissionedNodeCount;
                         continue;
                     }
-                }
 
+                    if (!nodeInfo->UserTags.empty()) {
+                        ++assignedNodesByDC[dataCenter];
+                    }
+                }
             }
-            auto sensors = GetBundleSensors(bundleName);
             sensors->OfflineNodeCount.Update(offlineNodeCount);
             sensors->MaintenanceRequestedNodeCount.Update(maintenanceRequestedNodeCount);
             sensors->DecommissionedNodeCount.Update(decommissionedNodeCount);
+
+            for (const auto& [dataCenter, nodeCount] : assignedNodesByDC) {
+                auto it = sensors->AssignedBundleNodesPerDC.find(dataCenter);
+                if (it == sensors->AssignedBundleNodesPerDC.end()) {
+                    auto gauge = sensors->Profiler.WithTag("data_center", dataCenter).Gauge("/assigned_bundle_nodes");
+                    it = sensors->AssignedBundleNodesPerDC.insert(make_pair(dataCenter, gauge)).first;
+                }
+                it->second.Update(nodeCount);
+            }
         }
 
         for (const auto& [bundleName, dataCenterProxies] : input.BundleProxies) {
