@@ -4662,7 +4662,7 @@ bool TOperationControllerBase::IsTreeProbing(const TString& treeId) const
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Probing;
 }
 
-bool TOperationControllerBase::IsIdleCpuPolicyAllowedIn(const TString& treeId) const
+bool TOperationControllerBase::IsIdleCpuPolicyAllowedInTree(const TString& treeId) const
 {
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).AllowIdleCpuPolicy;
 }
