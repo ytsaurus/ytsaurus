@@ -28,14 +28,17 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicSecurityManagerConfig
+class  TDynamicSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
     TDuration AccountStatisticsGossipPeriod;
+    TDuration AccountsProfilingPeriod;
     TDuration RequestRateSmoothingPeriod;
     TDuration AccountMasterMemoryUsageUpdatePeriod;
 
+    // COMPAT(vovamelnikov)
+    bool EnableAccountsProfiling;
     bool EnableDelayedMembershipClosureRecomputation;
     bool EnableAccessLog;
     TDuration MembershipClosureRecomputePeriod;

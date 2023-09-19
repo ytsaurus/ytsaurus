@@ -527,6 +527,134 @@ public:
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND_NO_PROPAGATE(&TSecurityManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
+
+        BufferedProducer_ = New<TBufferedProducer>();
+        BufferedProducer_->SetEnabled(false);
+        AccountProfiler
+            .WithGlobal()
+            .WithDefaultDisabled()
+            .AddProducer("", BufferedProducer_);
+    }
+
+    void OnAccountsProfiling()
+    {
+        if (!Bootstrap_->IsPrimaryMaster()) {
+            return;
+        }
+        if (!IsLeader()) {
+            return;
+        }
+        TSensorBuffer buffer;
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        for (auto [accountId, account] : Accounts()) {
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+            TWithTagGuard accountTag(&buffer, "account", account->GetName());
+
+            const auto& statistics = account->ClusterStatistics();
+            buffer.AddGauge("/node_count", statistics.CommittedResourceUsage.GetNodeCount());
+            buffer.AddGauge("/total_node_count", statistics.ResourceUsage.GetNodeCount());
+            buffer.AddGauge("/chunk_count", statistics.ResourceUsage.GetChunkCount());
+
+            auto profileDetailed = [&] (double usage, double commitedUsage, TString name)  {
+                {
+                    TWithTagGuard guard(&buffer, "status", "commited");
+                    buffer.AddGauge(name, commitedUsage);
+                }
+                {
+                    TWithTagGuard guard(&buffer, "status", "uncommited");
+                    buffer.AddGauge(name, std::max(0., double(usage - commitedUsage)));
+                }
+            };
+
+            profileDetailed(
+                statistics.ResourceUsage.GetNodeCount(),
+                statistics.CommittedResourceUsage.GetNodeCount(),
+                "/detailed_node_count");
+            profileDetailed(
+                statistics.ResourceUsage.GetChunkCount(),
+                statistics.CommittedResourceUsage.GetChunkCount(),
+                "/detailed_chunk_count");
+
+            TCompactVector<int, 4> additionalMediumIndexes;
+            for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
+                additionalMediumIndexes.push_back(mediumIndex);
+            }
+            auto diskSpace = statistics.ResourceUsage.GetPatchedDiskSpace(
+                chunkManager,
+                additionalMediumIndexes);
+            auto commitedDiskSpace = statistics.CommittedResourceUsage.GetPatchedDiskSpace(
+                chunkManager,
+                additionalMediumIndexes);
+
+            for (auto [medium, space] : diskSpace) {
+                if (!IsObjectAlive(medium)) {
+                    continue;
+                }
+                TWithTagGuard(&buffer, "medium", medium->GetName());
+                buffer.AddGauge("/disk_space_in_gb", double(space) / 1_GB);
+                auto committedIt = std::find_if(
+                    commitedDiskSpace.begin(),
+                    commitedDiskSpace.end(),
+                    [index = medium->GetIndex()] (const auto& pair) {return pair.first->GetIndex() == index;});
+                if (committedIt != commitedDiskSpace.end()) {
+                    profileDetailed(space / double(1_GB), committedIt->second / double(1_GB), "/detailed_disk_space_in_gb");
+                }
+            }
+
+            const auto& resourceLimit = account->ClusterResourceLimits();
+            for (const auto& [index, space]: resourceLimit.DiskSpace()) {
+                const auto* medium = chunkManager->FindMediumByIndex(index);
+                if (!IsObjectAlive(medium)) {
+                    continue;
+                }
+                TWithTagGuard(&buffer, "medium", medium->GetName());
+                buffer.AddGauge("/disk_space_limit_in_gb", space / double(1_GB));
+            }
+
+            buffer.AddGauge("/node_count_limit", resourceLimit.GetNodeCount());
+            buffer.AddGauge("/chunk_count_limit", resourceLimit.GetChunkCount());
+
+            buffer.AddGauge("/tablet_static_memory_in_gb", statistics.ResourceUsage.GetTabletStaticMemory());
+            buffer.AddGauge("/tablet_static_memory_limit_in_gb", resourceLimit.GetTabletStaticMemory());
+            profileDetailed(
+                statistics.ResourceUsage.GetTabletStaticMemory(),
+                statistics.CommittedResourceUsage.GetTabletStaticMemory(),
+                "/detailed_tablet_static_memory_in_gb");
+
+            buffer.AddGauge("/tablet_count", statistics.ResourceUsage.GetTabletCount());
+            buffer.AddGauge("/tablet_count_limit", resourceLimit.GetTabletCount());
+            profileDetailed(
+                statistics.ResourceUsage.GetTabletCount(),
+                statistics.CommittedResourceUsage.GetTabletCount(),
+                "/detailed_tablet_count");
+
+            const auto& masterLimits = resourceLimit.MasterMemory();
+            buffer.AddGauge("/total_master_memory_limit", masterLimits.Total);
+            buffer.AddGauge("/chunk_host_master_memory", masterLimits.ChunkHost);
+            for (const auto& [cellTag, limit] : masterLimits.PerCell) {
+                TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
+                buffer.AddGauge("/per_cell_master_memory_limit", limit);
+            }
+
+            const auto& multicellStatistics = account->MulticellStatistics();
+            for (const auto& [cellTag, cellStatistics] : multicellStatistics) {
+                TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
+                auto usage = cellStatistics.ResourceUsage;
+                auto committedUsage = cellStatistics.ResourceUsage;
+
+                buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
+                buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
+                profileDetailed(
+                    usage.GetTotalMasterMemory(),
+                    committedUsage.GetTotalMasterMemory(),
+                    "/detailed_master_memory");
+            }
+        }
+
+        BufferedProducer_->Update(std::move(buffer));
     }
 
 
@@ -2420,6 +2548,9 @@ private:
 
     const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
 
+    TBufferedProducerPtr BufferedProducer_;
+
+    TPeriodicExecutorPtr AccountsProfilingExecutor_;
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
     TPeriodicExecutorPtr AccountMasterMemoryUsageUpdateExecutor_;
@@ -3752,6 +3883,40 @@ private:
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
             BIND(&TSecurityManager::CommitAccountMasterMemoryUsage, MakeWeak(this)));
         AccountMasterMemoryUsageUpdateExecutor_->Start();
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            ActivateAccountsProfiling();
+        }
+    }
+
+    void ActivateAccountsProfiling()
+    {
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        if (!dynamicConfig->EnableAccountsProfiling) {
+            DeactivateAccountsProfiling();
+        }
+
+        BufferedProducer_->SetEnabled(true);
+        if (AccountsProfilingExecutor_) {
+            AccountsProfilingExecutor_->SetPeriod(dynamicConfig->AccountsProfilingPeriod);
+        } else {
+            AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                BIND(&TSecurityManager::OnAccountsProfiling, MakeWeak(this)),
+                dynamicConfig->AccountsProfilingPeriod);
+            AccountsProfilingExecutor_->Start();
+        }
+    }
+
+    void DeactivateAccountsProfiling()
+    {
+        if (AccountsProfilingExecutor_) {
+            AccountsProfilingExecutor_->Stop();
+            AccountsProfilingExecutor_.Reset();
+        }
+
+        BufferedProducer_->SetEnabled(false);
     }
 
     void OnStopLeading() override
@@ -3774,6 +3939,8 @@ private:
             AccountMasterMemoryUsageUpdateExecutor_->Stop();
             AccountMasterMemoryUsageUpdateExecutor_.Reset();
         }
+
+        DeactivateAccountsProfiling();
     }
 
     void OnStopFollowing() override
@@ -4454,6 +4621,12 @@ private:
 
         if (AccountMasterMemoryUsageUpdateExecutor_) {
             AccountMasterMemoryUsageUpdateExecutor_->SetPeriod(GetDynamicConfig()->AccountMasterMemoryUsageUpdatePeriod);
+        }
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            if (IsLeader()) {
+                ActivateAccountsProfiling();
+            }
         }
 
         if (HasMutationContext()) {

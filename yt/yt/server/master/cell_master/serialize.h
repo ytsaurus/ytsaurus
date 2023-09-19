@@ -155,6 +155,7 @@ DEFINE_ENUM(EMasterReign,
     ((UseSequoiaReplicas)                                           (2424))  // aleksandra-zh
     ((PerRequestReadComplexityLimits)                               (2425))  // kvk1920
     ((ProxyMaintenanceRequests)                                     (2426))  // kvk1920
+    ((AccountsProfilingInSecurityManager)                           (2427))  // vovamelnikov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
