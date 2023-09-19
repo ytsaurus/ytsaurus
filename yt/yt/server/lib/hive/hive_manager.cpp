@@ -132,7 +132,11 @@ public:
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
         , HydraManager_(std::move(hydraManager))
     {
-        auto profiler = HiveServerProfiler.WithTag("cell_id", ToString(selfCellId));
+        auto profiler = HiveServerProfiler
+            .WithGlobal()
+            .WithSparse()
+            .WithTag("cell_id", ToString(selfCellId));
+
         SyncPostingTimeCounter_ = profiler.TimeCounter("/sync_posting_time");
         AsyncPostingTimeCounter_ = profiler.TimeCounter("/async_posting_time");
 
@@ -482,6 +486,7 @@ private:
 
     TTimeCounter SyncPostingTimeCounter_;
     TTimeCounter AsyncPostingTimeCounter_;
+    THashMap<TCellId, TTimeCounter> PerCellSyncTimeCounter_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1254,6 +1259,18 @@ private:
 
         NTracing::TNullTraceContextGuard guard;
 
+        auto it = PerCellSyncTimeCounter_.find(cellId);
+        if (it == PerCellSyncTimeCounter_.end()) {
+            auto profiler = HiveServerProfiler
+                .WithGlobal()
+                .WithSparse()
+                .WithTag("cell_id", ToString(SelfCellId_))
+                .WithTag("source_cell_id", ToString(cellId));
+
+            it = EmplaceOrCrash(PerCellSyncTimeCounter_, cellId, profiler.TimeCounter("/cell_sync_time"));
+        }
+
+        TWallTimer timer;
         THiveServiceProxy proxy(std::move(channel));
 
         auto req = proxy.Ping();
@@ -1270,7 +1287,10 @@ private:
             // NB: Many subscribers are typically waiting for the sync to complete.
             // Make sure the promise is set in a large thread pool.
             .Apply(
-                 BIND([] (const TError& error) { error.ThrowOnError(); })
+                BIND([syncTimeCounter = it->second, timer = std::move(timer)] (const TError& error) {
+                    error.ThrowOnError();
+                    syncTimeCounter.Add(timer.GetElapsedTime());
+                })
                     .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 

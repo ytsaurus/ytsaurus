@@ -9,6 +9,8 @@ from yt_commands import (
 
 from flaky import flaky
 
+from yt_helpers import profiler_factory
+
 ##################################################################
 
 
@@ -296,3 +298,23 @@ class TestMasterCellsSyncDelayed(TestMasterCellsSync):
     @classmethod
     def setup_class(cls):
         super(TestMasterCellsSyncDelayed, cls).setup_class(delayed_secondary_cells_start=True)
+
+
+##################################################################
+
+class TestMasterHiveSync(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_MASTERS = 1
+
+    @authors("h0pless")
+    def test_master_hive_metrics(self):
+        primary_cell_id = get("//sys/@primary_cell_id")
+        secondary_cell_id = get("//sys/@cluster_connection/secondary_masters/0/cell_id")
+
+        secondary_cell_ids = ls("//sys/secondary_masters")
+        master_address = ls("//sys/secondary_masters/" + secondary_cell_ids[0])[0]
+        profiler = profiler_factory().at_secondary_master(secondary_cell_ids[0], master_address)
+        value_counter = profiler.counter("hive/cell_sync_time", tags={"cell_id": secondary_cell_id, "source_cell_id": primary_cell_id})
+
+        # Some syncs always happen, so no need to do anything.
+        wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
