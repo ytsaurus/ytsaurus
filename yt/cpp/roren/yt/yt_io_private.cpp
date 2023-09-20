@@ -136,7 +136,7 @@ public:
     void AddRaw(const void* rows, ssize_t count) override
     {
         if (Writer_ == nullptr) {
-            auto fd = GetSinkIndices()[0] * 3 + 1;
+            auto fd = GetOutputFD(GetSinkIndices()[0]);
             Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
             Writer_ = std::make_unique<::NYson::TYsonWriter>(
                 Stream_.get(),
@@ -345,7 +345,7 @@ public:
         auto* current = static_cast<const std::byte*>(rows);
         for (ssize_t i = 0; i < count; ++i, current += DataSize_) {
             if (!Writer_) {
-                auto fd = GetSinkIndices()[0] * 3 + 1;
+                auto fd = GetOutputFD(GetSinkIndices()[0]);
                 Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
                 Writer_ = std::make_unique<::NYson::TYsonWriter>(
                     Stream_.get(),
@@ -450,7 +450,7 @@ public:
     void AddKvToTable(const void* key, const void* value, ui64 tableIndex) override
     {
         if (!Writer_) {
-            auto fd = GetSinkIndices()[0] * 3 + 1;
+            auto fd = GetOutputFD(GetSinkIndices()[0]);
             Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
             Writer_ = std::make_unique<::NYson::TYsonWriter>(
                 Stream_.get(),
@@ -1270,7 +1270,7 @@ public:
         Y_VERIFY(context->GetExecutorName() == "yt");
         Y_VERIFY(outputs.empty());
 
-        auto fd = TableIndex_ * 3 + 1;
+        auto fd = GetOutputFD(TableIndex_);
         Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
         YsonWriter_ = std::make_unique<::NYson::TYsonWriter>(
             Stream_.get(),

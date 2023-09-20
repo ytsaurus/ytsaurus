@@ -152,6 +152,9 @@ inline void SaveStateEntry(::NYson::TYsonWriter& writer, void* rawState, const v
 {
     const auto* tkv = reinterpret_cast<const TYtStateVtable::TStateTKV<TState>*>(rawTKV);
     TState* state = static_cast<TState*>(rawState);
+    if (state->IsEmpty()) {
+        return;
+    }
 
     auto mutation = state->Flush();
     if (mutation.IsClearing) {
