@@ -11,7 +11,11 @@ class ClientState(object):
             self._copy_init_state(other)
 
     def __del__(self):
-        if self._requests_session is not None and self._requests_session_origin and id(self) == self._requests_session_origin:
+        if self._requests_session_origin_id and id(self) == self._requests_session_origin_id:
+            self._cleanup()
+
+    def _cleanup(self):
+        if self._requests_session:
             self._requests_session.close()
 
     def _init_state(self):
@@ -29,7 +33,7 @@ class ClientState(object):
         self._transaction_stack = None
         self._driver = None
         self._requests_session = None  # type: requests.Session
-        self._requests_session_origin = None
+        self._requests_session_origin_id = None
         self._heavy_proxy_provider_state = None
 
         # socket.getfqdn can be slow so client fqdn is cached.

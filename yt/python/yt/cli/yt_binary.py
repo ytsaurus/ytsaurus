@@ -2596,6 +2596,8 @@ def main_func():
 
     args.func(**func_args)
 
+    yt.config._cleanup()
+
 
 def main():
     run_main(main_func)

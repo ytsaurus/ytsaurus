@@ -140,7 +140,7 @@ def _get_session(client=None):
     if get_option("_requests_session", client) is None:
         session = _setup_new_session(client)
         set_option("_requests_session", session, client)
-        set_option("_requests_session_origin", id(client), client)
+        set_option("_requests_session_origin_id", id(client), client)
     return get_option("_requests_session", client)
 
 
