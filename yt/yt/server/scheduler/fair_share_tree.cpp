@@ -795,6 +795,8 @@ public:
                         if (pool->GetParent()->GetId() != defaultParent->GetId()) {
                             pool->ChangeParent(defaultParent.Get());
                         }
+
+                        ApplyEphemeralSubpoolConfig(defaultParent, pool->GetConfig());
                     }
                     break;
                 }
@@ -1705,6 +1707,16 @@ private:
 
         pool->SetConfig(config);
         pool->SetObjectId(objectId);
+
+        if (pool->GetConfig()->EphemeralSubpoolConfig.has_value()) {
+            for (const auto& child : pool->EnabledChildren()) {
+                auto childPool = dynamic_cast<TSchedulerPoolElement*>(child.Get());
+
+                if (childPool && childPool->IsDefaultConfigured()) {
+                    ApplyEphemeralSubpoolConfig(pool, childPool->GetConfig());
+                }
+            }
+        }
     }
 
     void UnregisterPool(const TSchedulerPoolElementPtr& pool)
@@ -1752,14 +1764,8 @@ private:
             ? GetPool(*poolName.GetParentPool()).Get()
             : GetDefaultParentPoolForUser(userName).Get();
 
-        if (!parent->IsRoot()) {
-            auto parentPool = dynamic_cast<TSchedulerPoolElement*>(parent);
-            auto ephemeralConfig = parentPool->GetConfig()->EphemeralSubpoolConfig;
-            poolConfig->Mode = ephemeralConfig->Mode;
-            poolConfig->MaxOperationCount = ephemeralConfig->MaxOperationCount;
-            poolConfig->MaxRunningOperationCount = ephemeralConfig->MaxRunningOperationCount;
-            poolConfig->ResourceLimits = ephemeralConfig->ResourceLimits;
-        }
+        ApplyEphemeralSubpoolConfig(parent, poolConfig);
+
         pool = New<TSchedulerPoolElement>(
             StrategyHost_,
             this,
@@ -1780,6 +1786,26 @@ private:
 
         RegisterPool(pool, parent);
         return pool;
+    }
+
+    void ApplyEphemeralSubpoolConfig(const TSchedulerCompositeElementPtr& parent, const TPoolConfigPtr& targetConfig)
+    {
+        if (parent->IsRoot()) {
+            return;
+        }
+
+        auto parentPool = dynamic_cast<TSchedulerPoolElement*>(parent.Get());
+        YT_VERIFY(parentPool);
+        auto maybeConfig = parentPool->GetConfig()->EphemeralSubpoolConfig;
+        if (!maybeConfig.has_value()) {
+            return;
+        }
+
+        const auto& source = *maybeConfig;
+        targetConfig->Mode = source->Mode;
+        targetConfig->MaxOperationCount = source->MaxOperationCount;
+        targetConfig->MaxRunningOperationCount = source->MaxRunningOperationCount;
+        targetConfig->ResourceLimits = source->ResourceLimits;
     }
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)

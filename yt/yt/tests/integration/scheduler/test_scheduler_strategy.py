@@ -1825,6 +1825,37 @@ class TestEphemeralPools(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_pool_path("u") + "/is_ephemeral", default=False))
 
     @authors("renadeen")
+    def test_explicit_to_ephemeral_pool_transformation_with_ephemeral_subpool_config(self):
+        create_pool("research", attributes={"ephemeral_subpool_config": {"max_operation_count": 3}})
+        create_pool("ephemeral")
+        update_pool_tree_config("default", {"default_parent_pool": "research"})
+
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral"})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "ephemeral")
+        wait(lambda: self.get_pool_parent("ephemeral") == "<Root>")
+
+        remove("//sys/pools/ephemeral")
+
+        wait(lambda: self.get_pool_parent("ephemeral") == "research")
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral") + "/is_ephemeral", default=False))
+
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral") + "/max_operation_count", default=False) == 3)
+
+    @authors("renadeen")
+    def test_ephemeral_subpool_config_applies_to_existent_ephemeral_subpools(self):
+        create_pool("research", attributes={"ephemeral_subpool_config": {"max_operation_count": 3}})
+        create_pool("explicit", parent_name="research")
+        update_pool_tree_config("default", {"default_parent_pool": "research"})
+
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral"})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "ephemeral")
+
+        set("//sys/pools/research/@ephemeral_subpool_config", {"max_operation_count": 5})
+
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral") + "/max_operation_count", default=False) == 5)
+        wait(lambda: get(scheduler_orchid_pool_path("explicit") + "/max_operation_count", default=False) != 5)
+
+    @authors("renadeen")
     def test_user_runs_operation_in_ephemeral_pool_under_root(self):
         create_user("u")
 

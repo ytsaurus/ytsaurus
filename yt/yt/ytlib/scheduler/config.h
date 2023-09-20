@@ -269,7 +269,7 @@ public:
 
     bool CreateEphemeralSubpools;
 
-    TEphemeralSubpoolConfigPtr EphemeralSubpoolConfig;
+    std::optional<TEphemeralSubpoolConfigPtr> EphemeralSubpoolConfig;
 
     bool InferChildrenWeightsFromHistoricUsage;
     THistoricUsageConfigPtr HistoricUsageConfig;
