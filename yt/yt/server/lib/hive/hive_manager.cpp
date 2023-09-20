@@ -1288,8 +1288,8 @@ private:
             // Make sure the promise is set in a large thread pool.
             .Apply(
                 BIND([syncTimeCounter = it->second, timer = std::move(timer)] (const TError& error) {
-                    error.ThrowOnError();
                     syncTimeCounter.Add(timer.GetElapsedTime());
+                    error.ThrowOnError();
                 })
                     .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
