@@ -1548,7 +1548,7 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
 
         def config_updated():
             config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-            return config["cluster_connection"]["tablet_write_backoff"]["retry_count"] == 5
+            return config["cluster_connection"]["tablet_write_backoff"]["invocation_count"] == 5
         wait(config_updated)
 
         cell_count = 5
