@@ -95,6 +95,7 @@ struct IJobHost
 
     virtual TString GetPreparationPath() const = 0;
     virtual TString GetSlotPath() const = 0;
+    virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
 

@@ -100,6 +100,8 @@ struct IUserSlot
 
     virtual TString GetMediumName() const = 0;
 
+    virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
+
     virtual TFuture<void> RunSetupCommands(
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,

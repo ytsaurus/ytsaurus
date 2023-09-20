@@ -180,6 +180,11 @@ TString TJobProxy::GetSlotPath() const
     return "/slot";
 }
 
+TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
+{
+    return *Config_->BusServer->UnixDomainSocketPath;
+}
+
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
 {
     auto job = GetJobOrThrow();
@@ -657,6 +662,8 @@ TJobResult TJobProxy::RunJob()
 
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();
+
+        YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));

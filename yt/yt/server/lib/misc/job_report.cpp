@@ -142,6 +142,8 @@ void TExecAttributes::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("medium_name", &TThis::MediumName)
         .Default();
+    registrar.Parameter("job_proxy_socket_path", &TThis::JobProxySocketPath)
+        .Default();
     registrar.Parameter("gpu_devices", &TThis::GpuDevices)
         .Default();
 }

@@ -2,7 +2,9 @@ from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 
 from yt_helpers import profiler_factory
 
-from yt_commands import (ls, get, print_debug, authors, wait, run_test_vanilla)
+from yt_commands import (
+    ls, get, print_debug, authors, wait, run_test_vanilla,
+    wait_breakpoint, with_breakpoint, release_breakpoint)
 
 
 import datetime
@@ -137,6 +139,14 @@ class TestJobProxyBinary(JobProxyTestBase):
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
+
+    @authors("alex-shishkin")
+    def test_rpc_proxy_socket_path_env_variable(self):
+        op = run_test_vanilla(with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
+        content = op.read_stderr(job_id).decode("ascii").strip()
+        release_breakpoint()
+        assert re.match(r"^.*/pipes/.*-job-proxy-[0-9]+$", content)
 
 
 class TestUnavailableJobProxy(JobProxyTestBase):

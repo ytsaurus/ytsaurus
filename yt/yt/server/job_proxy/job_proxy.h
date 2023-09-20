@@ -67,6 +67,7 @@ public:
 
     TString GetPreparationPath() const override;
     TString GetSlotPath() const override;
+    TString GetJobProxyUnixDomainSocketPath() const override;
     TString AdjustPath(const TString& path) const override;
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
