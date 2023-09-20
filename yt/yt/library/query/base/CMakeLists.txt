@@ -23,6 +23,7 @@ target_link_libraries(library-query-base PUBLIC
   yt-yt-client
   library-query-misc
   library-query-proto
+  bison-bison-induced
 )
 target_sources(library-query-base PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
