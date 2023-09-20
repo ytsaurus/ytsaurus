@@ -5,20 +5,15 @@ from yt_type_helpers import (
 )
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, move,
-    remove, link,
-    exists, multiset_attributes, create_account, create_user, create_group, create_domestic_medium,
-    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_dynamic_table,
-    make_ace, remove_user, make_batch_request,
-    execute_batch,
-    start_transaction, abort_transaction,
-    commit_transaction, lock, unlock, read_file, read_table,
-    raises_yt_error, gc_collect, execute_command,
-    get_batch_output,
-    switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address,
-    sync_mount_table, sync_create_cells,
-    check_permission, get_driver, create_access_control_object_namespace, create_access_control_object)
+    authors, wait, create, ls, get, set, copy, move, remove, link, exists,
+    multiset_attributes, create_account, create_user, create_group, create_domestic_medium,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_dynamic_table, make_ace,
+    remove_user, make_batch_request, execute_batch, start_transaction, abort_transaction,
+    commit_transaction, lock, unlock, read_file, read_table, raises_yt_error, create_access_control_object,
+    gc_collect, execute_command, get_batch_output, switch_leader, is_active_primary_master_leader,
+    is_active_primary_master_follower, get_active_primary_master_leader_address,
+    get_active_primary_master_follower_address, sync_mount_table, sync_create_cells, check_permission,
+    get_driver, create_access_control_object_namespace)
 
 from yt_helpers import get_current_time
 
@@ -1581,15 +1576,23 @@ class TestCypress(YTEnvSetup):
         c2 = get("//tmp/d/@access_counter")
         assert c1 == c2
 
-    @authors("babenko", "ignat")
+    @authors("babenko", "ignat", "h0pless")
     def test_access_stat_suppress3(self):
-        time.sleep(1)
         create("table", "//tmp/t")
+        time.sleep(1)
         c1 = get("//tmp/t/@access_counter")
+
         read_table("//tmp/t", table_reader={"suppress_access_tracking": True})
         time.sleep(1)
-        c2 = get("//tmp/t/@access_counter")
-        assert c1 == c2
+        assert c1 == get("//tmp/t/@access_counter")
+
+        read_table("//tmp/t", suppress_access_tracking=True)
+        time.sleep(1)
+        assert c1 == get("//tmp/t/@access_counter")
+
+        read_table("//tmp/t")
+        time.sleep(1)
+        assert c1 != get("//tmp/t/@access_counter")
 
     @authors("babenko", "ignat")
     def test_access_stat_suppress4(self):
