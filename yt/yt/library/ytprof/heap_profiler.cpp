@@ -34,6 +34,11 @@ Y_WEAK void* CopyAllocationTagsData(void* userData)
 Y_WEAK void DestroyAllocationTagsData(void* /*userData*/)
 { }
 
+Y_WEAK size_t ComputeAllocationTagsDataHash(void* /*userData*/)
+{
+    return 0;
+}
+
 Y_WEAK const std::vector<std::pair<TString, TString>>& ReadAllocationTagsData(void* /*userData*/)
 {
     static const std::vector<std::pair<TString, TString>> emptyTags;
@@ -239,7 +244,8 @@ void EnableMemoryProfilingTags()
     tcmalloc::MallocExtension::SetSampleUserDataCallbacks(
         &CreateAllocationTagsData,
         &CopyAllocationTagsData,
-        &DestroyAllocationTagsData);
+        &DestroyAllocationTagsData,
+        &ComputeAllocationTagsDataHash);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

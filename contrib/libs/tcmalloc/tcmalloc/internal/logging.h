@@ -69,13 +69,16 @@ struct StackTrace {
 
   void* user_data;
 
+  size_t compute_user_data_hash() const;
+
   template <typename H>
   friend H AbslHashValue(H h, const StackTrace& t) {
     // As we use StackTrace as a key-value node in StackTraceTable, we only
     // produce a hasher for the fields used as keys.
     return H::combine(H::combine_contiguous(std::move(h), t.stack, t.depth),
                       t.depth, t.requested_size, t.requested_alignment,
-                      t.allocated_size
+                      t.allocated_size,
+                      t.compute_user_data_hash()
     );
   }
 };

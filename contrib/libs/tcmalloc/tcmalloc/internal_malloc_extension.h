@@ -124,7 +124,8 @@ ABSL_ATTRIBUTE_WEAK void
 MallocExtension_SetSampleUserDataCallbacks(
     tcmalloc::MallocExtension::CreateSampleUserDataCallback create,
     tcmalloc::MallocExtension::CopySampleUserDataCallback copy,
-    tcmalloc::MallocExtension::DestroySampleUserDataCallback destroy);
+    tcmalloc::MallocExtension::DestroySampleUserDataCallback destroy,
+    tcmalloc::MallocExtension::ComputeSampleUserDataHashCallback compute_hash);
 
 }
 
