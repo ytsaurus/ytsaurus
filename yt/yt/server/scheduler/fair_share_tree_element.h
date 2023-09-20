@@ -492,7 +492,7 @@ public:
 
     virtual const TOffloadingSettings& GetOffloadingSettings() const = 0;
 
-    virtual bool CpuIdlePolicyIsAllowed() const = 0;
+    virtual std::optional<bool> IsIdleCpuPolicyAllowed() const = 0;
 
 protected:
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
@@ -660,7 +660,7 @@ public:
 
     const TOffloadingSettings& GetOffloadingSettings() const override;
 
-    bool CpuIdlePolicyIsAllowed() const override;
+    std::optional<bool> IsIdleCpuPolicyAllowed() const override;
 
 protected:
     //! Pre fair share update methods.
@@ -867,7 +867,7 @@ public:
 
     bool IsLimitingAncestorCheckEnabled() const;
 
-    bool CpuIdlePolicyIsAllowed() const;
+    bool IsIdleCpuPolicyAllowed() const;
 
 protected:
     //! Pre update methods.
@@ -993,7 +993,7 @@ public:
 
     const TOffloadingSettings& GetOffloadingSettings() const override;
 
-    bool CpuIdlePolicyIsAllowed() const override;
+    std::optional<bool> IsIdleCpuPolicyAllowed() const override;
 
 protected:
     //! Post update methods.

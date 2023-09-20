@@ -66,10 +66,6 @@ struct IFairShareTreeHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRegistrationInTreeResult {
-    bool AllowIdleCpuPolicy;
-};
-
 struct IFairShareTree
     : public virtual TRefCounted
 {
@@ -126,7 +122,12 @@ struct IFairShareTree
     virtual bool HasRunningOperation(TOperationId operationId) const = 0;
     virtual int GetOperationCount() const = 0;
 
-    virtual TRegistrationInTreeResult RegisterOperation(
+    struct TRegistrationResult
+    {
+        bool AllowIdleCpuPolicy = false;
+    };
+
+    virtual TRegistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
