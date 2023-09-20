@@ -1661,13 +1661,13 @@ const TOffloadingSettings& TSchedulerPoolElement::GetOffloadingSettings() const
     return Config_->OffloadingSettings;
 }
 
-bool TSchedulerPoolElement::CpuIdlePolicyIsAllowed() const
+std::optional<bool> TSchedulerPoolElement::IsIdleCpuPolicyAllowed() const
 {
     if (Config_->AllowIdleCpuPolicy.has_value()) {
         return *Config_->AllowIdleCpuPolicy;
     }
 
-    return Parent_->CpuIdlePolicyIsAllowed();
+    return Parent_->IsIdleCpuPolicyAllowed();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2234,13 +2234,22 @@ void TSchedulerOperationElement::CollectResourceTreeOperationElements(std::vecto
     elements->push_back(ResourceTreeElement_);
 }
 
-bool TSchedulerOperationElement::CpuIdlePolicyIsAllowed() const
+bool TSchedulerOperationElement::IsIdleCpuPolicyAllowed() const
 {
     if (Spec_->AllowIdleCpuPolicy.has_value()) {
         return *Spec_->AllowIdleCpuPolicy;
     }
 
-    return GetParent()->CpuIdlePolicyIsAllowed();
+    auto parent = GetParent();
+    while (parent) {
+        auto isAllowed = GetParent()->IsIdleCpuPolicyAllowed();
+        if (isAllowed.has_value()) {
+            return *isAllowed;
+        }
+        parent = parent->GetParent();
+    }
+
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2568,7 +2577,7 @@ const TOffloadingSettings& TSchedulerRootElement::GetOffloadingSettings() const
     return EmptyOffloadingSettings;
 }
 
-bool TSchedulerRootElement::CpuIdlePolicyIsAllowed() const
+std::optional<bool> TSchedulerRootElement::IsIdleCpuPolicyAllowed() const
 {
     return false;
 }
