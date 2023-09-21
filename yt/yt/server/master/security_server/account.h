@@ -4,7 +4,7 @@
 #include "acl.h"
 #include "cluster_resources.h"
 #include "cluster_resource_limits.h"
-#include "master_memory.h"
+#include "master_memory_limits.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 

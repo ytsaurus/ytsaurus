@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "detailed_master_memory.h"
-#include "master_memory.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 

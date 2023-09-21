@@ -14,13 +14,13 @@ template <class TValue>
 TGossipValue<TValue>::TGossipValue() = default;
 
 template <class TValue>
-TValue& TGossipValue<TValue>::Local()
+TValue& TGossipValue<TValue>::Local() noexcept
 {
     return *LocalPtr_;
 }
 
 template <class TValue>
-const TValue& TGossipValue<TValue>::Local() const
+const TValue& TGossipValue<TValue>::Local() const noexcept
 {
     return *LocalPtr_;
 }

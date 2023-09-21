@@ -4391,6 +4391,30 @@ class TestAccountsMulticell(TestAccounts):
             get("//sys/accounts/a/@resource_usage/master_memory/per_cell/11") + \
             get("//sys/accounts/a/@resource_usage/master_memory/per_cell/12")
 
+    @authors("kvk1920")
+    def test_transfer_master_memory_limits_per_cell(self):
+        create_account("a")
+        create_account("b")
+
+        set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"11": 0})
+        set("//sys/accounts/b/@resource_limits/master_memory/per_cell", {"12": 1})
+
+        with raises_yt_error("infinity-related"):
+            transfer_account_resources("a", "b", self._build_resource_limits(master_memory_per_cell={"12": 1}))
+
+        with raises_yt_error("infinity-related"):
+            transfer_account_resources("b", "a", self._build_resource_limits(master_memory_per_cell={"12": 1}))
+
+        transfer_account_resources("b", "a", self._build_resource_limits(master_memory_per_cell={"11": 0}))
+        assert get("//sys/accounts/a/@resource_limits/master_memory/per_cell") == {"11": 0}
+        assert get("//sys/accounts/b/@resource_limits/master_memory/per_cell") == {"12": 1}
+
+        set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"11": 1000, "12": 1000})
+        set("//sys/accounts/b/@resource_limits/master_memory/per_cell", {"11": 2000})
+        transfer_account_resources("b", "a", self._build_resource_limits(master_memory_per_cell={"11": 1000}))
+        assert get("//sys/accounts/a/@resource_limits/master_memory/per_cell") == {"11": 2000, "12": 1000}
+        assert get("//sys/accounts/b/@resource_limits/master_memory/per_cell") == {"11": 1000}
+
     @authors("aleksandra-zh")
     def test_master_memory_per_cell_overcommit_validation(self):
         set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)

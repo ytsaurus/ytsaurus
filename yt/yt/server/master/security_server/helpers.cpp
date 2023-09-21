@@ -35,7 +35,7 @@ void ValidateDiskSpace(i64 diskSpace)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr mapNode, const char* key)
+i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr& mapNode, const char* key)
 {
     auto fieldNode = mapNode->FindChild(key);
     if (!fieldNode) {
@@ -48,6 +48,68 @@ i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr mapNode, con
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TMaybeInf<T> GetOptionalLimitChildOrThrow(
+    const IMapNodePtr& mapNode,
+    const char* key,
+    TMaybeInf<T> defaultValue)
+{
+    auto fieldNode = mapNode->FindChild(key);
+    if (!fieldNode) {
+        return defaultValue;
+    }
+
+    auto value = fieldNode->AsInt64()->GetValue();
+    if (value < 0) {
+        THROW_ERROR_EXCEPTION("%Qv cannot be negative, found %v", key, value);
+    }
+
+    if constexpr (std::numeric_limits<decltype(value)>::max() > std::numeric_limits<T>::max()) {
+        if (value > std::numeric_limits<T>::max()) {
+            THROW_ERROR_EXCEPTION("%Qv cannot be greater than %v, found %v",
+                key,
+                std::numeric_limits<T>::max(),
+                value);
+        }
+    }
+
+    if (static_cast<T>(value) == TMaybeInfTraits<T>::Infinity) {
+        THROW_ERROR_EXCEPTION("%Qv cannot be equal to %v, found %v",
+            key,
+            TMaybeInfTraits<T>::Infinity,
+            value);
+    }
+
+    return TMaybeInf<T>(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+
+TLimit32 GetOptionalLimit32ChildOrThrow(
+    const NYTree::IMapNodePtr& mapNode,
+    const char* key,
+    TLimit32 defaultValue)
+{
+    return GetOptionalLimitChildOrThrow<ui32>(mapNode, key, defaultValue);
+}
+
+TLimit64 GetOptionalLimit64ChildOrThrow(
+    const NYTree::IMapNodePtr& mapNode,
+    const char* key,
+    TLimit64 defaultValue)
+{
+    return GetOptionalLimitChildOrThrow<ui64>(mapNode, key, defaultValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

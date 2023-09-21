@@ -123,7 +123,7 @@ private:
 
             case EInternedAttributeKey::TotalResourceLimits: {
                 auto resources = rootAccount->ComputeTotalChildrenLimits();
-                SerializeClusterResourceLimits(resources, consumer, Bootstrap_, /* serializeDiskSpace */ true);
+                SerializeClusterResourceLimits(resources, consumer, Bootstrap_, /*serializeDiskSpace*/ true);
                 return true;
             }
 

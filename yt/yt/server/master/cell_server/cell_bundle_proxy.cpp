@@ -305,15 +305,13 @@ void TCellBundleProxy::DoSerializeAccountViolatedResourceLimits(
 
     // NB: Filter out master memory and irrelevant media violations.
     violatedResourceLimits.SetMasterMemory({});
-    auto mediumViolatedDiskSpace = GetOrDefault(violatedResourceLimits.DiskSpace(), medium->GetIndex());
-    violatedResourceLimits.DiskSpace().clear();
-    violatedResourceLimits.SetMediumDiskSpace(medium->GetIndex(), mediumViolatedDiskSpace);
 
     SerializeViolatedClusterResourceLimitsInBooleanFormat(
         violatedResourceLimits,
         consumer,
         Bootstrap_,
-        /*serializeDiskSpace*/ false);
+        /*serializeDiskSpace*/ false,
+        /*relevantMediumIndex*/ medium->GetIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
