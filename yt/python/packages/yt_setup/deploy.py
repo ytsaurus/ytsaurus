@@ -29,7 +29,7 @@ def parse_arguments():
 
 PYPI_REPO = "yandex"
 DEBIAN_REPO_TO_PACKAGES = {}
-DEBIAN_REPO_TO_PACKAGES["search"] = [
+DEBIAN_REPO_TO_PACKAGES["common"] = [
     "yandex-yt-python",
     "yandex-yt-python-tools",
     "yandex-yt-local",
@@ -37,9 +37,12 @@ DEBIAN_REPO_TO_PACKAGES["search"] = [
     "yandex-yp-python",
     "yandex-yp-python-skynet",
     "yandex-yp-local",
+    "yandex-yt-python-proto",
 ]
-DEBIAN_REPO_TO_PACKAGES["common"] = DEBIAN_REPO_TO_PACKAGES["search"] + ["yandex-yt-python-proto"]
-DEBIAN_REPO_TO_PACKAGES["yt-common"] = DEBIAN_REPO_TO_PACKAGES["common"] + ["yandex-yt-python-fennel", "yandex-yt-fennel"]
+DEBIAN_REPO_TO_PACKAGES["yt-common"] = DEBIAN_REPO_TO_PACKAGES["common"] + [
+    "yandex-yt-python-fennel",
+    "yandex-yt-fennel",
+]
 
 
 def build_debian(package):
