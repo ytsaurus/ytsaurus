@@ -239,7 +239,7 @@ public:
         }
     }
 
-    TDuration GetBlockIOWatchdogPeriod() const override
+    std::optional<TDuration> GetBlockIOWatchdogPeriod() const override
     {
         return Config_->BlockIOWatchdogPeriod;
     }
@@ -554,10 +554,10 @@ class TSimpleUserJobEnvironment
     : public IUserJobEnvironment
 {
 public:
-    TDuration GetBlockIOWatchdogPeriod() const override
+    std::optional<TDuration> GetBlockIOWatchdogPeriod() const override
     {
         // No IO watchdog for simple job environment.
-        return TDuration::Max();
+        return std::nullopt;
     }
 
     TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetMemoryStatistics() const override
@@ -787,10 +787,10 @@ class TCriUserJobEnvironment
     : public IUserJobEnvironment
 {
 public:
-    TDuration GetBlockIOWatchdogPeriod() const override
+    std::optional<TDuration> GetBlockIOWatchdogPeriod() const override
     {
         // No IO watchdog for simple job environment.
-        return TDuration::Max();
+        return std::nullopt;
     }
 
     TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetMemoryStatistics() const override

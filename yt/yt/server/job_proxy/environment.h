@@ -117,7 +117,7 @@ struct TUserJobEnvironmentOptions
 struct IUserJobEnvironment
     : public virtual IProfiledEnvironment
 {
-    virtual TDuration GetBlockIOWatchdogPeriod() const = 0;
+    virtual std::optional<TDuration> GetBlockIOWatchdogPeriod() const = 0;
 
     virtual TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetMemoryStatistics() const = 0;
 
