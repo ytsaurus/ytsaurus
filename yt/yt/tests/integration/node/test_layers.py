@@ -517,6 +517,7 @@ class TestDockerImage(TestLayers):
         )
 
     @authors("galtsev")
+    @pytest.mark.timeout(180)
     def test_docker_image_success(self):
         self.setup_files()
         self.create_tables()
@@ -527,6 +528,7 @@ class TestDockerImage(TestLayers):
         self.run_map(f"{TestDockerImage.IMAGE}:{tag}")
 
     @authors("galtsev")
+    @pytest.mark.timeout(180)
     def test_docker_image_and_layer_paths(self):
         self.setup_files()
         self.create_tables()
@@ -537,6 +539,7 @@ class TestDockerImage(TestLayers):
         self.run_map(f"{TestDockerImage.IMAGE}:{tag}", layer_paths=["//tmp/layer2"])
 
     @authors("galtsev")
+    @pytest.mark.timeout(180)
     def test_default_docker_tag(self):
         self.setup_files()
         self.create_tables()
@@ -547,6 +550,7 @@ class TestDockerImage(TestLayers):
         self.run_map(f"{TestDockerImage.IMAGE}")
 
     @authors("galtsev")
+    @pytest.mark.timeout(180)
     def test_no_tag(self):
         self.setup_files()
         self.create_tables()
@@ -559,6 +563,7 @@ class TestDockerImage(TestLayers):
             self.run_map(f"{TestDockerImage.IMAGE}:{wrong_tag}")
 
     @authors("galtsev")
+    @pytest.mark.timeout(180)
     def test_no_image(self):
         self.setup_files()
         self.create_tables()
@@ -567,6 +572,7 @@ class TestDockerImage(TestLayers):
             self.run_map(f"{TestDockerImage.IMAGE}:tag")
 
     @authors("galtsev")
+    @pytest.mark.timeout(180)
     def test_wrong_tag_document_type(self):
         self.setup_files()
         self.create_tables()
