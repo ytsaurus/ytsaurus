@@ -87,7 +87,7 @@ void TGenerateRandomRowMapper::ToProto(NProto::TRowMapper* proto) const
 
 TNode TGenerateRandomRowMapper::Generate(TCallState* state) const
 {
-    std::uniform_int_distribution<int8_t> distribution8;
+    std::uniform_int_distribution<int16_t> distribution8(0, 127);
     std::uniform_int_distribution<int16_t> distribution16;
     std::uniform_int_distribution<int64_t> distribution64;
     std::uniform_real_distribution<double> distributionDouble(-1e9, 1e9);

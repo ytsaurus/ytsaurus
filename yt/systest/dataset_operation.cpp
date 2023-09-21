@@ -86,7 +86,7 @@ std::unique_ptr<IMultiMapper> CreateRandomMap(
         return GenerateRandomColumn(table, seed);
     } else if (info.TotalBytes > (100 << 20) &&
             table.DataColumns[0].Type == NProto::EColumnType::EInt8) {
-        std::uniform_int_distribution<int8_t> dist;
+        std::uniform_int_distribution<int16_t> dist(0, 127);
         int8_t value = dist(randomEngine);
         YT_LOG_INFO("Filter by uint8 column (InputBytes: %v, InputRecords: %v, Value: %v)",
             info.TotalBytes, info.TotalRecords, value);
