@@ -62,6 +62,7 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
                 .setUnconvertedFilters(unconvertedFilters)
                 .setPath(path)
                 .setSchema(schema)
+                .addLookupColumns(lookupColumns)
                 .setTimestamp(timestamp)
                 .setRetentionTimestamp(retentionTimestamp)
                 .setKeepMissingRows(keepMissingRows)
