@@ -44,7 +44,7 @@ class SparkInfo(object):
             <div>
                 <p><b>SPYT</b></p>
 
-                <p><a href="{master_web_ui}">Master Web UI</a></p>
+                <p><a href="http://{master_web_ui}">Master Web UI</a></p>
                 <p><a href="http://{shs_url}/history/{app_id}/jobs/">Spark history server</a></p>
                 <dl>
                   <dt>Yt Cluster</dt>
