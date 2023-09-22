@@ -53,13 +53,13 @@ yt set //sys/pool_trees/physical/project-root/project-subpool1/@weight 10
 Initial setting of a pool guarantee provided that the parent has an unallocated guarantee:
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@min_share_resources '{cpu=50}'
+yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources '{cpu=50}'
 ```
 
 A specific parameter can be changed to alter a set guarantee:
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@min_share_resources/cpu 100
+yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources/cpu 100
 ```
 
 Moving is performed in the standard way:

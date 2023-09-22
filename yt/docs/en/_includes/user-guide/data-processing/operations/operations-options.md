@@ -17,7 +17,7 @@ The default values, if set, are provided in brackets:
    - `max_tentative_job_duration_ratio` (10) — maximum allowed latency of job execution.
    - `min_job_duration` (30) — job duration threshold in `tentative` trees. If the average job duration in the `tentative` tree exceeds this threshold, new jobs of the operation are not run in that `tentative` tree.
    - `ignore_missing_pool_trees` (false) — enabling this option results in missing tentative trees in clusters being ignored.
-- `resource_limits`, `max_share_ratio` — fair-share settings that apply to all the operation's jobs in aggregate. For more information, see [Pool characteristics](../../../../user-guide/data-processing/scheduler/pool-settings.md#operations).
+- `resource_limits`, `max_share_ratio` — fair_share settings that apply to all the operation's jobs in aggregate. For more information, see [Pool characteristics](../../../../user-guide/data-processing/scheduler/pool-settings.md#operations).
 - `time_limit` — general time limit on the operation (in milliseconds). If the operation does not complete within the specified time, it will be force-stopped by the scheduler.
 - `acl` — Access Control List, which sets out access rights for the operation. The `manage`
     right is associated with mutating actions on the operation and its jobs: abort,

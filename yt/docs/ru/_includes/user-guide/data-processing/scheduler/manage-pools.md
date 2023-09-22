@@ -53,13 +53,13 @@ yt set //sys/pool_trees/physical/project-root/project-subpool1/@weight 10
 Первичное выставление гарантии пула при условии, что у родителя имеется нераспределенная гарантия:
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@min_share_resources '{cpu=50}'
+yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources '{cpu=50}'
 ```
 
 Для изменения уже выставленной гарантии можно изменить конкретный параметр:
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@min_share_resources/cpu 100
+yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources/cpu 100
 ```
 
 Перемещение производится стандартным образом:

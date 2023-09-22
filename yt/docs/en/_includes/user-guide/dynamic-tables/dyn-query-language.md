@@ -555,7 +555,7 @@ The statistics have a hierarchical structure and correspond to the query executi
 - `rows_read`: Number of rows read.
 - `read_time`: Synchronous read time.
 - `wait_on_ready_event_time`: Reader data waiting time.
-- `async_time`: Total waiting time. If it is very different from wait_on_ready_event_time, this means that it is waiting for the CPU to allocate time in the fair-share scheduler.
+- `async_time`: Total waiting time. If it is very different from wait_on_ready_event_time, this means that it is waiting for the CPU to allocate time in the fair_share scheduler.
 
 ### The explain-query command { #explain_query }
 The explain rows command can be used to debug a query. The command outputs the result in a structured form.

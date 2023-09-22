@@ -22,15 +22,15 @@ When receiving the signal, the instance goes to completion mode, sends this info
 
 ## Regular preemption and graceful preemption { #preemption-dif }
 
-The {{product-name}} scheduler has the following logic for preempting jobs: if a node has jobs whose `fair-share_ratio` of the operation is less than `usage_ratio`, this job is considered `preemptable`. If the scheduler has a job of the starving operation that can be run on a node if preemptable jobs are preempted, then it does it — it preempts the required number of preemptable jobs and plans new ones in their place. In this model, it is unacceptable to wait very long to preempt jobs, so the `interruption_timeout` is only 15 seconds.
+The {{product-name}} scheduler has the following logic for preempting jobs: if a node has jobs whose `fair_share_ratio` of the operation is less than `usage_ratio`, this job is considered `preemptable`. If the scheduler has a job of the starving operation that can be run on a node if preemptable jobs are preempted, then it does it — it preempts the required number of preemptable jobs and plans new ones in their place. In this model, it is unacceptable to wait very long to preempt jobs, so the `interruption_timeout` is only 15 seconds.
 
 A typical usage scenario for CHYT is small and medium queries that run from single-digit seconds to several minutes; `interruption_timeout = 15 sec` is often less than the standard query time, which means that many queries that were running on a given instance will end with an error.
 
 To combat instance preemption, you can start a clique in the pool with guarantees, but not all users have guarantees. Besides that, some users wanted the clique not to interfere with other operations in the pool — to be small when there is demand for resources in the pool and inflate when there are extra resources.
 
-To solve this problem, a new operation scheduling mode — *Graceful Preemption* — was added. To avoid preemption problems in this mode, preemption is performed in advance: if there are `preemptable` jobs, a completion signal is sent to them, regardless of whether there is a candidate for these resources. Thus, the operation independently seeks that `usage_ratio = fair-share_ratio`, catching up with the fair amount of resources it is due at the moment. Due to this, you can increase the preemption timeout to 10 minutes, because no one is idle, waiting for the release of resources.
+To solve this problem, a new operation scheduling mode — *Graceful Preemption* — was added. To avoid preemption problems in this mode, preemption is performed in advance: if there are `preemptable` jobs, a completion signal is sent to them, regardless of whether there is a candidate for these resources. Thus, the operation independently seeks that `usage_ratio = fair_share_ratio`, catching up with the fair amount of resources it is due at the moment. Due to this, you can increase the preemption timeout to 10 minutes, because no one is idle, waiting for the release of resources.
 
-Below is an example of how `usage_ratio` (orange graph) and `fair-share_ratio` (green graph) change after a heavyweight operation is started in the same pool as the clique.
+Below is an example of how `usage_ratio` (orange graph) and `fair_share_ratio` (green graph) change after a heavyweight operation is started in the same pool as the clique.
 
 ![](../../../../../../images/chyt_graceful_preemption.png){ .center }
 

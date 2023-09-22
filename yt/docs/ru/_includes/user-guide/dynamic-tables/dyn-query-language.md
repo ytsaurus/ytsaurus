@@ -555,7 +555,7 @@ FN(<expr>, ...)
 - `rows_read` — количество прочитанных строк;
 - `read_time` — синхронное время чтения;
 - `wait_on_ready_event_time` — время ожидания данных из reader;
-- `async_time` — общее время ожидания; Если оно сильно отличается от wait_on_ready_event_time, это значит, что он ожидает выделения CPU времени в fair-share scheduler.
+- `async_time` — общее время ожидания; Если оно сильно отличается от wait_on_ready_event_time, это значит, что он ожидает выделения CPU времени в fair_share scheduler.
 
 ### Команда explain-query { #explain_query }
 Для отладки запроса можно использовать команду explain rows. Команда выдает результат в структурированном виде.

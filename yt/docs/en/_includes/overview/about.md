@@ -74,7 +74,7 @@ MapReduce in {{product-name}} has the following features:
 - A rich model of base operations: classic MapReduce (with different shuffle strategies and support for multi-phase partitioning), Map, Erase, Sort, and some extensions of the classic model that take into account the sortedness of input data.
 - Horizontal scalability of computations: operations are divided into jobs that run on separate cluster nodes.
 - Support for hundreds of thousands of jobs in a single operation.
-- A flexible model of hierarchical compute pools with instant and integral guarantees, as well as fair-share distribution of underutilized resources among consumers without guarantees.
+- A flexible model of hierarchical compute pools with instant and integral guarantees, as well as fair_share distribution of underutilized resources among consumers without guarantees.
 - A vector resource model that enables different compute resources (CPU, RAM, GPU) to be requested in different proportions.
 - Job execution on compute nodes in containers isolated by CPU, RAM, file system, and process namespace using the Porto containerization mechanism.
 - A scalable scheduler that can serve clusters with up to a million concurrent tasks.

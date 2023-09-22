@@ -15,12 +15,12 @@ A pool tree has the following attributes:
 - `enable_pool_starvation`: Allow pool "starving". For more information, see [Preemption](../../../../user-guide/data-processing/scheduler/preemption.md).
 - `forbid_immediate_operations_in_root`: Allow operations to run in the root pool of the tree.
 - `max_ephemeral_pool_per_user`: The maximum number of ephemeral pools for each user. An ephemeral pool is a pool that was indicated in the specification, but for which there is no explicit node in Cypress.
-- `fair-share_preemption_timeout`: The time when the operation was below its fair-share, after which preemption will start to run the operation jobs.
+- `fair_share_preemption_timeout`: The time when the operation was below its fair_share, after which preemption will start to run the operation jobs.
 - `min_share_preemption_timeout`: The time when the operation was below its min-share, after which preemption will start to run the operation jobs.
-- `fair-share_starvation_tolerance`: The tolerance used when comparing usage-ratio with fair-share: an operation is considered starving if `usage-ratio < fair-share * tolerance`.
+- `fair_share_starvation_tolerance`: The tolerance used when comparing usage-ratio with fair_share: an operation is considered starving if `usage-ratio < fair_share * tolerance`.
 - `max_unpreemptable_running_job_count`: The operation will not participate in preemption if the number of its jobs is less than this value.
 
-The `fair-share_preemption_timeout`, `min_share_preemption_timeout`, and `fair-share_starvation_tolerance` attributes can be redefined in the operation specification.
+The `fair_share_preemption_timeout`, `min_share_preemption_timeout`, and `fair_share_starvation_tolerance` attributes can be redefined in the operation specification.
 
 The tree is the `scheduler_pool_tree` object at the first level of the `//sys/pool_trees` directory in Cypress. The attributes listed above are the attributes of this object. The `//sys/pool_trees` node has the `default_tree` attribute in which the default tree can be specified. Will be used for operations that do not have the specified `pool_trees` option.
 
@@ -30,7 +30,7 @@ Each pool has the following characteristics. The default values are specified in
 
 * `weight` (1): A real non-negative number, which is responsible for the proportion in which the subtree should be provided with the resources of the parent pool. When a pool has two child pools with weights 2 and 1, the parent's resources will be divided between them in the 2:1 proportion.
 * `max_share_ratio`: A real number in the [0, 1] range, indicating the maximum share of the parent pool's resources that should go to the given pool.
-* `min_share_resources`: A dict in which the guaranteed resources for the given pool are written (`user_slots`, `cpu`, and `memory`).
+* `strong_guarantee_resources`: A dict in which the guaranteed resources for the given pool are written (`user_slots`, `cpu`, and `memory`).
 
 {% note info "Note" %}
 
@@ -39,7 +39,7 @@ Note that guarantees will be fulfilled only if the dominant resource of the oper
 {% endnote %}
 
 * `resource_limits`: A dict which describes the limits on different resources of a given pool (`user_slots`, `cpu`, and `memory`).
-* `mode` (fair-share): The scheduling mode, can take the `fair-share` or `fifo` values. If there is a FIFO scheduler, jobs are issued to child pools in lexicographic sorting order according to the values of the parameters specified in the `fifo_sort_parameters` attribute for that pool. For example, if the attribute value is `[start_time]`, jobs will first be issued to the operations with the least start time.
+* `mode` (fair_share): The scheduling mode, can take the `fair_share` or `fifo` values. If there is a FIFO scheduler, jobs are issued to child pools in lexicographic sorting order according to the values of the parameters specified in the `fifo_sort_parameters` attribute for that pool. For example, if the attribute value is `[start_time]`, jobs will first be issued to the operations with the least start time.
 * `max_running_operation_count` (8): The limit on the number of concurrently running operations in the pool. Operations above this limit will be queued up and pending.
 * `max_operation_count` (50): The limit on the number of concurrently started (running + pending) operations in the pool. If the specified limit is reached, starting new operations in the pool will end with an error.
 * `fifo_sort_parameters` (start_time): The order of starting operations in the FIFO pool. By default, operations are sorted first by weight, and then by start time. This parameter enables you to change the order of operations in the queue. Supported values: `start_time` , `weight`, and `pending_job_count`. The `weight` parameter is applied in reverse order: operations with more weight go first and have a higher priority. The `pending_job_count` value enables you to prioritize small operations (with few jobs).

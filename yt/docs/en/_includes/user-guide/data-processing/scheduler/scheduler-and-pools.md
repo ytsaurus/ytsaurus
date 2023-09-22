@@ -4,7 +4,7 @@ This section describes the {{product-name}} scheduler, introduces the concepts o
 
 ## General information
 
-A scheduler is a part of the system responsible for allocating resources between operations and determining the order in which operations will be performed. The {{product-name}} system uses a hierarchical [fair-share](http://en.wikipedia.org/wiki/Fair-share_scheduling) scheduler. This means that resources are dynamically allocated between system users according to their guarantees and priority.
+A scheduler is a part of the system responsible for allocating resources between operations and determining the order in which operations will be performed. The {{product-name}} system uses a hierarchical [fair_share](http://en.wikipedia.org/wiki/Fair-share_scheduling) scheduler. This means that resources are dynamically allocated between system users according to their guarantees and priority.
 
 A pool is a container for the CPU and RAM resources that the scheduler uses. When users run tasks in pools, the scheduler allocates resources between the pools. A hierarchical resource allocation system can be built using the pool tree.
 

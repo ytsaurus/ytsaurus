@@ -10,9 +10,9 @@ The mechanism of integral guarantees enables you to find a balance between the d
 
 ## Integral pools
 
-In the {{product-name}} system, you can enable the accumulation of resources for the pool. Such pools receive a certain amount of virtual resources at a constant rate — `accumulated_resource_ratio_volume`. The amount of resource is stored in the cluster share per second — `fair-share*sec`, but for simplicity we can assume that the value is given in cores per second — `cpu*sec`. The pool can consume a virtual resource to start operations and can accumulate it to a certain limit.
+In the {{product-name}} system, you can enable the accumulation of resources for the pool. Such pools receive a certain amount of virtual resources at a constant rate — `accumulated_resource_ratio_volume`. The amount of resource is stored in the cluster share per second — `fair_share*sec`, but for simplicity we can assume that the value is given in cores per second — `cpu*sec`. The pool can consume a virtual resource to start operations and can accumulate it to a certain limit.
 
-Example: let there be `accumulated_resource_ratio_volume = 60 fair-share*sec` in the pool, 1000 cores on the cluster, and the dominant resource of the user process is cpu. This volume can be converted to `cores * seconds` — `60,000 cpu*sec`. An operation that consumes 100 cpu cores at a time will use that amount in 10 minutes; one that consumes 50 cpu cores — in 20 minutes. This example does not take into account that the volume of the virtual resource in the pool is replenished over time.
+Example: let there be `accumulated_resource_ratio_volume = 60 fair_share*sec` in the pool, 1000 cores on the cluster, and the dominant resource of the user process is cpu. This volume can be converted to `cores * seconds` — `60,000 cpu*sec`. An operation that consumes 100 cpu cores at a time will use that amount in 10 minutes; one that consumes 50 cpu cores — in 20 minutes. This example does not take into account that the volume of the virtual resource in the pool is replenished over time.
 
 The resource accumulation rate is configured in the `integral-guarantees/resource_flow` pool attribute. The attribute value must specify the resource type and its volume:
 
@@ -98,7 +98,7 @@ An example of requesting an attribute is shown in Listing 4.
 <small>Listing 4</small>
 
 ```bash
-yt get //sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/physical/fair-share_info/pools/pool_name/integral_pool_capacity
+yt get //sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/physical/fair_share_info/pools/pool_name/integral_pool_capacity
 ```
 
 {% note warning "Attention!" %}
