@@ -13,7 +13,7 @@ YTsaurus is a distributed storage and processing platform for big data with supp
 
 You can read [post about YTsaurus](https://medium.com/p/42e7f5fa5fc6) or check video:
 
-[![video about YTsaurus](yt/documentation/images/ytsaurus-promo-video.png)](https://youtu.be/4Q2EB_uimLs)
+[![video about YTsaurus](yt/docs/images/ytsaurus-promo-video.png)](https://youtu.be/4Q2EB_uimLs)
 
 ## Advantages of the platform
 
