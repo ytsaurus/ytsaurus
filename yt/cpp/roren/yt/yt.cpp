@@ -68,7 +68,7 @@ public:
                 for (auto operationNodeId : level) {
                     auto operation = ytGraph->StartOperation(tx, operationNodeId);
                     YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
-                    operations.push_back(std::move(operation));
+                    operations.emplace_back(std::move(operation));
                 }
 
                 for (const auto& operation : operations) {

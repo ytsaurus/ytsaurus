@@ -721,49 +721,83 @@ void TYtGraph::RemoveOperation(TOperationNodeId operationId)
 
 NYT::IOperationPtr TYtGraph::StartOperation(const IClientBasePtr& client, TOperationNodeId id) const
 {
-    Y_VERIFY(0 <= id && id < std::ssize(OperationNodes_));
+    Y_VERIFY(0 <= id && id < std::size(OperationNodes_));
     return OperationNodes_[id]->Start(client);
 }
 
 std::vector<std::vector<TYtGraph::TOperationNodeId>> TYtGraph::GetOperationLevels() const
 {
-    std::vector<const TTableNode*> tableNodeLevel;
+    // check all inputs for operation
+    auto readyForExecute = [&](const auto& operation, const THashSet<TTableNodeId> readyTables) {
+        for (TTableNodeId sourceId : operation->GetSources()) {
+            if (!readyTables.contains(sourceId)) {
+                return false;
+            }
+        }
+        return true;
+    };
 
-    for (const auto& tableNode : TableNodes_) {
+    std::vector<std::vector<TOperationNodeId>> result;
+    THashSet<TOperationNodeId> processed;
+    THashSet<TOperationNodeId> candidates;
+    THashSet<TTableNodeId> readyTables;
+
+    // populate readyTables with initial inputs
+    for (TTableNodeId tableId = 0; tableId < TableNodes_.size(); ++tableId) {
+        const auto& tableNode = TableNodes_[tableId];
         if (!tableNode.IsRemoved_ && !tableNode.SinkOf_) {
-            tableNodeLevel.push_back(&tableNode);
+            readyTables.emplace(tableId);
         }
     }
 
-    std::vector<std::vector<TOperationNodeId>> operationNodeLevels;
-    while (true) {
-        THashSet<TOperationNodeId> operationNodeLevelSet;
-        for (const auto* tableNode : tableNodeLevel) {
-            for (auto operationId : tableNode->SourceFor_) {
-                if (!OperationNodes_[operationId]->IsRemoved_) {
-                   operationNodeLevelSet.insert(operationId);
-                }
+    // populate candidates with operations depended on initial inputs
+    for (const TTableNodeId tableId: readyTables) {
+        const auto& tableNode = TableNodes_[tableId];
+        for (const TOperationNodeId operationId : tableNode.SourceFor_) {
+            if (!OperationNodes_[operationId]->IsRemoved_) {
+               candidates.emplace(operationId);
             }
         }
-        if (operationNodeLevelSet.empty()) {
-            break;
-        }
-
-        auto operationNodeLevel = std::vector<TOperationNodeId>(operationNodeLevelSet.begin(), operationNodeLevelSet.end());
-
-        tableNodeLevel.clear();
-        for (auto operationNodeId : operationNodeLevel) {
-            for (auto tableNodeId : OperationNodes_[operationNodeId]->GetSinks()) {
-                if (!TableNodes_[tableNodeId].IsRemoved_) {
-                    tableNodeLevel.push_back(&TableNodes_[tableNodeId]);
-                }
-            }
-        }
-
-        operationNodeLevels.push_back(std::move(operationNodeLevel));
     }
 
-    return operationNodeLevels;
+    while (!candidates.empty()) {
+        // gather ready to run operations
+        std::vector<TOperationNodeId> levelOperations;
+        for (TOperationNodeId operationId : candidates) {
+            const auto& operation = OperationNodes_[operationId];
+            if (readyForExecute(operation, readyTables)) {
+                levelOperations.emplace_back(operationId);
+            }
+        }
+
+        // we must run at least one opertaion
+        Y_VERIFY(!levelOperations.empty());
+        result.emplace_back(std::move(levelOperations));
+
+        // prepare for next iteration
+        for (const TOperationNodeId operationId : result.back()) {
+            // mark selected operations as processed
+            candidates.erase(operationId);
+            processed.emplace(operationId);
+
+            // populate readyTables and candidates
+            const auto& operation = OperationNodes_[operationId];
+            for (const TOperationNodeId tableId : operation->GetSinks()) {
+                const auto& tableNode = TableNodes_[tableId];
+                if (!tableNode.IsRemoved_) {
+                    readyTables.emplace(tableId);
+                    for (const TOperationNodeId candidateId : tableNode.SourceFor_) {
+                        const auto& candidate = OperationNodes_[candidateId];
+                        if (!candidate->IsRemoved_ && !processed.contains(candidateId)) {
+                            candidates.emplace(candidateId);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 TString TYtGraph::DumpDOTSubGraph(const TString& name) const

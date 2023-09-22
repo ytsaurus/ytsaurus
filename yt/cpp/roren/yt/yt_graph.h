@@ -19,8 +19,8 @@ class TYtPipelineConfig;
 class IYtGraph
 {
 public:
-    using TTableNodeId = int;
-    using TOperationNodeId = int;
+    using TTableNodeId = size_t;
+    using TOperationNodeId = size_t;
 
 public:
     virtual ~IYtGraph() = default;
