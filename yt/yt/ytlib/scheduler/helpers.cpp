@@ -413,12 +413,12 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 const int PoolNameMaxLength = 100;
 
-const TString StrictPoolNameRegexSymbols = "-_a-z0-9";
-const TString NonStrictPoolNameRegexSymbols = StrictPoolNameRegexSymbols + ".:A-Z";
+const TString StrictPoolNameRegexSymbols = "-_a-z0-9.";
+const TString NonStrictPoolNameRegexSymbols = StrictPoolNameRegexSymbols + ":A-Z";
 
 const TEnumIndexedVector<EPoolNameValidationLevel, TString> RegexStrings = {
-    "[" + NonStrictPoolNameRegexSymbols + "]+",
-    "[" + StrictPoolNameRegexSymbols + "]+",
+    Format("[%s]+", NonStrictPoolNameRegexSymbols),
+    Format("[%s]+", StrictPoolNameRegexSymbols),
 };
 
 TEnumIndexedVector<EPoolNameValidationLevel, TIntrusivePtr<NRe2::TRe2>> Regexes = {
