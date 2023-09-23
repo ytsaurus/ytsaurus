@@ -137,7 +137,7 @@ def make_request(command_name,
                 else:
                     debug_result = result.decode("ascii")
                 result_string = " (result: %r)" % debug_result
-        except:
+        except Exception:
             result_string = ""
         logger.info("Command executed" + result_string)
 

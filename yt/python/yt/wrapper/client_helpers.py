@@ -93,7 +93,7 @@ def {name}({method_signature}):
     filename = "<client-method-{}>".format(func.__name__)
     try:
         code = compile(src, filename, "single")
-        exec(code, evaldict)
+        exec(code, evaldict)  # noqa
     except:  # noqa
         print("Error compiling code", file=sys.stderr)
         print(src, file=sys.stderr)

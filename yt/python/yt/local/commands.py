@@ -65,7 +65,7 @@ def _get_bool_from_env(name, default=False):
         return default
     try:
         value = int(value)
-    except:
+    except:  # noqa
         return default
     return value == 1
 

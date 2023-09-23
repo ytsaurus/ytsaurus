@@ -199,14 +199,19 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
 
         chunks = split_chunks(chunks, process_count)
 
-        worker = functools.partial(write_chunks, folder=folder, client_config=get_config(client), transaction_id=tx.transaction_id, for_sky_share=prepare_for_sky_share)
+        worker = functools.partial(
+            write_chunks,
+            folder=folder,
+            client_config=get_config(client),
+            transaction_id=tx.transaction_id,
+            for_sky_share=prepare_for_sky_share)
         temp_tables = []
 
         pool = mp.Pool(process_count)
         try:
             temp_tables = [t for t in pool.map(worker, chunks)]
             pool.close()
-        except:
+        except:  # noqa
             pool.terminate()
             raise
         finally:
@@ -261,7 +266,7 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
             try:
                 pool.map(worker, tables)
                 pool.close()
-            except:
+            except:  # noqa
                 pool.terminate()
                 raise
             finally:
@@ -311,7 +316,7 @@ def append_single_file(yt_table, fs_path, yt_name, process_count):
         try:
             middle_tables = [t for t in pool.map(worker, file_chunks)]
             pool.close()
-        except:
+        except:  # noqa
             pool.terminate()
             raise
         finally:
@@ -333,7 +338,7 @@ def add_upload_parser(parsers):
     parser = parsers.add_parser("upload", help="Upload directory to YT")
     parser.set_defaults(func=upload_directory_to_yt)
     parser.add_argument("--directory", required=True)
-    parser.add_argument("--part-size", type=int, default=4*1024*1024)
+    parser.add_argument("--part-size", type=int, default=4 * 1024 * 1024)
 
     parser.set_defaults(recursive=True)
     parser.add_argument("--recursive", action="store_true")

@@ -11,6 +11,7 @@ try:
 except ImportError:
     from six import itervalues
 
+
 # NB: this method is used not only in CLI, but also in CHYT integration tests.
 # Keep that in mind when changing it and do not forget to run both Python API tests
 # and integration tests.
@@ -31,7 +32,7 @@ def get_clique_spec_builder(instance_count,
                             core_dump_destination=None,
                             description=None,
                             operation_alias=None,
-                            memory_config = None,
+                            memory_config=None,
                             enable_job_tables=None,
                             enable_log_tailer=None,
                             trampoline_log_file=None,
@@ -138,13 +139,13 @@ def get_clique_spec_builder(instance_count,
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("instances") \
-            .job_count(instance_count) \
-            .file_paths(file_paths) \
-            .command(trampoline_command) \
-            .memory_limit(memory_config["memory_limit"] + memory_config["log_tailer"]) \
-            .cpu_limit(cpu_limit) \
-            .max_stderr_size(1024 * 1024 * 1024) \
-            .port_count(5) \
+                .job_count(instance_count) \
+                .file_paths(file_paths) \
+                .command(trampoline_command) \
+                .memory_limit(memory_config["memory_limit"] + memory_config["log_tailer"]) \
+                .cpu_limit(cpu_limit) \
+                .max_stderr_size(1024 * 1024 * 1024) \
+                .port_count(5) \
             .end_task() \
             .max_failed_job_count(max_failed_job_count) \
             .description(description) \
@@ -152,7 +153,7 @@ def get_clique_spec_builder(instance_count,
             .stderr_table_path(stderr_table_path) \
             .core_table_path(core_table_path) \
             .alias(operation_alias) \
-            .spec(spec)
+            .spec(spec)  # noqa
 
     if tvm_secret is not None:
         spec_builder = spec_builder.secure_vault({"TVM_SECRET": tvm_secret})

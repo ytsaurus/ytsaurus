@@ -753,7 +753,7 @@ def update_config_from_env(config):
         if isinstance(None, var_type):
             var_type = str
         if var_type == dict or var_type == YsonMap:
-            var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}
+            var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}  # noqa
         return var_type
 
     def _apply_type(applied_type, key, value):

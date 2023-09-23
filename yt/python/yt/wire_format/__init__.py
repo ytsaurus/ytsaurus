@@ -1,1 +1,1 @@
-from .wire_format import *
+from .wire_format import *  # noqa

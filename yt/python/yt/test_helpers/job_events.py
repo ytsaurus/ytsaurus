@@ -96,11 +96,10 @@ class JobEvents(object):
         return 'tmpfile=$(mktemp "{tmp_file_pattern}"); '\
                'touch "$tmpfile"; '\
                'ln -PT "$tmpfile" "{shared_file}" && rm "$tmpfile"; '\
-               'if [ ! -e "$tmpfile" ]; then {cmd}; fi; '\
-                .format(
-                    tmp_file_pattern=tmp_file_pattern,
-                    shared_file=shared_file,
-                    cmd=cmd)
+               'if [ ! -e "$tmpfile" ]; then {cmd}; fi; '.format(
+                   tmp_file_pattern=tmp_file_pattern,
+                   shared_file=shared_file,
+                   cmd=cmd)
 
     def wait_breakpoint(self, breakpoint_name="default", job_id=None, job_count=None, check_fn=None, timeout=datetime.timedelta(seconds=60)):
         """ Wait until some job reaches breakpoint.
@@ -108,10 +107,10 @@ class JobEvents(object):
         self._verify_breakpoint_created(breakpoint_name)
 
         if job_id is not None and check_fn is None:
-            check_fn = lambda job_id_list: job_id in job_id_list
+            check_fn = lambda job_id_list: job_id in job_id_list  # noqa
 
         if job_count is not None and check_fn is None:
-            check_fn = lambda job_id_list: len(job_id_list) >= job_count
+            check_fn = lambda job_id_list: len(job_id_list) >= job_count  # noqa
 
         deadline = datetime.datetime.now() + timeout
         breakpoint_prefix = "breakpoint_" + breakpoint_name + "_"

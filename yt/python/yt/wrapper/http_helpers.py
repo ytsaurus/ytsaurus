@@ -447,7 +447,7 @@ class RequestRetrier(Retrier):
             if self.retry_action is not None:
                 self.retry_action(error, self.kwargs)
         else:
-            raise
+            raise error
 
     def backoff_action(self, attempt, backoff):
         logging_params = {

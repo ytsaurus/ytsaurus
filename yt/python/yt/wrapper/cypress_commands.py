@@ -592,7 +592,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             if is_unicode(str_obj):
                 return str_obj
             return get_bytes(str_obj).decode("utf-8", "replace")
-        map_node_order = lambda path, obj: sorted(obj, key=_convert_to_unicode)
+        map_node_order = lambda path, obj: sorted(obj, key=_convert_to_unicode)  # noqa
 
     encoding = get_structured_format(format=None, client=client)._encoding
 
@@ -647,10 +647,12 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
         node.content = None
         if error.is_access_denied():
             logger.warning("Cannot traverse %s, access denied" % node.path)
+            return True
         elif error.is_resolve_error() and node.ignore_resolve_error:
             logger.warning("Path %s is missing" % node.path)
+            return True
         else:
-            raise
+            return False
 
     def is_opaque(content):
         # We have bug that get to document don't return attributes.
@@ -676,7 +678,8 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                     raise YtResponseError(content.get_error())
                 node.content = content.get_result()
             except YtResponseError as rsp:
-                process_response_error(rsp, node)
+                if not process_response_error(rsp, node):
+                    raise
             yield node
 
     def safe_get(nodes, client):
@@ -689,7 +692,8 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                     read_from=read_from,
                     cache_sticky_group_size=cache_sticky_group_size)
             except YtResponseError as rsp:
-                process_response_error(rsp, node)
+                if not process_response_error(rsp, node):
+                    raise
             yield node
 
     if enable_batch_mode:

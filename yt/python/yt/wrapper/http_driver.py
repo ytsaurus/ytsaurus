@@ -176,9 +176,9 @@ def make_request(command_name,
     if mutation_id is None:
         generate_mutation_id = get_option("_generate_mutation_id", client)
         if generate_mutation_id is None:
-            generate_mutation_id = lambda command_descriptor: generate_uuid(get_option("_random_generator", client))
+            generate_mutation_id = lambda command_descriptor: generate_uuid(get_option("_random_generator", client))  # noqa
     else:
-        generate_mutation_id = lambda command_descriptor: mutation_id
+        generate_mutation_id = lambda command_descriptor: mutation_id  # noqa
 
     if command.is_volatile and allow_retries:
         if "mutation_id" not in params:
@@ -204,7 +204,7 @@ def make_request(command_name,
                 else:
                     arguments["headers"].update({"X-YT-Parameters": dump_params(params, header_format)})
         copy_params = deepcopy(params)
-        retry_action = lambda error, arguments: set_retry(error, command, copy_params, arguments)
+        retry_action = lambda error, arguments: set_retry(error, command, copy_params, arguments)  # noqa
     else:
         retry_action = None
 

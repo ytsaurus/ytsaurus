@@ -52,6 +52,7 @@ YT_NULL_TRANSACTION_ID = "0-0-0-0"
 class YtDeprecationWarning(DeprecationWarning):
     """Custom warnings category, because built-in category is ignored by default."""
 
+
 warnings.simplefilter("default", category=YtDeprecationWarning)
 
 DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release, " \
@@ -139,7 +140,7 @@ class YtError(Exception):
             raise ValueError("Exactly one condition should be specified")
 
         if code is not None:
-            predicate = lambda error: int(error.code) == code
+            predicate = lambda error: int(error.code) == code  # noqa
 
         def find_recursive(error):
             # error may be Python dict; if so, transform it to YtError.
@@ -327,10 +328,10 @@ class YtError(Exception):
     def is_no_such_attribute(self, attributes_list=None):
         """Operation attribute is not supported."""
         if attributes_list is None:
-            pred_new = lambda err: err.code == 1920
+            pred_new = lambda err: err.code == 1920  # noqa
         else:
-            pred_new = lambda err: (err.attributes.get("attribute_name") in attributes_list) and (err.code == 1920)
-        pred_old = lambda err: ("Attribute" in err.message) and ("is not allowed" in err.message)
+            pred_new = lambda err: (err.attributes.get("attribute_name") in attributes_list) and (err.code == 1920)  # noqa
+        pred_old = lambda err: ("Attribute" in err.message) and ("is not allowed" in err.message)  # noqa
         # COMPAT: remove old version
         return self.find_matching_error(predicate=pred_new) or self.find_matching_error(predicate=pred_old)
 
@@ -637,7 +638,7 @@ def update_from_env(variables):
         if var_type == bool:
             try:
                 value = int(value)
-            except:
+            except:  # noqa
                 pass
         # None type is treated as str
         if isinstance(None, var_type):

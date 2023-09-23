@@ -39,4 +39,3 @@ def validate_ytserver_clickhouse_version(ytserver_clickhouse_attributes):
 
     if errors:
         raise YtError("ytserver-clickhouse binary is too old, see inner errors", inner_errors=errors)
-

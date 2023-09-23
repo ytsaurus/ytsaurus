@@ -185,7 +185,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 if chunk_size is None:
                     chunk_size = DEFAULT_WRITE_CHUNK_SIZE
 
-                write_action = lambda chunk, params: make_request(
+                write_action = lambda chunk, params: make_request(  # noqa
                     command_name,
                     params,
                     data=progress_reporter.wrap_stream(chunk),
@@ -225,7 +225,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
 
 def _get_read_response(command_name, params, transaction_id, client=None):
-    make_read_request = lambda: make_request(
+    make_read_request = lambda: make_request(  # noqa
         command_name,
         params,
         return_content=False,

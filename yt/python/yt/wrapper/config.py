@@ -164,6 +164,7 @@ class Config(types.ModuleType, client_state.ClientState):
             d = d[k]
         d[parts[-1]] = value
 
+
 # Process reload correctly
 special_module_name = "_yt_config_" + __name__
 if special_module_name not in sys.modules:

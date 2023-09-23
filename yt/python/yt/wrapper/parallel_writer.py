@@ -77,7 +77,7 @@ class ParallelWriter(object):
 
         client = YtClient(config=client_config)
 
-        write_action = lambda chunk, params: self._write_action(chunk, params, client)
+        write_action = lambda chunk, params: self._write_action(chunk, params, client)  # noqa
         retrier = WriteRequestRetrier(transaction_timeout=self._transaction_timeout,
                                       write_action=write_action,
                                       client=client)
@@ -193,7 +193,7 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
         # without a risk of triggering timeout.
         stream = stream.split_chunks(2 * MB)
 
-        write_action = lambda chunk, params, client: make_request(
+        write_action = lambda chunk, params, client: make_request(  # noqa
             command_name,
             params,
             data=iter(chunk),

@@ -266,11 +266,14 @@ class TestClient(object):
             mocked_adapter_http = requests_mock.Adapter()
             yt.http_helpers._get_session(client=client).mount("http://", mocked_adapter_http)
             yt.http_helpers._get_session(client=client).mount("https://", mocked_adapter_https)
-            mocked_adapter_https.register_uri("GET", requests_mock.ANY, text='[{"name": "get", "input_type": "null", "output_type": "structured", "is_volatile": false, "is_heavy": false}]')
+            mocked_adapter_https.register_uri(
+                "GET",
+                requests_mock.ANY,
+                text='[{"name": "get", "input_type": "null", "output_type": "structured", "is_volatile": false, "is_heavy": false}]')
 
             try:
                 client.get("/")
-            except:
+            except Exception:
                 pass
 
             assert len(mocked_adapter_http.request_history) == 0

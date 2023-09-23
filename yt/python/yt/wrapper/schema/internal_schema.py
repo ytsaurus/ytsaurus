@@ -329,7 +329,7 @@ def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, f
 
     if not _is_py_type_compatible_with_ti_type(py_type_origin, ti_type) and (not to_yt_type or not from_yt_type):
         raise YtError('Python type {} is not compatible with type "{}" from table schema at field "{}"'
-                        .format(py_type, ti_type, effective_field_name))
+                      .format(py_type, ti_type, effective_field_name))
 
     return PrimitiveSchema(
         py_type_origin,
@@ -557,7 +557,7 @@ def _create_py_schema(py_type, ti_type=None, field_name=None, schema_runtime_con
                 )
         elements_py_schema = [
             _create_py_schema(py_type=el_py_type, ti_type=el_ti_type, schema_runtime_context=schema_runtime_context)
-                for el_py_type, el_ti_type in zip(_get_tuple_elements_types(py_type), element_ti_types)
+            for el_py_type, el_ti_type in zip(_get_tuple_elements_types(py_type), element_ti_types)
         ]
         return TupleSchema(elements_py_schema, is_ti_type_optional=is_ti_type_optional)
     elif _get_dict_key_value_types(py_type) is not None:
@@ -578,7 +578,12 @@ def _create_py_schema(py_type, ti_type=None, field_name=None, schema_runtime_con
         value_py_schema = _create_py_schema(value_type, ti_type=value_ti_type, schema_runtime_context=schema_runtime_context)
         return DictSchema(key_py_schema, value_py_schema, is_ti_type_optional=is_ti_type_optional)
     elif primitive_origin is not None:
-        return _create_primitive_schema(py_type, ti_type, is_ti_type_optional=is_ti_type_optional, field_name=field_name, schema_runtime_context=schema_runtime_context)
+        return _create_primitive_schema(
+            py_type,
+            ti_type,
+            is_ti_type_optional=is_ti_type_optional,
+            field_name=field_name,
+            schema_runtime_context=schema_runtime_context)
     else:
         raise YtError("Unsupported field type. Cannot create py_schema for field \"{}\" from type {}".format(effective_field_name, py_type))
 

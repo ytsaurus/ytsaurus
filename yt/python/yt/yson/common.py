@@ -57,6 +57,7 @@ class StreamWrap(object):
         if self.state == 3:
             return b""
 
+
 _ENCODING_SENTINEL = object()
 
 # Binary literals markers

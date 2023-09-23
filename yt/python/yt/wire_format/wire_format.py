@@ -27,25 +27,26 @@ except NameError:  # Python 3
 SERIALIZATION_ALIGNMENT = 8
 
 # Unversioned value type
-VT_NULL    = 0x02
-VT_INT64   = 0x03
-VT_UINT64  = 0x04
-VT_DOUBLE  = 0x05
+VT_NULL = 0x02
+VT_INT64 = 0x03
+VT_UINT64 = 0x04
+VT_DOUBLE = 0x05
 VT_BOOLEAN = 0x06
-VT_STRING  = 0x10
-VT_ANY     = 0x11
+VT_STRING = 0x10
+VT_ANY = 0x11
 
 SCHEMA_TYPE_TO_VALUE_TYPE = {
-    "int64":   VT_INT64,
-    "uint64":  VT_UINT64,
-    "double":  VT_DOUBLE,
+    "int64": VT_INT64,
+    "uint64": VT_UINT64,
+    "double": VT_DOUBLE,
     "boolean": VT_BOOLEAN,
-    "string":  VT_STRING,
-    "any":     VT_ANY
+    "string": VT_STRING,
+    "any": VT_ANY
 }
 
 # uint64(-1)
 NULL_ROW_MARKER = 0xFFFFFFFFFFFFFFFF
+
 
 def _validate_supported_types(expected_types, expected_type_in_schema, value):
     if not isinstance(value, expected_types):
@@ -53,11 +54,14 @@ def _validate_supported_types(expected_types, expected_type_in_schema, value):
             type(value),
             expected_type_in_schema))
 
+
 def _null_validate_supported_type(expected_types, expected_type_in_schema, value):
     pass
 
+
 def align_up(size):
     return (size + SERIALIZATION_ALIGNMENT - 1) & ~(SERIALIZATION_ALIGNMENT - 1)
+
 
 # Allows to read multiple attachments as one continuous byte stream.
 class AttachmentStream(object):
@@ -100,9 +104,11 @@ class AttachmentStream(object):
             raise YtError("Unexpected end of stream")
         return read
 
+
 def build_name_table_from_schema(schema):
     type_to_value_type = SCHEMA_TYPE_TO_VALUE_TYPE
     return [{"name": entry["name"], "type": type_to_value_type[entry["type"]]} for entry in schema]
+
 
 def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value_type_validation=True, encoding="utf-8"):
     key_to_type = dict((entry["name"], entry["type"]) for entry in schema)
@@ -162,7 +168,7 @@ def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value
                 "<HBBI",
                 key_to_index[key],
                 schema_type_to_value_type[expected_value_type],
-                0, # flags = none
+                0,  # flags = none
                 len(serialized_value))
 
             assert len(value_header) == 8
@@ -186,6 +192,7 @@ def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value
     stream.write(struct.pack("<I", total_data_size))
     for chunk in buffer_:
         stream.write(chunk)
+
 
 def deserialize_rows_from_unversioned_wire_format(stream, column_names, skip_none_values=True, encoding="utf-8"):
     result = []

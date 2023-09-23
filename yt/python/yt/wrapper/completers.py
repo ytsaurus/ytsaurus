@@ -6,7 +6,7 @@ except ImportError:
 import yt.wrapper as yt
 
 if not yt.config["argcomplete_verbose"]:
-    warn = lambda *args, **kwargs: None
+    warn = lambda *args, **kwargs: None  # noqa
 
 
 def complete_map_node(path):
