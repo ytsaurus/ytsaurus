@@ -152,6 +152,7 @@ public:
                 }
             }
 
+            Sort(filteredIds);
             DoRemoveMaintenances(component, address, filteredIds, componentRegistryId);
         }
 
@@ -188,7 +189,9 @@ private:
         auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
         VerifyMaintenanceReplication(component);
 
-        auto ids = FromProto<TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>>(request->ids());
+        auto ids = FromProto<TMaintenanceIdList>(request->ids());
+        YT_ASSERT(std::is_sorted(ids.begin(), ids.end()));
+
         DoRemoveMaintenances(
             CheckedEnumCast<EMaintenanceComponent>(request->component()),
             request->address(),
@@ -251,7 +254,7 @@ private:
     void DoRemoveMaintenances(
         EMaintenanceComponent component,
         const TString& address,
-        const TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>& ids,
+        const TMaintenanceIdList& ids,
         std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
         YT_VERIFY(HasMutationContext());
@@ -287,11 +290,8 @@ private:
         TReqReplicateMaintenanceRequestRemoval mutationRequest;
         mutationRequest.set_component(ToProto<i32>(component));
         mutationRequest.set_address(address);
-        ToProto(mutationRequest.mutable_ids(), ids);
 
-        std::sort(
-            mutationRequest.mutable_ids()->pointer_begin(),
-            mutationRequest.mutable_ids()->pointer_end());
+        ToProto(mutationRequest.mutable_ids(), ids);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(mutationRequest);
