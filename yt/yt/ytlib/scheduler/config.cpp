@@ -2007,7 +2007,7 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("ephemeral_subpool_config", &TThis::EphemeralSubpoolConfig)
-        .DefaultNew();
+        .Default();
 
     registrar.Parameter("infer_children_weights_from_historic_usage", &TThis::InferChildrenWeightsFromHistoricUsage)
         .Default(false);
