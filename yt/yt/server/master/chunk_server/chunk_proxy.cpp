@@ -262,6 +262,10 @@ private:
                         fluent
                             .Item("location_uuid").Value(location->GetUuid());
                     })
+                    .DoIf(node->IsDecommissioned(), [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("decommissioned").Value(true);
+                    })
                     .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
                         fluent
                             .Item("index").Value(replicaIndex);
@@ -332,6 +336,10 @@ private:
                                 .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
                                     fluent
                                         .Item("index").Value(replica.GetReplicaIndex());
+                                })
+                                .DoIf(replica.GetPtr()->IsDecommissioned(), [&] (TFluentMap fluent) {
+                                    fluent
+                                        .Item("decommissioned").Value(true);
                                 })
                             .EndAttributes()
                             .Value(replica.GetPtr()->GetDefaultAddress());
