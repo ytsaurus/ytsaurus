@@ -97,6 +97,10 @@ protected:
             auto defaultConfig = New<NHttpProxy::TProxyConfig>();
             defaultConfig->SetDefaults();
             defaultConfig->Port = 8080;
+            defaultConfig->MonitoringPort = 10013;
+            auto shardConfig = New<NProfiling::TShardConfig>();
+            shardConfig->Filter = {"yt/"};
+            defaultConfig->SolomonExporter->Shards = {{"default", std::move(shardConfig)}};
             defaultConfig->ClusterConnection = New<NApi::NNative::TConnectionCompoundConfig>();
             defaultConfig->ClusterConnection->Static = New<NApi::NNative::TConnectionStaticConfig>();
             defaultConfig->ClusterConnection->Dynamic = New<NApi::NNative::TConnectionDynamicConfig>();
