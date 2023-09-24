@@ -345,7 +345,7 @@ void TQueueConsumerRegistrationManager::RefreshCache()
     try {
         GuardedRefreshCache();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Could not refresh queue consumer registration cache");
+        YT_LOG_DEBUG(ex, "Could not refresh queue consumer registration cache");
     }
 
     try {
@@ -409,7 +409,7 @@ void TQueueConsumerRegistrationManager::RefreshConfiguration()
     try {
         GuardedRefreshConfiguration();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Could not refresh queue consumer registration manager configuration");
+        YT_LOG_DEBUG(ex, "Could not refresh queue consumer registration manager configuration");
     }
 }
 
