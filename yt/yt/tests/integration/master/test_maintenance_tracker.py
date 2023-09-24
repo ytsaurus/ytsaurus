@@ -311,6 +311,19 @@ class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
         externalize("//sys/rpc_proxies", 11)
         externalize("//sys/http_proxies", 12)
 
+    @authors("kvk1920")
+    def test_maintenance_ids_sorting(self):
+        node = ls("//sys/cluster_nodes")[0]
+        for _ in range(3):
+            for i in range(5):
+                add_maintenance("cluster_node", node, "ban", comment=f"{i}")
+            maintenances = list(get(f"//sys/cluster_nodes/{node}/@maintenance_requests"))
+            assert len(maintenances) == 5
+            maintenances.sort(reverse=True)
+            assert remove_maintenance("cluster_node", node, ids=maintenances) == {
+                "ban": 5
+            }
+
 
 ################################################################################
 
