@@ -185,8 +185,9 @@ private:
             .TransactionId = Options_.TransactionId,
             .ReadSessionId = readSessionId,
             .GetUserObjectBasicAttributesOptions = TGetUserObjectBasicAttributesOptions{
-                .SuppressAccessTracking = tableReaderConfig->SuppressAccessTracking,
-                .SuppressExpirationTimeoutRenewal = tableReaderConfig->SuppressExpirationTimeoutRenewal,
+                // It's fine to ignore SuppressModificationTracking, since read requests can't modify table.
+                .SuppressAccessTracking = tableReaderConfig->SuppressAccessTracking || Options_.SuppressAccessTracking,
+                .SuppressExpirationTimeoutRenewal = tableReaderConfig->SuppressExpirationTimeoutRenewal || Options_.SuppressExpirationTimeoutRenewal,
                 .OmitInaccessibleColumns = Options_.OmitInaccessibleColumns,
             },
             .FetchChunkSpecConfig = Config_,

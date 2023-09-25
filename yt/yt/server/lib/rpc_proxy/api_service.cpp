@@ -5005,6 +5005,10 @@ private:
             FromProto(&options, request->transactional_options());
         }
 
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
         auto desiredRowsetFormat = request->desired_rowset_format();
         auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
 
