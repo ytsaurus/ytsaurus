@@ -479,14 +479,21 @@ void TQueueAgent::Pass()
         }
     }
 
-    // Add follower controllers for replicas of led queues.
-    for (const auto& queue : GetKeys(ledQueues)) {
-        if (auto replicatedTableMappingRow = getReplicatedTableMappingRow(queue)) {
-            for (const auto& queueReplica : replicatedTableMappingRow->GetReplicas()) {
-                addFollowedObject(TCrossClusterReference::FromRichYPath(queueReplica), allQueues, ledQueues, followedQueues);
+    auto addFollowedReplicas = [&] (const std::vector<TCrossClusterReference>& queueRefs) {
+        for (const auto& queue : queueRefs) {
+            if (auto replicatedTableMappingRow = getReplicatedTableMappingRow(queue)) {
+                for (const auto& queueReplica : replicatedTableMappingRow->GetReplicas()) {
+                    addFollowedObject(TCrossClusterReference::FromRichYPath(queueReplica), allQueues, ledQueues, followedQueues);
+                }
             }
         }
-    }
+    };
+
+    // Add follower controllers for replicas of all relevant queues.
+    // NB: It is important that we do this *after* we add followed queues from registrations.
+    // NB: We dont add replicas for all queues, since some of those queues are from stages other than ours.
+    addFollowedReplicas(GetKeys(ledQueues));
+    addFollowedReplicas(GetKeys(followedQueues));
 
     // Then, create following-controllers for objects referenced by queues and consumers this queue agent is responsible for.
 
