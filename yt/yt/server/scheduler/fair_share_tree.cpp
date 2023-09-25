@@ -2956,7 +2956,8 @@ private:
         fluent
             .DoFor(parentPool->EnabledChildren(), [&] (TFluentMap fluent, const TSchedulerElementPtr& pool) {
                 fluent.Item(pool->GetId())
-                    .BeginMap().Do(std::bind(&TFairShareTree::BuildPoolInfo,
+                    .BeginMap().Do(
+                        std::bind(&TFairShareTree::BuildPoolInfo,
                         std::cref(treeSnapshot),
                         static_cast<TSchedulerPoolElement*>(pool.Get()),
                         std::cref(filter),
