@@ -1,7 +1,7 @@
 package tech.ytsaurus.spyt.fs.path
 
 import org.apache.hadoop.fs.Path
-import tech.ytsaurus.spyt.fs.path.YPathEnriched.{YtLatestVersionPath, YtTimestampPath, YtTransactionPath}
+import tech.ytsaurus.spyt.fs.path.YPathEnriched.{YtLatestVersionPath, YtPartitionedPath, YtTimestampPath, YtTransactionPath}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.core.GUID
@@ -10,11 +10,11 @@ import tech.ytsaurus.core.cypress.YPath
 sealed trait YPathEnriched {
   def toPath: Path
 
-  def toYPath: YPath
+  def toYPath: YPath = parent.toYPath
 
   def toStringPath: String = toPath.toString
 
-  def transaction: Option[String]
+  def transaction: Option[String] = None
 
   def parent: YPathEnriched
 
@@ -30,6 +30,8 @@ sealed trait YPathEnriched {
   def withTimestamp(timestamp: Long): YtTimestampPath = YtTimestampPath(this, timestamp)
 
   def withLatestVersion(): YtLatestVersionPath = YtLatestVersionPath(this)
+
+  def withYtPartitioning(): YtPartitionedPath = YtPartitionedPath(this)
 
   def lock()(implicit yt: CompoundClient): YPathEnriched = this
 
@@ -47,18 +49,13 @@ object YPathEnriched {
 
     override def toYPath: YPath = YPath.objectRoot(GUID.valueOf(nodeId))
 
-    override def transaction: Option[String] = None
-
     override def child(name: String): YPathEnriched = ???
   }
 
   case class YtTransactionPath(parent: YPathEnriched, transactionId: String) extends YPathEnriched {
     override def toPath: Path = parent.toPath.child(s"@transaction_$transactionId")
 
-    override def toYPath: YPath = parent.toYPath
-
     override def transaction: Option[String] = Some(transactionId)
-
 
     override def child(name: String): YPathEnriched = YtSimplePath(this, name).withTransaction(transactionId)
 
@@ -73,8 +70,6 @@ object YPathEnriched {
 
     override def toYPath: YPath = parent.toYPath.child(name)
 
-    override def transaction: Option[String] = None
-
     override def child(name: String): YPathEnriched = YtSimplePath(this, name)
   }
 
@@ -82,8 +77,6 @@ object YPathEnriched {
     override def toPath: Path = path
 
     override def toYPath: YPath = YPath.simple(YtWrapper.formatPath(path.toString))
-
-    override def transaction: Option[String] = None
 
     override def parent: YPathEnriched = null
 
@@ -102,8 +95,6 @@ object YPathEnriched {
     override def toPath: Path = parent.toPath.child(s"@timestamp_$timestamp")
 
     override def toYPath: YPath = parent.toYPath.withTimestamp(timestamp)
-
-    override def transaction: Option[String] = None
 
     override def child(name: String): YPathEnriched = {
       parent match {
@@ -129,8 +120,6 @@ object YPathEnriched {
 
     override def toYPath: YPath = parent.toYPath
 
-    override def transaction: Option[String] = None
-
     override def child(name: String): YPathEnriched = {
       parent match {
         case p: YtTransactionPath =>
@@ -143,6 +132,15 @@ object YPathEnriched {
     override def lock()(implicit yt: CompoundClient): YPathEnriched = {
       parent.lock().withLatestVersion()
     }
+  }
+
+
+  case class YtPartitionedPath(parent: YPathEnriched) extends YPathEnriched {
+    override def toPath: Path = parent.toPath.child("@yt_partitioned")
+
+    override def child(name: String): YPathEnriched = YtSimplePath(this, name)
+
+    override def lock()(implicit yt: CompoundClient): YPathEnriched = parent.lock().withYtPartitioning()
   }
 
   object YtObjectPath {
@@ -187,6 +185,16 @@ object YPathEnriched {
     }
   }
 
+  object YtPartitionedPath {
+    def unapply(path: Path): Option[Path] = {
+      if (path.getName == "@yt_partitioned") {
+        Some(path.getParent)
+      } else {
+        None
+      }
+    }
+  }
+
   // TODO tailrec?
   def ypath(path: Path): YPathEnriched = {
     path match {
@@ -203,6 +211,8 @@ object YPathEnriched {
         YtTimestampPath(ypath(parentPath), timestamp)
       case YtLatestVersionPath(parentPath) =>
         YtLatestVersionPath(ypath(parentPath))
+      case YtPartitionedPath(parentPath) =>
+        YtPartitionedPath(ypath(parentPath))
       case _ =>
         val tr = GlobalTableSettings.getTransaction(path.toString)
         if (path.getParent != null && path.getParent.toString.contains("@")) {

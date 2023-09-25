@@ -8,6 +8,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.vectorized.YtFileFormat
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.GlobalTransaction
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.YtPartitioningEnabled
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
 
 class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
@@ -25,6 +26,7 @@ class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
     val transaction = options.getYtConf(Transaction).orElse(sparkSession.getYtConf(GlobalTransaction.Id))
     val timestamp = options.getYtConf(Timestamp)
     val inconsistentReadEnabled = options.ytConf(InconsistentReadEnabled)
+    val ytPartitioningEnabled = sparkSession.getYtConf(YtPartitioningEnabled).getOrElse(false)
 
     if (inconsistentReadEnabled && timestamp.nonEmpty) {
       throw new IllegalStateException("Using of both timestamp and enable_inconsistent_read options is prohibited")
@@ -35,7 +37,8 @@ class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
       val transactionYPath = transaction.map(YtTransactionPath(path, _)).getOrElse(YtRootPath(path))
       val timestampYPath = timestamp.map(YtTimestampPath(transactionYPath, _)).getOrElse(transactionYPath)
       val latestVersionPath = if (inconsistentReadEnabled) YtLatestVersionPath(transactionYPath) else timestampYPath
-      latestVersionPath.toPath.toString
+      val ytPartitionedPath = if (ytPartitioningEnabled) latestVersionPath.withYtPartitioning() else latestVersionPath
+      ytPartitionedPath.toPath.toString
     }
   }
 

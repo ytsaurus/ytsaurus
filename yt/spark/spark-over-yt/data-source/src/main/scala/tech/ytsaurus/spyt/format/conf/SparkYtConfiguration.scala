@@ -29,7 +29,6 @@ object SparkYtConfiguration {
 
     case object ArrowEnabled extends BooleanConfigEntry(s"$prefix.arrow.enabled", Some(true))
 
-    // Don't change in session runtime
     case object YtPartitioningEnabled extends BooleanConfigEntry(s"$prefix.ytPartitioning.enabled", Some(false))
 
     case object PlanOptimizationEnabled extends BooleanConfigEntry(s"$prefix.planOptimization.enabled", Some(false))

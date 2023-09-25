@@ -113,7 +113,10 @@ object YtFilePartition {
           implicit val yt: CompoundClient =
             YtClientProvider.ytClient(ytClientConfiguration(sparkSession.sessionState.conf))
           val yPath = yp.toYPath
-          val richYPath = readDataSchema.map(st => YtInputSplit.addColumnsList(yPath, st)).getOrElse(yPath)
+          val richYPath = readDataSchema match {
+            case Some(st) if st.nonEmpty => YtInputSplit.addColumnsList(yPath, st)
+            case _ => yPath
+          }
           // TODO(alex-shishkin): Lookup tables doesn't support using column list while partitioning
           val multiTablePartitions = YtWrapper.splitTables(richYPath, maxSplitBytes)
           multiTablePartitions.flatMap { multiTablePartition =>

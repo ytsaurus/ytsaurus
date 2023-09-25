@@ -5,7 +5,7 @@ import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
-import tech.ytsaurus.spyt.fs.path.YPathEnriched.{YtDynamicVersionPath, YtObjectPath, YtRootPath, YtSimplePath, YtTimestampPath, YtTransactionPath, ypath}
+import tech.ytsaurus.spyt.fs.path.YPathEnriched.{YtDynamicVersionPath, YtObjectPath, YtPartitionedPath, YtRootPath, YtSimplePath, YtTimestampPath, YtTransactionPath, ypath}
 import tech.ytsaurus.spyt.fs.path._
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.cypress.PathType
@@ -58,20 +58,21 @@ class YtTableFileSystem extends YtFileSystemBase {
 
   @tailrec
   private def lockStaticTable(path: YPathEnriched,
-                              attributes: Map[String, YTreeNode])
+                              attributes: Map[String, YTreeNode], useYtPartitioning: Boolean = false)
                              (implicit yt: CompoundClient): Array[FileStatus] = {
     path match {
       case p: YtObjectPath =>
         val newAttributes = YtWrapper.attributes(p.toYPath)
-        listStaticTableAsFiles(p, newAttributes)
-      case p@(_: YtSimplePath | _: YtRootPath) => listStaticTableAsFiles(p, attributes)
+        listStaticTableAsFiles(p, newAttributes, useYtPartitioning)
+      case p@(_: YtSimplePath | _: YtRootPath) => listStaticTableAsFiles(p, attributes, useYtPartitioning)
       case p: YtTransactionPath => Array(getFileStatus(p.lock()))
-      case p: YtTimestampPath => lockStaticTable(p.parent, attributes)
+      case p: YtTimestampPath => lockStaticTable(p.parent, attributes, useYtPartitioning)
+      case p: YtPartitionedPath => lockStaticTable(p.parent, attributes, useYtPartitioning = true)
     }
   }
 
   private def lockDynamicTable(path: YPathEnriched,
-                               attributes: Map[String, YTreeNode])
+                               attributes: Map[String, YTreeNode], useYtPartitioning: Boolean = false)
                               (implicit yt: CompoundClient): Array[FileStatus] = {
     path match {
       case p: YtDynamicVersionPath =>
@@ -79,59 +80,80 @@ class YtTableFileSystem extends YtFileSystemBase {
           case pp: YtTransactionPath =>
             Array(getFileStatus(p.lock()))
           case _ =>
-            listDynamicTableAsFiles(p, YtWrapper.attributes(p.toYPath))
+            listDynamicTableAsFiles(p, YtWrapper.attributes(p.toYPath), useYtPartitioning)
         }
       case p@(_: YtSimplePath | _: YtObjectPath | _: YtRootPath) =>
         val ts = YtWrapper.maxAvailableTimestamp(p.toYPath)
         Array(getFileStatus(p.withTimestamp(ts)))
       case p: YtTransactionPath =>
         Array(getFileStatus(p.lock()))
+      case p: YtPartitionedPath =>
+        lockDynamicTable(p.parent, attributes, useYtPartitioning = true)
     }
   }
 
 
-  private def listStaticTableAsFiles(f: YPathEnriched, attributes: Map[String, YTreeNode])
+  private def listStaticTableAsFiles(f: YPathEnriched, attributes: Map[String, YTreeNode],
+                                     useYtPartitioning: Boolean = false)
                                     (implicit yt: CompoundClient): Array[FileStatus] = {
     val rowCount = YtWrapper.rowCount(attributes)
     val optimizeMode = YtWrapper.optimizeMode(attributes)
     val tableSize = YtWrapper.dataWeight(attributes)
     val approximateRowSize = if (rowCount > 0) tableSize / rowCount else 0
     val modificationTime = YtWrapper.modificationTimeTs(attributes)
-    val chunkCount = YtWrapper.chunkCount(attributes)
-
-    val filesCount = if (chunkCount > 0) chunkCount else 1
-    val result = new Array[FileStatus](filesCount)
-    for (chunkIndex <- 0 until chunkCount) {
-      val chunkStart = chunkIndex * rowCount / chunkCount
-      val chunkRowCount = (chunkIndex + 1) * rowCount / chunkCount - chunkStart
-      val chunkPath = YtStaticPath(f, YtStaticPathAttributes(optimizeMode, chunkStart, chunkRowCount))
-      result(chunkIndex) = new YtFileStatus(chunkPath, approximateRowSize, modificationTime)
-    }
-
-    if (chunkCount == 0) {
-      // Add path for schema resolving.
-      val chunkPath = YtStaticPath(f, YtStaticPathAttributes(optimizeMode, 0, 0))
+    if (useYtPartitioning) {
+      // No real partitioning. YT partitioning must be used further.
+      val chunkPath = YtStaticPath(f, YtStaticPathAttributes(optimizeMode, 0, rowCount))
+      val result = new Array[FileStatus](1)
       result(0) = new YtFileStatus(chunkPath, approximateRowSize, modificationTime)
+      result
+    } else {
+      val chunkCount = YtWrapper.chunkCount(attributes)
+
+      val filesCount = if (chunkCount > 0) chunkCount else 1
+      val result = new Array[FileStatus](filesCount)
+      for (chunkIndex <- 0 until chunkCount) {
+        val chunkStart = chunkIndex * rowCount / chunkCount
+        val chunkRowCount = (chunkIndex + 1) * rowCount / chunkCount - chunkStart
+        val chunkPath = YtStaticPath(f, YtStaticPathAttributes(optimizeMode, chunkStart, chunkRowCount))
+        result(chunkIndex) = new YtFileStatus(chunkPath, approximateRowSize, modificationTime)
+      }
+
+      if (chunkCount == 0) {
+        // Add path for schema resolving.
+        val chunkPath = YtStaticPath(f, YtStaticPathAttributes(optimizeMode, 0, 0))
+        result(0) = new YtFileStatus(chunkPath, approximateRowSize, modificationTime)
+      }
+      result
     }
-    result
   }
 
   private def listDynamicTableAsFiles(f: YPathEnriched,
-                                      attributes: Map[String, YTreeNode])
+                                      attributes: Map[String, YTreeNode], useYtPartitioning: Boolean = false)
                                      (implicit yt: CompoundClient): Array[FileStatus] = {
     val keyColumns = YtWrapper.keyColumns(attributes)
     val tableSize = YtWrapper.dataWeight(attributes)
     val modificationTime = YtWrapper.modificationTimeTs(attributes)
-    val pivotKeys = YtWrapper.pivotKeys(f.toYPath) :+ YtWrapper.emptyPivotKey
-    val result = new Array[FileStatus](pivotKeys.length - 1)
-    val approximateChunkSize = if (result.length > 0) tableSize / result.length else 0
+    if (useYtPartitioning) {
+      // No real partitioning. YT partitioning must be used further.
+      val result = new Array[FileStatus](1)
+      val approximateChunkSize = tableSize
 
-    pivotKeys.sliding(2).zipWithIndex.foreach {
-      case (Seq(startKey, endKey), i) =>
-        val chunkPath = YtDynamicPath(f, startKey, endKey, i.toString, keyColumns)
-        result(i) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
+      val chunkPath = YtDynamicPath(f, YtWrapper.emptyPivotKey, YtWrapper.emptyPivotKey, 0.toString, keyColumns)
+      result(0) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
+      result
+    } else {
+      val pivotKeys = YtWrapper.pivotKeys(f.toYPath) :+ YtWrapper.emptyPivotKey
+      val result = new Array[FileStatus](pivotKeys.length - 1)
+      val approximateChunkSize = if (result.length > 0) tableSize / result.length else 0
+
+      pivotKeys.sliding(2).zipWithIndex.foreach {
+        case (Seq(startKey, endKey), i) =>
+          val chunkPath = YtDynamicPath(f, startKey, endKey, i.toString, keyColumns)
+          result(i) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
+      }
+      result
     }
-    result
   }
 
   override def getFileStatus(f: Path): FileStatus = {
