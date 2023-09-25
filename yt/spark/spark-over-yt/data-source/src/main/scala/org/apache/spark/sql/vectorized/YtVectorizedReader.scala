@@ -16,6 +16,7 @@ class YtVectorizedReader(split: YtInputSplit,
                          batchMaxSize: Int,
                          returnBatch: Boolean,
                          arrowEnabled: Boolean,
+                         optimizedForScan: Boolean,
                          timeout: Duration,
                          reportBytesRead: Long => Unit)
                         (implicit yt: CompoundClient) extends RecordReader[Void, Object] {
@@ -26,10 +27,7 @@ class YtVectorizedReader(split: YtInputSplit,
     val path = split.ytPathWithFilters
     log.info(s"Reading from $path")
     val schema = split.schema
-    // TODO(alex-shishkin): SPYT-404
-    // Check for non-emptiness is a workaround for not working reading in Arrow with empty schema.
-    // org/apache/spark/sql/v2/StaticTableKeyPartitioningTest.scala:"read any subset of columns" test crashes
-    if (arrowEnabled && schema.nonEmpty) {
+    if (arrowEnabled && optimizedForScan) {
       val stream = YtWrapper.readTableArrowStream(path, timeout, None, reportBytesRead)
       new ArrowBatchReader(stream, schema)
     } else {

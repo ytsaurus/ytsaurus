@@ -6,9 +6,8 @@ import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt.test.{LocalSpark, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
-import tech.ytsaurus.spyt.YtWriter
+import tech.ytsaurus.spyt.{SchemaTestUtils, YtReader, YtWriter}
 import tech.ytsaurus.core.cypress.YPath
-import tech.ytsaurus.spyt.SchemaTestUtils
 import tech.ytsaurus.spyt.wrapper.table.YtArrowInputStream
 
 import java.io.InputStream
@@ -54,6 +53,20 @@ class ArrowBatchReaderTest extends FlatSpec with TmpDir with SchemaTestUtils
 
     val rows = readFully(reader, schema, Int.MaxValue)
     rows should contain theSameElementsAs data.map(Row(_))
+  }
+
+  it should "count table" in {
+    import spark.implicits._
+
+    val count = 500
+    val data = (0 until count).map(x => (x / 100, x / 10)).toDF("a", "b")
+    Seq("scan", "lookup").foreach {
+      optimizeMode =>
+        data.write.mode("overwrite").optimizeFor(optimizeMode).yt(tmpPath)
+
+        val res = spark.read.enableArrow.yt(tmpPath).count()
+        res shouldBe count
+    }
   }
 
   it should "read arrow stream from yt" in {

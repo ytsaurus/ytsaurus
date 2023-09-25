@@ -14,7 +14,7 @@ import org.apache.spark.sql.execution.datasources.parquet.{ParquetFileFormat => 
 import org.apache.spark.sql.execution.metric.{SQLMetric, SQLMetrics}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.v2.YtFilePartition
+import org.apache.spark.sql.v2.{YtFilePartition, YtReaderOptions}
 import org.apache.spark.sql.vectorized.{ColumnarBatch, YtFileFormat}
 import org.apache.spark.util.collection.BitSet
 import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
@@ -54,8 +54,9 @@ case class YtSourceScanExec(
   // so that this plan can be canonicalized on executor side too. See SPARK-23731.
   override lazy val supportsColumnar: Boolean = {
     relation.fileFormat match {
-      case yf: YtFileFormat =>
-        yf.supportBatch(relation.sparkSession, StructType.fromAttributes(output), relationOptions)
+      case yf: YtFileFormat => YtReaderOptions.supportBatch(
+        StructType.fromAttributes(output), relationOptions, relation.sparkSession.sqlContext.conf
+      )
       case f => f.supportBatch(relation.sparkSession, StructType.fromAttributes(output))
     }
   }

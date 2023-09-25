@@ -43,26 +43,12 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     ytLoggerConfig: Option[YtDynTableLoggerConfig])
   extends FilePartitionReaderFactory with Logging {
 
-  private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType, FloatType)
-
   private val resultSchema = StructType(readDataSchema.fields)
   private val ytClientConf = ytClientConfiguration(sqlConf)
-  private val arrowEnabled: Boolean = {
-    import tech.ytsaurus.spyt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
-    import tech.ytsaurus.spyt.fs.conf._
-    val keyPartitioned = options.get(TableSettings.KeyPartitioned.name).exists(_.toBoolean)
-    options.ytConf(TableSettings.ArrowEnabled) && sqlConf.ytConf(SparkSettings.Read.ArrowEnabled) && !keyPartitioned
-  }
-  private val readBatch: Boolean = {
-    import tech.ytsaurus.spyt.format.conf.{YtTableSparkSettings => TableSettings}
-    val optimizedForScan = options.get(TableSettings.OptimizedForScan.name).exists(_.toBoolean)
-    (optimizedForScan && arrowEnabled && arrowSchemaSupported(readDataSchema)) || readDataSchema.isEmpty
-  }
-  private val returnBatch: Boolean = {
-    readBatch && sqlConf.wholeStageEnabled &&
-      resultSchema.length <= sqlConf.wholeStageMaxNumFields &&
-      resultSchema.forall(_.dataType.isInstanceOf[AtomicType])
-  }
+  private val arrowEnabled: Boolean = YtReaderOptions.arrowEnabled(options, sqlConf)
+  private val optimizedForScan: Boolean = YtReaderOptions.optimizedForScan(options)
+  private val readBatch: Boolean = YtReaderOptions.canReadBatch(readDataSchema, optimizedForScan, arrowEnabled)
+  private val returnBatch: Boolean = YtReaderOptions.supportBatch(readBatch, resultSchema, sqlConf)
   private val batchMaxSize = sqlConf.ytConf(VectorizedCapacity)
 
   @transient private lazy val taskContext: ThreadLocal[TaskContext] = new ThreadLocal()
@@ -207,13 +193,9 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
       batchMaxSize = batchMaxSize,
       returnBatch = returnBatch,
       arrowEnabled = arrowEnabled,
+      optimizedForScan = optimizedForScan,
       timeout = ytClientConf.timeout,
       bytesReadReporter(broadcastedConf)
     )
   }
-
-  private def arrowSchemaSupported(dataSchema: StructType): Boolean = {
-    dataSchema.fields.forall(f => !unsupportedTypes.contains(f.dataType))
-  }
-
 }
