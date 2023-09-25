@@ -240,9 +240,13 @@ std::vector<std::string> ReadStringArrayFromDict(const std::shared_ptr<arrow::Ar
 
     std::vector<std::string> result;
     for (size_t i = 0; i < indices.size(); i++) {
-        auto index = indices[i];
-        auto value = values[index];
-        result.push_back(value);
+        if (array->IsNull(i)) {
+            result.push_back("");
+        } else {
+            auto index = indices[i];
+            auto value = values[index];
+            result.push_back(value);
+        }
     }
     return result;
 }
@@ -266,6 +270,7 @@ bool IsDictColumn(const std::shared_ptr<arrow::Array>& array)
 
 using ColumnInteger = std::vector<int64_t>;
 using ColumnString = std::vector<std::string>;
+using ColumnNullableString = std::vector<std::optional<std::string>>;
 using ColumnBool = std::vector<bool>;
 using ColumnDouble = std::vector<double>;
 
@@ -324,6 +329,37 @@ TOwnerRows MakeUnversionedStringRows(
         for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
             strings.push_back(TString(column[colIdx][rowIndex]));
             rowsBuilders[rowIndex].AddValue(MakeUnversionedStringValue(strings.back(), columnId));
+        }
+    }
+    std::vector<TUnversionedRow> rows;
+    std::vector<TUnversionedOwningRow> owningRows;
+    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
+        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
+}
+
+TOwnerRows MakeUnversionedNullableStringRows(
+    const std::vector<ColumnNullableString>& column,
+    const std::vector<std::string>& columnNames)
+{
+    YT_VERIFY(column.size() > 0);
+    std::vector<TString> strings;
+
+    auto nameTable = New<TNameTable>();
+
+    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
+
+    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
+        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
+        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
+            if (column[colIdx][rowIndex] == std::nullopt) {
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue( columnId));
+            } else {
+                strings.push_back(TString(*column[colIdx][rowIndex]));
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedStringValue(strings.back(), columnId));
+            }
         }
     }
     std::vector<TUnversionedRow> rows;
@@ -574,6 +610,89 @@ TEST(Simple, DictionaryString)
     CheckColumnNames(batch, columnNames);
     EXPECT_EQ(ReadAnyStringArray(batch->column(0))[0], longString);
     EXPECT_TRUE(IsDictColumn(batch->column(0)));
+}
+
+TEST(Simple, EnumString)
+{
+    const size_t batchNumb = 10;
+    const size_t rowsCount = 10;
+
+    std::vector<std::string> columnNames = {"string", "string2", "string3"};
+    std::vector<TTableSchemaPtr> tableSchemas;
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames[0]), EValueType::String),
+        TColumnSchema(TString(columnNames[1]), EValueType::String),
+        TColumnSchema(TString(columnNames[2]), EValueType::String),
+    }));
+
+    TStringStream outputStream;
+
+    std::string LONG_STRING = "abcdefghijklmnopqrst";
+    std::string A_STRING = "aaaaaaaaaaaaaaaaaaaaaaa";
+    std::string CAT = "cat";
+    std::string FOO = "foofoofoofoofoofoo";
+    std::string BAR = "barbarbarbarbarbarbar";
+
+    std::vector<std::string> enumStrings = {LONG_STRING, A_STRING, CAT, FOO, BAR};
+    auto nameTable = New<TNameTable>();
+    nameTable->RegisterName(columnNames[0]);
+    nameTable->RegisterName(columnNames[1]);
+    nameTable->RegisterName(columnNames[2]);
+
+    auto writer = CreateArrowWriter(nameTable, &outputStream, tableSchemas);
+    std::vector<std::vector<std::optional<std::string>>> stringColumns;
+    std::vector<std::vector<std::optional<std::string>>> constColumns;
+    std::vector<std::vector<std::optional<std::string>>> optColumns;
+
+    for (size_t i = 0; i < batchNumb; i++) {
+        std::vector<std::optional<std::string>> column;
+        std::vector<std::optional<std::string>> constColumn;
+        std::vector<std::optional<std::string>> optColumn;
+
+        for (size_t j = 0; j < rowsCount; j++) {
+            column.push_back(enumStrings[rand() % enumStrings.size()]);
+            constColumn.push_back(enumStrings[0]);
+            if (rand() % 2 == 0) {
+                optColumn.push_back(enumStrings[rand() % enumStrings.size()]);
+            } else {
+                optColumn.push_back(std::nullopt);
+            }
+        }
+        auto rows = MakeUnversionedNullableStringRows({column, constColumn, optColumn}, columnNames);
+        EXPECT_TRUE(writer->Write(rows.Rows));
+        stringColumns.push_back(column);
+        constColumns.push_back(constColumn);
+        optColumns.push_back(optColumn);
+    }
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batches = MakeAllBatch(outputStream, batchNumb);
+
+    size_t batchIndex = 0;
+    for (auto& batch : batches) {
+        std::cout << batch->ToString() << std::endl;
+        CheckColumnNames(batch, columnNames);
+
+        auto column = ReadAnyStringArray(batch->column(0));
+        auto constColumn = ReadAnyStringArray(batch->column(1));
+        auto optColumn = ReadAnyStringArray(batch->column(2));
+
+        for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+            if (optColumns[batchIndex][rowIndex] == std::nullopt) {
+                EXPECT_TRUE(batch->column(2)->IsNull(rowIndex));
+            } else {
+                EXPECT_EQ(optColumn[rowIndex], *optColumns[batchIndex][rowIndex]);
+            }
+            EXPECT_EQ(column[rowIndex], *stringColumns[batchIndex][rowIndex]);
+            EXPECT_EQ(constColumn[rowIndex], *constColumns[batchIndex][rowIndex]);
+        }
+
+        batchIndex++;
+    }
+
 }
 
 TEST(Simple, DictionaryAndDirectStrings)
