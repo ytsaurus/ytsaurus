@@ -38,9 +38,12 @@ using TPeerInfoPtr = TIntrusivePtr<TPeerInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! See ComputeProbingPenalty.
+using TProbingPenalty = std::pair<int, double>;
+
 struct TChunkReplicaInfo
 {
-    double Penalty = 0;
+    TProbingPenalty Penalty;
     TPeerInfoPtr PeerInfo;
     int ReplicaIndex = GenericChunkReplicaIndex;
 };
