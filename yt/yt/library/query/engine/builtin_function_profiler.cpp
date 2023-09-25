@@ -466,7 +466,9 @@ public:
             YT_VERIFY(
                 type == EValueType::Int64 ||
                 type == EValueType::Uint64 ||
-                type == EValueType::Double);
+                type == EValueType::Double ||
+                type == EValueType::Boolean ||
+                type == EValueType::String);
 
             return [
                 =,

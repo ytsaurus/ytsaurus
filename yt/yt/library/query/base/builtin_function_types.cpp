@@ -120,39 +120,64 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Boolean));
 
     const TTypeParameter castable = 1;
-    auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    castConstraints[castable] = {
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Double,
-        EValueType::Any,
-    };
 
-    result->emplace("int64", New<TFunctionTypeInferrer>(
-        castConstraints,
-        std::vector<TType>{castable},
-        EValueType::Null,
-        EValueType::Int64));
+    {
+        auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+        castConstraints[castable] = std::vector<EValueType>{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+            EValueType::Any,
+        };
 
-    result->emplace("uint64", New<TFunctionTypeInferrer>(
-        castConstraints,
-        std::vector<TType>{castable},
-        EValueType::Null,
-        EValueType::Uint64));
+        result->emplace("int64", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{castable},
+            EValueType::Null,
+            EValueType::Int64));
 
-    result->emplace("double", New<TFunctionTypeInferrer>(
-        castConstraints,
-        std::vector<TType>{castable},
-        EValueType::Null,
-        EValueType::Double));
+        result->emplace("uint64", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{castable},
+            EValueType::Null,
+            EValueType::Uint64));
 
-    result->emplace("boolean", New<TFunctionTypeInferrer>(
-        std::vector<TType>{EValueType::Any},
-        EValueType::Boolean));
+        result->emplace("double", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{castable},
+            EValueType::Null,
+            EValueType::Double));
+    }
 
-    result->emplace("string", New<TFunctionTypeInferrer>(
-        std::vector<TType>{EValueType::Any},
-        EValueType::String));
+    {
+        auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+        castConstraints[castable] = std::vector<EValueType>{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Boolean,
+            EValueType::Any,
+        };
+
+        result->emplace("boolean", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{castable},
+            EValueType::Null,
+            EValueType::Boolean));
+    }
+
+    {
+        auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+        castConstraints[castable] = std::vector<EValueType>{
+            EValueType::String,
+            EValueType::Any,
+        };
+
+        result->emplace("string", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{castable},
+            EValueType::Null,
+            EValueType::String));
+    }
 
     result->emplace("if_null", New<TFunctionTypeInferrer>(
         std::unordered_map<TTypeParameter, TUnionType>(),
