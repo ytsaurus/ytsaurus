@@ -239,6 +239,8 @@ class IStatefulDoFn<TInputRow_, TMultiRow, TState_>
 public:
     static_assert(NTraits::TIsTKV<TInputRow_>::value);
     using TInputRow = TInputRow_;
+    using TKey = typename TInputRow::TKey;
+    using TValue = typename TInputRow::TValue;
     using TOutputRow = TMultiRow;
     using TState = TState_;
 
@@ -250,7 +252,7 @@ public:
 
     virtual void Do(const TInputRow& input, TOutput<TOutputRow>& output, TState& state) = 0;
 
-    virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<typename TInputRow::TKey, TState>& /*stateMap*/)
+    virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<TKey, TState>& /*stateMap*/)
     { }
 };
 
