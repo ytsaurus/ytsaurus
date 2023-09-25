@@ -22,6 +22,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <util/random/shuffle.h>
+
 namespace NYT::NTabletBalancer {
 
 using namespace NApi;
@@ -817,12 +819,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         tables.push_back(table);
     }
 
-    std::sort(
-        tables.begin(),
-        tables.end(),
-        [&] (const TTablePtr lhs, const TTablePtr rhs) {
-            return lhs->Id < rhs->Id;
-        });
+    Shuffle(tables.begin(), tables.end());
 
     int actionCount = 0;
     bool actionLimitExceeded = false;
