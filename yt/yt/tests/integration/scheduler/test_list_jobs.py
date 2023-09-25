@@ -776,18 +776,20 @@ class TestListJobs(TestListJobsBase):
         wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "completed")
 
         def has_job_state_converged():
-            set_job_in_table(op.id, job_id, {"transient_state": "running"})
+            set_job_in_table(op.id, job_id, {"transient_state": "running", "controller_state": "running"})
             time.sleep(1)
             return get_job_from_table(op.id, job_id)["transient_state"] == "running"
 
         wait(has_job_state_converged)
+
+        op.wait_for_state("completed")
 
         res = checked_list_jobs(op.id)
         res_jobs = [job for job in res["jobs"] if job["id"] == job_id]
         assert len(res_jobs) == 1
         res_job = res_jobs[0]
 
-        assert res_job.get("controller_state") == "completed"
+        assert res_job.get("controller_state") == "running"
         assert res_job["archive_state"] == "running"
         assert res_job.get("is_stale")
 

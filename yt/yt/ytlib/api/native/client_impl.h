@@ -1567,14 +1567,6 @@ private:
         TInstant deadline,
         const TListJobsOptions& options);
 
-    struct TListJobsFromControllerAgentResult
-    {
-        std::vector<TJob> FinishedJobs;
-        int TotalFinishedJobCount = 0;
-        std::vector<TJob> InProgressJobs;
-        int TotalInProgressJobCount = 0;
-    };
-
     TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
         const std::optional<TString>& controllerAgentAddress,
