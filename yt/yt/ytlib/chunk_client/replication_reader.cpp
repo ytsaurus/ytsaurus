@@ -19,7 +19,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -99,17 +99,21 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TNodeId NodeId = InvalidNodeId;
+    TChunkReplicaWithMedium Replica;
     TString Address;
     const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
+    int MediumPriority = 0;
     std::optional<TInstant> NodeSuspicionMarkTime;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
 {
     FormatValue(builder, peer.Address, format);
+    if (peer.Replica.GetMediumIndex() != GenericMediumIndex) {
+        builder->AppendFormat("@%v", peer.Replica.GetMediumIndex());
+    }
 }
 
 using TPeerList = TCompactVector<TPeer, 3>;
@@ -148,6 +152,7 @@ public:
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
+        , MediumDirectory_(Client_->GetNativeConnection()->GetMediumDirectory())
         , LocalDescriptor_(chunkReaderHost->LocalDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(chunkReaderHost->BlockCache)
@@ -242,6 +247,7 @@ private:
     const TRemoteReaderOptionsPtr Options_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
+    const TMediumDirectoryPtr MediumDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
@@ -442,6 +448,9 @@ protected:
     //! Translates node ids to node descriptors.
     const TNodeDirectoryPtr NodeDirectory_;
 
+    //! Translates medium indices to medium descriptors.
+    const TMediumDirectoryPtr MediumDirectory_;
+
     //! List of the networks to use from descriptor.
     const TNetworkPreferenceList Networks_;
 
@@ -464,10 +473,10 @@ protected:
 
     //! List of candidates addresses to try during current pass, prioritized by:
     //! locality, ban counter, random number.
-    typedef std::priority_queue<
+    using TPeerQueue = std::priority_queue<
         TPeerQueueEntry,
         std::vector<TPeerQueueEntry>,
-        std::function<bool(const TPeerQueueEntry&, const TPeerQueueEntry&)>> TPeerQueue;
+        std::function<bool(const TPeerQueueEntry&, const TPeerQueueEntry&)>>;
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
@@ -499,6 +508,7 @@ protected:
             : SessionOptions_.WorkloadDescriptor)
         , SessionInvoker_(sessionInvoker ? std::move(sessionInvoker) : GetCompressionInvoker(WorkloadDescriptor_))
         , NodeDirectory_(reader->NodeDirectory_)
+        , MediumDirectory_(reader->MediumDirectory_)
         , Networks_(reader->Networks_)
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
@@ -517,12 +527,13 @@ protected:
     EAddressLocality GetNodeLocality(const TNodeDescriptor& descriptor)
     {
         auto reader = Reader_.Lock();
-        auto locality = EAddressLocality::None;
+        return reader ? ComputeAddressLocality(descriptor, reader->LocalDescriptor_) : EAddressLocality::None;
+    }
 
-        if (reader) {
-            locality = ComputeAddressLocality(descriptor, reader->LocalDescriptor_);
-        }
-        return locality;
+    int GetMediumPriority(TChunkReplicaWithMedium replica)
+    {
+        const auto* descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
+        return descriptor ? descriptor->Priority : 0;
     }
 
     bool SyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count)
@@ -588,7 +599,7 @@ protected:
 
     //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
-        TNodeId nodeId,
+        TChunkReplicaWithMedium replica,
         const TString& address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
@@ -608,11 +619,12 @@ protected:
         }
 
         TPeer peer{
-            .NodeId = nodeId,
+            .Replica = replica,
             .Address = std::move(*optionalAddress),
             .NodeDescriptor = &descriptor,
             .Type = type,
             .Locality = GetNodeLocality(descriptor),
+            .MediumPriority = GetMediumPriority(replica),
             .NodeSuspicionMarkTime = nodeSuspicionMarkTime
         };
         if (!Peers_.emplace(address, peer).second) {
@@ -694,12 +706,12 @@ protected:
             !peer.NodeSuspicionMarkTime &&
             NodeStatusDirectory_->ShouldMarkNodeSuspicious(rspOrError))
         {
-            YT_LOG_WARNING("Node is marked as suspicious (NodeId: %v, NodeAddress: %v, Error: %v)",
-                peer.NodeId,
+            YT_LOG_WARNING("Node is marked as suspicious (Replica: %v, Address: %v, Error: %v)",
+                peer.Replica,
                 peer.Address,
                 rspOrError);
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
-                peer.NodeId,
+                peer.Replica.GetNodeId(),
                 peer.Address,
                 /* suspicious */ true,
                 std::nullopt);
@@ -883,9 +895,11 @@ protected:
         const auto& seedReplicas = SeedReplicas_.Replicas;
 
         std::vector<const TNodeDescriptor*> peerDescriptors;
+        std::vector<TChunkReplicaWithMedium> replicas;
         std::vector<TNodeId> nodeIds;
         std::vector<TString> peerAddresses;
         peerDescriptors.reserve(seedReplicas.size());
+        replicas.reserve(seedReplicas.size());
         nodeIds.reserve(seedReplicas.size());
         peerAddresses.reserve(seedReplicas.size());
 
@@ -911,6 +925,7 @@ protected:
             }
 
             peerDescriptors.push_back(descriptor);
+            replicas.push_back(replica);
             nodeIds.push_back(replica.GetNodeId());
             peerAddresses.push_back(*address);
         }
@@ -923,7 +938,7 @@ protected:
                 ? nodeSuspicionMarkTimes[i]
                 : std::nullopt;
             AddPeer(
-                nodeIds[i],
+                replicas[i],
                 std::move(peerAddresses[i]),
                 *peerDescriptors[i],
                 EPeerType::Seed,
@@ -1122,8 +1137,13 @@ private:
 
     int ComparePeerQueueEntries(const TPeerQueueEntry& lhs, const TPeerQueueEntry rhs) const
     {
-        int result = ComparePeerLocality(lhs.Peer, rhs.Peer);
-        if (result != 0) {
+        if (lhs.Peer.MediumPriority < rhs.Peer.MediumPriority) {
+            return -1;
+        } if (lhs.Peer.MediumPriority > rhs.Peer.MediumPriority) {
+            return +1;
+        }
+
+        if (int result = ComparePeerLocality(lhs.Peer, rhs.Peer); result != 0) {
             return result;
         }
 
@@ -1288,7 +1308,7 @@ private:
 
         if (rspOrError.IsOK()) {
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
-                peer.NodeId,
+                peer.Replica.GetNodeId(),
                 peer.Address,
                 /* suspicious */ false,
                 peer.NodeSuspicionMarkTime);
@@ -1655,7 +1675,7 @@ private:
 
                 if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
                     if (AddPeer(
-                        peerNodeId,
+                        TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
                         *suggestedAddress,
                         *maybeSuggestedDescriptor,
                         EPeerType::Peer,
@@ -2035,7 +2055,7 @@ private:
         // So we send all barriers to both nodes, and filter them in data node service.
 
         for (const auto& peer : peerList) {
-            auto blockBarriers = P2PDeliveryBarrier_.find(peer.NodeId);
+            auto blockBarriers = P2PDeliveryBarrier_.find(peer.Replica.GetNodeId());
             if (blockBarriers == P2PDeliveryBarrier_.end()) {
                 continue;
             }
@@ -2056,7 +2076,7 @@ private:
 
                 ToProto(wait->mutable_session_id(), sessionId);
                 wait->set_iteration(iteration);
-                wait->set_if_node_id(peer.NodeId);
+                wait->set_if_node_id(peer.Replica.GetNodeId());
             }
         }
     }
