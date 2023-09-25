@@ -23,7 +23,7 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
     val address = HostAndPort(ytHostnameOrIpAddress, port)
     log.info(f"Server will started on address $address")
     prepareLivyConf(address, masterAddress, maxSessions)
-    prepareLivyClientConf()
+    prepareLivyClientConf(driverCores, driverMemory)
 
     withService(startLivyServer(address)) { livyServer =>
       discoveryService.registerLivy(address)
@@ -39,14 +39,17 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
   }
 }
 
-case class LivyLauncherArgs(port: Int, ytConfig: YtClientConfiguration, maxSessions: Int,
+case class LivyLauncherArgs(port: Int, ytConfig: YtClientConfiguration,
+                            driverCores: Int, driverMemory: String, maxSessions: Int,
                             discoveryPath: String, waitMasterTimeout: Duration)
 
 object LivyLauncherArgs {
   def apply(args: Args): LivyLauncherArgs = LivyLauncherArgs(
     args.optional("port").orElse(sys.env.get("SPARK_YT_LIVY_PORT")).map(_.toInt).getOrElse(27105),
     YtClientConfiguration(args.optional),
-    args.optional("max-sessions").orElse(sys.env.get("SPARK_YT_LIVY_SESSIONS")).map(_.toInt).getOrElse(2),
+    args.required("driver-cores").toInt,
+    args.required("driver-memory"),
+    args.required("max-sessions").toInt,
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
     args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes)
   )

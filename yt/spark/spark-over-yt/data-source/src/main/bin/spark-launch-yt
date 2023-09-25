@@ -153,8 +153,9 @@ def main():
 
     subgroup = parser.add_argument_group("(experimental) Livy server")
     subgroup.add_argument('--enable-livy', action='store_true', default=False)
-    subgroup.add_argument('--livy-memory', required=False, default="4G")
-    subgroup.add_argument('--livy-sessions', required=False, default=2, type=int)
+    subgroup.add_argument('--livy-driver-cores', required=False, default=1, type=int)
+    subgroup.add_argument('--livy-driver-memory', required=False, default="768m")
+    subgroup.add_argument('--livy-max-sessions', required=False, default=3, type=int)
 
     args, unknown_args = spark_utils.parse_args(parser)
 
@@ -214,8 +215,9 @@ def main():
                         autoscaler_max_free_workers=args.autoscaler_max_free_workers,
                         autoscaler_slot_increment_step=args.autoscaler_slot_increment_step,
                         enable_livy=args.enable_livy,
-                        livy_memory=args.livy_memory,
-                        livy_sessions=args.livy_sessions)
+                        livy_driver_cores=args.livy_driver_cores,
+                        livy_driver_memory=args.livy_driver_memory,
+                        livy_max_sessions=args.livy_max_sessions)
 
 
 if __name__ == '__main__':

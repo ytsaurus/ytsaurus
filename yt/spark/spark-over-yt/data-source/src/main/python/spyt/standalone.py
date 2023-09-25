@@ -43,8 +43,9 @@ class SparkDefaultArguments(object):
     SPARK_WORKER_LOG_TABLE_TTL = "7d"
     SPARK_WORKER_CORES_OVERHEAD = 0
     SPARK_WORKER_CORES_BYOP_OVERHEAD = 0
-    LIVY_MEMORY = "4G"
-    LIVY_SESSIONS = 2
+    LIVY_DRIVER_CORES = 1
+    LIVY_DRIVER_MEMORY = "768m"
+    LIVY_MAX_SESSIONS = 3
 
     @staticmethod
     def get_params():
@@ -342,7 +343,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
                                worker_log_update_interval, worker_log_table_ttl,
-                               pool, enablers, client, livy_memory, livy_sessions,
+                               pool, enablers, client, livy_driver_cores, livy_driver_memory, livy_max_sessions,
                                preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None,
                                extra_metrics_enabled=True, autoscaler_enabled=False):
     if job_types == [] or job_types == None:
@@ -418,7 +419,11 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     history_launcher_opts = "--log-path {} --memory {}".format(event_log_path, history_server_memory_limit)
     history_command = _launcher_command("HistoryServer", extra_java_opts=extra_java_opts, launcher_opts=history_launcher_opts)
 
-    livy_command = _launcher_command("Livy", additional_commands=[_unpack_command('livy.tgz', spark_home)], extra_java_opts=extra_java_opts)
+    livy_launcher_opts = \
+        "--driver-cores {0} --driver-memory {1} --max-sessions {2}".format(
+            livy_driver_cores, livy_driver_memory, livy_max_sessions)
+    livy_command = _launcher_command("Livy", additional_commands=[_unpack_command('livy.tgz', spark_home)],
+                                     extra_java_opts=extra_java_opts, launcher_opts=livy_launcher_opts)
 
     user = get_user_name(client=client)
 
@@ -476,7 +481,6 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     livy_environment = {
         "LIVY_HOME": "$HOME/{}/livy".format(spark_home),
         "SPARK_YT_LIVY_PORT": "27105",
-        "SPARK_YT_LIVY_SESSIONS": str(livy_sessions)
     }
     livy_environment = update(environment, livy_environment)
     if enablers.enable_byop:
@@ -582,8 +586,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         builder.begin_task("livy") \
             .job_count(1) \
             .command(livy_command) \
-            .memory_limit(_parse_memory(livy_memory)) \
-            .cpu_limit(2) \
+            .memory_limit(_parse_memory("1G") + _parse_memory(livy_driver_memory) * livy_max_sessions) \
+            .cpu_limit(1 + livy_driver_cores * livy_max_sessions) \
             .spec(livy_task_spec) \
             .file_paths(livy_file_paths) \
             .end_task()
@@ -637,8 +641,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         driver_cores_overhead=None, driver_timeout=None, autoscaler_period=None,
                         autoscaler_metrics_port=None, autoscaler_sliding_window=None,
                         autoscaler_max_free_workers=None, autoscaler_slot_increment_step=None,
-                        enable_livy=False, livy_memory=SparkDefaultArguments.LIVY_MEMORY,
-                        livy_sessions=SparkDefaultArguments.LIVY_SESSIONS):
+                        enable_livy=False, livy_driver_cores=SparkDefaultArguments.LIVY_DRIVER_CORES,
+                        livy_driver_memory=SparkDefaultArguments.LIVY_DRIVER_MEMORY,
+                        livy_max_sessions=SparkDefaultArguments.LIVY_MAX_SESSIONS):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -685,8 +690,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param autoscaler_max_free_workers: maximum number of free workers
     :param autoscaler_slot_increment_step: autoscaler workers increment step
     :param enable_livy: start livy server
-    :param livy_memory: memory limit for livy server
-    :param livy_sessions: session count limit for livy server
+    :param livy_driver_cores: core limit for livy drivers
+    :param livy_driver_memory: memory limit for livy drivers
+    :param livy_max_sessions: session count limit for livy server
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
@@ -778,8 +784,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'preemption_mode': preemption_mode,
         'autoscaler_enabled': autoscaler_period is not None,
         'job_types': job_types,
-        'livy_memory': livy_memory,
-        'livy_sessions': livy_sessions
+        'livy_driver_cores': livy_driver_cores,
+        'livy_driver_memory': livy_driver_memory,
+        'livy_max_sessions': livy_max_sessions
     }
 
     master_args = args.copy()

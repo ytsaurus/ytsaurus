@@ -56,7 +56,7 @@ trait SparkLauncher {
         .replaceAll("\\$BIND_ADDRESS", hostAndPort.host)
         .replaceAll("\\$BIND_PORT", hostAndPort.port.toString)
         .replaceAll("\\$MASTER_ADDRESS", s"spark://${masterAddress.hostAndPort}")
-        .replaceAll("\\$LIVY_SESSIONS", maxSessions.toString)
+        .replaceAll("\\$MAX_SESSIONS", maxSessions.toString)
     }.toPath
     val dst = Path.of(livyHome, "conf", "livy.conf")
 
@@ -76,10 +76,12 @@ trait SparkLauncher {
     }
   }
 
-  def prepareLivyClientConf(): Unit = {
+  def prepareLivyClientConf(driverCores: Int, driverMemory: String): Unit = {
     val src = Path.of(home, "livy-client.template.conf")
     val preparedConfPath = createFromTemplate(src.toFile) { content =>
       content
+        .replaceAll("\\$DRIVER_CORES", driverCores.toString)
+        .replaceAll("\\$DRIVER_MEMORY", driverMemory)
         .replaceAll("\\$EXTRA_SPARK_CONF", getLivyClientSparkConf().mkString("\n"))
     }.toPath
     val dst = Path.of(livyHome, "conf", "livy-client.conf")
