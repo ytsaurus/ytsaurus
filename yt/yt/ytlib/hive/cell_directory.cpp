@@ -400,7 +400,6 @@ public:
 
         TSynchronizationResult result;
 
-        int foundKnownCells = 0;
         for (const auto& knownCell : knownCells) {
             auto cellId = knownCell.CellId;
             if (auto it = CellIdToEntry_.find(cellId)) {
@@ -408,7 +407,6 @@ public:
                 if (knownCell.ConfigVersion < entry.Descriptor->ConfigVersion) {
                     result.ReconfigureRequests.push_back({entry.Descriptor, knownCell.ConfigVersion});
                 }
-                ++foundKnownCells;
             } else {
                 // NB: Currently we never request to unregister chaos cells; cf. YT-16393.
                 if (TypeFromId(cellId) != EObjectType::ChaosCell) {
@@ -419,26 +417,22 @@ public:
             }
         }
 
-        // In most cases there are no missing cells in #knownCells.
-        // Thus we may defer constructing #missingMap until we actually discover one.
-        if (foundKnownCells < std::ssize(CellIdToEntry_)) {
-            THashMap<TCellId, const TEntry*> missingMap;
-            missingMap.reserve(ssize(CellIdToEntry_));
+        THashMap<TCellId, const TEntry*> missingMap;
+        missingMap.reserve(CellIdToEntry_.size());
 
-            for (const auto& [cellId, entry] : CellIdToEntry_) {
-                EmplaceOrCrash(missingMap, cellId, &entry);
-            }
+        for (const auto& [cellId, entry] : CellIdToEntry_) {
+            EmplaceOrCrash(missingMap, cellId, &entry);
+        }
 
-            for (const auto& knownCell : knownCells) {
-                missingMap.erase(knownCell.CellId);
-            }
+        for (const auto& knownCell : knownCells) {
+            missingMap.erase(knownCell.CellId);
+        }
 
-            for (auto [cellId, entry] : missingMap) {
-                result.ReconfigureRequests.push_back({
-                    .NewDescriptor = entry->Descriptor,
-                    .OldConfigVersion = -1
-                });
-            }
+        for (auto [cellId, entry] : missingMap) {
+            result.ReconfigureRequests.push_back({
+                .NewDescriptor = entry->Descriptor,
+                .OldConfigVersion = -1
+            });
         }
 
         return result;

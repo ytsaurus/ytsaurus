@@ -30,6 +30,7 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -529,26 +530,29 @@ private:
         ValidatePeer(EPeerKind::LeaderOrFollower);
         SyncWithUpstream();
 
-        auto knownCells = FromProto<std::vector<TCellInfo>>(request->known_cells());
-        auto syncResult = CellDirectory_->Synchronize(knownCells);
+        context->ReplyFrom(
+            BIND([=, this, this_ = MakeStrong(this)] {
+                auto knownCells = FromProto<std::vector<TCellInfo>>(request->known_cells());
+                auto syncResult = CellDirectory_->Synchronize(knownCells);
 
-        for (const auto& request : syncResult.ReconfigureRequests) {
-            YT_LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
-                request.NewDescriptor->CellId,
-                request.OldConfigVersion,
-                request.NewDescriptor->ConfigVersion);
-            auto* protoInfo = response->add_cells_to_reconfigure();
-            ToProto(protoInfo->mutable_cell_descriptor(), *request.NewDescriptor);
-        }
+                for (const auto& request : syncResult.ReconfigureRequests) {
+                    YT_LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
+                        request.NewDescriptor->CellId,
+                        request.OldConfigVersion,
+                        request.NewDescriptor->ConfigVersion);
+                    auto* protoInfo = response->add_cells_to_reconfigure();
+                    ToProto(protoInfo->mutable_cell_descriptor(), *request.NewDescriptor);
+                }
 
-        for (const auto& request : syncResult.UnregisterRequests) {
-            YT_LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
-                request.CellId);
-            auto* unregisterInfo = response->add_cells_to_unregister();
-            ToProto(unregisterInfo->mutable_cell_id(), request.CellId);
-        }
-
-        context->Reply();
+                for (const auto& request : syncResult.UnregisterRequests) {
+                    YT_LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
+                        request.CellId);
+                    auto* unregisterInfo = response->add_cells_to_unregister();
+                    ToProto(unregisterInfo->mutable_cell_id(), request.CellId);
+                }
+            })
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run());
     }
 
     bool DoPostMessages(
