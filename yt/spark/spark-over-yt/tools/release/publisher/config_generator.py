@@ -121,6 +121,7 @@ def prepare_launch_config(conf_local_dir: str, client: Client, versions: Version
             client.resolve_from_root("delta/layer_with_solomon_agent.tar.gz"),
             "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
             client.resolve_from_root("delta/python/layer_with_python311_libs.tar.gz"),
+            client.resolve_from_root("delta/python/layer_with_python39_focal.tar.gz"),
             client.resolve_from_root("delta/python/layer_with_python38_libs.tar.gz"),
             client.resolve_from_root("delta/python/layer_with_python37_focal.tar.gz"),
             "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
@@ -141,6 +142,7 @@ def prepare_global_config(versions: Versions, os_release: bool) -> Dict[str, Any
     if not os_release:
         python_cluster_paths = {
             "3.11": "/opt/python3.11/bin/python3.11",
+            "3.9": "/opt/python3.9/bin/python3.9",
             "3.8": "/opt/python3.8/bin/python3.8",
             "3.7": "/opt/python3.7/bin/python3.7",
             "3.5": "python3.5",

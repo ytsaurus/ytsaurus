@@ -54,6 +54,7 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                              latest_spark_cluster_version: String,
                              python_cluster_paths: Map[String, String] = Map(
                                "3.11" -> "/opt/python3.11/bin/python3.11",
+                               "3.9" -> "/opt/python3.9/bin/python3.9",
                                "3.8" -> "/opt/python3.8/bin/python3.8",
                                "3.7" -> "/opt/python3.7/bin/python3.7",
                                "3.5" -> "python3.5",
@@ -103,6 +104,7 @@ object SparkLaunchConfig {
     s"$sparkYtDeltaLayerPath/layer_with_solomon_agent.tar.gz",
     s"$ytPortoDeltaLayersPath/jdk/layer_with_jdk_lastest.tar.gz",
     s"$sparkYtDeltaLayerPath/python/layer_with_python311_libs.tar.gz",
+    s"$sparkYtDeltaLayerPath/python/layer_with_python39_focal.tar.gz",
     s"$sparkYtDeltaLayerPath/python/layer_with_python38_libs.tar.gz",
     s"$sparkYtDeltaLayerPath/python/layer_with_python37_focal.tar.gz",
     s"$ytPortoBaseLayersPath/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
