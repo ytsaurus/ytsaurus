@@ -268,27 +268,29 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& input
         tableIndex,
         inputChunks.size());
 
+    TRowBufferPtr rowBuffer = New<TRowBuffer>();
     auto fetcher = CreateChunkSliceFetcher(
         Options_.ChunkSliceFetcherConfig,
         Client_->GetNativeConnection()->GetNodeDirectory(),
         GetCurrentInvoker(),
         IFetcherChunkScraperPtr(),
         Client_,
-        RowBuffer_,
+        rowBuffer,
         Logger);
 
     for (const auto& inputChunk : inputChunks) {
         auto inputChunkSlice = CreateInputChunkSlice(inputChunk);
-        InferLimitsFromBoundaryKeys(inputChunkSlice, RowBuffer_);
+        InferLimitsFromBoundaryKeys(inputChunkSlice, rowBuffer);
         auto dataSlice = CreateUnversionedInputDataSlice(inputChunkSlice);
         dataSlice->SetInputStreamIndex(tableIndex);
-        dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
+        dataSlice->TransformToNew(rowBuffer, comparator.GetLength());
         YT_LOG_TRACE("Add data slice for slicing (TableIndex: %v, DataSlice: %v)", tableIndex, dataSlice);
         fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true);
     }
 
     FetchState_.TableFetchers.emplace_back(std::move(fetcher));
     FetchState_.TableIndices.emplace_back(tableIndex);
+    FetchState_.RowBuffers.emplace_back(std::move(rowBuffer));
 }
 
 void TMultiTablePartitioner::FetchVersionedDataSlices()
