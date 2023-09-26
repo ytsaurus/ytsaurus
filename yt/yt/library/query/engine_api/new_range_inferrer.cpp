@@ -282,7 +282,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                 }
             }
 
-            TConstraintRef current = TConstraintRef::Universal();
+            auto current = TConstraintRef::Universal();
             if (expressionIndex == equalPrefix + 1) {
                 --expressionIndex;
                 auto keyColumnIndex = keyColumnIds[expressionIndex];

@@ -174,6 +174,7 @@ std::vector<TRowRange> GetRangesFromExpression(
     std::vector<TRowRange> resultRanges;
 
     TReadRangesGenerator rangesGenerator(constraints);
+
     rangesGenerator.GenerateReadRanges(
         constraintRef,
         [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
@@ -198,11 +199,13 @@ std::vector<TRowRange> GetRangesFromExpression(
                 rowRange = RowRangeFromPrefix(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize));
             }
 
-            if (!resultRanges.empty() && resultRanges.back().second == rowRange.first) {
+            if (resultRanges.empty() || resultRanges.back().second < rowRange.first) {
+                resultRanges.push_back(rowRange);
+            } else if (resultRanges.back().second == rowRange.first) {
+                YT_VERIFY(!resultRanges.empty());
                 resultRanges.back().second = rowRange.second;
             } else {
-                YT_VERIFY(resultRanges.empty() || resultRanges.back().second < rowRange.first);
-                resultRanges.push_back(rowRange);
+                YT_VERIFY(resultRanges.back().second == rowRange.second && resultRanges.back().first <= rowRange.first);
             }
         },
         rangeCountLimit);
@@ -392,11 +395,6 @@ INSTANTIATE_TEST_SUITE_P(
 
 // NotEqual, First component.
 TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInFirstComponent[] = {
-    // {
-    //     ("1;1;1"), ("100;100;100"),
-    //     "k", EBinaryOp::NotEqual, 50,
-    //     false, ("1;1;1"), ("100;100;100")
-    // },
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::NotEqual, 1,
@@ -577,11 +575,6 @@ INSTANTIATE_TEST_SUITE_P(
 
 // NotEqual, Last component.
 TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInLastComponent[] = {
-    // {
-    //     ("1;1;1"), ("1;1;100"),
-    //     "m", EBinaryOp::NotEqual, 50,
-    //     false, ("1;1;1"), ("1;1;100")
-    // },
     {
         ("1;1;1"), ("1;1;100"),
         "m", EBinaryOp::NotEqual, 1,
@@ -726,6 +719,53 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::ValuesIn(refineCasesForGreaterOrEqualOpcodeInLastComponent));
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TRefineKeyRangeTest, NotEqual)
+{
+    {
+        auto expr = Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
+            Make<TReferenceExpression>("m"),
+            Make<TLiteralExpression>(MakeInt64(50)));
+
+        auto buffer = New<TRowBuffer>();
+
+        auto result = GetRangesFromExpression(
+            buffer,
+            GetSampleKeyColumns(),
+            expr,
+            {YsonToKey("1;1;1"), YsonToKey("1;1;100")});
+
+        EXPECT_EQ(2u, result.size());
+
+        EXPECT_EQ(YsonToKey("1;1;1"), result[0].first);
+        EXPECT_EQ(YsonToKey("1;1;50"), result[0].second);
+
+        EXPECT_EQ(YsonToKey("1;1;50;" _MAX_), result[1].first);
+        EXPECT_EQ(YsonToKey("1;1;100"), result[1].second);
+    }
+
+    {
+        auto expr = Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
+            Make<TReferenceExpression>("k"),
+            Make<TLiteralExpression>(MakeInt64(50)));
+
+        auto buffer = New<TRowBuffer>();
+
+        auto result = GetRangesFromExpression(
+            buffer,
+            GetSampleKeyColumns(),
+            expr,
+            {YsonToKey("1;1;1"), YsonToKey("100;100;100")});
+
+        EXPECT_EQ(2u, result.size());
+
+        EXPECT_EQ(YsonToKey("1;1;1"), result[0].first);
+        EXPECT_EQ(YsonToKey("50"), result[0].second);
+
+        EXPECT_EQ(YsonToKey("50;" _MAX_), result[1].first);
+        EXPECT_EQ(YsonToKey("100;100;100"), result[1].second);
+    }
+}
 
 TEST_F(TRefineKeyRangeTest, Empty)
 {
