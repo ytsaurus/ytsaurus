@@ -538,7 +538,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/group.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/group_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/master_memory.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/master_memory_limits.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/network_project.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/network_project_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/proxy_role.cpp

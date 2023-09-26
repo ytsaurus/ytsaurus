@@ -123,7 +123,7 @@ int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TLegacyReadRange& TChunkView::ReadRange() const
+const TLegacyReadRange& TChunkView::ReadRange() const noexcept
 {
     return Modifier_.ReadRange();
 }

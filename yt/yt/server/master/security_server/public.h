@@ -6,6 +6,7 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/core/misc/maybe_inf.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/ytree/permission.h>
@@ -104,6 +105,9 @@ struct TSecurityTags;
 using TInternedSecurityTags = TInternedObject<TSecurityTags>;
 using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;
 using TSecurityTagsRegistryPtr = TInternRegistryPtr<TSecurityTags>;
+
+using TLimit32 = TMaybeInf<ui32>;
+using TLimit64 = TMaybeInf<ui64>;
 
 constexpr int AccountTreeDepthLimit = 10;
 

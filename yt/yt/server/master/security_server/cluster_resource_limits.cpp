@@ -1,10 +1,13 @@
 #include "cluster_resources.h"
+
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium_base.h>
+
+#include <yt/yt/server/master/object_server/public.h>
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
@@ -17,39 +20,50 @@ using namespace NYTree;
 using namespace NCellMaster;
 using namespace NChunkServer;
 
+using NObjectServer::TCellTag;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterResourceLimits&& TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&
+TClusterResourceLimits&& TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, TLimit64  diskSpace) &&
 {
     SetMediumDiskSpace(mediumIndex, diskSpace);
     return std::move(*this);
 }
 
-void TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &
+void TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, TLimit64  diskSpace) &
 {
-    if (diskSpace == 0) {
+    if (diskSpace == TLimit64(0)) {
         DiskSpace_.erase(mediumIndex);
     } else {
-        DiskSpace_[mediumIndex] = diskSpace;
+        DiskSpace_[mediumIndex] = TLimit64(diskSpace);
     }
 }
 
 void TClusterResourceLimits::AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta)
 {
+    if (diskSpaceDelta == 0) {
+        return;
+    }
+
     auto it = DiskSpace_.find(mediumIndex);
     if (it == DiskSpace_.end()) {
         if (diskSpaceDelta != 0) {
-            DiskSpace_.insert({mediumIndex, diskSpaceDelta});
+            YT_ASSERT(diskSpaceDelta >= 0);
+            DiskSpace_.emplace(mediumIndex, diskSpaceDelta);
         }
     } else {
-        it->second += diskSpaceDelta;
-        if (it->second == 0) {
+        if (diskSpaceDelta > 0) {
+            it->second.Increase(diskSpaceDelta);
+        } else {
+            it->second.Decrease(diskSpaceDelta);
+        }
+        if (it->second == TLimit64(i64(0))) {
             DiskSpace_.erase(it);
         }
     }
 }
 
-const NChunkClient::TMediumMap<i64>& TClusterResourceLimits::DiskSpace() const
+const TDefaultMap<TMediumMap<TLimit64>>& TClusterResourceLimits::DiskSpace() const
 {
     return DiskSpace_;
 }
@@ -75,37 +89,30 @@ void TClusterResourceLimits::SetMasterMemory(TMasterMemoryLimits masterMemoryLim
     MasterMemory_ = std::move(masterMemoryLimits);
 }
 
-/*static*/ TClusterResourceLimits TClusterResourceLimits::Infinite()
+TClusterResourceLimits TClusterResourceLimits::Infinity()
 {
     auto resources = TClusterResourceLimits()
-        .SetNodeCount(std::numeric_limits<i64>::max() / 2)
-        .SetTabletCount(std::numeric_limits<int>::max() / 2)
-        .SetChunkCount(std::numeric_limits<i64>::max() / 2)
-        .SetTabletStaticMemory(std::numeric_limits<i64>::max() / 2)
-        .SetMasterMemory(TMasterMemoryLimits(
-            /* total */ std::numeric_limits<i64>::max() / 2,
-            /* chunkHost */ std::numeric_limits<i64>::max() / 2,
-            /* perCell */ {}));
-    for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-        resources.SetMediumDiskSpace(mediumIndex, std::numeric_limits<i64>::max() / 2);
-    }
+        .SetNodeCount(TLimit64::Infinity())
+        .SetTabletCount(TLimit32::Infinity())
+        .SetChunkCount(TLimit64::Infinity())
+        .SetTabletStaticMemory(TLimit64::Infinity())
+        .SetMasterMemory(TMasterMemoryLimits::Infinity());
+    resources.DiskSpace_ = TDefaultMap<TMediumMap<TLimit64>>(TLimit64::Infinity());
     return resources;
 }
 
-/*static*/ TClusterResourceLimits TClusterResourceLimits::Zero(const IMulticellManagerPtr& multicellManager)
+/*static*/ TClusterResourceLimits TClusterResourceLimits::Zero()
 {
-    auto resources = TClusterResourceLimits();
-    for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
-        resources.MasterMemory().PerCell[cellTag] = 0;
-    }
-    resources.MasterMemory().PerCell[multicellManager->GetPrimaryCellTag()] = 0;
+    auto resources = TClusterResourceLimits()
+        .SetMasterMemory(TMasterMemoryLimits::Zero());
     return resources;
 }
 
 void TClusterResourceLimits::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, DiskSpace_);
+    Save(context, DiskSpace_.DefaultValue());
+    Save(context, DiskSpace_.AsUnderlying());
     Save(context, NodeCount_);
     Save(context, ChunkCount_);
     Save(context, TabletCount_);
@@ -116,7 +123,15 @@ void TClusterResourceLimits::Save(NCellMaster::TSaveContext& context) const
 void TClusterResourceLimits::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, DiskSpace_);
+    // COMPAT(kvk1920)
+    TLimit64 defaultDiskSpace;
+    if (context.GetVersion() < EMasterReign::ReworkClusterResourceLimitsInfinityRelatedBehavior) {
+        defaultDiskSpace = TLimit64(0);
+    } else {
+        Load(context, defaultDiskSpace);
+    }
+    DiskSpace_ = TDiskSpaceLimits(defaultDiskSpace);
+    Load(context, DiskSpace_.AsUnderlying());
     Load(context, NodeCount_);
     Load(context, ChunkCount_);
     Load(context, TabletCount_);
@@ -144,7 +159,7 @@ void TClusterResourceLimits::Load(NCypressServer::TEndCopyContext& context)
     using NYT::Load;
     auto mediumCount = Load<int>(context);
     for (auto i = 0; i < mediumCount; ++i) {
-        auto space = Load<i64>(context);
+        auto space = Load<TLimit64>(context);
         auto mediumIndex = Load<int>(context);
         DiskSpace_[mediumIndex] = space;
     }
@@ -155,186 +170,207 @@ void TClusterResourceLimits::Load(NCypressServer::TEndCopyContext& context)
     Load(context, MasterMemory_);
 }
 
-bool TClusterResourceLimits::IsViolatedBy(const TClusterResourceLimits& rhs) const
+bool TClusterResourceLimits::IsViolatedBy(const TClusterResourceLimits& that) const noexcept
 {
-    if (this == &rhs) {
+    if (this == &that) {
         return false;
     }
 
-    for (auto [mediumIndex, lhsDiskSpace] : DiskSpace()) {
-        auto rhsDiskSpace = GetOrDefault(rhs.DiskSpace(), mediumIndex);
-        if (lhsDiskSpace < rhsDiskSpace) {
+    for (auto [mediumIndex, thisDiskSpace] : DiskSpace()) {
+        if (thisDiskSpace < that.DiskSpace().GetOrDefault(mediumIndex)) {
             return true;
         }
     }
 
-    for (auto [mediumIndex, rhsDiskSpace] : rhs.DiskSpace()) {
-        auto lhsDiskSpace = GetOrDefault(DiskSpace(), mediumIndex);
-        if (lhsDiskSpace < rhsDiskSpace) {
+    for (auto [mediumIndex, thatDiskSpace] : that.DiskSpace()) {
+        if (DiskSpace().GetOrDefault(mediumIndex) < thatDiskSpace) {
             return true;
         }
     }
 
     return
-        NodeCount_ < rhs.NodeCount_ ||
-        ChunkCount_ < rhs.ChunkCount_ ||
-        TabletCount_ < rhs.TabletCount_ ||
-        TabletStaticMemory_ < rhs.TabletStaticMemory_ ||
-        MasterMemory_.IsViolatedBy(rhs.MasterMemory());
+        NodeCount_ < that.NodeCount_ ||
+        ChunkCount_ < that.ChunkCount_ ||
+        TabletCount_ < that.TabletCount_ ||
+        TabletStaticMemory_ < that.TabletStaticMemory_ ||
+        MasterMemory_.IsViolatedBy(that.MasterMemory());
 }
 
 TViolatedClusterResourceLimits TClusterResourceLimits::GetViolatedBy(
-    const TClusterResourceLimits& rhs) const
+    const TClusterResourceLimits& that) const
 {
-    if (this == &rhs) {
+    if (this == &that) {
         return {};
     }
 
     TViolatedClusterResourceLimits result;
-    result.SetNodeCount(NodeCount_ < rhs.NodeCount_);
-    result.SetChunkCount(ChunkCount_ < rhs.ChunkCount_);
-    result.SetTabletCount(TabletCount_ < rhs.TabletCount_);
-    result.SetTabletStaticMemory(TabletStaticMemory_ < rhs.TabletStaticMemory_);
-    result.SetMasterMemory(MasterMemory_.GetViolatedBy(rhs.MasterMemory_));
+    result.SetNodeCount(NodeCount_ < that.NodeCount_);
+    result.SetChunkCount(ChunkCount_ < that.ChunkCount_);
+    result.SetTabletCount(TabletCount_ < that.TabletCount_);
+    result.SetTabletStaticMemory(TabletStaticMemory_ < that.TabletStaticMemory_);
+    result.SetMasterMemory(MasterMemory_.GetViolatedBy(that.MasterMemory_));
 
     for (auto [mediumIndex, diskSpace] : DiskSpace()) {
-        auto usageDiskSpace = GetOrDefault(rhs.DiskSpace(), mediumIndex);
+        auto usageDiskSpace = that.DiskSpace().GetOrDefault(mediumIndex);
         if (diskSpace < usageDiskSpace) {
-            result.SetMediumDiskSpace(mediumIndex, diskSpace < usageDiskSpace);
+            result.SetMediumDiskSpace(mediumIndex, 1);
         }
     }
 
-    for (auto [mediumIndex, usageDiskSpace] : rhs.DiskSpace()) {
-        auto diskSpace = GetOrDefault(DiskSpace(), mediumIndex);
+    for (auto [mediumIndex, usageDiskSpace] : that.DiskSpace()) {
+        auto diskSpace = DiskSpace().GetOrDefault(mediumIndex);
         if (diskSpace < usageDiskSpace) {
-            result.SetMediumDiskSpace(mediumIndex, diskSpace < usageDiskSpace);
+            result.SetMediumDiskSpace(mediumIndex, 1);
         }
     }
 
     return result;
 }
 
-TClusterResourceLimits& TClusterResourceLimits::operator += (const TClusterResourceLimits& other)
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <
+    bool (TLimit32::*Check32)(TLimit32) const,
+    bool (TLimit64::*Check64)(TLimit64) const,
+    std::optional<TViolatedMasterMemoryLimits> (TMasterMemoryLimits::*CheckMasterMemory)(const TMasterMemoryLimits&) const>
+std::optional<TViolatedClusterResourceLimits> CheckChange(
+    const TClusterResourceLimits& self,
+    const TClusterResourceLimits& delta)
 {
-    for (auto [mediumIndex, diskSpace] : other.DiskSpace()) {
-        AddToMediumDiskSpace(mediumIndex, diskSpace);
+    std::optional<TViolatedClusterResourceLimits> result;
+    auto violated = [&] () -> TViolatedClusterResourceLimits& {
+        return result ? *result : result.emplace();
+    };
+
+    if (!(self.GetNodeCount().*Check64)(delta.GetNodeCount())) {
+        violated().SetNodeCount(1);
     }
-    NodeCount_ += other.NodeCount_;
-    ChunkCount_ += other.ChunkCount_;
-    TabletCount_ += other.TabletCount_;
-    TabletStaticMemory_ += other.TabletStaticMemory_;
-    MasterMemory_ += other.MasterMemory_;
-
-    return *this;
-}
-
-TClusterResourceLimits TClusterResourceLimits::operator + (const TClusterResourceLimits& other) const
-{
-    auto result = *this;
-    result += other;
-    return result;
-}
-
-TClusterResourceLimits& TClusterResourceLimits::operator -= (const TClusterResourceLimits& other)
-{
-    for (auto [mediumIndex, diskSpace] : other.DiskSpace()) {
-        AddToMediumDiskSpace(mediumIndex, -diskSpace);
+    if (!(self.GetChunkCount().*Check64)(delta.GetChunkCount())) {
+        violated().SetChunkCount(1);
     }
-    NodeCount_ -= other.NodeCount_;
-    ChunkCount_ -= other.ChunkCount_;
-    TabletCount_ -= other.TabletCount_;
-    TabletStaticMemory_ -= other.TabletStaticMemory_;
-    MasterMemory_ -= other.MasterMemory_;
-
-    return *this;
-}
-
-TClusterResourceLimits TClusterResourceLimits::operator - (const TClusterResourceLimits& other) const
-{
-    auto result = *this;
-    result -= other;
-    return result;
-}
-
-TClusterResourceLimits& TClusterResourceLimits::operator *= (i64 other)
-{
-    for (auto [mediumIndex, diskSpace] : DiskSpace()) {
-        SetMediumDiskSpace(mediumIndex, diskSpace * other);
+    if (!(self.GetTabletCount().*Check32)(delta.GetTabletCount())) {
+        violated().SetTabletCount(1);
     }
-    NodeCount_ *= other;
-    ChunkCount_ *= other;
-    TabletCount_ *= other;
-    TabletStaticMemory_ *= other;
-    MasterMemory_ *= other;
-    return *this;
-}
-
-TClusterResourceLimits TClusterResourceLimits::operator * (i64 other) const
-{
-    auto result = *this;
-    result *= other;
-    return result;
-}
-
-TClusterResourceLimits TClusterResourceLimits::operator - () const
-{
-    TClusterResourceLimits result;
-    for (auto [mediumIndex, diskSpace] : DiskSpace()) {
-        result.SetMediumDiskSpace(mediumIndex, -diskSpace);
+    if (!(self.GetTabletStaticMemory().*Check64)(delta.GetTabletStaticMemory())) {
+        violated().SetTabletStaticMemory(1);
     }
-    result.NodeCount_ = -NodeCount_;
-    result.ChunkCount_ = -ChunkCount_;
-    result.TabletCount_ = -TabletCount_;
-    result.TabletStaticMemory_ = -TabletStaticMemory_;
-    result.MasterMemory_ = -MasterMemory_;
-    return result;
-}
 
-bool TClusterResourceLimits::operator == (const TClusterResourceLimits& other) const
-{
-    if (this == &other) {
-        return true;
-    }
-    if (DiskSpace().size() != other.DiskSpace().size()) {
-        return false;
-    }
-    for (auto [mediumIndex, mediumDiskSpace] : DiskSpace()) {
-        const auto it = other.DiskSpace().find(mediumIndex);
-        if (it == other.DiskSpace().end() || it->second != mediumDiskSpace) {
-            return false;
+    for (auto [mediumIndex, diskSpace] : self.DiskSpace()) {
+        if (!(diskSpace.*Check64)(delta.DiskSpace().GetOrDefault(mediumIndex))) {
+            violated().DiskSpace()[mediumIndex] = 1;
         }
     }
-    if (NodeCount_ != other.NodeCount_) {
-        return false;
+
+    for (auto [mediumIndex, diskSpace] : delta.DiskSpace()) {
+        if (!(self.DiskSpace().GetOrDefault(mediumIndex).*Check64)(diskSpace)) {
+            violated().DiskSpace()[mediumIndex] = 1;
+        }
     }
-    if (ChunkCount_ != other.ChunkCount_) {
-        return false;
+
+    if (auto violatedMasterMemory = (self.MasterMemory().*CheckMasterMemory)(delta.MasterMemory())) {
+        violated().SetMasterMemory(std::move(*violatedMasterMemory));
     }
-    if (TabletCount_ != other.TabletCount_) {
-        return false;
+
+    return result;
+}
+
+template <auto Change32, auto Change64, auto ChangeMasterMemory>
+void DoChange(
+    TClusterResourceLimits& self,
+    const TClusterResourceLimits& delta)
+{
+    auto doChange = [&] (auto value, auto method, auto delta) {
+        auto newValue = value;
+        (newValue.*method)(delta.ToUnderlying());
+        return newValue;
+    };
+
+    self.SetNodeCount(doChange(self.GetNodeCount(), Change64, delta.GetNodeCount()));
+    self.SetChunkCount(doChange(self.GetChunkCount(), Change64, delta.GetChunkCount()));
+    self.SetTabletCount(doChange(self.GetTabletCount(), Change32, delta.GetTabletCount()));
+    self.SetTabletStaticMemory(doChange(self.GetTabletStaticMemory(), Change64, delta.GetTabletStaticMemory()));
+
+    (self.MasterMemory().*ChangeMasterMemory)(delta.MasterMemory());
+
+    auto changeDiskSpace = [&] (int mediumIndex) {
+        auto newDiskSpace = self.DiskSpace().GetOrDefault(mediumIndex);
+        (newDiskSpace.*Change64)(delta.DiskSpace().GetOrDefault(mediumIndex).ToUnderlying());
+        self.SetMediumDiskSpace(mediumIndex, newDiskSpace);
+    };
+
+    for (auto [mediumIndex, deltaDiskSpace] : delta.DiskSpace()) {
+        changeDiskSpace(mediumIndex);
     }
-    if (TabletStaticMemory_ != other.TabletStaticMemory_) {
-        return false;
+
+    for (auto [mediumIndex, selfDiskSpace] : self.DiskSpace()) {
+        if (!delta.DiskSpace().contains(mediumIndex)) {
+            changeDiskSpace(mediumIndex);
+        }
     }
-    if (MasterMemory_ != other.MasterMemory_) {
-        return false;
-    }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterMemoryLimits& TViolatedClusterResourceLimits::MasterMemory()
+} // namespace
+
+std::optional<TViolatedClusterResourceLimits> TClusterResourceLimits::CheckIncrease(
+    const TClusterResourceLimits& delta) const
+{
+    return CheckChange<
+        &TLimit32::CanIncrease,
+        &TLimit64::CanIncrease,
+        &TMasterMemoryLimits::CheckIncrease>(*this, delta);
+}
+
+std::optional<TViolatedClusterResourceLimits> TClusterResourceLimits::CheckDecrease(
+    const TClusterResourceLimits& delta) const
+{
+    return CheckChange<
+        &TLimit32::CanDecrease,
+        &TLimit64::CanDecrease,
+        &TMasterMemoryLimits::CheckDecrease>(*this, delta);
+}
+
+void TClusterResourceLimits::Increase(const TClusterResourceLimits& delta)
+{
+    DoChange<
+        &TLimit32::Increase,
+        &TLimit64::Increase,
+        &TMasterMemoryLimits::Increase>(*this, delta);
+}
+
+void TClusterResourceLimits::Decrease(const TClusterResourceLimits& delta)
+{
+    DoChange<
+        &TLimit32::Decrease,
+        &TLimit64::Decrease,
+        &TMasterMemoryLimits::Decrease>(*this, delta);
+}
+
+void TClusterResourceLimits::IncreaseWithInfinityAllowed(
+    const TClusterResourceLimits& that)
+{
+    DoChange<
+        &TLimit32::IncreaseWithInfinityAllowed,
+        &TLimit64::IncreaseWithInfinityAllowed,
+        &TMasterMemoryLimits::IncreaseWithInfinityAllowed>(*this, that);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TViolatedMasterMemoryLimits& TViolatedClusterResourceLimits::MasterMemory()
 {
     return MasterMemory_;
 }
 
-const TMasterMemoryLimits& TViolatedClusterResourceLimits::MasterMemory() const
+const TViolatedMasterMemoryLimits& TViolatedClusterResourceLimits::MasterMemory() const
 {
     return MasterMemory_;
 }
 
-void TViolatedClusterResourceLimits::SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &
+void TViolatedClusterResourceLimits::SetMasterMemory(TViolatedMasterMemoryLimits masterMemoryLimits) &
 {
     MasterMemory_ = std::move(masterMemoryLimits);
 }
@@ -370,20 +406,34 @@ void SerializeClusterResourceLimits(
 
     auto fluent = BuildYsonFluently(consumer)
         .BeginMap();
+
+    auto asSigned = [] (auto value) {
+        return static_cast<i64>(value.ToUnderlying());
+    };
+
+    auto maybeSerialize = [&] (const char* name, auto value) {
+        if (value.IsFinite()) {
+            fluent.Item(name).Value(asSigned(value));
+        }
+    };
+    maybeSerialize("node_count", resourceLimits.GetNodeCount());
+    maybeSerialize("chunk_count", resourceLimits.GetChunkCount());
+    maybeSerialize("tablet_count", resourceLimits.GetTabletCount());
+    maybeSerialize("tablet_static_memory", resourceLimits.GetTabletStaticMemory());
+
     fluent
-        .Item("node_count").Value(resourceLimits.GetNodeCount())
-        .Item("chunk_count").Value(resourceLimits.GetChunkCount())
-        .Item("tablet_count").Value(resourceLimits.GetTabletCount())
-        .Item("tablet_static_memory").Value(resourceLimits.GetTabletStaticMemory())
         .Item("disk_space_per_medium").DoMapFor(
             resourceLimits.DiskSpace(),
             [&] (TFluentMap fluent, auto pair) {
                 auto [mediumIndex, mediumDiskSpace] = pair;
+                if (mediumDiskSpace.IsInfinite()) {
+                    return;
+                }
                 const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                 if (!IsObjectAlive(medium)) {
                     return;
                 }
-                fluent.Item(medium->GetName()).Value(mediumDiskSpace);
+                fluent.Item(medium->GetName()).Value(asSigned(mediumDiskSpace));
             })
         .DoIf(serializeDiskSpace, [&] (TFluentMap fluent) {
             fluent
@@ -394,10 +444,13 @@ void SerializeClusterResourceLimits(
                     [&] (i64 totalDiskSpace, auto pair) {
                         auto [mediumIndex, mediumDiskSpace] = pair;
                         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (!IsObjectAlive(medium)) {
+                        if (!IsObjectAlive(medium) || mediumDiskSpace.IsInfinite()) {
+                            // NB: It returns invalid disk space when there is
+                            // an infinite limit for some medium. It's ok since
+                            // in practice only root account has infinite limits.
                             return totalDiskSpace;
                         }
-                        return totalDiskSpace + mediumDiskSpace;
+                        return totalDiskSpace + asSigned(mediumDiskSpace);
                     }));
         })
         .Item("master_memory");
@@ -412,16 +465,20 @@ void SerializeClusterResourceLimits(
 void DeserializeClusterResourceLimits(
     TClusterResourceLimits& resourceLimits,
     NYTree::INodePtr node,
-    const NCellMaster::TBootstrap* bootstrap)
+    const NCellMaster::TBootstrap* bootstrap,
+    bool zeroByDefault)
 {
-    TClusterResourceLimits result;
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+    auto result = zeroByDefault
+        ? TClusterResourceLimits::Zero()
+        : TClusterResourceLimits();
 
     auto map = node->AsMap();
 
-    result.SetNodeCount(GetOptionalNonNegativeI64ChildOrThrow(map, "node_count"));
-    result.SetChunkCount(GetOptionalNonNegativeI64ChildOrThrow(map, "chunk_count"));
-    result.SetTabletCount(GetOptionalNonNegativeI64ChildOrThrow(map, "tablet_count"));
-    result.SetTabletStaticMemory(GetOptionalNonNegativeI64ChildOrThrow(map, "tablet_static_memory"));
+    result.SetNodeCount(GetOptionalLimit64ChildOrThrow(map, "node_count"));
+    result.SetChunkCount(GetOptionalLimit64ChildOrThrow(map, "chunk_count"));
+    result.SetTabletCount(GetOptionalLimit32ChildOrThrow(map, "tablet_count"));
+    result.SetTabletStaticMemory(GetOptionalLimit64ChildOrThrow(map, "tablet_static_memory"));
 
     const auto& chunkManager = bootstrap->GetChunkManager();
     if (auto diskSpacePerMediumNode = map->FindChild("disk_space_per_medium")) {
@@ -429,13 +486,16 @@ void DeserializeClusterResourceLimits(
             auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
             auto mediumDiskSpace = mediumDiskSpaceNode->AsInt64()->GetValue();
             ValidateDiskSpace(mediumDiskSpace);
-            result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);
+            result.SetMediumDiskSpace(medium->GetIndex(), TLimit64(mediumDiskSpace));
         }
     }
 
-    const auto& multicellManager = bootstrap->GetMulticellManager();
     if (auto masterMemoryNode = map->FindChild("master_memory")) {
-        DeserializeMasterMemoryLimits(result.MasterMemory(), masterMemoryNode, multicellManager);
+        DeserializeMasterMemoryLimits(
+            result.MasterMemory(),
+            masterMemoryNode,
+            multicellManager,
+            zeroByDefault);
     }
 
     resourceLimits = std::move(result);
@@ -513,16 +573,15 @@ void SerializeViolatedClusterResourceLimitsInCompactFormat(
 
     fluent
         .DoIf(diskSpaceLimitViolated, [&] (TFluentMap fluent) {
-            fluent.Item("disk_space_per_medium").DoMapFor(
-                violatedResourceLimits.DiskSpace(),
-                [&] (TFluentMap fluent, auto pair) {
-                    auto [mediumIndex, mediumDiskSpace] = pair;
-                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                    if (!IsObjectAlive(medium) || mediumDiskSpace == 0) {
-                        return;
-                    }
-                    fluent.Item(medium->GetName()).Value(mediumDiskSpace);
-                });
+            auto fluentMap = fluent.Item("disk_space_per_medium").BeginMap();
+            for (auto [mediumId, medium] : chunkManager->Media()) {
+                auto mediumDiskSpace = GetOrDefault(violatedResourceLimits.DiskSpace(), medium->GetIndex(), 0);
+                if (!IsObjectAlive(medium) || mediumDiskSpace == 0) {
+                    continue;
+                }
+                fluentMap.Item(medium->GetName()).Value(mediumDiskSpace);
+            }
+            fluentMap.EndMap();
         });
 
     if (violatedResourceLimits.MasterMemory().Total > 0 ||
@@ -545,7 +604,8 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
     const TViolatedClusterResourceLimits& violatedResourceLimits,
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TBootstrap* bootstrap,
-    bool serializeDiskSpace)
+    bool serializeDiskSpace,
+    std::optional<int> relevantMediumIndex)
 {
     const auto& chunkManager = bootstrap->GetChunkManager();
     const auto& multicellManager = bootstrap->GetMulticellManager();
@@ -557,15 +617,32 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
         .Item("chunk_count").Value(violatedResourceLimits.GetChunkCount() != 0)
         .Item("tablet_count").Value(violatedResourceLimits.GetTabletCount() != 0)
         .Item("tablet_static_memory").Value(violatedResourceLimits.GetTabletStaticMemory() != 0)
-        .Item("disk_space_per_medium").DoMapFor(
-            violatedResourceLimits.DiskSpace(),
-            [&] (TFluentMap fluent, auto pair) {
-                auto [mediumIndex, mediumDiskSpace] = pair;
-                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        .Item("disk_space_per_medium")
+        .Do([&] (auto fluent) {
+            auto fluentMap = fluent.BeginMap();
+
+            if (relevantMediumIndex) {
+                auto* medium = chunkManager->FindMediumByIndex(*relevantMediumIndex);
                 if (IsObjectAlive(medium)) {
-                    fluent.Item(medium->GetName()).Value(mediumDiskSpace != 0);
+                    fluentMap
+                        .Item(medium->GetName())
+                        .Value(GetOrDefault(violatedResourceLimits.DiskSpace(), *relevantMediumIndex, 0) != 0);
                 }
-            })
+            } else {
+                // NB: It's important to list all media here because tablet node
+                // checks medium existence by getting
+                // <account>/@violated_resource_limits.
+                for (auto [mediumId, medium] : chunkManager->Media()) {
+                    if (!IsObjectAlive(medium)) {
+                        continue;
+                    }
+                    fluentMap
+                        .Item(medium->GetName())
+                        .Value(GetOrDefault(violatedResourceLimits.DiskSpace(), medium->GetIndex(), 0) != 0);
+                }
+            }
+            fluentMap.EndMap();
+        })
         .DoIf(serializeDiskSpace, [&] (TFluentMap fluent) {
             fluent
                 .Item("disk_space").Value(std::any_of(
@@ -598,7 +675,7 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& reso
     builder->AppendString(TStringBuf("{DiskSpace: ["));
     auto firstDiskSpace = true;
     for (auto [mediumIndex, diskSpace] : resources.DiskSpace()) {
-        if (diskSpace != 0) {
+        if (diskSpace != TLimit64(i64(0))) {
             if (!firstDiskSpace) {
                 builder->AppendString(TStringBuf(", "));
             }

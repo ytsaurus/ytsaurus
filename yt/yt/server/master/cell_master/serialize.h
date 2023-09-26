@@ -156,6 +156,7 @@ DEFINE_ENUM(EMasterReign,
     ((PerRequestReadComplexityLimits)                               (2425))  // kvk1920
     ((ProxyMaintenanceRequests)                                     (2426))  // kvk1920
     ((AccountsProfilingInSecurityManager)                           (2427))  // vovamelnikov
+    ((ReworkClusterResourceLimitsInfinityRelatedBehavior)           (2428))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

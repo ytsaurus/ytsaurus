@@ -308,7 +308,7 @@ TAccountStatistics& TAccount::LocalStatistics()
 bool TAccount::IsDiskSpaceLimitViolated() const
 {
     for (auto [mediumIndex, diskSpace] : ClusterStatistics_.ResourceUsage.DiskSpace()) {
-        if (diskSpace > GetOrDefault(ClusterResourceLimits_.DiskSpace(), mediumIndex)) {
+        if (TLimit64(diskSpace) > ClusterResourceLimits_.DiskSpace().GetOrDefault(mediumIndex)) {
             return true;
         }
     }
@@ -318,34 +318,34 @@ bool TAccount::IsDiskSpaceLimitViolated() const
 bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex) const
 {
     auto usageSpace = GetOrDefault(ClusterStatistics_.ResourceUsage.DiskSpace(), mediumIndex);
-    auto limitsSpace = GetOrDefault(ClusterResourceLimits_.DiskSpace(), mediumIndex);
-    return usageSpace > limitsSpace;
+    auto limitsSpace = ClusterResourceLimits_.DiskSpace().GetOrDefault(mediumIndex);
+    return TLimit64(usageSpace) > limitsSpace;
 }
 
 bool TAccount::IsNodeCountLimitViolated() const
 {
     // See TSecurityManager::ValidateResourceUsageIncrease for the reason why committed usage is compared here.
-    return ClusterStatistics_.CommittedResourceUsage.GetNodeCount() > ClusterResourceLimits_.GetNodeCount();
+    return TLimit64(ClusterStatistics_.CommittedResourceUsage.GetNodeCount()) > ClusterResourceLimits_.GetNodeCount();
 }
 
 bool TAccount::IsChunkCountLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.GetChunkCount() > ClusterResourceLimits_.GetChunkCount();
+    return TLimit64(ClusterStatistics_.ResourceUsage.GetChunkCount()) > ClusterResourceLimits_.GetChunkCount();
 }
 
 bool TAccount::IsTabletCountLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.GetTabletCount() > ClusterResourceLimits_.GetTabletCount();
+    return TLimit32(ClusterStatistics_.ResourceUsage.GetTabletCount()) > ClusterResourceLimits_.GetTabletCount();
 }
 
 bool TAccount::IsTabletStaticMemoryLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.GetTabletStaticMemory() > ClusterResourceLimits_.GetTabletStaticMemory();
+    return TLimit64(ClusterStatistics_.ResourceUsage.GetTabletStaticMemory()) > ClusterResourceLimits_.GetTabletStaticMemory();
 }
 
 bool TAccount::IsTotalMasterMemoryLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.GetTotalMasterMemory() > ClusterResourceLimits_.MasterMemory().Total;
+    return TLimit64(ClusterStatistics_.ResourceUsage.GetTotalMasterMemory()) > ClusterResourceLimits_.MasterMemory().Total;
 }
 
 bool TAccount::IsCellMasterMemoryLimitViolated(TCellTag cellTag) const
@@ -361,13 +361,13 @@ bool TAccount::IsCellMasterMemoryLimitViolated(TCellTag cellTag) const
         return false;
     }
 
-    return usageIt->second.ResourceUsage.GetTotalMasterMemory() > limitsIt->second;
+    return TLimit64(usageIt->second.ResourceUsage.GetTotalMasterMemory()) > limitsIt->second;
 }
 
 bool TAccount::IsChunkHostMasterMemoryLimitViolated() const
 {
     auto totalChunkHostMasterMemory = GetChunkHostCellMasterMemoryUsage();
-    return totalChunkHostMasterMemory > ClusterResourceLimits_.MasterMemory().ChunkHost;
+    return TLimit64(totalChunkHostMasterMemory) > ClusterResourceLimits_.MasterMemory().ChunkHost;
 }
 
 i64 TAccount::GetChunkHostCellMasterMemoryUsage() const
@@ -434,9 +434,9 @@ void TAccount::DetachChild(TAccount* child) noexcept
 
 TClusterResourceLimits TAccount::ComputeTotalChildrenLimits() const
 {
-    auto result = TClusterResourceLimits();
+    auto result = TClusterResourceLimits::Zero();
     for (const auto& [key, child] : KeyToChild()) {
-        result += child->ClusterResourceLimits();
+        result.IncreaseWithInfinityAllowed(child->ClusterResourceLimits());
     }
     return result;
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "master_memory.h"
+#include "master_memory_limits.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -30,8 +30,20 @@ THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetOptionalNonNegativeI64ChildOrThrow(
-    const NYTree::IMapNodePtr mapNode,
+    const NYTree::IMapNodePtr& mapNode,
     const char* key);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLimit32 GetOptionalLimit32ChildOrThrow(
+    const NYTree::IMapNodePtr& mapNode,
+    const char* key,
+    TLimit32 defaultValue = TLimit32(0));
+
+TLimit64 GetOptionalLimit64ChildOrThrow(
+    const NYTree::IMapNodePtr& mapNode,
+    const char* key,
+    TLimit64 defaultValue = TLimit64(0));
 
 ////////////////////////////////////////////////////////////////////////////////
 

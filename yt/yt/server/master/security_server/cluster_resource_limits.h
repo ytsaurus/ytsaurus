@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "master_memory.h"
+#include "master_memory_limits.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -22,31 +22,58 @@ namespace NYT::NSecurityServer {
 class TClusterResourceLimits
 {
 public:
-    static TClusterResourceLimits Infinite();
-    static TClusterResourceLimits Zero(const NCellMaster::IMulticellManagerPtr& multicellManager);
+    static TClusterResourceLimits Infinity();
+    static TClusterResourceLimits Zero();
 
-    TClusterResourceLimits&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
-    void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
+    TClusterResourceLimits&& SetMediumDiskSpace(int mediumIndex, TLimit64 diskSpace) &&;
+    void SetMediumDiskSpace(int mediumIndex, TLimit64 diskSpace) &;
 
     //! Increases medium disk space by a given amount.
     //! NB: the amount may be negative.
     void AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta);
 
-    bool IsViolatedBy(const TClusterResourceLimits& rhs) const;
-
+    bool IsViolatedBy(const TClusterResourceLimits& rhs) const noexcept;
     TViolatedClusterResourceLimits GetViolatedBy(const TClusterResourceLimits& usage) const;
 
-    const NChunkClient::TMediumMap<i64>& DiskSpace() const;
+    using TDiskSpaceLimits = TDefaultMap<NChunkClient::TMediumMap<TLimit64>>;
+    const TDiskSpaceLimits& DiskSpace() const;
 
-    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, NodeCount);
-    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, ChunkCount);
-    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, int, TabletCount);
-    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, TabletStaticMemory);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, TLimit64, NodeCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, TLimit64, ChunkCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, TLimit32, TabletCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, TLimit64, TabletStaticMemory);
 
     TMasterMemoryLimits& MasterMemory();
     const TMasterMemoryLimits& MasterMemory() const;
     TClusterResourceLimits&& SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &&;
     void SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &;
+
+    std::optional<TViolatedClusterResourceLimits> CheckIncrease(
+        const TClusterResourceLimits& delta) const;
+    std::optional<TViolatedClusterResourceLimits> CheckDecrease(
+        const TClusterResourceLimits& delta) const;
+
+    void Increase(const TClusterResourceLimits& delta);
+    void Decrease(const TClusterResourceLimits& delta);
+
+    // Used to calculate sum of limits.
+    void IncreaseWithInfinityAllowed(const TClusterResourceLimits& that);
+
+    struct TModification
+    {
+        std::optional<TViolatedClusterResourceLimits> (TClusterResourceLimits::*Check)(const TClusterResourceLimits& delta) const;
+        void (TClusterResourceLimits::*Do)(const TClusterResourceLimits& delta);
+    };
+
+    constexpr static TModification IncreasingModification = {
+        &TClusterResourceLimits::CheckIncrease,
+        &TClusterResourceLimits::Increase,
+    };
+
+    constexpr static TModification DecreasingModification = {
+        &TClusterResourceLimits::CheckDecrease,
+        &TClusterResourceLimits::Decrease,
+    };
 
 public:
     void Save(NCellMaster::TSaveContext& context) const;
@@ -55,21 +82,10 @@ public:
     void Save(NCypressServer::TBeginCopyContext& context) const;
     void Load(NCypressServer::TEndCopyContext& context);
 
-    TClusterResourceLimits& operator += (const TClusterResourceLimits& other);
-    TClusterResourceLimits operator + (const TClusterResourceLimits& other) const;
-
-    TClusterResourceLimits& operator -= (const TClusterResourceLimits& other);
-    TClusterResourceLimits operator - (const TClusterResourceLimits& other) const;
-
-    TClusterResourceLimits& operator *= (i64 other);
-    TClusterResourceLimits operator * (i64 other) const;
-
-    TClusterResourceLimits operator - () const;
-
-    bool operator == (const TClusterResourceLimits& other) const;
+    bool operator==(const TClusterResourceLimits& other) const noexcept = default;
 
 private:
-    NChunkClient::TMediumMap<i64> DiskSpace_;
+    TDiskSpaceLimits DiskSpace_{/*defaultValue*/ TLimit64(i64(0))};
     TMasterMemoryLimits MasterMemory_;
 };
 
@@ -83,9 +99,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, int, TabletCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, i64, TabletStaticMemory);
 
-    TMasterMemoryLimits& MasterMemory();
-    const TMasterMemoryLimits& MasterMemory() const;
-    void SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &;
+    TViolatedMasterMemoryLimits& MasterMemory();
+    const TViolatedMasterMemoryLimits& MasterMemory() const;
+    void SetMasterMemory(TViolatedMasterMemoryLimits masterMemoryLimits) &;
 
     NChunkClient::TMediumMap<i64>& DiskSpace();
     const NChunkClient::TMediumMap<i64>& DiskSpace() const;
@@ -95,7 +111,7 @@ public:
 
 private:
     NChunkClient::TMediumMap<i64> DiskSpace_;
-    TMasterMemoryLimits MasterMemory_;
+    TViolatedMasterMemoryLimits MasterMemory_;
 };
 
 // NB: this serialization requires access to chunk and multicell managers and
@@ -110,7 +126,8 @@ void SerializeClusterResourceLimits(
 void DeserializeClusterResourceLimits(
     TClusterResourceLimits& resourceLimits,
     NYTree::INodePtr node,
-    const NCellMaster::TBootstrap* bootstrap);
+    const NCellMaster::TBootstrap* bootstrap,
+    bool zeroByDefault);
 
 void SerializeViolatedClusterResourceLimits(
     const TViolatedClusterResourceLimits& violatedResourceLimits,
@@ -126,7 +143,8 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
     const TViolatedClusterResourceLimits& violatedResourceLimits,
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TBootstrap* bootstrap,
-    bool serializeDiskSpace);
+    bool serializeDiskSpace,
+    std::optional<int> relevantMediumIndex = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

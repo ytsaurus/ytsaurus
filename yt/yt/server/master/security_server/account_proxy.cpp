@@ -410,7 +410,11 @@ private:
                 }
 
                 TClusterResourceLimits limits;
-                DeserializeClusterResourceLimits(limits, ConvertToNode(value), Bootstrap_);
+                DeserializeClusterResourceLimits(
+                    limits,
+                    ConvertToNode(value),
+                    Bootstrap_,
+                    /*zeroByDefault*/ false);
                 securityManager->TrySetResourceLimits(account, limits);
                 return true;
             }
@@ -476,10 +480,16 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         auto* impl = GetThisImpl();
-        auto* srcAccount = securityManager->GetAccountByNameOrThrow(request->src_account(), true /*activeLifeStageOnly*/);
+        auto* srcAccount = securityManager->GetAccountByNameOrThrow(
+            request->src_account(),
+            /*activeLifeStageOnly*/ true);
 
         TClusterResourceLimits resourceDelta;
-        DeserializeClusterResourceLimits(resourceDelta, ConvertToNode(TYsonString(request->resource_delta())), Bootstrap_);
+        DeserializeClusterResourceLimits(
+            resourceDelta,
+            ConvertToNode(TYsonString(request->resource_delta())),
+            Bootstrap_,
+            /*zeroByDefault*/ true);
 
         context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
             srcAccount->GetName(),
