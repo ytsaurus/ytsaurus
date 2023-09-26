@@ -19,11 +19,15 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("account_statistics_gossip_period", &TThis::AccountStatisticsGossipPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("accounts_profiling_period", &TThis::AccountsProfilingPeriod)
+        .Default(TDuration::Seconds(1));
     registrar.Parameter("request_rate_smoothing_period", &TThis::RequestRateSmoothingPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("account_master_memory_usage_update_period", &TThis::AccountMasterMemoryUsageUpdatePeriod)
         .Default(TDuration::Seconds(60));
 
+    registrar.Parameter("enable_accounts_profiling", &TThis::EnableAccountsProfiling)
+        .Default(true);
     registrar.Parameter("enable_delayed_membership_closure_recomputation", &TThis::EnableDelayedMembershipClosureRecomputation)
         .Default(true);
     registrar.Parameter("membership_closure_recomputation_period", &TThis::MembershipClosureRecomputePeriod)
