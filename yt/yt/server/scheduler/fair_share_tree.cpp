@@ -2195,10 +2195,14 @@ private:
             }
 
             if (std::ssize(it->second) + 1 > Config_->MaxEphemeralPoolsPerUser) {
-                THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %Qv in tree %Qv has been reached",
+                THROW_ERROR_EXCEPTION(
+                    "Cannot create new ephemeral pool %Qv as limit for number of ephemeral pools %v for user %Qv in tree %Qv has been reached; "
+                    "previously created pools are [%v]",
+                    poolName.GetPool(),
                     Config_->MaxEphemeralPoolsPerUser,
                     userName,
-                    TreeId_);
+                    TreeId_,
+                    JoinToString(it->second));
             }
         }
     }
