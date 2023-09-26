@@ -335,7 +335,7 @@ def check_attribute_tombstone_yt_14682():
     create("table", "//tmp/table_with_attr")
     set("//tmp/table_with_attr/@attr", "value")
 
-    tx = start_transaction()
+    tx = start_transaction(timeout=60000)
     remove("//tmp/table_with_attr/@attr", tx=tx)
 
     yield
@@ -416,7 +416,7 @@ def check_scheduler_pool_subtree_size_recalculation():
 
 def check_account_resource_usage_lease():
     create_account("a42")
-    tx = start_transaction()
+    tx = start_transaction(timeout=60000)
     lease_id = create_account_resource_usage_lease(account="a42", transaction_id=tx)
     assert exists("#" + lease_id)
 
