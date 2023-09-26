@@ -273,7 +273,8 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
         case EInternedAttributeKey::NodeTagFilter: {
             if (cellBundle->Areas().size() != 1) {
-                THROW_ERROR_EXCEPTION("Unable to identify unique area for bundle %Qv");
+                THROW_ERROR_EXCEPTION("Unable to identify unique area for bundle %Qv",
+                    cellBundle->GetName());
             }
             auto* area = cellBundle->Areas().begin()->second;
             auto formula = ConvertTo<TString>(value);
