@@ -184,5 +184,41 @@ TEST(TQueryOptimizer, OptimizeGroupBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TQueryOptimizer, OptimizeStringTryGetString)
+{
+    TObjectsHolder objectsHolder;
+    TQuery query;
+    auto& select = query.SelectExprs.emplace();
+    auto getMetaIdExpr = objectsHolder.New<TFunctionExpression>(
+        NQueryClient::TSourceLocation(),
+        "string",
+        TExpressionList{
+            objectsHolder.New<TFunctionExpression>(
+                NQueryClient::TSourceLocation(),
+                "try_get_string",
+                TExpressionList{
+                    objectsHolder.New<TReferenceExpression>(NQueryClient::TSourceLocation(), "meta"),
+                    objectsHolder.New<TLiteralExpression>(NQueryClient::TSourceLocation(), "/id")
+                }
+            )
+        }
+    );
+
+    select.push_back(
+        objectsHolder.New<TAliasExpression>(
+            NQueryClient::TSourceLocation(),
+            getMetaIdExpr,
+            "meta_id"));
+
+    query.Table = TTableDescriptor("//db/enitities");
+
+    TString expectedSql = "(string(try_get_string(meta, \"/id\")) as meta_id) FROM [//db/enitities]";
+    EXPECT_EQ(expectedSql, FormatQuery(query));
+
+    EXPECT_TRUE(TryOptimizeTryGetString(&query));
+    TString optimizedSql = "(try_get_string(meta, \"/id\") as meta_id) FROM [//db/enitities]";
+    EXPECT_EQ(optimizedSql, FormatQuery(query));
+}
+
 } // namespace
 } // namespace NYT::NOrm::NQuery::NTests
