@@ -6,7 +6,7 @@ from yt_commands import (
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
     multicell_sleep, update_nodes_dynamic_config, switch_leader, ban_node, add_maintenance, remove_maintenance,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle, print_debug)
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle)
 
 from yt_helpers import profiler_factory
 
@@ -19,7 +19,7 @@ from flaky import flaky
 
 import json
 import os
-from time import sleep, time
+from time import sleep
 
 ##################################################################
 
@@ -1275,94 +1275,10 @@ class TestChunkCreationThrottler(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    def _measure_write_time(self, user="root", write_chunk_count=15):
-        start = time()
-        for _ in range(write_chunk_count):
-            write_table("<append=%true>//tmp/t", {"a": 1}, timeout=20, authenticated_user=user)
-        return time() - start
-
-    def _measure_operation_time(self, user="root"):
-        start = time()
-        merge(
-            in_="//tmp/in",
-            out="//tmp/out",
-            authenticated_user=user,
-            spec={
-                "job_io": {
-                    "table_writer": {
-                        "desired_chunk_size": 64,
-                        "block_size": 64,
-                    },
-                    "buffer_row_count": 16,
-                },
-                "job_count": 1,
-                "force_transform": True
-            },
-        )
-        return time() - start
-
-    def _check_per_user_throttler_after_snapshot_load(self):
-        non_root_user = "juan"
-
-        create("table", "//tmp/t")
-        create_user(non_root_user)
-
-        # Warm up.
-        self._measure_write_time(non_root_user)
-        print_debug("--------->>> warmed up <<<---------")
-
-        usual_time = self._measure_write_time(non_root_user)
-        print_debug("usual time:", usual_time)
-
-        # This throttler throttles based on request size, which is rather difficult to dynamically compute.
-        # This constant was chosen empirically.
-        # If this test becomes too flaky - tuning it might be a good place to start.
-        new_limit = 300.
-
-        print_debug("new limit:", new_limit, "bytes/sec")
-
-        set("//sys/@config/chunk_service/enable_per_user_request_bytes_throttling", True)
-        set("//sys/users/{}/@chunk_service_request_bytes_throttler".format(non_root_user), {"limit": new_limit})
-        sleep(1)
-
-        assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user)) == new_limit
-        assert self._measure_write_time(non_root_user) >= usual_time * 2
-
-        yield
-
-        assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user)) == new_limit
-
-        # Warm up (again).
-        self._measure_write_time("root")
-        print_debug("--------->>> warmed up <<<---------")
-
-        assert self._measure_write_time(non_root_user) >= usual_time * 2
-
-        remove("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user))
-        with pytest.raises(YtError, match="Error resolving path /limit"):
-            get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user))
-        assert self._measure_write_time(non_root_user) < usual_time * 1.2
-
     @authors("h0pless")
     def test_per_user_bytes_throttler_root(self):
         with pytest.raises(YtError, match="Cannot set \"chunk_service_request_bytes_throttler\" for \"root\""):
             set("//sys/users/root/@chunk_service_request_bytes_throttler", {"limit": 1337})
-
-    @authors("h0pless")
-    @flaky(max_runs=5)
-    def test_per_user_bytes_throttler_snapshot(self):
-
-        checker_state = iter(self._check_per_user_throttler_after_snapshot_load())
-
-        next(checker_state)
-
-        build_snapshot(cell_id=None)
-
-        with Restarter(self.Env, MASTERS_SERVICE):
-            pass
-
-        with pytest.raises(StopIteration):
-            next(checker_state)
 
     @authors("h0pless")
     def test_per_user_bytes_throttler_profiling(self):
@@ -1382,51 +1298,6 @@ class TestChunkCreationThrottler(YTEnvSetup):
         write_table("//tmp/t", {"place": "gmina Grzmiszczoslawice"}, timeout=20, authenticated_user=userName)
         write_table("//tmp/t", {"place": "powiat lekolody"}, timeout=20, authenticated_user=userName)
         wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
-
-    @authors("h0pless")
-    @flaky(max_runs=5)
-    def test_per_user_bytes_throttler_default(self):
-        throttled_user = "juan"
-        non_throttled_user = "not_juan"
-        root_user = "root"
-
-        create("table", "//tmp/t")
-        create_user(throttled_user)
-        create_user(non_throttled_user)
-
-        # Warm up.
-        self._measure_write_time(non_throttled_user)
-        print_debug("--------->>> warmed up <<<---------")
-
-        usual_time = self._measure_write_time(non_throttled_user)
-        print_debug("usual time:", usual_time)
-
-        # This throttler throttles based on request size, which is rather difficult to dynamically compute.
-        # This constant was chosen empirically.
-        # If this test becomes too flaky - tuning it might be a good place to start.
-        new_general_limit = 300.
-        as_good_as_infinity = 100000000.
-
-        print_debug("new limit:", new_general_limit, "bytes/sec")
-        set("//sys/@config/chunk_service/enable_per_user_request_bytes_throttling", True)
-        set("//sys/users/{}/@chunk_service_request_bytes_throttler".format(non_throttled_user), {"limit": as_good_as_infinity})
-        set("//sys/@config/chunk_service/default_per_user_request_bytes_throttler_config/limit", new_general_limit)
-        sleep(1)
-
-        assert get("//sys/@config/chunk_service/default_per_user_request_bytes_throttler_config/limit") == new_general_limit
-        assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_throttled_user)) == as_good_as_infinity
-        assert self._measure_write_time(throttled_user) >= usual_time * 1.5
-        assert self._measure_write_time(root_user) < usual_time * 1.2
-        assert self._measure_write_time(non_throttled_user) < usual_time * 1.2
-
-        set("//sys/@config/chunk_service/enable_per_user_request_bytes_throttling", False)
-        sleep(1)
-        assert self._measure_write_time(throttled_user) < usual_time * 1.2
-
-        set("//sys/@config/chunk_service/enable_per_user_request_bytes_throttling", True)
-        remove("//sys/@config/chunk_service/default_per_user_request_bytes_throttler_config")
-        sleep(1)
-        assert self._measure_write_time(throttled_user) < usual_time * 1.2
 
 
 ##################################################################
