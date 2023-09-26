@@ -427,7 +427,8 @@ private:
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         if (Context_.DockerImage) {
-            return MakeFuture(TError(EErrorCode::RootVolumePreparationFailed,
+            return MakeFuture(TError(
+                EErrorCode::RootVolumePreparationFailed,
                 "Docker image is not supported in Porto job environment"));
         }
 
