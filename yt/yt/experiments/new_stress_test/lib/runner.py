@@ -76,7 +76,11 @@ def prepare_attributes(spec):
         "in_memory_mode": spec.in_memory_mode,
         "enable_lsm_verbose_logging": True,
         "chunk_writer": {"erasure_store_original_block_checksums": True},
+        "mount_config": {},
     }
+
+    if spec.compression_codec is not None:
+        attributes["compression_codec"] = spec.compression_codec
 
     if spec.extra_attributes:
         attributes.update(spec.extra_attributes.to_dict() or {})
@@ -88,6 +92,8 @@ def prepare_attributes(spec):
             attributes["enable_data_node_lookup"] = True
         if spec.sorted.lookup_cache_rows_per_tablet is not None:
             attributes["lookup_cache_rows_per_tablet"] = spec.sorted.lookup_cache_rows_per_tablet
+        if spec.sorted.enable_hash_chunk_index_for_lookup:
+            attributes["mount_config"]["enable_hash_chunk_index_for_lookup"] = True
 
     return attributes
 

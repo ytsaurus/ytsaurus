@@ -80,7 +80,7 @@ def write_to_dynamic_table(registry, schema, aggregate, update, with_alter, spec
         assert yt.get(registry.base + "/@dynamic") == False
 
         # YT-18930
-        if spec.chunk_format in ("table_versioned_simple", "table_versioned_slim"):
+        if spec.chunk_format in ("table_versioned_simple", "table_versioned_slim", "table_versioned_indexed"):
             yt.set(registry.base + "/@chunk_format", "table_unversioned_schemaless_horizontal")
             assert yt.get(registry.base + "/@optimize_for") == "lookup"
         else:

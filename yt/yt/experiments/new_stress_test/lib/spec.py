@@ -177,7 +177,8 @@ spec_template = {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": Variable(["none", "compressed", "uncompressed"], VariationPolicy.PickRandom),
     "erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
-    "enable_tablet_balancer": True,
+    "compression_codec": None,
+    "enable_tablet_balancer": False,
 
     "size": {
         "key_count": 1000,
@@ -207,6 +208,7 @@ spec_template = {
         "enable_lookup_hash_table": BoolVariable(VariationPolicy.PickRandom),
         "lookup_cache_rows_per_tablet": None,
         "enable_data_node_lookup": BoolVariable(VariationPolicy.PickRandom),
+        "enable_hash_chunk_index_for_lookup": False,
         "write_policy": Variable(["insert_rows", "bulk_insert", "mixed"], VariationPolicy.PickRandom),
         "insertion_probability": 0.7,
         "deletion_probability": 0.1,
@@ -296,10 +298,35 @@ simple_ordered_spec = merge_specs(spec_template, {
     "replicated": Opaque(),
 })
 
+indexed_sorted_spec = merge_specs(spec_template, {
+    "table_type": "sorted",
+    "chunk_format": "table_versioned_indexed",
+    "in_memory_mode": "none",
+    "erasure_codec": "none",
+    "compression_codec": "none",
+
+    "size": {
+        "tablet_count": 1,
+    },
+
+    "prepare_table_via_alter": False,
+
+    "sorted": {
+        "enable_lookup_hash_table": False,
+        "enable_data_node_lookup": BoolVariable(VariationPolicy.PickRandom),
+        "enable_hash_chunk_index_for_lookup": BoolVariable(VariationPolicy.PickRandom),
+        "write_policy": "insert_rows",
+    },
+
+    "ordered": None,
+    "replicated": Opaque(),
+})
+
 presets = {
     "full": spec_template,
     "simple_sorted": simple_sorted_spec,
     "simple_ordered": simple_ordered_spec,
+    "indexed_sorted": indexed_sorted_spec,
 }
 
 ##################################################################
