@@ -1,4 +1,4 @@
-#include <yt/yt/library/query/engine_api/range_inferrer.h>
+#include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/library/query/base/private.h>
@@ -101,6 +101,7 @@ public:
     TQuotientGenerator(ui64 limit, TRange<ui64> divisors)
         : Limit_(limit)
     {
+        DivisorQueue_.reserve(std::ssize(divisors));
         for (auto divisor : divisors) {
             DivisorQueue_.push_back({0, divisor});
         }
@@ -182,6 +183,7 @@ TUnversionedValue LowerBoundToValue(TValueBound lower, bool signedType)
 
     if (value.Type == EValueType::Min) {
         value.Type = EValueType::Null;
+        lower.Flag = false;
     }
 
     if (lower.Flag) {
@@ -212,7 +214,7 @@ TUnversionedValue LowerBoundToValue(TValueBound lower, bool signedType)
 TUnversionedValue UpperBoundToValue(TValueBound upper, bool signedType)
 {
     auto value = upper.Value;
-    YT_VERIFY(IsIntegralType(value.Type) || value.Type == EValueType::Max);
+    YT_VERIFY(IsIntegralType(value.Type) || value.Type == EValueType::Null || value.Type == EValueType::Max);
 
     if (value.Type == EValueType::Max) {
         if (signedType) {
@@ -271,21 +273,26 @@ public:
             ValueToUint64(upper, signedType) - ValueToUint64(lower, signedType),
             divisors)
         , Start_(ValueToUint64(lower, signedType))
-        , ProduceNull_(lower.Type == EValueType::Null)
+        , LowerIsNull_(lower.Type == EValueType::Null)
+        , UpperIsNull_(upper.Type == EValueType::Null)
         , SignedType_(signedType)
-    { }
+    {
+        YT_VERIFY(!UpperIsNull_ || LowerIsNull_);
+    }
 
     TUnversionedValue Reset()
     {
         YT_VERIFY(IsFinished());
-        // Start value is used to evaluate initial value for each divisor.
-        if (SignedType_) {
-            TQuotientGenerator::ResetSigned(Start_);
-        } else {
-            TQuotientGenerator::ResetUnsigned(Start_);
+        if (!UpperIsNull_) {
+            // Start value is used to evaluate initial value for each divisor.
+            if (SignedType_) {
+                TQuotientGenerator::ResetSigned(Start_);
+            } else {
+                TQuotientGenerator::ResetUnsigned(Start_);
+            }
         }
 
-        if (ProduceNull_) {
+        if (LowerIsNull_) {
             return MakeUnversionedSentinelValue(EValueType::Null);
         }
 
@@ -300,7 +307,8 @@ public:
 
 private:
     const ui64 Start_;
-    const bool ProduceNull_;
+    const bool LowerIsNull_;
+    const bool UpperIsNull_;
     const bool SignedType_;
 
     TUnversionedValue DoNext()

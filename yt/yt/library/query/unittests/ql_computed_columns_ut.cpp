@@ -1524,6 +1524,40 @@ TEST_F(TComputedColumnTest, YabsGoodEvent)
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
+TEST_F(TComputedColumnTest, LessThanNull)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Uint64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("farm_hash(l)")),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    {
+        auto query = TString("v from [//t] where l <= null");
+        auto result = Coordinate(query);
+
+        EXPECT_EQ(1u, result.size());
+
+        EXPECT_EQ(YsonToKey("3315701238936582721u"), result[0].first);
+        EXPECT_EQ(YsonToKey("3315701238936582721u;" _NULL_ ";" _MAX_), result[0].second);
+    }
+
+    {
+        auto query = TString("v from [//t] where l < null");
+        auto result = Coordinate(query);
+
+        EXPECT_EQ(1u, result.size());
+
+        EXPECT_EQ(YsonToKey("3315701238936582721u"), result[0].first);
+        EXPECT_EQ(YsonToKey("3315701238936582721u;" _NULL_), result[0].second);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
