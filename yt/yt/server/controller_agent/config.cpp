@@ -1100,7 +1100,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         config->UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
 
         config->OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
-        config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(50'000));
+        config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(200'000));
     });
 
     registrar.Postprocessor([&] (TControllerAgentConfig* config) {
