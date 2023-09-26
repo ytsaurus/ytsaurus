@@ -1406,7 +1406,6 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
             Value* evalData = nullptr;
 
             switch (operandType) {
-                case EValueType::Boolean:
                 case EValueType::Int64:
                     switch (opcode) {
                         CMP_OP(Equal, ICmpEQ)
@@ -1419,6 +1418,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                             YT_ABORT();
                     }
                     break;
+                case EValueType::Boolean:
                 case EValueType::Uint64:
                     switch (opcode) {
                         CMP_OP(Equal, ICmpEQ)

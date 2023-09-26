@@ -9,6 +9,12 @@
 #include <yt/yt/library/query/base/constraints.h>
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/coordinator.h>
+
+#include <yt/yt/library/query/engine/folding_profiler.h>
+
 #include <util/random/fast.h>
 
 // Tests:
@@ -157,20 +163,13 @@ TConstraintRef GetConstraintFromKeyRange(TConstraintsHolder* constraints, TRowRa
     return constraints->Intersect(lower, upper);
 }
 
-std::vector<TRowRange> GetRangesFromExpression(
+std::vector<TRowRange> GetRangesFromConstraints(
     TRowBufferPtr buffer,
-    const TKeyColumns& keyColumns,
-    TConstExpressionPtr predicate,
-    const TKeyRange& keyRange,
+    int keyColumnCount,
+    const TConstraintsHolder& constraints,
+    TConstraintRef constraintRef,
     ui64 rangeCountLimit = std::numeric_limits<ui64>::max())
 {
-    TConstraintsHolder constraints(keyColumns.size());
-    auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer);
-
-    constraintRef = constraints.Intersect(
-        constraintRef,
-        GetConstraintFromKeyRange(&constraints, keyRange, keyColumns.size()));
-
     std::vector<TRowRange> resultRanges;
 
     TReadRangesGenerator rangesGenerator(constraints);
@@ -178,7 +177,7 @@ std::vector<TRowRange> GetRangesFromExpression(
     rangesGenerator.GenerateReadRanges(
         constraintRef,
         [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
-            auto boundRow = buffer->AllocateUnversioned(std::ssize(keyColumns));
+            auto boundRow = buffer->AllocateUnversioned(keyColumnCount );
 
             int columnId = 0;
             while (columnId < std::ssize(constraintRow) && constraintRow[columnId].IsExact()) {
@@ -211,6 +210,23 @@ std::vector<TRowRange> GetRangesFromExpression(
         rangeCountLimit);
 
     return resultRanges;
+}
+
+std::vector<TRowRange> GetRangesFromExpression(
+    TRowBufferPtr buffer,
+    const TKeyColumns& keyColumns,
+    TConstExpressionPtr predicate,
+    const TKeyRange& keyRange,
+    ui64 rangeCountLimit = std::numeric_limits<ui64>::max())
+{
+    TConstraintsHolder constraints(keyColumns.size());
+    auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer);
+
+    constraintRef = constraints.Intersect(
+        constraintRef,
+        GetConstraintFromKeyRange(&constraints, keyRange, keyColumns.size()));
+
+    return GetRangesFromConstraints(buffer, std::ssize(keyColumns), constraints, constraintRef, rangeCountLimit);
 }
 
 TKeyRange RefineKeyRange(
@@ -1158,6 +1174,35 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
     EXPECT_EQ(YsonToKey("1;4;"), result[0].second);
 }
 
+TEST_F(TRefineKeyRangeTest, InTuples)
+{
+    auto expr = PrepareExpression(
+        "(k, l) in ((1, 2), (1, 2), (1, 3), (2, 1), (2, 2))",
+        *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto result = GetRangesFromExpression(
+        rowBuffer,
+        GetSampleKeyColumns(),
+        expr,
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        7);
+
+    EXPECT_EQ(4u, result.size());
+
+    EXPECT_EQ(YsonToKey("1;2"), result[0].first);
+    EXPECT_EQ(YsonToKey("1;2;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("1;3"), result[1].first);
+    EXPECT_EQ(YsonToKey("1;3;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("2;1"), result[2].first);
+    EXPECT_EQ(YsonToKey("2;1;" _MAX_), result[2].second);
+
+    EXPECT_EQ(YsonToKey("2;2"), result[3].first);
+    EXPECT_EQ(YsonToKey("2;2;" _MAX_), result[3].second);
+}
+
 TEST_F(TRefineKeyRangeTest, RangeExpansionLimit)
 {
     auto expr = PrepareExpression(
@@ -1232,6 +1277,396 @@ TEST_F(TRefineKeyRangeTest, InColumnPermutation)
     EXPECT_EQ(YsonToKey("5;0"), result[1].first);
     EXPECT_EQ(YsonToKey("5;0;" _MAX_), result[1].second);
 }
+
+const TString Letters("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
+struct TRandomExpressionGenerator
+{
+    TTableSchemaPtr Schema;
+    TRowBufferPtr RowBuffer;
+    TColumnEvaluatorPtr ColumnEvaluator;
+
+    TFastRng64 Rng{42};
+
+    std::vector<ui64> RandomValues = GenerateRandomValues();
+
+    std::vector<ui64> GenerateRandomValues()
+    {
+        std::vector<ui64> result;
+        for (int i = 0; i < 30; ++i) {
+            ui64 bits = Rng.Uniform(64);
+            ui64 value = (1ULL << bits) | Rng.Uniform(1ULL << bits);
+
+            result.push_back(value);
+        }
+
+        return result;
+    }
+
+    std::vector<int> GenerateRandomFieldIds(int size)
+    {
+        std::vector<int> result;
+        for (int i = 0; i < size; ++i) {
+            result.push_back(Rng.Uniform(1, Schema->GetKeyColumnCount()));
+        }
+        return result;
+    }
+
+    TString GenerateFieldTuple(TRange<int> ids)
+    {
+        YT_VERIFY(!ids.Empty());
+
+        TString result = ids.Size() > 1 ? "(" : "";
+
+        bool first = true;
+        for (auto id : ids) {
+            if (!first) {
+                result += ", ";
+            } else {
+                first = false;
+            }
+
+            result += Schema->Columns()[id].Name();
+        }
+
+        result += ids.Size() > 1 ? ")" : "";
+        return result;
+    }
+
+    TString GenerateLiteralTuple(TRange<int> ids)
+    {
+        YT_VERIFY(!ids.Empty());
+
+        TString result = ids.Size() > 1 ? "(" : "";
+
+        bool first = true;
+        for (auto id : ids) {
+            if (!first) {
+                result += ", ";
+            } else {
+                first = false;
+            }
+
+            result += GenerateRandomLiteral(Schema->Columns()[id].GetWireType());
+        }
+
+        result += ids.Size() > 1 ? ")" : "";
+        return result;
+    }
+
+    TString GenerateRandomLiteral(EValueType type)
+    {
+        bool nullValue = Rng.Uniform(10) == 0;
+        if (nullValue) {
+            return "null";
+        }
+
+        switch (type) {
+            case EValueType::Int64:
+                return Format("%v", static_cast<i64>(GenerateInt()));
+            case EValueType::Uint64:
+                return Format("%vu", GenerateInt());
+            case EValueType::String: {
+                static constexpr int MaxStringLength = 10;
+                auto length = Rng.Uniform(MaxStringLength);
+
+                TString result(length, '\0');
+                for (size_t index = 0; index < length; ++index) {
+                    result[index] = Letters[Rng.Uniform(Letters.size())];
+                }
+
+                return Format("%Qv", result);
+            }
+            case EValueType::Double:
+                return Format("%v", Rng.GenRandReal1() * (1ULL << 63));
+            case EValueType::Boolean:
+                return Rng.Uniform(2) ? "true" : "false";
+            default:
+                YT_ABORT();
+        }
+    }
+
+    TUnversionedValue GenerateRandomUnversionedLiteral(EValueType type)
+    {
+        bool nullValue = Rng.Uniform(10) == 0;
+        if (nullValue) {
+            return MakeUnversionedNullValue();
+        }
+
+        switch (type) {
+            case EValueType::Int64:
+                return MakeUnversionedInt64Value(GenerateInt());
+            case EValueType::Uint64:
+                return MakeUnversionedUint64Value(GenerateInt());
+            case EValueType::String: {
+                static constexpr int MaxStringLength = 10;
+                auto length = Rng.Uniform(MaxStringLength);
+
+                char* data = RowBuffer->GetPool()->AllocateUnaligned(length);
+                for (size_t index = 0; index < length; ++index) {
+                    data[index] = Letters[Rng.Uniform(Letters.size())];
+                }
+
+                return MakeUnversionedStringValue(TStringBuf(data, length));
+            }
+            case EValueType::Double:
+                return MakeUnversionedDoubleValue(Rng.GenRandReal1() * (1ULL << 63));
+            case EValueType::Boolean:
+                return MakeUnversionedBooleanValue(Rng.Uniform(2));
+            default:
+                YT_ABORT();
+        }
+    }
+
+    ui64 GenerateInt()
+    {
+        return RandomValues[Rng.Uniform(RandomValues.size())];
+    }
+
+    TString GenerateRelation(int tupleSize)
+    {
+        auto ids = GenerateRandomFieldIds(tupleSize);
+
+        std::sort(ids.begin(), ids.end());
+        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+
+        return GenerateRelation(ids);
+    }
+
+    TString GenerateRelation(TRange<int> ids)
+    {
+        const char* reationOps[] = {">", ">=", "<", "<=", "=", "!=", "IN"};
+        const char* reationOp = reationOps[Rng.Uniform(7)];
+
+        return GenerateRelation(ids, reationOp);
+    }
+
+    TString GenerateRelation(TRange<int> ids, const char* reationOp)
+    {
+        TString result = GenerateFieldTuple(ids);
+        result += Format(" %v ", reationOp);
+        if (reationOp == TString("IN")) {
+            result += "(";
+            int tupleCount = Rng.Uniform(1, 10);
+            bool first = true;
+            for (int i = 0; i < tupleCount; ++i) {
+                if (!first) {
+                    result += ", ";
+                } else {
+                    first = false;
+                }
+                result += GenerateLiteralTuple(ids);
+            }
+
+            result += ")";
+        } else {
+            result += GenerateLiteralTuple(ids);
+        }
+
+        return result;
+    }
+
+    TString RowToLiteralTuple(TUnversionedRow row)
+    {
+        TString result =  "(";
+        bool first = true;
+        for (int columnIndex = 0; columnIndex < static_cast<int>(row.GetCount()); ++columnIndex) {
+            if (!first) {
+                result += ", ";
+            } else {
+                first = false;
+            }
+
+            auto value = row[columnIndex];
+
+            switch (value.Type) {
+                case EValueType::Null:
+                    result += "null";
+                    break;
+                case EValueType::Int64:
+                    result += Format("%v", value.Data.Int64);
+                    break;
+                case EValueType::Uint64:
+                    result += Format("%vu", value.Data.Uint64);
+                    break;
+                case EValueType::String:
+                    result += Format("%Qv", value.AsStringBuf());
+                    break;
+                case EValueType::Double:
+                    result += Format("%v", value.Data.Double);
+                    break;
+                case EValueType::Boolean:
+                    result += value.Data.Boolean ? "true" : "false";
+                    break;
+                default:
+                    YT_ABORT();
+            }
+        }
+
+        result += ")";
+        return result;
+    }
+
+    TString GenerateContinuationToken(int keyColumnCount)
+    {
+        std::vector<int> ids;
+        for (int columnIndex = 0; columnIndex < keyColumnCount; ++columnIndex) {
+            ids.push_back(columnIndex);
+        }
+
+        TString result = GenerateFieldTuple(ids);
+
+        const char* reationOps[] = {">", ">=", "<", "<="};
+        const char* reationOp = reationOps[Rng.Uniform(4)];
+
+        result += Format(" %v ", reationOp);
+        result += RowToLiteralTuple(GenerateRandomRow(keyColumnCount));
+        return result;
+    }
+
+    TRow GenerateRandomRow(int keyColumnCount)
+    {
+        auto row = RowBuffer->AllocateUnversioned(keyColumnCount);
+        for (int columnIndex = 0; columnIndex < keyColumnCount; ++columnIndex) {
+            if (!Schema->Columns()[columnIndex].Expression()) {
+                row[columnIndex] = GenerateRandomUnversionedLiteral(Schema->Columns()[columnIndex].GetWireType());
+            }
+        }
+
+        ColumnEvaluator->EvaluateKeys(row, RowBuffer);
+
+        return row;
+    }
+
+    TString GenerateRelation()
+    {
+        return Rng.Uniform(2)
+            ? GenerateContinuationToken(Rng.Uniform(2, Schema->GetKeyColumnCount()))
+            : GenerateRelation(Rng.Uniform(1, 4));
+    }
+
+    TString GenerateExpression()
+    {
+        TString result = GenerateRelation();
+        result += " AND ";
+        result += GenerateRelation();
+        return result;
+    }
+
+    TString GenerateExpression2()
+    {
+        TString result = Rng.Uniform(2)
+            ? GenerateContinuationToken(Rng.Uniform(2, Schema->GetKeyColumnCount()))
+            : GenerateRelation(Rng.Uniform(1, 4));
+        int count = Rng.Uniform(1, 5);
+        for (int i = 0; i < count; ++i) {
+            result += Rng.Uniform(4) == 0 ? " OR " : " AND ";
+            result += GenerateRelation(1);
+
+        }
+        return result;
+    }
+};
+
+class TInferRangesTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<const char*>
+{
+protected:
+    void SetUp() override
+    { }
+};
+
+TEST_P(TInferRangesTest, Stress)
+{
+    // 1. Generate expression.
+    //    - alternate column, relation (< > = IN, BETWEEN, ), constants, logical ops (OR, AND)
+    //    - if column is evaluated use suitable constant, depending on other columns.
+    // 2. Infer ranges.
+    // 3. Generate random range (random or depending on inferred ranges (inside or outside)).
+    // 4. Check in ranges and evaluate expression.
+
+    auto computedColumnExpression = GetParam();
+
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("h", EValueType::Uint64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(computedColumnExpression),
+        TColumnSchema("k", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::String)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("n", EValueType::Boolean)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64)
+    });
+
+    auto rowBuffer = New<TRowBuffer>();
+
+    auto config = New<TColumnEvaluatorCacheConfig>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(config);
+
+    auto columnEvaluator = columnEvaluatorCache->Find(schema);
+
+    TRandomExpressionGenerator gen{schema, rowBuffer, columnEvaluator};
+
+    for (int i = 0; i < 1000; ++i) {
+        auto expressionString = gen.GenerateExpression2();
+
+        auto expr = PrepareExpression(expressionString, *schema);
+
+        TQueryOptions options;
+        options.RangeExpansionLimit = 1000;
+        options.VerboseLogging = true;
+
+        auto inferredRanges = GetPrunedRanges(
+            expr,
+            schema,
+            schema->GetKeyColumns(),
+            {},
+            MakeSingletonRowRange(NTableClient::MinKey(), NTableClient::MaxKey()),
+            rowBuffer,
+            columnEvaluatorCache,
+            GetBuiltinRangeExtractors(),
+            options,
+            {});
+
+        TCGVariables variables;
+        auto callback = Profile(expr, schema, nullptr, &variables)();
+
+        for (int j = 0; j < 1000; ++j) {
+            // Generate random row.
+            auto row = gen.GenerateRandomRow(schema->GetKeyColumnCount());
+
+            // Evaluate predicate.
+            TUnversionedValue resultValue;
+            callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, row.Elements(), rowBuffer.Get());
+
+            // Validate row in ranges.
+            auto foundIt = BinarySearch(inferredRanges.begin(), inferredRanges.end(), [&] (TRowRange* rowRange) {
+                return rowRange->second <= row;
+            });
+
+            bool rowInRanges = foundIt != inferredRanges.end() && foundIt->first <= row;
+
+            EXPECT_FALSE(resultValue.Data.Boolean && !rowInRanges) <<
+                Format("Expression: %v, InferedRanges: %v, RandomRow: %v",
+                    expressionString,
+                    inferredRanges,
+                    row);
+        }
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Stress,
+    TInferRangesTest,
+    ::testing::Values(
+        "farm_hash(k)",
+        "farm_hash(k) % 100",
+        "farm_hash(k / 3) % 100"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
