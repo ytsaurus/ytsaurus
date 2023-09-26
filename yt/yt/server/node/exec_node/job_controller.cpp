@@ -222,7 +222,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        for (TForbidContextSwitchGuard guard; const auto& [id, job ]: JobMap_) {
+        for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
             if (descriptorsToRemove.contains(job->GetControllerAgentDescriptor())) {
                 job->UpdateControllerAgentDescriptor(TControllerAgentDescriptor{});
             }
@@ -350,7 +350,7 @@ public:
             result.reserve(JobMap_.size());
 
             for(TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_){
-                result.emplace_back(job->GetBriefInfo());
+                result.push_back(job->GetBriefInfo());
             }
 
             return result;
@@ -361,7 +361,7 @@ public:
         YT_LOG_FATAL_IF(
             !jobsBriefInfoOrError.IsOK(),
             jobsBriefInfoOrError,
-            "Unexpected fail during getting job info");
+            "Unexpected failure while getting job info");
 
         fluent.DoMapFor(
             jobsBriefInfoOrError.Value(),
@@ -572,7 +572,7 @@ private:
         currentJobs.reserve(JobMap_.size());
 
         for(const auto& [id, job] : JobMap_) {
-            currentJobs.emplace_back(job);
+            currentJobs.push_back(job);
         }
 
         return currentJobs;

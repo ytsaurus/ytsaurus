@@ -8,8 +8,7 @@
 
 #include <yt/yt/server/lib/misc/job_report.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,5 +61,7 @@ private:
         const NControllerAgent::TCoreInfos& jobCoreInfos,
         const TExecAttributes& jobExecAttributes);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
