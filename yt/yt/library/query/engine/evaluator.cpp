@@ -206,7 +206,7 @@ private:
                 }
             }
 
-            cgQuery = WaitFor(cookie.GetValue())
+            cgQuery = WaitForFast(cookie.GetValue())
                 .ValueOrThrow();
 
             // Query fingerprints can differ when folding ids are equal in the following case:

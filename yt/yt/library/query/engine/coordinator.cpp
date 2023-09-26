@@ -205,7 +205,7 @@ TQueryStatistics CoordinateAndExecute(
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (int index = 0; index < std::ssize(subqueryHolders); ++index) {
-        auto subqueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
+        auto subqueryStatisticsOrError = WaitForFast(subqueryHolders[index].Get());
         if (subqueryStatisticsOrError.IsOK()) {
             const auto& subqueryStatistics = subqueryStatisticsOrError.ValueOrThrow();
             YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
