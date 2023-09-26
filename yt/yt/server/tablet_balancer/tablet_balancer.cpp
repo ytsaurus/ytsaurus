@@ -171,7 +171,7 @@ private:
     void SaveBundleError(const TString& bundleName, TError error) const;
     void RemoveBundleErrorsByTtl(TDuration ttl);
 
-    void PickReshardPivotKeys(
+    void PickReshardPivotKeysIfNeeded(
         TReshardDescriptor* descriptor,
         const TTablePtr& table,
         const TBundleStatePtr& bundleState,
@@ -861,7 +861,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         for (auto descriptor : descriptors) {
             if (pickReshardPivotKeys) {
                 try {
-                    PickReshardPivotKeys(&descriptor, table, bundleState, slicingAccuracy, enableVerboseLogging);
+                    PickReshardPivotKeysIfNeeded(&descriptor, table, bundleState, slicingAccuracy, enableVerboseLogging);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex,
                         "Failed to pick pivot keys for reshard action "
@@ -944,13 +944,18 @@ void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl)
     DropMissingKeys(BundleErrors_, relevantBundles);
 }
 
-void TTabletBalancer::PickReshardPivotKeys(
+void TTabletBalancer::PickReshardPivotKeysIfNeeded(
     TReshardDescriptor* descriptor,
     const TTablePtr& table,
     const TBundleStatePtr& bundleState,
     std::optional<double> slicingAccuracy,
     bool enableVerboseLogging) const
 {
+    if (descriptor->TabletCount == 1) {
+        // Do not pick pivot keys for merge actions.
+        return;
+    }
+
     auto options = TReshardTableOptions{
         .EnableSlicing = true,
         .SlicingAccuracy = slicingAccuracy,
