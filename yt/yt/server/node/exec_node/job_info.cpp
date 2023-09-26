@@ -1,7 +1,8 @@
 #include "job_info.h"
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
 
 TBriefJobInfo::TBriefJobInfo(
     TJobId jobId,
@@ -53,5 +54,7 @@ void TBriefJobInfo::BuildOrchid(NYTree::TFluentMap fluent) const
             .Item("exec_attributes").Value(JobExecAttributes_)
         .EndMap();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
