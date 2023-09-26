@@ -721,7 +721,7 @@ void TYtGraph::RemoveOperation(TOperationNodeId operationId)
 
 NYT::IOperationPtr TYtGraph::StartOperation(const IClientBasePtr& client, TOperationNodeId id) const
 {
-    Y_VERIFY(0 <= id && id < std::size(OperationNodes_));
+    Y_VERIFY(0 <= id && id < std::ssize(OperationNodes_));
     return OperationNodes_[id]->Start(client);
 }
 
@@ -743,7 +743,7 @@ std::vector<std::vector<TYtGraph::TOperationNodeId>> TYtGraph::GetOperationLevel
     THashSet<TTableNodeId> readyTables;
 
     // populate readyTables with initial inputs
-    for (TTableNodeId tableId = 0; tableId < TableNodes_.size(); ++tableId) {
+    for (TTableNodeId tableId = 0; tableId < std::ssize(TableNodes_); ++tableId) {
         const auto& tableNode = TableNodes_[tableId];
         if (!tableNode.IsRemoved_ && !tableNode.SinkOf_) {
             readyTables.emplace(tableId);

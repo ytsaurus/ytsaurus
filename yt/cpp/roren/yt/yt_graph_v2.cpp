@@ -1144,7 +1144,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
         }
     };
 
-    Y_VERIFY(nodeId >= 0 && nodeId < std::size(PlainGraph_->Operations));
+    Y_VERIFY(nodeId >= 0 && nodeId < std::ssize(PlainGraph_->Operations));
     const auto& operation = PlainGraph_->Operations[nodeId];
     switch (operation->GetOperationType()) {
         case EOperationType::Map: {
