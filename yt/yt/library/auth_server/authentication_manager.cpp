@@ -109,7 +109,9 @@ public:
             tokenAuthenticators.push_back(
                 CreateCachingTokenAuthenticator(
                     config->CypressTokenAuthenticator,
-                    CreateCypressTokenAuthenticator(client),
+                    CreateCypressTokenAuthenticator(
+                        config->CypressTokenAuthenticator,
+                        client),
                     AuthProfiler.WithPrefix("/cypress_token_authenticator/cache")));
         }
 

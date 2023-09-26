@@ -81,7 +81,7 @@ void TCachingBlackboxTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/
 void TCypressTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("root_path", &TThis::RootPath)
-        .Default("//sys/tokens");
+        .Default();
     registrar.Parameter("realm", &TThis::Realm)
         .Default("cypress");
 

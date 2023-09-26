@@ -8,7 +8,9 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(NApi::IClientPtr client);
+ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
+    TCypressTokenAuthenticatorConfigPtr config,
+    NApi::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

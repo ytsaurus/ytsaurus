@@ -122,7 +122,7 @@ class TCypressTokenAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    NYPath::TYPath RootPath;
+    std::optional<NYPath::TYPath> RootPath;
     TString Realm;
 
     bool Secure;

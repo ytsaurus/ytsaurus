@@ -1,5 +1,6 @@
 #include "cypress_token_authenticator.h"
 
+#include "config.h"
 #include "token_authenticator.h"
 #include "private.h"
 
@@ -26,8 +27,9 @@ class TCypressTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
-    explicit TCypressTokenAuthenticator(IClientPtr client)
-        : Client_(std::move(client))
+    TCypressTokenAuthenticator(TCypressTokenAuthenticatorConfigPtr config, IClientPtr client)
+        : Config_(std::move(config))
+        , Client_(std::move(client))
     { }
 
     TFuture<TAuthenticationResult> Authenticate(
@@ -40,7 +42,9 @@ public:
             tokenHash,
             userIP);
 
-        auto path = Format("//sys/cypress_tokens/%v/@user", ToYPathLiteral(tokenHash));
+        auto path = Format("%v/%v/@user",
+            Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
+            ToYPathLiteral(tokenHash));
         return Client_->GetNode(path, /*options*/ {})
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallResult,
@@ -49,6 +53,7 @@ public:
     }
 
 private:
+    const TCypressTokenAuthenticatorConfigPtr Config_;
     const IClientPtr Client_;
 
     TAuthenticationResult OnCallResult(const TString& tokenHash, const TErrorOr<TYsonString>& rspOrError)
@@ -78,9 +83,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(IClientPtr client)
+ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
+    TCypressTokenAuthenticatorConfigPtr config,
+    IClientPtr client)
 {
-    return New<TCypressTokenAuthenticator>(std::move(client));
+    return New<TCypressTokenAuthenticator>(std::move(config), std::move(client));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -196,7 +196,9 @@ public:
             tokenHash,
             userIP);
 
-        auto path = Config_->RootPath + "/" + ToYPathLiteral(Config_->Secure ? tokenHash : token);
+        auto path = Format("%v/%v",
+            Config_->RootPath ? Config_->RootPath : "//sys/tokens",
+            ToYPathLiteral(Config_->Secure ? tokenHash : token));
         return Client_->GetNode(path)
             .Apply(BIND(
                 &TLegacyCypressTokenAuthenticator::OnCallResult,
