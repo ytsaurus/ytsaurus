@@ -380,7 +380,7 @@ public:
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
-    REGISTER_YSON_STRUCT(TSerializableNodeResourceLimitsOverrides);
+    REGISTER_YSON_STRUCT_LITE(TSerializableNodeResourceLimitsOverrides);
 
     static void Register(TRegistrar registrar)
     {

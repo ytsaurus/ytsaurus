@@ -28,7 +28,7 @@ struct TSerializableOperationAlertEvent
 
 void Serialize(const TOperationAlertEvent& operationAlertEvent, IYsonConsumer* consumer, bool serializeOperationId)
 {
-    auto wrapper = TSerializableOperationAlertEvent::Create();
+    TSerializableOperationAlertEvent wrapper;
     static_cast<TOperationAlertEvent&>(wrapper) = operationAlertEvent;
     if (!serializeOperationId) {
         static_cast<TOperationAlertEvent&>(wrapper).OperationId.reset();
@@ -38,7 +38,7 @@ void Serialize(const TOperationAlertEvent& operationAlertEvent, IYsonConsumer* c
 
 void Deserialize(TOperationAlertEvent& operationAlertEvent, INodePtr node)
 {
-    auto wrapper = TSerializableOperationAlertEvent::Create();
+    TSerializableOperationAlertEvent wrapper;
     Deserialize(static_cast<TYsonStructLite&>(wrapper), node);
     operationAlertEvent = static_cast<TOperationAlertEvent&>(wrapper);
 }

@@ -26,7 +26,7 @@ struct TShellParameters
     std::vector<TString> Environment;
     std::optional<TString> Command;
 
-    REGISTER_YSON_STRUCT(TShellParameters);
+    REGISTER_YSON_STRUCT_LITE(TShellParameters);
 
     static void Register(TRegistrar registrar);
 };
@@ -42,7 +42,7 @@ struct TShellResult
     std::optional<TString> Output;
     std::optional<ui64> ConsumedOffset;
 
-    REGISTER_YSON_STRUCT(TShellResult);
+    REGISTER_YSON_STRUCT_LITE(TShellResult);
 
     static void Register(TRegistrar registrar);
 };
