@@ -3888,12 +3888,14 @@ TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     auto input = GenerateInputContext(0, 5);
     auto& bundleInfo = input.Bundles["bigd"];
     bundleInfo->EnableNodeTagFilterManagement = true;
+    bundleInfo->EnableTabletCellManagement = false;
     GenerateTabletCellsForBundle(input, "bigd", 9 * GetActiveDataCenterCount());
     auto dataCenters = GetDataCenters(input);
 
     SetBundleInfo(input, "bigc", 0, 10);
     auto& bundleInfo2 = input.Bundles["bigc"];
     bundleInfo2->EnableNodeTagFilterManagement = true;
+    bundleInfo2->EnableTabletCellManagement = false;
     GenerateTabletCellsForBundle(input, "bigc", 17 * GetActiveDataCenterCount());
 
     SetBundleInfo(input, "bige", 2 * GetDataCenterCount(), 10);

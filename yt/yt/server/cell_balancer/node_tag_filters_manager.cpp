@@ -539,7 +539,7 @@ struct TDataCenterOrder
 
     // TODO(capone212): User preferences goes here.
 
-    int AssignedTabletCount = 0;
+    int AssignedTabletCellCount = 0;
 
     // How many nodes we have to assign to bundle, i.e. how many nodes do not have needed node tag filter.
     int RequiredNodeAssignmentCount = 0;
@@ -549,7 +549,7 @@ struct TDataCenterOrder
 
     auto MakeTuple() const
     {
-        return std::tie(Unfeasible, Forbidden, AssignedTabletCount, RequiredNodeAssignmentCount, DataCenter);
+        return std::tie(Unfeasible, Forbidden, AssignedTabletCellCount, RequiredNodeAssignmentCount, DataCenter);
     }
 
     bool operator<(const TDataCenterOrder& other) const
@@ -615,7 +615,7 @@ int GetAssignedTabletNodeCount(
     return result;
 }
 
-int GetAssignedTabletCount(
+int GetAssignedTabletCellCount(
     const TString& dataCenterName,
     const THashMap<TString, THashSet<TString>>& aliveBundleNodes,
     const TSchedulerInputState& input)
@@ -645,12 +645,13 @@ THashSet<TString> GetDataCentersToPopulate(
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+    const auto perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
 
     int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
 
-    int totalSlotCount = GetCeiledShare(std::ssize(bundleInfo->TabletCellIds) *  bundleInfo->Options->PeerCount, activeDataCenterCount);
-    int requiredNodeCount = totalSlotCount / std::ssize(zoneInfo->DataCenters);
+    int perDataCenterSlotCount = GetCeiledShare(std::ssize(bundleInfo->TabletCellIds) *  bundleInfo->Options->PeerCount, activeDataCenterCount);
+    int requiredPerDataCenterNodeCount = GetCeiledShare(perDataCenterSlotCount, perNodeSlotCount);
 
     std::vector<TDataCenterOrder> dataCentersOrder;
     dataCentersOrder.reserve(std::ssize(zoneInfo->DataCenters));
@@ -670,30 +671,33 @@ THashSet<TString> GetDataCentersToPopulate(
             spareNodesInfo,
             input);
 
-        int assignedTabletCount = GetAssignedTabletCount(dataCenter, perDataCenterAliveNodes, input);
+        int assignedTabletCellCount = GetAssignedTabletCellCount(dataCenter, perDataCenterAliveNodes, input);
         bool perBundleForbidden = bundleInfo->ForbiddenDataCenters.count(dataCenter) != 0;
 
         dataCentersOrder.push_back({
-            .Unfeasible = availableNodeCount < requiredNodeCount,
+            .Unfeasible = availableNodeCount < requiredPerDataCenterNodeCount,
             .Forbidden = dataCenterInfo->Forbidden || perBundleForbidden,
-            .AssignedTabletCount = -1 * assignedTabletCount,
-            .RequiredNodeAssignmentCount = requiredNodeCount - assignedNodeCount,
+            .AssignedTabletCellCount = -1 * assignedTabletCellCount,
+            .RequiredNodeAssignmentCount = requiredPerDataCenterNodeCount - assignedNodeCount,
             .DataCenter = dataCenter,
         });
 
         const auto& status = dataCentersOrder.back();
 
         YT_LOG_DEBUG("Bundle data center status "
-            "(Bundle: %v, DataCenter: %v, Unfeasible: %v, Forbidden: %v, AssignedTabletCount: %v"
-            " RequiredAssignmentCount: %v, AvailableNodeCount: %v, RequiredNodeCount: %v)",
+            "(Bundle: %v, DataCenter: %v, Unfeasible: %v, Forbidden: %v, AssignedTabletCellCount: %v,"
+            " PerDataCenterSlotCount: %v, RequiredPerDataCenterNodeCount: %v"
+            " RequiredNodeAssignmentCount: %v, AvailableNodeCount: %v, RequiredNodeCount: %v)",
             bundleName,
             dataCenter,
             status.Unfeasible,
             status.Forbidden,
-            status.AssignedTabletCount,
+            status.AssignedTabletCellCount,
+            perDataCenterSlotCount,
+            requiredPerDataCenterNodeCount,
             status.RequiredNodeAssignmentCount,
             availableNodeCount,
-            requiredNodeCount);
+            requiredPerDataCenterNodeCount);
     }
 
     std::sort(dataCentersOrder.begin(), dataCentersOrder.end());
