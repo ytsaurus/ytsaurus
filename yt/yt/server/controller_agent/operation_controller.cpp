@@ -3,7 +3,8 @@
 #include "config.h"
 #include "helpers.h"
 #include "operation.h"
-#include "memory_tag_queue.h"
+
+#include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/server/controller_agent/controllers/ordered_controller.h>
 #include <yt/yt/server/controller_agent/controllers/sort_controller.h>
@@ -35,6 +36,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYTAlloc;
+using namespace NYTProf;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -135,29 +137,100 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTestAllocGuard::TTestAllocGuard(
+        i64 allocationPartSize,
+        std::function<void()> constructCallback,
+        std::function<void()> destructCallback,
+        TDuration delayBeforeDestruct,
+        IInvokerPtr destructCallbackInvoker)
+    : Raw_(TString(allocationPartSize, 'x'))
+    , Active_(true)
+    , ConstructCallback_(std::move(constructCallback))
+    , DestructCallback_(std::move(destructCallback))
+    , DelayBeforeDestruct_(delayBeforeDestruct)
+    , DestructCallbackInvoker_(std::move(destructCallbackInvoker))
+{
+    ConstructCallback_();
+}
+
+TTestAllocGuard::TTestAllocGuard(TTestAllocGuard&& other)
+{
+    *this = std::move(other);
+}
+
+TTestAllocGuard& TTestAllocGuard::operator=(TTestAllocGuard&& other)
+{
+    Raw_ = std::move(other.Raw_);
+    Active_ = other.Active_;
+    ConstructCallback_ = std::move(other.ConstructCallback_);
+    DestructCallback_ = std::move(other.DestructCallback_);
+    DelayBeforeDestruct_ = other.DelayBeforeDestruct_;
+    DestructCallbackInvoker_ = std::move(other.DestructCallbackInvoker_);
+
+    other.Active_ = false;
+
+    return *this;
+}
+
+TTestAllocGuard::~TTestAllocGuard()
+{
+    if (Active_) {
+        Active_ = false;
+
+        NConcurrency::TDelayedExecutor::MakeDelayed(
+            DelayBeforeDestruct_,
+            DestructCallbackInvoker_ ? DestructCallbackInvoker_ : GetCurrentInvoker())
+            .Subscribe(BIND([
+                    destruct = std::move(DestructCallback_),
+                    raw = std::move(Raw_)
+                ] (const NYT::TErrorOr<void>&) {
+                    Y_UNUSED(raw);
+                    destruct();
+                }));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Ensures that operation controllers are being destroyed in a
 //! dedicated invoker and releases memory tag when controller is destroyed.
 class TOperationControllerWrapper
     : public IOperationController
 {
+private:
+    template<typename Class, typename R, typename... MArgs, typename... Args>
+    decltype(auto) DoExecuteGuarded(R(Class::*Method)(MArgs...) const, Args&&... args)
+        const
+        noexcept(false)
+    {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+        auto testingHeap = Underlying_->TestHeap();
+
+        return (*Underlying_.*Method)(std::forward<MArgs>(args)...);
+    }
+
+    template<typename Class, typename R, typename... MArgs, typename... Args>
+    decltype(auto) DoExecuteGuarded(R(Class::*Method)(MArgs...), Args&&... args)
+        noexcept(false)
+    {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+        auto testingHeap = Underlying_->TestHeap();
+
+        return (*Underlying_.*Method)(std::forward<MArgs>(args)...);
+    }
+
 public:
     TOperationControllerWrapper(
         TOperationId id,
         IOperationControllerPtr underlying,
-        IInvokerPtr dtorInvoker,
-        TMemoryTag memoryTag,
-        TMemoryTagQueue* memoryTagQueue)
+        IInvokerPtr dtorInvoker)
         : Id_(id)
         , Underlying_(std::move(underlying))
         , DtorInvoker_(std::move(dtorInvoker))
-        , MemoryTag_(memoryTag)
-        , TraceContext_(CreateTraceContextFromCurrent("TOperationControllerWrapper"))
+        , TraceContext_(CreateTraceContextFromCurrent("OperationControllerWrapper"))
         , TraceContextFinishGuard_(TraceContext_)
-        , MemoryTagQueue_(memoryTagQueue)
     {
-        TraceContext_->SetAllocationTagsPtr(
-            New<TAllocationTags>(
-                TAllocationTags::TTags({{MemoryTagLiteral, ToString(MemoryTag_)}, {OperationIdAllocationTag, ToString(Id_)}})));
+        TraceContext_->SetAllocationTags({{OperationIdAllocationTag, ToString(Id_)}});
     }
 
     ~TOperationControllerWrapper() override
@@ -165,16 +238,15 @@ public:
         auto Logger = ControllerLogger.WithTag("OperationId: %v", Id_);
 
         YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
-            GetMemoryUsageForTag(MemoryTag_));
+            GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(Id_)));
 
         DtorInvoker_->Invoke(BIND([
             underlying = std::move(Underlying_),
-            memoryTagQueue = MemoryTagQueue_,
-            memoryTag = MemoryTag_,
+            id = Id_,
             Logger] () mutable
         {
             NProfiling::TWallTimer timer;
-            auto memoryUsageBefore = GetMemoryUsageForTag(memoryTag);
+            auto memoryUsageBefore = NYTProf::GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(id));
             YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v)", memoryUsageBefore);
             if (auto refCount = ResetAndGetResidualRefCount(underlying)) {
                 YT_LOG_WARNING(
@@ -182,106 +254,82 @@ public:
                     "(RefCount: %v)",
                     refCount);
             }
-            auto memoryUsageAfter = GetMemoryUsageForTag(memoryTag);
+            auto memoryUsageAfter = NYTProf::GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(id));
             YT_LOG_INFO("Finished destructing operation controller (Elapsed: %v, MemoryUsageAfter: %v, MemoryUsageDecrease: %v)",
                 timer.GetElapsedTime(),
                 memoryUsageAfter,
                 memoryUsageBefore - memoryUsageAfter);
-            if (memoryTagQueue) {
-                memoryTagQueue->ReclaimTag(memoryTag);
-            }
         }));
+    }
+
+    std::vector<TTestAllocGuard> TestHeap() const override
+    {
+        return Underlying_->TestHeap();
     }
 
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetIntermediateMediumTransaction();
+        return DoExecuteGuarded(&IOperationController::GetIntermediateMediumTransaction);
     }
 
     void UpdateIntermediateMediumUsage(i64 usage) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->UpdateIntermediateMediumUsage(usage);
+        return DoExecuteGuarded(&IOperationController::UpdateIntermediateMediumUsage, usage);
     }
 
     TOperationControllerInitializeResult InitializeClean() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->InitializeClean();
+        return DoExecuteGuarded(&IOperationController::InitializeClean);
     }
 
     TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->InitializeReviving(transactions);
+        return DoExecuteGuarded(&IOperationController::InitializeReviving, transactions);
     }
 
     TOperationControllerPrepareResult Prepare() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->Prepare();
+        return DoExecuteGuarded(&IOperationController::Prepare);
     }
 
     TOperationControllerMaterializeResult Materialize() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->Materialize();
+        return DoExecuteGuarded(&IOperationController::Materialize);
     }
 
     void Commit() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->Commit();
+        return DoExecuteGuarded(&IOperationController::Commit);
     }
 
     void SaveSnapshot(IZeroCopyOutput* output) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->SaveSnapshot(output);
+        return DoExecuteGuarded(&IOperationController::SaveSnapshot, output);
     }
 
     TOperationControllerReviveResult Revive() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->Revive();
+        return DoExecuteGuarded(&IOperationController::Revive);
     }
 
     void Terminate(EControllerState finalState) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->Terminate(finalState);
+        return Underlying_->Terminate(finalState);
     }
 
     void Cancel() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->Cancel();
+        return Underlying_->Cancel();
     }
 
     void Complete() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->Complete();
+        return Underlying_->Complete();
     }
 
     void Dispose() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->Dispose();
+        return Underlying_->Dispose();
     }
 
     bool IsThrottling() const noexcept override
@@ -291,70 +339,52 @@ public:
 
     void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override
     {
-        Underlying_->RecordScheduleJobFailure(reason);
+        return Underlying_->RecordScheduleJobFailure(reason);
     }
 
     void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->UpdateRuntimeParameters(update);
+        return DoExecuteGuarded(&IOperationController::UpdateRuntimeParameters, update);
     }
 
     void OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->OnTransactionsAborted(transactionIds);
+        return DoExecuteGuarded(&IOperationController::OnTransactionsAborted, transactionIds);
     }
 
     TCancelableContextPtr GetCancelableContext() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetCancelableContext();
+        return DoExecuteGuarded(&IOperationController::GetCancelableContext);
     }
 
     IInvokerPtr GetInvoker(EOperationControllerQueue queue) const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetInvoker(queue);
+        return DoExecuteGuarded(&IOperationController::GetInvoker, queue);
     }
 
     IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue) const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetCancelableInvoker(queue);
+        return DoExecuteGuarded(&IOperationController::GetCancelableInvoker, queue);
     }
 
     IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(EOperationControllerQueue queue) const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetInvokerStatistics(queue);
+        return DoExecuteGuarded(&IOperationController::GetInvokerStatistics, queue);
     }
 
     TFuture<void> Suspend() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->Suspend();
+        return DoExecuteGuarded(&IOperationController::Suspend);
     }
 
     void Resume() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->Resume();
+        return DoExecuteGuarded(&IOperationController::Resume);
     }
 
     TCompositePendingJobCount GetPendingJobCount() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetPendingJobCount();
+        return DoExecuteGuarded(&IOperationController::GetPendingJobCount);
     }
 
     i64 GetFailedJobCount() const override
@@ -369,7 +399,7 @@ public:
 
     void SetLightOperationAttributesUpdated() override
     {
-        Underlying_->SetLightOperationAttributesUpdated();
+        return Underlying_->SetLightOperationAttributesUpdated();
     }
 
     bool IsRunning() const override
@@ -379,58 +409,42 @@ public:
 
     TCompositeNeededResources GetNeededResources() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetNeededResources();
+        return DoExecuteGuarded(&IOperationController::GetNeededResources);
     }
 
     void UpdateMinNeededJobResources() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->UpdateMinNeededJobResources();
+        return DoExecuteGuarded(&IOperationController::UpdateMinNeededJobResources);
     }
 
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetMinNeededJobResources();
+        return DoExecuteGuarded(&IOperationController::GetMinNeededJobResources);
     }
 
     void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->OnJobAbortedEventReceivedFromScheduler(std::move(eventSummary));
+        return DoExecuteGuarded(&IOperationControllerSchedulerHost::OnJobAbortedEventReceivedFromScheduler, std::move(eventSummary));
     }
 
     void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->OnJobRunning(std::move(jobSummary));
+        return DoExecuteGuarded(&IOperationController::OnJobRunning, std::move(jobSummary));
     }
 
     void AbandonJob(TJobId jobId) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->AbandonJob(jobId);
+        return DoExecuteGuarded(&IOperationController::AbandonJob, std::move(jobId));
     }
 
     void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->OnJobInfoReceivedFromNode(std::move(jobSummary));
+        return DoExecuteGuarded(&IOperationController::OnJobInfoReceivedFromNode, std::move(jobSummary));
     }
 
     void AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->AbortJobByJobTracker(jobId, abortReason);
+        return DoExecuteGuarded(&IOperationController::AbortJobByJobTracker, std::move(jobId), abortReason);
     }
 
     TControllerScheduleJobResultPtr ScheduleJob(
@@ -438,30 +452,22 @@ public:
         const TJobResources& jobLimits,
         const TString& treeId) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->ScheduleJob(context, jobLimits, treeId);
+        return DoExecuteGuarded(&IOperationController::ScheduleJob, context, jobLimits, treeId);
     }
 
     void UpdateConfig(const TControllerAgentConfigPtr& config) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->UpdateConfig(config);
+        return DoExecuteGuarded(&IOperationController::UpdateConfig, config);
     }
 
     bool ShouldUpdateProgressAttributes() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
         return Underlying_->ShouldUpdateProgressAttributes();
     }
 
     void SetProgressAttributesUpdated() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        Underlying_->SetProgressAttributesUpdated();
+        return Underlying_->SetProgressAttributesUpdated();
     }
 
     bool HasProgress() const override
@@ -471,72 +477,52 @@ public:
 
     TYsonString GetProgress() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetProgress();
+        return DoExecuteGuarded(&IOperationController::GetProgress);
     }
 
     TYsonString GetBriefProgress() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetBriefProgress();
+        return DoExecuteGuarded(&IOperationController::GetBriefProgress);
     }
 
     TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->BuildJobYson(jobId, outputStatistics);
+        return DoExecuteGuarded(&IOperationController::BuildJobYson, std::move(jobId), outputStatistics);
     }
 
     TJobStartInfo SettleJob(TAllocationId allocationId) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->SettleJob(allocationId);
+        return DoExecuteGuarded(&IOperationController::SettleJob, std::move(allocationId));
     }
 
     TOperationJobMetrics PullJobMetricsDelta(bool force) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->PullJobMetricsDelta(force);
+        return DoExecuteGuarded(&IOperationController::PullJobMetricsDelta, force);
     }
 
     TOperationAlertMap GetAlerts() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetAlerts();
+        return DoExecuteGuarded(&IOperationController::GetAlerts);
     }
 
     TOperationInfo BuildOperationInfo() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->BuildOperationInfo();
+        return DoExecuteGuarded(&IOperationController::BuildOperationInfo);
     }
 
     TYsonString GetSuspiciousJobsYson() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetSuspiciousJobsYson();
+        return DoExecuteGuarded(&IOperationController::GetSuspiciousJobsYson);
     }
 
     TSnapshotCookie OnSnapshotStarted() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->OnSnapshotStarted();
+        return DoExecuteGuarded(&IOperationController::OnSnapshotStarted);
     }
 
     void OnSnapshotCompleted(const TSnapshotCookie& cookie) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->OnSnapshotCompleted(cookie);
+        return DoExecuteGuarded(&IOperationController::OnSnapshotCompleted, cookie);
     }
 
     bool HasSnapshot() const override
@@ -546,30 +532,22 @@ public:
 
     IYPathServicePtr GetOrchid() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->GetOrchid();
+        return DoExecuteGuarded(&IOperationController::GetOrchid);
     }
 
     void ZombifyOrchid() override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->ZombifyOrchid();
+        return DoExecuteGuarded(&IOperationController::ZombifyOrchid);
     }
 
     TString WriteCoreDump() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->WriteCoreDump();
+        return DoExecuteGuarded(&IOperationController::WriteCoreDump);
     }
 
     void RegisterOutputRows(i64 count, int tableIndex) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->RegisterOutputRows(count, tableIndex);
+        return DoExecuteGuarded(&IOperationController::RegisterOutputRows, count, tableIndex);
     }
 
     std::optional<int> GetRowCountLimitTableIndex() override
@@ -579,36 +557,26 @@ public:
 
     void LoadSnapshot(const TOperationSnapshot& snapshot) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->LoadSnapshot(snapshot);
+        return DoExecuteGuarded(&IOperationController::LoadSnapshot, snapshot);
     }
 
     i64 GetMemoryUsage() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
         return Underlying_->GetMemoryUsage();
     }
 
     void SetOperationAlert(EOperationAlertType type, const TError& alert) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->SetOperationAlert(type, alert);
+        return DoExecuteGuarded(&IOperationController::SetOperationAlert, type, alert);
     }
 
     void OnMemoryLimitExceeded(const TError& error) override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
-        return Underlying_->OnMemoryLimitExceeded(error);
+        return DoExecuteGuarded(&IOperationController::OnMemoryLimitExceeded, error);
     }
 
     bool IsMemoryLimitExceeded() const override
     {
-        auto guard = TCurrentTraceContextGuard(TraceContext_);
-
         return Underlying_->IsMemoryLimitExceeded();
     }
 
@@ -618,16 +586,12 @@ public:
     }
 
 private:
-
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
     const IInvokerPtr DtorInvoker_;
-    const TMemoryTag MemoryTag_;
 
     const TTraceContextPtr TraceContext_;
     const TTraceContextFinishGuard TraceContextFinishGuard_;
-
-    TMemoryTagQueue* const MemoryTagQueue_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -804,9 +768,7 @@ IOperationControllerPtr CreateControllerForOperation(
     return New<TOperationControllerWrapper>(
         operation->GetId(),
         controller,
-        controller->GetInvoker(),
-        operation->GetMemoryTag(),
-        host->GetMemoryTagQueue());
+        controller->GetInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

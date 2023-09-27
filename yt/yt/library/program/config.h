@@ -113,6 +113,22 @@ DEFINE_REFCOUNTED_TYPE(TStockpileConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THeapProfilerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    // Period of update snapshot in heap profiler.
+    std::optional<TDuration> SnapshotUpdatePeriod;
+
+    REGISTER_YSON_STRUCT(THeapProfilerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THeapProfilerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSingletonsConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -136,6 +152,7 @@ public:
     bool EnablePortoResourceTracker;
     std::optional<double> ResourceTrackerVCpuFactor;
     NContainers::TPodSpecConfigPtr PodSpec;
+    THeapProfilerConfigPtr HeapProfiler;
 
     REGISTER_YSON_STRUCT(TSingletonsConfig);
 

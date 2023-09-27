@@ -7,7 +7,6 @@
 #include "job_profiler.h"
 #include "job_tracker.h"
 #include "master_connector.h"
-#include "memory_tag_queue.h"
 #include "memory_watchdog.h"
 #include "operation.h"
 #include "operation_controller.h"
@@ -64,6 +63,8 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/generic/cast.h>
+
+#include <tcmalloc/malloc_extension.h>
 
 namespace NYT::NControllerAgent {
 
@@ -283,9 +284,6 @@ public:
             Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
-        , MemoryTagQueue_(New<TMemoryTagQueue>(
-            Config_,
-            Bootstrap_->GetControlInvoker()))
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
     { }
 
@@ -400,13 +398,6 @@ public:
         return ExecNodesUpdateQueue_->GetInvoker();
     }
 
-    TMemoryTagQueue* GetMemoryTagQueue()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return MemoryTagQueue_.Get();
-    }
-
     const IInvokerPtr& GetSnapshotIOInvoker()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -493,8 +484,6 @@ public:
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
-
-        MemoryTagQueue_->UpdateConfig(Config_);
 
         CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
@@ -598,14 +587,6 @@ public:
         auto operationId = operation->GetId();
 
         {
-            auto spec = ParseOperationSpec<TOperationSpecBase>(operation->GetSpec());
-            i64 testingAllocationSize = (spec->TestingOperationOptions && spec->TestingOperationOptions->AllocationSize)
-                ? *spec->TestingOperationOptions->AllocationSize
-                : 0;
-            operation->SetMemoryTag(MemoryTagQueue_->AssignTagToOperation(operationId, testingAllocationSize));
-        }
-
-        {
             // TODO(pogorelov): Refactor operation creation.
 
             auto host = New<TOperationControllerHost>(
@@ -617,13 +598,8 @@ public:
                 Bootstrap_);
             operation->SetHost(host);
 
-            try {
-                auto controller = CreateControllerForOperation(Config_, operation.Get());
-                operation->SetController(controller);
-            } catch (...) {
-                MemoryTagQueue_->ReclaimTag(operation->GetMemoryTag());
-                throw;
-            }
+            auto controller = CreateControllerForOperation(Config_, operation.Get());
+            operation->SetController(controller);
 
             auto jobTrackerOperationHandler = JobTracker_->RegisterOperation(
                 operationId,
@@ -1173,8 +1149,6 @@ private:
     TPeriodicExecutorPtr HeartbeatExecutor_;
     TPeriodicExecutorPtr ScheduleJobHeartbeatExecutor_;
 
-    TMemoryTagQueuePtr MemoryTagQueue_;
-
     INodePtr OperationsEffectiveAcl_;
 
     TMemoryWatchdogPtr MemoryWatchdog_;
@@ -1622,7 +1596,8 @@ private:
 
         if (auto controllerMemoryLimit = Config_->MemoryWatchdog->TotalControllerMemoryLimit) {
             request->set_controller_memory_limit(*controllerMemoryLimit);
-            request->set_controller_memory_usage(MemoryTagQueue_->GetTotalUsage());
+            request->set_controller_memory_usage(
+                tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes").value_or(0));
         }
 
         return preparedRequest;
@@ -2057,7 +2032,27 @@ private:
                         .Item("opaque").Value(true)
                     .EndAttributes()
                     .DoList([&] (TFluentList fluent) {
-                        MemoryTagQueue_->BuildTaggedMemoryStatistics(fluent);
+                        // YSON representation of operations, their allocation tags and memory usages.
+                        auto memoryUsageStatistic = BuildYsonStringFluently<NYson::EYsonType::ListFragment>();
+
+                        memoryUsageStatistic.DoIf(
+                            IsConnected(),
+                            [&] (TFluentList fluent) {
+                                fluent.DoFor(
+                                    GetOperations(),
+                                    [&] (TFluentList fluent, const auto& pair) {
+                                        fluent.Item()
+                                            .BeginMap()
+                                                .Item("usage").Value(pair.second->GetController()->GetMemoryUsage())
+                                                .Item("operation_id").Value(pair.first)
+                                                // COMPAT(ni-stoiko): Alive flag of tagged_memory_statistics will be deprecated since 23.2.
+                                                // All operations will be alive.
+                                                .Item("alive").Value(true)
+                                            .EndMap();
+                                    });
+                            });
+
+                        fluent.GetConsumer()->OnRaw(memoryUsageStatistic.Finish());
                     })
                 .Item("medium_directory").Value(
                     Bootstrap_
@@ -2276,11 +2271,6 @@ const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 const TJobReporterPtr& TControllerAgent::GetJobReporter() const
 {
     return Impl_->GetJobReporter();
-}
-
-TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()
-{
-    return Impl_->GetMemoryTagQueue();
 }
 
 IInvokerPtr TControllerAgent::CreateCancelableInvoker(const IInvokerPtr& invoker)

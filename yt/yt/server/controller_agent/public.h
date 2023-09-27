@@ -75,8 +75,6 @@ DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 DECLARE_REFCOUNTED_CLASS(TOperationControllerHost)
 
-DECLARE_REFCOUNTED_CLASS(TMemoryTagQueue)
-
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog)
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig)
 
@@ -92,8 +90,6 @@ struct ISchedulingContext;
 
 class TMasterConnector;
 class TBootstrap;
-
-class TMemoryTagQueue;
 
 ////////////////////////////////////////////////////////////////////////////////
 

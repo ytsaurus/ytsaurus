@@ -97,11 +97,6 @@ public:
     const TJobReporterPtr& GetJobReporter() const;
 
     /*!
-     * \note Thread affinity: any
-     */
-    TMemoryTagQueue* GetMemoryTagQueue();
-
-    /*!
      *  \note Thread affinity: any
      */
     TMasterConnector* GetMasterConnector();

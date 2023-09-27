@@ -21,6 +21,10 @@ DEFINE_ENUM(ELegacyLivePreviewMode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto OperationIdAllocationTag = "operation_id";
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 using IOperationControllerWeakPtr = TWeakPtr<IOperationController>;
 

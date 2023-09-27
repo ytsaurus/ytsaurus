@@ -18,12 +18,14 @@ target_link_libraries(yt-server-controller_agent PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
+  yt-library-ytprof
   ytserver
   server-lib-chunk_pools
   server-lib-scheduler
   server-lib-controller_agent
   server-controller_agent-controllers
   library-cpp-getopt
+  libs-tcmalloc-malloc_extension
 )
 target_sources(yt-server-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/bootstrap.cpp
@@ -49,7 +51,6 @@ target_sources(yt-server-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/memory_tag_queue.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/memory_watchdog.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/virtual.cpp
 )

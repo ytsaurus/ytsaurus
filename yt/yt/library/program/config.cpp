@@ -61,6 +61,14 @@ void TStockpileConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THeapProfilerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("snapshot_update_period", &TThis::SnapshotUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSingletonsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("spin_wait_slow_path_logging_threshold", &TThis::SpinWaitSlowPathLoggingThreshold)
@@ -100,6 +108,8 @@ void TSingletonsConfig::Register(TRegistrar registrar)
     registrar.Parameter("resource_tracker_vcpu_factor", &TThis::ResourceTrackerVCpuFactor)
         .Optional();
     registrar.Parameter("pod_spec", &TThis::PodSpec)
+        .DefaultNew();
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {

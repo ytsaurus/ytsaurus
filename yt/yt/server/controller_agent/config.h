@@ -1066,9 +1066,6 @@ public:
     //! Controls the rate at which jobs are scheduled in termes of slices per second.
     NConcurrency::TThroughputThrottlerConfigPtr JobSpecSliceThrottler;
 
-    // Period of tagged memory statistics section update.
-    TDuration TaggedMemoryStatisticsUpdatePeriod;
-
     TDuration StaticOrchidCacheUpdatePeriod;
 
     TDuration AlertsUpdatePeriod;
