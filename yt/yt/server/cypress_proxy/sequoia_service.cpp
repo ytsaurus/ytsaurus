@@ -11,6 +11,7 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
@@ -67,11 +68,8 @@ private:
 DEFINE_YPATH_SERVICE_METHOD(TSequoiaService, Create)
 {
     auto Logger = CypressProxyLogger.WithTag("CypressRequestId: %v", context->GetRequestId());
-    auto transaction = CreateSequoiaTransaction(
-        Bootstrap_->GetNativeClient(),
-        Logger);
-    WaitFor(transaction->Start(/*options*/ {}))
-        .ThrowOnError();
+    auto transaction = WaitFor(StartSequoiaTransaction(Bootstrap_->GetNativeClient(), Logger))
+        .ValueOrThrow();
 
     auto path = GetRequestTargetYPath(context->RequestHeader());
     auto resolveResult = ResolvePath(transaction, path);

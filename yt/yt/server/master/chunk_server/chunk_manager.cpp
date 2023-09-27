@@ -105,6 +105,7 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
@@ -1330,14 +1331,11 @@ public:
 
     TFuture<TRspConfirmChunk> SequoiaConfirmChunk(const TReqConfirmChunk& request) override
     {
-        auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-        auto transaction = CreateSequoiaTransaction(client, Logger);
-
         auto chunkId = FromProto<TChunkId>(request.chunk_id());
         YT_VERIFY(!IsJournalChunkId(chunkId));
 
-        return transaction->Start(/*startOptions*/ {})
-            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] {
+        return StartSequoiaTransaction(Bootstrap_->GetRootClient(), Logger)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 const auto& chunkMeta = request.chunk_meta();
                 if (IsSequoiaId(chunkId)) {
                     NRecords::TChunkMetaExtensions chunkMetaExtensions{
@@ -1378,12 +1376,10 @@ public:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(request));
 
-                NApi::TTransactionCommitOptions commitOptions{
+                auto result = WaitFor(transaction->Commit({
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                };
-
-                auto result = WaitFor(transaction->Commit(commitOptions));
+                }));
                 if (!result.IsOK()) {
                     result.SetCode(NRpc::EErrorCode::TransientFailure);
                 }
@@ -1416,18 +1412,15 @@ public:
 
     TFuture<TRspCreateChunk> SequoiaCreateChunk(const TReqCreateChunk& request) override
     {
-        auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-        auto transaction = CreateSequoiaTransaction(client, Logger);
-
-        int mediumIndex;
-        try {
-            mediumIndex = GetMediumByNameOrThrow(request.medium_name())->GetIndex();
-        } catch (const std::exception& ex) {
-            return MakeFuture<TRspCreateChunk>(TError(ex));
+        auto errorOrMedium = GetMediumByName(request.medium_name());
+        if (!errorOrMedium.IsOK()) {
+            return MakeFuture<TRspCreateChunk>(TError(errorOrMedium));
         }
 
-        return transaction->Start(/*startOptions*/ {})
-            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] () mutable {
+        int mediumIndex = errorOrMedium.Value()->GetIndex();
+
+        return StartSequoiaTransaction(Bootstrap_->GetRootClient(), Logger)
+            .Apply(BIND([=, request = request, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) mutable {
                 auto chunkType = CheckedEnumCast<EObjectType>(request.type());
                 auto chunkId = transaction->GenerateObjectId(chunkType, Bootstrap_->GetCellTag());
 
@@ -2528,16 +2521,21 @@ public:
         return it == NameToMediumMap_.end() ? nullptr : it->second;
     }
 
-    TMedium* GetMediumByNameOrThrow(const TString& name) const override
+    TErrorOr<TMedium*> GetMediumByName(const TString& name) const
     {
         auto* medium = FindMediumByName(name);
         if (!IsObjectAlive(medium)) {
-            THROW_ERROR_EXCEPTION(
+            return TError(
                 NChunkClient::EErrorCode::NoSuchMedium,
                 "No such medium %Qv",
                 name);
         }
         return medium;
+    }
+
+    TMedium* GetMediumByNameOrThrow(const TString& name) const override
+    {
+        return GetMediumByName(name).ValueOrThrow();
     }
 
     TMedium* GetMediumOrThrow(TMediumId id) const override
@@ -3032,18 +3030,14 @@ private:
         }
 
         if (!sequoiaChunkIds.empty()) {
-            auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-            auto transaction = CreateSequoiaTransaction(client, Logger);
-
-            auto replicasOrError = WaitFor(transaction->SelectRows(BuildGetChunkReplicasQuery(client, sequoiaChunkIds)));
+            auto replicasOrError = WaitFor(DoGetSequoiaChunkReplicas(sequoiaChunkIds));
             if (!replicasOrError.IsOK()) {
                 for (auto sequoiaChunkId : sequoiaChunkIds) {
                     result.emplace(sequoiaChunkId, TError(replicasOrError));
                 }
             } else {
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                auto sequoiaReplicas = ToRecords<NRecords::TChunkReplicas>(replicasOrError.Value().Rowset);
-                for (const auto& replica : sequoiaReplicas) {
+                for (const auto& replica : replicasOrError.Value()) {
                     const auto& chunkId = replica.Key.ChunkId;
                     auto locationUuid = replica.Key.LocationUuid;
                     auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
@@ -3106,23 +3100,7 @@ private:
     {
         YT_VERIFY(!HasMutationContext());
 
-        auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-        auto transaction = CreateSequoiaTransaction(client, Logger);
-
-        const auto& tablePath = GetSequoiaTablePath(client, ITableDescriptor::Get(ESequoiaTable::ChunkReplicas));
-
-        TQueryBuilder queryBuilder;
-        queryBuilder.AddSelectExpression("*");
-        queryBuilder.SetSource(tablePath);
-
-        queryBuilder.AddWhereConjunct(Format("id_hash = %v", chunkId.Parts32[0]));
-        queryBuilder.AddWhereConjunct(Format("chunk_id = %Qv", chunkId));
-
-        auto future = transaction->SelectRows(queryBuilder.Build());
-
-        return future.Apply(BIND([transaction = std::move(transaction)] (const TSelectRowsResult& result) -> std::vector<NRecords::TChunkReplicas> {
-            return ToRecords<NRecords::TChunkReplicas>(result.Rowset);
-        }));
+        return DoGetSequoiaChunkReplicas({chunkId});
     }
 
     TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
@@ -3136,24 +3114,13 @@ private:
             return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
         }
 
-        auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-        auto transaction = CreateSequoiaTransaction(client, Logger);
-
-        const auto& tablePath = GetSequoiaTablePath(client, ITableDescriptor::Get(ESequoiaTable::LocationReplicas));
-
-        TQueryBuilder queryBuilder;
-        queryBuilder.AddSelectExpression("*");
-        queryBuilder.SetSource(tablePath);
-
-        queryBuilder.AddWhereConjunct(Format("node_id = %v", nodeId));
-        queryBuilder.AddWhereConjunct(Format("id_hash = %v", locationUuid.Parts32[0]));
-        queryBuilder.AddWhereConjunct(Format("location_uuid = %Qv", locationUuid));
-
-        auto future = transaction->SelectRows(queryBuilder.Build());
-
-        return future.Apply(BIND([transaction = std::move(transaction)] (const TSelectRowsResult& result) -> std::vector<NRecords::TLocationReplicas> {
-            return ToRecords<NRecords::TLocationReplicas>(result.Rowset);
-        }));
+        return CreateSequoiaClient(Bootstrap_->GetRootClient(), Logger)
+            ->SelectRows<NRecords::TLocationReplicas>({
+                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                Format("node_id = %v", nodeId),
+                Format("id_hash = %v", locationUuid.Parts32[0]),
+                Format("location_uuid = %Qv", locationUuid),
+            });
     }
 
     TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const override
@@ -3165,25 +3132,11 @@ private:
             return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
         }
 
-        auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-        auto transaction = CreateSequoiaTransaction(client, Logger);
-
-        const auto& tablePath = GetSequoiaTablePath(client, ITableDescriptor::Get(ESequoiaTable::LocationReplicas));
-
-        TQueryBuilder queryBuilder;
-        queryBuilder.AddSelectExpression("*");
-        queryBuilder.SetSource(tablePath);
-
-        queryBuilder.AddWhereConjunct(Format("cell_tag = %v", Bootstrap_->GetCellTag()));
-        queryBuilder.AddWhereConjunct(Format("node_id = %v", nodeId));
-
-        auto future = transaction->SelectRows(queryBuilder.Build());
-
-        return future.Apply(BIND([transaction = std::move(transaction)] (const TErrorOr<TSelectRowsResult>& errorOrResult) -> std::vector<NRecords::TLocationReplicas> {
-            const auto& result = errorOrResult
-                .ValueOrThrow();
-            return ToRecords<NRecords::TLocationReplicas>(result.Rowset);
-        }));
+        return CreateSequoiaClient(Bootstrap_->GetRootClient(), Logger)
+            ->SelectRows<NRecords::TLocationReplicas>({
+                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                Format("node_id = %v", nodeId),
+            });
     }
 
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
@@ -3802,11 +3755,8 @@ private:
     {
         YT_VERIFY(request.added_chunks_size() + request.removed_chunks_size() > 0);
 
-        auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-        auto transaction = CreateSequoiaTransaction(client, Logger);
-
-        return transaction->Start(/*startOptions*/ {})
-            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] {
+        return StartSequoiaTransaction(Bootstrap_->GetRootClient(), Logger)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
                 auto locationDirectory = ParseLocationDirectory(request);
 
@@ -5574,26 +5524,27 @@ private:
         return chunk->IsJournal() ? JournalChunks_[shardIndex] : BlobChunks_[shardIndex];
     }
 
-    TString BuildGetChunkReplicasQuery(const NApi::NNative::IClientPtr client, const std::vector<TChunkId>& chunkIds) const
+    TFuture<std::vector<NRecords::TChunkReplicas>> DoGetSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const
     {
-        const auto& tablePath = GetSequoiaTablePath(client, ITableDescriptor::Get(ESequoiaTable::LocationReplicas));
+        auto buildFilter = [&] (TStringBuf column, const auto& formatter) {
+            TStringBuilder builder;
+            builder.AppendFormat("[%v] in (", column);
+            JoinToString(&builder, chunkIds.begin(), chunkIds.end(), formatter, ", ");
+            builder.AppendChar(')');
+            auto filter = builder.Flush();
+            fprintf(stderr, "DoGetSequoiaChunkReplicas: %s\n", filter.c_str());
+            return filter;
+        };
 
-        TQueryBuilder queryBuilder;
-        queryBuilder.AddSelectExpression("*");
-        queryBuilder.SetSource(tablePath);
-
-        auto chunkIdHashesString = JoinToString(chunkIds, [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                builder->AppendString(ToString(chunkId.Parts32[0]));
-            },
-            TStringBuf(", "));
-        queryBuilder.AddWhereConjunct(Format("[id_hash] in (%v)", chunkIdHashesString));
-        auto сhunkIdsString = JoinToString(chunkIds, [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                builder->AppendString(Format("%Qv", chunkId));
-            },
-            TStringBuf(", "));
-        queryBuilder.AddWhereConjunct(Format("[chunk_id] in (%v)", сhunkIdsString));
-
-        return queryBuilder.Build();
+        return CreateSequoiaClient(Bootstrap_->GetRootClient(), Logger)
+            ->SelectRows<NRecords::TChunkReplicas>({
+                buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                    builder->AppendFormat("%v", chunkId.Parts32[0]);
+                }),
+                buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                    builder->AppendFormat("%Qv", chunkId);
+                }),
+            });
     }
 
     void OnSequoiaReplicaRemoval()
@@ -5604,28 +5555,20 @@ private:
             return;
         }
 
-        auto client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-        auto transaction = CreateSequoiaTransaction(client, Logger);
-
         const auto& config = GetDynamicConfig();
 
-        std::vector<TChunkId> chunkIds;
-        for (auto chunkId : DestroyedChunkIds_) {
-            chunkIds.push_back(chunkId);
-            if (std::ssize(chunkIds) >= config->SequoiaReplicaRemovalBatchSize) {
-                break;
-            }
-        }
+        auto batchSize = std::min<ssize_t>(config->SequoiaReplicaRemovalBatchSize, std::ssize(DestroyedChunkIds_));
+        std::vector<TChunkId> chunkIds(batchSize);
+        std::copy_n(DestroyedChunkIds_.begin(), batchSize, chunkIds.begin());
 
-        auto replicasOrError = WaitFor(transaction->SelectRows(BuildGetChunkReplicasQuery(client, chunkIds)));
+        auto replicasOrError = WaitFor(DoGetSequoiaChunkReplicas(chunkIds));
         if (!replicasOrError.IsOK()) {
             YT_LOG_ERROR(replicasOrError, "Error getting sequoia chunk replicas");
             return;
         }
 
-        auto records = ToRecords<NRecords::TChunkReplicas>(replicasOrError.Value().Rowset);
         NProto::TReqRemoveDeadSequoiaChunkReplicas request;
-        for (const auto& replica : records) {
+        for (const auto& replica : replicasOrError.Value()) {
             auto* protoReplica = request.add_replicas();
             protoReplica->set_node_id(replica.NodeId);
             protoReplica->set_replica_index(replica.Key.ReplicaIndex);

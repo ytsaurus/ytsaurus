@@ -15,26 +15,27 @@ namespace NYT::NSequoiaClient {
 struct ISequoiaTransaction
     : public TRefCounted
 {
-public:
-    virtual TFuture<void> Start(const NApi::TTransactionStartOptions& options) = 0;
-
     virtual TFuture<void> Commit(const NApi::TTransactionCommitOptions& options) = 0;
 
     virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
-        const NTableClient::TColumnFilter& columnFilter,
-        std::optional<NTransactionClient::TTimestamp> timestamp) = 0;
+        const NTableClient::TColumnFilter& columnFilter) = 0;
 
     template <class TRecordKey>
     TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> LookupRows(
         const std::vector<TRecordKey>& keys,
-        const NTableClient::TColumnFilter& columnFilter = {},
-        std::optional<NTransactionClient::TTimestamp> timestamp = {});
+        const NTableClient::TColumnFilter& columnFilter = {});
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
-        const TString& query,
-        const NApi::TSelectRowsOptions& options = {}) = 0;
+        ESequoiaTable table,
+        const std::vector<TString>& whereConjuncts,
+        std::optional<i64> limit) = 0;
+
+    template <class TRecordKey>
+    TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> SelectRows(
+        const std::vector<TString>& whereConjunts,
+        std::optional<i64> limit = {});
 
     virtual void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,
@@ -82,16 +83,26 @@ public:
         bool sequoia = true) = 0;
 
     virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetClient() const = 0;
+    virtual const ISequoiaClientPtr& GetClient() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetNativeClient() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaTransactionPtr CreateSequoiaTransaction(
+namespace NDetail {
+
+TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
+    ISequoiaClientPtr client,
+    const NApi::TTransactionStartOptions& options = {});
+
+} // namespace NDetail
+
+TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     NApi::NNative::IClientPtr client,
-    NLogging::TLogger logger);
+    NLogging::TLogger logger,
+    const NApi::TTransactionStartOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
