@@ -255,28 +255,41 @@ public:
         return ResourceUsage_;
     }
 
-    TJobResources LoadWaitingResources() const
+    void SetActualVcpu(TJobResources& resources) const
     {
-        auto guard = ReaderGuard(ResourcesLock_);
-        return WaitingResources_;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        resources.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(resources.Cpu * GetCpuToVCpuFactor()));
     }
 
     TJobResources GetResourceUsage(bool includeWaiting = false) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto resourceUsage = LoadResourceUsage();
-        auto result = resourceUsage;
-        if (includeWaiting) {
-            result += LoadWaitingResources();
+        TJobResources resourceUsage;
+
+        std::optional<TJobResources> maybeWaitingResources = std::nullopt;
+
+        {
+            auto guard = ReaderGuard(ResourcesLock_);
+
+            resourceUsage = ResourceUsage_;
+
+            if (includeWaiting) {
+                maybeWaitingResources = WaitingResources_;
+            }
         }
 
-        result.UserSlots = resourceUsage.UserSlots;
-        result.Gpu = resourceUsage.Gpu;
+        if (maybeWaitingResources) {
+            resourceUsage += WaitingResources_;
 
-        result.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(result.Cpu * GetCpuToVCpuFactor()));
+            resourceUsage.UserSlots = ResourceUsage_.UserSlots;
+            resourceUsage.Gpu = ResourceUsage_.Gpu;
+        }
 
-        return result;
+        SetActualVcpu(resourceUsage);
+
+        return resourceUsage;
     }
 
     bool CheckMemoryOverdraft(const TJobResources& delta) override
