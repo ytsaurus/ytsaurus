@@ -275,7 +275,9 @@ private:
     TInstant InterruptionDeadline_;
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
-    std::vector<TGpuStatistics> GpuStatistics_;
+
+    using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, TInstant>;
+    std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
     NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
     std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics_;
     TInstant StatisticsLastSendTime_ = TInstant::Now();
