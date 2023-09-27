@@ -280,6 +280,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
         if (!ColumnarStatisticsExt_) {
             // First meta.
             ColumnarStatisticsExt_ = columnarStatisticsExt;
+            ColumnarStatisticsExt_->mutable_unknown_fields()->Clear();
         } else {
             const auto& anotherDataWeights = columnarStatisticsExt->data_weights();
             if (anotherDataWeights.size() != ColumnarStatisticsExt_->data_weights_size()) {
