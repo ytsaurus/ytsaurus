@@ -37,7 +37,6 @@ struct TReaderEntry
     TTableReaderPtr<TRow> Reader;
     int TableIndex;
     i64 SeqNum;
-    i64 RangeCount = 1;
 };
 
 template <typename TRow>
@@ -245,9 +244,6 @@ public:
             std::tie(path, entry.SeqNum) = std::move(TableSlices_.front());
             TableSlices_.pop();
             entry.TableIndex = TableIndex_;
-
-            const auto& ranges = path.GetRanges();
-            entry.RangeCount = ranges ? ranges->size() : 0;
         }
         entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), Options_);
         return entry;
@@ -266,30 +262,22 @@ private:
         }
 
         auto path = Paths_[TableIndex_];
-
-        path.MutableRanges() = {};
+        // Add empty range to avoid having a path without ranges (meaning the whole table).
+        path.MutableRanges() = {TReadRange::FromRowIndices(0, 0)};
         TVector<TRichYPath> slices(Config_.ThreadCount, path);
-
-        i64 createdBatchCount = 0;
-        auto desiredBatchCount = static_cast<i64>(Config_.RangeCount) * Config_.ThreadCount;
-
-        for (createdBatchCount = 0; TableSlicer_.IsValid() && createdBatchCount < desiredBatchCount; ++createdBatchCount) {
-            i64 threadIndex = createdBatchCount % Config_.ThreadCount;
-            slices[threadIndex].AddRange(TableSlicer_.GetRange());
+        i64 totalBatchCount = 0;
+        auto totalRangeCount = static_cast<i64>(Config_.RangeCount) * Config_.ThreadCount;
+        for (i64 batchIndex = 0; TableSlicer_.IsValid() && batchIndex < totalRangeCount; ++batchIndex) {
+            slices[batchIndex % Config_.ThreadCount].AddRange(TableSlicer_.GetRange());
+            ++totalBatchCount;
             TableSlicer_.Next();
         }
-
         auto seqNum = SeqNumBegin_;
         for (auto& slice : slices) {
-            const auto& ranges = slice.GetRanges();
-            // This slice was not filled. Skip it.
-            if (!ranges || ranges->empty()) {
-                continue;
-            }
             TableSlices_.push({std::move(slice), seqNum});
             ++seqNum;
         }
-        SeqNumBegin_ += createdBatchCount;
+        SeqNumBegin_ += totalBatchCount;
     }
 
 private:
@@ -314,15 +302,8 @@ static void ReadRows(const TTableReaderPtr<TRow>& reader, i64 batchSize, const T
     // Don't clear the buffer to avoid unnecessary calls of destructors
     // and memory allocation/deallocation.
     i64 index = 0;
-
-    if (!reader->IsValid()) {
-        buffer->Rows.resize(0);
-        return;
-    }
-
     auto rowIndex = reader->GetRowIndex();
     auto& rows = buffer->Rows;
-
     while (reader->IsValid() && rowIndex == reader->GetRowIndex() && index < batchSize) {
         if (index >= static_cast<i64>(rows.size())) {
             rows.push_back(reader->MoveRow());
@@ -619,32 +600,16 @@ private:
     {
         const auto& reader = entry.Reader;
         auto seqNum = entry.SeqNum;
-
-        i64 expectedRangeIndex = 0;
-
-        while (reader->IsValid() || expectedRangeIndex < entry.RangeCount) {
+        while (reader->IsValid()) {
             auto buffer = EmptyBuffers_[threadIndex]->Pop().GetOrElse(nullptr);
             if (!buffer) {
                 return false;
             }
-
-            i64 rangeIndex = reader->IsValid() ? reader->GetRangeIndex() : 0;
-            i64 rowIndex = reader->IsValid() ? reader->GetRowIndex() : 0;
-
             buffer->SeqNum = seqNum;
             buffer->TableIndex = entry.TableIndex;
-            buffer->FirstRowIndex = rowIndex;
-
-            if (rangeIndex != expectedRangeIndex) {
-                YT_LOG_DEBUG("Expected range_index does not exist in the response, it is empty: RangeIndex = %d, ExpectedRangeIndex = %d", rangeIndex, expectedRangeIndex);
-                buffer->Rows.resize(0);
-            } else {
-                ReadRows(reader, Config_.BatchSize, buffer);
-            }
-            ++expectedRangeIndex;
-
+            buffer->FirstRowIndex = reader->GetRowIndex();
+            ReadRows(reader, Config_.BatchSize, buffer);
             seqNum += Config_.ThreadCount;
-
             if (!FilledBuffers_.Push(std::move(buffer))) {
                 return false;
             }
@@ -704,7 +669,6 @@ public:
     {
         ReadManager_->Start();
         NextBuffer();
-        NextNotEmptyBuffer();
     }
 
     bool IsValid() const override
@@ -718,7 +682,19 @@ public:
             return;
         }
         ++CurrentBufferIt_;
-        NextNotEmptyBuffer();
+        while (CurrentBuffer_ && CurrentBufferIt_ == CurrentBuffer_->Rows.end()) {
+            ReadManager_->OnBufferDrained(std::move(CurrentBuffer_));
+            NextBuffer();
+        }
+    }
+
+    void NextBuffer()
+    {
+        CurrentBuffer_ = ReadManager_->GetNextFilledBuffer();
+        if (!CurrentBuffer_) {
+            return;
+        }
+        CurrentBufferIt_ = CurrentBuffer_->Rows.begin();
     }
 
     ui32 GetTableIndex() const override
@@ -750,24 +726,6 @@ public:
         } catch (const std::exception& ex) {
             YT_LOG_WARNING("Parallel table reader was finished with exception: %v", ex.what());
         }
-    }
-
-private:
-    void NextNotEmptyBuffer()
-    {
-        while (CurrentBuffer_ && CurrentBufferIt_ == CurrentBuffer_->Rows.end()) {
-            ReadManager_->OnBufferDrained(std::move(CurrentBuffer_));
-            NextBuffer();
-        }
-    }
-
-    void NextBuffer()
-    {
-        CurrentBuffer_ = ReadManager_->GetNextFilledBuffer();
-        if (!CurrentBuffer_) {
-            return;
-        }
-        CurrentBufferIt_ = CurrentBuffer_->Rows.begin();
     }
 
 protected:
