@@ -57,6 +57,7 @@ struct TXorFilterMeta
         const TLegacyOwningKey BlockLastKey;
     };
 
+    int KeyPrefixLength;
     std::vector<TBlockMeta> BlockMetas;
 };
 
@@ -67,7 +68,6 @@ class TCachedVersionedChunkMeta
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashTableChunkIndexMeta>, HashTableChunkIndexMeta);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TXorFilterMeta>, XorFilterMeta);
 
     static TCachedVersionedChunkMetaPtr Create(
         bool preparedColumnarMeta,
@@ -82,6 +82,8 @@ public:
 
     int GetChunkKeyColumnCount() const;
 
+    const TXorFilterMeta* FindXorFilterByLength(int keyPrefixLength) const;
+
 private:
     TCachedVersionedChunkMeta(
         bool prepareColumnarMeta,
@@ -94,6 +96,8 @@ private:
 
     TAtomicIntrusivePtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;
     std::atomic<size_t> PreparedMetaSize_ = 0;
+
+    std::map<int, TXorFilterMeta> XorFilterMetaByLength_;
 
     DECLARE_NEW_FRIEND()
 

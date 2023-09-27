@@ -152,6 +152,19 @@ int TCachedVersionedChunkMeta::GetChunkKeyColumnCount() const
     return ChunkSchema_->GetKeyColumnCount();
 }
 
+const TXorFilterMeta* TCachedVersionedChunkMeta::FindXorFilterByLength(int keyPrefixLength) const
+{
+    if (XorFilterMetaByLength_.empty()) {
+        return nullptr;
+    }
+
+    auto it = XorFilterMetaByLength_.upper_bound(keyPrefixLength);
+    if (it == XorFilterMetaByLength_.begin()) {
+        return nullptr;
+    }
+    return &(--it)->second;
+}
+
 void TCachedVersionedChunkMeta::ParseHashTableChunkIndexMeta(
     const TSystemBlockMetaExt& systemBlockMetaExt)
 {
@@ -184,23 +197,23 @@ void TCachedVersionedChunkMeta::ParseHashTableChunkIndexMeta(
 void TCachedVersionedChunkMeta::ParseXorFilterMeta(
     const TSystemBlockMetaExt& systemBlockMetaExt)
 {
-    std::vector<TXorFilterMeta::TBlockMeta> blockMetas;
     for (int blockIndex = 0; blockIndex < systemBlockMetaExt.system_blocks_size(); ++blockIndex) {
         const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(blockIndex);
         if (systemBlockMeta.HasExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext)) {
-            blockMetas.emplace_back(
+            auto xorFilterBlockExt = systemBlockMeta.GetExtension(
+                TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext);
+
+            auto keyPrefixLength = xorFilterBlockExt.has_key_prefix_length()
+                ? xorFilterBlockExt.key_prefix_length()
+                : GetChunkKeyColumnCount();
+
+            auto& xorFilterMeta = XorFilterMetaByLength_[keyPrefixLength];
+            xorFilterMeta.KeyPrefixLength = keyPrefixLength;
+            xorFilterMeta.BlockMetas.emplace_back(
                 DataBlockMeta()->data_blocks_size() + blockIndex,
-                systemBlockMeta.GetExtension(
-                    TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext));
+                xorFilterBlockExt);
         }
     }
-
-    if (blockMetas.empty()) {
-        return;
-    }
-
-    XorFilterMeta_.emplace();
-    XorFilterMeta_->BlockMetas = std::move(blockMetas);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -127,6 +127,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReadRequestComplexityLimitsToggle)                            (2353))  // kvk1920
     ((RTTforCopiedAndRestoredTables)                                (2354))  // akozhikhov
     ((ThrowErrorOnMutatingRequestInFilteredChunksContain)           (2355))  // danilalexeev
+    ((KeyPrefixFilter_23_1)                                         (2356))  // akozhikhov
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
@@ -157,6 +158,7 @@ DEFINE_ENUM(EMasterReign,
     ((ProxyMaintenanceRequests)                                     (2426))  // kvk1920
     ((AccountsProfilingInSecurityManager)                           (2427))  // vovamelnikov
     ((ReworkClusterResourceLimitsInfinityRelatedBehavior)           (2428))  // kvk1920
+    ((KeyPrefixFilter)                                              (2429))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

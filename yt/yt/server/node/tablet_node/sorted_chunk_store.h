@@ -154,6 +154,7 @@ private:
     {
         int BlockIndex;
         TXorFilter XorFilter;
+        int KeyPrefixLength;
         TRange<TLegacyKey> Keys;
     };
 
@@ -161,14 +162,21 @@ private:
         const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        const NTableClient::TXorFilterMeta& xorFilterMeta,
         TSharedRange<TLegacyKey> keys) const;
 
     TKeyFilteringResult OnXorKeyFilterBlocksRead(
         NCompression::ECodec codecId,
         std::vector<TXorFilterBlockInfo> blockInfos,
-        int chunkKeyColumnCount,
         TSharedRange<TLegacyKey> keys,
         std::vector<NChunkClient::TBlock>&& requestedBlocks) const;
+
+    TSharedRange<NTableClient::TRowRange> MaybePerformXorRangeFiltering(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const NChunkClient::IChunkReaderPtr& chunkReader,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        const NTableClient::TChunkStatePtr& chunkState,
+        TSharedRange<NTableClient::TRowRange> ranges) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
