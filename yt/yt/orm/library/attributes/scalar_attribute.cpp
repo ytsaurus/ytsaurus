@@ -369,7 +369,19 @@ TParseIndexResult ParseListIndex(TStringBuf token, int count)
 int ConvertToEnumValue(const INodePtr& node, const FieldDescriptor* field)
 {
     YT_VERIFY(field->cpp_type() == FieldDescriptor::CPPTYPE_ENUM);
+    if (node->GetType() == ENodeType::Entity) {
+        return field->default_value_enum()->number();
+    }
     return ConvertToProtobufEnumValue<int>(ReflectProtobufEnumType(field->enum_type()), node);
+}
+
+template <typename T>
+T ConvertToProtobufValue(const INodePtr& node, const T& defaultValue)
+{
+    if (node->GetType() == ENodeType::Entity) {
+        return defaultValue;
+    }
+    return ConvertTo<T>(node);
 }
 
 [[noreturn]] void ThrowUnsupportedCppType(google::protobuf::FieldDescriptor::CppType cppType, TStringBuf path)
@@ -806,31 +818,34 @@ private:
         const auto* reflection = message->GetReflection();
         switch (field->cpp_type()) {
             case FieldDescriptor::CPPTYPE_INT32:
-                reflection->SetInt32(message, field, ConvertTo<i32>(node));
+                reflection->SetInt32(message, field, ConvertToProtobufValue(node, field->default_value_int32()));
                 return;
             case FieldDescriptor::CPPTYPE_INT64:
-                reflection->SetInt64(message, field, ConvertTo<i64>(node));
+                reflection->SetInt64(message, field, ConvertToProtobufValue(node, field->default_value_int64()));
                 return;
             case FieldDescriptor::CPPTYPE_UINT32:
-                reflection->SetUInt32(message, field, ConvertTo<ui32>(node));
+                reflection->SetUInt32(message, field, ConvertToProtobufValue(node, field->default_value_uint32()));
                 return;
             case FieldDescriptor::CPPTYPE_UINT64:
-                reflection->SetUInt64(message, field, ConvertTo<ui64>(node));
+                reflection->SetUInt64(message, field, ConvertToProtobufValue(node, field->default_value_uint64()));
                 return;
             case FieldDescriptor::CPPTYPE_DOUBLE:
-                reflection->SetDouble(message, field, ConvertTo<double>(node));
+                reflection->SetDouble(message, field, ConvertToProtobufValue(node, field->default_value_double()));
                 return;
             case FieldDescriptor::CPPTYPE_FLOAT:
-                reflection->SetFloat(message, field, CheckedIntegralCast<float>(ConvertTo<double>(node)));
+                reflection->SetFloat(
+                    message,
+                    field,
+                    CheckedIntegralCast<float>(ConvertToProtobufValue<double>(node, field->default_value_float())));
                 return;
             case FieldDescriptor::CPPTYPE_BOOL:
-                reflection->SetBool(message, field, ConvertTo<bool>(node));
+                reflection->SetBool(message, field, ConvertToProtobufValue(node, field->default_value_bool()));
                 return;
             case FieldDescriptor::CPPTYPE_ENUM:
                 reflection->SetEnumValue(message, field, ConvertToEnumValue(node, field));
                 return;
             case FieldDescriptor::CPPTYPE_STRING:
-                reflection->SetString(message, field, ConvertTo<TString>(node));
+                reflection->SetString(message, field, ConvertToProtobufValue(node, field->default_value_string()));
                 return;
             case FieldDescriptor::CPPTYPE_MESSAGE:
                 DeserializeProtobufMessage(
@@ -852,33 +867,66 @@ private:
     {
         YT_VERIFY(field->is_repeated());
         const auto* reflection = message->GetReflection();
+
         switch (field->cpp_type()) {
             case FieldDescriptor::CPPTYPE_INT32:
-                reflection->SetRepeatedInt32(message, field, index, ConvertTo<i32>(node));
+                reflection->SetRepeatedInt32(
+                    message,
+                    field,
+                    index,
+                    ConvertToProtobufValue(node, field->default_value_int32()));
                 return;
             case FieldDescriptor::CPPTYPE_INT64:
-                reflection->SetRepeatedInt64(message, field, index, ConvertTo<i64>(node));
+                reflection->SetRepeatedInt64(
+                    message,
+                    field,
+                    index,
+                    ConvertToProtobufValue(node, field->default_value_int64()));
                 return;
             case FieldDescriptor::CPPTYPE_UINT32:
-                reflection->SetRepeatedUInt32(message, field, index, ConvertTo<ui32>(node));
+                reflection->SetRepeatedUInt32(
+                    message,
+                    field,
+                    index,
+                    ConvertToProtobufValue(node, field->default_value_uint32()));
                 return;
             case FieldDescriptor::CPPTYPE_UINT64:
-                reflection->SetRepeatedUInt64(message, field, index, ConvertTo<ui64>(node));
+                reflection->SetRepeatedUInt64(
+                    message,
+                    field,
+                    index,
+                    ConvertToProtobufValue(node, field->default_value_uint64()));
                 return;
             case FieldDescriptor::CPPTYPE_DOUBLE:
-                reflection->SetRepeatedDouble(message, field, index, ConvertTo<double>(node));
+                reflection->SetRepeatedDouble(
+                    message,
+                    field,
+                    index,
+                    ConvertToProtobufValue(node, field->default_value_double()));
                 return;
             case FieldDescriptor::CPPTYPE_FLOAT:
-                reflection->SetRepeatedFloat(message, field, index, CheckedIntegralCast<float>(ConvertTo<double>(node)));
+                reflection->SetRepeatedFloat(
+                    message,
+                    field,
+                    index,
+                    CheckedIntegralCast<float>(ConvertToProtobufValue<double>(node, field->default_value_float())));
                 return;
             case FieldDescriptor::CPPTYPE_BOOL:
-                reflection->SetRepeatedBool(message, field, index, ConvertTo<bool>(node));
+                reflection->SetRepeatedBool(
+                    message,
+                    field,
+                    index,
+                    ConvertToProtobufValue(node, field->default_value_bool()));
                 return;
             case FieldDescriptor::CPPTYPE_ENUM:
                 reflection->SetRepeatedEnumValue(message, field, index, ConvertToEnumValue(node, field));
                 return;
             case FieldDescriptor::CPPTYPE_STRING:
-                reflection->SetRepeatedString(message, field, index, ConvertTo<TString>(node));
+                reflection->SetRepeatedString(
+                    message,
+                    field,
+                    index,
+                    ConvertToProtobufValue(node, field->default_value_string()));
                 return;
             case FieldDescriptor::CPPTYPE_MESSAGE:
                 DeserializeProtobufMessage(
@@ -908,37 +956,40 @@ private:
         switch (field->cpp_type()) {
             case FieldDescriptor::CPPTYPE_INT32:
                 doForEach([&] (const INodePtr& node) {
-                   reflection->AddInt32(message, field, ConvertTo<i32>(node));
+                   reflection->AddInt32(message, field, ConvertToProtobufValue(node, field->default_value_int32()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_INT64:
                 doForEach([&] (const INodePtr& node) {
-                    reflection->AddInt64(message, field, ConvertTo<i64>(node));
+                    reflection->AddInt64(message, field, ConvertToProtobufValue(node, field->default_value_int64()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_UINT32:
                 doForEach([&] (const INodePtr& node) {
-                    reflection->AddUInt32(message, field, ConvertTo<ui32>(node));
+                    reflection->AddUInt32(message, field, ConvertToProtobufValue(node, field->default_value_uint32()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_UINT64:
                 doForEach([&] (const INodePtr& node) {
-                    reflection->AddUInt64(message, field, ConvertTo<ui64>(node));
+                    reflection->AddUInt64(message, field, ConvertToProtobufValue(node, field->default_value_uint64()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_DOUBLE:
                 doForEach([&] (const INodePtr& node) {
-                    reflection->AddDouble(message, field, ConvertTo<double>(node));
+                    reflection->AddDouble(message, field, ConvertToProtobufValue(node, field->default_value_double()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_FLOAT:
                 doForEach([&] (const INodePtr& node) {
-                    reflection->AddFloat(message, field, CheckedIntegralCast<float>(ConvertTo<double>(node)));
+                    reflection->AddFloat(
+                        message,
+                        field,
+                        CheckedIntegralCast<float>(ConvertToProtobufValue<double>(node, field->default_value_float())));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_BOOL:
                 doForEach([&] (const INodePtr& node) {
-                    reflection->AddBool(message, field, ConvertTo<bool>(node));
+                    reflection->AddBool(message, field, ConvertToProtobufValue(node, field->default_value_bool()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_ENUM:
@@ -948,11 +999,11 @@ private:
                 return;
             case FieldDescriptor::CPPTYPE_STRING:
                 doForEach([&] (const INodePtr& node) {
-                    reflection->AddString(message, field, ConvertTo<TString>(node));
+                    reflection->AddString(message, field, ConvertToProtobufValue(node, field->default_value_string()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_MESSAGE:
-                doForEach([&, options=GetOptionsByPath(path)] (const INodePtr& node) {
+                doForEach([&, options = GetOptionsByPath(path)] (const INodePtr& node) {
                     DeserializeProtobufMessage(
                         *reflection->AddMessage(message, field),
                         ReflectProtobufMessageType(field->message_type()),
