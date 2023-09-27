@@ -101,11 +101,11 @@ std::vector<TReshardDescriptor> ReshardBundle(const TTabletCellBundlePtr& bundle
         }
 
         if (tablets.empty()) {
-            YT_LOG_DEBUG("Table %v skipped since it has 0 mounted tablets", table->Id);
+            YT_LOG_DEBUG("Table skipped since it has 0 mounted tablets (TableId: %v)", table->Id);
             continue;
         }
 
-        YT_LOG_DEBUG("Resharding table %v", table->Id);
+        YT_LOG_DEBUG("Resharding table (TableId: %v)", table->Id);
         auto tableDescriptors = MergeSplitTabletsOfTable(
             std::move(tablets),
             Logger);
@@ -123,22 +123,22 @@ void ValidateBundle(const TTabletCellBundlePtr& bundle)
     YT_LOG_ERROR_IF(bundle->NodeMemoryStatistics.empty(), "Bundle has no nodes");
 
     YT_LOG_DEBUG_UNLESS(bundle->TabletCells.empty(),
-        "Bundle has %v cells",
+        "Reporting cell count (CellCount: %v)",
         bundle->TabletCells.size());
 
     YT_LOG_DEBUG_UNLESS(bundle->Tables.empty(),
-        "Bundle has %v tables",
+        "Reporting table count (TableCount: %v)",
         bundle->Tables.size());
 
     YT_LOG_DEBUG_UNLESS(bundle->NodeMemoryStatistics.empty(),
-        "Bundle has %v nodes",
+        "Reporting node count (NodeCount: %v)",
         bundle->NodeMemoryStatistics.size());
 
     for (const auto& [id, table] : bundle->Tables) {
-        YT_LOG_ERROR_IF(table->Tablets.empty(), "Table %v has no tablets", id);
+        YT_LOG_ERROR_IF(table->Tablets.empty(), "Table has no tablets (TableId: %v)", id);
 
         YT_LOG_DEBUG_UNLESS(table->Tablets.empty(),
-            "Table %v has %v tablets",
+            "Reporting tablet count (TableId: %v, TabletCount: %v)",
             id,
             table->Tablets.size());
     }
@@ -157,7 +157,8 @@ TTabletActionBatch Balance(
                     bundle,
                     /*movableTables*/ std::nullopt,
                     /*ignoreTableWiseConfig*/ false,
-                    Logger)};
+                    Logger)
+                };
         }
 
         case EBalancingMode::Parameterized: {
@@ -173,7 +174,8 @@ TTabletActionBatch Balance(
                     DefaultPerformanceCountersKeys,
                     config,
                     group,
-                    Logger)};
+                    Logger)
+                };
         }
 
         case EBalancingMode::Reshard: {
@@ -185,7 +187,8 @@ TTabletActionBatch Balance(
                 .MoveDescriptors = ReassignOrdinaryTablets(
                     bundle,
                     /*movableTables*/ std::nullopt,
-                    Logger)};
+                    Logger)
+                };
         }
     }
 }
@@ -203,5 +206,7 @@ TTabletActionBatch BalanceAndPrintDescriptors(
     PrintDescriptors(descriptors);
     return descriptors;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer::NDryRun
