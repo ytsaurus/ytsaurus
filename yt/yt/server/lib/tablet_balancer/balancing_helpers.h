@@ -35,6 +35,7 @@ i64 GetTabletBalancingSize(const TTabletPtr& tablet);
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     std::vector<TTabletPtr> tablets,
+    bool pickPivotKeys = true,
     const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(

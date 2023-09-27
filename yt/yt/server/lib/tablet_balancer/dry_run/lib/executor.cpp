@@ -108,6 +108,7 @@ std::vector<TReshardDescriptor> ReshardBundle(const TTabletCellBundlePtr& bundle
         YT_LOG_DEBUG("Resharding table (TableId: %v)", table->Id);
         auto tableDescriptors = MergeSplitTabletsOfTable(
             std::move(tablets),
+            /*pickPivotKeys*/ true,
             Logger);
 
         descriptors.insert(descriptors.end(), tableDescriptors.begin(), tableDescriptors.end());

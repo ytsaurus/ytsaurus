@@ -699,6 +699,9 @@ class TabletBalancerBase(TabletActionsBase):
     def _get_enable_tablet_balancer(self):
         raise Exception("Function is not implemented")
 
+    def _turn_off_pivot_keys_picking(self):
+        raise Exception("Function is not implemented")
+
     @authors("savrus")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_cells_balance(self, freeze):
@@ -1056,6 +1059,7 @@ class TabletBalancerBase(TabletActionsBase):
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("with_hunks", [True, False])
     def test_tablet_split(self, in_memory_mode, with_hunks):
+        self._turn_off_pivot_keys_picking()
         self._test_tablet_split(in_memory_mode, with_hunks)
 
     @authors("savrus")
@@ -1400,6 +1404,9 @@ class TestTabletBalancer(TabletBalancerBase):
 
     def _get_enable_tablet_balancer(self):
         return get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
+
+    def _turn_off_pivot_keys_picking(self):
+        pass
 
     @authors("ifsmirnov")
     def test_sync_move_all_tables(self):

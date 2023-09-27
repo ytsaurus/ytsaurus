@@ -851,6 +851,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             BIND(
                 MergeSplitTabletsOfTable,
                 std::move(tablets),
+                pickReshardPivotKeys,
                 Logger)
             .AsyncVia(WorkerPool_->GetInvoker())
             .Run())
