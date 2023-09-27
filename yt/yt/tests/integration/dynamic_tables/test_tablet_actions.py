@@ -626,6 +626,7 @@ class TestTabletActions(TabletActionsBase):
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t", cell_id=cells[0])
+        correlation_id = "fa-de-da-be"
 
         action = create(
             "tablet_action",
@@ -635,6 +636,7 @@ class TestTabletActions(TabletActionsBase):
                 "keep_finished": True,
                 "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
                 "cell_ids": [cells[1]],
+                "correlation_id": correlation_id,
             },
         )
 
@@ -643,11 +645,13 @@ class TestTabletActions(TabletActionsBase):
         assert actions[0]["tablet_action_id"] == action
 
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        assert get("#{0}/@correlation_id".format(action)) == correlation_id
 
         actions = get("//sys/tablet_cell_bundles/default/@tablet_actions")
         assert len(actions) == 1
         assert actions[0]["tablet_action_id"] == action
         assert actions[0]["state"] == "completed"
+        assert actions[0]["correlation_id"] == correlation_id
 
     @authors("alexelexa")
     def test_action_creation_fail_on_invalid_mount_settings(self):

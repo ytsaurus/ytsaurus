@@ -247,6 +247,9 @@ private:
                     .DoIf(action->GetExpirationTimeout().has_value(), [action] (TFluentMap fluent) {
                         fluent.Item("expiration_timeout").Value(*action->GetExpirationTimeout());
                     })
+                    .DoIf(!action->GetCorrelationId().IsEmpty(), [action] (TFluentMap fluent) {
+                        fluent.Item("correlation_id").Value(action->GetCorrelationId());
+                    })
                 .EndMap();
         });
     }
