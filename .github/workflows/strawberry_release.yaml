@@ -3,7 +3,7 @@ name: Release strawberry controller
 on:
   push:
     tags:
-      - 'docker/strawberry/[0-9]+\.[0-9]+\.[0-9]+'
+      - 'yt/chyt/controller/v[0-9]+\.[0-9]+\.[0-9]+'
 
 jobs:
   start-vm:
@@ -40,13 +40,6 @@ jobs:
         with:
           path: ytsaurus
 
-      - name: Checkout ydb
-        uses: actions/checkout@v3
-        with:
-          repository: ydb-platform/ydb
-          ref: 1ddfdf5e0386126afd13afb315bd51b7272ec6fa
-          path: ydb
-
   build:
     name: Build
     needs:
@@ -70,7 +63,7 @@ jobs:
       - name: Parse tag
         id: tag
         run: |
-          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/strawberry/})" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/yt/chyt/controller/})" >> $GITHUB_OUTPUT
 
   release:
     name: Release
@@ -103,25 +96,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: trampoline
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
