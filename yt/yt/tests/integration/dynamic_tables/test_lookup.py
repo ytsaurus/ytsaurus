@@ -735,15 +735,22 @@ class TestLookup(TestSortedDynamicTablesBase):
 
     @authors("ifsmirnov", "akozhikhov")
     def test_key_filter(self):
+        chunk_writer_config = {
+            "key_filter" : {
+                "block_size": 100,
+                "enable": True,
+            },
+            "key_prefix_filter": {
+                "block_size": 100,
+                "enable": True,
+                "prefix_lengths": [1],
+            }
+        }
+
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
-            chunk_writer={
-                "key_filter" : {
-                    "block_size": 100,
-                    "enable": True,
-                },
-            },
+            chunk_writer=chunk_writer_config,
             mount_config={
                 "enable_key_filter_for_lookup": True,
             },

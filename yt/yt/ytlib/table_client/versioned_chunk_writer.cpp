@@ -94,9 +94,7 @@ public:
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
         , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
-        , KeyFilterBuilder_(Config_->KeyFilter->Enable
-            ? CreateXorFilterBuilder(Config_->KeyFilter)
-            : nullptr)
+        , KeyFilterBuilder_(CreateXorFilterBuilder(Config_, Schema_->GetKeyColumnCount()))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
     {
@@ -147,7 +145,7 @@ public:
 
         if (KeyFilterBuilder_) {
             for (auto row : rows) {
-                KeyFilterBuilder_->AddKey(GetFarmFingerprint(row.Keys()));
+                KeyFilterBuilder_->AddKey(row);
             }
         }
 

@@ -168,6 +168,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReadRequestComplexityLimitsToggle)                            (2353))  // kvk1920
     ((RTTforCopiedAndRestoredTables)                                (2354))  // akozhikhov
     ((ThrowErrorOnMutatingRequestInFilteredChunksContain)           (2355))  // danilalexeev
+    ((KeyPrefixFilter_23_1)                                         (2356))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
