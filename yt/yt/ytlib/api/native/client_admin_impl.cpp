@@ -615,7 +615,7 @@ namespace {
 struct TMaintenanceTargetInfo
 {
     TCellTag CellTag;
-    std::optional<NCypressClient::TNodeId> ComponentRegistryId = std::nullopt;
+    NCypressClient::TNodeId ComponentRegistryId = {};
 };
 
 TMaintenanceTargetInfo GetCellTagForMaintenanceComponent(
@@ -639,7 +639,7 @@ TMaintenanceTargetInfo GetCellTagForMaintenanceComponent(
 
         THROW_ERROR_EXCEPTION(
             "Maintenance request for %v proxies requires \"%v\" to exist somewhere",
-            component == EMaintenanceComponent::RpcProxy ? "rpc" : "http",
+            component == EMaintenanceComponent::RpcProxy ? "RPC" : "HTTP",
             path)
             << response;
     }
@@ -670,8 +670,8 @@ TMaintenanceId TClient::DoAddMaintenance(
     request->set_address(address);
     request->set_type(static_cast<int>(type));
     request->set_comment(comment);
-    if (componentRegistryId) {
-        ToProto(request->mutable_component_registry_id(), *componentRegistryId);
+    if (componentRegistryId != NullObjectId) {
+        ToProto(request->mutable_component_registry_id(), componentRegistryId);
     }
     batchRequest->AddRequest(request);
     batchRequest->SetTimeout(options.Timeout);
@@ -718,8 +718,8 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
             request->set_user(user);
         });
 
-    if (componentRegistryId) {
-        ToProto(request->mutable_component_registry_id(), *componentRegistryId);
+    if (componentRegistryId != NullObjectId) {
+        ToProto(request->mutable_component_registry_id(), componentRegistryId);
     }
 
     batchRequest->AddRequest(request);

@@ -74,7 +74,7 @@ message TReqAddMaintenance
     required string address = 2;
     required int32 type = 3; // EMaintenanceType
     required string comment = 4;
-    // Required for rpc and http proxies.
+    // Required for RPC and HTTP proxies.
     optional NYT.NProto.TGuid component_registry_id = 5;
 }
 
@@ -93,7 +93,7 @@ message TReqRemoveMaintenance
     optional string user = 4;
     optional int32 type = 5; // EMaintenanceType
     optional bool mine = 6 [default = false];
-    // Required for rpc and http proxies.
+    // Required for RPC and HTTP proxies.
     optional NYT.NProto.TGuid component_registry_id = 7;
 }
 

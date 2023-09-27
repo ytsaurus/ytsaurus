@@ -335,7 +335,7 @@ private:
             case EMaintenanceComponent::RpcProxy: {
                 if (!componentRegistryId) {
                     return TError(
-                        "For rpc and http proxies \"component_registry_id\" must be specified; "
+                        "For RPC and HTTP proxies \"component_registry_id\" must be specified; "
                         "this request probably were made by an obsolete version of ytlib");
                 }
 
@@ -381,11 +381,27 @@ private:
             .ValueOrThrow();
     }
 
+    static TStringBuf FormatMaintenanceComponent(EMaintenanceComponent component) noexcept
+    {
+        switch (component) {
+            case EMaintenanceComponent::ClusterNode:
+                return "cluster node";
+            case EMaintenanceComponent::HttpProxy:
+                return  "HTTP proxy";
+            case EMaintenanceComponent::RpcProxy:
+                return "RPC proxy";
+            default:
+                YT_ABORT();
+        }
+    }
+
     TNontemplateMaintenanceTargetBase* FindComponentOrAlert(
         EMaintenanceComponent component,
         const TString& address,
         std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
+        YT_ASSERT(component != EMaintenanceComponent::Host);
+
         if (component != EMaintenanceComponent::ClusterNode &&
             component != EMaintenanceComponent::HttpProxy &&
             component != EMaintenanceComponent::RpcProxy)
@@ -397,22 +413,8 @@ private:
 
         auto errorOrComponent = DoFindComponent(component, address, componentRegistryId);
         if (!errorOrComponent.IsOK()) {
-            const char *componentName;
-            switch (component) {
-                case EMaintenanceComponent::ClusterNode:
-                    componentName = "node";
-                    break;
-                case EMaintenanceComponent::HttpProxy:
-                    componentName = "http proxy";
-                    break;
-                case EMaintenanceComponent::RpcProxy:
-                    componentName = "rpc proxy";
-                    break;
-                default:
-                    YT_ABORT();
-            }
             YT_LOG_ALERT("No such %v (Address: %v)",
-                componentName,
+                FormatMaintenanceComponent(component),
                 address);
             return nullptr;
         }
