@@ -642,7 +642,7 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_per_user_request_weight_throttling", &TThis::EnablePerUserRequestWeightThrottling)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_per_user_request_bytes_throttling", &TThis::EnablePerUserRequestBytesThrottling)
         .Default(false);
 
