@@ -5,7 +5,8 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
     insert_rows, raises_yt_error, select_rows, sorted_dicts,
-    write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, WaitFailed)
+    write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
+    WaitFailed)
 
 from yt_type_helpers import (
     decimal_type,
@@ -1648,6 +1649,60 @@ class TestQuery(YTEnvSetup):
         for query, placeholders in requests:
             actual = select_rows(query, placeholder_values=placeholders)
             assert expected == actual
+
+    @authors("akozhikhov")
+    def test_filter_ranges(self):
+        sync_create_cells(1)
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                    {"name": "c", "type": "int64", "sort_order": "ascending"},
+                    {"name": "d", "type": "int64"},
+                ],
+                "chunk_writer": {
+                    "key_prefix_filter" : {
+                        "enable": True,
+                        "prefix_lengths": [1, 3],
+                    },
+                },
+                "mount_config": {
+                    "enable_key_filter_for_lookup": True,
+                }
+            },
+        )
+
+        sync_mount_table("//tmp/t")
+
+        rows = [
+            {"a": 1, "b": 1, "c": 1, "d": 1},
+            {"a": 3, "b": 3, "c": 3, "d": 3},
+            {"a": 5, "b": 5, "c": 5, "d": 5},
+        ]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        def _check_query(expected, predicate):
+            assert expected == select_rows(f"* from [//tmp/t] where {predicate}")
+
+        _check_query(rows[0:1], "(a) in ((1), (2))")
+        _check_query(rows[0:1], "(a, b) in ((1, 1), (1, 2), (2, 1))")
+        _check_query(rows[0:2], "(a, b, c) in ((1, 1, 1), (2, 2, 2), (3, 3, 3))")
+
+        _check_query(rows[0:1], "(a) between (1) and (2)")
+        _check_query(rows[0:1], "(a, b) between ((1) and (1, 2))")
+        _check_query([], "(a, b) between (1, 2) and (2, 1)")
+        _check_query([], "(a, b) between ((2) and (2, 1))")
+        _check_query([rows[1], rows[2]], """(a, b, c) between (
+                     (3, 3, 2) and (3, 3, 4),
+                     (5, 3) and (5, 4),
+                     (5, 5, 5) and (5, 6))""")
 
 
 class TestQueryRpcProxy(TestQuery):

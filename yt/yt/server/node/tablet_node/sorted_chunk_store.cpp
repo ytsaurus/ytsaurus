@@ -479,6 +479,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     ValidateBlockSize(tabletSnapshot, chunkState->ChunkMeta, chunkReadOptions.WorkloadDescriptor);
 
+    ranges = MaybePerformXorRangeFiltering(
+        tabletSnapshot,
+        chunkReader,
+        chunkReadOptions,
+        chunkState,
+        std::move(ranges));
+
     if (enableNewScanReader && chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         // Chunk view support.
         ranges = NNewTableClient::ClipRanges(
@@ -789,14 +796,15 @@ private:
         TCachedVersionedChunkMetaPtr chunkMeta)
     {
         TFuture<TKeyFilteringResult> filteringResultFuture;
-        if (tabletSnapshot->Settings.MountConfig->EnableKeyFilterForLookup &&
-            chunkMeta->XorFilterMeta())
-        {
-            filteringResultFuture = chunk->PerformXorKeyFiltering(
-                chunkMeta,
-                backendReaders.ChunkReader,
-                chunkReadOptions,
-                std::move(keys));
+        if (tabletSnapshot->Settings.MountConfig->EnableKeyFilterForLookup) {
+            if (auto* xorFilterMeta = chunkMeta->FindXorFilterByLength(keys[0].GetCount())) {
+                filteringResultFuture = chunk->PerformXorKeyFiltering(
+                    chunkMeta,
+                    backendReaders.ChunkReader,
+                    chunkReadOptions,
+                    *xorFilterMeta,
+                    std::move(keys));
+            }
         }
 
         TSharedRange<TLegacyKey> filteredKeys;
@@ -1269,11 +1277,9 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
+    const TXorFilterMeta& xorFilterMeta,
     TSharedRange<TLegacyKey> keys) const
 {
-    YT_VERIFY(chunkMeta->XorFilterMeta());
-    const auto& xorFilterMeta = *chunkMeta->XorFilterMeta();
-
     int chunkKeyColumnCount = chunkMeta->GetChunkKeyColumnCount();
     auto codecId = CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
 
@@ -1307,6 +1313,7 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
 
         blockInfos.push_back({
             .BlockIndex = xorFilterMeta.BlockMetas[currentBlockIndex].BlockIndex,
+            .KeyPrefixLength = xorFilterMeta.KeyPrefixLength,
             .Keys = TRange(keys).Slice(currentKeyIndex, nextKeyIndex),
         });
 
@@ -1331,7 +1338,6 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
         return MakeFuture<TKeyFilteringResult>(OnXorKeyFilterBlocksRead(
             codecId,
             std::move(blockInfos),
-            chunkKeyColumnCount,
             std::move(keys),
             /*requestedBlocks*/ {}));
     }
@@ -1346,7 +1352,6 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
             MakeStrong(this),
             codecId,
             Passed(std::move(blockInfos)),
-            chunkKeyColumnCount,
             Passed(std::move(keys)))
         .AsyncVia(GetCurrentInvoker()));
 }
@@ -1354,7 +1359,6 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
 TSortedChunkStore::TKeyFilteringResult TSortedChunkStore::OnXorKeyFilterBlocksRead(
     NCompression::ECodec codecId,
     std::vector<TXorFilterBlockInfo> blockInfos,
-    int chunkKeyColumnCount,
     TSharedRange<TLegacyKey> keys,
     std::vector<TBlock>&& requestedBlocks) const
 {
@@ -1380,7 +1384,7 @@ TSortedChunkStore::TKeyFilteringResult TSortedChunkStore::OnXorKeyFilterBlocksRe
         }
 
         for (auto key : blockInfo.Keys) {
-            if (Contains(xorFilter, key, chunkKeyColumnCount)) {
+            if (Contains(xorFilter, key, blockInfo.KeyPrefixLength)) {
                 filteredKeys.push_back(key);
                 filteringResult.MissingKeyMask.push_back(0);
             } else {
@@ -1401,6 +1405,102 @@ TSortedChunkStore::TKeyFilteringResult TSortedChunkStore::OnXorKeyFilterBlocksRe
         std::move(keys.ReleaseHolder()));
 
     return filteringResult;
+}
+
+TSharedRange<TRowRange> TSortedChunkStore::MaybePerformXorRangeFiltering(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const NChunkClient::IChunkReaderPtr& chunkReader,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TChunkStatePtr& chunkState,
+    TSharedRange<TRowRange> ranges) const
+{
+    if (!tabletSnapshot->Settings.MountConfig->EnableKeyFilterForLookup) {
+        return ranges;
+    }
+
+    struct TFilterAndRangesInfo
+    {
+        const TXorFilterMeta* XorFilterMeta;
+        std::vector<int> RangeIndexes;
+    };
+
+    THashMap<int, TFilterAndRangesInfo> keyPrefixLengthToInfo;
+    for (int rangeIndex = 0; rangeIndex < std::ssize(ranges); ++rangeIndex) {
+        auto range = ranges[rangeIndex];
+        int commonPrefixLength = 0;
+        while (
+            commonPrefixLength < static_cast<int>(range.first.GetCount()) &&
+            commonPrefixLength + 1 < static_cast<int>(range.second.GetCount()) &&
+            range.first[commonPrefixLength] == range.second[commonPrefixLength])
+        {
+            ++commonPrefixLength;
+        }
+
+        if (auto* xorFilterMeta = chunkState->ChunkMeta->FindXorFilterByLength(commonPrefixLength)) {
+            auto [it, _] = keyPrefixLengthToInfo.try_emplace(
+                xorFilterMeta->KeyPrefixLength,
+                TFilterAndRangesInfo{
+                    .XorFilterMeta = xorFilterMeta,
+                });
+            it->second.RangeIndexes.push_back(rangeIndex);
+        }
+    }
+
+    if (!keyPrefixLengthToInfo.empty()) {
+        std::vector<int> futureIndexToKeyPrefixLength;
+        std::vector<TFuture<TSortedChunkStore::TKeyFilteringResult>> filteringFutures;
+        futureIndexToKeyPrefixLength.reserve(keyPrefixLengthToInfo.size());
+        filteringFutures.reserve(keyPrefixLengthToInfo.size());
+
+        for (const auto& [keyPrefixLength, filterInfo] : keyPrefixLengthToInfo) {
+            std::vector<TLegacyKey> keys;
+            for (auto rangeIndex : filterInfo.RangeIndexes) {
+                // NB: No difference which bound to take because it will be cut down
+                // to the size of the filter that does not exceed common prefix size.
+                keys.push_back(ranges[rangeIndex].first);
+            }
+            futureIndexToKeyPrefixLength.push_back(keyPrefixLength);
+            filteringFutures.push_back(PerformXorKeyFiltering(
+                chunkState->ChunkMeta,
+                chunkReader,
+                chunkReadOptions,
+                *filterInfo.XorFilterMeta,
+                MakeSharedRange(std::move(keys))));
+        }
+
+        // TODO(akozhikhov): Get rid of WairFor TSortedChunkStoreVersionedReader-style.
+        auto filteringResults = WaitForFast(AllSucceeded(std::move(filteringFutures)))
+            .ValueOrThrow();
+
+        std::vector<int> filteredOutRangeFlags(ranges.Size());
+        for (int resultIndex = 0; resultIndex < std::ssize(filteringResults); ++resultIndex) {
+            const auto& filteringResult = filteringResults[resultIndex];
+            const auto& filterInfo = GetOrCrash(keyPrefixLengthToInfo, futureIndexToKeyPrefixLength[resultIndex]);
+            YT_VERIFY(filteringResult.MissingKeyMask.size() == filterInfo.RangeIndexes.size());
+
+            for (int localRangeIndex = 0; localRangeIndex < std::ssize(filterInfo.RangeIndexes); ++localRangeIndex) {
+                filteredOutRangeFlags[filterInfo.RangeIndexes[localRangeIndex]] = filteringResult.MissingKeyMask[localRangeIndex];
+            }
+        }
+
+        std::vector<TRowRange> filteredRanges;
+        for (int rangeIndex = 0; rangeIndex < std::ssize(ranges); ++rangeIndex) {
+            if (!filteredOutRangeFlags[rangeIndex]) {
+                filteredRanges.push_back(ranges[rangeIndex]);
+            }
+        }
+
+        YT_LOG_DEBUG("Performed range filtering "
+            "(InitialRangeCount: %v, FilteredRangeCount: %v, ChunkId: %v, ReadSessionId: %v)",
+            ranges.Size(),
+            filteredRanges.size(),
+            ChunkId_,
+            chunkReadOptions.ReadSessionId);
+
+        ranges = MakeSharedRange(std::move(filteredRanges), std::move(ranges.ReleaseHolder()));
+    }
+
+    return ranges;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

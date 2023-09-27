@@ -16,7 +16,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Contains(const TXorFilter& filter, TLegacyKey key, int chunkKeyColumnCount);
+bool Contains(const TXorFilter& filter, TLegacyKey key, int keyPrefixLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,11 +24,11 @@ class IKeyFilterBuilder
     : public TRefCounted
 {
 public:
-    virtual void AddKey(TFingerprint fingerprint) = 0;
+    virtual void AddKey(TVersionedRow row) = 0;
 
     virtual std::vector<TSharedRef> SerializeBlocks(NProto::TSystemBlockMetaExt* systemBlockMetaExt) = 0;
 
-    virtual void FlushBlock(TLegacyKey key, bool force) = 0;
+    virtual void FlushBlock(TLegacyKey lastKey, bool force) = 0;
 
     virtual NChunkClient::EBlockType GetBlockType() const = 0;
 };
@@ -37,7 +37,9 @@ DEFINE_REFCOUNTED_TYPE(IKeyFilterBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IKeyFilterBuilderPtr CreateXorFilterBuilder(TKeyFilterWriterConfigPtr config);
+IKeyFilterBuilderPtr CreateXorFilterBuilder(
+    const TChunkWriterConfigPtr& config,
+    int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
