@@ -97,6 +97,7 @@ public:
     TDuration InputStreamFactorySleepDuration;
     TDuration ConcatTablesRangeSleepDuration;
     TDuration ListDirsSleepDuration;
+    TDuration FetchTableAttributesSleepDuration;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 

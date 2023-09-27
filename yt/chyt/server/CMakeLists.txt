@@ -74,6 +74,7 @@ target_sources(yt-chyt-server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/logger.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/logging_transform.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/memory_watchdog.cpp
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/object_lock.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/poco_config.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/prewhere_block_input_stream.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/private.cpp

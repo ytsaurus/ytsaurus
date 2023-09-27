@@ -27,17 +27,21 @@
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NClickHouseServer {
 
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYson;
-using namespace NTracing;
-using namespace NLogging;
-using namespace NTransactionClient;
 using namespace NApi;
+using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NHydra;
+using namespace NLogging;
 using namespace NObjectClient;
+using namespace NTracing;
+using namespace NTransactionClient;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,40 +51,53 @@ TLogger QueryLogger("Query");
 
 namespace {
 
-THashMap<TYPath, TNodeId> DoAcquireSnapshotLocks(
-    const THashSet<TYPath>& paths,
-    NNative::IClientPtr client,
+TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
+    const std::vector<TYPath>& paths,
+    const NNative::IClientPtr& client,
     TTransactionId readTransactionId,
     const TLogger& logger)
 {
     const auto& Logger = logger;
 
+    YT_LOG_INFO("Acquiring snapshot locks (Paths: %v)", paths);
+
     auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& path : paths) {
-        auto req = TCypressYPathProxy::Lock(path);
-        req->Tag() = path;
+    for (size_t index = 0; index < paths.size(); ++index) {
+        auto req = TCypressYPathProxy::Lock(paths[index]);
+        req->Tag() = index;
         req->set_mode(static_cast<int>(ELockMode::Snapshot));
         SetTransactionId(req, readTransactionId);
         batchReq->AddRequest(req);
     }
 
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
+    return batchReq->Invoke()
+        .Apply(BIND([pathCount = paths.size(), Logger, readTransactionId] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+            std::vector<TErrorOr<TObjectLock>> locks(pathCount);
 
-    THashMap<TYPath, TNodeId> pathToNodeId;
-    for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TCypressYPathProxy::TRspLock>()) {
-        auto rsp = rspOrError.ValueOrThrow();
-        auto path = std::any_cast<TYPath>(tag);
-        pathToNodeId[path] = FromProto<NCypressClient::TNodeId>(rsp->node_id());
-        YT_LOG_INFO("Snapshot lock is acquired (LockId: %v, NodeId: %v, ReadTransactionId: %v)",
-            rsp->lock_id(),
-            rsp->node_id(),
-            readTransactionId);
-    }
+            for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TCypressYPathProxy::TRspLock>()) {
+                auto index = std::any_cast<size_t>(tag);
 
-    return pathToNodeId;
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    locks[index] = TObjectLock{
+                        .NodeId = FromProto<TNodeId>(rsp->node_id()),
+                        .Revision = FromProto<TRevision>(rsp->revision()),
+                    };
+                    YT_LOG_INFO("Snapshot lock is acquired (LockId: %v, NodeId: %v, Revision: %v, ReadTransactionId: %v)",
+                        rsp->lock_id(),
+                        rsp->node_id(),
+                        rsp->revision(),
+                        readTransactionId);
+                } else {
+                    locks[index] = TError(rspOrError);
+                    YT_LOG_INFO(rspOrError, "Failed to acquire snapshot lock (Index: %v)", index);
+                }
+            }
+
+            return locks;
+        }));
 }
 
 } // namespace
@@ -144,7 +161,7 @@ TQueryContext::TQueryContext(
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
         SelectQueryIndex = secondaryQueryHeader->StorageIndex;
         ReadTransactionId = secondaryQueryHeader->ReadTransactionId;
-        PathToNodeId = secondaryQueryHeader->PathToNodeId;
+        SnapshotLocks = secondaryQueryHeader->SnapshotLocks;
         DynamicTableReadTimestamp = secondaryQueryHeader->DynamicTableReadTimestamp;
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
@@ -181,14 +198,14 @@ TQueryContext::TQueryContext(
 }
 
 // Fake query context constructor.
-TQueryContext::TQueryContext(THost* host, NApi::NNative::IClientPtr client)
+TQueryContext::TQueryContext(THost* host, NNative::IClientPtr client)
     : QueryKind(EQueryKind::NoQuery)
     , Host(host)
     , Settings(New<TQuerySettings>())
     , Client_(std::move(client))
 { }
 
-TQueryContextPtr TQueryContext::CreateFake(THost* host, NApi::NNative::IClientPtr client)
+TQueryContextPtr TQueryContext::CreateFake(THost* host, NNative::IClientPtr client)
 {
     return New<TQueryContext>(host, std::move(client));
 }
@@ -220,7 +237,7 @@ TQueryContext::~TQueryContext()
     YT_LOG_INFO("Query context destroyed");
 }
 
-const NApi::NNative::IClientPtr& TQueryContext::Client() const
+const NNative::IClientPtr& TQueryContext::Client() const
 {
     bool clientPresent;
     {
@@ -332,69 +349,137 @@ TStorageContext* TQueryContext::GetOrRegisterStorageContext(const DB::IStorage* 
 
 const TClusterNodes& TQueryContext::GetClusterNodesSnapshot()
 {
-    if (!ClusterNodesSnapshot) {
-        ClusterNodesSnapshot = Host->GetNodes(/*alwaysIncludeLocal*/ true);
+    if (!ClusterNodesSnapshot_) {
+        ClusterNodesSnapshot_ = Host->GetNodes(/*alwaysIncludeLocal*/ true);
     }
-    return *ClusterNodesSnapshot;
+    return *ClusterNodesSnapshot_;
 }
 
-std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectAttributesSnapshot(
-    const std::vector<NYPath::TYPath>& paths)
+std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttributesSnapshot(
+    const std::vector<TYPath>& paths)
 {
-    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None) {
-        InitializeQueryReadTransactionFuture();
-    }
-
-    THashSet<NYPath::TYPath> missingPathSet;
-    bool lockingTables = (Settings->Execution->TableReadLockMode != ETableReadLockMode::None);
-    THashSet<NYPath::TYPath> tablesToLock;
+    std::vector<TYPath> pathsToFetch;
+    pathsToFetch.reserve(paths.size());
 
     for (const auto& path : paths) {
         if (!ObjectAttributesSnapshot_.contains(path)) {
-            missingPathSet.insert(path);
+            pathsToFetch.push_back(path);
+        }
+    }
 
-            // Lock will be taken if read transaction exists, no node id was saved
-            // and the node is not created during the query.
-            if (lockingTables && path != CreatedTablePath && !PathToNodeId.contains(path)) {
-                tablesToLock.insert(path);
+    SortUnique(pathsToFetch);
+
+    // Add attributes to ObjectAttributesSnapshot_.
+    auto addToSnapshot = [this] (std::vector<TYPath>&& paths, std::vector<TErrorOr<IAttributeDictionaryPtr>>&& attributes) {
+        YT_VERIFY(paths.size() == attributes.size());
+        for (size_t index = 0; index < paths.size(); ++index) {
+            ObjectAttributesSnapshot_.emplace(std::move(paths[index]), std::move(attributes[index]));
+        }
+    };
+
+   if (CreatedTablePath && pathsToFetch.size() == 1 && pathsToFetch.front() == CreatedTablePath) {
+        // Special case when ClickHouse fetches the table created in the current query.
+        // This table exists only in the write transaction so far.
+        auto attributes = FetchTableAttributes(pathsToFetch, WriteTransactionId);
+        addToSnapshot(std::move(pathsToFetch), std::move(attributes));
+    } else if (QueryKind == EQueryKind::InitialQuery) {
+        auto lockMode = Settings->Execution->TableReadLockMode;
+
+        if (lockMode == ETableReadLockMode::Sync) {
+            // To speed up fetching, we fetch attributes and acquire snapshot locks in parallel.
+            // It may lead to inconsistency if we fetch attributes before locking the node,
+            // but we can detect it via revision attribute and refetch such paths.
+            auto locksFuture = DoAcquireSnapshotLocks(pathsToFetch);
+            auto attributesFuture = FetchTableAttributesAsync(pathsToFetch, NullTransactionId);
+
+            WaitForFast(AllSucceeded(std::vector{locksFuture.AsVoid(), attributesFuture.AsVoid()}))
+                .ThrowOnError();
+
+            SaveQueryReadTransaction();
+
+            auto locks = locksFuture.Get().Value();
+            auto attributes = attributesFuture.Get().Value();
+
+            std::vector<TYPath> pathsToRefetch;
+
+            for (size_t index = 0; index < pathsToFetch.size(); ++index) {
+                if (!locks[index].IsOK()) {
+                    ObjectAttributesSnapshot_.emplace(pathsToFetch[index], TError(locks[index]));
+                } else {
+                    auto lock = locks[index].Value();
+                    SnapshotLocks.emplace(pathsToFetch[index], lock);
+
+                    if (!attributes[index].IsOK()) {
+                        // Successfully locked, but got an error during fetching attributes.
+                        // Probably the table has been deleted. Need to refetch under the transaction.
+                        pathsToRefetch.push_back(pathsToFetch[index]);
+                    } else {
+                        auto id = attributes[index].Value()->Get<TObjectId>("id", NullObjectId);
+                        auto revision = attributes[index].Value()->Get<TRevision>("revision", NullRevision);
+
+                        if (id == lock.NodeId && revision == lock.Revision) {
+                            ObjectAttributesSnapshot_.emplace(pathsToFetch[index], attributes[index]);
+                        } else {
+                            // Object has changed. Need to refetch under the transaction.
+                            pathsToRefetch.push_back(pathsToFetch[index]);
+                        }
+                    }
+                }
+            }
+
+            // Finally, if we detected node changes, we need to refetch them again under the transaction.
+            if (!pathsToRefetch.empty()) {
+                auto attributes = FetchTableAttributes(pathsToRefetch, ReadTransactionId);
+                addToSnapshot(std::move(pathsToRefetch), std::move(attributes));
+            }
+        } else { // lockMode == ETableReadLockMode::None || lockMode == ETableReadLockMode::BestEffort
+            auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+
+            if (lockMode == ETableReadLockMode::BestEffort) {
+                std::vector<TYPath> pathsToLock;
+
+                for (size_t index = 0; index < pathsToFetch.size(); ++index) {
+                    if (attributes[index].IsOK() && attributes[index].Value()->Get<bool>("dynamic", false)) {
+                        pathsToLock.push_back(pathsToFetch[index]);
+                    }
+                }
+
+                // In best_effort mode we acquire locks for dynamic tables asynchronously and do not wait for them.
+                DoAcquireSnapshotLocks(pathsToLock);
+                // But we do need to remember locks not to lock paths twice and to know whether to read
+                // a table under the transaction or not on worker instances.
+                // The exact lock value (node id/revision) matters only for Sync mode.
+                for (const auto& path : pathsToLock) {
+                    SnapshotLocks.emplace(path, TObjectLock{});
+                }
+            }
+
+            addToSnapshot(std::move(pathsToFetch), std::move(attributes));
+        }
+    } else { // QueryKind == EQueryKind::SecondaryQuery || QueryKind == EQueryKind::NoQuery
+        std::vector<TYPath> pathsToFetchFromCache;
+        std::vector<TYPath> pathsToFetchUnderTx;
+        pathsToFetchFromCache.reserve(pathsToFetch.size());
+        pathsToFetchUnderTx.reserve(pathsToFetch.size());
+
+        for (auto & path : pathsToFetch) {
+            if (SnapshotLocks.contains(path)) {
+                pathsToFetchUnderTx.push_back(std::move(path));
+            } else {
+                pathsToFetchFromCache.push_back(std::move(path));
             }
         }
-    }
 
-    std::vector<NYPath::TYPath> missingPaths = {missingPathSet.begin(), missingPathSet.end()};
-
-    if (QueryKind == EQueryKind::InitialQuery &&
-        Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync &&
-        !tablesToLock.empty())
-    {
-        auto acquiredPathToNodeId = WaitFor(AcquireSnapshotLocks(tablesToLock))
+        auto attributesUnderTxFuture = FetchTableAttributesAsync(pathsToFetchUnderTx, ReadTransactionId);
+        auto attributesFromCache = Host->GetObjectAttributes(pathsToFetchFromCache, Client());
+        auto attributesUnderTx = WaitForUniqueFast(attributesUnderTxFuture)
             .ValueOrThrow();
-        PathToNodeId.insert(acquiredPathToNodeId.begin(), acquiredPathToNodeId.end());
 
-        // Here we save read transaction id, which will be used in attribute fetch.
-        EnsureQueryReadTransactionCreated();
+        addToSnapshot(std::move(pathsToFetchFromCache), std::move(attributesFromCache));
+        addToSnapshot(std::move(pathsToFetchUnderTx), std::move(attributesUnderTx));
     }
 
-    auto missingAttributes = GetTableAttributes(missingPaths);
-    YT_VERIFY(missingAttributes.size() == missingPaths.size());
-
-    for (int index = 0; index < std::ssize(missingPaths); ++index) {
-        const auto& path = missingPaths[index];
-        const auto& attributes = missingAttributes[index];
-        auto [_, ok] = ObjectAttributesSnapshot_.emplace(path, attributes);
-        YT_VERIFY(ok);
-
-        if (Settings->Execution->TableReadLockMode == ETableReadLockMode::BestEffort &&
-            attributes.IsOK() &&
-            attributes.Value()->Get<bool>("dynamic", false) &&
-            !PathToNodeId.contains(path))
-        {
-            PathToNodeId[path] = attributes.Value()->Get<TObjectId>("id");
-        }
-    }
-
-    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> result;
-    THashSet<TYPath> dynamicTablesToLock;
+    std::vector<TErrorOr<IAttributeDictionaryPtr>> result;
     result.reserve(paths.size());
 
     for (const auto& path : paths) {
@@ -409,37 +494,17 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
                     THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path);
                 }
             }
-
-            if (attributes->Get<bool>("dynamic", false)) {
-                HasDynamicTable = true;
-                if (tablesToLock.contains(path)) {
-                    dynamicTablesToLock.emplace(path);
-                }
-            }
         }
-    }
-
-    if (QueryKind == EQueryKind::InitialQuery &&
-        Settings->Execution->TableReadLockMode == ETableReadLockMode::BestEffort &&
-        !dynamicTablesToLock.empty())
-    {
-        // We intentionally omit waiting for the future.
-        AcquireSnapshotLocks(dynamicTablesToLock);
-    }
-
-    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None && HasDynamicTable) {
-        InitializeDynamicTableReadTimestamp();
     }
 
     return result;
 }
 
 void TQueryContext::DeleteObjectAttributesFromSnapshot(
-    const std::vector<NYPath::TYPath>& paths)
+    const std::vector<TYPath>& paths)
 {
     for (const auto& path : paths) {
         ObjectAttributesSnapshot_.erase(path);
-        PathToNodeId.erase(path);
     }
 }
 
@@ -472,88 +537,125 @@ void TQueryContext::CommitWriteTransaction()
 
 void TQueryContext::InitializeQueryReadTransactionFuture()
 {
-    if (ReadTransactionFuture_ || ReadTransactionId) {
+    if (ReadTransactionFuture_) {
         return;
     }
 
-    ReadTransactionFuture_ = Client()->StartNativeTransaction(ETransactionType::Master);
+    YT_VERIFY(QueryKind == EQueryKind::InitialQuery);
+
+    auto transactionFuture = Client()->StartNativeTransaction(ETransactionType::Master);
+    auto timestampFuture = Client()->GetTimestampProvider()->GenerateTimestamps();
+
+    ReadTransactionFuture_ = AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()})
+        .Apply(BIND([transactionFuture, timestampFuture] {
+            return TTransactionWithTimestamp{transactionFuture.Get().Value(), timestampFuture.Get().Value()};
+        }));
+
+    YT_LOG_INFO("Query read transaction future initialized");
 }
 
-void TQueryContext::EnsureQueryReadTransactionCreated()
-{
-    if (!ReadTransactionFuture_ || ReadTransactionId) {
-        return;
-    }
-
-    InitialQueryReadTransaction_ = WaitForFast(ReadTransactionFuture_)
-        .ValueOrThrow();
-    ReadTransactionId = InitialQueryReadTransaction_->GetId();
-
-    YT_LOG_INFO("Read transaction is saved (ReadTransactionId: %v)", ReadTransactionId);
-}
-
-void TQueryContext::InitializeQueryReadTransaction()
-{
-    InitializeQueryReadTransactionFuture();
-    EnsureQueryReadTransactionCreated();
-}
-
-void TQueryContext::InitializeDynamicTableReadTimestamp()
-{
-    if (DynamicTableReadTimestamp != AsyncLastCommittedTimestamp) {
-        return;
-    }
-    DynamicTableReadTimestamp = WaitFor(Client()->GetTimestampProvider()->GenerateTimestamps())
-        .ValueOrThrow();
-    YT_LOG_INFO("Timestamp for dynamic tables reading is initialized (Timestamp: %v)", DynamicTableReadTimestamp);
-}
-
-TFuture<THashMap<TYPath, TNodeId>> TQueryContext::AcquireSnapshotLocks(const THashSet<TYPath>& paths)
+void TQueryContext::SaveQueryReadTransaction()
 {
     if (!ReadTransactionFuture_) {
-        THROW_ERROR_EXCEPTION(
-            "Read transaction future wasn't initialized before lock acquisition; "
-            "this is a bug; please, file an issue in CHYT queue")
-            << TErrorAttribute("query_kind", QueryKind);
+        return;
     }
+
+    if (InitialQueryReadTransaction_ || ReadTransactionId || DynamicTableReadTimestamp != AsyncLastCommittedTimestamp) {
+        // Already saved.
+        YT_VERIFY(InitialQueryReadTransaction_ && ReadTransactionId && DynamicTableReadTimestamp != AsyncLastCommittedTimestamp);
+        return;
+    }
+
+    auto tx = WaitFor(ReadTransactionFuture_)
+        .ValueOrThrow();
+
+    InitialQueryReadTransaction_ = tx.Transaction;
+    DynamicTableReadTimestamp = tx.Timestamp;
+    ReadTransactionId = InitialQueryReadTransaction_->GetId();
+
+    YT_LOG_INFO("Read transaction saved (ReadTransactionId: %v, DynamicTableReadTimestamp: %v)",
+        ReadTransactionId,
+        DynamicTableReadTimestamp);
+}
+
+TFuture<std::vector<TErrorOr<TObjectLock>>> TQueryContext::DoAcquireSnapshotLocks(const std::vector<TYPath>& paths)
+{
+    std::vector<TErrorOr<TObjectLock>> result(paths.size());
+    std::vector<bool> notSet(paths.size());
+
+    std::vector<TYPath> pathsToLock;
+    pathsToLock.reserve(paths.size());
+
+    for (size_t index = 0; index < paths.size(); ++index) {
+        if (auto it = SnapshotLocks.find(paths[index]); it != SnapshotLocks.end()) {
+            result[index] = it->second;
+        } else {
+            pathsToLock.push_back(paths[index]);
+            notSet[index] = true;
+        }
+    }
+
+    if (pathsToLock.empty()) {
+        return MakeFuture(std::move(result));
+    }
+
+    InitializeQueryReadTransactionFuture();
+
     return ReadTransactionFuture_
-        .Apply(BIND([paths, client = Client(), logger = Logger] (const NNative::ITransactionPtr& readTransaction) {
-            return DoAcquireSnapshotLocks(paths, client, readTransaction->GetId(), logger);
+        .Apply(BIND([pathsToLock = std::move(pathsToLock), client = Client(), logger = Logger]
+            (const TTransactionWithTimestamp& tx)
+        {
+            return DoAcquireSnapshotLocksAsync(pathsToLock, client, tx.Transaction->GetId(), logger);
+        }))
+        .ApplyUnique(BIND([notSet = std::move(notSet), result = std::move(result)]
+            (std::vector<TErrorOr<TObjectLock>>&& newLocks) mutable
+        {
+            size_t curLock = 0;
+            for (size_t index = 0; index < result.size(); ++index) {
+                if (notSet[index]) {
+                    result[index] = std::move(newLocks[curLock]);
+                    ++curLock;
+                }
+            }
+            YT_VERIFY(curLock == newLocks.size());
+            return result;
         }));
 }
 
 TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const
 {
-    auto maybeNodeId = PathToNodeId.find(path);
-    return (maybeNodeId != PathToNodeId.end()) ? Format("#%v", maybeNodeId->second) : path;
-}
-
-std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetTableAttributes(const std::vector<TYPath>& missingPaths)
-{
-    auto transactionId = ReadTransactionId;
-    // If we are fetching attributes for a table created in this query
-    // write transaction should be used.
-    if (WriteTransactionId
-        && missingPaths.size() == 1
-        && missingPaths.front() == CreatedTablePath)
-    {
-        transactionId = WriteTransactionId;
+    // NB: Reading by node id makes sense only for Sync mode.
+    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::Sync) {
+        return path;
     }
 
-    if (transactionId) {
-        return FetchTableAttributes(missingPaths, transactionId);
-    } else {
-        return Host->GetObjectAttributes(missingPaths, Client());
+    auto lockIt = SnapshotLocks.find(path);
+    return (lockIt != SnapshotLocks.end()) ? Format("#%v", lockIt->second.NodeId) : path;
+}
+
+void TQueryContext::AcquireSnapshotLocks(const std::vector<TYPath>& paths)
+{
+    auto locks = WaitForUniqueFast(DoAcquireSnapshotLocks(paths))
+        .ValueOrThrow();
+
+    SaveQueryReadTransaction();
+
+    for (size_t index = 0; index < paths.size(); ++index) {
+        SnapshotLocks.emplace(paths[index], locks[index].ValueOrThrow());
     }
 }
 
 // TODO(gudqeit): use TBatchAttributeFetcher.
-std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttributes(
+TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTableAttributesAsync(
     const std::vector<TYPath>& paths,
     TTransactionId transactionId)
 {
     if (paths.empty()) {
-        return {};
+        return MakeFuture(std::vector<TErrorOr<IAttributeDictionaryPtr>>{});
+    }
+
+    if (auto sleepDuration = Settings->Testing->FetchTableAttributesSleepDuration) {
+        TDelayedExecutor::WaitForDuration(sleepDuration);
     }
 
     auto client = Client();
@@ -576,20 +678,27 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
         batchReq->AddRequest(req);
     }
 
-    auto batchRsp = WaitFor(batchReq->Invoke())
+    return batchReq->Invoke()
+        .Apply(BIND([pathCount = paths.size()] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+            std::vector<TErrorOr<IAttributeDictionaryPtr>> attributes(pathCount);
+            for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspGet>()) {
+                auto index = std::any_cast<int>(tag);
+                if (rspOrError.IsOK()) {
+                    attributes[index] = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+                } else {
+                    attributes[index] = TError(rspOrError);
+                }
+            }
+            return attributes;
+        }));
+}
+
+std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttributes(
+    const std::vector<TYPath>& paths,
+    TTransactionId transactionId)
+{
+    return WaitForUniqueFast(FetchTableAttributesAsync(paths, transactionId))
         .ValueOrThrow();
-
-    std::vector<TErrorOr<IAttributeDictionaryPtr>> attributes(paths.size());
-    for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspGet>()) {
-        auto index = std::any_cast<int>(tag);
-        if (rspOrError.IsOK()) {
-            attributes[index] = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-        } else {
-            attributes[index] = TError(rspOrError);
-        }
-    }
-
-    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -689,7 +798,7 @@ TQueryContext* GetQueryContext(DB::ContextPtr context)
 
 void InvalidateCache(
     TQueryContext* queryContext,
-    std::vector<NYPath::TYPath> paths,
+    std::vector<TYPath> paths,
     std::optional<EInvalidateCacheMode> invalidateMode)
 {
     if (!invalidateMode) {
@@ -697,24 +806,6 @@ void InvalidateCache(
     }
     auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
     queryContext->Host->InvalidateCachedObjectAttributesGlobally(paths, *invalidateMode, timeout);
-}
-
-void AcquireSnapshotLocksSynchronously(TQueryContext* queryContext, const std::vector<TYPath>& paths)
-{
-    THashSet<NYPath::TYPath> pathsToLock;
-    for (const auto& path : paths) {
-        if (!queryContext->PathToNodeId.contains(path)) {
-            pathsToLock.insert(path);
-        }
-    }
-
-    if (pathsToLock.empty()) {
-        return;
-    }
-
-    auto acquiredPathToNodeId = WaitFor(queryContext->AcquireSnapshotLocks(pathsToLock))
-        .ValueOrThrow();
-    queryContext->PathToNodeId.insert(acquiredPathToNodeId.begin(), acquiredPathToNodeId.end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

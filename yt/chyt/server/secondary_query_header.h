@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include "object_lock.h"
+
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/cypress_client/public.h>
@@ -35,11 +37,15 @@ public:
     TQueryId QueryId;
     TQueryId ParentQueryId;
     TSerializableSpanContextPtr SpanContext;
-    THashMap<NYPath::TYPath, NCypressClient::TNodeId> PathToNodeId;
+
+    // TODO(dakovalkov): When we make the whole execution plan on a coordinator, these fields should go away.
+    THashMap<NYPath::TYPath, TObjectLock> SnapshotLocks;
     NTransactionClient::TTimestamp DynamicTableReadTimestamp;
     NTransactionClient::TTransactionId ReadTransactionId;
+
     NTransactionClient::TTransactionId WriteTransactionId;
     std::optional<NYPath::TYPath> CreatedTablePath;
+
     // These values should always be initialized explicitly.
     // Set default values for easier debugging if we forget to initialize them.
     int StorageIndex = -42;

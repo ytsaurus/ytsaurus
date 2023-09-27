@@ -72,6 +72,8 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("list_dirs_sleep_duration", &TThis::ListDirsSleepDuration)
         .Default();
+    registrar.Parameter("fetch_table_attributes_sleep_duration", &TThis::FetchTableAttributesSleepDuration)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

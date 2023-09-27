@@ -27,7 +27,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             },
         }
 
-    @authors("gudqeit")
+    @authors("gudqeit", "dakovalkov")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_read_for_static_table(self, table_read_lock_mode):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -44,6 +44,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             settings = {
                 "chyt.execution.table_read_lock_mode": table_read_lock_mode,
                 "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
+                "chyt.testing.fetch_table_attributes_sleep_duration": 1500,
             }
 
             query = "select * from `//tmp/t_in`"

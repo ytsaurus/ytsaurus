@@ -190,7 +190,7 @@ public:
     {
         auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
         auto& arguments = GetAllArguments(functionNode);
-        directory = TRichYPath(TString(GetDirectoryRequiredArgument(arguments, context)));
+        Directory_ = TRichYPath(TString(GetDirectoryRequiredArgument(arguments, context)));
         parsePathArguments(arguments, context);
     }
 
@@ -237,11 +237,12 @@ private:
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
 
-        YT_LOG_INFO("Listing directory (Path: %v)", directory);
+        YT_LOG_INFO("Listing directory (Path: %v)", Directory_);
 
-        if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
-            queryContext->InitializeQueryReadTransaction();
-            AcquireSnapshotLocksSynchronously(queryContext, {directory.GetPath()});
+        bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+
+        if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
+            queryContext->AcquireSnapshotLocks({Directory_.GetPath()});
         }
 
         if (auto sleepDuration = queryContext->Settings->Testing->ConcatTablesRangeSleepDuration) {
@@ -256,9 +257,11 @@ private:
         };
         options.SuppressAccessTracking = true;
         options.SuppressExpirationTimeoutRenewal = true;
-        options.TransactionId = queryContext->ReadTransactionId;
+        if (sync) {
+            options.TransactionId = queryContext->ReadTransactionId;
+        }
 
-        auto nodeIdOrPath = queryContext->GetNodeIdOrPath(directory.GetPath());
+        auto nodeIdOrPath = queryContext->GetNodeIdOrPath(Directory_.GetPath());
         auto items = WaitFor(queryContext->Client()->ListNode(nodeIdOrPath, options))
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
@@ -268,7 +271,7 @@ private:
             const auto& attributes = child->Attributes();
             auto path = attributes.Get<TYPath>("path");
             if (IsPathAllowed(path)) {
-                itemPaths.emplace_back(path, directory.Attributes());
+                itemPaths.emplace_back(path, Directory_.Attributes());
             }
         }
 
@@ -287,7 +290,7 @@ private:
         return CreateStorageDistributor(context, std::move(tables));
     }
 
-    TRichYPath directory;
+    TRichYPath Directory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

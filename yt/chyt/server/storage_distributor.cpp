@@ -199,7 +199,7 @@ DB::Pipe CreateRemoteSource(
     static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
     queryHeader->StorageIndex = storageIndex;
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
-    queryHeader->PathToNodeId = queryContext->PathToNodeId;
+    queryHeader->SnapshotLocks = queryContext->SnapshotLocks;
     queryHeader->DynamicTableReadTimestamp = queryContext->DynamicTableReadTimestamp;
     queryHeader->ReadTransactionId = queryContext->ReadTransactionId;
     queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
@@ -246,7 +246,9 @@ void ValidateReadPermissions(
     std::vector<TRichYPath> tablePathsWithColumns;
     tablePathsWithColumns.reserve(tables.size());
     for (const auto& table : tables) {
-        auto tablePath = TRichYPath(table->GetPath());
+        // TODO(dakovalkov): in theory, we should validate permissions only if attributes
+        // were received through the cache.
+        auto tablePath = TRichYPath(queryContext->GetNodeIdOrPath(table->GetPath()));
         tablePath.SetColumns(columnNames);
         tablePathsWithColumns.emplace_back(std::move(tablePath));
     }
@@ -416,13 +418,12 @@ public:
             static_cast<ui64>(settings.max_threads),
             ThreadSubqueries_.size());
 
-        // Dynamic tables are changing rapidly,
-        // so we want to read their table attributes under the transaction in BestEffort mode.
-        if (QueryContext_->HasDynamicTable &&
-            QueryContext_->Settings->Execution->TableReadLockMode != ETableReadLockMode::None)
-        {
-            QueryContext_->EnsureQueryReadTransactionCreated();
-        }
+        // Wait for creation of query read transaction (if it's initialized asynchronously)
+        // and save its id/timestamp before distribution to be able to read
+        // locked tables on worker instances under the transaction.
+        // TODO(dakovalkov): When we make the whole execution plan on a coordinator,
+        // it doesn't make sense.
+        QueryContext_->SaveQueryReadTransaction();
 
         auto newContext = DB::Context::createCopy(Context_);
         newContext->setSettings(PrepareLeafJobSettings(settings));

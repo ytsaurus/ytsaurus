@@ -49,8 +49,10 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
-    if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
-        AcquireSnapshotLocksSynchronously(queryContext, dirPaths);
+    bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+
+    if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
+        queryContext->AcquireSnapshotLocks(dirPaths);
     }
 
     if (auto sleepDuration = queryContext->Settings->Testing->ListDirsSleepDuration) {
@@ -77,7 +79,10 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         if (settings->MaxSize) {
             req->set_limit(settings->MaxSize);
         }
-        SetTransactionId(req, queryContext->ReadTransactionId);
+
+        if (sync) {
+            SetTransactionId(req, queryContext->ReadTransactionId);
+        }
 
         batchReq->AddRequest(req);
     }
@@ -115,8 +120,11 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
-    if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
-        AcquireSnapshotLocksSynchronously(queryContext, paths);
+    bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+
+    if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
+        // TODO(dakovalkov): it won't work if the path is not a cypress node (e.g. part of yson document).
+        queryContext->AcquireSnapshotLocks(paths);
     }
 
     const auto& client = queryContext->Client();
@@ -134,7 +142,10 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
         ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
         req->Tag() = index;
         ++index;
-        SetTransactionId(req, queryContext->ReadTransactionId);
+
+        if (sync) {
+            SetTransactionId(req, queryContext->ReadTransactionId);
+        }
 
         batchReq->AddRequest(req);
     }
@@ -299,10 +310,6 @@ public:
             }
         }
         uniqueAttributes.emplace("type");
-
-        if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
-            queryContext->InitializeQueryReadTransaction();
-        }
 
         std::vector<TString> attributesToFetch = {uniqueAttributes.begin(), uniqueAttributes.end()};
 

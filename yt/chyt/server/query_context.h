@@ -4,6 +4,7 @@
 
 #include "conversion.h"
 #include "cluster_nodes.h"
+#include "object_lock.h"
 
 #include <yt/yt/ytlib/api/native/client_cache.h>
 
@@ -78,14 +79,13 @@ public:
     std::optional<TString> DataLensRequestId;
     std::optional<TString> YqlOperationId;
 
-    bool HasDynamicTable = false;
-
     // Transactionality
     //! ReadTransactionId is the id of the query transaction in which snapshot locks are taken.
     NTransactionClient::TTransactionId ReadTransactionId;
-    //! Snapshot of the used node ids. If snapshot locks are acquired, node ids should
-    //! be used during data fetching.
-    THashMap<NYPath::TYPath, NCypressClient::TNodeId> PathToNodeId;
+    //! Acquired snapshot locks under a read transaction.
+    //! For fully consistent read under the transaction a node id from the lock should be used instead of a node path.
+    //! Can contain an empty TObjectLock object if the lock is acquired asynchronously.
+    THashMap<NYPath::TYPath, TObjectLock> SnapshotLocks;
     //! DynamicTableReadTimestamp is used for dynamic tables if snapshot locks are taken.
     NTransactionClient::TTimestamp DynamicTableReadTimestamp = NTransactionClient::AsyncLastCommittedTimestamp;
     //! WriteTransactionId is the id of the query transaction in which all write operations should be performed.
@@ -154,16 +154,15 @@ public:
     void InitializeQueryWriteTransaction();
     void CommitWriteTransaction();
 
-    //! Initialize query read transaction synchronously.
-    void InitializeQueryReadTransaction();
-    //! Force transaction initialization if it wasn't done.
-    void EnsureQueryReadTransactionCreated();
+    //! If the transaction is created asynchronously, waits for its future and
+    //! fills ReadTransactionId and DynamicTableReadTimestamp fields.
+    void SaveQueryReadTransaction();
     //! Try to get node id from PathToNodeId, return path on failure.
     //! Node id format is "#<node_id>".
     NYPath::TYPath GetNodeIdOrPath(const NYPath::TYPath& path) const;
 
-    TFuture<THashMap<NYPath::TYPath, NCypressClient::TNodeId>> AcquireSnapshotLocks(
-        const THashSet<NYPath::TYPath>& paths);
+    //! Synchronously acquire snapshot locks on given paths under the read transaction.
+    void AcquireSnapshotLocks(const std::vector<NYPath::TYPath>& paths);
 
 private:
     TInstant StartTime_;
@@ -171,7 +170,7 @@ private:
 
     //! Snapshot of the cluster nodes to avoid races.
     //! Access through GetClusterNodesSnapshot.
-    std::optional<TClusterNodes> ClusterNodesSnapshot;
+    std::optional<TClusterNodes> ClusterNodesSnapshot_;
     //! Snapshot of the object attributes. Saving it here has several purposes:
     //! 1) Every part of the query always sees the same object attributes (avoiding races).
     //! 2) It acts like a per-query cache to avoid many master request when per-clique cache is disabled.
@@ -184,7 +183,6 @@ private:
 
     //! Spinlock controlling lazy client creation.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
-
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
 
@@ -199,24 +197,32 @@ private:
     NApi::NNative::ITransactionPtr InitialQueryReadTransaction_;
     NApi::NNative::ITransactionPtr InitialQueryWriteTransaction_;
 
-    TFuture<NApi::NNative::ITransactionPtr> ReadTransactionFuture_;
+    struct TTransactionWithTimestamp
+    {
+        NApi::NNative::ITransactionPtr Transaction;
+        NTransactionClient::TTimestamp Timestamp;
+    };
+
+    TFuture<TTransactionWithTimestamp> ReadTransactionFuture_;
 
     void InitializeQueryReadTransactionFuture();
-
-    void InitializeDynamicTableReadTimestamp();
 
     //! Constructs fake query context.
     //! It's private to avoid creating it accidently.
     TQueryContext(THost* host, NApi::NNative::IClientPtr client);
 
-    //! Get table attributes according to existing transactions.
-    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetTableAttributes(
-        const std::vector<NYPath::TYPath>& missingPaths);
+    //! Fetch table attributes from master asynchronously.
+    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> FetchTableAttributesAsync(
+        const std::vector<NYPath::TYPath>& paths,
+        NTransactionClient::TTransactionId transactionId);
 
-    //! Fetch table attributes from master.
+    //! Fetch table attributes from master synchronously.
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> FetchTableAttributes(
         const std::vector<NYPath::TYPath>& paths,
         NTransactionClient::TTransactionId transactionId);
+
+    TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocks(
+        const std::vector<NYPath::TYPath>& paths);
 
     DECLARE_NEW_FRIEND()
 };
@@ -244,9 +250,6 @@ void InvalidateCache(
     TQueryContext* queryContext,
     std::vector<NYPath::TYPath> paths,
     std::optional<EInvalidateCacheMode> invalidateMode = std::nullopt);
-
-//! Acquire snapshot locks for tables, which are not locked yet.
-void AcquireSnapshotLocksSynchronously(TQueryContext* queryContext, const std::vector<NYPath::TYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 
