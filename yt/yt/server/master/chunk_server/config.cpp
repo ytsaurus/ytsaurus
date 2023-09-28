@@ -440,13 +440,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_blob_chunks_per_refresh", &TThis::MaxBlobChunksPerRefresh)
         .Default(8000)
         .Alias("max_chunks_per_refresh");
-    registrar.Parameter("max_time_per_blob_chunk_refresh", &TThis::MaxTimePerBlobChunkRefresh)
-        .Default(TDuration::MilliSeconds(80))
-        .Alias("max_time_per_refresh");
     registrar.Parameter("max_journal_chunks_per_refresh", &TThis::MaxJournalChunksPerRefresh)
         .Default(6000);
-    registrar.Parameter("max_time_per_journal_chunk_refresh", &TThis::MaxTimePerJournalChunkRefresh)
-        .Default(TDuration::MilliSeconds(60));
+
+    registrar.Parameter("max_unsuccessfull_refresh_attempts", &TThis::MaxUnsuccessfullRefreshAttempts)
+        .Default(10);
 
     registrar.Parameter("replicator_enabled_check_period", &TThis::ReplicatorEnabledCheckPeriod)
         .Default(TDuration::Seconds(30));

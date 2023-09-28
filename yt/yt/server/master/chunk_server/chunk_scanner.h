@@ -129,7 +129,7 @@ public:
      *
      *  Otherwise, sets the scan flag, ephemeral-refs the chunk, and enqueues it.
      */
-    bool EnqueueChunk(TChunk* chunk);
+    bool EnqueueChunk(TChunk* chunk, int errorCount = 0);
 
     //! Tries to dequeue the next chunk.
     /*!
@@ -140,7 +140,7 @@ public:
      *
      *  See #TGlobalChunkScanner::DequeueChunk().
      */
-    TChunk* DequeueChunk();
+    std::pair<TChunk*, int> DequeueChunk();
 
     //! Returns |true| if there are some unscanned chunks, either scheduled for the global scan
     //! or added manually at #deadline or earlier.
@@ -158,6 +158,7 @@ private:
     {
         NObjectServer::TEphemeralObjectPtr<TChunk> Chunk;
         NProfiling::TCpuInstant Instant;
+        int ErrorCount = 0;
     };
     std::queue<TQueueEntry> Queue_;
 };

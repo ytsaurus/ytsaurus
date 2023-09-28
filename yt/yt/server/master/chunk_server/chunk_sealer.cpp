@@ -456,7 +456,7 @@ private:
             }
 
             ++totalCount;
-            auto* chunk = SealScanner_->DequeueChunk();
+            auto [chunk, errorCount] = SealScanner_->DequeueChunk();
             if (!chunk) {
                 continue;
             }

@@ -2188,33 +2188,25 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
     MisscheduledJobs_[EJobType::RepairChunk] += misscheduledRepairJobs;
 }
 
-void TChunkReplicator::RefreshChunk(TChunk* chunk)
+void TChunkReplicator::RefreshChunk(
+    const TEphemeralObjectPtr<TChunk>& ephemeralChunk,
+    const TChunkLocationPtrWithReplicaInfoList& chunkReplicas)
 {
-    if (!chunk->IsConfirmed()) {
+    if (!ephemeralChunk->IsConfirmed()) {
         return;
     }
 
-    if (chunk->IsForeign()) {
-        return;
-    }
-
-    auto chunkId = chunk->GetId();
-
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-
-    // This is context switch, chunk may die.
-    auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
-    if (!replicasOrError.IsOK()) {
+    if (ephemeralChunk->IsForeign()) {
         return;
     }
 
     if (!IsObjectAlive(ephemeralChunk)) {
-        YT_LOG_DEBUG("Chunk died during replica fetch (ChunkId: %v)", chunkId);
         return;
     }
 
-    const auto& chunkReplicas = replicasOrError.Value();
+    auto* chunk = ephemeralChunk.Get();
+    auto chunkId = chunk->GetId();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     chunk->OnRefresh();
 
@@ -2275,7 +2267,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                     }
 
                     TChunkIdWithIndexes chunkIdWithIndexes(
-                        chunk->GetId(),
+                        chunkId,
                         locationWithIndexes.GetReplicaIndex(),
                         location->GetEffectiveMediumIndex());
                     location->AddToChunkRemovalQueue(chunkIdWithIndexes);
@@ -2288,7 +2280,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                         continue;
                     }
 
-                    TChunkIdWithIndexes chunkIdWithIndexes(chunk->GetId(), replicaIndex, mediumIndex);
+                    TChunkIdWithIndexes chunkIdWithIndexes(chunkId, replicaIndex, mediumIndex);
                     targetLocation->AddToChunkRemovalQueue(chunkIdWithIndexes);
                 }
             }
@@ -2628,36 +2620,58 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh()
 
 void TChunkReplicator::OnRefresh()
 {
-    if (!GetDynamicConfig()->EnableChunkRefresh) {
+    const auto& config = GetDynamicConfig();
+    if (!config->EnableChunkRefresh) {
         YT_LOG_DEBUG("Chunk refresh disabled");
         return;
     }
 
     YT_LOG_DEBUG("Chunk refresh iteration started");
 
-    auto deadline = GetCpuInstant() - DurationToCpuDuration(GetDynamicConfig()->ChunkRefreshDelay);
+    auto deadline = GetCpuInstant() - DurationToCpuDuration(config->ChunkRefreshDelay);
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto doRefreshChunks = [&] (
         const std::unique_ptr<TChunkScanner>& scanner,
         int* const totalCount,
         int* const aliveCount,
-        int maxChunksPerRefresh,
-        TDuration maxTimePerRefresh)
+        int* const replicasErrorCount,
+        int maxChunksPerRefresh)
     {
-        NProfiling::TWallTimer timer;
-
+        std::vector<TEphemeralObjectPtr<TChunk>> chunksToRefresh;
+        THashMap<TChunkId, int> chunkIdToErrorCount;
         while (*totalCount < maxChunksPerRefresh && scanner->HasUnscannedChunk(deadline)) {
-            if (timer.GetElapsedTime() > maxTimePerRefresh) {
-                break;
-            }
-
             ++(*totalCount);
-            auto* chunk = scanner->DequeueChunk();
-            if (!chunk) {
+            auto [chunk, errorCount] = scanner->DequeueChunk();
+            if (!IsObjectAlive(chunk)) {
                 continue;
             }
 
-            RefreshChunk(chunk);
+            chunksToRefresh.emplace_back(chunk);
+            chunkIdToErrorCount[chunk->GetId()] = errorCount;
+        }
+
+        auto replicas = chunkManager->GetChunkReplicas(chunksToRefresh);
+        for (const auto& chunk : chunksToRefresh) {
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            const auto& replicasOrError = GetOrCrash(replicas, chunk->GetId());
+            if (!replicasOrError.IsOK()) {
+                auto refreshErrorCount = GetOrCrash(chunkIdToErrorCount, chunk->GetId());
+                if (refreshErrorCount >= config->MaxUnsuccessfullRefreshAttempts) {
+                    YT_LOG_ALERT("Too many unsuccessful refresh attempts for chunk (ChunkId: %v, RefreshErrorCount: %v, LastError: %v)",
+                        chunk->GetId(),
+                        refreshErrorCount,
+                        replicasOrError);
+                }
+                scanner->EnqueueChunk(chunk.Get(), refreshErrorCount);
+                ++(*replicasErrorCount);
+                continue;
+            }
+
+            RefreshChunk(chunk, replicasOrError.Value());
             ++(*aliveCount);
         }
     };
@@ -2666,6 +2680,8 @@ void TChunkReplicator::OnRefresh()
     int totalJournalCount = 0;
     int aliveBlobCount = 0;
     int aliveJournalCount = 0;
+    int replicasErrorCount = 0;
+    int journalReplicasErrorCount = 0;
 
     ChunkIdsPendingEndorsementRegistration_.clear();
 
@@ -2674,23 +2690,31 @@ void TChunkReplicator::OnRefresh()
             BlobRefreshScanner_,
             &totalBlobCount,
             &aliveBlobCount,
-            GetDynamicConfig()->MaxBlobChunksPerRefresh,
-            GetDynamicConfig()->MaxTimePerBlobChunkRefresh);
+            &replicasErrorCount,
+            config->MaxBlobChunksPerRefresh);
         doRefreshChunks(
             JournalRefreshScanner_,
             &totalJournalCount,
             &aliveJournalCount,
-            GetDynamicConfig()->MaxJournalChunksPerRefresh,
-            GetDynamicConfig()->MaxTimePerJournalChunkRefresh);
+            &journalReplicasErrorCount,
+            config->MaxJournalChunksPerRefresh);
     }
 
     FlushEndorsementQueue();
 
-    YT_LOG_DEBUG("Chunk refresh iteration completed (TotalBlobCount: %v, AliveBlobCount: %v, TotalJournalCount: %v, AliveJournalCount: %v)",
+    YT_LOG_DEBUG("Chunk refresh iteration completed (TotalBlobCount: %v, AliveBlobCount: %v, ReplicasErrorCount: %v, TotalJournalCount: %v, AliveJournalCount: %v, JournalReplicasErrorCount: %v)",
         totalBlobCount,
         aliveBlobCount,
+        replicasErrorCount,
         totalJournalCount,
-        aliveJournalCount);
+        aliveJournalCount,
+        journalReplicasErrorCount);
+
+    // Journal replicas are always nonsequoia, so it is really concerning if this is nonzero.
+    if (journalReplicasErrorCount > 0) {
+        YT_LOG_ALERT("Chunk refresh iteration completed with nonzero journal replica errors (JournalReplicasErrorCount: %v)",
+            journalReplicasErrorCount);
+    }
 }
 
 bool TChunkReplicator::IsReplicatorEnabled()
@@ -3120,8 +3144,8 @@ void TChunkReplicator::OnRequisitionUpdate()
             }
 
             ++(*totalCount);
-            auto* chunk = scanner->DequeueChunk();
-            if (!chunk) {
+            auto [chunk, errorCount] = scanner->DequeueChunk();
+            if (!IsObjectAlive(chunk)) {
                 continue;
             }
 
