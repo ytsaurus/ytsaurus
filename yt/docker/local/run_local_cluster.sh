@@ -22,6 +22,7 @@ local_cypress_dir=''
 rpc_proxy_count=0
 rpc_proxy_port=8002
 enable_debug_logging=false
+node_count=1
 yt_fqdn=''
 
 network_name=yt_local_cluster_network
@@ -48,6 +49,7 @@ Usage: $script_name [-h|--help]
                     [--rpc-proxy-count count]
                     [--rpc-proxy-port port]
                     [--enable-debug-logging true|false]
+                    [--node-count count]
                     [--stop]
 
   --proxy-port: Sets the proxy port on docker host (default: $proxy_port)
@@ -64,6 +66,7 @@ Usage: $script_name [-h|--help]
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
   --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
+  --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -131,6 +134,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --fqdn)
         yt_fqdn="$2"
+        shift 2
+        ;;
+        --node-count)
+        node_count="$2"
         shift 2
         ;;
         -h|--help)
@@ -204,6 +211,7 @@ cluster_container=$(
         --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
         --rpc-proxy-count ${rpc_proxy_count} \
         --rpc-proxy-port ${rpc_proxy_port} \
+        --node-count ${node_count} \
         ${params} \
 )
 
