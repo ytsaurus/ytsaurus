@@ -2,6 +2,7 @@
   ".github/pull_request_template.md":"yt/opensource/repos/ytsaurus/github_toplevel/.github/pull_request_template.md",
   ".github/workflows/build-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml",
   ".github/workflows/check-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/check-jobs.yaml",
+  ".github/workflows/chyt_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/chyt_release.yaml",
   ".github/workflows/cpp.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cpp.yaml",
   ".github/workflows/docker-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docker-jobs.yaml",
   ".github/workflows/go.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/go.yaml",
