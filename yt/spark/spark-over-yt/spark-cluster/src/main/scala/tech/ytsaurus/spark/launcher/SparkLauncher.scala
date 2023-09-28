@@ -168,8 +168,13 @@ trait SparkLauncher {
     val livyRunner = f"$livyHome/bin/livy-server start"
     log.info(s"Run command: $livyRunner")
     val javaHome = env("JAVA_HOME", "/opt/jdk11")
-    val startProcess = Process(livyRunner, new File("."), "SPARK_HOME" -> sparkHome, "JAVA_HOME" -> javaHome)
-      .run(ProcessLogger(log.info(_)))
+    val startProcess = Process(
+      livyRunner,
+      new File("."),
+      "SPARK_HOME" -> sparkHome,
+      "JAVA_HOME" -> javaHome,
+      "PYSPARK_PYTHON" -> "python3"
+    ).run(ProcessLogger(log.info(_)))
     val startProcessCode = startProcess.exitValue()
     log.info(f"Server started. Code: $startProcessCode")
     if (startProcessCode == 0) {
