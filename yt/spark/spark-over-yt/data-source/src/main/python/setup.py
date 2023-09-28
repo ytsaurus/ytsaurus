@@ -20,6 +20,7 @@ setuptools.setup(
     author_email='dev@ytsaurus.tech',
     description='YTsaurus SPYT high-level client',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     keywords="yt ytsaurus python spyt",
     url='https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt',
     packages=[
