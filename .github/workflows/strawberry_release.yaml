@@ -48,7 +48,6 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
-      build-python: true
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
@@ -63,7 +62,7 @@ jobs:
       - name: Parse tag
         id: tag
         run: |
-          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/yt/chyt/controller/})" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/yt/chyt/controller/v})" >> $GITHUB_OUTPUT
 
   release:
     name: Release

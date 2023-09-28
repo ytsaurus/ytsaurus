@@ -41,7 +41,7 @@ jobs:
           /opt/go/bin/go build
 
       - name: Configure ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
           mkdir -p ../build
           cd ../build
@@ -55,7 +55,7 @@ jobs:
             ../ytsaurus/ytsaurus
 
       - name: Configure ytsaurus (relwithdebinfo)
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
           mkdir -p ../build_relwithdebinfo
           cd ../build_relwithdebinfo
@@ -111,7 +111,7 @@ jobs:
             ../ytsaurus/ydb
 
       - name: Build ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
           export CCACHE_BASEDIR="$(realpath ..)"
           export CCACHE_REMOTE_ONLY=true
