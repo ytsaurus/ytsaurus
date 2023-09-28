@@ -553,17 +553,22 @@ private:
         std::sort(
             TeleportChunks_.begin(),
             TeleportChunks_.end(),
-            [] (const TInputChunkPtr& lhs, const TInputChunkPtr& rhs) {
-                int cmpMin = CompareRows(lhs->BoundaryKeys()->MinKey, rhs->BoundaryKeys()->MinKey);
+            [this] (const TInputChunkPtr& lhs, const TInputChunkPtr& rhs) {
+                auto lhsMinKey = GetKeyPrefix(lhs->BoundaryKeys()->MinKey, PrimaryPrefixLength_, RowBuffer_);
+                auto lhsMaxKey = GetKeyPrefix(lhs->BoundaryKeys()->MaxKey, PrimaryPrefixLength_, RowBuffer_);
+                auto rhsMinKey = GetKeyPrefix(rhs->BoundaryKeys()->MinKey, PrimaryPrefixLength_, RowBuffer_);
+                auto rhsMaxKey = GetKeyPrefix(rhs->BoundaryKeys()->MaxKey, PrimaryPrefixLength_, RowBuffer_);
+
+                int cmpMin = CompareRows(lhsMinKey, rhsMinKey);
                 if (cmpMin != 0) {
                     return cmpMin < 0;
                 }
-                int cmpMax = CompareRows(lhs->BoundaryKeys()->MaxKey, rhs->BoundaryKeys()->MaxKey);
+                int cmpMax = CompareRows(lhsMaxKey, rhsMaxKey);
                 if (cmpMax != 0) {
                     return cmpMax < 0;
                 }
                 // This is possible only when both chunks contain the same only key or we comparing chunk with itself.
-                YT_VERIFY(&lhs == &rhs || lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
+                YT_VERIFY(&lhs == &rhs || lhsMinKey == lhsMaxKey);
                 return false;
             });
 
