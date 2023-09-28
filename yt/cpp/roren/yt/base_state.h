@@ -16,8 +16,6 @@ namespace NRoren::NPrivate
 
 struct TYtStateVtable
 {
-    template <class TState>
-    using TStateTKV = TKV<typename TState::TKey, typename TState::TValue>;
     using TLoadState = void (*)(TRawRowHolder& row, const NYT::TNode&);  // NYT::TNode->TStateTKV
     using TSaveState = void (*)(::NYson::TYsonWriter& writer, void* rawState, const void* rawTKV); // TState -> Cout
     using TStateFromKey = TRawRowHolder (*)(const void* rawKey); // TState::TKey -> TState
@@ -39,6 +37,7 @@ extern TTypeTag<TYtStateVtable> YtStateVtableTag;
 extern TTypeTag<TString> YtStateInPathTag;
 extern TTypeTag<TString> YtStateOutPathTag;
 
+void InitializeYtPState(TRawPStateNodePtr pState, TString in_state_path, TString out_state_path, TYtStateVtable stateVtable);
 
 template <typename TKey, typename TState>
 TPState<TKey, TState> MakeYtPState(const TPipeline& YtPipeline, TString in_state_path, TString out_state_path, TYtStateVtable stateVtable)
@@ -50,8 +49,6 @@ TPState<TKey, TState> MakeYtPState(const TPipeline& YtPipeline, TString in_state
     InitializeYtPState(rawPState, std::move(in_state_path), std::move(out_state_path), std::move(stateVtable));
     return pState;
 }
-
-void InitializeYtPState(TRawPStateNodePtr pState, TString in_state_path, TString out_state_path, TYtStateVtable stateVtable);
 
 } // namespace NRoren::NPrivate
 

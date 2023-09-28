@@ -8,6 +8,9 @@ namespace NPrivate::NProfileState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TState>
+using TStateTKV = TKV<typename TState::TKey, typename TState::TValue>;
+
 Y_HAS_MEMBER(Base);
 
 template <class T, std::enable_if_t<THasBase<T>::value, int> = 0>
@@ -120,7 +123,7 @@ inline void UpdateValues(TValues& result, const TMutationValues& update)
 template <class TState>
 inline void SaveStateEntry(::NYson::TYsonWriter& writer, void* rawState, const void* rawTKV)
 {
-    const auto* tkv = reinterpret_cast<const TYtStateVtable::TStateTKV<TState>*>(rawTKV);
+    const auto* tkv = reinterpret_cast<const TStateTKV<TState>*>(rawTKV);
     TState* state = static_cast<TState*>(rawState);
     if (state->IsEmpty()) {
         return;
@@ -152,9 +155,9 @@ TRawRowHolder StateFromKey(const void* rawKey)
 }
 
 template <class TState>
-TRawRowHolder StateFromTVK(const void* rawTKV)
+TRawRowHolder StateFromTKV(const void* rawTKV)
 {
-    const auto* tkv = reinterpret_cast<const TYtStateVtable::TStateTKV<TState>*>(rawTKV);
+    const auto* tkv = reinterpret_cast<const TStateTKV<TState>*>(rawTKV);
     TRawRowHolder result(MakeRowVtable<TState>());
     TState& state = *reinterpret_cast<TState*>(result.GetData());
     state = TState(tkv->Key(), typename TState::TValue(tkv->Value()));
@@ -170,17 +173,18 @@ TPState<typename TState::TKey, TState> MakeYtProfilePState(const TPipeline& ytPi
 {
     using NPrivate::MakeRowVtable;
     using NPrivate::TYtStateVtable;
+    using NPrivate::NProfileState::TStateTKV;
     using NPrivate::NProfileState::LoadStateEntry;
     using NPrivate::NProfileState::SaveStateEntry;
     using NPrivate::NProfileState::StateFromKey;
-    using NPrivate::NProfileState::StateFromTVK;
+    using NPrivate::NProfileState::StateFromTKV;
 
     TYtStateVtable stateVtable;
-    stateVtable.StateTKVvtable = MakeRowVtable<TYtStateVtable::TStateTKV<TState>>();
+    stateVtable.StateTKVvtable = MakeRowVtable<TStateTKV<TState>>();
     stateVtable.LoadState = &LoadStateEntry<TState>;
     stateVtable.SaveState = &SaveStateEntry<TState>;
     stateVtable.StateFromKey = &StateFromKey<TState>;
-    stateVtable.StateFromTKV = &StateFromTVK<TState>;
+    stateVtable.StateFromTKV = &StateFromTKV<TState>;
     return MakeYtPState<typename TState::TKey, TState>(ytPipeline, std::move(in_state_path), std::move(out_state_path), std::move(stateVtable));
 }
 
