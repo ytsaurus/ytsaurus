@@ -48,7 +48,6 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
-      build-python: true
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
