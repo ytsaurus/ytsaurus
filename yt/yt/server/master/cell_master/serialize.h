@@ -159,6 +159,7 @@ DEFINE_ENUM(EMasterReign,
     ((AccountsProfilingInSecurityManager)                           (2427))  // vovamelnikov
     ((ReworkClusterResourceLimitsInfinityRelatedBehavior)           (2428))  // kvk1920
     ((KeyPrefixFilter)                                              (2429))  // akozhikhov
+    ((MulticellChunkReincarnator)                                   (2430))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

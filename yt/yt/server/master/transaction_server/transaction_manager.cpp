@@ -1711,11 +1711,11 @@ private:
         // NB: may be empty.
         auto boomerangWaveId = FromProto<TBoomerangWaveId>(request->boomerang_wave_id());
         YT_ASSERT(!boomerangWaveId ||
-            request->has_boomerang_wave_id() &&
+            (request->has_boomerang_wave_id() &&
             request->has_boomerang_wave_size() &&
             request->has_boomerang_mutation_id() &&
             request->has_boomerang_mutation_type() &&
-            request->has_boomerang_mutation_data());
+            request->has_boomerang_mutation_data()));
         auto boomerangMutationId = request->has_boomerang_mutation_id()
             ? FromProto<NRpc::TMutationId>(request->boomerang_mutation_id())
             : NRpc::TMutationId();

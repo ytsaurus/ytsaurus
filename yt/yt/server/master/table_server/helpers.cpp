@@ -15,6 +15,7 @@ namespace NYT::NTableServer {
 
 using namespace NCellMaster;
 using namespace NQueueClient;
+using namespace NTableClient;
 using namespace NTableServer;
 using namespace NYPath;
 using namespace NYson;
@@ -85,10 +86,9 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
     return AsyncYPathGet(queueAgentObjectService, remoteKey);
 }
 
-NTableClient::TSchemaUpdateEnabledFeatures
-GetSchemaUpdateEnabledFeatures(NCellMaster::TDynamicClusterConfigPtr config)
+TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures(TDynamicClusterConfigPtr config)
 {
-    return NTableClient::TSchemaUpdateEnabledFeatures{
+    return TSchemaUpdateEnabledFeatures{
         config->EnableTableColumnRenaming && config->EnableStaticTableDropColumn,
 
         // TODO(orlovorlov) YT-16507 add && config->EnableDynamicTableColumnRenaming here when
@@ -96,6 +96,15 @@ GetSchemaUpdateEnabledFeatures(NCellMaster::TDynamicClusterConfigPtr config)
         config->EnableTableColumnRenaming && config->EnableStaticTableDropColumn &&
             config->EnableDynamicTableDropColumn
     };
+}
+
+void RecomputeTabletStatistics(TTableNode* table)
+{
+    table->ResetTabletStatistics();
+
+    for (const auto* tablet : table->Tablets()) {
+        table->AccountTabletStatistics(tablet->GetTabletStatistics());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

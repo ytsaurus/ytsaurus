@@ -22,8 +22,10 @@ TFuture<NYson::TYsonString> GetQueueAgentAttributeAsync(
     const NYPath::TYPath& path,
     NYTree::TInternedAttributeKey key);
 
-NTableClient::TSchemaUpdateEnabledFeatures
-GetSchemaUpdateEnabledFeatures(NCellMaster::TDynamicClusterConfigPtr config);
+NTableClient::TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures(
+    NCellMaster::TDynamicClusterConfigPtr config);
+
+void RecomputeTabletStatistics(TTableNode* table);
 
 ////////////////////////////////////////////////////////////////////////////////
 

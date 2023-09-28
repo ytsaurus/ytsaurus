@@ -61,6 +61,16 @@ struct IChunkManager
     virtual std::unique_ptr<NHydra::TMutation> CreateImportChunksMutation(
         TCtxImportChunksPtr context) = 0;
 
+    virtual void ExportChunks(
+        NTransactionServer::TTransaction* transaction,
+        TRange<TChunk*> chunks,
+        NObjectServer::TCellTag destinationCellTag,
+        google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkImportData>* importRequest) = 0;
+
+    virtual void ImportChunks(
+        NTransactionServer::TTransaction* transaction,
+        const google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkImportData>& importRequest) = 0;
+
     using TCtxExecuteBatch = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExecuteBatch,
         NChunkClient::NProto::TRspExecuteBatch>;

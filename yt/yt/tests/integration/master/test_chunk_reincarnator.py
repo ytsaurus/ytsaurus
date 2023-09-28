@@ -3,14 +3,15 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     alter_table, concatenate, get, ls, copy, remove,
     authors, get_singular_chunk_id, print_debug, wait,
-    create, write_table, set, read_table,
+    create, write_table, set, read_table, exists,
     read_file, write_file, update_nodes_dynamic_config,
     get_active_primary_master_leader_address,
     get_active_primary_master_follower_address,
     is_active_primary_master_leader,
     is_active_primary_master_follower,
     switch_leader,
-    make_batch_request, execute_batch, get_batch_output)
+    make_batch_request, execute_batch, get_batch_output,
+    sync_mount_table, sync_create_cells, insert_rows, lookup_rows, sync_unmount_table)
 
 from yt.common import YtError
 
@@ -40,7 +41,7 @@ class ReincarnatorStatistic:
         if cell is None:
             return sum(map(self.get_delta, self.counters))
 
-        return sum(counter.get_delta() for counter in self.counters[cell]) - self.old_values[cell]
+        return max(counter.get_delta() for counter in self.counters[cell]) - self.old_values[cell]
 
     def reset(self, cell=None):
         if cell is None:
@@ -123,7 +124,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
 
             for old_chunk_ref_counter, chunk_id in zip(old_chunk_ref_counters, chunk_ids):
                 try:
-                    if get_batch_output(old_chunk_ref_counter) > 0:
+                    if get_batch_output(old_chunk_ref_counter):
                         print_debug(f"Chunk {chunk_id} is still alive")
                         return False
                 except YtError:
@@ -140,6 +141,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
     def _get_chunk_info(self, chunk_id):
         attrs = get(f"#{chunk_id}/@")
 
+        # Change of these attributes during reincarnation is OK.
         transient_attrs = [
             "id",
             "ref_counter",
@@ -149,17 +151,13 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             "stored_replicas",
             "last_seen_replicas",
             "replication_status",
-            "min_timestamp",
-            "max_timestamp",
             "scan_flags",
             "creation_time",
             "local_requisition_index",
-            "creation_time",
             "disk_space",
             "meta_size",
             "master_meta_size",
             "approved_replica_count",
-            "external_requisitions",
             "external_requisition_indexes",
             "staging_account",
             "staging_transaction_id",
@@ -176,11 +174,6 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         for attr in transient_attrs:
             if attr in attrs:
                 attrs.pop(attr)
-
-        for requisition in attrs["requisition"]:
-            requisition.pop("committed")
-        for requisition in attrs["local_requisition"]:
-            requisition.pop("committed")
 
         return attrs
 
@@ -292,7 +285,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         self._check_tables(tables)
 
     @authors("kvk1920")
-    def test_max_visited_chunk_lists_count(self):
+    def test_max_visited_chunk_ancestors_per_chunk(self):
         self._create_table("//tmp/t1")
         write_table("//tmp/t1", {"a": "a"})
 
@@ -307,9 +300,9 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         assert len(chunks) == 9
         chunk1, chunk2 = chunks[0], chunks[8]
 
-        # NB: chunk2 has about 1 ancestors.
-        # NB: chunk1 has many ancestors.
-        set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_lists_per_scan", 2)
+        # chunk2 has about 10 ancestors (owning tables are accounted too).
+        # chunk1 has many ancestors.
+        set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_ancestors_per_chunk", 10)
 
         tables = self._save_tables(*[f"//tmp/t{i}" for i in range(1, 10)])
 
@@ -320,13 +313,13 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         new_chunks = get("//tmp/t9/@chunk_ids")
         assert len(new_chunks) == 9
 
-        # NB: This chunk should not be reincarnated due to large amount of parents.
+        # NB: This chunk should not be reincarnated due to large amount of ancestors.
         assert new_chunks[0] == chunk1
         wait(lambda: too_many_ancestors_counter.get_delta() >= 1)
 
         self._check_tables(tables)
 
-        set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_lists_per_scan", 220)
+        set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_ancestors_per_chunk", 220)
         too_many_ancestors_counter.reset()
 
         self._wait_for_chunk_obsolescence(chunk1)
@@ -338,7 +331,11 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         self._check_tables(tables)
 
     @authors("kvk1920")
-    def test_ignore_dynamic_tables(self):
+    @pytest.mark.parametrize("mount", [False, True])
+    def test_dynamic_tables(self, mount):
+        if mount:
+            sync_create_cells(1)
+
         schema = make_schema([
             {"name": "key", "type": "int64"},
             {"name": "value", "type": "string"},
@@ -347,6 +344,9 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         write_table("//tmp/static", {"key": 2, "value": "abc"})
         copy("//tmp/static", "//tmp/dynamic")
         alter_table("//tmp/dynamic", dynamic=True, schema=schema)
+
+        if mount:
+            sync_mount_table("//tmp/dynamic")
         write_table("<append=true>//tmp/static", {"key": 3, "value": "bcd"})
 
         dynamic_table_chunks = ReincarnatorStatistic("permanent_failures/dynamic_table_chunk")
@@ -356,14 +356,53 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 
         tables = self._save_tables("//tmp/static", "//tmp/dynamic")
         self._wait_for_chunk_obsolescence(get("//tmp/static/@chunk_ids/-1"))
-        self._wait_for_reincarnation("//tmp/static", datetime.utcnow(), whole_table_reincarnation=False)
+        self._wait_for_reincarnation("//tmp/static", datetime.utcnow(), whole_table_reincarnation=not mount)
 
-        # NB: This chunk is reachable from dynamic table.
-        assert chunk1 == get("//tmp/static/@chunk_ids/0")
+        if mount:
+            # This chunk is reachable from mounted dynamic table.
+            assert chunk1 == get("//tmp/static/@chunk_ids/0")
+        else:
+            assert chunk1 != get("//tmp/static/@chunk_ids/0")
         assert chunk2 != get("//tmp/static/@chunk_ids/1")
 
         self._check_tables(tables)
-        wait(lambda: dynamic_table_chunks.get_delta() == 1)
+        if mount:
+            wait(lambda: dynamic_table_chunks.get_delta() == 1)
+
+    @authors("kvk1920")
+    def test_dynamic_table_lookup_after_reincarnation(self):
+        sync_create_cells(1)
+
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        schema.attributes["unique_keys"] = True
+        self._create_table("//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", {"key": 1, "value": "a"})
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 2, "value": "b"}])
+        sync_unmount_table("//tmp/t")
+        assert read_table("//tmp/t") == [
+            {"key": 1, "value": "a"},
+            {"key": 2, "value": "b"}
+        ]
+        table = self._save_tables("//tmp/t")
+
+        old_chunks = builtins.set(get("//tmp/t/@chunk_ids"))
+
+        self._wait_for_reincarnation("//tmp/t", datetime.utcnow())
+
+        new_chunks = builtins.set(get("//tmp/t/@chunk_ids"))
+
+        assert not (old_chunks & new_chunks), "Every dynamic table's chunk should be reincarnated"
+
+        self._check_tables(table)
+
+        sync_mount_table("//tmp/t")
+        content = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
+        assert content == [{"key": 1, "value": "a"}, {"key": 2, "value": "b"}]
 
     @authors("kvk1920")
     def test_file(self):
@@ -373,7 +412,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         chunk = get_singular_chunk_id("//tmp/f")
         self._wait_for_chunk_obsolescence(chunk)
 
-        non_table_chunk_counter = ReincarnatorStatistic("permanent_failures/non_table_chunk")
+        non_table_chunk_counter = ReincarnatorStatistic("permanent_failures/no_table_ancestors")
 
         set("//sys/@config/chunk_manager/chunk_reincarnator/min_allowed_creation_time", str(datetime.utcnow()))
         set("//sys/@config/chunk_manager/chunk_reincarnator/enable", True)
@@ -410,54 +449,173 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 
 
 class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
-    NUM_SECONDARY_MASTER_CELLS = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("kvk1920")
-    def test_ignore_foreign_chunks(self):
-        # Create table //tmp/t2 with one foreign and one not foreign chunk.
-        self._create_table("//tmp/t1", attributes={"external_cell_tag": 11})
+    @pytest.mark.parametrize("on_primary", [True, False])
+    def test_foreign_chunks(self, on_primary):
+        # Create table `//tmp/t2` with one foreign and one not foreign chunk.
+        self._create_table(
+            "//tmp/t1",
+            attributes={"external_cell_tag": 11} if on_primary else {"external": False})
         write_table("//tmp/t1", {"key": "x"})
-        self._create_table("//tmp/t2", attributes={"external": False})
+        self._create_table(
+            "//tmp/t2",
+            attributes={"external": False} if on_primary else {"external_cell_tag": 11})
         write_table("//tmp/t2", {"key": "y"})
         concatenate(["//tmp/t1"], "<append=true>//tmp/t2")
+
+        old_chunks = get("//tmp/t2/@chunk_ids")
 
         foreign_chunk = get_singular_chunk_id("//tmp/t1")
-        assert get(f"#{foreign_chunk}/@native_cell_tag") == 11
+        native_chunk = old_chunks[0]
+        assert get(f"#{native_chunk}/@native_cell_tag") == 10 if on_primary else 11
+        assert get(f"#{foreign_chunk}/@native_cell_tag") == 11 if on_primary else 10
 
-        failure_due_to_teleportations = ReincarnatorStatistic("permanent_failures/teleportations")
         reincarnations = ReincarnatorStatistic("successful_reincarnations")
+        teleported = ReincarnatorStatistic("teleported_reincarnations")
 
         tables = self._save_tables("//tmp/t1", "//tmp/t2")
-        self._wait_for_chunk_obsolescence(get("//tmp/t2/@chunk_ids/0"))
-        self._wait_for_reincarnation("//tmp/t2", datetime.utcnow(), whole_table_reincarnation=False)
+        self._wait_for_reincarnation("//tmp/t2", datetime.utcnow(), inject_leader_switch=True)
 
         self._check_tables(tables)
-        assert get("//tmp/t2/@chunk_ids/1") == foreign_chunk
-        wait(lambda: reincarnations.get_delta() == 1)
-        # Foreign chunks are just ignored.
-        assert failure_due_to_teleportations.get_delta("primary") == 0
-        print_debug(failure_due_to_teleportations.counters.keys)
-        wait(lambda: failure_due_to_teleportations.get_delta(str(get("//tmp/t1/@external_cell_tag"))) == 1)
+        wait(lambda: reincarnations.get_delta() == 2, timeout=10)
+        wait(lambda: teleported.get_delta() == 1, timeout=10)
+        # Unused chunks should be removed.
+        wait(lambda: all(not exists(f"#{chunk_id}") for chunk_id in old_chunks), timeout=10)
 
     @authors("kvk1920")
-    def test_ignore_exported_chunks(self):
-        self._create_table("//tmp/t1", attributes={"external": False})
-        write_table("//tmp/t1", {"key": "x"})
-        self._create_table("//tmp/t2", attributes={"external_cell_tag": 11})
-        write_table("//tmp/t2", {"key": "y"})
-        concatenate(["//tmp/t1"], "<append=true>//tmp/t2")
-        write_table("<append=true>//tmp/t1", {"key": "z"})
-        exported_chunk, not_exported_chunk = get("//tmp/t1/@chunk_ids")
-        assert len(get(f"#{exported_chunk}/@exports")) == 1
-        assert not get(f"#{not_exported_chunk}/@exports")
+    @pytest.mark.parametrize("on_primary", [True, False])
+    def test_too_many_ancestors_on_foreign_cell(self, on_primary):
+        self._create_table(
+            "//tmp/native",
+            attributes={"external": False} if on_primary else {"external_cell_tag": 11})
+        write_table("//tmp/native", {"key": "x"})
+        self._create_table(
+            "//tmp/foreign1",
+            attributes={"external_cell_tag": 11} if on_primary else {"external": False})
+        concatenate(["//tmp/native"], "<append=%true>//tmp/foreign1")
 
-        tables = self._save_tables("//tmp/t1", "//tmp/t2")
-        for chunk in (exported_chunk, not_exported_chunk):
-            self._wait_for_chunk_obsolescence(chunk)
-        self._wait_for_reincarnation("//tmp/t1", datetime.utcnow(), whole_table_reincarnation=False)
+        for i in range(2, 11):
+            copy(f"//tmp/foreign{i - 1}", f"//tmp/foreign{i}")
+
+        write_table("<append=%true>//tmp/native", {"key": "y"})
+
+        exported_chunk, non_exported_chunk = get("//tmp/native/@chunk_ids")
+        # This chunk has many ancestors on foreign cell.
+        assert get(f"#{exported_chunk}/@exports")
+        # This chunk hasn't more than 2 ancestors.
+        assert not get(f"#{non_exported_chunk}/@exports")
+
+        reincarnation_counter = ReincarnatorStatistic("successful_reincarnations")
+        too_many_ancestors_counter = ReincarnatorStatistic("permanent_failures/too_many_ancestors")
+
+        set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_ancestors_per_chunk", 6)
+
+        tables = self._save_tables("//tmp/native", *[f"//tmp/foreign{i}" for i in range(1, 10)])
+        self._wait_for_chunk_obsolescence(exported_chunk)
+        self._wait_for_chunk_obsolescence(non_exported_chunk)
+
+        self._wait_for_reincarnation(
+            "//tmp/native",
+            datetime.utcnow(),
+            whole_table_reincarnation=False,
+            inject_leader_switch=True)
+
+        new_chunks = get("//tmp/native/@chunk_ids")
+        assert new_chunks[0] == exported_chunk
+        assert new_chunks[1] != non_exported_chunk
+        wait(lambda: too_many_ancestors_counter.get_delta() >= 1)
+        wait(lambda: reincarnation_counter.get_delta() >= 1)
         self._check_tables(tables)
-        assert get("//tmp/t1/@chunk_ids/0") == exported_chunk
-        assert get("//tmp/t1/@chunk_ids/1") != not_exported_chunk
+
+    @authors("kvk1920")
+    def test_chunk_exported_to_many_cells(self):
+        self._create_table("//tmp/native", attributes={"external": False})
+        write_table("//tmp/native", {"key": "x"})
+        self._create_table("//tmp/foreign1", attributes={"external_cell_tag": 11})
+        self._create_table("//tmp/foreign2", attributes={"external_cell_tag": 12})
+        concatenate(["//tmp/native"], "//tmp/foreign1")
+        concatenate(["//tmp/native"], "//tmp/foreign2")
+
+        reincarnations = ReincarnatorStatistic("successful_reincarnations")
+        teleportations = ReincarnatorStatistic("teleported_reincarnations")
+
+        old_chunks = get("//tmp/native/@chunk_ids")
+
+        tables = self._save_tables("//tmp/native", "//tmp/foreign1", "//tmp/foreign2")
+        self._wait_for_reincarnation("//tmp/native", datetime.utcnow(), inject_leader_switch=True)
+
+        self._check_tables(tables)
+        wait(lambda: reincarnations.get_delta() == 1, timeout=10)
+        wait(lambda: teleportations.get_delta() == 2, timeout=10)
+        # Unused chunks should be removed.
+        wait(lambda: all(not exists(f"#{chunk_id}") for chunk_id in old_chunks), timeout=10)
+
+    @authors("kvk1920")
+    def test_chunk_reincarnation_check_failed_on_foreign_cell(self):
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        schema.attributes["unique_keys"] = True
+
+        self._create_table("//tmp/native", attributes={"external": False, "schema": schema})
+        write_table("//tmp/native", {"key": 1, "value": "hello"})
+
+        self._create_table("//tmp/foreign_static", attributes={"external_cell_tag": 11})
+        concatenate(["//tmp/native"], "//tmp/foreign_static")
+
+        self._create_table(
+            "//tmp/foreign_dynamic",
+            attributes={"schema": schema, "external_cell_tag": 11})
+
+        concatenate(["//tmp/native"], "//tmp/foreign_dynamic")
+
+        write_table("<append=true>//tmp/native", {"key": 2, "value": "world"})
+
+        alter_table("//tmp/foreign_dynamic", dynamic=True)
+
+        reincarnations = ReincarnatorStatistic("successful_reincarnations")
+        teleportations = ReincarnatorStatistic("teleported_reincarnations")
+        dynamic_tables = ReincarnatorStatistic("permanent_failures/dynamic_table_chunk")
+
+        exported_dynamic_chunk, static_chunk = get("//tmp/native/@chunk_ids")
+
+        tables = self._save_tables("//tmp/native", "//tmp/foreign_static", "//tmp/foreign_dynamic")
+
+        sync_create_cells(1)
+        sync_mount_table("//tmp/foreign_dynamic")
+
+        self._wait_for_chunk_obsolescence(static_chunk)
+
+        self._wait_for_reincarnation(
+            "//tmp/native",
+            datetime.utcnow(),
+            whole_table_reincarnation=False)
+
+        wait(lambda: reincarnations.get_delta() == 1, timeout=10)
+        wait(lambda: teleportations.get_delta() == 0, timeout=10)
+        wait(lambda: dynamic_tables.get_delta() == 1, timeout=10)
+
+        assert get("//tmp/native/@chunk_ids")[0] == exported_dynamic_chunk
+
+        sync_unmount_table("//tmp/foreign_dynamic")
+
+        self._wait_for_chunk_obsolescence(exported_dynamic_chunk)
+
+        self._wait_for_reincarnation(
+            "//tmp/native",
+            datetime.utcnow(),
+            whole_table_reincarnation=False)
+
+        assert get("//tmp/native/@chunk_ids")[0] != exported_dynamic_chunk
+
+        wait(lambda: reincarnations.get_delta() == 3, timeout=10)
+        wait(lambda: teleportations.get_delta() == 1, timeout=10)
+        wait(lambda: dynamic_tables.get_delta() == 1, timeout=10)
+
+        self._check_tables(tables)
 
 
 ##################################################################

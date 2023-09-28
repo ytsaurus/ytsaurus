@@ -26,9 +26,6 @@ private:
     };
 
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
-    DEFINE_BYVAL_RW_PROPERTY(bool, BeingDisposed);
-
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TReplicaSet = THashSet<TChunkPtrWithReplicaInfo, TReplicaHasher, TReplicaEqual>;
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
@@ -52,6 +49,9 @@ public:
     //!   Indicates an unsealed chunk.
     using TChunkSealQueue = THashSet<TChunkPtrWithReplicaIndex>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
+
+    DEFINE_BYVAL_RW_PROPERTY(bool, BeingDisposed);
+    DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
 
 public:
     TChunkLocation() = default;

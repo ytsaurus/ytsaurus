@@ -53,19 +53,22 @@
 
 #include <yt/yt/ytlib/journal_client/proto/format.pb.h>
 
+#include <yt/yt/ytlib/misc/public.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/object_client/helpers.h>
 
-#include <yt/yt/ytlib/misc/public.h>
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -1939,27 +1942,40 @@ private:
 
     static void CopyMeta(const TDeferredChunkMetaPtr& src, const TDeferredChunkMetaPtr& dst)
     {
-        #define COPY_EXTENSION(Ext) \
-        do { \
-            if (HasProtoExtension<Ext>(src->extensions())) { \
-                SetProtoExtension( \
-                    dst->mutable_extensions(), \
-                    GetProtoExtension<Ext>(src->extensions())); \
-            }; \
-        } while (false)
+        #define COPY_EXTENSION(NClient, TExt) \
+            do { \
+                if (HasProtoExtension<NClient::NProto::TExt>(src->extensions())) { \
+                    SetProtoExtension( \
+                        dst->mutable_extensions(), \
+                        GetProtoExtension<NClient::NProto::TExt>(src->extensions())); \
+                }; \
+            } while (false)
 
-        COPY_EXTENSION(NChunkClient::NProto::TMiscExt);
-        COPY_EXTENSION(NChunkClient::NProto::TBlocksExt);
-        COPY_EXTENSION(NChunkClient::NProto::TErasurePlacementExt);
-        COPY_EXTENSION(NTableClient::NProto::TDataBlockMetaExt);
-        COPY_EXTENSION(NTableClient::NProto::TNameTableExt);
-        COPY_EXTENSION(NTableClient::NProto::TBoundaryKeysExt);
-        COPY_EXTENSION(NTableClient::NProto::TColumnMetaExt);
-        COPY_EXTENSION(NTableClient::NProto::TTableSchemaExt);
-        COPY_EXTENSION(NTableClient::NProto::TKeyColumnsExt);
-        COPY_EXTENSION(NTableClient::NProto::TSamplesExt);
-        COPY_EXTENSION(NTableClient::NProto::TColumnarStatisticsExt);
-        COPY_EXTENSION(NTableClient::NProto::THeavyColumnStatisticsExt);
+        COPY_EXTENSION(NChunkClient, TBlocksExt);
+        COPY_EXTENSION(NChunkClient, TMiscExt);
+        COPY_EXTENSION(NChunkClient, TErasurePlacementExt);
+        COPY_EXTENSION(NChunkClient, TStripedErasurePlacementExt);
+
+        COPY_EXTENSION(NTableClient, TTableSchemaExt);
+        COPY_EXTENSION(NTableClient, TNameTableExt);
+        COPY_EXTENSION(NTableClient, TDataBlockMetaExt);
+        COPY_EXTENSION(NTableClient, TSystemBlockMetaExt);
+        COPY_EXTENSION(NTableClient, TBoundaryKeysExt);
+        COPY_EXTENSION(NTableClient, TSamplesExt);
+        COPY_EXTENSION(NTableClient, TPartitionsExt);
+        COPY_EXTENSION(NTableClient, TKeyColumnsExt);
+
+        // NB: TProtoExtensionTag is not specialized for TSortColumnsExt.
+        // Probably, this extension isn't used at all.
+
+        COPY_EXTENSION(NTableClient, TColumnMetaExt);
+        COPY_EXTENSION(NTableClient, TColumnarStatisticsExt);
+        COPY_EXTENSION(NTableClient, THeavyColumnStatisticsExt);
+        COPY_EXTENSION(NTableClient, THunkChunkRefsExt);
+        COPY_EXTENSION(NTableClient, THunkChunkMetasExt);
+        COPY_EXTENSION(NTableClient, THunkChunkMiscExt);
+        COPY_EXTENSION(NTableClient, TVersionedRowDigestExt);
+
         #undef COPY_EXTENSION
     }
 
@@ -2019,26 +2035,27 @@ private:
         auto oldChunkState = New<TChunkState>(TChunkState{
             .BlockCache = Bootstrap_->GetBlockCache(),
             .ChunkSpec = oldChunkSpec,
+            .ChunkMeta = TCachedVersionedChunkMeta::Create(
+                /*preparedColumnarMeta*/ false,
+                /*memoryTracker*/ nullptr,
+                oldChunkMeta),
+            .OverrideTimestamp = NullTimestamp,
+            .LookupHashTable = nullptr,
+            .KeyComparer = {},
+            .VirtualValueDirectory = nullptr,
             .TableSchema = columnarMeta->ChunkSchema(),
+            .DataSource = std::nullopt,
+            .ChunkColumnMapping = nullptr,
         });
-
-        auto reader = CreateSchemalessRangeChunkReader(
-            oldChunkState,
-            New<TColumnarChunkMeta>(*oldChunkMeta),
-            readerConfig,
-            TChunkReaderOptions::GetDefault(),
-            remoteReader,
-            New<TNameTable>(),
-            readerOptions,
-            /*keyColumns*/ {},
-            /*omittedInaccessibleColumns*/ {},
-            NTableClient::TColumnFilter(),
-            NChunkClient::TReadRange());
 
         auto confirmingWriterOptions = New<TMultiChunkWriterOptions>();
         confirmingWriterOptions->TableSchema = oldChunkState->TableSchema;
         confirmingWriterOptions->CompressionCodec = CompressionCodec_;
         confirmingWriterOptions->ErasureCodec = ErasureCodec_;
+        if (auto miscExt = GetChunkMiscExt(oldChunkMeta); miscExt && miscExt->has_eden()) {
+            confirmingWriterOptions->ChunksEden = miscExt->eden();
+        }
+        confirmingWriterOptions->Postprocess();
 
         auto confirmingWriter = CreateConfirmingWriter(
             writerConfig,
@@ -2055,19 +2072,104 @@ private:
             TSessionId(NewChunkId_, MediumIndex_),
             TargetReplicas_);
 
-        auto chunkWriterOptions = New<TChunkWriterOptions>();
-        chunkWriterOptions->CompressionCodec = CompressionCodec_;
-        chunkWriterOptions->EnableSkynetSharing = EnableSkynetSharing_.value_or(false);
-        chunkWriterOptions->OptimizeFor = OptimizeForFromFormat(oldChunkFormat);
-        chunkWriterOptions->Postprocess();
+        if (IsTableChunkFormatVersioned(oldChunkFormat)) {
+            ReincarnateVersionedChunk(
+                std::move(oldChunkMeta),
+                std::move(readerOptions),
+                std::move(remoteReader),
+                std::move(confirmingWriter),
+                std::move(oldChunkState));
+        } else {
+            ReincarnateUnversionedChunk(
+                std::move(oldChunkMeta),
+                std::move(remoteReader),
+                std::move(readerOptions),
+                std::move(confirmingWriter),
+                std::move(columnarMeta),
+                std::move(oldChunkState));
+        }
+    }
+
+    std::optional<NChunkClient::NProto::TMiscExt> GetChunkMiscExt(
+        const TDeferredChunkMetaPtr& meta)
+    {
+        return FindProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+    }
+
+    void ReincarnateVersionedChunk(
+        TDeferredChunkMetaPtr oldChunkMeta,
+        TClientChunkReadOptions readerOptions,
+        IChunkReaderPtr remoteReader,
+        IChunkWriterPtr confirmingWriter,
+        TChunkStatePtr oldChunkState)
+    {
+        auto reader = CreateVersionedChunkReader(
+            NTableClient::TChunkReaderConfig::GetDefault(),
+            std::move(remoteReader),
+            oldChunkState,
+            TCachedVersionedChunkMeta::Create(false, nullptr, oldChunkMeta),
+            readerOptions,
+            MakeSingletonRowRange(MinKey(), MaxKey()),
+            /*columnFilter*/ {},
+            AsyncLastCommittedTimestamp,
+            /*produceAllVersions*/ true);
+
+        auto writer = CreateVersionedChunkWriter(
+            New<TChunkWriterConfig>(),
+            CreateChunkWriterOptions(oldChunkMeta),
+            oldChunkState->TableSchema,
+            confirmingWriter);
+
+        while (auto batch = ReadRowBatch(reader)) {
+            YT_LOG_DEBUG("Versioned reincarnation: read %v rows", batch->GetRowCount());
+            writer->Write(batch->MaterializeRows());
+        }
+
+        CopyMeta(writer->GetMeta(), oldChunkMeta);
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    void ReincarnateUnversionedChunk(
+        TDeferredChunkMetaPtr oldChunkMeta,
+        IChunkReaderPtr remoteReader,
+        TClientChunkReadOptions readerOptions,
+        IChunkWriterPtr confirmingWriter,
+        TColumnarChunkMetaPtr columnarMeta,
+        TChunkStatePtr oldChunkState)
+    {
+        auto reader = CreateSchemalessRangeChunkReader(
+            oldChunkState,
+            New<TColumnarChunkMeta>(*oldChunkMeta),
+            NTableClient::TChunkReaderConfig::GetDefault(),
+            TChunkReaderOptions::GetDefault(),
+            remoteReader,
+            New<TNameTable>(),
+            readerOptions,
+            /*keyColumns*/ {},
+            /*omittedInaccessibleColumns*/ {},
+            NTableClient::TColumnFilter(),
+            NChunkClient::TReadRange());
+
+        TChunkTimestamps chunkTimestamps;
+        if (auto misc = GetChunkMiscExt(oldChunkMeta)) {
+            if (misc->has_min_timestamp()) {
+                chunkTimestamps.MinTimestamp = misc->min_timestamp();
+            }
+            if (misc->has_max_timestamp()) {
+                chunkTimestamps.MaxTimestamp = misc->max_timestamp();
+            }
+        }
 
         auto writer = CreateSchemalessChunkWriter(
-            writerConfig,
-            chunkWriterOptions,
+            New<TChunkWriterConfig>(),
+            CreateChunkWriterOptions(oldChunkMeta),
             columnarMeta->ChunkSchema(),
             columnarMeta->ChunkNameTable(),
             confirmingWriter,
-            /*dataSink*/ std::nullopt);
+            /*dataSink*/ std::nullopt,
+            chunkTimestamps);
 
         while (auto batch = ReadRowBatch(reader)) {
             writer->Write(batch->MaterializeRows());
@@ -2079,6 +2181,20 @@ private:
 
         WaitFor(writer->Close())
             .ThrowOnError();
+    }
+
+    TChunkWriterOptionsPtr CreateChunkWriterOptions(const TDeferredChunkMetaPtr& oldChunkMeta)
+    {
+        auto chunkWriterOptions = New<TChunkWriterOptions>();
+        chunkWriterOptions->CompressionCodec = CompressionCodec_;
+        chunkWriterOptions->EnableSkynetSharing = EnableSkynetSharing_.value_or(false);
+        chunkWriterOptions->OptimizeFor = OptimizeForFromFormat(
+            CheckedEnumCast<EChunkFormat>(oldChunkMeta->format()));
+        if (auto miscExt = GetChunkMiscExt(oldChunkMeta); miscExt && miscExt->has_eden()) {
+            chunkWriterOptions->ChunksEden = miscExt->eden();
+        }
+        chunkWriterOptions->Postprocess();
+        return chunkWriterOptions;
     }
 
     bool IsTestingFailureNeeded()
