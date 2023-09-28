@@ -250,12 +250,7 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, ExternalCellTag_);
-    if (LockingState_) {
-        Save(context, true);
-        Save(context, *LockingState_);
-    } else {
-        Save(context, false);
-    }
+    TUniquePtrSerializer<>::Save(context, LockingState_);
     TRawNonversionedObjectPtrSerializer::Save(context, Parent_);
     Save(context, LockMode_);
     Save(context, ExpirationTime_);
@@ -279,10 +274,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, ExternalCellTag_);
-    if (Load<bool>(context)) {
-        LockingState_ = std::make_unique<TCypressNodeLockingState>();
-        Load(context, *LockingState_);
-    }
+    TUniquePtrSerializer<>::Load(context, LockingState_);
     TRawNonversionedObjectPtrSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     Load(context, ExpirationTime_);
