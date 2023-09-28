@@ -377,6 +377,9 @@ private:
     const IInvokerPtr CancelableInvoker_;
 
     const TOperationId OperationId_;
+
+    const NTracing::TTraceContextPtr TraceContext_;
+    const NTracing::TTraceContextFinishGuard TraceContextFinishGuard_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobTrackerOperationHandler)

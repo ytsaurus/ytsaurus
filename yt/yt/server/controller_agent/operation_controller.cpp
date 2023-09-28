@@ -223,11 +223,15 @@ public:
     TOperationControllerWrapper(
         TOperationId id,
         IOperationControllerPtr underlying,
-        IInvokerPtr dtorInvoker)
+        IInvokerPtr dtorInvoker,
+        TTraceContext* parentTraceContext)
         : Id_(id)
         , Underlying_(std::move(underlying))
         , DtorInvoker_(std::move(dtorInvoker))
-        , TraceContext_(CreateTraceContextFromCurrent("OperationControllerWrapper"))
+        , TraceContext_(
+            parentTraceContext
+            ? parentTraceContext->CreateChild("OperationControllerWrapper")
+            : CreateTraceContextFromCurrent("OperationControllerWrapper"))
         , TraceContextFinishGuard_(TraceContext_)
     {
         TraceContext_->SetAllocationTags({{OperationIdAllocationTag, ToString(Id_)}});
@@ -702,7 +706,8 @@ void ApplyExperiments(TOperation* operation)
 
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
-    TOperation* operation)
+    TOperation* operation,
+    TTraceContext* parentTraceContext)
 {
     IOperationControllerPtr controller;
     auto host = operation->GetHost();
@@ -768,7 +773,8 @@ IOperationControllerPtr CreateControllerForOperation(
     return New<TOperationControllerWrapper>(
         operation->GetId(),
         controller,
-        controller->GetInvoker());
+        controller->GetInvoker(),
+        parentTraceContext);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

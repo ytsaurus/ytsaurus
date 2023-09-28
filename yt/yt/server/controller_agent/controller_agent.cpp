@@ -586,6 +586,12 @@ public:
 
         auto operationId = operation->GetId();
 
+        auto parentTraceContext = TryGetCurrentTraceContext();
+
+        auto traceContext = CreateTraceContextFromCurrent("RegisterOperation");
+        auto traceContextGuard = TTraceContextGuard(traceContext);
+        traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+
         {
             // TODO(pogorelov): Refactor operation creation.
 
@@ -598,7 +604,10 @@ public:
                 Bootstrap_);
             operation->SetHost(host);
 
-            auto controller = CreateControllerForOperation(Config_, operation.Get());
+            auto controller = CreateControllerForOperation(
+                Config_,
+                operation.Get(),
+                parentTraceContext);
             operation->SetController(controller);
 
             auto jobTrackerOperationHandler = JobTracker_->RegisterOperation(
