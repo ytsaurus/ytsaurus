@@ -19,6 +19,8 @@ struct TCondition
     std::optional<TInstant> LastTransitionTime;
 };
 
+void FormatValue(TStringBuilderBase* builder, const TCondition& gpuInfo, TStringBuf /*format*/);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
@@ -28,7 +30,10 @@ struct TCondition
 struct TGpuInfo
 {
     TInstant UpdateTime;
+
     int Index = -1;
+    TString Name;
+
     double UtilizationGpuRate = 0.0;
     double UtilizationMemoryRate = 0.0;
     i64 MemoryUsed = 0;
@@ -37,11 +42,15 @@ struct TGpuInfo
     double PowerLimit = 0.0;
     i64 ClocksSm = 0;
     i64 ClocksMaxSm = 0;
-    double SMUtilizationRate = 0.0;
-    double SMOccupancyRate = 0.0;
-    TString Name;
+    double SmUtilizationRate = 0.0;
+    double SmOccupancyRate = 0.0;
     NDetail::TCondition Stuck;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBuf /*format*/);
+void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct IGpuInfoProvider
     : public TRefCounted

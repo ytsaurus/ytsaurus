@@ -34,7 +34,6 @@ private:
 
 struct TGpuStatistics
 {
-    TInstant LastUpdateTime;
     i64 CumulativeUtilizationGpu = 0;
     i64 CumulativeUtilizationMemory = 0;
     i64 CumulativeMemory = 0;
@@ -45,10 +44,12 @@ struct TGpuStatistics
     i64 CumulativeUtilizationPower = 0;
     i64 CumulativePower = 0;
     i64 CumulativeUtilizationClocksSm = 0;
-    i64 CumulativeSMUtilization = 0;
-    i64 CumulativeSMOccupancy = 0;
+    i64 CumulativeSmUtilization = 0;
+    i64 CumulativeSmOccupancy = 0;
     i64 MaxStuckDuration = 0;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistics, TStringBuf /*format*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

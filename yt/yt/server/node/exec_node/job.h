@@ -300,8 +300,9 @@ private:
     std::optional<TInstant> ExtraGpuCheckStartTime_;
     std::optional<TInstant> ExtraGpuCheckFinishTime_;
 
+    using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, TInstant>;
+    std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
-    std::vector<TGpuStatistics> GpuStatistics_;
 
     i64 MaxDiskUsage_ = 0;
 

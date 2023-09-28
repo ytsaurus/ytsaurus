@@ -65,6 +65,8 @@ public:
             status->set_power(100);
             status->set_sm_utilization(20.0);
             status->set_sm_occupancy(10.0);
+            auto* stuck = status->mutable_stuck();
+            stuck->set_status(false);
         }
 
         response->add_devices();
@@ -82,6 +84,8 @@ public:
             status->set_power(200);
             status->set_sm_utilization(25.0);
             status->set_sm_occupancy(10.0);
+            auto* stuck = status->mutable_stuck();
+            stuck->set_status(true);
         }
 
         context->Reply();
@@ -143,29 +147,31 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
     {
         const auto& gpuInfo = gpuInfos[0];
         EXPECT_EQ(gpuInfo.Index, 0);
+        EXPECT_EQ(gpuInfo.Name, "dev1");
         EXPECT_EQ(gpuInfo.UtilizationGpuRate, 0.50);
         EXPECT_EQ(gpuInfo.UtilizationMemoryRate, 0.25);
         EXPECT_EQ(gpuInfo.MemoryUsed, static_cast<i64>(100_MB));
         EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(123_MB));
         EXPECT_EQ(gpuInfo.PowerDraw, 100);
         EXPECT_EQ(gpuInfo.PowerLimit, 123);
-        EXPECT_EQ(gpuInfo.Name, "dev1");
-        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.2);
-        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
+        EXPECT_EQ(gpuInfo.SmUtilizationRate, 0.2);
+        EXPECT_EQ(gpuInfo.SmOccupancyRate, 0.1);
+        EXPECT_FALSE(gpuInfo.Stuck.Status);
     }
 
     {
         const auto& gpuInfo = gpuInfos[1];
         EXPECT_EQ(gpuInfo.Index, 2);
+        EXPECT_EQ(gpuInfo.Name, "dev2");
         EXPECT_EQ(gpuInfo.UtilizationGpuRate, 0.75);
         EXPECT_EQ(gpuInfo.UtilizationMemoryRate, 0.50);
         EXPECT_EQ(gpuInfo.MemoryUsed, static_cast<i64>(200_MB));
         EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(234_MB));
         EXPECT_EQ(gpuInfo.PowerDraw, 200);
         EXPECT_EQ(gpuInfo.PowerLimit, 234);
-        EXPECT_EQ(gpuInfo.Name, "dev2");
-        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.25);
-        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
+        EXPECT_EQ(gpuInfo.SmUtilizationRate, 0.25);
+        EXPECT_EQ(gpuInfo.SmOccupancyRate, 0.1);
+        EXPECT_TRUE(gpuInfo.Stuck.Status);
     }
 }
 
