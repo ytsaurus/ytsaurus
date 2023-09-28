@@ -290,7 +290,6 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& input
 
     FetchState_.TableFetchers.emplace_back(std::move(fetcher));
     FetchState_.TableIndices.emplace_back(tableIndex);
-    FetchState_.RowBuffers.emplace_back(std::move(rowBuffer));
 }
 
 void TMultiTablePartitioner::FetchVersionedDataSlices()

@@ -33,7 +33,6 @@ private:
     {
         std::vector<NTableClient::IChunkSliceFetcherPtr> TableFetchers;
         std::vector<size_t> TableIndices;
-        std::vector<NTableClient::TRowBufferPtr> RowBuffers;
     };
 
     const IClientPtr Client_;
