@@ -52,6 +52,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/periodic_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/propagating_storage_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/quantized_executor_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/scheduled_executor_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/scheduler_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/suspendable_action_queue_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/thread_affinity_ut.cpp
