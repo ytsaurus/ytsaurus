@@ -2829,6 +2829,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 int index = ColumnNameToKeyPartIndex(joinClause->GetKeyColumns(), referenceExpr->ColumnName);
 
                 if (index >= 0) {
+                    THROW_ERROR_EXCEPTION_IF(keyForeignEquations[index], "Foreign key column occurs more than once in a join clause");
                     keySelfEquations[index] = selfEquations[equationIndex];
                     keyForeignEquations[index] = foreignEquations[equationIndex];
                     continue;
