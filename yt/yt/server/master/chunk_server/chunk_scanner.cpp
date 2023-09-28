@@ -192,7 +192,7 @@ void TChunkScanner::Stop(int shardIndex)
     }
 }
 
-bool TChunkScanner::EnqueueChunk(TChunk* chunk)
+bool TChunkScanner::EnqueueChunk(TChunk* chunk, int errorCount)
 {
     auto shardIndex = chunk->GetShardIndex();
     if (!ActiveShardIndices_.test(shardIndex)) {
@@ -205,22 +205,25 @@ bool TChunkScanner::EnqueueChunk(TChunk* chunk)
     chunk->SetScanFlag(Kind_);
     Queue_.push({
         TEphemeralObjectPtr<TChunk>(chunk),
-        NProfiling::GetCpuInstant()
+        NProfiling::GetCpuInstant(),
+        errorCount
     });
     return true;
 }
 
-TChunk* TChunkScanner::DequeueChunk()
+std::pair<TChunk*, int> TChunkScanner::DequeueChunk()
 {
     if (TGlobalChunkScanner::HasUnscannedChunk()) {
-        return TGlobalChunkScanner::DequeueChunk();
+        return {TGlobalChunkScanner::DequeueChunk(), 0};
     }
 
     if (Queue_.empty()) {
-        return nullptr;
+        return {nullptr, 0};
     }
 
-    auto* chunk = Queue_.front().Chunk.Get();
+    const auto& front = Queue_.front();
+    auto* chunk = front.Chunk.Get();
+    auto errorCount = front.ErrorCount;
     auto relevant = false;
     if (IsObjectAlive(chunk)) {
         relevant = ActiveShardIndices_.test(chunk->GetShardIndex());
@@ -235,10 +238,10 @@ TChunk* TChunkScanner::DequeueChunk()
     Queue_.pop();
 
     if (relevant) {
-        return chunk;
+        return {chunk, errorCount};
     }
 
-    return nullptr;
+    return {nullptr, 0};
 }
 
 bool TChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const

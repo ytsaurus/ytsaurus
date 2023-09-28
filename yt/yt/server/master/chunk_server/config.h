@@ -447,13 +447,12 @@ public:
 
     //! Maximum number of chunks to process during a refresh iteration.
     int MaxBlobChunksPerRefresh;
-    //! Maximum amount of time allowed to spend during a refresh iteration.
-    TDuration MaxTimePerBlobChunkRefresh;
 
     //! Maximum number of chunks to process during a refresh iteration.
     int MaxJournalChunksPerRefresh;
-    //! Maximum amount of time allowed to spend during a refresh iteration.
-    TDuration MaxTimePerJournalChunkRefresh;
+
+    // Alert if the number of chunk refresh attempts reaches that number.
+    int MaxUnsuccessfullRefreshAttempts;
 
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;

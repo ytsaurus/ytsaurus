@@ -268,7 +268,9 @@ private:
         const TChunkLocationPtrWithReplicaInfoList& replicas);
 
     void OnRefresh();
-    void RefreshChunk(TChunk* chunk);
+    void RefreshChunk(
+        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
 
     void ResetChunkStatus(TChunk* chunk);
     void RemoveChunkReplicasFromReplicationQueues(

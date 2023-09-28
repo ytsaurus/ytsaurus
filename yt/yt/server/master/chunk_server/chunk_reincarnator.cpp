@@ -1110,7 +1110,7 @@ private:
             chunkLimit-- > 0 &&
             ChunkScanner_.HasUnscannedChunk())
         {
-            auto* chunk = ChunkScanner_.DequeueChunk();
+            auto [chunk, errorCount] = ChunkScanner_.DequeueChunk();
 
             if (!IsObjectAlive(chunk)) {
                 continue;
