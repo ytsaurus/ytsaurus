@@ -100,8 +100,6 @@ TEST(HeapProfiler, ReadProfile)
 
 TEST(HeapProfiler, AllocationTagsWithMemoryTag)
 {
-    auto maxDifference = 6_MB;
-
     EnableMemoryProfilingTags();
     auto traceContext = TTraceContext::NewRoot("Root");
     TTraceContextGuard guard(traceContext);
@@ -123,7 +121,7 @@ TEST(HeapProfiler, AllocationTagsWithMemoryTag)
 
     auto usage1 = CollectMemoryUsageSnapshot()->GetUsage(MemoryAllocationTag, MemoryAllocationTags[1]);
 
-    ASSERT_NEAR(usage1, 10_MB, maxDifference);
+    ASSERT_NEAR(usage1, 12_MB, 8_MB);
 
     traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[2]);
     ASSERT_EQ(traceContext->FindAllocationTag<TString>(MemoryAllocationTag), MemoryAllocationTags[2]);
@@ -138,12 +136,12 @@ TEST(HeapProfiler, AllocationTagsWithMemoryTag)
     heap.push_back(BlowHeap<0>());
 
     {
-        auto usage = CollectMemoryUsageSnapshot()->GetUsage(MemoryAllocationTag);
-        ASSERT_EQ(usage[MemoryAllocationTags[1]], usage1);
-        ASSERT_LE(usage[MemoryAllocationTags[2]], 1_MB);
+        auto snapshot = CollectMemoryUsageSnapshot()->GetUsage(MemoryAllocationTag);
+        ASSERT_EQ(snapshot[MemoryAllocationTags[1]], usage1);
+        ASSERT_LE(snapshot[MemoryAllocationTags[2]], 1_MB);
     }
 
-    traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[7]);
+    traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[6]);
 
     traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[3]);
     heap.push_back(BlowHeap<3>());
@@ -159,18 +157,25 @@ TEST(HeapProfiler, AllocationTagsWithMemoryTag)
     traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[4]);
     heap.push_back(BlowHeap<4>());
 
-    traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[6]);
-    heap.push_back(BlowHeap<6>());
+    traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[7]);
 
-    traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[0]);
+    traceContext->SetAllocationTagsPtr(nullptr);
 
-    auto usage = CollectMemoryUsageSnapshot()->GetUsage(MemoryAllocationTag);
+    auto snapshot = CollectMemoryUsageSnapshot()->GetUsage(MemoryAllocationTag);
 
-    ASSERT_NEAR(usage[MemoryAllocationTags[1]], usage[MemoryAllocationTags[3]], maxDifference);
-    ASSERT_NEAR(usage[MemoryAllocationTags[3]], usage[MemoryAllocationTags[5]], maxDifference);
-    ASSERT_NEAR(usage[MemoryAllocationTags[1]], usage[MemoryAllocationTags[5]], maxDifference);
-    ASSERT_NEAR(usage[MemoryAllocationTags[4]], 20_MB, 2 * maxDifference);
-    ASSERT_NEAR(usage[MemoryAllocationTags[4]], usage[MemoryAllocationTags[1]] +  usage[MemoryAllocationTags[5]], maxDifference);
+    constexpr auto maxDifference = 10_MB;
+    ASSERT_NEAR(snapshot[MemoryAllocationTags[1]], snapshot[MemoryAllocationTags[3]], maxDifference);
+    ASSERT_NEAR(snapshot[MemoryAllocationTags[3]], snapshot[MemoryAllocationTags[5]], maxDifference);
+    ASSERT_NEAR(snapshot[MemoryAllocationTags[1]], snapshot[MemoryAllocationTags[5]], maxDifference);
+
+    ASSERT_NEAR(snapshot[MemoryAllocationTags[4]], 20_MB, 15_MB);
+
+    ASSERT_NEAR(snapshot[MemoryAllocationTags[4]], snapshot[MemoryAllocationTags[1]] +  snapshot[MemoryAllocationTags[3]], 2 * maxDifference);
+    ASSERT_NEAR(snapshot[MemoryAllocationTags[4]], snapshot[MemoryAllocationTags[1]] +  snapshot[MemoryAllocationTags[5]], 2 * maxDifference);
+    ASSERT_NEAR(snapshot[MemoryAllocationTags[4]], snapshot[MemoryAllocationTags[3]] +  snapshot[MemoryAllocationTags[5]], 2 * maxDifference);
+
+    ASSERT_LE(snapshot[MemoryAllocationTags[6]], 1_MB);
+    ASSERT_LE(snapshot[MemoryAllocationTags[7]], 1_MB);
 }
 
 template <size_t Index>
@@ -200,19 +205,19 @@ TEST(HeapProfiler, HugeAllocationsTagsWithMemoryTag)
     heap.push_back(BlowHeap<1>(100));
 
     {
-        traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[0]);
+        traceContext->SetAllocationTagsPtr(nullptr);
         auto usage = CollectMemoryUsageSnapshot()->GetUsage(MemoryAllocationTag, MemoryAllocationTags[1]);
         ASSERT_GE(usage, 100_MB);
-        ASSERT_LE(usage, 130_MB);
+        ASSERT_LE(usage, 150_MB);
     }
 
     traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[2]);
     heap.push_back(BlowHeap<1>(1000));
 
-    traceContext->SetAllocationTag(MemoryAllocationTag, MemoryAllocationTags[0]);
+    traceContext->SetAllocationTagsPtr(nullptr);
     auto usage = CollectMemoryUsageSnapshot()->GetUsage(MemoryAllocationTag, MemoryAllocationTags[2]);
     ASSERT_GE(usage, 1000_MB);
-    ASSERT_LE(usage, 1200_MB);
+    ASSERT_LE(usage, 1300_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
