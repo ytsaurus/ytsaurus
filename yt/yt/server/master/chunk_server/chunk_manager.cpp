@@ -524,10 +524,12 @@ public:
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
             .WithDefaultDisabled()
+            .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
 
         // This is a temporary measure to make sure solomon quota is at least somewhat stabilized.
+        // The plan was to move these metrics into a separate shard. See original PR for details.
         CrpBufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
             .WithDefaultDisabled()
@@ -535,23 +537,21 @@ public:
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", CrpBufferedProducer_);
 
-        BufferedHistogramProducer_ = New<TBufferedProducer>();
-        ChunkServerHistogramProfiler
+        auto taggedHistogramProfiler = ChunkServerHistogramProfiler
             .WithDefaultDisabled()
-            .WithGlobal()
-            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
-            .AddProducer("", BufferedHistogramProducer_);
+            .WithSparse()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()));
 
         auto bucketBounds = GenerateGenericBucketBounds();
 
-        ChunkRowCountHistogram_ = ChunkServerHistogramProfiler.
-            GaugeHistogram("/chunk_row_count_histogram", bucketBounds);
-        ChunkCompressedDataSizeHistogram_ = ChunkServerHistogramProfiler.
-            GaugeHistogram("/chunk_compressed_data_size_histogram", bucketBounds);
-        ChunkUncompressedDataSizeHistogram_ = ChunkServerHistogramProfiler.
-            GaugeHistogram("/chunk_uncompressed_data_size_histogram", bucketBounds);
-        ChunkDataWeightHistogram_ = ChunkServerHistogramProfiler.
-            GaugeHistogram("/chunk_data_weight_histogram", bucketBounds);
+        ChunkRowCountHistogram_ = taggedHistogramProfiler
+            .GaugeHistogram("/chunk_row_count_histogram", bucketBounds);
+        ChunkCompressedDataSizeHistogram_ = taggedHistogramProfiler
+            .GaugeHistogram("/chunk_compressed_data_size_histogram", bucketBounds);
+        ChunkUncompressedDataSizeHistogram_ = taggedHistogramProfiler
+            .GaugeHistogram("/chunk_uncompressed_data_size_histogram", bucketBounds);
+        ChunkDataWeightHistogram_ = taggedHistogramProfiler
+            .GaugeHistogram("/chunk_data_weight_histogram", bucketBounds);
 
         RedistributeConsistentReplicaPlacementTokensExecutor_ =
             New<TPeriodicExecutor>(
@@ -2771,7 +2771,6 @@ private:
 
     TBufferedProducerPtr BufferedProducer_;
     TBufferedProducerPtr CrpBufferedProducer_;
-    TBufferedProducerPtr BufferedHistogramProducer_;
 
     i64 ChunksCreated_ = 0;
     i64 ChunksDestroyed_ = 0;
@@ -3142,6 +3141,10 @@ private:
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
     {
         YT_VERIFY(HasHydraContext());
+
+        if (!IsLeader()) {
+            return;
+        }
 
         if (!chunk->IsBlob() || !chunk->IsConfirmed() || chunk->IsForeign()) {
             return;
@@ -6056,10 +6059,10 @@ private:
         TSensorBuffer crpBuffer;
 
         ChunkReplicator_->OnProfiling(&buffer, &crpBuffer);
-        ChunkSealer_->OnProfiling(&buffer);
         JobRegistry_->OnProfiling(&buffer);
 
         if (IsLeader()) {
+            ChunkSealer_->OnProfiling(&buffer);
             ChunkMerger_->OnProfiling(&buffer);
             ChunkAutotomizer_->OnProfiling(&buffer);
 
