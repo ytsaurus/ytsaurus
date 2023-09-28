@@ -4379,6 +4379,74 @@ private:
         };
     }
 
+    virtual void ExportChunks(
+        TTransaction* transaction,
+        TRange<TChunk*> chunks,
+        TCellTag destinationCellTag,
+        google::protobuf::RepeatedPtrField<TChunkImportData>* importRequests) override
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(transaction->IsNative());
+        YT_VERIFY(transaction->GetPersistentState() == ETransactionState::Active);
+        YT_VERIFY(transaction->IsReplicatedToCell(destinationCellTag));
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsRegisteredMasterCell(destinationCellTag));
+
+        std::vector<std::pair<TChunk*, TCellTag>> request;
+        request.reserve(chunks.size());
+        for (auto* chunk : chunks) {
+            YT_VERIFY(chunk->IsNative());
+            request.emplace_back(chunk, destinationCellTag);
+        }
+
+        DoExportChunks(transaction, request, importRequests);
+    }
+
+    void DoExportChunks(
+        TTransaction* transaction,
+        TRange<std::pair<TChunk*, TCellTag>> chunks,
+        google::protobuf::RepeatedPtrField<TChunkImportData>* importRequests)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_ASSERT(transaction->GetPersistentState() == ETransactionState::Active);
+
+        importRequests->Reserve(chunks.size());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        for (auto [chunk, cellTag] : chunks) {
+            transactionManager->ExportObject(transaction, chunk, cellTag);
+
+            auto* importData = importRequests->Add();
+            ToProto(importData->mutable_id(), chunk->GetId());
+
+            auto* chunkInfo = importData->mutable_info();
+            chunkInfo->set_disk_space(chunk->GetDiskSpace());
+
+            ToProto(importData->mutable_meta(), chunk->ChunkMeta());
+            if (const auto& schema = chunk->Schema()) {
+                tableManager->ExportMasterTableSchema(schema.Get(), cellTag);
+                ToProto(importData->mutable_chunk_schema_id(), schema->GetId());
+            }
+
+            importData->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
+        }
+
+        YT_LOG_DEBUG("Chunks exported (TransactionId: %v, ChunkCount: %v, ChunkIds: %v)",
+            transaction->GetId(),
+            chunks.size(),
+            MakeShrunkFormattableView(
+                chunks,
+                [] (
+                    TStringBuilderBase* builder,
+                    std::pair<TChunk*, TCellTag> chunkWithCellTag)
+                {
+                    builder->AppendFormat("%v", chunkWithCellTag.first->GetId());
+                },
+                /*limit*/ 10));
+    }
+
     void HydraExportChunks(const TCtxExportChunksPtr& /*context*/, TReqExportChunks* request, TRspExportChunks* response)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -4389,9 +4457,10 @@ private:
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        const auto& tableManager = Bootstrap_->GetTableManager();
 
-        std::vector<TChunkId> chunkIds;
+        std::vector<std::pair<TChunk*, TCellTag>> parsedRequest;
+        parsedRequest.reserve(request->chunks().size());
+
         for (const auto& exportData : request->chunks()) {
             auto chunkId = FromProto<TChunkId>(exportData.id());
             auto* chunk = GetChunkOrThrow(chunkId);
@@ -4405,51 +4474,29 @@ private:
                 THROW_ERROR_EXCEPTION("Cell %v is not registered");
             }
 
-            transactionManager->ExportObject(transaction, chunk, cellTag);
-
-            if (response) {
-                auto* importData = response->add_chunks();
-                ToProto(importData->mutable_id(), chunkId);
-
-                auto* chunkInfo = importData->mutable_info();
-                chunkInfo->set_disk_space(chunk->GetDiskSpace());
-
-                ToProto(importData->mutable_meta(), chunk->ChunkMeta());
-                if (const auto& schema = chunk->Schema()) {
-                    tableManager->ExportMasterTableSchema(schema.Get(), cellTag);
-                    ToProto(importData->mutable_chunk_schema_id(), schema->GetId());
-                }
-
-                importData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
-            }
-
-            chunkIds.push_back(chunk->GetId());
+            parsedRequest.emplace_back(chunk, cellTag);
         }
 
-        YT_LOG_DEBUG("Chunks exported (TransactionId: %v, ChunkIds: %v)",
-            transactionId,
-            chunkIds);
+        DoExportChunks(
+            transaction,
+            parsedRequest,
+            response->mutable_chunks());
     }
 
-    void HydraImportChunks(const TCtxImportChunksPtr& /*context*/, TReqImportChunks* request, TRspImportChunks* /*response*/)
+    void ImportChunks(
+        TTransaction* transaction,
+        const google::protobuf::RepeatedPtrField<TChunkImportData>& request) override
     {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        YT_ASSERT(HasMutationContext());
+        YT_ASSERT(transaction->GetPersistentState() == ETransactionState::Active);
+
+        auto thisCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
-
-        if (transaction->GetPersistentState() != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& tableManager = Bootstrap_->GetTableManager();
 
-        std::vector<TChunkId> chunkIds;
-        for (const auto& importData : request->chunks()) {
+        for (const auto& importData : request) {
             auto chunkId = FromProto<TChunkId>(importData.id());
-            if (CellTagFromId(chunkId) == multicellManager->GetCellTag()) {
-                THROW_ERROR_EXCEPTION("Cannot import a native chunk %v", chunkId);
-            }
+            YT_VERIFY(CellTagFromId(chunkId) != thisCellTag);
 
             auto* chunk = ChunkMap_.Find(chunkId);
             if (!chunk) {
@@ -4470,13 +4517,38 @@ private:
             }
 
             transactionManager->ImportObject(transaction, chunk);
-
-            chunkIds.push_back(chunk->GetId());
         }
 
         YT_LOG_DEBUG("Chunks imported (TransactionId: %v, ChunkIds: %v)",
-            transactionId,
-            chunkIds);
+            transaction->GetId(),
+            MakeShrunkFormattableView(
+                request,
+                [] (TStringBuilderBase* builder, const auto& importData) {
+                    builder->AppendFormat("%v", FromProto<TChunkId>(importData.id()));
+                },
+                /*limit*/ 10));
+    }
+
+    void HydraImportChunks(const TCtxImportChunksPtr& /*context*/, TReqImportChunks* request, TRspImportChunks* /*response*/)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        auto thisCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
+
+        for (const auto& importData : request->chunks()) {
+            auto chunkId = FromProto<TChunkId>(importData.id());
+            if (CellTagFromId(chunkId) == thisCellTag) {
+                THROW_ERROR_EXCEPTION("Cannot import a native chunk %v", chunkId);
+            }
+        }
+
+        ImportChunks(transaction, request->chunks());
     }
 
     void HydraUnstageExpiredChunks(NProto::TReqUnstageExpiredChunks* request) noexcept

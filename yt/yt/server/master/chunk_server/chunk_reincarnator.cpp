@@ -16,12 +16,14 @@
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
-#include <yt/yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/helpers.h>
 
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 #include <yt/yt/server/master/transaction_server/transaction_rotator.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -39,6 +41,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
+using namespace NTransactionSupervisor;
 using namespace NYTree;
 
 using NYT::FromProto;
@@ -46,7 +49,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
+static const auto& Logger = ChunkServerLogger.WithTag("ChunkReincarnator");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,11 +59,17 @@ DEFINE_ENUM(EReincarnationResult,
     // Permanent failures.
     ((TooManyAncestors)        (2))
     ((DynamicTableChunk)       (3))
-    ((Teleportations)          (4))
-    ((NonTableChunk)           (5))
+    ((Teleportations)          (4)) // TODO(kvk1920): Remove this error.
+    ((NoTableAncestors)        (5))
     ((GenericPermanentFailure) (6))
     ((WrongChunkFormat)        (7))
     ((TooManyFailedJobs)       (8))
+    // Exported chunk reincarnation check.
+    ((NoSuchChunk)             (9))
+    ((InvalidTransaction)     (10))
+    // For testing only.
+    ((TestingTransientFalure) (11))
+    ((TestingPermanentFalure) (12))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,9 +90,10 @@ const std::pair<const char*, EReincarnationResult> ReincarnationMetrics[] = {
     {"/chunk_reincarnator/permanent_failures/too_many_ancestors", EReincarnationResult::TooManyAncestors},
     {"/chunk_reincarnator/permanent_failures/dynamic_table_chunk", EReincarnationResult::DynamicTableChunk},
     {"/chunk_reincarnator/permanent_failures/teleportations", EReincarnationResult::Teleportations},
-    {"/chunk_reincarnator/permanent_failures/non_table_chunk", EReincarnationResult::NonTableChunk},
+    {"/chunk_reincarnator/permanent_failures/no_table_ancestors", EReincarnationResult::NoTableAncestors},
     {"/chunk_reincarnator/permanent_failures/wrong_chunk_format", EReincarnationResult::WrongChunkFormat},
     {"/chunk_reincarnator/permanent_failures/too_many_failed_jobs", EReincarnationResult::TooManyFailedJobs},
+    {"/chunk_reincarnator/permanent_failures/invalid_transaction", EReincarnationResult::InvalidTransaction},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,7 +141,9 @@ public:
 
     EReincarnationResult OnJobFailed(const TReincarnationJobPtr& job)
     {
-        YT_LOG_DEBUG("Reincarnation job failed (JobId: %v, OldChunkId: %v, NewChunkId: %v)",
+        YT_LOG_DEBUG(
+            "Reincarnation job failed "
+            "(JobId: %v, OldChunkId: %v, NewChunkId: %v)",
             job->GetJobId(),
             job->OldChunkId(),
             job->NewChunkId());
@@ -194,8 +206,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEmpty
+{
+    void Load(const auto&)
+    { }
+
+    void Save(const auto&) const
+    { }
+};
+
+template <int Size>
+using TCellTagSet = TCompactFlatMap<TCellTag, TEmpty, Size>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkAncestorTraverser
 {
+private:
+    struct TTraversalState
+    {
+        int AncestorVisitBudget;
+        bool TableFound = false;
+    };
+
 public:
     explicit TChunkAncestorTraverser(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
@@ -203,100 +236,81 @@ public:
         YT_VERIFY(Bootstrap_);
     }
 
-    struct TChunkReincarnationPreparationResult
-    {
-        EReincarnationResult Result;
-        int VisitedChunkListCount;
-    };
-
     //! Returns OK if chunk is suitable for reincarnation.
-    // NB: This function must be called before CommitChunkReincarnation() is called.
-    TChunkReincarnationPreparationResult TryPrepareChunkReincarnation(
+    // NB: This function must be called before CommitChunkReincarnation().
+    EReincarnationResult TryPrepareChunkReincarnation(
         TChunk* chunk,
-        int visitedChunkListCountLimit,
-        bool chunkListCountLimitViolationIsPermanentFailure)
+        int maxVisitedChunkAncestorCount)
     {
         YT_VERIFY(IsObjectAlive(chunk));
+        ChunkId_ = chunk->GetId();
 
         NotVisitedChildrenCounts_.clear();
         TraversalStack_.clear();
-        int visitedChunkListCount = 0;
 
-        bool foundTable = false;
+        TTraversalState traversalState{maxVisitedChunkAncestorCount};
         TraversalStack_.push_back(chunk);
 
-        auto processParents = [&] (TChunkTree* chunkTree, auto callback) {
+        while (!TraversalStack_.empty()) {
+            auto* chunkTree = TraversalStack_.back();
+            TraversalStack_.pop_back();
+
             switch (chunkTree->GetType()) {
                 case EObjectType::Chunk: [[fallthrough]];
                 case EObjectType::ErasureChunk:
                     for (auto [parent, refCounter] : chunk->Parents()) {
-                        if (!callback(parent)) {
-                            break;
+                        auto result = VisitChunkAncestorOnPrepare(
+                            parent,
+                            &traversalState);
+                        if (result != EReincarnationResult::OK) {
+                            return result;
                         }
                     }
                     break;
 
                 case EObjectType::ChunkList:
-                    for (auto* parent : chunkTree->AsChunkList()->Parents()) {
-                        if (!callback(parent)) {
-                            break;
+                case EObjectType::ChunkView: {
+                    auto parents = chunkTree->GetType() == EObjectType::ChunkList
+                        ? chunkTree->AsChunkList()->Parents()
+                        : TRange(chunkTree->AsChunkView()->Parents());
+
+                    for (auto* parent : parents) {
+                        auto result = VisitChunkAncestorOnPrepare(
+                            parent,
+                            &traversalState);
+                        if (result != EReincarnationResult::OK) {
+                            return result;
                         }
                     }
                     break;
+                }
                 default:
-                    // Other chunk tree types are handled in TryProcessParent().
-                    YT_ABORT();
+                    // Other chunk tree types are handled in |VisitChunkAncestorOnPrepare|.
+                    YT_LOG_FATAL("Unexpected chunk tree type (Type: %v)",
+                        chunkTree->GetType());
             }
-        };
-
-        auto result = EReincarnationResult::OK;
-        while (!TraversalStack_.empty() && result == EReincarnationResult::OK) {
-            auto* chunkTree = TraversalStack_.back();
-            TraversalStack_.pop_back();
-
-            processParents(chunkTree, [&] (TChunkTree* parent) {
-                result = TryProcessParent(
-                    chunk->GetId(),
-                    parent,
-                    &visitedChunkListCount,
-                    visitedChunkListCountLimit,
-                    chunkListCountLimitViolationIsPermanentFailure,
-                    &foundTable);
-                return result == EReincarnationResult::OK;
-            });
         }
 
-        if (result != EReincarnationResult::OK) {
-            return {result, visitedChunkListCount};
-        }
-
-        if (!foundTable) {
+        if (!traversalState.TableFound) {
+            // NB: This case is rare enough to log it.
             YT_LOG_DEBUG("Chunk is not reachable from any table (ChunkId: %v)",
                 chunk->GetId());
-            return {EReincarnationResult::NonTableChunk, visitedChunkListCount};
+            return EReincarnationResult::NoTableAncestors;
         }
 
-        return {EReincarnationResult::OK, visitedChunkListCount};
+        return EReincarnationResult::OK;
     }
 
-    // NB: This function can be called only after successful call of TryPrepareChunkReincarnation().
+    // NB: This function can be called only after
+    // |TryPrepareChunkReincarnation| was successfully called.
     void CommitChunkReincarnation(TChunk* oldChunk, TChunk* newChunk)
     {
         YT_VERIFY(TraversalStack_.empty());
         YT_VERIFY(IsObjectAlive(oldChunk));
         YT_VERIFY(IsObjectAlive(newChunk));
+        YT_VERIFY(oldChunk->GetId() == ChunkId_);
 
-        // |TraverseStack_| is reused here to store top sort order.
-
-        auto visitParent = [&] (TChunkList* parent) {
-            auto it = NotVisitedChildrenCounts_.find(parent);
-            YT_VERIFY(it != NotVisitedChildrenCounts_.end());
-
-            if (--it->second == 0) {
-                TraversalStack_.push_back(parent);
-                NotVisitedChildrenCounts_.erase(it);
-            }
-        };
+        // NB: |TraverseStack_| is reused here to store top sort order.
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
@@ -307,59 +321,71 @@ public:
 
         TCompactVector<TChunkParent, TypicalChunkParentCount> chunkParents;
         chunkParents.reserve(oldChunk->Parents().size());
-        for (auto [parent, cardinality] : oldChunk->Parents()) {
-            YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
 
-            auto* chunkList = parent->AsChunkList();
-            // If chunk has non-static ancestor TryPrepare() returns an error.
-            YT_VERIFY(chunkList->GetKind() == EChunkListKind::Static);
-            chunkParents.push_back({chunkList, cardinality});
+        for (auto [parent, cardinality] : oldChunk->Parents()) {
+            YT_VERIFY(
+                parent->GetType() == EObjectType::ChunkList ||
+                parent->GetType() == EObjectType::ChunkView);
+
+            chunkParents.push_back({parent->AsChunkList(), cardinality});
         }
 
-        // NB: We cannot call ReplaceChunkListChild while iterating over chunk->Parents().
+        // NB: We cannot call ReplaceChunkListChild while iterating over
+        // |chunk->Parents()|.
         for (auto [chunkList, cardinality] : chunkParents) {
-            for (int i = 0; i < std::ssize(chunkList->Children()) && cardinality > 0; ++i) {
+            for (
+                int i = 0;
+                i < std::ssize(chunkList->Children()) && cardinality > 0;
+                ++i)
+            {
                 if (chunkList->Children()[i] == oldChunk) {
                     chunkManager->ReplaceChunkListChild(chunkList, i, newChunk);
                     --cardinality;
                 }
             }
 
-            visitParent(chunkList);
+            VisitChunkAncestorOnCommit(chunkList);
         }
 
         while (!TraversalStack_.empty()) {
-            auto* chunkList = TraversalStack_.back()->AsChunkList();
+            auto* chunkTree = TraversalStack_.back();
             TraversalStack_.pop_back();
 
-            RecomputeChunkListStatistics(chunkList);
-            for (auto* parent : chunkList->Parents()) {
-                visitParent(parent);
+            TRange<TChunkList*> parents;
+
+            if (chunkTree->GetType() == EObjectType::ChunkList) {
+                auto* chunkList = chunkTree->AsChunkList();
+                RecomputeChunkListStatistics(chunkList);
+                parents = chunkList->Parents();
+
+                for (auto owners : {chunkList->TrunkOwningNodes(), chunkList->BranchedOwningNodes()}) {
+                    for (auto* owner : owners) {
+                        if (owner->GetType() == EObjectType::Table) {
+                            RecomputeTabletStatistics(owner->As<TTableNode>());
+                        }
+                    }
+                }
+            } else {
+                parents = chunkTree->AsChunkView()->Parents();
+            }
+
+            for (auto* parent : parents) {
+                VisitChunkAncestorOnCommit(parent);
             }
         }
     }
 
 private:
     TBootstrap* const Bootstrap_;
-    THashMap<TChunkList*, i64> NotVisitedChildrenCounts_;
+    // Key: Either TChunkView or TChunkList.
+    THashMap<TChunkTree*, i64> NotVisitedChildrenCounts_;
     std::vector<TChunkTree*> TraversalStack_;
+    TChunkId ChunkId_ = NullChunkId;
 
-    EReincarnationResult TryProcessParent(
-        TChunkId chunkId,
-        TChunkTree* parentChunkTree,
-        int* visitedChunkListCount,
-        int visitedChunkListCountLimit,
-        bool firstChunkInBatch,
-        bool* foundTable)
+    EReincarnationResult VisitChunkAncestorOnPrepare(
+        TChunkTree* parent,
+        TTraversalState* traversalState)
     {
-        if (parentChunkTree->GetType() != EObjectType::ChunkList ||
-            parentChunkTree->AsChunkList()->GetKind() != EChunkListKind::Static)
-        {
-            return EReincarnationResult::DynamicTableChunk;
-        }
-
-        auto* parent = parentChunkTree->AsChunkList();
-
         if (auto it = NotVisitedChildrenCounts_.find(parent);
             it != NotVisitedChildrenCounts_.end())
         {
@@ -367,35 +393,65 @@ private:
             return EReincarnationResult::OK;
         }
 
-        if (++*visitedChunkListCount > visitedChunkListCountLimit) {
-            if (firstChunkInBatch) {
-                YT_LOG_DEBUG("Chunk has too many ancestors (ChunkId: %v, VisitedChunkListCount: %v)",
-                    chunkId,
-                    *visitedChunkListCount);
-                return EReincarnationResult::TooManyAncestors;
+        auto decrementAncestorVisitBudgetAndWarning = [&] {
+            if (--traversalState->AncestorVisitBudget == 0) {
+                YT_LOG_WARNING(
+                    "Cannot reincarnate chunk: too many ancestors "
+                    "(ChunkId: %v)",
+                    ChunkId_);
+                return true;
             }
+            return false;
+        };
 
-            return EReincarnationResult::Transient;
+        // Take into account current chunk ancestor.
+        if (decrementAncestorVisitBudgetAndWarning()) {
+            return EReincarnationResult::TooManyAncestors;
         }
 
-        for (auto owners : {parent->TrunkOwningNodes(), parent->BranchedOwningNodes()}) {
-            for (auto* owner : owners) {
-                if (owner->GetType() == EObjectType::Table &&
-                    owner->As<TTableNode>()->IsDynamic())
-                {
-                    return EReincarnationResult::DynamicTableChunk;
-                }
+        if (parent->GetType() == EObjectType::ChunkList) {
+            auto* chunkList = parent->AsChunkList();
+            for (auto owners : {chunkList->TrunkOwningNodes(), chunkList->BranchedOwningNodes()})
+            {
+                for (auto* owner : owners) {
+                    if (decrementAncestorVisitBudgetAndWarning()) {
+                        return EReincarnationResult::TooManyAncestors;
+                    }
 
-                if (owner->GetType() == EObjectType::Table) {
-                    *foundTable = true;
+                    if (owner->GetType() == EObjectType::Table) {
+                        auto* table = owner->As<TTableNode>();
+                        if (table->IsDynamic() &&
+                            table->GetTabletState() != NTabletClient::ETabletState::Unmounted)
+                        {
+                            return EReincarnationResult::DynamicTableChunk;
+                        }
+
+                        traversalState->TableFound = true;
+                    }
                 }
             }
+        } else if (parent->GetType() != EObjectType::ChunkView) {
+            YT_LOG_FATAL("Unexpected chunk ancestor type (Type: %v, ChunkId: %v)",
+                parent->GetType(),
+                ChunkId_);
+            return EReincarnationResult::DynamicTableChunk;
         }
 
         EmplaceOrCrash(NotVisitedChildrenCounts_, parent, 1);
         TraversalStack_.push_back(parent);
 
         return EReincarnationResult::OK;
+    }
+
+    void VisitChunkAncestorOnCommit(TChunkList* chunkList)
+    {
+        auto it = NotVisitedChildrenCounts_.find(chunkList);
+        YT_VERIFY(it != NotVisitedChildrenCounts_.end());
+
+        if (--it->second == 0) {
+            TraversalStack_.push_back(chunkList);
+            NotVisitedChildrenCounts_.erase(it);
+        }
     }
 };
 
@@ -437,7 +493,9 @@ TReincarnationJob::TReincarnationJob(
     }
 }
 
-bool TReincarnationJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
+bool TReincarnationJob::FillJobSpec(
+    TBootstrap* bootstrap,
+    TJobSpec* jobSpec) const
 {
     auto* jobSpecExt = jobSpec->MutableExtension(
         TReincarnateChunkJobSpecExt::reincarnate_chunk_job_spec_ext);
@@ -451,7 +509,8 @@ bool TReincarnationJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) co
         jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
     }
 
-    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+    NNodeTrackerServer::TNodeDirectoryBuilder builder(
+        jobSpecExt->mutable_node_directory());
     builder.Add(TargetReplicas_);
 
     const auto& chunkManager = bootstrap->GetChunkManager();
@@ -482,14 +541,41 @@ TNodeResources TReincarnationJob::GetJobResourceUsage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Typical chunk reincarnation path:
+// 1. Chunk is scanned by periodic scan (see |OnChunkScan|). If chunk is not old
+//    enough to be reincarnated then it is just skipped. Chunk's ancestors are
+//    traversed to check if chunk can be reincarnated (e.g. chunk does not
+//    belong to any mounted dynamic table). If chunk is not exported then chunk
+//    reincarnation mutation is scheduled (step 4).
+// 2. For exported chunks reincarnation check requests are
+//    sent to all cells the chunk is exported to via Hive (see
+//    |HydraCheckExportedChunkReincarnation|). Such checks are tracked on
+//    chunk's native cell by |TExportedChunkReincarnationCheckRegistry|.
+// 3. Every chunk's foreign cell sends reincarnation check result to native
+//    cell (see |HydraCheckForeignChunkReincarnation|). When reincarnation check
+//    is performed on every chunk's foreign cell, reincarnation of this chunk is
+//    scheduled (see |HydraOnExportedChunkReincarnationCheckFinished|).
+// 4. For every chunk to reincarnate new chunk object is created and
+//    reincarnation job is scheduled.
+// 5. After chunk is physically reincarnated old chunks are replaced by new
+//    ones. If there are exported origin chunks:
+// 5.1. Transaction is started.
+// 5.2. Reincarnated chunks are exported.
+// 5.3. Foreign chunk reincarnation request is sent to foreign cells.
+// 5.4. Transaction is committed.
 class TChunkReincarnator
     : public IChunkReincarnator
     , public NCellMaster::TMasterAutomatonPart
 {
 public:
     explicit TChunkReincarnator(TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkReincarnator)
-        , ChunkScanner_(bootstrap->GetObjectManager(), EChunkScanKind::Reincarnation, /*journal*/ false)
+        : TMasterAutomatonPart(
+            bootstrap,
+            EAutomatonThreadQueue::ChunkReincarnator)
+        , ChunkScanner_(
+            bootstrap->GetObjectManager(),
+            EChunkScanKind::Reincarnation,
+            /*journal*/ false)
         , TransactionRotator_(bootstrap, "Chunk reincarnator transaction")
     {
         YT_VERIFY(Bootstrap_);
@@ -502,23 +588,42 @@ public:
             "ChunkReincarnator",
             BIND(&TChunkReincarnator::Load, Unretained(this)));
 
-        RegisterMethod(BIND(&TChunkReincarnator::HydraUpdateChunkReincarnatorTransactions, Unretained(this)));
-        RegisterMethod(BIND(&TChunkReincarnator::HydraCreateReincarnatedChunks, Unretained(this)));
-        RegisterMethod(BIND(&TChunkReincarnator::HydraReincarnateChunks, Unretained(this)));
+        RegisterMethod(
+            BIND(&TChunkReincarnator::HydraCheckExportedChunkReincarnation, Unretained(this)));
+        RegisterMethod(
+            BIND(&TChunkReincarnator::HydraCheckForeignChunkReincarnation, Unretained(this)));
+        RegisterMethod(
+            BIND(&TChunkReincarnator::HydraOnExportedChunkReincarnationCheckFinished, Unretained(this)));
+        RegisterMethod(
+            BIND(&TChunkReincarnator::HydraUpdateChunkReincarnatorTransactions, Unretained(this)));
+        RegisterMethod(
+            BIND(&TChunkReincarnator::HydraCreateReincarnatedChunks, Unretained(this)));
+        RegisterMethod(
+            BIND(&TChunkReincarnator::HydraReincarnateChunks, Unretained(this)));
+        RegisterMethod(
+            BIND(&TChunkReincarnator::HydraReincarnateForeignChunks, Unretained(this)));
 
         for (auto [path, kind] : ReincarnationMetrics) {
             Metrics_[kind] = ChunkServerProfiler.Counter(path);
         }
+
+        TeleportedReincarnationCounter_ = ChunkServerProfiler
+            .WithGlobal()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetCellTag()))
+            .Counter("/chunk_reincarnator/teleported_reincarnations");
     }
 
     void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(&TChunkReincarnator::OnTransactionFinished, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TChunkReincarnator::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(
+            BIND(&TChunkReincarnator::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(
+            BIND(&TChunkReincarnator::OnTransactionFinished, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TChunkReincarnator::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(
+            BIND(&TChunkReincarnator::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void OnLeaderActive() override
@@ -532,7 +637,8 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            ChunkScanner_.Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+            ChunkScanner_.Start(
+                chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
         }
 
         const auto& config = GetDynamicConfig();
@@ -541,8 +647,15 @@ public:
         const auto& invoker = hydraFacade->GetEpochAutomatonInvoker(
             EAutomatonThreadQueue::ChunkReincarnator);
 
-        auto startExecutor = [&] (TPeriodicExecutorPtr* executor, auto callback, TDuration period) {
-            *executor = New<TPeriodicExecutor>(invoker, std::move(callback), period);
+        auto startExecutor = [&] (
+            TPeriodicExecutorPtr* executor,
+            auto callback,
+            TDuration period)
+        {
+            *executor = New<TPeriodicExecutor>(
+                invoker,
+                std::move(callback),
+                period);
             (*executor)->Start();
         };
 
@@ -553,7 +666,10 @@ public:
 
         startExecutor(
             &UpdateTransactionsExecutor_,
-            BIND(&TChunkReincarnator::UpdateTransactions, MakeWeak(this)),
+            BIND(
+                &TChunkReincarnator::UpdateTransactions,
+                MakeWeak(this),
+                /*reschedulerReincarnations*/ true),
             config->TransactionUpdatePeriod);
 
         YT_LOG_DEBUG("Chunk reincarnation scanning started");
@@ -573,6 +689,7 @@ public:
 
         ScheduledJobs_ = {};
         FailedJobRegistry_.Clear();
+        ExportedChunkReincarnationCheckRegistry_.Clear();
 
         auto stopExecutor = [] (auto& executor) {
             if (executor) {
@@ -597,13 +714,111 @@ public:
 
     void OnChunkDestroyed(TChunk* chunk) override
     {
+        if (!chunk->IsBlob() || !IsLeader()) {
+            return;
+        }
+
         ChunkScanner_.OnChunkDestroyed(chunk);
+        FailedJobRegistry_.OnChunkDestroyed(chunk);
+        ExportedChunkReincarnationCheckRegistry_.UnregisterChunk(chunk->GetId());
     }
 
 private:
-    TJobEpoch JobEpoch_ = InvalidJobEpoch;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    TChunkScanner ChunkScanner_;
+    TPeriodicExecutorPtr ChunkScanExecutor_;
+
+    //! This class is responsible for tracking exported chunk reincarnation
+    //! check. It remembers chunk and its foreign cells on check start. When
+    //! check is finished on one foreign cell this class is used to determine
+    //! if it was last reincarnation check and chunk is ready to be reincarnated.
+    class TExportedChunkReincarnationCheckRegistry
+    {
+    public:
+        using TCellTagSet = TCellTagSet<TypicalChunkExportFactor>;
+
+        // NB: It's a caller's responsibility to fill cell set. The main reason
+        // for that is to avoid code duplication: caller likely needs to
+        // traverse all cell tags the chunk is exported to.
+        TCellTagSet* RegisterChunk(TChunk* chunk)
+        {
+            YT_ASSERT(chunk->IsExported());
+
+            Previous_.erase(chunk->GetId());
+            auto [it, inserted] = Current_.insert({chunk->GetId(), {}});
+            if (!inserted) {
+                it->second.clear();
+            }
+
+            return &it->second;
+        }
+
+        bool UnregisterChunk(TChunkId chunkId)
+        {
+            auto it = Previous_.find(chunkId);
+            if (it != Previous_.end()) {
+                // Chunk should not be present in two maps at the same time.
+                YT_VERIFY(!Current_.contains(chunkId));
+                Previous_.erase(it);
+                return true;
+            }
+
+            it = Current_.find(chunkId);
+            if (it != Current_.end()) {
+                Current_.erase(it);
+                return true;
+            }
+
+            return false;
+        }
+
+        bool ApproveForCell(TChunkId chunkId, TCellTag foreignCellTag)
+        {
+            auto chunkIt = Current_.find(chunkId);
+            auto* hashMap = &Current_;
+            if (chunkIt == Current_.end()) {
+                chunkIt = Previous_.find(chunkId);
+                hashMap = &Previous_;
+                if (chunkIt == Previous_.end()) {
+                    return false;
+                }
+            }
+
+            auto& cellTagSet = chunkIt->second;
+            cellTagSet.erase(foreignCellTag);
+            if (cellTagSet.empty()) {
+                hashMap->erase(chunkIt);
+                return true;
+            }
+
+            return false;
+        }
+
+        void Rotate(const auto& onChunkExpired)
+        {
+            for (const auto& [chunkId, cellTagSet] : Previous_) {
+                onChunkExpired(chunkId);
+            }
+            Previous_.clear();
+            Previous_.swap(Current_);
+        }
+
+        void Clear()
+        {
+            Previous_.clear();
+            Current_.clear();
+        }
+
+    private:
+        using TPendingChecks = THashMap<TChunkId, TCellTagSet>;
+        TPendingChecks Previous_;
+        TPendingChecks Current_;
+    };
+
+    TExportedChunkReincarnationCheckRegistry ExportedChunkReincarnationCheckRegistry_;
+
+    TJobEpoch JobEpoch_ = InvalidJobEpoch;
 
     struct TJobInfo {
         TJobId JobId;
@@ -612,9 +827,7 @@ private:
         int MediumIndex = 0;
     };
     std::queue<TJobInfo> ScheduledJobs_;
-
-    TChunkScanner ChunkScanner_;
-    TPeriodicExecutorPtr ChunkScanExecutor_;
+    TFailedJobRegistry FailedJobRegistry_;
 
     TPeriodicExecutorPtr UpdateTransactionsExecutor_;
 
@@ -625,21 +838,22 @@ private:
     };
     std::queue<TChunkReplacementInfo> ChunksToReplace_;
 
-    // Transient.
-    TFailedJobRegistry FailedJobRegistry_;
-
     // Metrics.
     TEnumIndexedVector<EReincarnationResult, NProfiling::TCounter> Metrics_;
+    NProfiling::TCounter TeleportedReincarnationCounter_;
 
-    // Persistent field.
+    // Persistent.
     TTransactionRotator TransactionRotator_;
+    i64 ConfigVersion_ = 0;
 
     void OnReincarnationFinished(EReincarnationResult result)
     {
         if (IsLeader()) {
             Metrics_[result].Increment();
-            if (IsPermanentFailure(result) && result != EReincarnationResult::GenericPermanentFailure) {
-                Metrics_[EReincarnationResult::GenericPermanentFailure].Increment();
+            if (IsPermanentFailure(result) && result != EReincarnationResult::GenericPermanentFailure)
+            {
+                auto& counter = Metrics_[EReincarnationResult::GenericPermanentFailure];
+                counter.Increment();
             }
         }
     }
@@ -658,19 +872,25 @@ private:
 
         ScheduledJobs_ = {};
         ChunksToReplace_ = {};
-        UpdateChunkReincarnatorTransactions();
+        ExportedChunkReincarnationCheckRegistry_.Clear();
+        UpdateTransactions(/*rescheduleReincarnations*/ false);
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldClusterConfig)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& config = GetDynamicConfig();
+        const auto& oldConfig = oldClusterConfig->ChunkManager->ChunkReincarnator;
+
+        if (config->ShouldRescheduleAfterChange(*oldConfig)) {
+            ++ConfigVersion_;
+        }
+
         if (!IsLeader()) {
             return;
         }
 
-        const auto& config = GetDynamicConfig();
-        const auto& oldConfig = oldClusterConfig->ChunkManager->ChunkReincarnator;
         auto wasEnabled = oldConfig->Enable;
 
         if (config->Enable && !wasEnabled) {
@@ -689,9 +909,10 @@ private:
         }
 
         if (config->ShouldRescheduleAfterChange(*oldConfig)) {
-            YT_LOG_INFO("Chunk reincarnation global scan restarted");
             CancelScheduledReincarnationsAndRestartTransaction();
             ScheduleGlobalChunkScan();
+
+            YT_LOG_INFO("Chunk reincarnation global scan restarted");
         }
 
         if (config->Enable) {
@@ -718,6 +939,118 @@ private:
         return configManager->GetConfig()->ChunkManager->ChunkReincarnator;
     }
 
+    void DoReincarnateChunks(
+        TRange<std::pair<TChunkId, TChunkId>> chunks,
+        std::vector<std::pair<TChunk*, TChunk*>>* exportedChunks = nullptr)
+    {
+        YT_VERIFY(HasMutationContext());
+        if (chunks.empty()) {
+            return;
+        }
+
+        auto isNative = CellTagFromId(chunks[0].first) == Bootstrap_->GetCellTag();
+
+        YT_VERIFY(exportedChunks || !isNative);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& config = GetDynamicConfig();
+
+        auto maybeRescheduleChunk = [&] (TChunk* chunk) {
+            if (isNative && IsLeader()) {
+                YT_LOG_DEBUG(
+                    "Rescheduling chunk reincarnation (ChunkId: %v)",
+                    chunk->GetId());
+                RescheduleReincarnation(chunk);
+            }
+        };
+
+        TChunkAncestorTraverser traverser(Bootstrap_);
+
+        for (auto [oldChunkId, newChunkId] : chunks) {
+            auto* oldChunk = chunkManager->FindChunk(oldChunkId);
+            if (!IsObjectAlive(oldChunk)) {
+                YT_LOG_DEBUG(
+                    "Chunk reincarnation skipped because old chunk is not alive (ChunkId: %v)",
+                    oldChunkId);
+                continue;
+            }
+
+            auto* newChunk = chunkManager->FindChunk(newChunkId);
+            if (!IsObjectAlive(newChunk)) {
+                if (!isNative) {
+                    // Foreign chunks should be holded by transaction.
+                    YT_LOG_ALERT(
+                        "Imported reincarnated chunk is not alive; chunk reincarnation skipped "
+                        "(OldChunkId: %v, NewChunkId: %v)",
+                        oldChunk->GetId(),
+                        newChunkId);
+                    continue;
+                }
+
+                OnReincarnationFinished(EReincarnationResult::Transient);
+                YT_LOG_DEBUG(
+                    "New chunk is not alive; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
+                    oldChunk->GetId(),
+                    newChunkId);
+                maybeRescheduleChunk(oldChunk);
+                continue;
+            }
+
+            if (!newChunk->IsConfirmed()) {
+                OnReincarnationFinished(EReincarnationResult::Transient);
+                YT_LOG_DEBUG(
+                    "New chunk is not confirmed; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
+                    oldChunk->GetId(),
+                    newChunkId);
+                maybeRescheduleChunk(oldChunk);
+                continue;
+            }
+
+            if (newChunk->GetChunkFormat() == EChunkFormat::FileDefault) {
+                YT_LOG_ALERT(
+                    "Reincarnated chunk has weird format (NewChunkId: %v, Format: %v)",
+                    newChunk->GetId(),
+                    newChunk->GetChunkFormat());
+                OnReincarnationFinished(EReincarnationResult::GenericPermanentFailure);
+                continue;
+            }
+
+            auto result = traverser.TryPrepareChunkReincarnation(oldChunk, config->MaxVisitedChunkAncestorsPerChunk);
+            if (isNative && oldChunk->IsExported() && result == EReincarnationResult::OK) {
+                exportedChunks->push_back({oldChunk, newChunk});
+            }
+
+            if (isNative) {
+                OnReincarnationFinished(result);
+            }
+
+            if (result != EReincarnationResult::OK) {
+                maybeRescheduleChunk(oldChunk);
+                YT_LOG_DEBUG(
+                    "Failed to replace reincarnated chunk "
+                    "(ChunkId: %v, NewChunkId: %v, ReincarnationResult: %v)",
+                    oldChunkId,
+                    newChunkId,
+                    result);
+                continue;
+            }
+
+            if (!isNative) {
+                TeleportedReincarnationCounter_.Increment();
+            }
+
+            traverser.CommitChunkReincarnation(oldChunk, newChunk);
+
+            chunkManager->ScheduleChunkRequisitionUpdate(oldChunk);
+            chunkManager->ScheduleChunkRequisitionUpdate(newChunk);
+
+            YT_LOG_DEBUG(
+                "Chunk was successfully reincarnated (OldChunkId: %v, NewChunkId: %v)",
+                oldChunk->GetId(),
+                newChunk->GetId());
+        }
+    }
+
     void OnTransactionFinished(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -728,31 +1061,20 @@ private:
         auto previousTransactionId = TransactionRotator_.GetPreviousTransactionId();
         auto currentTransactionId = TransactionRotator_.GetTransactionId();
 
-        if (!TransactionRotator_.OnTransactionFinished(transaction)) {
+        if (TransactionRotator_.OnTransactionFinished(transaction)) {
+            YT_LOG_DEBUG(
+                "Chunk reincarnator transaction finished "
+                "(FinishedTransactionId: %v, ChunkReincarnatorCurrentTransactionId: %v, ChunkReincarnatorPreviousTransactionId: %v)",
+                transactionId,
+                currentTransactionId,
+                previousTransactionId);
+
+            if (IsLeader()) {
+                UpdateTransactions(/*rescheduleReincarnations*/ false);
+            }
+
             return;
         }
-
-        YT_LOG_DEBUG(
-            "Chunk reincarnator transaction finished "
-            "(FinishedTransactionId: %v, ChunkReincarnatorCurrentTransactionId: %v, ChunkReincarnatorPreviousTransactionId: %v)",
-            transactionId,
-            currentTransactionId,
-            previousTransactionId);
-
-        if (IsLeader()) {
-            UpdateTransactions();
-        }
-    }
-
-    void UpdateChunkReincarnatorTransactions()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(IsLeader());
-
-        CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            NProto::TReqUpdateChunkReincarnatorTransactions())
-            ->CommitAndLog(Logger);
     }
 
     void Clear() override
@@ -762,6 +1084,16 @@ private:
         TMasterAutomatonPart::Clear();
 
         TransactionRotator_.Clear();
+
+        ConfigVersion_ = 0;
+
+        ChunksToReplace_ = {};
+
+        FailedJobRegistry_.Clear();
+
+        ScheduledJobs_ = {};
+
+        ExportedChunkReincarnationCheckRegistry_.Clear();
     }
 
     // Transient.
@@ -769,6 +1101,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
+
+        // NB: We don't unregister exported chunk check here because this method
+        // can be called from
+        // `TExportedChunkReincarnationCheckRegistry::Unregister`.
 
         ChunkScanner_.EnqueueChunk(chunk);
     }
@@ -818,19 +1154,36 @@ private:
         };
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         while (hasReadyToReplaceChunks()) {
-            NProto::TReqReincarnateChunks req;
+            TCompactFlatMap<
+                TCellTag,
+                TCompactVector<TTransactionId, 2>,
+                MaxSecondaryMasterCells> transactionsToReplicate;
+
+            NProto::TReqReincarnateChunks replaceChunksMutation;
+
             for (int i = 0; i < batchSize && !ChunksToReplace_.empty(); ++i) {
                 auto replacementInfo = ChunksToReplace_.front();
                 ChunksToReplace_.pop();
 
-                auto* subrequest = req.add_subrequests();
-                ToProto(subrequest->mutable_old_chunk_id(), replacementInfo.OldChunkId);
+                auto* oldChunk = chunkManager->FindChunk(replacementInfo.OldChunkId);
+                if (!IsObjectAlive(oldChunk)) {
+                    continue;
+                }
+
+                auto* newChunk = chunkManager->FindChunk(replacementInfo.NewChunkId);
+                if (!IsObjectAlive(newChunk)) {
+                    continue;
+                }
+
+                auto* subrequest = replaceChunksMutation.add_subrequests();
+                ToProto(subrequest->mutable_old_chunk_id(), oldChunk->GetId());
                 ToProto(subrequest->mutable_new_chunk_id(), replacementInfo.NewChunkId);
             }
 
-            CreateMutation(hydraManager, req)
+            CreateMutation(hydraManager, replaceChunksMutation)
                 ->CommitAndLog(Logger);
         }
     }
@@ -1061,16 +1414,24 @@ private:
         }
     }
 
-    void UpdateTransactions()
+    void UpdateTransactions(bool rescheduleReincarnations)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        NProto::TReqUpdateChunkReincarnatorTransactions request;
+        if (rescheduleReincarnations) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            ExportedChunkReincarnationCheckRegistry_.Rotate([&, this] (TChunkId chunkId) {
+                auto* chunk = chunkManager->FindChunk(chunkId);
+                if (IsObjectAlive(chunk)) {
+                    RescheduleReincarnation(chunk);
+                }
+            });
+        }
 
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-
-        CreateMutation(hydraManager, request)
+        CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            NProto::TReqUpdateChunkReincarnatorTransactions())
             ->CommitAndLog(Logger);
     }
 
@@ -1093,22 +1454,26 @@ private:
         const auto& config = GetDynamicConfig();
         const auto& epochHistoryManager = Bootstrap_->GetEpochHistoryManager();
 
-        int chunkLimit = config->MaxChunksPerScan;
-        int visitedChunkListLimit = config->MaxVisitedChunkListsPerScan;
-        bool firstChunkInBatch = true;
+        auto scannedChunkBudget = config->MaxChunksPerScan;
 
-        YT_LOG_DEBUG("Chunk reincarnator iteration started (MinAllowedCreationTime: %v, MaxVisitedChunkListPerScanCount: %v)",
+        YT_LOG_DEBUG(
+            "Chunk reincarnator iteration started "
+            "(MinAllowedCreationTime: %v, MaxVisitedChunkAncestorsPerChunk: %v)",
             config->MinAllowedCreationTime,
-            visitedChunkListLimit);
+            config->MaxVisitedChunkAncestorsPerChunk);
 
         TChunkAncestorTraverser traverser(Bootstrap_);
 
         std::vector<TChunkId> chunksToReincarnate;
-        chunksToReincarnate.reserve(chunkLimit);
+        std::vector<TChunkId> exportedChunks;
+        chunksToReincarnate.reserve(scannedChunkBudget);
+        exportedChunks.reserve(scannedChunkBudget);
 
-        while (visitedChunkListLimit > 0 &&
-            chunkLimit-- > 0 &&
-            ChunkScanner_.HasUnscannedChunk())
+        while (
+            scannedChunkBudget-- > 0 &&
+            ChunkScanner_.HasUnscannedChunk() &&
+            // To prevent uncontrolled |ScheduledJobs_|'s growth.
+            ssize(chunksToReincarnate) + ssize(exportedChunks) + ssize(ScheduledJobs_) < 2 * config->MaxRunningJobCount)
         {
             auto [chunk, errorCount] = ChunkScanner_.DequeueChunk();
 
@@ -1128,71 +1493,303 @@ private:
                 continue;
             }
 
-            auto shouldReincarnate = [&] (TChunk* chunk) {
-                if (chunk->IsForeign()) {
-                    return false;
-                }
-
-                switch (chunk->GetChunkFormat()) {
-                    case EChunkFormat::TableUnversionedSchemaful:
-                    case EChunkFormat::TableUnversionedSchemalessHorizontal:
-                    case EChunkFormat::TableUnversionedColumnar:
-                    // Some old table chunks can have this format. Such chunks should be reincarnated.
-                    case EChunkFormat::FileDefault:
-                        break;
-                    default:
-                        OnReincarnationFinished(EReincarnationResult::WrongChunkFormat);
-                        return false;
-                }
-
-                if (chunk->IsExported()) {
-                    OnReincarnationFinished(EReincarnationResult::Teleportations);
-                    return false;
-                }
-
-                return true;
-            };
-
-            if (!shouldReincarnate(chunk)) {
+            if (chunk->IsForeign()) {
+                // Each cell is responsible only for its native chunks. Foreign
+                // chunks can be only reincarnated by their native cells.
                 continue;
             }
 
-            auto [result, currentVisitedChunkListCount] = traverser.TryPrepareChunkReincarnation(
+            switch (chunk->GetChunkFormat()) {
+                // Static tables.
+                case EChunkFormat::TableUnversionedSchemaful:
+                case EChunkFormat::TableUnversionedSchemalessHorizontal:
+                case EChunkFormat::TableUnversionedColumnar:
+                // Dynamic tables.
+                case EChunkFormat::TableVersionedColumnar:
+                case EChunkFormat::TableVersionedSlim:
+                case EChunkFormat::TableVersionedSimple:
+                case EChunkFormat::TableVersionedIndexed:
+                // Some old table chunks can have this format. Such chunks should be reincarnated.
+                case EChunkFormat::FileDefault:
+                    break;
+                default:
+                    YT_LOG_DEBUG("Chunk cannot be reincarnated: wrong format (ChunkId: %v, Format: %v)",
+                        chunk->GetId(),
+                        chunk->GetChunkFormat());
+                    OnReincarnationFinished(EReincarnationResult::WrongChunkFormat);
+                    continue;
+            }
+
+            auto result = traverser.TryPrepareChunkReincarnation(
                 chunk,
-                visitedChunkListLimit,
-                /*chunkListCountLimitViolationIsPermanentFailure*/ firstChunkInBatch);
-            firstChunkInBatch = false;
-            visitedChunkListLimit -= currentVisitedChunkListCount;
+                config->MaxVisitedChunkAncestorsPerChunk);
+            YT_ASSERT(result != EReincarnationResult::Transient);
 
             switch (result) {
                 case EReincarnationResult::OK:
-                    YT_LOG_TRACE("Scheduling new chunk creation (OldChunkId: %v)",
-                        chunk->GetId());
-                    chunksToReincarnate.push_back(chunk->GetId());
+                    if (chunk->IsExported()) {
+                        YT_LOG_DEBUG(
+                            "Scheduling exported chunk reincarnation check (OldChunkId: %v)",
+                            chunk->GetId());
+                        exportedChunks.push_back(chunk->GetId());
+                    } else {
+                        YT_LOG_DEBUG(
+                            "Scheduling reincarnated chunk creation (OldChunkId: %v)",
+                            chunk->GetId());
+                        chunksToReincarnate.push_back(chunk->GetId());
+                    }
                     break;
-                case EReincarnationResult::Transient:
-                    RescheduleReincarnation(chunk);
-                    [[fallthrough]];
                 default:
+                    YT_LOG_DEBUG(
+                        "Chunk cannot be reincarnated (ChunkId: %v, Reason: %v)",
+                        chunk->GetId(),
+                        result);
                     OnReincarnationFinished(result);
+                    break;
             }
         }
 
         if (!chunksToReincarnate.empty()) {
+            // NB: About 95% of all chunks have never been exported.
             NProto::TReqCreateReincarnatedChunks request;
+            request.set_config_version(ConfigVersion_);
             for (auto chunkId : chunksToReincarnate) {
                 ToProto(request.add_subrequests()->mutable_old_chunk_id(), chunkId);
             }
             CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
                 ->CommitAndLog(Logger);
+
+            YT_LOG_DEBUG("Chunk reincarnation scheduled "
+                "(ChunkCount: %v, ChunkIds: %v)",
+                chunksToReincarnate.size(),
+                chunksToReincarnate);
         }
 
-        YT_LOG_DEBUG("Chunk reincarnation scanner finished (ScheduledChunkIdsCount: %v, ScheduledChunkIds: %v)",
-            chunksToReincarnate.size(),
-            chunksToReincarnate);
+        // Exported chunks have to be handled a bit differently. Chunk
+        // reincarnation check has to be performed on every cell to which it
+        // has been exported.
+        if (!exportedChunks.empty()) {
+            NProto::TReqCheckExportedChunkReincarnation mutationRequest;
+            mutationRequest.set_config_version(ConfigVersion_);
+            ToProto(mutationRequest.mutable_chunk_ids(), exportedChunks);
+            CreateMutation(
+                Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                mutationRequest)
+                ->CommitAndLog(Logger);
+
+            YT_LOG_DEBUG("Exported chunk reincarnation check scheduled "
+                "(ChunkIdsCount: %v, ChunkIds: %v)",
+                exportedChunks.size(),
+                exportedChunks);
+        }
     }
 
-    void HydraUpdateChunkReincarnatorTransactions(NProto::TReqUpdateChunkReincarnatorTransactions* /*request*/)
+    void HydraCheckExportedChunkReincarnation(
+        NProto::TReqCheckExportedChunkReincarnation* request)
+    {
+        // NB: This mutation is needed to post reliable hive message to foreign
+        // cells. Registering pending exported chunk reincarnation checks is
+        // done transiently. See |ExportedChunkReincarnationCheckRegistry_|.
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        using TCellToChunksMap = TCompactFlatMap<
+            TCellTag,
+            std::vector<TChunkId>,
+            MaxSecondaryMasterCells>;
+        TCellToChunksMap cellToChunks;
+        cellToChunks.reserve(multicellManager->GetRegisteredMasterCellTags().size());
+        for (auto protoChunkId : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                YT_LOG_DEBUG("Scheduling reincarnation check was skipped for missing exported chunk (ChunkId: %v)", chunkId);
+                continue;
+            }
+
+            YT_ASSERT(chunk->IsExported());
+
+            auto* cellTags = IsLeader()
+                ? ExportedChunkReincarnationCheckRegistry_.RegisterChunk(chunk)
+                : nullptr;
+
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                if (!chunk->IsExportedToCell(cellTag)) {
+                    continue;
+                }
+
+                cellToChunks[cellTag].push_back(chunkId);
+                if (cellTags) {
+                    cellTags->insert({cellTag, {}});
+                }
+            }
+
+            YT_ASSERT(!cellTags || !cellTags->empty());
+        }
+
+        for (const auto& [cellTag, chunkIds] : cellToChunks) {
+            NProto::TReqCheckForeignChunkReincarnation request;
+            request.set_config_version(ConfigVersion_);
+            ToProto(request.mutable_chunk_ids(), chunkIds);
+            multicellManager->PostToMaster(request, cellTag);
+            YT_LOG_TRACE(
+                "Posting foreign chunk reincarnation check request "
+                "(ForeignCellTag: %v, ConfigVersion: %v, ChunkIds: %v)",
+                cellTag, ConfigVersion_, chunkIds);
+        }
+    }
+
+    void HydraCheckForeignChunkReincarnation(NProto::TReqCheckForeignChunkReincarnation* request)
+    {
+        YT_ASSERT(!request->chunk_ids().empty());
+
+        const auto& config = GetDynamicConfig();
+
+        YT_LOG_DEBUG(
+            "Checking if reincarnation is possible for foreign chunks "
+            "(MinAllowedCreationTime: %v, MaxVisitedChunkAncestorsPerChunk: %v)",
+            config->MinAllowedCreationTime,
+            config->MaxVisitedChunkAncestorsPerChunk);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        TChunkAncestorTraverser traverser(Bootstrap_);
+
+        NProto::TReqOnExportedChunkReincarnationCheckFinished response;
+        response.set_foreign_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+        response.set_config_version(request->config_version());
+
+        std::optional<TCellTag> nativeCellTag;
+
+        int readyToReincarnateChunkCount = 0;
+
+        for (auto chunkId : request->chunk_ids()) {
+            auto* subresponse = response.add_subresponses();
+            ToProto(subresponse->mutable_chunk_id(), chunkId);
+            auto* chunk = chunkManager->FindChunk(FromProto<TChunkId>(chunkId));
+            if (!IsObjectAlive(chunk)) {
+                subresponse->set_result(ToProto<int>(EReincarnationResult::NoSuchChunk));
+                continue;
+            }
+
+            if (!nativeCellTag) {
+                nativeCellTag = chunk->GetNativeCellTag();
+                YT_ASSERT(*nativeCellTag != multicellManager->GetCellTag());
+            }
+            YT_ASSERT(*nativeCellTag == chunk->GetNativeCellTag());
+
+            auto result = traverser.TryPrepareChunkReincarnation(
+                chunk,
+                config->MaxVisitedChunkAncestorsPerChunk);
+
+            if (result == EReincarnationResult::OK) {
+                ++readyToReincarnateChunkCount;
+            }
+
+            subresponse->set_result(ToProto<int>(result));
+        }
+
+        if (nativeCellTag) [[likely]] {
+            multicellManager->PostToMaster(response, *nativeCellTag);
+
+            YT_LOG_DEBUG(
+                "Foreign chunk reincarnation check finished "
+                "(TotalChunkCount: %v, ReadyForReincarnationChunkCount: %v)",
+                request->chunk_ids().size(),
+                readyToReincarnateChunkCount);
+        }
+    }
+
+    void HydraOnExportedChunkReincarnationCheckFinished(
+        NProto::TReqOnExportedChunkReincarnationCheckFinished* response)
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        auto foreignCellTag = FromProto<TCellTag>(response->foreign_cell_tag());
+
+        if (response->config_version() != ConfigVersion_) {
+            YT_LOG_DEBUG(
+                "Cannot prepare exported chunk reincarnation: config version mismatch ",
+                "(ForeignCellTag: %v, CurrentConfigVersion: %v, ResponseConfigVersion: %v)",
+                foreignCellTag,
+                ConfigVersion_,
+                response->config_version());
+            return;
+        }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        std::vector<TChunkId> chunksToReincarnate;
+        chunksToReincarnate.reserve(response->subresponses().size());
+
+        for (const auto& subresponse : response->subresponses()) {
+            auto chunkId = FromProto<TChunkId>(subresponse.chunk_id());
+            auto result = CheckedEnumCast<EReincarnationResult>(subresponse.result());
+
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            bool logged = false;
+            switch (result) {
+                case EReincarnationResult::NoSuchChunk: [[fallthrough]];
+                case EReincarnationResult::NoTableAncestors:
+                    [[fallthrough]];
+                case EReincarnationResult::OK:
+                    if (ExportedChunkReincarnationCheckRegistry_.ApproveForCell(
+                        chunkId,
+                        foreignCellTag))
+                    {
+                        chunksToReincarnate.push_back(chunkId);
+                    }
+                    break;
+                default:
+                    YT_LOG_ALERT(
+                        "Unexpected exported chunk reincarnation check result "
+                        "(ChunkId: %v, ForeignCellTag: %v, ReincarnationResult: %v)",
+                        chunkId,
+                        foreignCellTag,
+                        result);
+                    logged = true;
+                    [[fallthrough]];
+                case EReincarnationResult::TooManyAncestors: [[fallthrough]];
+                case EReincarnationResult::DynamicTableChunk:
+                    // We don't want to handle the same chunk multiple times.
+                    if (ExportedChunkReincarnationCheckRegistry_.UnregisterChunk(chunkId)) {
+                        YT_LOG_DEBUG_UNLESS(logged,
+                            "Exported chunk reincarnation check failed "
+                            "(ChunkId: %v, ForeignCellTag: %v, ReincarnationResult: %v)",
+                            chunkId,
+                            foreignCellTag,
+                            result);
+                        OnReincarnationFinished(result);
+                    }
+                    break;
+            }
+        }
+
+        if (chunksToReincarnate.empty()) {
+            return;
+        }
+
+        NProto::TReqCreateReincarnatedChunks mutationRequest;
+        mutationRequest.set_config_version(ConfigVersion_);
+        for (auto chunkId : chunksToReincarnate) {
+            auto* subrequest = mutationRequest.add_subrequests();
+            ToProto(subrequest->mutable_old_chunk_id(), chunkId);
+        }
+
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
+            ->CommitAndLog(Logger);
+    }
+
+    void HydraUpdateChunkReincarnatorTransactions(
+        NProto::TReqUpdateChunkReincarnatorTransactions* /*request*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
@@ -1208,6 +1805,14 @@ private:
 
     void HydraCreateReincarnatedChunks(NProto::TReqCreateReincarnatedChunks* request)
     {
+        if (!GetDynamicConfig()->Enable) {
+            return;
+        }
+
+        if (request->has_config_version() && request->config_version() != ConfigVersion_) {
+            return;
+        }
+
         if (!IsObjectAlive(TransactionRotator_.GetTransaction())) {
             YT_LOG_DEBUG(
                 "Chunk reincarnation transaction is not alive (TransactionId: %v)",
@@ -1251,17 +1856,10 @@ private:
                 continue;
             }
 
-            auto requisitionIndex = oldChunk->GetLocalRequisitionIndex();
+            auto requisitionIndex = oldChunk->GetAggregatedRequisitionIndex();
+
             if (requisitionIndex == EmptyChunkRequisitionIndex) {
                 // We don't want to reincarnate unused chunks, do we?
-                continue;
-            }
-
-            if (oldChunk->IsExported()) {
-                YT_LOG_DEBUG(
-                    "Chunk was teleported after reincarnated chunks creation has been scheduled (ChunkId: %v)",
-                    oldChunkId);
-                OnReincarnationFinished(EReincarnationResult::Teleportations);
                 continue;
             }
 
@@ -1280,13 +1878,13 @@ private:
                 account,
                 replicationFactor,
                 oldChunk->GetErasureCodec(),
-                chunkManager->GetMediumByIndexOrThrow(mediumIndex),
+                chunkManager->GetMediumByIndex(mediumIndex),
                 /*readQuorum*/ 0,
                 /*writeQuorum*/ 0,
                 /*movable*/ true,
                 vital);
 
-            newChunk->SetLocalRequisitionIndex(requisitionIndex, requisitionRegistry, Bootstrap_->GetObjectManager());
+            // NB: Chunk requisition is set on chunk replacement.
 
             createdChunks.push_back({oldChunkId, newChunk->GetId(), mediumIndex});
         }
@@ -1310,95 +1908,129 @@ private:
             return;
         }
 
+        if (request->has_config_version() && request->config_version() != ConfigVersion_) {
+            return;
+        }
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         TChunkAncestorTraverser traverser(Bootstrap_);
 
-        auto rescheduleChunkIfNeeded = [&] (TChunk* chunk) {
-            if (IsLeader()) {
-                YT_LOG_DEBUG(
-                    "Rescheduling chunk reincarnation (ChunkId: %v)",
-                    chunk->GetId());
-                RescheduleReincarnation(chunk);
-            }
-        };
-
-        int visitedChunkListLimit = config->MaxVisitedChunkListsPerScan;
-
-        bool firstChunkInBatch = true;
+        std::vector<std::pair<TChunkId, TChunkId>> parsedSubrequests;
+        parsedSubrequests.reserve(request->subrequests_size());
         for (const auto& subrequest : request->subrequests()) {
-            auto oldChunkId = FromProto<TChunkId>(subrequest.old_chunk_id());
-            auto* oldChunk = chunkManager->FindChunk(oldChunkId);
-            if (!IsObjectAlive(oldChunk)) {
-                YT_LOG_DEBUG(
-                    "Chunk reincarnation skipped because old chunk is not alive (ChunkId: %v)",
-                    oldChunkId);
-                continue;
-            }
+            parsedSubrequests.emplace_back(
+                FromProto<TChunkId>(subrequest.old_chunk_id()),
+                FromProto<TChunkId>(subrequest.new_chunk_id()));
+        }
 
-            if (oldChunk->IsExported()) {
-                OnReincarnationFinished(EReincarnationResult::Teleportations);
-                YT_LOG_DEBUG(
-                    "Chunk was teleported after reincarnation had been scheduled; chunk reincarnation skipped (ChunkId: %v)",
-                    oldChunkId);
-                continue;
-            }
+        std::vector<std::pair<TChunk*, TChunk*>> multicellReincarnations;
 
-            auto newChunkId = FromProto<TChunkId>(subrequest.new_chunk_id());
-            auto* newChunk = chunkManager->FindChunk(newChunkId);
-            if (!IsObjectAlive(newChunk)) {
-                OnReincarnationFinished(EReincarnationResult::Transient);
-                YT_LOG_DEBUG(
-                    "New chunk is not alive; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
-                    oldChunk->GetId(),
-                    newChunkId);
-                rescheduleChunkIfNeeded(oldChunk);
-                continue;
-            }
+        DoReincarnateChunks(
+            parsedSubrequests,
+            &multicellReincarnations);
 
+        if (multicellReincarnations.empty()) {
+            return;
+        }
 
-            if (!newChunk->IsConfirmed()) {
-                OnReincarnationFinished(EReincarnationResult::Transient);
-                YT_LOG_DEBUG(
-                    "New chunk is not confirmed; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
-                    oldChunk->GetId(),
-                    newChunkId);
-                rescheduleChunkIfNeeded(oldChunk);
-                continue;
-            }
+        // Reincarnation of exported chunks is a bit complicated.
+        // 1. Native cell starts transaction and exports chunks under this
+        //    transaction. Transaction has to be replicated to all cells.
+        // 2. Native cell sends to other participants reincarnation request.
+        //    Every foreign cell checks if reincarnation is possible, imports
+        //    new chunks under reincarnation transaction and performs chunk
+        //    replacement. Foreign cell _can_ ignore reincarnation request but
+        //    such failures are expected to be extremely rare.
+        // 3. Native cell commits transaction. Transaction commit is serialized
+        //    with chunks export via Hive.
 
-            if (newChunk->GetChunkFormat() == EChunkFormat::FileDefault) {
-                YT_LOG_ALERT(
-                    "Reincarnated chunk has weird format (NewChunkId: %v, Format: %v)",
-                    newChunk->GetId(),
-                    newChunk->GetChunkFormat());
-            }
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-            // Check chunk ancestors again because they could be changed after
-            // chunk reincarnation was scheduled.
-            auto [result, visitedChunkListCount] = traverser.TryPrepareChunkReincarnation(
-                oldChunk,
-                visitedChunkListLimit,
-                /*chunkListCountLimitViolationIsPermanentFailure*/ firstChunkInBatch);
-            visitedChunkListLimit -= visitedChunkListCount;
-            firstChunkInBatch = false;
+        using TPerCellReincarnationInfo = TCompactFlatMap<
+            TCellTag,
+            std::pair<std::vector<TChunk*>, std::vector<TChunk*>>,
+            MaxSecondaryMasterCells>;
+        TPerCellReincarnationInfo perCellReincarnationInfo;
 
-            OnReincarnationFinished(result);
-
-            switch (result) {
-                case EReincarnationResult::OK:
-                    traverser.CommitChunkReincarnation(oldChunk, newChunk);
-
-                    YT_LOG_DEBUG("Chunk was successfully reincarnated (OldChunkId: %v, NewChunkId: %v)",
-                        oldChunk->GetId(),
-                        newChunk->GetId());
-                    break;
-                case EReincarnationResult::Transient:
-                    rescheduleChunkIfNeeded(oldChunk);
-                    break;
-                default:;
+        for (auto [oldChunk, newChunk] : multicellReincarnations) {
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                if (oldChunk->IsExportedToCell(cellTag)) {
+                    auto& [oldChunks, newChunks] = perCellReincarnationInfo[cellTag];
+                    oldChunks.push_back(oldChunk);
+                    newChunks.push_back(newChunk);
+                }
             }
         }
+
+        TCellTagList foreignCells;
+        foreignCells.reserve(perCellReincarnationInfo.size());
+        for (const auto& [cellTag, reincarnationInfo] : perCellReincarnationInfo) {
+            foreignCells.push_back(cellTag);
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->StartTransaction(
+            nullptr,
+            /*prerequisiteTransactions*/ {},
+            /*replicatedToCellTags*/ foreignCells,
+            config->MulticellReincarnationTransactionTimeout,
+            /*deadline*/ std::nullopt,
+            "Multicell chunk reincarnation",
+            EmptyAttributes(),
+            /*isCypressTransaction*/ false);
+
+        for (const auto& [cellTag, chunks] : perCellReincarnationInfo) {
+            const auto& [oldChunks, newChunks] = chunks;
+            YT_ASSERT(oldChunks.size() == newChunks.size());
+
+            // Export chunks.
+
+            NChunkClient::NProto::TReqImportChunks importChunks;
+            ToProto(importChunks.mutable_transaction_id(), transaction->GetId());
+            chunkManager->ExportChunks(transaction, newChunks, cellTag, importChunks.mutable_chunks());
+            multicellManager->PostToMaster(importChunks, cellTag);
+
+            // Send reincarnation request.
+
+            NProto::TReqReincarnateForeignChunks reincarnationRequest;
+            ToProto(reincarnationRequest.mutable_transaction_id(), transaction->GetId());
+            reincarnationRequest.mutable_subrequests()->Reserve(oldChunks.size());
+            for (int i = 0; i < std::ssize(oldChunks); ++i) {
+                auto* subrequest = reincarnationRequest.add_subrequests();
+                ToProto(subrequest->mutable_old_chunk_id(), oldChunks[i]->GetId());
+                ToProto(subrequest->mutable_new_chunk_id(), newChunks[i]->GetId());
+            }
+
+            multicellManager->PostToMaster(reincarnationRequest, cellTag);
+        }
+
+        transactionManager->CommitMasterTransaction(transaction, /*options*/ {});
+    }
+
+    void HydraReincarnateForeignChunks(NProto::TReqReincarnateForeignChunks* request)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!transaction || transaction->GetPersistentState() != ETransactionState::Active) {
+            YT_LOG_ALERT("Attempted to reincarnate foreign chunks under invalid transaction (TransactionId: %v)",
+                transactionId);
+            return;
+        }
+
+        std::vector<std::pair<TChunkId, TChunkId>> parsedSubrequests;
+        parsedSubrequests.reserve(request->subrequests().size());
+        for (const auto& subrequest : request->subrequests()) {
+            parsedSubrequests.emplace_back(
+                FromProto<TChunkId>(subrequest.old_chunk_id()),
+                FromProto<TChunkId>(subrequest.new_chunk_id()));
+        }
+
+        DoReincarnateChunks(parsedSubrequests);
     }
 
     void Save(NCellMaster::TSaveContext& context) const
@@ -1406,6 +2038,7 @@ private:
         using NYT::Save;
 
         Save(context, TransactionRotator_);
+        Save(context, ConfigVersion_);
     }
 
     void Load(NCellMaster::TLoadContext& context)
@@ -1418,11 +2051,15 @@ private:
         } else {
             TransactionRotator_.Clear();
         }
+
+        // COMPAT(kvk1920)
+        if (context.GetVersion() >= EMasterReign::MulticellChunkReincarnator) {
+            Load(context, ConfigVersion_);
+        }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 IChunkReincarnatorPtr CreateChunkReincarnator(NCellMaster::TBootstrap* bootstrap)
 {

@@ -193,7 +193,10 @@ public:
 
     TDuration ChunkScanPeriod;
     int MaxChunksPerScan;
-    int MaxVisitedChunkListsPerScan;
+
+    //! Either chunk lists or chunk owners.
+    //! Exceeding this limit means chunk cannot be reincarnated.
+    int MaxVisitedChunkAncestorsPerChunk;
 
     TInstant MinAllowedCreationTime;
 
@@ -203,9 +206,14 @@ public:
     TDuration TransactionUpdatePeriod;
 
     int MaxFailedJobs;
+
+    //! Max chunk count for which failed jobs are tracked.
     int MaxTrackedChunks;
 
-    bool ShouldRescheduleAfterChange(const TDynamicChunkReincarnatorConfig& that) const noexcept;
+    TDuration MulticellReincarnationTransactionTimeout;
+
+    bool ShouldRescheduleAfterChange(
+        const TDynamicChunkReincarnatorConfig& that) const noexcept;
 
     REGISTER_YSON_STRUCT(TDynamicChunkReincarnatorConfig);
 

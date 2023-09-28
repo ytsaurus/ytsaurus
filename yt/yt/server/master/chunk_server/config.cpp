@@ -205,7 +205,7 @@ void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunks_per_scan", &TThis::MaxChunksPerScan)
         .GreaterThanOrEqual(0)
         .Default(50);
-    registrar.Parameter("max_visited_chunk_lists_per_scan", &TThis::MaxVisitedChunkListsPerScan)
+    registrar.Parameter("max_visited_chunk_ancestors_per_chunk", &TThis::MaxVisitedChunkAncestorsPerChunk)
         .GreaterThan(0)
         .Default(1000);
 
@@ -230,13 +230,16 @@ void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_tracked_chunks", &TThis::MaxTrackedChunks)
         .GreaterThanOrEqual(0)
         .Default(400);
+
+    registrar.Parameter("multicell_reincarnation_transaction_timeout", &TThis::MulticellReincarnationTransactionTimeout)
+        .Default(TDuration::Hours(1));
 }
 
 bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
     const TDynamicChunkReincarnatorConfig& that) const noexcept
 {
     return MinAllowedCreationTime != that.MinAllowedCreationTime ||
-        MaxVisitedChunkListsPerScan != that.MaxVisitedChunkListsPerScan;
+        MaxVisitedChunkAncestorsPerChunk != that.MaxVisitedChunkAncestorsPerChunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

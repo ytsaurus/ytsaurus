@@ -1,5 +1,6 @@
 package NYT.NChunkServer.NProto;
 
+import "yt/ytlib/chunk_client/proto/chunk_service.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,6 +16,8 @@ message TReqCreateReincarnatedChunks
     }
 
     repeated TSubrequest subrequests = 1;
+    // COMPAT(kvk1920): Make this field `required` after 23.2.
+    optional int64 config_version = 2;
 }
 
 message TReqReincarnateChunks
@@ -26,6 +29,51 @@ message TReqReincarnateChunks
     }
 
     repeated TSubrequest subrequests = 1;
+    // COMPAT(kvk1920) Make this field `required`.
+    optional int64 config_version = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCheckExportedChunkReincarnation
+{
+    required int64 config_version = 1;
+    repeated NYT.NProto.TGuid chunk_ids = 2;
+}
+
+message TReqCheckForeignChunkReincarnation
+{
+    required int64 config_version = 1;
+    repeated NYT.NProto.TGuid chunk_ids = 2;
+    // NB: There is no need for chunk's native cell tag because it can be
+    // deduced from chunk id.
+}
+
+message TReqOnExportedChunkReincarnationCheckFinished
+{
+    message TSubresponse
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required int32 result = 2; // EReincarnationResult
+    }
+
+    required int64 config_version = 1;
+    required int32 foreign_cell_tag = 2;
+    repeated TSubresponse subresponses = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReincarnateForeignChunks
+{
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid old_chunk_id = 1;
+        required NYT.NProto.TGuid new_chunk_id = 2;
+    }
+
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated TSubrequest subrequests = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
