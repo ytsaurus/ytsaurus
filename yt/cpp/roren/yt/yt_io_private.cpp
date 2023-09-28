@@ -231,7 +231,7 @@ public:
 
     std::vector<TDynamicTypeTag> GetInputTags() const override
     {
-        return {TDynamicTypeTag{}};
+        return std::vector<TDynamicTypeTag>{TTypeTag<NYT::TNode>("yt-node-write-input-0")};
     }
 
     std::vector<TDynamicTypeTag> GetOutputTags() const override
