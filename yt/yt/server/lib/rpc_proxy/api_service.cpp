@@ -314,7 +314,7 @@ IRowStreamEncoderPtr CreateRowStreamEncoder(
             }
 
             auto fallbackEncoder = createNonArrowEncoder(arrowFallbackRowsetFormat);
-            return CreateArrowRowStreamEncoder(schema, nameTable, fallbackEncoder);
+            return CreateArrowRowStreamEncoder(schema, nameTable, fallbackEncoder, controlAttributesConfig);
         }
         default:
             ThrowUnsupportedRowsetFormat(rowsetFormat);
