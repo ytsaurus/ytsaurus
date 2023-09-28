@@ -3,7 +3,7 @@ name: Release strawberry controller
 on:
   push:
     tags:
-      - 'docker/strawberry/[0-9]+\.[0-9]+\.[0-9]+'
+      - 'yt/chyt/controller/v[0-9]+\.[0-9]+\.[0-9]+'
 
 jobs:
   start-vm:
@@ -40,13 +40,6 @@ jobs:
         with:
           path: ytsaurus
 
-      - name: Checkout ydb
-        uses: actions/checkout@v3
-        with:
-          repository: ydb-platform/ydb
-          ref: 1ddfdf5e0386126afd13afb315bd51b7272ec6fa
-          path: ydb
-
   build:
     name: Build
     needs:
@@ -70,7 +63,7 @@ jobs:
       - name: Parse tag
         id: tag
         run: |
-          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/strawberry/})" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/yt/chyt/controller/v})" >> $GITHUB_OUTPUT
 
   release:
     name: Release
