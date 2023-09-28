@@ -450,10 +450,10 @@ class TestGetJob(_TestGetJobCommon):
         release_breakpoint()
         op.track()
 
+        op.wait_for_state("completed")
+
         # We emulate the situation when completed job still reports "running" to archive.
         _update_job_in_archive(op.id, job_id, {"controller_state": "running", "transient_state": "running"})
-
-        op.wait_for_state("completed")
 
         job_info = retry(lambda: get_job(op.id, job_id))
         assert job_info.get("controller_state") == "running"
