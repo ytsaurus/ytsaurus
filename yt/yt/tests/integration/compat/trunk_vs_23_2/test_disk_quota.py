@@ -4,6 +4,6 @@ from original_tests.yt.yt.tests.integration.node.test_disk_quota \
 
 class TestDiskMediumAccountingtUpToCA(BaseTestDiskMediumAccounting):
     ARTIFACT_COMPONENTS = {
-        "23_1": ["master", "node", "job-proxy", "exec", "tools"],
+        "23_2": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }

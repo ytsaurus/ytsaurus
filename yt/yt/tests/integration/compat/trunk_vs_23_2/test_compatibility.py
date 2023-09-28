@@ -60,14 +60,14 @@ class ClusterSetupTestBase(YTEnvSetup):
 
 class TestEverythingIsOld(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "23_1": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
+        "23_2": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
                  "controller-agent", "proxy", "http-proxy"]
     }
 
 
 class TestNewUpToProxies(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "23_1": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
+        "23_2": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
                  "controller-agent"],
         "trunk": ["proxy", "http-proxy"],
     }
@@ -75,20 +75,20 @@ class TestNewUpToProxies(ClusterSetupTestBase):
 
 class TestNewUpToSchedulerAndCA(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "23_1": ["master", "node", "job-proxy", "exec", "tools"],
+        "23_2": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
 
 class TestNewUpToNodes(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "23_1": ["master"],
+        "23_2": ["master"],
         "trunk": ["node", "job-proxy", "exec", "tools", "scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
 
 class TestNewNodesOldSchedulerAndCA(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "23_1": ["master", "scheduler", "controller-agent"],
+        "23_2": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
     }
