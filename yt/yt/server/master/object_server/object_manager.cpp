@@ -1945,11 +1945,8 @@ void TObjectManager::HydraPrepareDestroyObjects(
 
 TFuture<void> TObjectManager::DestroySequoiaObjects(NProto::TReqDestroyObjects request)
 {
-    const auto& client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-    auto transaction = CreateSequoiaTransaction(client, Logger);
-
-    return transaction->Start(/*startOptions*/ {})
-        .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] () mutable {
+    return StartSequoiaTransaction(Bootstrap_->GetRootClient(), Logger)
+        .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) mutable {
             for (auto protoId : request.object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);
                 auto type = TypeFromId(id);

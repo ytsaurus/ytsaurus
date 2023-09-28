@@ -1230,10 +1230,11 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader.cpp

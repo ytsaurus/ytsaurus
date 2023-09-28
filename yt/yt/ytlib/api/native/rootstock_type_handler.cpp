@@ -48,9 +48,8 @@ public:
             THROW_ERROR_EXCEPTION("Rootstocks cannot be created in transaction");
         }
 
-        auto transaction = CreateSequoiaTransaction(Client_, ApiLogger);
-        WaitFor(transaction->Start(/*options*/ {}))
-            .ThrowOnError();
+        auto transaction = WaitFor(StartSequoiaTransaction(Client_, ApiLogger))
+            .ValueOrThrow();
 
         const auto& connection = Client_->GetNativeConnection();
         auto rootstockCellTag = connection->GetPrimaryMasterCellTag();

@@ -1,5 +1,6 @@
 #include "transaction.h"
 
+#include "client.h"
 #include "transaction_service_proxy.h"
 #include "write_set.h"
 
@@ -18,6 +19,8 @@
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
+
+#include <yt/yt/client/query_client/query_builder.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -40,6 +43,7 @@ using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NObjectClient;
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
@@ -52,24 +56,22 @@ class TSequoiaTransaction
     : public ISequoiaTransaction
 {
 public:
-    TSequoiaTransaction(
-        NApi::NNative::IClientPtr client,
-        TLogger logger)
+    TSequoiaTransaction(ISequoiaClientPtr client)
         : Client_(std::move(client))
-        , Logger(std::move(logger))
+        , Logger(Client_->GetLogger())
         , SerializedInvoker_(CreateSerializedInvoker(
-            Client_->GetConnection()->GetInvoker()))
+            GetNativeClient()->GetConnection()->GetInvoker()))
     { }
 
-    TFuture<void> Start(const TTransactionStartOptions& options) override
+    TFuture<ISequoiaTransactionPtr> Start(const TTransactionStartOptions& options)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& transactionManager = Client_->GetTransactionManager();
+        const auto& transactionManager = GetNativeClient()->GetTransactionManager();
 
         StartOptions_ = options;
         if (!StartOptions_.Timeout) {
-            const auto& config = Client_->GetNativeConnection()->GetConfig();
+            const auto& config = GetNativeClient()->GetNativeConnection()->GetConfig();
             StartOptions_.Timeout = config->SequoiaTransactionTimeout;
         }
 
@@ -99,33 +101,25 @@ public:
     TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         ESequoiaTable table,
         TSharedRange<TLegacyKey> keys,
-        const TColumnFilter& columnFilter,
-        std::optional<TTimestamp> timestamp) override
+        const TColumnFilter& columnFilter) override
     {
-        // TODO(gritukan): Default options.
-        NApi::TLookupRowsOptions options;
-        options.KeepMissingRows = true;
-        options.ColumnFilter = columnFilter;
-        if (timestamp) {
-            options.Timestamp = *timestamp;
-        } else {
-            YT_VERIFY(Transaction_);
-            options.Timestamp = Transaction_->GetStartTimestamp();
-        }
-
-        const auto* tableDescriptor = ITableDescriptor::Get(table);
         return Client_->LookupRows(
-            GetTablePath(tableDescriptor),
-            tableDescriptor->GetRecordDescriptor()->GetNameTable(),
-            std::move(keys),
-            options);
+            table,
+            keys,
+            columnFilter,
+            Transaction_->GetStartTimestamp());
     }
 
     virtual TFuture<TSelectRowsResult> SelectRows(
-        const TString& query,
-        const TSelectRowsOptions& options) override
+        ESequoiaTable table,
+        const std::vector<TString>& whereConjuncts,
+        std::optional<i64> limit) override
     {
-        return Client_->SelectRows(query, options);
+        return Client_->SelectRows(
+            table,
+            whereConjuncts,
+            limit,
+            Transaction_->GetStartTimestamp());
     }
 
     void DatalessLockRow(
@@ -239,13 +233,18 @@ public:
         return RowBuffer_;
     }
 
-    const NApi::NNative::IClientPtr& GetClient() const override
+    const ISequoiaClientPtr& GetClient() const override
     {
         return Client_;
     }
 
+    const NApi::NNative::IClientPtr& GetNativeClient() const override
+    {
+        return Client_->GetNativeClient();
+    }
+
 private:
-    const NApi::NNative::IClientPtr Client_;
+    const ISequoiaClientPtr Client_;
 
     TTransactionPtr Transaction_;
 
@@ -333,7 +332,7 @@ private:
             auto session = New<TMasterCellCommitSession>();
             session->CellTag = cellTag;
             EmplaceOrCrash(MasterCellCommitSessions_, cellTag, session);
-            Transaction_->RegisterParticipant(Client_->GetNativeConnection()->GetMasterCellId(cellTag));
+            Transaction_->RegisterParticipant(GetNativeClient()->GetNativeConnection()->GetMasterCellId(cellTag));
             return session;
         } else {
             return it->second;
@@ -374,7 +373,7 @@ private:
         // TODO(gritukan): Handle dataless.
         TTabletCommitOptions options;
         auto session = CreateTabletCommitSession(
-            Client_,
+            GetNativeClient(),
             std::move(options),
             MakeWeak(Transaction_),
             CellCommitSessionProvider_,
@@ -385,7 +384,7 @@ private:
         return session;
     }
 
-    void OnTransactionStarted(const TTransactionPtr& transaction)
+    ISequoiaTransactionPtr OnTransactionStarted(const TTransactionPtr& transaction)
     {
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -393,19 +392,21 @@ private:
 
         RandomGenerator_ = std::make_unique<TRandomGenerator>(Transaction_->GetStartTimestamp());
 
-        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(Client_, MakeWeak(Transaction_), Logger);
+        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(GetNativeClient(), MakeWeak(Transaction_), Logger);
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
         YT_LOG_DEBUG("Transaction started (StartTimestamp: %v)",
             Transaction_->GetStartTimestamp());
+
+        return MakeStrong(this);
     }
 
     TFuture<void> ResolveSessionRequests(const TTableCommitSessionPtr& session)
     {
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
-        const auto& tableMountCache = Client_->GetTableMountCache();
+        const auto& tableMountCache = GetNativeClient()->GetTableMountCache();
         return tableMountCache->GetTableInfo(session->Path)
             .Apply(BIND(&TSequoiaTransaction::OnGotTableMountInfo, MakeWeak(this), session)
                 .AsyncVia(SerializedInvoker_));
@@ -502,7 +503,7 @@ private:
         std::vector<TFuture<void>> futures;
         futures.reserve(MasterCellCommitSessions_.size());
         for (const auto& [cellTag, session] : MasterCellCommitSessions_) {
-            auto channel = Client_->GetNativeConnection()->GetMasterChannelOrThrow(
+            auto channel = GetNativeClient()->GetNativeConnection()->GetMasterChannelOrThrow(
                 NApi::EMasterChannelKind::Leader,
                 cellTag);
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
@@ -559,17 +560,29 @@ private:
 
     TYPath GetTablePath(const ITableDescriptor* tableDescriptor) const
     {
-        return GetSequoiaTablePath(Client_, tableDescriptor);
+        return GetSequoiaTablePath(GetNativeClient(), tableDescriptor);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaTransactionPtr CreateSequoiaTransaction(
-    NApi::NNative::IClientPtr client,
-    TLogger logger)
+namespace NDetail {
+
+TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
+    ISequoiaClientPtr client,
+    const TTransactionStartOptions& options)
 {
-    return New<TSequoiaTransaction>(std::move(client), std::move(logger));
+    return New<TSequoiaTransaction>(std::move(client))->Start(options);
+}
+
+} // namespace NDetail
+
+TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
+    NApi::NNative::IClientPtr client,
+    NLogging::TLogger logger,
+    const NApi::TTransactionStartOptions& options)
+{
+    return CreateSequoiaClient(std::move(client), std::move(logger))->StartTransaction(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
