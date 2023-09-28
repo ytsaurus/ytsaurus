@@ -27,7 +27,7 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
 }
 
 template <class TRecordKey>
-TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> SelectRows(
+TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> ISequoiaTransaction::SelectRows(
     const std::vector<TString>& whereConjuncts,
     std::optional<i64> limit)
 {
