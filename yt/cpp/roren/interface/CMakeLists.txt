@@ -20,7 +20,7 @@ target_link_libraries(cpp-roren-interface PUBLIC
   yutil
   tools-enum_parser-enum_serialization_runtime
   cpp-yson-node
-  roren-library-timers
+  library-timers-timer
 )
 target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/attributes.cpp
