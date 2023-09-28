@@ -859,9 +859,8 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             .Run())
             .ValueOrThrow();
 
-        const auto& profilingCounters = bundleState->GetProfilingCounters(table.Get(), groupName);
-
-        for (auto descriptor : descriptors) {
+        std::vector<TReshardDescriptor> scheduledDescriptors;
+        for (auto& descriptor : descriptors) {
             if (pickReshardPivotKeys) {
                 try {
                     PickReshardPivotKeysIfNeeded(&descriptor, table, bundleState, slicingAccuracy, enableVerboseLogging);
@@ -895,6 +894,11 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                 descriptor.DataSize,
                 table->Id);
 
+            scheduledDescriptors.emplace_back(std::move(descriptor));
+        }
+
+        const auto& profilingCounters = bundleState->GetProfilingCounters(table.Get(), groupName);
+        for (const auto& descriptor : scheduledDescriptors) {
             if (descriptor.TabletCount == 1) {
                 profilingCounters.TabletMerges.Increment(1);
             } else if (std::ssize(descriptor.Tablets) == 1) {
