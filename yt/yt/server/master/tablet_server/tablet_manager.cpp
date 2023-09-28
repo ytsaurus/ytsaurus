@@ -5560,7 +5560,7 @@ private:
 
             Bootstrap_->GetAvenueDirectory()->UpdateEndpoint(nodeEndpointId, /*cellId*/ {});
             Bootstrap_->GetHiveManager()->UnregisterAvenueEndpoint(masterEndpointId);
-
+        } else {
             --NonAvenueTabletCount_;
         }
 
