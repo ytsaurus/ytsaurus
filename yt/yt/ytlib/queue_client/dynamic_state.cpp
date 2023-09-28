@@ -193,7 +193,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
         if (auto autoTrimConfig = findValue(autoTrimConfigId)) {
             typedRow.AutoTrimConfig = ConvertTo<TQueueAutoTrimConfig>(TYsonStringBuf(autoTrimConfig->AsStringBuf()));
         } else {
-            typedRow.AutoTrimConfig = TQueueAutoTrimConfig::Create();
+            typedRow.AutoTrimConfig = TQueueAutoTrimConfig();
         }
 
         setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);

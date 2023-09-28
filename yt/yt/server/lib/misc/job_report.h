@@ -127,7 +127,7 @@ struct TExecAttributes
     //! GPU devices used by job.
     std::vector<TIntrusivePtr<TGpuDevice>> GpuDevices;
 
-    REGISTER_YSON_STRUCT(TExecAttributes);
+    REGISTER_YSON_STRUCT_LITE(TExecAttributes);
 
     static void Register(TRegistrar registrar);
 };
