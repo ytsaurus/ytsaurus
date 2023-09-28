@@ -13,6 +13,10 @@ NXml::TDocument ParseXmlDocument(const NHttp::IResponsePtr& response)
 {
     auto responseBody = response->ReadAll();
     TString responseString(responseBody.Begin(), responseBody.End());
+    if (ToUnderlying(response->GetStatusCode()) >= 400) {
+        THROW_ERROR_EXCEPTION("S3 replied with error status code %v", response->GetStatusCode())
+            << TErrorAttribute("body", responseString);
+    }
     return NXml::TDocument(
         responseString,
         NXml::TDocument::Source::String);
@@ -172,23 +176,20 @@ public:
             BaseHttpRequest_ = THttpRequest{
                 .Protocol = TString{urlRef.Protocol},
                 .Host = TString{urlRef.Host},
+                .Port = urlRef.Port,
                 .Region = Config_->Region,
                 .Service = "s3",
             };
-            if (auto port = urlRef.Port) {
-                BaseHttpRequest_.Port = *port;
-            }
 
-            TNetworkAddress s3Address;
-            if (auto port = urlRef.Port) {
-                s3Address = TNetworkAddress(address, *port);
-            } else {
-                s3Address = address;
-            }
+            bool useTls = (urlRef.Protocol == "https");
+            TNetworkAddress s3Address(
+                address,
+                urlRef.Port.value_or(useTls ? 443 : 80));
 
             Client_ = CreateHttpClient(
                 Config_,
                 s3Address,
+                useTls,
                 Poller_,
                 ExecutionInvoker_);
             return Client_->Start();

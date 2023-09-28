@@ -70,6 +70,7 @@ DEFINE_REFCOUNTED_TYPE(IHttpClient)
 IHttpClientPtr CreateHttpClient(
     NHttp::TClientConfigPtr config,
     NNet::TNetworkAddress address,
+    bool useTls,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr invoker);
 

@@ -6,6 +6,8 @@
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
+#include <yt/yt/core/crypto/tls.h>
+
 #include <yt/yt/core/http/stream.h>
 
 #include <yt/yt/core/net/address.h>
@@ -123,12 +125,11 @@ void PrepareHttpRequest(
             }
             addHeader(TString(HostHeaderName), host, /*newHeader*/ true);
         }
-        // TODO(gritukan): AWS tests do not contain Content-Length header.
-        if (!hasContentLengthHeader && request->Payload && false) {
-            addHeader(
+        if (!hasContentLengthHeader && request->Payload) {
+            EmplaceOrCrash(
+                request->Headers,
                 TString(ContentLengthHeaderName),
-                ToString(request->Payload.size()),
-                /*newHeader*/ true);
+                ToString(request->Payload.size()));
         }
         if (!hasXAmzDateHeader) {
             addHeader(
@@ -212,14 +213,20 @@ public:
     THttpClient(
         NHttp::TClientConfigPtr config,
         TNetworkAddress address,
+        bool useTls,
         IPollerPtr poller,
         IInvokerPtr invoker)
         : Config_(config)
         , Address_(std::move(address))
-        , Dialer_(CreateDialer(
-            config->Dialer,
-            std::move(poller),
-            S3Logger))
+        , Dialer_(useTls
+            ? New<NYT::NCrypto::TSslContext>()->CreateDialer(
+                config->Dialer,
+                std::move(poller),
+                S3Logger)
+            : CreateDialer(
+                config->Dialer,
+                std::move(poller),
+                S3Logger))
         , Invoker_(std::move(invoker))
     { }
 
@@ -307,16 +314,18 @@ private:
 IHttpClientPtr CreateHttpClient(
     NHttp::TClientConfigPtr config,
     NNet::TNetworkAddress address,
+    bool useTls,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr invoker)
 {
     return New<THttpClient>(
         std::move(config),
         std::move(address),
+        useTls,
         std::move(poller),
         std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespacec NYT::NS3
+} // namespace NYT::NS3
