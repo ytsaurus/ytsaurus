@@ -65,6 +65,7 @@ bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig)
 
 TTabletSizeConfig GetTabletSizeConfig(
     const TTable* table,
+    i64 minDesiredTabletSize,
     const TLogger& Logger)
 {
     i64 minTabletSize;
@@ -157,6 +158,27 @@ TTabletSizeConfig GetTabletSizeConfig(
                 desiredTabletSize,
                 maxTabletSize);
         }
+    }
+
+    if (desiredTabletSize < minDesiredTabletSize) {
+        auto newMinTabletSize = std::min<i64>(minDesiredTabletSize / 2, minTabletSize);
+        auto newDesiredTabletSize = minDesiredTabletSize;
+        auto newMaxTabletSize = std::max<i64>(minDesiredTabletSize * 2, maxTabletSize);
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "Desired tablet size is too small, tablet size config overriden (TableId: %v, "
+            "OldMinTabletSize: %v, OldDesiredTabletSize: %v, OldMaxTabletSize: %v, "
+            "MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
+            table->Id,
+            minTabletSize,
+            desiredTabletSize,
+            maxTabletSize,
+            newMinTabletSize,
+            newDesiredTabletSize,
+            newMaxTabletSize);
+
+        minTabletSize = newMinTabletSize;
+        desiredTabletSize = newDesiredTabletSize;
+        maxTabletSize = newMaxTabletSize;
     }
 
     return TTabletSizeConfig{
@@ -299,6 +321,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     std::vector<TTabletPtr> tablets,
+    i64 minDesiredTabletSize,
     bool pickPivotKeys,
     const TLogger& Logger)
 {
@@ -313,7 +336,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
         });
 
     const auto& table = tablets.front()->Table;
-    auto config = GetTabletSizeConfig(table, Logger);
+    auto config = GetTabletSizeConfig(table, minDesiredTabletSize, Logger);
 
     YT_LOG_DEBUG_IF(table->TableConfig->EnableVerboseLogging ||
         table->Bundle->Config->EnableVerboseLogging,

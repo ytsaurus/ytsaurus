@@ -72,6 +72,9 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
         .Default();
 
+    registrar.Parameter("min_desired_tablet_size", &TThis::MinDesiredTabletSize)
+        .Default(5_MB);
+
     registrar.Parameter("max_actions_per_group", &TThis::MaxActionsPerGroup)
         .Default(300)
         .GreaterThan(0);

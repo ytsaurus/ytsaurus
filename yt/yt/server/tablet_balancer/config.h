@@ -67,6 +67,8 @@ public:
     bool EnableReshardVerboseLogging;
     std::optional<double> ReshardSlicingAccuracy;
 
+    i64 MinDesiredTabletSize;
+
     int MaxActionsPerGroup;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
