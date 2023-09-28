@@ -441,7 +441,8 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
         "changelog_read_quorum": 1,
         "changelog_write_quorum": 1,
         "changelog_account": "sys",
-        "snapshot_account": "sys"
+        "snapshot_replication_factor": 1,
+        "snapshot_account": "sys",
     }
 
     tablet_cell_ids = get_tablet_cell_ids_rsp.get_result()
