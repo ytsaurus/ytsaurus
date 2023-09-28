@@ -164,6 +164,7 @@ public:
         BufferedProducer_ = New<TBufferedProducer>();
         NodeTrackerProfiler
             .WithDefaultDisabled()
+            .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
 
