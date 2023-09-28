@@ -157,8 +157,7 @@ private:
         bool createdRoot = false;
 
         // Create root node.
-        if (!WaitFor(Client_->NodeExists(RootPath_)).ValueOrThrow())
-        {
+        if (!WaitFor(Client_->NodeExists(RootPath_)).ValueOrThrow()) {
             YT_LOG_DEBUG("Creating new nodes");
             createdRoot = true;
 
@@ -187,9 +186,11 @@ private:
             auto result = ConvertToNode(WaitFor(Client_->GetNode(RootPath_ + "/@", getOptions))
                 .ValueOrThrow())->AsMap();
             auto type = result->FindChildValue<TString>("type");
-            YT_LOG_DEBUG("Existing entry type: %Qv", type);
+            YT_LOG_DEBUG("Existing entry type: %Qv",
+                type);
             if (type == "map_node") {
-                YT_LOG_INFO("Trying to recreate root node as %Qlv", Options_.NodeType);
+                YT_LOG_INFO("Trying to recreate root node as %Qlv",
+                    Options_.NodeType);
                 auto banned = result->FindChildValue<bool>("banned");
 
                 TCreateNodeOptions options;
@@ -260,7 +261,7 @@ private:
 
     void DoUpdateNodes(IAttributeDictionaryPtr attributes)
     {
-        YT_LOG_INFO("Started updating nodes", Initialized_, Options_.EnableImplicitInitialization);
+        YT_LOG_INFO("Started updating nodes");
 
         // Create nodes if needed.
         if (Options_.EnableImplicitInitialization && (!Initialized_ || IsMigrationNeeded())) {
