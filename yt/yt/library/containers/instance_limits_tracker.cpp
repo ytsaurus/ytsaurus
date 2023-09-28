@@ -68,10 +68,10 @@ void TInstanceLimitsTracker::DoUpdateLimits()
         if (valueOrError.IsOK()) {
             *destination = valueOrError.Value();
         } else {
-            YT_LOG_ALERT_IF(alert, valueOrError, "Failed to get container limit (Field: %v)",
+            YT_LOG_ALERT_IF(alert, valueOrError, "Failed to get container property (Field: %v)",
                 fieldName);
 
-            YT_LOG_DEBUG(valueOrError, "Failed to get container limit (Field: %v)",
+            YT_LOG_DEBUG(valueOrError, "Failed to get container property (Field: %v)",
                 fieldName);
         }
     };
@@ -85,7 +85,13 @@ void TInstanceLimitsTracker::DoUpdateLimits()
 
         TDuration cpuGuarantee;
         TDuration cpuLimit;
-        setIfOk(&cpuGuarantee, cpuStatistics.GuaranteeTime, "CpuGuarantee");
+
+        if (cpuStatistics.GuaranteeTime.IsOK()) {
+            setIfOk(&cpuGuarantee, cpuStatistics.GuaranteeTime, "CpuGuarantee");
+        } else {
+            // XXX(don-dron, ignat): do nothing, see NContainers::TPortoInstance::GetResourceLimits, hack for missing response from Porto.
+        }
+
         setIfOk(&cpuLimit, cpuStatistics.LimitTime, "CpuLimit");
 
         if (CpuGuarantee_ != cpuGuarantee) {
