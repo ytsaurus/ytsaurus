@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NTableClient.NProto;
 
 import "yt/ytlib/hive/proto/cell_directory.proto";

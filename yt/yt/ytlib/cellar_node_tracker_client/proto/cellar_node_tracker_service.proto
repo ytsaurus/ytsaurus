@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NCellarNodeTrackerClient.NProto;
 
 import "yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto";

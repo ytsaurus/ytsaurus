@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package NYT.NSecurityServer.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
