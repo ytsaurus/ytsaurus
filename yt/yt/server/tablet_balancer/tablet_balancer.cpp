@@ -972,6 +972,17 @@ void TTabletBalancer::PickReshardPivotKeysIfNeeded(
     options.FirstTabletIndex = tablet->Index;
     options.LastTabletIndex = tablet->Index + std::ssize(descriptor->Tablets) - 1;
 
+    int partitionCount = 0;
+    for (int index = *options.FirstTabletIndex; index <= options.LastTabletIndex; ++index) {
+        partitionCount += table->Tablets[index]->Statistics.PartitionCount;
+    }
+
+    if (partitionCount >= 2 * descriptor->TabletCount) {
+        // Do not pick pivot keys if there are enough partitions
+        // for the master to perform reshard itself.
+        return;
+    }
+
     descriptor->PivotKeys = PickPivotKeysWithSlicing(
         Bootstrap_->GetClient(),
         table->Path,
