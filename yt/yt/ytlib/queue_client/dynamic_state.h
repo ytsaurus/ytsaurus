@@ -61,6 +61,7 @@ struct TQueueTableRow
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
     std::optional<TQueueAutoTrimConfig> AutoTrimConfig;
+    std::optional<TQueueStaticExportConfig> StaticExportConfig;
     std::optional<TString> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
 

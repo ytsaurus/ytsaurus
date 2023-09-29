@@ -33,6 +33,7 @@
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduled_executor.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -307,13 +308,14 @@ public:
                 .WithRequiredTag("queue_path", QueueRef_.Path)
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
             Logger))
-        , ExportExecutor_(New<TPeriodicExecutor>(
+        , ExportExecutor_(New<TScheduledExecutor>(
                 Invoker_,
                 BIND(&TOrderedDynamicTableController::Export, MakeWeak(this)),
-                TPeriodicExecutorOptions{
-                    .Period = dynamicConfig->ExportPeriod,
-                    .Splay = dynamicConfig->ExportPeriod.value_or(TDuration::Zero()),
-            }))
+                /*interval*/ std::nullopt))
+        , QueueExporter_(New<TQueueExporter>(
+            ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster),
+            Invoker_,
+            Logger))
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -322,19 +324,11 @@ public:
         queueSnapshot->Error = TError("Queue is not processed yet");
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
 
-        YT_LOG_INFO("Queue controller started");
-
         PassExecutor_->Start();
+        // NB: No callbacks are actually scheduled until we configure a non-null interval.
+        ExportExecutor_->Start();
 
-        if (dynamicConfig->ExportPeriod) {
-            auto queueSnapshot = QueueSnapshot_.Acquire();
-            auto queueRef = queueSnapshot->Row.Ref;
-
-            auto client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-            const auto& connection = client->GetNativeConnection();
-            QueueExporter_ = New<TQueueExporter>(connection, client, Invoker_, Logger);
-            ExportExecutor_->Start();
-        }
+        YT_LOG_INFO("Queue controller started");
     }
 
     void BuildOrchid(IYsonConsumer* consumer) const override
@@ -381,7 +375,6 @@ public:
         DynamicConfig_.Exchange(newConfig);
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
-        ExportExecutor_->SetPeriod(newConfig->ExportPeriod);
 
         YT_LOG_DEBUG(
             "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -422,76 +415,36 @@ private:
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
-    IQueueProfileManagerPtr ProfileManager_;
+    const IQueueProfileManagerPtr ProfileManager_;
 
-    TPeriodicExecutorPtr ExportExecutor_;
+    TScheduledExecutorPtr ExportExecutor_;
     TQueueExporterPtr QueueExporter_;
-
-    // For now, this function exhibits temporary behavior of validation for testing export from queue to static tables.
-    TError CheckExport(const NNative::IClientPtr& client)
-    {
-        auto proxy = CreateObjectServiceReadProxy(client, TMasterReadOptions().ReadFrom);
-
-        auto req = TYPathProxy::Get(QueueRef_.Path + "/@enable_export");
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        if (!rspOrError.IsOK()) {
-            return rspOrError;
-        }
-
-        auto error = WaitFor(client->RemoveNode(QueueRef_.Path + "/@enable_export"));
-        if (!error.IsOK()) {
-            return error;
-        }
-        return TError();
-    }
 
     void Export()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+
         YT_VERIFY(QueueExporter_);
 
-        auto queuePath = QueueRef_.Path;
-        auto destinationPath = GenerateStaticTableName(queuePath);
-
-        YT_LOG_DEBUG("Queue export to static table started (DestinationPath: %v)", destinationPath);
-
-        const auto& queueExporter = *QueueExporter_;
-
-        auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
-
-        auto timestampProvider = client->GetTimestampProvider();
-        YT_VERIFY(timestampProvider);
-
-        auto latestTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
-            .ValueOrThrow();
-
-        TQueueExportOptions exportOptions {
-            .LowerExportTimestamp = 0,
-            .UpperExportTimestamp = latestTimestamp,
-        };
-
-        if (auto exportError = CheckExport(client); !exportError.IsOK()) {
-            YT_LOG_DEBUG("Validation failed, skipping export");
+        if (!DynamicConfig_.Acquire()->EnableQueueStaticExport) {
+            YT_LOG_DEBUG("Skipping queue static export iteration, since it is disabled controller-wide");
             return;
         }
 
-        TCreateNodeOptions createOptions;
-        createOptions.Recursive = true;
-        createOptions.IgnoreExisting = true;
-
-        auto createError = WaitFor(client->CreateNode(destinationPath, EObjectType::Table, createOptions));
-        if (!createError.IsOK()) {
-            YT_LOG_DEBUG(createError, "Failed to create static table, skipping export");
+        const auto& staticExportConfig = QueueRow_.Load().StaticExportConfig;
+        if (!staticExportConfig) {
+            YT_LOG_DEBUG("Skipping queue static export iteration, since it is already disabled for the queue");
             return;
         }
 
-        auto exportError = WaitFor(queueExporter.ExportToStaticTable(queuePath, destinationPath, exportOptions));
+        auto exportError = WaitFor(QueueExporter_->RunExportIteration(
+            QueueRef_.Path,
+            staticExportConfig->ExportDirectory,
+            staticExportConfig->ExportPeriod));
         if (!exportError.IsOK()) {
-            YT_LOG_DEBUG(exportError, "Failed to perform export");
+            YT_LOG_DEBUG(exportError, "Failed to perform static export for queue");
             return;
         }
-
-        YT_LOG_DEBUG("Queue export to static table finished (DestinationPath: %v)", destinationPath);
     }
 
     void Pass()
@@ -531,6 +484,13 @@ private:
 
             if (ShouldTrim(nextQueueSnapshot->PassIndex)) {
                 Trim();
+            }
+
+            const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
+            if (DynamicConfig_.Acquire()->EnableQueueStaticExport && staticExportConfig) {
+                ExportExecutor_->SetInterval(staticExportConfig->ExportPeriod);
+            } else {
+                ExportExecutor_->SetInterval(std::nullopt);
             }
         }
 

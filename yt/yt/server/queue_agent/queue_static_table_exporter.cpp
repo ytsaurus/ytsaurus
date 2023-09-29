@@ -18,6 +18,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/client/queue_client/config.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NApi;
@@ -25,6 +27,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NQueueClient;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTableClient;
@@ -37,27 +40,95 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TTabletExportProgress)
+
+class TTabletExportProgress
+    : public NYTree::TYsonStruct
+{
+public:
+    TChunkId LastChunk;
+    TTimestamp MaxTimestamp;
+    i64 RowCount;
+    // TODO(achulkov2): Chunk count?
+
+    REGISTER_YSON_STRUCT(TTabletExportProgress);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("last_chunk", &TThis::LastChunk)
+            .Default(NullChunkId);
+        registrar.Parameter("max_timestamp", &TThis::MaxTimestamp)
+            .Default(NullTimestamp);
+        registrar.Parameter("row_count", &TThis::RowCount)
+            .Default(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletExportProgress)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TExportProgress)
+
+class TExportProgress
+    : public TYsonStruct
+{
+public:
+    TTimestamp LastExportIterationTimestamp;
+    ui64 LastExportedFragmentUnixTs;
+    THashMap<i64, TTabletExportProgressPtr> Tablets;
+
+    void Update(i64 tabletIndex, TChunkId chunkId, TTimestamp maxTimestamp, i64 rowCount)
+    {
+        auto tabletProgressIt = Tablets.find(tabletIndex);
+        if (tabletProgressIt == Tablets.end()) {
+            tabletProgressIt = Tablets.emplace(tabletIndex, New<TTabletExportProgress>()).first;
+        }
+
+        tabletProgressIt->second->LastChunk = chunkId;
+        tabletProgressIt->second->MaxTimestamp = std::max(tabletProgressIt->second->MaxTimestamp, maxTimestamp);
+        tabletProgressIt->second->RowCount = rowCount;
+    }
+
+    REGISTER_YSON_STRUCT(TExportProgress);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("last_export_iteration_timestamp", &TThis::LastExportIterationTimestamp)
+            .Default(NullTimestamp);
+        registrar.Parameter("last_exported_fragment_unix_ts", &TThis::LastExportedFragmentUnixTs)
+            .Default(0);
+        registrar.Parameter("tablets", &TThis::Tablets)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TExportProgress)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Wrapper-class for performing a single export iteration.
 class TQueueExportTask
     : public TRefCounted
 {
 public:
     TQueueExportTask(
-        NNative::IConnectionPtr connection,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
-        TRichYPath queuePath,
-        TRichYPath destinationPath,
-        TQueueExportOptions options,
+        TYPath queue,
+        TYPath exportDirectory,
+        TDuration exportPeriod,
         const TLogger& logger)
-        : Connection_(std::move(connection))
-        , Client_(std::move(client))
+        : Client_(std::move(client))
+        , Connection_(Client_->GetNativeConnection())
         , Invoker_(std::move(invoker))
-        , QueuePath_(std::move(queuePath))
-        , DestinationPath_(std::move(destinationPath))
-        , Options_(std::move(options))
+        , Queue_(std::move(queue))
+        , ExportDirectory_(std::move(exportDirectory))
+        , ExportPeriod_(exportPeriod)
         , Logger(logger.WithTag(
-            "Destination: %v",
-            DestinationPath_.GetPath()))
+            "ExportDirectory: %v, ExportPeriod: %v",
+            ExportDirectory_,
+            ExportPeriod_))
     { }
 
     TFuture<void> Run()
@@ -68,237 +139,280 @@ public:
     }
 
 private:
-    const NNative::IConnectionPtr Connection_;
     const NNative::IClientPtr Client_;
+    const NNative::IConnectionPtr Connection_;
     const IInvokerPtr Invoker_;
 
-    TRichYPath QueuePath_;
-    TRichYPath DestinationPath_;
-    TQueueExportOptions Options_;
+    const TYPath Queue_;
+    const TYPath ExportDirectory_;
+    const TDuration ExportPeriod_;
 
-    TLogger Logger;
+    const TLogger Logger;
 
-    ui64 QueueTabletCount_ = 0;
+    //! Main master transaction used for export.
+    ITransactionPtr Transaction_;
+    //! Options used for Cypress requests.
+    NApi::TTransactionalOptions Options_;
 
+    //! Corresponds to the queue being exported.
+    TUserObject QueueObject_;
+    //! Original chunk specs fetched from master.
+    std::vector<TChunkSpec> ChunkSpecs_;
+    //! Pointers to chunk specs for chunks that are going to be exported within this iteration.
+    std::vector<const TChunkSpec*> ChunkSpecsToExport_;
+    //! The unix timestamp corresponding to the current export iteration.
+    ui64 ExportFragmentUnixTs_;
+    //! Corresponds to the actual output table created.
+    TUserObject DestinationObject_;
     TTransactionPtr UploadTransaction_;
+    //! Data statistics collected from attaching chunks.
+    TDataStatistics DataStatistics_;
 
+    static constexpr TStringBuf ExportProgressAttributeName_ = "queue_static_export_progress";
+    static constexpr TStringBuf ExportDestinationAttributeName_ = "queue_static_export_destination";
+
+    //! Performs the following steps:
+    //!   1) Starts transaction, obtains locks on input queue (snapshot) and export directory (exclusive).
+    //!   2) Determines the export fragment timestamp as the largest fragment timestamp which is not greater than the
+    //!      start timestamp of the export transaction.
+    //!      A fragment timestamp is always divisible by the export period in seconds.
+    //!   3) Fetches chunk specs, skipping dynamic stores, already exported chunks and chunks with timestamp larger than
+    //!      the export fragment timestamp.
+    //!   4) Teleports and uploads these chunks to an appropriately named output table to the export directory.
     void DoRun()
     {
-        YT_LOG_DEBUG(
-            "Starting export (LowerExportTimestamp: %v, UpperExportTimestamp: %v)",
-            Options_.LowerExportTimestamp,
-            Options_.UpperExportTimestamp);
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
 
-        auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+        YT_LOG_INFO("Started queue static export iteration");
+
+        Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master))
             .ValueOrThrow();
 
-        auto transactionId = transaction->GetId();
-        WaitFor(transaction->LockNode(QueuePath_.GetPath(), ELockMode::Snapshot))
+        auto transactionId = Transaction_->GetId();
+        WaitFor(Transaction_->LockNode(Queue_, ELockMode::Snapshot))
             .ThrowOnError();
-        WaitFor(transaction->LockNode(DestinationPath_.GetPath(), ELockMode::Exclusive))
+        WaitFor(Transaction_->LockNode(ExportDirectory_, ELockMode::Exclusive))
             .ThrowOnError();
 
         Options_.TransactionId = transactionId;
 
-        YT_LOG_DEBUG(
-            "Started transaction and locked nodes (TransactionId: %v, LockedQueueNode: %v, LockedDestinationNode %v)",
-            transactionId,
-            QueuePath_.GetPath(),
-            DestinationPath_.GetPath());
+        YT_LOG_INFO("Started export transaction and locked nodes (TransactionId: %v)", transactionId);
 
-        auto queueObject = TUserObject(QueuePath_, transactionId);
-        auto destinationObject = TUserObject(DestinationPath_, transactionId);
+        QueueObject_ = TUserObject(Queue_, transactionId);
 
-        PrepareForExport(queueObject, destinationObject);
+        ComputeExportFragmentUnixTs();
 
-        auto fetchedChunkSpecs = FetchAndFilterChunkSpecs(queueObject);
+        PrepareQueueForExport();
+        auto currentExportProgress = ValidateDestinationAndFetchProgress();
 
-        BeginUpload(fetchedChunkSpecs, queueObject, destinationObject);
-        TeleportChunkMeta(fetchedChunkSpecs, destinationObject);
-        auto dataStatistics = AttachChunks(fetchedChunkSpecs, destinationObject);
-        EndUpload(queueObject, destinationObject, dataStatistics);
+        FetchChunkSpecs();
+        auto newExportProgress = SelectChunkSpecsToExport(currentExportProgress);
 
-        auto commitResultOrError = WaitFor(transaction->Commit());
-        THROW_ERROR_EXCEPTION_IF_FAILED(commitResultOrError, "Error committing main export task transaction");
+        if (ChunkSpecsToExport_.empty()) {
+            YT_LOG_DEBUG("No chunks to export, aborting export transaction (TransactionId: %v)", transactionId);
+            Transaction_->Abort();
+            return;
+        }
 
-        YT_LOG_DEBUG("Finished export");
+        CreateOutputTable();
+        BeginUpload();
+        TeleportChunkMeta();
+        AttachChunks();
+        EndUpload();
+
+        UpdateCypressExportProgress(currentExportProgress, newExportProgress);
+
+        auto commitResultOrError = WaitFor(Transaction_->Commit());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            commitResultOrError,
+            "Error committing main export task transaction for queue %v",
+            Queue_);
+
+        YT_LOG_INFO("Finished queue static export iteration");
+    }
+
+    ui64 GetMinFragmentUnixTs(TTimestamp timestamp)
+    {
+        auto period = ExportPeriod_.Seconds();
+        YT_VERIFY(period > 0);
+
+        auto unixTs = UnixTimeFromTimestamp(timestamp);
+        // NB: The timestamp is in range [unixTs, unixTs + 1). Since our granularity is in seconds, we can compute the
+        // next fragment unix ts as the strict next tick for the lower bound.
+        return (unixTs / period + 1) * period;
+    }
+
+    void ComputeExportFragmentUnixTs()
+    {
+        YT_VERIFY(Transaction_);
+
+        auto period = ExportPeriod_.Seconds();
+        YT_VERIFY(period > 0);
+
+        auto startUnixTs = UnixTimeFromTimestamp(Transaction_->GetStartTimestamp());
+        // NB: The timestamp is in range [startUnixTs, startUnixTs + 1). We save the unix ts of the closest tick to the left.
+        ExportFragmentUnixTs_ = (startUnixTs / period) * period;
     }
 
     void GetAndFillBasicAttributes(
-        TUserObject& queueObject,
-        TUserObject& destinationObject) const
+        TUserObject& object,
+        bool populateSecurityTags) const
     {
-        YT_LOG_DEBUG("Starting collecting basic attributes");
+        YT_LOG_DEBUG("Started collecting basic attributes");
 
         auto proxy = CreateObjectServiceReadProxy(Client_, TMasterReadOptions().ReadFrom);
-        auto batchReq = proxy.ExecuteBatch();
+        auto req = TObjectYPathProxy::GetBasicAttributes(object.GetPath());
+        req->set_populate_security_tags(populateSecurityTags);
+        SetTransactionId(req, *object.TransactionId);
 
-        {
-            auto req = TObjectYPathProxy::GetBasicAttributes(queueObject.GetPath());
-            req->set_populate_security_tags(true);
-            SetTransactionId(req, *queueObject.TransactionId);
-            batchReq->AddRequest(req, "get_queue_attributes");
-        }
-
-        {
-            auto req = TObjectYPathProxy::GetBasicAttributes(destinationObject.GetPath());
-            SetTransactionId(req, *destinationObject.TransactionId);
-            batchReq->AddRequest(req, "get_dst_attributes");
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
-            "Error getting basic attributes of inputs and outputs");
-        const auto& batchRsp = batchRspOrError.Value();
+            rspOrError,
+            "Error getting basic attributes of queue %v", object.GetPath());
 
-        {
-            auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>(
-                "get_queue_attributes");
-            YT_VERIFY(rspsOrError.size() == 1);
-            const auto& rsp = rspsOrError[0].Value();
+        const auto& rsp = rspOrError.Value();
 
-            queueObject.ObjectId = FromProto<TObjectId>(rsp->object_id());
-            queueObject.ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
-            queueObject.ExternalTransactionId = rsp->has_external_transaction_id()
-                ? FromProto<TTransactionId>(rsp->external_transaction_id())
-                : *queueObject.TransactionId;
-            queueObject.SecurityTags =
+        object.ObjectId = FromProto<TObjectId>(rsp->object_id());
+        object.Type = TypeFromId(object.ObjectId);
+        object.ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
+        object.ExternalTransactionId = rsp->has_external_transaction_id()
+            ? FromProto<TTransactionId>(rsp->external_transaction_id())
+            : *object.TransactionId;
+        if (populateSecurityTags) {
+            object.SecurityTags =
                 FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
-        }
-        {
-            auto rspsOrError =
-                batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_dst_attributes");
-            YT_VERIFY(rspsOrError.size() == 1);
-            const auto& rsp = rspsOrError[0].Value();
-
-            destinationObject.ObjectId = FromProto<TObjectId>(rsp->object_id());
-            destinationObject.ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
         }
 
         YT_LOG_DEBUG("Finished collecting basic attributes");
     }
 
-    void ValidateType(
-        TUserObject& queueObject,
-        TUserObject& destinationObject) const
+    IAttributeDictionaryPtr FetchNodeAttributes(const TYPath& path, const std::vector<TStringBuf>& attributeKeys) const
     {
-        destinationObject.Type = TypeFromId(destinationObject.ObjectId);
-        queueObject.Type = TypeFromId(queueObject.ObjectId);
+        YT_LOG_DEBUG("Started fetching attributes (Path: %v, PathRequestedAttributes: %v)", path, attributeKeys);
 
-        auto checkType = [&](const TUserObject& object) {
-            if (object.Type != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION(
-                    "Invalid type of %v: expected %Qlv, %Qlv found",
-                    object.GetPath(),
-                    EObjectType::Table,
-                    object.Type);
-            }
-        };
-
-        checkType(queueObject);
-        checkType(destinationObject);
-    }
-
-    IAttributeDictionaryPtr FetchNodeAttributes(
-        const TUserObject& queueObject,
-        const std::vector<TString>& attributeKeys) const
-    {
-        YT_LOG_DEBUG("Start fetching attributes for queue (RequestedAttributes: %v)", attributeKeys);
+        // TODO(achulkov2): Change to simple Get with attributes.
         auto proxy = CreateObjectServiceReadProxy(Client_, TMasterReadOptions().ReadFrom);
+        auto req = TYPathProxy::Get(path + "/@");
+        SetTransactionId(req, Options_.TransactionId);
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
-        auto req = TYPathProxy::Get(queueObject.GetPath() + "/@");
-
-        AddCellTagToSyncWith(req, queueObject.ObjectId);
-        SetTransactionId(req, *queueObject.TransactionId);
-        for (const auto& attributeKey: attributeKeys) {
-            req->mutable_attributes()->add_keys(attributeKey);
-        }
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, "Error fetching attributes %v for queue %Qv", queueObject.GetPath());
+            rspOrError, "Error fetching attributes %v for path %v", path);
 
-        const auto& rsp = rspOrError.Value();
-
-        YT_LOG_DEBUG("Finished fetching attributes for queue (RequestedAttributes: %v)", attributeKeys);
-
-        return ConvertToAttributes(TYsonString(rsp->value()));
+        YT_LOG_DEBUG("Finished fetching attributes (Path: %v, PathRequestedAttributes: %v)", path, attributeKeys);
+        return ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
     }
 
-    void PrepareForExport(
-        TUserObject& queueObject,
-        TUserObject& destinationObject)
+    void PrepareQueueForExport()
     {
-        GetAndFillBasicAttributes(queueObject, destinationObject);
+        GetAndFillBasicAttributes(QueueObject_, /*populateSecurityTags*/ true);
 
-        ValidateType(queueObject, destinationObject);
+        if (QueueObject_.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid type of %v: expected %Qlv, %Qlv found",
+                QueueObject_.GetPath(),
+                EObjectType::Table,
+                QueueObject_.Type);
+        }
 
-        auto attributes = FetchNodeAttributes(queueObject, {"chunk_count", "dynamic", "schema", "tablet_count"});
+        auto attributes = FetchNodeAttributes(
+            QueueObject_.GetPath(), {"chunk_count", "dynamic", "schema"});
 
         if (!attributes->Get<bool>("dynamic")) {
-            THROW_ERROR_EXCEPTION("Queue %Qv should be dynamic", queueObject.GetPath());
+            THROW_ERROR_EXCEPTION("Queue %v should be a dynamic table", QueueObject_.GetPath());
         }
 
         if (attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Queue %Qv should be ordered", queueObject.GetPath());
+            THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", QueueObject_.GetPath());
         }
 
-        QueueTabletCount_ = attributes->Get<i64>("tablet_count");
-        queueObject.ChunkCount = attributes->Get<i64>("chunk_count");
+        QueueObject_.ChunkCount = attributes->Get<i64>("chunk_count");
     }
 
-    // For now this function performs temporary behavior of filtering chunks by timestamps.
-    bool InTimePeriod(const TTimestamp& timestamp) const
+    TExportProgressPtr ValidateDestinationAndFetchProgress()
     {
-        return Options_.LowerExportTimestamp <= timestamp &&
-            timestamp <= Options_.UpperExportTimestamp;
+        auto exportDirectoryAttributes = FetchNodeAttributes(
+            ExportDirectory_,
+            {ExportDestinationAttributeName_, ExportProgressAttributeName_});
+
+        auto destinationConfig = exportDirectoryAttributes->Get<TQueueStaticExportDestinationConfig>(ExportDestinationAttributeName_);
+        if (destinationConfig.OriginatingQueueId != QueueObject_.ObjectId) {
+            THROW_ERROR_EXCEPTION(
+                "Destination config is not configured to accept exports from queue %v, configured id %v does not match queue id %v",
+                destinationConfig.OriginatingQueueId,
+                QueueObject_.ObjectId);
+        }
+
+        auto currentExportProgress = exportDirectoryAttributes->Find<TExportProgressPtr>(ExportProgressAttributeName_);
+        if (currentExportProgress && currentExportProgress->LastExportedFragmentUnixTs >= ExportFragmentUnixTs_) {
+            THROW_ERROR_EXCEPTION(
+                "Fragment with unix ts %v is already exported, last exported fragment unix ts is %v",
+                ExportFragmentUnixTs_,
+                currentExportProgress->LastExportedFragmentUnixTs);
+        }
+
+
+        return currentExportProgress ? currentExportProgress : New<TExportProgress>();
     }
 
-    std::vector<TChunkSpec> FilterChunksAndOrderByTablets(TIntrusivePtr<TMasterChunkSpecFetcher>& chunkSpecFetcher)
+    TExportProgressPtr SelectChunkSpecsToExport(const TExportProgressPtr& currentExportProgress)
     {
-        ui64 totalFetchedChunkCount = 0;
-        auto allFetchedChunkSpecs = chunkSpecFetcher->GetChunkSpecsOrderedNaturally();
+        auto newExportProgress = CloneYsonStruct(currentExportProgress);
 
-        std::vector<std::vector<TChunkSpec>> chunkSpecsPerTablet(QueueTabletCount_);
-        for (const auto& chunkSpec : allFetchedChunkSpecs) {
-            auto chunk = New<TInputChunk>(chunkSpec);
-            YT_VERIFY(!chunk->IsDynamicStore());
+        std::map<i64, std::vector<const TChunkSpec*>> tabletToChunkSpecs;
+        for (const auto& chunkSpec : ChunkSpecs_) {
+            tabletToChunkSpecs[chunkSpec.tablet_index()].push_back(&chunkSpec);
+        }
 
-            const auto format = FromProto<EChunkFormat>(chunkSpec.chunk_meta().format());
-            ValidateTableChunkFormatVersioned(format, /*versioned*/ false);
+        for (const auto& [tabletIndex, tabletSpecs] : tabletToChunkSpecs) {
+            auto lastExportedSpecIt = std::find_if(tabletSpecs.begin(), tabletSpecs.end(), [&, tabletIndex = tabletIndex] (auto tabletSpec) {
+                auto tabletProgressIt = currentExportProgress->Tablets.find(tabletIndex);
+                return tabletProgressIt != currentExportProgress->Tablets.end() && tabletProgressIt->second->LastChunk == FromProto<TChunkId>(tabletSpec->chunk_id());
+            });
 
-            auto miscExt =
-                GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
-            auto maxWrittenRowTimestamp = FromProto<TTimestamp>(miscExt.max_timestamp());
-            if (InTimePeriod(maxWrittenRowTimestamp)) {
-                auto tabletIndex = chunkSpec.tablet_index();
-                if (tabletIndex >= std::ssize(chunkSpecsPerTablet)) {
-                    chunkSpecsPerTablet.resize(tabletIndex + 1);
+            auto specToExportIt = (lastExportedSpecIt == tabletSpecs.end() ? tabletSpecs.begin() : (lastExportedSpecIt + 1));
+            for (; specToExportIt != tabletSpecs.end(); ++specToExportIt) {
+                auto* chunkSpec = *specToExportIt;
+                // TODO(achulkov2): Get rid of this allocation?
+                TInputChunkPtr chunk = New<TInputChunk>(*chunkSpec);
+                // NB: This is guaranteed by setting omit_dynamic_stores(true) while fetching.
+                YT_VERIFY(!chunk->IsDynamicStore());
+
+                auto chunkFormat = FromProto<EChunkFormat>(chunkSpec->chunk_meta().format());
+                ValidateTableChunkFormatVersioned(chunkFormat, /*versioned*/ false);
+
+                auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec->chunk_meta().extensions());
+                auto maxTimestamp = FromProto<TTimestamp>(miscExt.max_timestamp());
+                // We only export chunks which are compatible with the current export fragment ts.
+                if (GetMinFragmentUnixTs(maxTimestamp) > ExportFragmentUnixTs_) {
+                    // NB: Latter chunks might have smaller max timestamps in case of weak commit ordering, but we do
+                    // not export any of them to maintain intra-tablet chunk order within the exported tables.
+                    break;
                 }
-                chunkSpecsPerTablet[tabletIndex].push_back(chunkSpec);
-                ++totalFetchedChunkCount;
+
+                ChunkSpecsToExport_.push_back(chunkSpec);
+                newExportProgress->Update(
+                    tabletIndex,
+                    chunk->GetChunkId(),
+                    maxTimestamp,
+                    chunkSpec->table_row_index() + miscExt.row_count());
             }
         }
 
-        std::vector<TChunkSpec> resultingChunkSpecs;
-        resultingChunkSpecs.reserve(totalFetchedChunkCount);
-        for (const auto& tablet : chunkSpecsPerTablet) {
-            resultingChunkSpecs.insert(resultingChunkSpecs.end(), tablet.begin(), tablet.end());
-        }
-
-        return resultingChunkSpecs;
+        newExportProgress->LastExportedFragmentUnixTs = ExportFragmentUnixTs_;
+        newExportProgress->LastExportIterationTimestamp = Transaction_->GetStartTimestamp();
+        return newExportProgress;
     }
 
-    std::vector<TChunkSpec> FetchAndFilterChunkSpecs(const TUserObject& queueObject)
+    void FetchChunkSpecs()
     {
-        YT_LOG_DEBUG("Starting fetching chunk specs");
+        YT_LOG_DEBUG("Started fetching chunk specs (Count: %v)", QueueObject_.ChunkCount);
 
-        auto prepareFetchRequest = [&](
-            const TChunkOwnerYPathProxy::TReqFetchPtr& request,
-            int /*index*/) {
+        auto prepareFetchRequest = [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request, int /*index*/) {
             request->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
             request->set_omit_dynamic_stores(true);
-            SetTransactionId(request, *queueObject.TransactionId);
+            SetTransactionId(request, *QueueObject_.TransactionId);
         };
 
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
@@ -312,58 +426,77 @@ private:
             Logger);
 
         chunkSpecFetcher->Add(
-            queueObject.ObjectId,
-            queueObject.ExternalCellTag,
-            queueObject.ChunkCount);
+            QueueObject_.ObjectId,
+            QueueObject_.ExternalCellTag,
+            QueueObject_.ChunkCount);
 
         WaitFor(chunkSpecFetcher->Fetch())
             .ThrowOnError();
 
-        auto resultingChunkSpecs = FilterChunksAndOrderByTablets(chunkSpecFetcher);
-
-        YT_LOG_DEBUG(
-            "Finished fetching chunk specs (FetchedChunkCount: %v)", resultingChunkSpecs.size());
-
-        return resultingChunkSpecs;
+        ChunkSpecs_ = chunkSpecFetcher->GetChunkSpecsOrderedNaturally();
+        YT_LOG_DEBUG("Finished fetching chunk specs (Count: %v)", ChunkSpecs_.size());
     }
 
-    TCellTagList GetAffectedCellTags(
-        const std::vector<TChunkSpec>& chunkSpecs,
-        const TUserObject& destinationObject)
+    void CreateOutputTable()
+    {
+        auto destinationPath = Format(
+            "%s/%v-%v",
+            ExportDirectory_,
+            ExportFragmentUnixTs_,
+            ExportPeriod_.Seconds());
+        DestinationObject_ = TUserObject(destinationPath, Options_.TransactionId);
+
+        TCreateNodeOptions createOptions;
+        createOptions.Recursive = true;
+        createOptions.IgnoreExisting = true;
+        createOptions.TransactionId = Options_.TransactionId;
+        createOptions.Attributes = CreateEphemeralAttributes();
+        WaitFor(Client_->CreateNode(DestinationObject_.GetPath(), EObjectType::Table, createOptions))
+            .ThrowOnError();
+
+        GetAndFillBasicAttributes(DestinationObject_, /*populateSecurityTags*/ false);
+    }
+
+    static TCellTagList GetAffectedCellTags(
+        const std::vector<const TChunkSpec*>& chunkSpecs,
+        const TUserObject& destinationObject,
+        const std::optional<TCellTag> cellTagToExclude)
     {
         THashSet<TCellTag> cellTags;
 
         for (const auto& chunkSpec : chunkSpecs) {
-            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
             auto cellTag = CellTagFromId(chunkId);
             cellTags.insert(cellTag);
         }
 
         cellTags.insert(destinationObject.ExternalCellTag);
 
+        if (cellTagToExclude) {
+            cellTags.erase(*cellTagToExclude);
+        }
+
         return {cellTags.begin(), cellTags.end()};
     }
 
-    void BeginUpload(
-        const std::vector<TChunkSpec>& chunkSpecs,
-        const TUserObject& queueObject,
-        const TUserObject& destinationObject)
+    void BeginUpload()
     {
-        auto destinationObjectCellTag = CellTagFromId(destinationObject.ObjectId);
+        auto destinationObjectCellTag = CellTagFromId(DestinationObject_.ObjectId);
         auto proxy = CreateObjectServiceWriteProxy(Client_, destinationObjectCellTag);
 
-        auto req = TChunkOwnerYPathProxy::BeginUpload(destinationObject.GetObjectIdPath());
+        auto req = TChunkOwnerYPathProxy::BeginUpload(DestinationObject_.GetObjectIdPath());
         req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
         req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
 
         req->set_upload_transaction_title(Format(
             "Exporting queue %v to static table %v",
-            queueObject.GetPath(),
-            destinationObject.GetPath()));
+            QueueObject_.GetPath(),
+            DestinationObject_.GetPath()));
 
-        auto cellTags = GetAffectedCellTags(chunkSpecs, destinationObject);
-        cellTags.erase(
-            std::remove(cellTags.begin(), cellTags.end(), destinationObjectCellTag), cellTags.end());
+        auto cellTags = GetAffectedCellTags(
+            ChunkSpecsToExport_,
+            DestinationObject_,
+            /*cellTagToExclude*/ destinationObjectCellTag);
         ToProto(req->mutable_upload_transaction_secondary_cell_tags(), cellTags);
         req->set_upload_transaction_timeout(
             ToProto<i64>(Connection_->GetConfig()->UploadTransactionTimeout));
@@ -373,7 +506,7 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, "Error starting upload to %Qv", queueObject.GetPath());
+            rspOrError, "Error starting upload to %v", QueueObject_.GetPath());
 
         const auto& rsp = rspOrError.Value();
 
@@ -388,13 +521,12 @@ private:
             });
 
         YT_LOG_DEBUG(
-            "Started upload of queue data to static table (UploadTransaction: %v)",
+            "Started upload transaction for queue export (Destination: %v, UploadTransactionId: %v)",
+            DestinationObject_.GetPath(),
             UploadTransaction_->GetId());
     }
 
-    void TeleportChunkMeta(
-        const std::vector<TChunkSpec>& chunkSpecs,
-        const TUserObject& destinationObject)
+    void TeleportChunkMeta()
     {
         YT_VERIFY(UploadTransaction_);
 
@@ -405,96 +537,93 @@ private:
             UploadTransaction_->GetId(),
             Logger);
 
-        for (const auto& chunkSpec : chunkSpecs) {
-            teleporter->RegisterChunk(
-                FromProto<TChunkId>(chunkSpec.chunk_id()), destinationObject.ExternalCellTag);
+        for (const auto* chunkSpec : ChunkSpecsToExport_) {
+            teleporter->RegisterChunk(FromProto<TChunkId>(chunkSpec->chunk_id()), DestinationObject_.ExternalCellTag);
         }
         WaitFor(teleporter->Run())
             .ThrowOnError();
     }
 
-   TChunkListId GetChunkListId(const TUserObject& destinationObject)
+   TChunkListId GetChunkListId()
     {
         YT_VERIFY(UploadTransaction_);
 
-        auto proxy = CreateObjectServiceWriteProxy(Client_, destinationObject.ExternalCellTag);
-        auto req = TChunkOwnerYPathProxy::GetUploadParams(destinationObject.GetObjectIdPath());
+        auto proxy = CreateObjectServiceWriteProxy(Client_, DestinationObject_.ExternalCellTag);
+        auto req = TChunkOwnerYPathProxy::GetUploadParams(DestinationObject_.GetObjectIdPath());
         SetTransactionId(req, UploadTransaction_->GetId());
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, "Error requesting upload parameters for %Qv", destinationObject.GetPath());
+            rspOrError, "Error requesting upload parameters for %v", DestinationObject_.GetPath());
 
         const auto& rsp = rspOrError.Value();
         return FromProto<TChunkListId>(rsp->chunk_list_id());
     }
 
-    TDataStatistics AttachChunks(
-        const std::vector<TChunkSpec>& chunkSpecs,
-        const TUserObject& destinationObject)
+    void AttachChunks()
     {
         YT_VERIFY(UploadTransaction_);
 
-        YT_LOG_DEBUG("Started upload of chunks");
+        YT_LOG_DEBUG(
+            "Started chunk upload (Destination: %v, UploadTransactionId: %v, ChunkCount: %v)",
+            DestinationObject_.GetPath(),
+            UploadTransaction_->GetId(),
+            ChunkSpecsToExport_.size());
 
         TChunkServiceProxy proxy(Client_->GetMasterChannelOrThrow(
-            EMasterChannelKind::Leader, destinationObject.ExternalCellTag));
+            EMasterChannelKind::Leader, DestinationObject_.ExternalCellTag));
 
         auto batchReq = proxy.ExecuteBatch();
         GenerateMutationId(batchReq);
         SetTransactionId(batchReq, UploadTransaction_->GetId());
         SetSuppressUpstreamSync(&batchReq->Header(), true);
 
-        auto chunkListId = GetChunkListId(destinationObject);
+        auto chunkListId = GetChunkListId();
 
         auto req = batchReq->add_attach_chunk_trees_subrequests();
         ToProto(req->mutable_parent_id(), chunkListId);
 
-        for (const auto& chunkSpec : chunkSpecs) {
-            *req->add_child_ids() = chunkSpec.chunk_id();
+        for (const auto* chunkSpec : ChunkSpecsToExport_) {
+            *req->add_child_ids() = chunkSpec->chunk_id();
         }
         req->set_request_statistics(true);
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             GetCumulativeError(batchRspOrError),
-            "Error attaching chunks to %Qv",
-            destinationObject.GetPath());
+            "Error attaching chunks to %v",
+            DestinationObject_.GetPath());
 
         const auto& batchRsp = batchRspOrError.Value();
 
         const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
 
-        YT_LOG_DEBUG("Finished upload of chunks");
+        DataStatistics_ = rsp.statistics();
 
-        return rsp.statistics();
+        YT_LOG_DEBUG(
+            "Finished chunk upload (Destination: %v, UploadTransactionId: %v, ChunkCount: %v)",
+            DestinationObject_.GetPath(),
+            UploadTransaction_->GetId(),
+            ChunkSpecsToExport_.size());
     }
 
-    void EndUpload(
-        const TUserObject& queueObject,
-        const TUserObject& destinationObject,
-        const TDataStatistics& statistics)
+    void EndUpload()
     {
         YT_VERIFY(UploadTransaction_);
 
-        auto proxy = CreateObjectServiceWriteProxy(Client_, CellTagFromId(destinationObject.ObjectId));
+        auto proxy = CreateObjectServiceWriteProxy(Client_, CellTagFromId(DestinationObject_.ObjectId));
 
-        auto req = TChunkOwnerYPathProxy::EndUpload(destinationObject.GetObjectIdPath());
-        *req->mutable_statistics() = statistics;
+        auto req = TChunkOwnerYPathProxy::EndUpload(DestinationObject_.GetObjectIdPath());
+        *req->mutable_statistics() = DataStatistics_;
 
         std::vector<TSecurityTag> inferredSecurityTags;
         inferredSecurityTags.insert(
             inferredSecurityTags.end(),
-            queueObject.SecurityTags.begin(),
-            queueObject.SecurityTags.end());
+            QueueObject_.SecurityTags.begin(),
+            QueueObject_.SecurityTags.end());
         SortUnique(inferredSecurityTags);
 
-        std::vector<TSecurityTag> securityTags;
-        if (auto explicitSecurityTags = destinationObject.Path.GetSecurityTags()) {
-            securityTags = *explicitSecurityTags;
-        } else {
-            securityTags = inferredSecurityTags;
-        }
+        auto securityTags = DestinationObject_.Path.GetSecurityTags().value_or(inferredSecurityTags);
 
         ToProto(req->mutable_security_tags()->mutable_items(), securityTags);
         SetTransactionId(req, UploadTransaction_->GetId());
@@ -502,48 +631,54 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, "Error ending upload to %Qv", destinationObject.GetPath());
+            rspOrError, "Error ending upload to %v", DestinationObject_.GetPath());
 
         UploadTransaction_->Detach();
     }
+
+    void UpdateCypressExportProgress(
+        const TExportProgressPtr& /*currentExportProgress*/,
+        const TExportProgressPtr& newExportProgress)
+    {
+        TSetNodeOptions options;
+        options.TransactionId = Options_.TransactionId;
+        WaitFor(Client_->SetNode(
+            Format("%v/@%v", ExportDirectory_, ExportProgressAttributeName_),
+            ConvertToYsonString(newExportProgress),
+            options))
+            .ThrowOnError();
+
+        // TODO(achulkov2): Log summary of progress difference.
+        YT_LOG_DEBUG("Updated export progress");
+    }
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueExportTask);
+DEFINE_REFCOUNTED_TYPE(TQueueExportTask)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueueExporter::TQueueExporter(
-    NNative::IConnectionPtr connection,
     NNative::IClientPtr client,
     IInvokerPtr invoker,
-    TLogger logger)
-    : Connection_(std::move(connection))
-    , Client_(std::move(client))
+    const TLogger& logger)
+    : Client_(std::move(client))
     , Invoker_(std::move(invoker))
-    , Logger(std::move(logger))
+    , Logger(logger)
 { }
 
-TFuture<void> TQueueExporter::ExportToStaticTable(
-    const TRichYPath& queuePath,
-    const TRichYPath& destinationPath,
-    TQueueExportOptions options) const
+TFuture<void> TQueueExporter::RunExportIteration(
+    TYPath queue,
+    TYPath exportDirectory,
+    TDuration exportPeriod)
 {
     auto exportTask = New<TQueueExportTask>(
-        Connection_,
         Client_,
         Invoker_,
-        queuePath,
-        destinationPath,
-        options,
+        std::move(queue),
+        std::move(exportDirectory),
+        exportPeriod,
         Logger);
     return exportTask->Run();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TString GenerateStaticTableName(const TRichYPath& queuePath)
-{
-    return queuePath.GetPath() + "-export-result";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

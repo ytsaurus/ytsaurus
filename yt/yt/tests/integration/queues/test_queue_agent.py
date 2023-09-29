@@ -2,11 +2,11 @@ from yt_env_setup import (Restarter, QUEUE_AGENTS_SERVICE)
 from yt_queue_agent_test_base import (TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid)
 
-from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
+from yt_commands import (authors, get, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
-                         sync_unfreeze_table, advance_consumer, get_driver, sync_flush_table, sync_create_cells, read_table)
+                         sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, read_table)
 
 from yt.common import YtError, update_inplace
 
@@ -271,7 +271,7 @@ class TestQueueController(TestQueueAgentBase):
     def test_queue_status(self):
         orchid = QueueAgentOrchid()
 
-        schema = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
+        schema, _ = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
         schema_with_cumulative_data_weight = schema + [{"name": "$cumulative_data_weight", "type": "int64"}]
         self._create_registered_consumer("//tmp/c", "//tmp/q")
 
@@ -2453,13 +2453,13 @@ class TestDynamicConfig(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
 
-class TestQueueStaticTableExport(TestQueueAgentBase, ReplicatedObjectBase):
+class TestQueueStaticExportBase(TestQueueAgentBase):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_TEST_PARTITIONS = 3
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "controller": {
-                "export_period": 3,
+                "enable_queue_static_export": True,
             },
         },
         "cypress_synchronizer": {
@@ -2468,198 +2468,159 @@ class TestQueueStaticTableExport(TestQueueAgentBase, ReplicatedObjectBase):
         },
     }
 
-    @authors("cherepashka")
+    @staticmethod
+    def _create_export_destination(export_directory, queue_id):
+        create("map_node", export_directory, recursive=True, ignore_existing=True)
+        set(f"{export_directory}/@queue_static_export_destination", {
+            "originating_queue_id": queue_id,
+        })
+
+    @staticmethod
+    def _check_export(export_directory, expected_data):
+        export_fragments = sorted(ls(export_directory))
+        assert len(export_fragments) == len(expected_data)
+        export_progress = get(f"{export_directory}/@queue_static_export_progress")
+        assert export_progress["last_exported_fragment_unix_ts"] == int(export_fragments[-1].split("-")[0])
+
+        max_timestamp = 0
+        total_row_count = 0
+
+        for fragment_index, fragment_name in enumerate(export_fragments):
+            fragment_unix_ts = int(fragment_name.split("-")[0])
+            rows = list(read_table(f"{export_directory}/{fragment_name}"))
+            assert list(map(itemgetter("data"), rows)) == expected_data[fragment_index]
+
+            for row in rows:
+                ts = row["$timestamp"]
+                max_timestamp = max(ts, max_timestamp)
+
+                assert ts >> 30 <= fragment_unix_ts
+
+            total_row_count += len(rows)
+
+        assert max(map(itemgetter("max_timestamp"), export_progress["tablets"].values())) == max_timestamp
+        assert sum(map(itemgetter("row_count"), export_progress["tablets"].values())) == total_row_count
+
+
+class TestQueueStaticExport(TestQueueStaticExportBase):
+    @authors("cherepashka", "achulkov2")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
-    @pytest.mark.parametrize("static_table_external_cell_tag", [None, 10, 11, 12])
-    def test_multicell_export(self, queue_external_cell_tag, static_table_external_cell_tag):
+    def test_multicell_export(self, queue_external_cell_tag):
+        if getattr(self, "ENABLE_TMP_PORTAL", False) and queue_external_cell_tag == 10:
+            pytest.skip()
+
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
 
-        self._create_queue("//tmp/q", external_cell_tag=queue_external_cell_tag)
+        _, queue_id = self._create_queue("//tmp/q", external_cell_tag=queue_external_cell_tag)
 
-        # Special case for testing creating of static table inside export instead of explicit creation.
-        if static_table_external_cell_tag is not None:
-            create("table", "//tmp/q-export-result", attributes={"dynamic": False, "external_cell_tag": static_table_external_cell_tag})
-
-        cypress_orchid.wait_fresh_pass()
-        queue_agent_orchid.wait_fresh_pass()
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
 
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-
         self._flush_table("//tmp/q")
-        set("//tmp/q/@enable_export", "true")
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
-        # Export performs with period of 3 seconds, so we wait 4s to finish export.
-        time.sleep(4)
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
 
-        with raises_yt_error("not found"):
-            get("//tmp/q/@enable_export")
-
-        rows = read_table("//tmp/q-export-result")
-        assert len(rows) == 7
-        for row in rows:
-            assert row["data"] == "bar"
-
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 7)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-
-        set("//tmp/q/@enable_export", "true")
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-
-        # Export performs with period of 3 seconds, so we wait 4s to finish export.
-        time.sleep(4)
-
-        with raises_yt_error("not found"):
-            get("//tmp/q/@enable_export")
-
-        rows = read_table("//tmp/q-export-result")
-        assert len(rows) == 7
-        for row in rows:
-            assert row["data"] == "bar"
-
-        # Wait for synchronization to make sure that the export didn't break the queue agent.
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-
-        remove("//tmp/q")
-        remove("//tmp/q-export-result")
-
-    @authors("cherepashka")
-    def test_invalid_chunk_formats(self):
-        queue_agent_orchid = QueueAgentOrchid()
-        cypress_orchid = CypressSynchronizerOrchid()
-
-        schema = [{"name": "field1", "type": "uint64", "sort_order": "ascending", "required": True},
-                  {"name": "field2", "type": "string", "required": True}]
-        create("table", "//tmp/q", attributes={"dynamic": True, "schema": schema})
-        sync_mount_table("//tmp/q")
         cypress_orchid.wait_fresh_pass()
-
-        insert_rows("//tmp/q", [{"field1": 0, "field2": "some data that will be flushed"}] * 7)
         queue_agent_orchid.wait_fresh_pass()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(export_dir, [["bar"] * 7])
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        # NB: No flush.
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        time.sleep(5)
+        self._check_export(export_dir, [["bar"] * 7])
 
         self._flush_table("//tmp/q")
-        set("//tmp/q/@enable_export", "true")
-        cypress_orchid.wait_fresh_pass()
+        wait(lambda: len(ls(export_dir)) == 2)
+        self._check_export(export_dir, [["bar"] * 7, ["foo"] * 5])
 
-        # Export performs with period of 3 seconds, so we wait 4s to finish export.
-        time.sleep(4)
+    # TODO(achulkov2): Add test that replicated/chaos queues are not exported.
 
-        with raises_yt_error("has no child with key"):
-            get("//tmp/q-export-result")
-        assert get("//tmp/q/@enable_export") == "true"
-        # TODO: to add chaos replicated tables and replicated tables when they will be supported in queue agent.
-
-    @authors("cherepashka")
+    @authors("cherepashka", "achulkov2")
     def test_export_order(self):
-        queue_agent_orchid = QueueAgentOrchid()
-        cypress_orchid = CypressSynchronizerOrchid()
+        _, queue_id = self._create_queue("//tmp/q", partition_count=3)
 
-        self._create_queue("//tmp/q", partition_count=3)
-
-        cypress_orchid.wait_fresh_pass()
-        queue_agent_orchid.wait_fresh_pass()
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
 
         insert_rows("//tmp/q", [{"$tablet_index": 2, "data": "third chunk"}] * 2)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         self._flush_table("//tmp/q")
 
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second chunk"}] * 2)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         self._flush_table("//tmp/q")
 
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "first chunk"}] * 2)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         self._flush_table("//tmp/q")
 
-        set("//tmp/q/@enable_export", "true")
-        cypress_orchid.wait_fresh_pass()
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
 
-        # Export performs with period of 3 seconds, so we wait 4s to finish export.
-        time.sleep(4)
+        wait(lambda: len(ls(export_dir)) == 1)
 
-        with raises_yt_error("not found"):
-            get("//tmp/q/@enable_export")
+        expected_data = [["first chunk"] * 2 + ["second chunk"] * 2 + ["third chunk"] * 2]
+        self._check_export(export_dir, expected_data)
 
-        rows = read_table("//tmp/q-export-result")
-        assert len(rows) == 6
+    @authors("cherepashka", "achulkov2")
+    def test_export_to_the_same_folder(self):
+        _, queue_id = self._create_queue("//tmp/q")
 
-        expected_data = ["first chunk", "second chunk", "third chunk"]
-        for row_index in range(len(rows)):
-            assert rows[row_index]["data"] == expected_data[row_index // 2]
+        export_dir = "//tmp"
+        self._create_export_destination(export_dir, queue_id)
 
-        # Wait for synchronization to make sure that the export didn't break the queue agent.
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table("//tmp/q")
 
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
 
-class TestQueueStaticTableExportPortals(TestQueueAgentBase):
-    NUM_SECONDARY_MASTER_CELLS = 2
-    ENABLE_TMP_PORTAL = True
-    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
-        "queue_agent": {
-            "controller": {
-                "export_period": 3,
-            },
-        },
-        "cypress_synchronizer": {
-            "policy": "watching",
-            "enable": True,
-        },
-    }
+        wait(lambda: len(ls(export_dir)) == 2)
 
-    @authors("cherepashka")
-    @pytest.mark.parametrize("to_create_static_table", [True, False])
-    def test_portals(self, to_create_static_table):
+        # So that it's easier to check via common function.
+        remove("//tmp/q")
+        self._check_export(export_dir, [["foo"] * 6])
+
+    @authors("cherepashka", "achulkov2")
+    def test_wrong_originating_queue(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q")
+        _, queue_id = self._create_queue("//tmp/q1")
 
-        if to_create_static_table:
-            create("table", "//tmp/q-export-result", attributes={"dynamic": False, "external_cell_tag": 12})
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "some data for export"}] * 2)
+        self._flush_table("//tmp/q")
+
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 2 * 1000,
+        })
 
         cypress_orchid.wait_fresh_pass()
         queue_agent_orchid.wait_fresh_pass()
-
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "some data that will be flushed"}] * 7)
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
-        self._flush_table("//tmp/q")
-        set("//tmp/q/@enable_export", "true")
-        cypress_orchid.wait_fresh_pass()
-
-        # Export performs with period of 3 seconds, so we wait 4s to finish export.
+        #  We perform exports with a period of 2 seconds, so we wait for 4.
         time.sleep(4)
 
-        with raises_yt_error("not found"):
-            get("//tmp/q/@enable_export")
+        # The export directory is not configured to accept exports from //tmp/q, so none should have been performed.
+        assert len(ls(export_dir)) == 0
 
-        rows = read_table("//tmp/q-export-result")
-        assert len(rows) == 7
-        for row in rows:
-            assert row["data"] == "some data that will be flushed"
 
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "some data"}] * 7)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-
-        set("//tmp/q/@enable_export", "true")
-        cypress_orchid.wait_fresh_pass()
-
-        # Export performs with period of 3 seconds, so we wait 4s to finish export.
-        time.sleep(4)
-
-        with raises_yt_error("not found"):
-            get("//tmp/q/@enable_export")
-
-        rows = read_table("//tmp/q-export-result")
-        assert len(rows) == 7
-        for row in rows:
-            assert row["data"] == "some data that will be flushed"
-
-        # Wait for synchronization to make sure that the export didn't break the queue agent.
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+class TestQueueStaticExportPortals(TestQueueStaticExport):
+    ENABLE_TMP_PORTAL = True

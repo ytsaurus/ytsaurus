@@ -15,16 +15,6 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQueueExportOptions
-    : public NApi::TTransactionalOptions
-{
-    //! Every chunk with max_timestamp from misc ext laying between LowerExportTimestamp and UpperExportTimestamp includely will be exported.
-    NTransactionClient::TTimestamp LowerExportTimestamp;
-    NTransactionClient::TTimestamp UpperExportTimestamp;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQueueExporter
     : public TRefCounted
 {
@@ -32,29 +22,23 @@ public:
     TQueueExporter() = default;
 
     explicit TQueueExporter(
-        NApi::NNative::IConnectionPtr connection,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
-        NLogging::TLogger logger);
+        const NLogging::TLogger& logger);
 
-    TFuture<void> ExportToStaticTable(
-        const NYPath::TRichYPath& queuePath,
-        const NYPath::TRichYPath& destinationPath,
-        TQueueExportOptions options) const;
+    TFuture<void> RunExportIteration(
+        NYPath::TYPath queue,
+        NYPath::TYPath exportDirectory,
+        TDuration exportPeriod);
 
 private:
-    NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
 
     NLogging::TLogger Logger;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueExporter);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TString GenerateStaticTableName(const NYPath::TRichYPath& queuePath);
+DEFINE_REFCOUNTED_TYPE(TQueueExporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

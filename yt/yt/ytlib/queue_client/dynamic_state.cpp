@@ -135,6 +135,7 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
     TColumnSchema("dynamic", EValueType::Boolean),
     TColumnSchema("sorted", EValueType::Boolean),
     TColumnSchema("auto_trim_config", EValueType::Any),
+    TColumnSchema("static_export_config", EValueType::Any),
     TColumnSchema("queue_agent_stage", EValueType::String),
     TColumnSchema("object_id", EValueType::String),
     TColumnSchema("synchronization_error", EValueType::Any),
@@ -158,6 +159,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
     auto dynamicId = nameTable->FindId("dynamic");
     auto sortedId = nameTable->FindId("sorted");
     auto autoTrimConfigId = nameTable->FindId("auto_trim_config");
+    auto staticExportConfigId = nameTable->FindId("static_export_config");
     auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
     auto objectIdFieldId = nameTable->FindId("object_id");
     auto synchronizationErrorId = nameTable->FindId("synchronization_error");
@@ -196,6 +198,11 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
             typedRow.AutoTrimConfig = TQueueAutoTrimConfig();
         }
 
+        // TODO(achulkov2): Use setSimpleOptional?
+        if (auto staticExportConfig = findValue(staticExportConfigId)) {
+            typedRow.StaticExportConfig = ConvertTo<TQueueStaticExportConfig>(TYsonStringBuf(staticExportConfig->AsStringBuf()));
+        }
+
         setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
         setSimpleOptional(objectIdFieldId, typedRow.ObjectId);
         setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
@@ -225,8 +232,14 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
         if (row.AutoTrimConfig) {
             autoTrimConfigYson = ConvertToYsonString(row.AutoTrimConfig);
         }
-
         rowBuilder.AddValue(ToUnversionedValue(autoTrimConfigYson, rowBuffer, nameTable->GetIdOrThrow("auto_trim_config")));
+
+        std::optional<TYsonString> staticExportConfigYson;
+        if (row.StaticExportConfig) {
+            staticExportConfigYson = ConvertToYsonString(row.StaticExportConfig);
+        }
+        rowBuilder.AddValue(ToUnversionedValue(staticExportConfigYson, rowBuffer, nameTable->GetIdOrThrow("static_export_config")));
+
         rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
         rowBuilder.AddValue(ToUnversionedValue(row.ObjectId, rowBuffer, nameTable->GetIdOrThrow("object_id")));
         rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
@@ -261,6 +274,7 @@ std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
         "dynamic",
         "sorted",
         "auto_trim_config",
+        "static_export_config",
         "queue_agent_stage",
         "id",
         // Replicated tables and chaos replicated tables.
@@ -284,6 +298,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
         .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config"),
+        .StaticExportConfig = cypressAttributes->Find<TQueueStaticExportConfig>("static_export_config"),
         .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
         .ObjectId = cypressAttributes->Find<TObjectId>("id"),
         .SynchronizationError = TError(),
@@ -301,6 +316,7 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
             .Item("dynamic").Value(row.Dynamic)
             .Item("sorted").Value(row.Sorted)
             .Item("auto_trim_config").Value(row.AutoTrimConfig)
+            .Item("static_export_config").Value(row.StaticExportConfig)
             .Item("queue_agent_stage").Value(row.QueueAgentStage)
             .Item("object_id").Value(row.ObjectId)
             .Item("synchronization_error").Value(row.SynchronizationError)

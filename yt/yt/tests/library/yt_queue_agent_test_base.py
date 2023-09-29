@@ -357,13 +357,13 @@ class TestQueueAgentBase(YTEnvSetup):
             "schema": schema,
         }
         attributes.update(kwargs)
-        create("table", path, attributes=attributes)
+        queue_id = create("table", path, attributes=attributes)
         if partition_count != 1:
             sync_reshard_table(path, partition_count)
         if mount:
             sync_mount_table(path)
 
-        return schema
+        return schema, queue_id
 
     def _create_consumer(self, path, mount=True, **kwargs):
         attributes = {
