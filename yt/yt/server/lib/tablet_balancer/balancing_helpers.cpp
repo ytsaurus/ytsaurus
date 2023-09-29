@@ -172,6 +172,7 @@ TTabletSizeConfig GetTabletSizeConfig(
 std::optional<TReshardDescriptor> MergeSplitTablet(
     const TTabletPtr& tablet,
     TTabletBalancerContext* context,
+    bool pickPivotKeys,
     const TTabletSizeConfig& bounds,
     std::vector<int>* mergeBudgetByIndex,
     const TLogger& Logger)
@@ -260,8 +261,10 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
     int newTabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
 
-    if (endIndex == startIndex && tablet->Statistics.PartitionCount == 1) {
-        return {};
+    if (!pickPivotKeys) {
+        if (endIndex == startIndex && tablet->Statistics.PartitionCount == 1) {
+            return {};
+        }
     }
 
     if (endIndex == startIndex && newTabletCount == 1) {
@@ -296,6 +299,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     std::vector<TTabletPtr> tablets,
+    bool pickPivotKeys,
     const TLogger& Logger)
 {
     YT_VERIFY(!tablets.empty());
@@ -355,6 +359,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
         auto descriptor = MergeSplitTablet(
             tablet,
             &context,
+            pickPivotKeys,
             config,
             config.MinTabletCount ? &mergeBudgetByIndex : nullptr,
             Logger);

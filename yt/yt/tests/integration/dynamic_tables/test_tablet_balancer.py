@@ -32,6 +32,11 @@ class TestStandaloneTabletBalancerBase:
     def _get_enable_tablet_balancer(self):
         return get("//sys/tablet_balancer/config/enable")
 
+    def _turn_off_pivot_keys_picking(self):
+        self._apply_dynamic_config_patch({
+            "pick_reshard_pivot_keys": False,
+        })
+
     @classmethod
     def modify_tablet_balancer_config(cls, config):
         update_inplace(config, {

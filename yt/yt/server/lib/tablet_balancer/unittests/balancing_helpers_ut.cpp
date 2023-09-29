@@ -348,6 +348,7 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
 
         auto descriptors = MergeSplitTabletsOfTable(
             table->Tablets,
+            /*pickPivotKeys*/ true,
             Logger);
 
         for (const auto& descriptor : descriptors) {
