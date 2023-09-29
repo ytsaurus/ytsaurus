@@ -348,6 +348,7 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
 
         auto descriptors = MergeSplitTabletsOfTable(
             table->Tablets,
+            /*minDesiredTabletSize*/ 0,
             /*pickPivotKeys*/ true,
             Logger);
 

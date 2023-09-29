@@ -830,6 +830,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
     auto slicingAccuracy = dynamicConfig->ReshardSlicingAccuracy;
     bool enableVerboseLogging = dynamicConfig->EnableReshardVerboseLogging ||
         bundleState->GetBundle()->Config->EnableVerboseLogging;
+    auto minDesiredTabletSize = dynamicConfig->MinDesiredTabletSize;
 
     for (const auto& table : tables) {
         if (actionLimitExceeded) {
@@ -851,6 +852,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             BIND(
                 MergeSplitTabletsOfTable,
                 std::move(tablets),
+                minDesiredTabletSize,
                 pickReshardPivotKeys,
                 Logger)
             .AsyncVia(WorkerPool_->GetInvoker())

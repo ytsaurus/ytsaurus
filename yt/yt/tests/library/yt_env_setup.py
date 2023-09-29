@@ -1442,7 +1442,8 @@ class YTEnvSetup(object):
             config = {
                 "enable": self.ENABLE_STANDALONE_TABLET_BALANCER,
                 "enable_everywhere": self.ENABLE_STANDALONE_TABLET_BALANCER,
-                "schedule": "1"
+                "schedule": "1",
+                "min_desired_tablet_size": 0,
             }
 
             yt_commands.set(
