@@ -940,19 +940,29 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
     EXPECT_EQ(0u, mutations.ChangedStates.count(bundleName));
 }
 
-TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
+TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfSomeNodesAreNotReady)
 {
     constexpr int TabletSlotCount = 10;
 
     auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotCount);
     auto dataCenters = GetDataCenters(input);
 
+    const auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+
     GenerateTabletCellsForBundle(input, "bigd", 2 * TabletSlotCount * GetActiveDataCenterCount());
 
     // Do not deallocate nodes if node tag filter is not set for all alive nodes
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=!SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=!SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+
+        auto intactNodes = GetRandomElements(nodes, 1);
+        for (const auto& nodeName : intactNodes) {
+            auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+            nodeInfo->UserTags = { bundleInfo->NodeTagFilter };
+        }
     }
+
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
@@ -962,7 +972,14 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
     // Do not deallocate nodes if cell cout is not actual for all the nodes
     input.TabletNodes.clear();
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount / 2, .DC=dataCenter});
+        auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount / 2, .DC=dataCenter});
+
+        auto intactNodes = GetRandomElements(nodes, 1);
+        for (const auto& nodeName : intactNodes) {
+            auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+            nodeInfo->TabletSlots.resize(TabletSlotCount);
+            SetTabletSlotsState(input, nodeName, TabletSlotStateEmpty);
+        }
     }
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -976,6 +993,29 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
         GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
     }
     mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
+}
+
+TEST_P(TBundleSchedulerTest, CreateNewDeallocationsIfAllNodesAreNotReady)
+{
+    constexpr int TabletSlotCount = 10;
+
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotCount);
+    auto dataCenters = GetDataCenters(input);
+
+    const auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+
+    GenerateTabletCellsForBundle(input, "bigd", 2 * TabletSlotCount * GetActiveDataCenterCount());
+
+    // Do not deallocate nodes if node tag filter is not set for all alive nodes
+    for (const auto& dataCenter : dataCenters) {
+       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=!SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+    }
+
+    TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));

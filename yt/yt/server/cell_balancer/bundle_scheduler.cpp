@@ -10,6 +10,7 @@
 
 #include <compare>
 #include <cmath>
+#include <vector>
 
 namespace NYT::NCellBalancer {
 
@@ -1796,21 +1797,34 @@ public:
                 // Wait for tablet cell management to complete.
                 return false;
             }
+        }
 
+        if (bundleInfo->EnableNodeTagFilterManagement) {
             // Check that all alive instancies have appropriate node_tag_filter and slots count
             auto expectedSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
 
-            for (const auto& nodeName : GetAliveInstancies(dataCenterName)) {
+            std::vector<TString> notReadyNodes;
+            const auto aliveDataCenterNodes = GetAliveInstancies(dataCenterName);
+
+            for (const auto& nodeName : aliveDataCenterNodes) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
                 if (nodeInfo->UserTags.count(bundleInfo->NodeTagFilter) == 0 ||
                     std::ssize(nodeInfo->TabletSlots) != expectedSlotCount)
                 {
-                    // Wait while all alive nodes have updated settings.
-                    YT_LOG_DEBUG("Node is not ready "
-                        "(NodeName: %v, ExpectedSlotCount: %v, NodeTagFilter: %v, SlotCount: %v, UserTags: %v)",
+                    YT_LOG_DEBUG("Node is not ready (NodeName: %v, "
+                        "ExpectedSlotCount: %v, NodeTagFilter: %v, SlotCount: %v, UserTags: %v)",
                         nodeName, expectedSlotCount, bundleInfo->NodeTagFilter, std::ssize(nodeInfo->TabletSlots), nodeInfo->UserTags);
-                    return false;
+
+                    notReadyNodes.push_back(nodeName);
                 }
+            }
+
+            if (!notReadyNodes.empty() && std::ssize(notReadyNodes) != std::ssize(aliveDataCenterNodes)) {
+                // Wait while all alive nodes have updated settings.
+
+                YT_LOG_INFO("Skipping nodes deallocation because nodes are node ready (DataCenter: %v)",
+                    dataCenterName);
+                return false;
             }
         }
 
