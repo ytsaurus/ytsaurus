@@ -116,7 +116,6 @@ ETransactionPresence TTransactionPresenceCache::GetTransactionPresence(TTransact
         return ETransactionPresence::Replicated;
     }
 
-    // NB: this will not work when enable_dedicated_upload_transaction_object_types is false.
     if (TypeFromId(transactionId) == EObjectType::UploadTransaction ||
         TypeFromId(transactionId) == EObjectType::UploadNestedTransaction)
     {

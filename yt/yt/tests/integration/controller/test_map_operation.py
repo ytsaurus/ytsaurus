@@ -1894,6 +1894,19 @@ class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsShardedTx):
     NUM_CYPRESS_PROXIES = 1
 
 
+class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+
 ##################################################################
 
 

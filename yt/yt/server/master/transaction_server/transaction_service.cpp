@@ -16,12 +16,12 @@
 
 namespace NYT::NTransactionServer {
 
-using namespace NRpc;
-using namespace NTransactionClient;
-using namespace NObjectClient;
-using namespace NHydra;
 using namespace NCellMaster;
 using namespace NConcurrency;
+using namespace NHydra;
+using namespace NObjectClient;
+using namespace NRpc;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +33,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TTransactionServiceProxy::GetDescriptor(),
-            EAutomatonThreadQueue::TransactionSupervisor,
+            EAutomatonThreadQueue::TransactionService,
             TransactionServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)

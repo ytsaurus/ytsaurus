@@ -127,11 +127,14 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (NodeStatisticsFixer)
     (MaintenanceTracker)
     (MasterCellChunkStatisticsCollector)
+    (CypressTransactionService)
+    (TransactionService)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,
     (Gossips)
     (ChunkMaintenance)
+    (Transactions)
 );
 
 using NCellMasterClient::EMasterCellRole;

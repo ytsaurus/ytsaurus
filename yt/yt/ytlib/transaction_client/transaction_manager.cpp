@@ -4,22 +4,24 @@
 #include "action.h"
 #include "helpers.h"
 
-#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
+#include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_tracker.h>
 
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/yt/ytlib/transaction_supervisor/transaction_supervisor_service_proxy.h>
 #include <yt/yt/ytlib/transaction_supervisor/transaction_participant_service_proxy.h>
-
-#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/yt/ytlib/transaction_supervisor/transaction_supervisor_service_proxy.h>
 
 #include <yt/yt/client/hive/timestamp_map.h>
 
@@ -45,6 +47,7 @@ namespace NYT::NTransactionClient {
 using namespace NApi;
 using namespace NCellMasterClient;
 using namespace NConcurrency;
+using namespace NCypressTransactionClient;
 using namespace NHiveClient;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -388,7 +391,7 @@ public:
 
             if (State_ == ETransactionState::Aborted) {
                 guard.Release();
-                YT_UNUSED_FUTURE(SendAbort(cellId));
+                YT_UNUSED_FUTURE(SendAbortToCell(cellId));
                 return;
             }
 
@@ -500,6 +503,16 @@ private:
     TTransactionId Id_;
 
     std::atomic<TInstant> PingLeaseDeadline_ = TInstant::Max();
+
+    using TReqStartCypressTransaction = TTypedClientRequest<
+        NCypressTransactionClient::NProto::TReqStartTransaction,
+        TTypedClientResponse<NCypressTransactionClient::NProto::TRspStartTransaction>>;
+    using TReqStartCypressTransactionPtr = TIntrusivePtr<TReqStartCypressTransaction>;
+
+    using TReqStartMasterTransaction = TTypedClientRequest<
+        NTransactionClient::NProto::TReqStartTransaction,
+        TTypedClientResponse<NTransactionClient::NProto::TRspStartTransaction>>;
+    using TReqStartMasterTransactionPtr = TIntrusivePtr<TReqStartMasterTransaction>;
 
 
     static void ValidateStartOptions(
@@ -724,49 +737,70 @@ private:
         }
     }
 
+    template<class TReqStartTransactionPtr>
+    void FillStartTransactionReq(
+        TReqStartTransactionPtr request,
+        const TTransactionStartOptions& options)
+    {
+        request->Header().add_required_server_feature_ids(FeatureIdToInt(EMasterFeature::PortalExitSynchronization));
+
+        request->SetUser(Owner_->User_);
+        auto attributes = options.Attributes
+            ? options.Attributes->Clone()
+            : CreateEphemeralAttributes();
+        auto optionalTitle = attributes->FindAndRemove<TString>("title");
+        if (optionalTitle) {
+            request->set_title(*optionalTitle);
+        }
+        ToProto(request->mutable_attributes(), *attributes);
+        request->set_timeout(ToProto<i64>(GetTimeout()));
+        if (options.ParentId) {
+            ToProto(request->mutable_parent_id(), options.ParentId);
+        }
+        ToProto(request->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
+        if (options.Deadline) {
+            request->set_deadline(ToProto<ui64>(*options.Deadline));
+        }
+        if (options.ReplicateToMasterCellTags) {
+            for (auto tag : *options.ReplicateToMasterCellTags) {
+                if (tag != CoordinatorMasterCellTag_) {
+                    request->add_replicate_to_cell_tags(ToProto<int>(tag));
+                }
+            }
+        }
+        SetOrGenerateMutationId(request, options.MutationId, options.Retry);
+    }
+
     TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
         auto connection = TryLockConnection()
             .ValueOrThrow();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
+        if (options.StartCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+            TCypressTransactionServiceProxy proxy(channel);
+            auto req = proxy.StartTransaction();
+
+            FillStartTransactionReq<TReqStartCypressTransactionPtr>(req, options);
+            return req->Invoke().Apply(
+                BIND(
+                    &TImpl::OnMasterTransactionStarted<TCypressTransactionServiceProxy::TErrorOrRspStartTransactionPtr>,
+                    MakeStrong(this)));
+        }
+
         TTransactionServiceProxy proxy(channel);
         auto req = proxy.StartTransaction();
 
-        req->Header().add_required_server_feature_ids(FeatureIdToInt(EMasterFeature::PortalExitSynchronization));
-
-        req->SetUser(Owner_->User_);
-        auto attributes = options.Attributes
-            ? options.Attributes->Clone()
-            : CreateEphemeralAttributes();
-        auto optionalTitle = attributes->FindAndRemove<TString>("title");
-        if (optionalTitle) {
-            req->set_title(*optionalTitle);
-        }
-        ToProto(req->mutable_attributes(), *attributes);
-        req->set_timeout(ToProto<i64>(GetTimeout()));
-        if (options.ParentId) {
-            ToProto(req->mutable_parent_id(), options.ParentId);
-        }
-        ToProto(req->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
-        if (options.Deadline) {
-            req->set_deadline(ToProto<ui64>(*options.Deadline));
-        }
+        FillStartTransactionReq<TReqStartMasterTransactionPtr>(req, options);
         req->set_is_cypress_transaction(options.StartCypressTransaction);
-        if (options.ReplicateToMasterCellTags) {
-            for (auto tag : *options.ReplicateToMasterCellTags) {
-                if (tag != CoordinatorMasterCellTag_) {
-                    req->add_replicate_to_cell_tags(ToProto<int>(tag));
-                }
-            }
-        }
-        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
-
         return req->Invoke().Apply(
-            BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
+            BIND(
+                &TImpl::OnMasterTransactionStarted<TTransactionServiceProxy::TErrorOrRspStartTransactionPtr>,
+                MakeStrong(this)));
     }
 
-    TError OnMasterTransactionStarted(const TTransactionServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
+    template<class TErrorOrRsp>
+    TError OnMasterTransactionStarted(const TErrorOrRsp& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             State_ = ETransactionState::Aborted;
@@ -883,41 +917,78 @@ private:
         try {
             YT_VERIFY(CoordinatorCellId_);
 
-            auto supervisorParticipantCellIds = GetSupervisorParticipantIds();
-            auto supervisorPrepareOnlyParticipantCellIds = GetSupervisorPrepareOnlyParticipantIds();
-            YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v, "
-                "ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v)",
-                Id_,
-                CoordinatorCellId_,
-                supervisorParticipantCellIds,
-                supervisorPrepareOnlyParticipantCellIds,
-                options.CellIdsToSyncWithBeforePrepare);
+            auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
+            if (isCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+                return DoCommitCypressTransaction(options);
+            }
 
-            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
-            auto req = proxy.CommitTransaction();
-            req->SetUser(Owner_->User_);
-            // NB: the server side only supports these for simple (non-distributed) commits, but set them anyway.
-            SetPrerequisites(req, options);
-            ToProto(req->mutable_transaction_id(), Id_);
-            ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
-            ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
-            ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
-            req->set_force_2pc(options.Force2PC);
-            req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
-            req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
-            req->set_coordinator_prepare_mode(ToProto<int>(options.CoordinatorPrepareMode));
-            req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
-            req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
-            req->set_clock_cluster_tag(ToProto<int>(ClockClusterTag_));
-            ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
-            SetOrGenerateMutationId(req, options.MutationId, options.Retry);
-
-            return req->Invoke().Apply(
-                BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), CoordinatorCellId_));
+            return DoCommitTransaction(options);
         } catch (const std::exception& ex) {
             return MakeFuture<TTransactionCommitResult>(TError(ex));
         }
+    }
+
+    TFuture<TTransactionCommitResult> DoCommitCypressTransaction(const TTransactionCommitOptions& options)
+    {
+        YT_LOG_DEBUG("Committing cypress transaction (TransactionId: %v, CoordinatorCellId: %v)",
+            Id_,
+            CoordinatorCellId_);
+
+        auto connection = TryLockConnection()
+            .ValueOrThrow();
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+        TCypressTransactionServiceProxy proxy(channel);
+        auto req = proxy.CommitTransaction();
+
+        req->SetUser(Owner_->User_);
+        SetPrerequisites(req, options);
+        ToProto(req->mutable_transaction_id(), Id_);
+        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+        return req->Invoke().Apply(
+            BIND(
+                &TImpl::OnAtomicTransactionCommitted<TCypressTransactionServiceProxy::TErrorOrRspCommitTransactionPtr>,
+                MakeStrong(this),
+                CoordinatorCellId_));
+    }
+
+    TFuture<TTransactionCommitResult> DoCommitTransaction(const TTransactionCommitOptions& options)
+    {
+        auto supervisorParticipantCellIds = GetSupervisorParticipantIds();
+        auto supervisorPrepareOnlyParticipantCellIds = GetSupervisorPrepareOnlyParticipantIds();
+        YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v, "
+            "ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v)",
+            Id_,
+            CoordinatorCellId_,
+            supervisorParticipantCellIds,
+            supervisorPrepareOnlyParticipantCellIds,
+            options.CellIdsToSyncWithBeforePrepare);
+
+        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
+        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
+        auto req = proxy.CommitTransaction();
+        req->SetUser(Owner_->User_);
+        // NB: the server side only supports these for simple (non-distributed) commits, but set them anyway.
+        // COMPAT(h0pless): It should be safe to remove prerequisites here when CTxS will be used on masters.
+        SetPrerequisites(req, options);
+        ToProto(req->mutable_transaction_id(), Id_);
+        ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
+        ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
+        ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
+        req->set_force_2pc(options.Force2PC);
+        req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
+        req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
+        req->set_coordinator_prepare_mode(ToProto<int>(options.CoordinatorPrepareMode));
+        req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
+        req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
+        req->set_clock_cluster_tag(ToProto<int>(ClockClusterTag_));
+        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+        return req->Invoke().Apply(
+            BIND(
+                &TImpl::OnAtomicTransactionCommitted<TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr>,
+                MakeStrong(this),
+                CoordinatorCellId_));
     }
 
     TFuture<TTransactionCommitResult> DoCommitNonAtomic()
@@ -1014,10 +1085,10 @@ private:
             }));
     }
 
-
+    template<class TErrorOrRsp>
     TErrorOr<TTransactionCommitResult> OnAtomicTransactionCommitted(
         TCellId cellId,
-        const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
+        const TErrorOrRsp& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             auto error = TError("Error committing transaction %v at cell %v",
@@ -1042,8 +1113,52 @@ private:
         return result;
     }
 
-
     TFuture<void> SendPing(const TTransactionPingOptions& options = {})
+    {
+        auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
+        if (isCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+            auto participantIds = GetRegisteredParticipantIds();
+            YT_VERIFY(participantIds.size() == 1);
+
+            return DoPingCypressTransaction(participantIds[0], options);
+        }
+
+        return DoPingTransaction(options);
+    }
+
+    TFuture<void> DoPingCypressTransaction(TCellId cellId, const TTransactionPingOptions& options)
+    {
+        YT_LOG_DEBUG("Pinging cypress transaction (TransactionId: %v, MasterCellId: %v)",
+            Id_,
+            cellId);
+
+        auto connection = TryLockConnection()
+            .ValueOrThrow();
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+
+        if (options.EnableRetries) {
+            channel = CreateRetryingChannel(Owner_->Config_, std::move(channel), Owner_->GetPingRetryChecker());
+        }
+
+        TCypressTransactionServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
+
+        auto req = proxy.PingTransaction();
+
+        req->SetUser(Owner_->User_);
+        ToProto(req->mutable_transaction_id(), Id_);
+        if (cellId == CoordinatorMasterCellId_) {
+            req->set_ping_ancestors(PingAncestors_);
+        }
+
+        return req->Invoke().Apply(
+            BIND(
+                &TImpl::OnTransactionPinged<TCypressTransactionServiceProxy::TErrorOrRspPingTransactionPtr>,
+                MakeStrong(this),
+                cellId));
+    }
+
+    TFuture<void> DoPingTransaction(const TTransactionPingOptions& options = {})
     {
         std::vector<TFuture<void>> asyncResults;
         for (auto cellId : GetRegisteredParticipantIds()) {
@@ -1072,45 +1187,56 @@ private:
 
             auto asyncRspOrError = req->Invoke();
             asyncResults.push_back(asyncRspOrError.Apply(
-                BIND([=, this, this_ = MakeStrong(this)] (const TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
-                    if (rspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
-                            Id_,
-                            cellId);
-                        PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
-                        return TError();
-                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
-                               TypeFromId(cellId) == EObjectType::MasterCell)
-                    {
-                        // Hard error.
-                        // NB: For tablet cells transactions are started asynchronously so NoSuchTransaction
-                        // is not considered fatal.
-                        YT_LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
-                            Id_,
-                            cellId);
-                        auto error = TError(
-                            NTransactionClient::EErrorCode::NoSuchTransaction,
-                            "Transaction %v has expired or was aborted at cell %v",
-                            Id_,
-                            cellId);
-                        if (GetState() == ETransactionState::Active) {
-                            OnFailure(error);
-                        }
-                        return error;
-                    } else {
-                        // Soft error.
-                        YT_LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
-                            Id_,
-                            cellId);
-                        return TError("Failed to ping transaction %v at cell %v",
-                            Id_,
-                            cellId)
-                            << rspOrError;
-                    }
-                })));
+                BIND(
+                    &TImpl::OnTransactionPinged<TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr>,
+                    MakeStrong(this),
+                    cellId)));
         }
 
         return AllSucceeded(asyncResults);
+    }
+
+    template<class TErrorOrRsp>
+    TError OnTransactionPinged(
+        TCellId cellId,
+        const TErrorOrRsp& rspOrError)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (rspOrError.IsOK()) {
+            YT_LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
+                Id_,
+                cellId);
+            PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
+            return TError();
+        } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
+                    TypeFromId(cellId) == EObjectType::MasterCell)
+        {
+            // Hard error.
+            // NB: For tablet cells, transactions are started asynchronously so NoSuchTransaction
+            // is not considered fatal.
+            YT_LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
+                Id_,
+                cellId);
+            auto error = TError(
+                NTransactionClient::EErrorCode::NoSuchTransaction,
+                "Transaction %v has expired or was aborted at cell %v",
+                Id_,
+                cellId);
+            if (GetState() == ETransactionState::Active) {
+                OnFailure(error);
+            }
+            return error;
+        } else {
+            // Soft error.
+            YT_LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
+                Id_,
+                cellId);
+            return TError("Failed to ping transaction %v at cell %v",
+                Id_,
+                cellId)
+                << rspOrError;
+        }
     }
 
     void RunPeriodicPings()
@@ -1164,13 +1290,66 @@ private:
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetRegisteredParticipantIds();
         for (auto cellId : participantIds) {
-            asyncResults.push_back(SendAbort(cellId, options));
+            asyncResults.push_back(SendAbortToCell(cellId, options));
         }
 
         return AllSucceeded(asyncResults);
     }
 
-    TFuture<void> SendAbort(TCellId cellId, const TTransactionAbortOptions& options = {})
+    TFuture<void> SendAbortToCell(TCellId cellId, const TTransactionAbortOptions& options = {})
+    {
+        auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
+        if (isCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+            return DoAbortCypressTransaction(cellId, options);
+        }
+
+        return DoAbortTransaction(cellId, options);
+    }
+
+    TFuture<void> DoAbortCypressTransaction(TCellId cellId, const TTransactionAbortOptions& options)
+    {
+        YT_LOG_DEBUG("Aborting cypress transaction (TransactionId: %v, MasterCellId: %v)",
+            Id_,
+            cellId);
+
+        auto connection = TryLockConnection()
+            .ValueOrThrow();
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+        TCypressTransactionServiceProxy proxy(channel);
+        auto req = proxy.AbortTransaction();
+
+        req->SetResponseHeavy(true);
+        req->SetUser(Owner_->User_);
+        ToProto(req->mutable_transaction_id(), Id_);
+        req->set_force(options.Force);
+        SetMutationId(req, options.MutationId, options.Retry);
+
+        return req->Invoke().Apply(
+            // NB: "this" could be dying; can't capture it.
+            BIND([=, transactionId = Id_, Logger = Logger] (const TCypressTransactionServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
+                if (rspOrError.IsOK()) {
+                    YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
+                        transactionId,
+                        cellId);
+                    return TError();
+                } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
+                    YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
+                        transactionId,
+                        cellId);
+                    return TError();
+                } else {
+                    YT_LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v, CellId: %v)",
+                        transactionId,
+                        cellId);
+                    return TError("Error aborting transaction %v at cell %v",
+                        transactionId,
+                        cellId)
+                        << rspOrError;
+                }
+            }));
+    }
+
+    TFuture<void> DoAbortTransaction(TCellId cellId, const TTransactionAbortOptions& options)
     {
         auto channel = Owner_->CellDirectory_->FindChannelByCellId(cellId);
         if (!channel) {
@@ -1213,7 +1392,6 @@ private:
                 }
             }));
     }
-
 
     void FireAborted(const TError& error)
     {

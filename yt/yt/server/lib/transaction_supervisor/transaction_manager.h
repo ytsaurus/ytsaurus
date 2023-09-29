@@ -82,6 +82,7 @@ struct ITransactionManager
         NProto::NTransactionSupervisor::TRspCommitTransaction>;
     using TCtxCommitTransactionPtr = TIntrusivePtr<TCtxCommitTransaction>;
 
+    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
     virtual bool CommitTransaction(TCtxCommitTransactionPtr context) = 0;
 
     using TCtxAbortTransaction = NRpc::TTypedServiceContext<
@@ -89,6 +90,7 @@ struct ITransactionManager
         NProto::NTransactionSupervisor::TRspAbortTransaction>;
     using TCtxAbortTransactionPtr = TIntrusivePtr<TCtxAbortTransaction>;
 
+    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
     virtual bool AbortTransaction(TCtxAbortTransactionPtr context) = 0;
 };
 

@@ -121,6 +121,7 @@
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker_service.h>
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
+#include <yt/yt/server/master/transaction_server/cypress_transaction_service.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 #include <yt/yt/server/master/transaction_server/transaction_service.h>
 
@@ -1032,6 +1033,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateChunkService(this));
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
     RpcServer_->RegisterService(CreateTransactionService(this));
+    RpcServer_->RegisterService(CreateCypressTransactionService(this));
     RpcServer_->RegisterService(CreateMasterChaosService(this));
     RpcServer_->RegisterService(CreateCellTrackerService(this));
     RpcServer_->RegisterService(CreateSequoiaTransactionService(this));

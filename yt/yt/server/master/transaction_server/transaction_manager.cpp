@@ -141,6 +141,7 @@ public:
         Logger = TransactionServerLogger;
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartCypressTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartForeignTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraPrepareTransactionCommit, Unretained(this)));
@@ -182,6 +183,8 @@ public:
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::ExternalizedNestedTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::UploadTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::UploadNestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::SystemTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::SystemNestedTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::AtomicTabletTransaction));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -325,10 +328,41 @@ public:
         NProfiling::TWallTimer timer;
 
         const auto& dynamicConfig = GetDynamicConfig();
+        bool enableDedicatedTypesForSystemTransactions = dynamicConfig->EnableDedicatedTypesForSystemTransactions;
 
-        auto transactionObjectType = upload
-            ? (parent ? EObjectType::UploadNestedTransaction : EObjectType::UploadTransaction)
-            : (parent ? EObjectType::NestedTransaction : EObjectType::Transaction);
+        EObjectType transactionObjectType;
+        if (!isCypressTransaction && enableDedicatedTypesForSystemTransactions) {
+            transactionObjectType = parent ? EObjectType::SystemNestedTransaction : EObjectType::SystemTransaction;
+        } else {
+            transactionObjectType = upload
+                ? (parent ? EObjectType::UploadNestedTransaction : EObjectType::UploadTransaction)
+                : (parent ? EObjectType::NestedTransaction : EObjectType::Transaction);
+        }
+
+        // COMPAT(h0pless): Replace this with ThrowErrorException when CTxS will be used by all clients.
+        if (enableDedicatedTypesForSystemTransactions && parent) {
+            auto parentType = TypeFromId(parent->GetId());
+
+            if (IsSystemTransactionType(transactionObjectType) && !IsSystemTransactionType(parentType)) {
+                YT_LOG_ALERT("An attempt to create a system transaction nested inside of non-system parent was made "
+                    "(ParentId: %v, ParentType: %v, RequestedChildType: %v, HintId: %v)",
+                    parent->GetId(),
+                    parentType,
+                    transactionObjectType,
+                    hintId);
+                transactionObjectType = EObjectType::SystemTransaction;
+            }
+
+            if (!IsSystemTransactionType(transactionObjectType) && IsSystemTransactionType(parentType)) {
+                YT_LOG_ALERT("An attempt to create a non-system transaction nested inside of system parent was made "
+                    "(ParentId: %v, ParentType: %v, RequestedChildType: %v, HintId: %v)",
+                    parent->GetId(),
+                    parentType,
+                    transactionObjectType,
+                    hintId);
+                transactionObjectType = EObjectType::SystemNestedTransaction;
+            }
+        }
 
         if (parent) {
             if (parent->GetPersistentState() != ETransactionState::Active) {
@@ -981,6 +1015,18 @@ public:
             this);
     }
 
+    std::unique_ptr<NHydra::TMutation> CreateStartCypressTransactionMutation(
+        TCtxStartCypressTransactionPtr context,
+        const NTransactionServer::NProto::TReqStartCypressTransaction& request) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            request,
+            &TTransactionManager::HydraStartCypressTransaction,
+            this);
+    }
+
     std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context) override
     {
@@ -1164,6 +1210,71 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    void StartCypressTransaction(TCtxStartCypressTransactionPtr context) override
+    {
+        auto& request = context->Request();
+        NTransactionServer::NProto::TReqStartCypressTransaction hydraRequest;
+        hydraRequest.mutable_attributes()->Swap(request.mutable_attributes());
+        hydraRequest.mutable_parent_id()->Swap(request.mutable_parent_id());
+        hydraRequest.mutable_prerequisite_transaction_ids()->Swap(request.mutable_prerequisite_transaction_ids());
+        hydraRequest.set_timeout(request.timeout());
+        if (request.has_deadline()) {
+            hydraRequest.set_deadline(request.deadline());
+        }
+        hydraRequest.mutable_replicate_to_cell_tags()->Swap(request.mutable_replicate_to_cell_tags());
+        if (request.has_title()) {
+            hydraRequest.set_title(request.title());
+        }
+        NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, context->GetAuthenticationIdentity());
+
+        auto mutation = CreateStartCypressTransactionMutation(context, hydraRequest);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void CommitCypressTransaction(TCtxCommitCypressTransactionPtr context) override
+    {
+        const auto& request = context->Request();
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        YT_VERIFY(transaction->GetIsCypressTransaction());
+
+        std::vector<TTransactionId> prerequisiteTransactionIds;
+        if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+            auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+            const auto& preprequisiteTransactions = prerequisitesExt->transactions();
+            prerequisiteTransactionIds.reserve(preprequisiteTransactions.size());
+            for (const auto& prerequisite : preprequisiteTransactions) {
+                prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
+            }
+        }
+
+        auto readyEvent = GetReadyToPrepareTransactionCommit(
+            prerequisiteTransactionIds,
+            /*cellIdsToSyncWith*/ {});
+
+        TFuture<TSharedRefArray> responseFuture;
+        // Fast path.
+        if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
+            responseFuture = DoCommitTransaction(
+                transactionId,
+                prerequisiteTransactionIds,
+                /*prepareError*/ {});
+        } else {
+            responseFuture = readyEvent.Apply(
+                BIND(
+                    &TTransactionManager::DoCommitTransaction,
+                    MakeStrong(this),
+                    transactionId,
+                    prerequisiteTransactionIds)
+                    .AsyncVia(EpochAutomatonInvoker_));
+        }
+
+        context->ReplyFrom(responseFuture);
+    }
+
+    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
     bool CommitTransaction(TCtxCommitTransactionPtr context) override
     {
         if (GetDynamicConfig()->IgnoreCypressTransactions) {
@@ -1278,6 +1389,25 @@ public:
         }));
     }
 
+    void AbortCypressTransaction(TCtxAbortCypressTransactionPtr context) override
+    {
+        const auto& request = context->Request();
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        YT_VERIFY(transaction->GetIsCypressTransaction());
+
+        NProto::TReqAbortCypressTransaction req;
+        ToProto(req.mutable_transaction_id(), transactionId);
+        req.set_force(request.force());
+        WriteAuthenticationIdentityToProto(&req, NRpc::GetCurrentAuthenticationIdentity());
+
+        auto mutation = CreateMutation(HydraManager_, req);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
+    }
+
+    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
     bool AbortTransaction(TCtxAbortTransactionPtr context) override
     {
         if (GetDynamicConfig()->IgnoreCypressTransactions) {
@@ -1402,10 +1532,78 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
 
+    // This should become a mutation used to create system transactions only.
     void HydraStartTransaction(
         const TCtxStartTransactionPtr& context,
         NTransactionServer::NProto::TReqStartTransaction* request,
         NTransactionServer::NProto::TRspStartTransaction* response)
+    {
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
+
+        // COMPAT(h0pless): This should always be false when clients will switch to cypress tx service from tx service.
+        auto isCypressTransaction = request->is_cypress_transaction();
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        if (!isCypressTransaction && GetDynamicConfig()->EnableDedicatedTypesForSystemTransactions) {
+            auto* schema = objectManager->GetSchema(EObjectType::SystemTransaction);
+            securityManager->ValidatePermission(schema, EPermission::Create);
+        } else {
+            auto* schema = objectManager->GetSchema(EObjectType::Transaction);
+            securityManager->ValidatePermission(schema, EPermission::Create);
+        }
+
+        auto parentId = FromProto<TTransactionId>(request->parent_id());
+        auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
+
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        std::vector<TTransaction*> prerequisiteTransactions;
+        for (auto id : prerequisiteTransactionIds) {
+            auto* prerequisiteTransaction = ValidatePrerequisiteTransaction(id);
+            prerequisiteTransactions.push_back(prerequisiteTransaction);
+        }
+
+        auto attributes = request->has_attributes()
+            ? FromProto(request->attributes())
+            : CreateEphemeralAttributes();
+
+        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
+
+        auto timeout = FromProto<TDuration>(request->timeout());
+
+        std::optional<TInstant> deadline;
+        if (request->has_deadline()) {
+            deadline = FromProto<TInstant>(request->deadline());
+        }
+
+        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+        auto* transaction = StartTransaction(
+            parent,
+            prerequisiteTransactions,
+            replicateToCellTags,
+            timeout,
+            deadline,
+            title,
+            *attributes,
+            isCypressTransaction);
+
+        auto id = transaction->GetId();
+
+        if (response) {
+            ToProto(response->mutable_id(), id);
+        }
+
+        if (context) {
+            context->SetResponseInfo("TransactionId: %v", id);
+        }
+    }
+
+    void HydraStartCypressTransaction(
+        const TCtxStartCypressTransactionPtr& context,
+        NTransactionServer::NProto::TReqStartCypressTransaction* request,
+        NTransactionServer::NProto::TRspStartCypressTransaction* response)
     {
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
 
@@ -1440,13 +1638,6 @@ private:
         }
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
-        if (!GetDynamicConfig()->EnableLazyTransactionReplication) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            replicateToCellTags = multicellManager->GetRegisteredMasterCellTags();
-        }
-
-        auto isCypressTransaction = request->is_cypress_transaction();
-
         auto* transaction = StartTransaction(
             parent,
             prerequisiteTransactions,
@@ -1455,7 +1646,7 @@ private:
             deadline,
             title,
             *attributes,
-            isCypressTransaction);
+            /*isCypressTransaction*/ true);
 
         auto id = transaction->GetId();
 
@@ -1498,8 +1689,6 @@ private:
             attributes->Set("operation_title", request->operation_title());
         }
 
-        auto isCypressTransaction = request->is_cypress_transaction();
-
         auto* transaction = DoStartTransaction(
             isUpload,
             parent,
@@ -1509,7 +1698,7 @@ private:
             /*deadline*/ std::nullopt,
             title,
             *attributes,
-            isCypressTransaction,
+            /* isCypressTransaction */ true,
             hintId);
         YT_VERIFY(transaction->GetId() == hintId);
     }
@@ -1847,8 +2036,6 @@ private:
     bool ShouldCacheTransactionPresence(TTransactionId transactionId)
     {
         auto transactionType = TypeFromId(transactionId);
-        // NB: if enable_dedicated_upload_transaction_object_types is false,
-        // upload transactions *will* be cached.
         if (transactionType == EObjectType::UploadTransaction ||
             transactionType == EObjectType::UploadNestedTransaction)
         {

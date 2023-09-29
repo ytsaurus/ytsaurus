@@ -16,13 +16,13 @@ message TReqStartTransaction
 
     reserved 6;
 
-    // If replicate_to_cell_tags are empty then at primary all secondaries are assumed.
     repeated int32 replicate_to_cell_tags = 7;
 
     required int64 timeout = 3;
     optional uint64 deadline = 8;
 
-    optional bool is_cypress_transaction = 10;
+    // COMPAT(h0pless): Remove this when clients will use cypress transaction service on master.
+    optional bool is_cypress_transaction = 10 [default = false];
 
     reserved 9;
 }

@@ -2321,7 +2321,7 @@ private:
             /*deadline*/ std::nullopt,
             title,
             EmptyAttributes(),
-            /*isCypressTransaction*/ false);
+            /*isCypressTransaction*/ true);
 
         YT_VERIFY(!cell->GetPrerequisiteTransaction(peerId));
         EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));

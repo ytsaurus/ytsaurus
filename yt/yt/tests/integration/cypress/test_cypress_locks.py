@@ -1578,3 +1578,16 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
         "13": {"roles": ["transaction_coordinator"]},
         "14": {"roles": ["transaction_coordinator"]},
     }
+
+
+class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }

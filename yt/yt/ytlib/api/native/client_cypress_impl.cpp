@@ -218,7 +218,7 @@ protected:
         TTransactionStartOptions transactionOptions;
         transactionOptions.ParentId = options.TransactionId;
         transactionOptions.Attributes = std::move(transactionAttributes);
-        transactionOptions.StartCypressTransaction = false;
+        transactionOptions.StartCypressTransaction = true;
         auto transactionOrError = WaitFor(Client_->StartNativeTransaction(
             ETransactionType::Master,
             transactionOptions));
@@ -647,8 +647,6 @@ public:
             Format("Internalize %v", Path_),
             Options_);
 
-        auto entranceNodeId = GetEntranceNodeId();
-
         BeginCopy(Path_, GetOptions(), false);
 
         SyncExternalCellsWithSourceNodeCell();
@@ -662,15 +660,16 @@ public:
 
         SyncExternalCellsWithClonedNodeCell();
 
-        NProto::TReqCopySynchronizablePortalAttributes req;
-        ToProto(req.mutable_source_node_id(), entranceNodeId);
-        ToProto(req.mutable_destination_node_id(), clonedNodeId);
+        // NB: This can be racy, but the situation when user sets acl while the node is being internalized is rare enough
+        // so we don't want to overcomplicate the code here.
+        auto aclOrError = WaitFor(Client_->GetNode(FromObjectId(SrcNodeId_) + "/@acl", {}));
+        THROW_ERROR_EXCEPTION_IF_FAILED(aclOrError, "Error getting root effective ACL");
 
-        const auto& connection = Client_->GetNativeConnection();
-        auto cellId = connection->GetMasterCellId(CellTagFromId(clonedNodeId));
-        Transaction_->AddAction(cellId, MakeTransactionActionData(req));
+        CommitTransaction();
 
-        CommitTransaction({.Force2PC = true});
+        auto rootEffectiveAcl =  aclOrError.Value();
+        WaitFor(Client_->SetNode(FromObjectId(clonedNodeId) + "/@acl", rootEffectiveAcl, {}))
+            .ThrowOnError();
 
         YT_LOG_DEBUG("Node internalization completed");
     }
@@ -693,9 +692,9 @@ private:
         options.PreserveCreationTime = true;
         options.PreserveModificationTime = true;
         options.PreserveExpirationTime = true;
-        options.PreserveOwner = false;
+        options.PreserveOwner = true;
         options.Force = true;
-        options.PreserveAcl = false;
+        options.PreserveAcl = true;
         return options;
     }
 

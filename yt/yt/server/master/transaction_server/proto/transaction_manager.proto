@@ -19,7 +19,6 @@ message TReqStartTransaction
     required string user = 5;
     optional string user_tag = 12;
 
-    // See NYT.NTransactionClient.NProto.TReqStartTransaction.
     repeated int32 replicate_to_cell_tags = 9;
 
     optional bool is_cypress_transaction = 13;
@@ -57,7 +56,6 @@ message TReqStartForeignTransaction
     optional string operation_type = 5;
     optional string operation_id = 6;
     optional string operation_title = 7;
-    optional bool is_cypress_transaction = 8;
 }
 
 // Used as a signal when replication of a missing transaction was requested.
@@ -78,6 +76,25 @@ message TReqReturnBoomerang
 
 message TReqRemoveStuckBoomerangWaves
 {
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartCypressTransaction
+{
+    required int64 timeout = 1;
+    optional uint64 deadline = 2;
+
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
+    optional string title = 4;
+
+    optional NYT.NProto.TGuid parent_id = 5;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 6;
+
+    repeated int32 replicate_to_cell_tags = 7;
+
+    required string user = 8;
+    optional string user_tag = 9;
 }
 
 message TReqCommitCypressTransaction

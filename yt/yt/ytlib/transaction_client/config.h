@@ -24,6 +24,8 @@ public:
     //! transaction start.
     TDuration DefaultTransactionTimeout;
 
+    bool UseCypressTransactionService;
+
     REGISTER_YSON_STRUCT(TTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);
