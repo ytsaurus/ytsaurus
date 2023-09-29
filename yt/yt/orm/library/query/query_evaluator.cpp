@@ -38,13 +38,15 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
         GetBuiltinTypeInferrers(),
         nullptr);
 
-    context->ExpressionCallback = Profile(
+    context->Image = Profile(
         context->Expression,
         schema,
         /*id*/ nullptr,
         &context->Variables,
         /*useCanonicalNullRelations*/ false,
         GetBuiltinFunctionProfilers())();
+
+    context->Instance = context->Image.Instantiate();
 
     // YTORM-553 Initialize variables.
     context->Variables.GetLiteralValues();
@@ -60,8 +62,8 @@ TValue EvaluateQuery(
     TRowBuffer* expressionContext)
 {
     // Pre-zero value to avoid garbage after evaluator.
-    auto outputValue = MakeUnversionedSentinelValue(EValueType::Null);
-    evaluationContext.ExpressionCallback(
+    auto outputValue = MakeUnversionedNullValue();
+    evaluationContext.Instance.Run(
         evaluationContext.Variables.GetLiteralValues(),
         evaluationContext.Variables.GetOpaqueData(),
         &outputValue,

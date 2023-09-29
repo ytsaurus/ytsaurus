@@ -34,23 +34,26 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCachedCGQuery
-    : public TAsyncCacheValueBase<llvm::FoldingSetNodeID, TCachedCGQuery>
+struct TCachedCGQueryImage
+    : public TAsyncCacheValueBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
 {
     const TString Fingerprint;
-    const TCGQueryCallback Function;
+    const TCGQueryImage Image;
 
-    TCachedCGQuery(const llvm::FoldingSetNodeID& id, TString fingerprint, TCGQueryCallback function)
+    TCachedCGQueryImage(
+        const llvm::FoldingSetNodeID& id,
+        TString fingerprint,
+        TCGQueryImage image)
         : TAsyncCacheValueBase(id)
         , Fingerprint(std::move(fingerprint))
-        , Function(std::move(function))
+        , Image(std::move(image))
     { }
 };
 
-using TCachedCGQueryPtr = TIntrusivePtr<TCachedCGQuery>;
+using TCachedCGQueryImagePtr = TIntrusivePtr<TCachedCGQueryImage>;
 
 class TEvaluator
-    : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>
+    : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
     , public IEvaluator
 {
 public:
@@ -95,7 +98,7 @@ public:
 
         try {
             TCGVariables fragmentParams;
-            auto cgQuery = Codegen(
+            auto queryInstance = Codegen(
                 query,
                 fragmentParams,
                 joinProfiler,
@@ -105,11 +108,11 @@ public:
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations);
 
+            // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] () {
                 fragmentParams.Clear();
             });
 
-            // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
             TExecutionContext executionContext;
             executionContext.Reader = reader;
             executionContext.Writer = writer;
@@ -126,7 +129,10 @@ public:
 
             YT_LOG_DEBUG("Evaluating query");
 
-            cgQuery(fragmentParams.GetLiteralValues(), fragmentParams.GetOpaqueData(), &executionContext);
+            queryInstance.Run(
+                fragmentParams.GetLiteralValues(),
+                fragmentParams.GetOpaqueData(),
+                &executionContext);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Query evaluation failed");
             THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
@@ -155,7 +161,7 @@ public:
     }
 
 private:
-    TCGQueryCallback Codegen(
+    TCGQueryInstance Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
         const TJoinSubqueryProfiler& joinProfiler,
@@ -182,17 +188,17 @@ private:
         bool considerLimit = query->IsOrdered() && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{true, true, true, !considerLimit});
-        auto compileWithLogging = [&] () {
+        auto compileWithLogging = [&] {
             NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
-
             YT_LOG_DEBUG("Started compiling fragment");
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
-            auto cgQuery = New<TCachedCGQuery>(id, queryFingerprint, makeCodegenQuery());
+            auto image = makeCodegenQuery();
+            auto cachedImage = New<TCachedCGQueryImage>(id, queryFingerprint, std::move(image));
             YT_LOG_DEBUG("Finished compiling fragment");
-            return cgQuery;
+            return cachedImage;
         };
 
-        TCachedCGQueryPtr cgQuery;
+        TCachedCGQueryImagePtr cachedQueryImage;
         if (enableCodeCache) {
             auto cookie = BeginInsert(id);
             if (cookie.IsActive()) {
@@ -206,7 +212,7 @@ private:
                 }
             }
 
-            cgQuery = WaitForFast(cookie.GetValue())
+            cachedQueryImage = WaitForFast(cookie.GetValue())
                 .ValueOrThrow();
 
             // Query fingerprints can differ when folding ids are equal in the following case:
@@ -217,10 +223,17 @@ private:
         } else {
             YT_LOG_DEBUG("Codegen cache disabled");
 
-            cgQuery = compileWithLogging();
+            cachedQueryImage = compileWithLogging();
         }
 
-        return cgQuery->Function;
+        TCGQueryInstance instance;
+        {
+            NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
+            instance = cachedQueryImage->Image.Instantiate();
+        }
+
+        return instance;
     }
 };
 

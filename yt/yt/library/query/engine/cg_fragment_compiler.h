@@ -270,17 +270,17 @@ void MakeCodegenWriteOp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGQueryCallback CodegenEvaluate(
+TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotIndex);
 
-TCGExpressionCallback CodegenStandaloneExpression(
+TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId);
 
-TCGAggregateCallbacks CodegenAggregate(
+TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
-    std::vector<EValueType> argumentType,
+    std::vector<EValueType> argumentTypes,
     EValueType stateType);
 
 ////////////////////////////////////////////////////////////////////////////////

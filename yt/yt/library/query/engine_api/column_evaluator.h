@@ -62,11 +62,13 @@ public:
 private:
     struct TColumn
     {
-        TCGExpressionCallback Evaluator;
-        TCGVariables Variables;
+        mutable TCGExpressionInstance EvaluatorInstance; // NB(dtorilov): WebAssembly instances are NOT thread-safe.
+        TCGExpressionImage EvaluatorImage;
+        TCGVariables Variables; // FIXME(dtorilov): Variables destruction is undefined.
         std::vector<int> ReferenceIds;
         TConstExpressionPtr Expression;
-        TCGAggregateCallbacks Aggregate;
+        mutable TCGAggregateInstance AggregateInstance;
+        TCGAggregateImage AggregateImage;
     };
 
     std::vector<TColumn> Columns_;

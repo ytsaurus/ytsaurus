@@ -15,7 +15,8 @@ struct TQueryEvaluationContext
 {
     NQueryClient::TConstExpressionPtr Expression;
     NQueryClient::TCGVariables Variables;
-    NQueryClient::TCGExpressionCallback ExpressionCallback;
+    NQueryClient::TCGExpressionImage Image;
+    mutable NQueryClient::TCGExpressionInstance Instance;
 
     ~TQueryEvaluationContext();
 };

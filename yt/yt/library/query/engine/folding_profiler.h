@@ -13,14 +13,14 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCGQueryCallbackGenerator = std::function<TCGQueryCallback()>;
-using TCGExpressionCallbackGenerator = std::function<TCGExpressionCallback()>;
+using TCGExpressionGenerator = std::function<TCGExpressionImage()>;
+using TCGQueryGenerator = std::function<TCGQueryImage()>;
 
 void Profile(
     const TTableSchemaPtr& tableSchema,
     llvm::FoldingSetNodeID* id);
 
-TCGExpressionCallbackGenerator Profile(
+TCGExpressionGenerator Profile(
     const TConstExpressionPtr& expr,
     const TTableSchemaPtr& schema,
     llvm::FoldingSetNodeID* id,
@@ -28,7 +28,7 @@ TCGExpressionCallbackGenerator Profile(
     bool useCanonicalNullRelations = false,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get());
 
-TCGQueryCallbackGenerator Profile(
+TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,

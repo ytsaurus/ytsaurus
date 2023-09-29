@@ -182,6 +182,95 @@ TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCGQueryInstance::TCGQueryInstance(TCGQueryCallback callback)
+    : Callback_(callback)
+{ }
+
+void TCGQueryInstance::Run(
+    TRange<TPIValue> literalValues,
+    TRange<void*> opaqueData,
+    TExecutionContext* context)
+{
+    Callback_(literalValues, opaqueData, context);
+}
+
+TCGQueryImage::TCGQueryImage(TCGQueryCallback callback)
+    : Callback_(callback)
+{ }
+
+TCGQueryInstance TCGQueryImage::Instantiate() const
+{
+    return TCGQueryInstance(Callback_);
+}
+
+TCGExpressionInstance::TCGExpressionInstance(TCGExpressionCallback callback)
+    : Callback_(callback)
+{ }
+
+void TCGExpressionInstance::Run(
+    TRange<TPIValue> literalValues,
+    TRange<void*> opaqueData,
+    TValue* result,
+    TRange<TValue> inputRow,
+    TRowBuffer* buffer)
+{
+    Callback_(literalValues, opaqueData, result, inputRow, buffer);
+}
+
+TCGExpressionInstance::operator bool() const
+{
+    return bool(Callback_);
+}
+
+TCGExpressionImage::TCGExpressionImage(TCGExpressionCallback callback)
+    : Callback_(callback)
+{ }
+
+TCGExpressionInstance TCGExpressionImage::Instantiate() const
+{
+    return TCGExpressionInstance(Callback_);
+}
+
+TCGExpressionImage::operator bool() const
+{
+    return bool(Callback_);
+}
+
+TCGAggregateInstance::TCGAggregateInstance(TCGAggregateCallbacks callbacks)
+    : Callbacks_(callbacks)
+{ }
+
+void TCGAggregateInstance::RunInit(TRowBuffer* buffer, TValue* state)
+{
+    Callbacks_.Init(buffer, state);
+}
+
+void TCGAggregateInstance::RunUpdate(TRowBuffer* buffer, TValue* state, TRange<TValue> arguments)
+{
+    Callbacks_.Update(buffer, state, arguments);
+}
+
+void TCGAggregateInstance::RunMerge(TRowBuffer* buffer, TValue* firstState, const TValue* secondState)
+{
+    Callbacks_.Merge(buffer, firstState, secondState);
+}
+
+void TCGAggregateInstance::RunFinalize(TRowBuffer* buffer, TValue* firstState, const TValue* secondState)
+{
+    Callbacks_.Finalize(buffer, firstState, secondState);
+}
+
+TCGAggregateImage::TCGAggregateImage(TCGAggregateCallbacks callbacks)
+    : Callbacks_(callbacks)
+{ }
+
+TCGAggregateInstance TCGAggregateImage::Instantiate() const
+{
+    return TCGAggregateInstance(Callbacks_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TQueryPtr, TDataSource> GetForeignQuery(
     TQueryPtr subquery,
     TConstJoinClausePtr joinClause,

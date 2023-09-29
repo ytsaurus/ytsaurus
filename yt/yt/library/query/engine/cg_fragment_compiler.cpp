@@ -3366,7 +3366,7 @@ TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr module, const TString& entr
     return TCallback<TSignature>(caller, staticInvoke);
 }
 
-TCGQueryCallback CodegenEvaluate(
+TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotCount)
 {
@@ -3393,10 +3393,10 @@ TCGQueryCallback CodegenEvaluate(
 
     module->ExportSymbol(entryFunctionName);
 
-    return BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(module, entryFunctionName);
+    return TCGQueryImage(BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(module, entryFunctionName));
 }
 
-TCGExpressionCallback CodegenStandaloneExpression(
+TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId)
 {
@@ -3426,10 +3426,10 @@ TCGExpressionCallback CodegenStandaloneExpression(
 
     module->ExportSymbol(entryFunctionName);
 
-    return BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(module, entryFunctionName);
+    return TCGExpressionImage(BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(module, entryFunctionName));
 }
 
-TCGAggregateCallbacks CodegenAggregate(
+TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
     std::vector<EValueType> argumentTypes,
     EValueType stateType)
@@ -3513,11 +3513,13 @@ TCGAggregateCallbacks CodegenAggregate(
         module->ExportSymbol(finalizeName);
     }
 
-    return TCGAggregateCallbacks{
-        BuildCGEntrypoint<TCGAggregateInitSignature, TCGPIAggregateInitSignature>(module, initName),
-        BuildCGEntrypoint<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>(module, updateName),
-        BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(module, mergeName),
-        BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(module, finalizeName)};
+    return TCGAggregateImage(
+        TCGAggregateCallbacks{
+            BuildCGEntrypoint<TCGAggregateInitSignature, TCGPIAggregateInitSignature>(module, initName),
+            BuildCGEntrypoint<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>(module, updateName),
+            BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(module, mergeName),
+            BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(module, finalizeName),
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

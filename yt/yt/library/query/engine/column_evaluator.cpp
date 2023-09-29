@@ -46,13 +46,15 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 typeInferrers,
                 &references);
 
-            column.Evaluator = Profile(
+            column.EvaluatorImage = Profile(
                 column.Expression,
                 schema,
                 /*id*/ nullptr,
                 &column.Variables,
                 /*useCanonicalNullRelations*/ false,
                 profilers)();
+
+            column.EvaluatorInstance = column.EvaluatorImage.Instantiate();
 
             for (const auto& reference : references) {
                 column.ReferenceIds.push_back(schema->GetColumnIndexOrThrow(reference));
@@ -63,9 +65,10 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
         if (schema->Columns()[index].Aggregate()) {
             const auto& aggregateName = *schema->Columns()[index].Aggregate();
             auto type = schema->Columns()[index].GetWireType();
-            column.Aggregate = CodegenAggregate(
+            column.AggregateImage = CodegenAggregate(
                 GetBuiltinAggregateProfilers()->GetAggregate(aggregateName)->Profile({type}, type, type, aggregateName),
                 {type}, type);
+            column.AggregateInstance = column.AggregateImage.Instantiate();
             isAggregate[index] = true;
         }
     }

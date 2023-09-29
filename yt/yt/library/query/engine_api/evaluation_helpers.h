@@ -308,8 +308,8 @@ private:
     static void InitLiteralValuesIfNeeded(const TCGVariables* variables);
 };
 
-using TCGPIQuerySignature = void(const TPIValue*, void* const*, TExecutionContext*);
-using TCGPIExpressionSignature = void(const TPIValue*, void* const*, TPIValue*, const TPIValue*, TExpressionContext*);
+using TCGPIQuerySignature = void(const TPIValue[], void* const[], TExecutionContext*);
+using TCGPIExpressionSignature = void(const TPIValue[], void* const[], TPIValue*, const TPIValue[], TExpressionContext*);
 using TCGPIAggregateInitSignature = void(TExpressionContext*, TPIValue*);
 using TCGPIAggregateUpdateSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
 using TCGPIAggregateMergeSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
@@ -335,6 +335,97 @@ struct TCGAggregateCallbacks
     TCGAggregateUpdateCallback Update;
     TCGAggregateMergeCallback Merge;
     TCGAggregateFinalizeCallback Finalize;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! NB: TCGQueryInstance is NOT thread-safe.
+class TCGQueryInstance
+{
+public:
+    TCGQueryInstance() = default;
+    explicit TCGQueryInstance(TCGQueryCallback callback);
+
+    void Run(
+        TRange<TPIValue> literalValues,
+        TRange<void*> opaqueData,
+        TExecutionContext* context);
+
+private:
+    TCGQueryCallback Callback_;
+};
+
+class TCGQueryImage
+{
+public:
+    explicit TCGQueryImage(TCGQueryCallback callback);
+
+    TCGQueryInstance Instantiate() const;
+
+private:
+    TCGQueryCallback Callback_;
+};
+
+//! NB: TCGExpressionInstance is NOT thread-safe.
+class TCGExpressionInstance
+{
+public:
+    TCGExpressionInstance() = default;
+    explicit TCGExpressionInstance(TCGExpressionCallback callback);
+
+    void Run(
+        TRange<TPIValue> literalValues,
+        TRange<void*> opaqueData,
+        TValue* result,
+        TRange<TValue> inputRow,
+        TRowBuffer* buffer);
+
+    operator bool() const;
+
+private:
+    TCGExpressionCallback Callback_;
+};
+
+class TCGExpressionImage
+{
+public:
+    TCGExpressionImage() = default;
+    explicit TCGExpressionImage(TCGExpressionCallback callback);
+
+    TCGExpressionInstance Instantiate() const;
+
+    operator bool() const;
+
+private:
+    TCGExpressionCallback Callback_;
+};
+
+//! NB: TCGAggregateInstance is NOT thread-safe.
+class TCGAggregateInstance
+{
+public:
+    TCGAggregateInstance() = default;
+    explicit TCGAggregateInstance(TCGAggregateCallbacks callbacks);
+
+    void RunInit(TRowBuffer* buffer, TValue* state);
+    void RunUpdate(TRowBuffer* buffer, TValue* state, TRange<TValue> arguments);
+    void RunMerge(TRowBuffer* buffer, TValue* firstState, const TValue* secondState);
+    void RunFinalize(TRowBuffer* buffer, TValue* firstState, const TValue* secondState);
+
+private:
+    TCGAggregateCallbacks Callbacks_;
+};
+
+class TCGAggregateImage
+{
+public:
+    TCGAggregateImage() = default;
+    explicit TCGAggregateImage(TCGAggregateCallbacks callbacks);
+
+    TCGAggregateInstance Instantiate() const;
+
+private:
+    TCGAggregateCallbacks Callbacks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -997,9 +997,9 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         TUnversionedValue result{};
         TCGVariables variables;
 
-        auto callback = Profile(expr, schema, nullptr, &variables)();
-
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+        auto image = Profile(expr, schema, nullptr, &variables)();
+        auto instance = image.Instantiate();
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1023,8 +1023,9 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         TUnversionedValue result{};
         TCGVariables variables;
 
-        auto callback = Profile(expr, schema, nullptr, &variables)();
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+        auto image = Profile(expr, schema, nullptr, &variables)();
+        auto instance = image.Instantiate();
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1036,8 +1037,9 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         TUnversionedValue result{};
         TCGVariables variables;
 
-        auto callback = Profile(expr, schema, nullptr, &variables)();
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+        auto image = Profile(expr, schema, nullptr, &variables)();
+        auto instance = image.Instantiate();
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1090,13 +1092,14 @@ TEST_P(TExpressionTest, Evaluate)
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + "l", *schema);
 
-    auto callback = Profile(expr, schema, nullptr, &variables)();
+    auto image = Profile(expr, schema, nullptr, &variables)();
+    auto instance = image.Instantiate();
 
     auto row = YsonToSchemafulRow(TString("k=") + lhs + ";l=" + rhs, *schema, true);
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1127,13 +1130,14 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + rhs, *schema);
 
-    auto callback = Profile(expr, schema, nullptr, &variables)();
+    auto image = Profile(expr, schema, nullptr, &variables)();
+    auto instance = image.Instantiate();
 
     auto row = YsonToSchemafulRow(TString("k=") + lhs, *schema, true);
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1164,13 +1168,14 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
 
     auto expr = PrepareExpression(TString(lhs) + " " + op + " " + "l", *schema);
 
-    auto callback = Profile(expr, schema, nullptr, &variables)();
+    auto image = Profile(expr, schema, nullptr, &variables)();
+    auto instance = image.Instantiate();
 
     auto row = YsonToSchemafulRow(TString("l=") + rhs, *schema, true);
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1465,17 +1470,19 @@ TEST_F(TArithmeticExpressionTest, Test)
 
     auto emptySchema = New<TTableSchema>();
 
-    THashMap<llvm::FoldingSetNodeID, TCGExpressionCallback> compiledQueriesCache;
-    auto getCallback = [&] (TConstExpressionPtr expr, TTableSchemaPtr schema, TCGVariables* variables) {
+    THashMap<llvm::FoldingSetNodeID, TCGExpressionInstance> compiledExpressionsCache;
+    auto getInstance = [&] (TConstExpressionPtr expr, TTableSchemaPtr schema, TCGVariables* variables) -> TCGExpressionInstance* {
         llvm::FoldingSetNodeID id;
-        auto compileExpressionCallback = Profile(expr, schema, &id, variables);
+        auto makeImageCallback = Profile(expr, schema, &id, variables, false);
 
-        auto [it, inserted] = compiledQueriesCache.emplace(id, TCGExpressionCallback{});
+        auto [it, inserted] = compiledExpressionsCache.emplace(id, TCGExpressionInstance{});
         if (inserted) {
-            it->second = compileExpressionCallback();
+            it->second = makeImageCallback().Instantiate();
         }
-        return it->second;
+        return &it->second;
     };
+
+    auto buffer = New<TRowBuffer>();
 
     for (auto op : TEnumTraits<EBinaryOp>::GetDomainValues()) {
         if (IsLogicalBinaryOp(op)) {
@@ -1543,9 +1550,14 @@ TEST_F(TArithmeticExpressionTest, Test)
                                     row = YsonToSchemafulRow(Format("a=%v;b=%v", UnversionedValueToString(lhsValue), UnversionedValueToString(rhsValue)), *schema, true);
                                 }
 
-                                auto callback = getCallback(expr, schema, &variables);
-                                auto buffer = New<TRowBuffer>();
-                                callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+                                auto instance = getInstance(expr, schema, &variables);
+
+                                instance->Run(
+                                    variables.GetLiteralValues(),
+                                    variables.GetOpaqueData(),
+                                    &result,
+                                    row.Elements(),
+                                    buffer.Get());
 
                                 EXPECT_EQ(result, expectedValue)
                                     << "row: " << ::testing::PrintToString(row);
@@ -1593,13 +1605,15 @@ TEST_P(TTernaryLogicTest, Evaluate)
         New<TLiteralExpression>(EValueType::Boolean, lhs));
 
     TCGVariables variables1;
-    auto compiledExpr1 = Profile(expr1, New<TTableSchema>(), nullptr, &variables1)();
-    compiledExpr1(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    auto image1 = Profile(expr1, New<TTableSchema>(), nullptr, &variables1)();
+    auto instance1 = image1.Instantiate();
+    instance1.Run(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Elements(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 
     TCGVariables variables2;
-    auto compiledExpr2 = Profile(expr2, New<TTableSchema>(), nullptr, &variables2)();
-    compiledExpr2(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    auto image2 = Profile(expr2, New<TTableSchema>(), nullptr, &variables2)();
+    auto instance2 = image2.Instantiate();
+    instance2.Run(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Elements(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 }
 
@@ -1700,22 +1714,22 @@ TEST_P(TCompareWithNullTest, Simple)
     auto row = YsonToSchemafulRow(rowString, *schema, /*treatMissingAsNull*/ true);
     auto expr = PrepareExpression(exprString, *schema);
 
+    auto buffer = New<TRowBuffer>();
+
     llvm::FoldingSetNodeID nonCanonId, canonId;
 
     {
-        auto callback = Profile(expr, schema, &nonCanonId, &variables, /*useCanonicalNullRelations*/ false)();
+        auto image = Profile(expr, schema, &nonCanonId, &variables, /*useCanonicalNullRelations*/ false)();
+        auto instance = image.Instantiate();
 
-        auto buffer = New<TRowBuffer>();
-
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &nonCanonResult, row.Elements(), buffer.Get());
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &nonCanonResult, row.Elements(), buffer.Get());
     }
 
     {
-        auto callback = Profile(expr, schema, &canonId, &variables, /*useCanonicalNullRelations*/ true)();
+        auto image = Profile(expr, schema, &canonId, &variables, /*useCanonicalNullRelations*/ true)();
+        auto instance = image.Instantiate();
 
-        auto buffer = New<TRowBuffer>();
-
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &canonResult, row.Elements(), buffer.Get());
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &canonResult, row.Elements(), buffer.Get());
     }
 
     EXPECT_NE(nonCanonId, canonId);
@@ -1782,10 +1796,11 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
         "xor_aggregate",
         ECallingConvention::UnversionedValue);
 
-    auto callbacks = CodegenAggregate(
+    auto image = CodegenAggregate(
         aggregateProfilers->GetAggregate("xor_aggregate")->Profile(
             {EValueType::Int64}, EValueType::Int64, EValueType::Int64, "xor_aggregate"),
         {EValueType::Int64}, EValueType::Int64);
+    auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
 
@@ -1793,36 +1808,36 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     auto value = MakeUint64(0);
 
     // Init sets aggregate flag to true.
-    callbacks.Init(buffer.Get(), &state);
+    instance.RunInit(buffer.Get(), &state);
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags |= EValueFlags::Aggregate;
-    callbacks.Update(buffer.Get(), &state, TRange<TValue>(&value, 1));
+    instance.RunUpdate(buffer.Get(), &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
-    callbacks.Update(buffer.Get(), &state, TRange<TValue>(&value, 1));
+    instance.RunUpdate(buffer.Get(), &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags &= ~EValueFlags::Aggregate;
-    callbacks.Update(buffer.Get(), &state, TRange<TValue>(&value, 1));
+    instance.RunUpdate(buffer.Get(), &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags &= ~EValueFlags::Aggregate;
-    callbacks.Merge(buffer.Get(), &state, &value);
+    instance.RunMerge(buffer.Get(), &state, &value);
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags |= EValueFlags::Aggregate;
-    callbacks.Merge(buffer.Get(), &state, &value);
+    instance.RunMerge(buffer.Get(), &state, &value);
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
     TUnversionedValue result{};
     // Finalize preserves aggregate flag.
     state.Flags &= ~EValueFlags::Aggregate;
-    callbacks.Finalize(buffer.Get(), &result, &state);
+    instance.RunFinalize(buffer.Get(), &result, &state);
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
     state.Flags |= EValueFlags::Aggregate;
-    callbacks.Finalize(buffer.Get(), &result, &state);
+    instance.RunFinalize(buffer.Get(), &result, &state);
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 }
 
@@ -1837,31 +1852,32 @@ TEST_P(TEvaluateAggregationTest, Basic)
 
     auto registry = GetBuiltinAggregateProfilers();
     auto aggregate = registry->GetAggregate(aggregateName);
-    auto callbacks = CodegenAggregate(
+    auto image = CodegenAggregate(
         aggregate->Profile({type}, type, type, aggregateName),
         {type}, type);
+    auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue state1{};
-    callbacks.Init(buffer.Get(), &state1);
+    instance.RunInit(buffer.Get(), &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
-    callbacks.Update(buffer.Get(), &state1, TRange<TValue>(&value1, 1));
+    instance.RunUpdate(buffer.Get(), &state1, TRange<TValue>(&value1, 1));
     EXPECT_EQ(value1, state1);
 
     TUnversionedValue state2{};
-    callbacks.Init(buffer.Get(), &state2);
+    instance.RunInit(buffer.Get(), &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
-    callbacks.Update(buffer.Get(), &state2, TRange<TValue>(&value2, 1));
+    instance.RunUpdate(buffer.Get(), &state2, TRange<TValue>(&value2, 1));
     EXPECT_EQ(value2, state2);
 
-    callbacks.Merge(buffer.Get(), &state1, &state2);
+    instance.RunMerge(buffer.Get(), &state1, &state2);
     EXPECT_EQ(expected, state1);
 
     TUnversionedValue result{};
-    callbacks.Finalize(buffer.Get(), &result, &state1);
+    instance.RunFinalize(buffer.Get(), &result, &state1);
     EXPECT_EQ(expected, result);
 }
 
@@ -1957,36 +1973,37 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
 
     auto registry = GetBuiltinAggregateProfilers();
     auto aggregate = registry->GetAggregate(aggregateName);
-    auto callbacks = CodegenAggregate(
+    auto image = CodegenAggregate(
         aggregate->Profile(argumentTypes, stateType, resultType, aggregateName),
         argumentTypes,
         stateType);
+    auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue state1{};
-    callbacks.Init(buffer.Get(), &state1);
+    instance.RunInit(buffer.Get(), &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
     for (int index = 0; index < std::ssize(argumentPackList1); ++index) {
-        callbacks.Update(buffer.Get(), &state1, TRange<TValue>(argumentPackList1[index]));
+        instance.RunUpdate(buffer.Get(), &state1, TRange<TValue>(argumentPackList1[index]));
         EXPECT_EQ(state1, MakeString(expectedValuesOnUpdate1[index]));
     }
 
     TUnversionedValue state2{};
-    callbacks.Init(buffer.Get(), &state2);
+    instance.RunInit(buffer.Get(), &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
     for (int index = 0; index < std::ssize(argumentPackList2); ++index) {
-        callbacks.Update(buffer.Get(), &state2, TRange<TValue>(argumentPackList2[index]));
+        instance.RunUpdate(buffer.Get(), &state2, TRange<TValue>(argumentPackList2[index]));
         EXPECT_EQ(state2, MakeString(expectedValuesOnUpdate2[index]));
     }
 
-    callbacks.Merge(buffer.Get(), &state1, &state2);
+    instance.RunMerge(buffer.Get(), &state1, &state2);
     EXPECT_EQ(state1, MakeString(afterMergeValue));
 
     TUnversionedValue result{};
-    callbacks.Finalize(buffer.Get(), &result, &state1);
+    instance.RunFinalize(buffer.Get(), &result, &state1);
     EXPECT_EQ(result, expectedFinalValue);
 }
 
@@ -2104,11 +2121,12 @@ void EvaluateExpression(
 {
     TCGVariables variables;
 
-    auto callback = Profile(expr, schema, nullptr, &variables)();
+    auto image = Profile(expr, schema, nullptr, &variables)();
+    auto instance = image.Instantiate();
 
     auto row = YsonToSchemafulRow(rowString, *schema, true);
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Elements(), buffer.Get());
 }
 
 class TEvaluateExpressionTest

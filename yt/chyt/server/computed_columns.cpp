@@ -200,13 +200,26 @@ struct TComputedColumnPopulationMatcher
             TUnversionedValue resultValue{};
             try {
                 TCGVariables variables;
-                auto callback = Profile(entry.Expression, data.TableSchema->Filter(entry.References), nullptr, &variables)();
-                callback(
+
+                auto image = Profile(
+                    entry.Expression,
+                    data.TableSchema->Filter(entry.References),
+                    nullptr,
+                    &variables)();
+
+                auto instance = image.Instantiate();
+
+                auto finalizer = Finally([&] () {
+                    variables.Clear();
+                });
+
+                instance.Run(
                     variables.GetLiteralValues(),
                     variables.GetOpaqueData(),
                     &resultValue,
                     TRange<TUnversionedValue>(referenceValues.data(), referenceValues.size()),
                     rowBuffer.Get());
+
                 resultValue.Id = 0;
             } catch (const TErrorException& ex) {
                 YT_LOG_TRACE(ex, "Caught exception while evaluating expression");

@@ -1481,7 +1481,7 @@ void Profile(
     profiler.Profile(tableSchema);
 }
 
-TCGExpressionCallbackGenerator Profile(
+TCGExpressionGenerator Profile(
     const TConstExpressionPtr& expr,
     const TTableSchemaPtr& schema,
     llvm::FoldingSetNodeID* id,
@@ -1502,7 +1502,7 @@ TCGExpressionCallbackGenerator Profile(
         };
 }
 
-TCGQueryCallbackGenerator Profile(
+TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
@@ -1528,7 +1528,7 @@ TCGQueryCallbackGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenEvaluate(&codegenSource, slotCount);
+            return CodegenQuery(&codegenSource, slotCount);
         };
 }
 

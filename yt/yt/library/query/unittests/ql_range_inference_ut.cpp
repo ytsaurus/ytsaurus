@@ -1634,7 +1634,8 @@ TEST_P(TInferRangesTest, Stress)
             {});
 
         TCGVariables variables;
-        auto callback = Profile(expr, schema, nullptr, &variables)();
+        auto image = Profile(expr, schema, nullptr, &variables)();
+        auto instance = image.Instantiate();
 
         for (int j = 0; j < 1000; ++j) {
             // Generate random row.
@@ -1642,7 +1643,7 @@ TEST_P(TInferRangesTest, Stress)
 
             // Evaluate predicate.
             TUnversionedValue resultValue;
-            callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, row.Elements(), rowBuffer.Get());
+            instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, row.Elements(), rowBuffer.Get());
 
             // Validate row in ranges.
             auto foundIt = BinarySearch(inferredRanges.begin(), inferredRanges.end(), [&] (TRowRange* rowRange) {
