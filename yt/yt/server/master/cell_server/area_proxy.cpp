@@ -71,8 +71,9 @@ private:
             .SetMandatory(true)
             .SetPresent(area->GetCellBundle()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosOptions)
+            .SetWritable(true)
             .SetReplicated(true)
-            .SetMandatory(false)
+            .SetMandatory(true)
             .SetPresent(static_cast<bool>(area->ChaosOptions())));
         descriptors->push_back(EInternedAttributeKey::CellIds);
         descriptors->push_back(EInternedAttributeKey::Nodes);
