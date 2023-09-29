@@ -114,6 +114,7 @@
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
     XX(ContentRevision, content_revision) \
     XX(CoordinatorCellIds, coordinator_cell_ids) \
+    XX(CorrelationId, correlation_id) \
     XX(CountByHealth, count_by_health) \
     XX(CoWCookie, cow_cookie) \
     XX(CreateEphemeralSubpools, create_ephemeral_subpools) \

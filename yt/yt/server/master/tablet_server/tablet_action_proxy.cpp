@@ -56,6 +56,8 @@ private:
             .SetPresent(!!action->GetTabletCount()));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Error)
             .SetPresent(!action->Error().IsOK()));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::CorrelationId)
+            .SetPresent(!action->GetCorrelationId().IsEmpty()));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -143,6 +145,15 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(action->Error());
                 return true;
+
+            case EInternedAttributeKey::CorrelationId:
+                if (!action->GetCorrelationId()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(action->GetCorrelationId());
+                return true;
+
             default:
                 break;
         }
