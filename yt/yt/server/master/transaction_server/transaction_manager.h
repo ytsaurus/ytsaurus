@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
@@ -11,6 +13,8 @@
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
 #include <yt/yt/server/master/object_server/public.h>
+
+#include <yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/client/election/public.h>
 
@@ -137,6 +141,14 @@ struct ITransactionManager
         TCtxStartTransactionPtr context,
         const NTransactionServer::NProto::TReqStartTransaction& request) = 0;
 
+    using TCtxStartCypressTransaction = NRpc::TTypedServiceContext<
+        NCypressTransactionClient::NProto::TReqStartTransaction,
+        NCypressTransactionClient::NProto::TRspStartTransaction>;
+    using TCtxStartCypressTransactionPtr = TIntrusivePtr<TCtxStartCypressTransaction>;
+    virtual std::unique_ptr<NHydra::TMutation> CreateStartCypressTransactionMutation(
+        TCtxStartCypressTransactionPtr context,
+        const NTransactionServer::NProto::TReqStartCypressTransaction& request) = 0;
+
     using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<
         NProto::TReqRegisterTransactionActions,
         NProto::TRspRegisterTransactionActions>;
@@ -157,6 +169,20 @@ struct ITransactionManager
     virtual void UnrefTimestampHolder(TTransactionId transactionId) = 0;
 
     virtual const TTransactionPresenceCachePtr& GetTransactionPresenceCache() = 0;
+
+    virtual void StartCypressTransaction(TCtxStartCypressTransactionPtr context) = 0;
+
+    using TCtxCommitCypressTransaction = NRpc::TTypedServiceContext<
+        NCypressTransactionClient::NProto::TReqCommitTransaction,
+        NCypressTransactionClient::NProto::TRspCommitTransaction>;
+    using TCtxCommitCypressTransactionPtr = TIntrusivePtr<TCtxCommitCypressTransaction>;
+    virtual void CommitCypressTransaction(TCtxCommitCypressTransactionPtr context) = 0;
+
+    using TCtxAbortCypressTransaction = NRpc::TTypedServiceContext<
+        NCypressTransactionClient::NProto::TReqAbortTransaction,
+        NCypressTransactionClient::NProto::TRspAbortTransaction>;
+    using TCtxAbortCypressTransactionPtr = TIntrusivePtr<TCtxAbortCypressTransaction>;
+    virtual void AbortCypressTransaction(TCtxAbortCypressTransactionPtr context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

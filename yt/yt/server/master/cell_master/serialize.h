@@ -160,6 +160,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReworkClusterResourceLimitsInfinityRelatedBehavior)           (2428))  // kvk1920
     ((KeyPrefixFilter)                                              (2429))  // akozhikhov
     ((MulticellChunkReincarnator)                                   (2430))  // kvk1920
+    ((CypressTransactionService)                                    (2431))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

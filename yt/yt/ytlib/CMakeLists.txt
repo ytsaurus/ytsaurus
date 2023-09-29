@@ -891,6 +891,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
@@ -939,8 +951,8 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.proto
@@ -954,14 +966,19 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
@@ -972,18 +989,18 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/proto/job.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/proto/job.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/job.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/job_prober_service.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/job.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
@@ -1001,12 +1018,8 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/action.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
 )
 target_sources(yt-yt-ytlib PRIVATE
@@ -1060,19 +1073,19 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_request_batcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_sync_replica_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction_participant.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/type_handler_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/ypath_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authentication_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticating_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authentication_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/alien_cell.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
@@ -1082,15 +1095,15 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_residency_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_cache.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_id.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_reorderer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_tracking_chunk_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/cache_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_fragment_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_fragment_read_controller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_fragment_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_host.cpp
@@ -1098,15 +1111,16 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_replica_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_scraper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec_fetcher.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_teleporter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/client_block_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/combine_data_slices.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/confirming_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_sink.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_slice_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_source.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_sink.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/deferred_chunk_meta.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/dispatcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/encoding_chunk_writer.cpp
@@ -1118,58 +1132,58 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_repair.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/format.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk_slice.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/legacy_data_slice.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory_synchronizer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_tracked_deferred_chunk_meta.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/meta_aggregating_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/multi_chunk_writer_base.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/multi_reader_manager_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/sequential_multi_reader_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/parallel_multi_reader_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/preloaded_block_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/reader_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/replication_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/replication_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/sequential_multi_reader_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/session_id.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_fetcher.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/throttler_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/traffic_meter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_pool_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe_key.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/output_order.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/event_log/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/event_log/event_log.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/cell_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/event_log/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/event_log/event_log.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_output.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cell_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory_synchronizer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_channel.cpp
@@ -1179,21 +1193,30 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/any_to_composite_converter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/job_spec_helper.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/job_spec_helper.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_io_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_read_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/statistics.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_parts_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_repair.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_chunk_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_hunk_chunk_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_reference_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/column_block_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/memory_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/prepared_meta.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/rowset_builder.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/segment_readers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/versioned_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/helpers.cpp
@@ -1201,26 +1224,26 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_directory_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_status_directory.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/caching_object_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/object_attribute_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_ypath_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/program/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/program/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/program/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/program/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_helpers.cpp
@@ -1230,17 +1253,17 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer_detail.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/data_block_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_writer.cpp
@@ -1248,44 +1271,37 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/integer_column_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/null_column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/null_column_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/reader_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/schemaless_column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/schemaless_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/reader_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/slim_versioned_block_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/column_block_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/memory_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/prepared_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/rowset_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/segment_readers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/versioned_chunk_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/blob_table_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/cached_versioned_chunk_meta.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/cached_versioned_chunk_meta.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_column_mapping.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index_read_controller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_lookup_hash_table.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_reader_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_size_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_reader_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_statistics_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_columnar_statistics_cache.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/column_filter_dictionary.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_meta.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_reader_base.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_statistics_fetcher.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/hunks.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_sort_reader.cpp
@@ -1295,8 +1311,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/row_merger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_dictionary.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_inferer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_concatenating_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_reader_adapter.cpp
@@ -1304,14 +1320,15 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_block_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_buffered_table_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_chunk_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/skynet_column_evaluator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/slice_boundary_key.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/sorted_merging_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/skynet_column_evaluator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/sorting_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_upload_options.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_columnar_statistics_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_read_spec.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_upload_options.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_block_reader.cpp
@@ -1324,22 +1341,18 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/native_table_mount_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/native_table_mount_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_picker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/action.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/clock_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/remote_cluster_timestamp_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_listener.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/remote_cluster_timestamp_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_reference_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/yql_client/config.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/resolve_node.record.cpp

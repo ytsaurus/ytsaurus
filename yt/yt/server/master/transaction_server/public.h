@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/transaction_server/public.h>
 
+#include <yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
+
 namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -10,6 +12,7 @@ namespace NProto {
 
 class TReqStartTransaction;
 using TRspStartTransaction = NTransactionClient::NProto::TRspStartTransaction;
+using TRspStartCypressTransaction = NCypressTransactionClient::NProto::TRspStartTransaction;
 
 using TReqRegisterTransactionActions = NTransactionClient::NProto::TReqRegisterTransactionActions;
 using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterTransactionActions;

@@ -358,6 +358,11 @@ private:
             EAutomatonThreadQueue::ChunkRequisitionUpdater,
             EAutomatonThreadQueue::ChunkSealer,
         };
+        buckets[EAutomatonThreadBucket::Transactions] = {
+            EAutomatonThreadQueue::TransactionSupervisor,
+            EAutomatonThreadQueue::CypressTransactionService,
+            EAutomatonThreadQueue::TransactionService,
+        };
         return buckets;
     }
 };

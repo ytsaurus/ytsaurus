@@ -2126,6 +2126,19 @@ class TestBulkInsertShardedTx(TestBulkInsertPortal):
     }
 
 
+class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+
 class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -2139,4 +2152,17 @@ class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
         "11": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
+    }
+
+
+class TestUnversionedUpdateFormatShardedTxCTxS(TestUnversionedUpdateFormatShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
     }

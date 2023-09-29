@@ -1,11 +1,10 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, remove,
-    exists, create_user,
-    create_group, add_member, remove_member, start_transaction, abort_transaction, commit_transaction, ping_transaction, lock, write_file, write_table,
-    multicell_sleep, get_transactions,
-    get_topmost_transactions, gc_collect, get_driver)
+    authors, wait, create, ls, get, set, copy, remove, exists, create_user,
+    create_group, add_member, remove_member, start_transaction, abort_transaction,
+    commit_transaction, ping_transaction, lock, write_file, write_table,
+    get_transactions, get_topmost_transactions, gc_collect, get_driver)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import datetime_to_string, YtError
@@ -700,17 +699,6 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         assert get("#" + tx + "/@replicated_to_cell_tags") == [13]
 
     @authors("shakurov")
-    def test_eager_tx_replication(self):
-        set(
-            "//sys/@config/transaction_manager/enable_lazy_transaction_replication",
-            False,
-        )
-        multicell_sleep()
-
-        tx = start_transaction()
-        assert 13 in get("#" + tx + "/@replicated_to_cell_tags")
-
-    @authors("shakurov")
     def test_parent_tx_replication(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -816,6 +804,19 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         commit_transaction(tx)
 
         assert exists("//tmp/qqq")
+
+
+class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
 
 
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):

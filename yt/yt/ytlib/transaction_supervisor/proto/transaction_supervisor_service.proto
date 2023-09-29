@@ -42,6 +42,7 @@ message TReqPingTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     // Only makes sense for master transactions.
+    // COMPAT(h0pless): Can probably be removed wihen CTxS will be used by clients.
     optional bool ping_ancestors = 2 [default = false];
 }
 

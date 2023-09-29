@@ -66,7 +66,7 @@ void TTransactionRotator::Rotate()
         /*deadline*/ std::nullopt,
         TransactionTitle_,
         EmptyAttributes(),
-        /*isCypressTransaction*/ false));
+        /*isCypressTransaction*/ true));
 }
 
 TTransactionId TTransactionRotator::TransactionIdFromPtr(const TTransactionWeakPtr& ptr)

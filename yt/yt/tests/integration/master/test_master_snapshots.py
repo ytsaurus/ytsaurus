@@ -740,5 +740,26 @@ class TestMastersPersistentReadOnly(YTEnvSetup):
             wait(lambda: no_peers_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
 
 
+class TestMastersSnapshotsShardedTxCTxS(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 4
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+
 class TestMastersPersistentReadOnlyMulticell(TestMastersPersistentReadOnly):
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -88,6 +88,7 @@ TTransactionId MakeExternalizedTransactionId(
     }
 
     auto originalType = TypeFromId(originalId);
+
     YT_VERIFY(originalType == EObjectType::Transaction || originalType == EObjectType::NestedTransaction);
     auto externalizedType = (originalType == EObjectType::Transaction)
         ? EObjectType::ExternalizedTransaction
@@ -108,7 +109,10 @@ TTransactionId OriginalFromExternalizedTransactionId(TTransactionId externalized
     }
 
     auto externalizedType = TypeFromId(externalizedId);
-    YT_VERIFY(externalizedType == EObjectType::ExternalizedTransaction || externalizedType == EObjectType::ExternalizedNestedTransaction);
+    YT_VERIFY(
+        externalizedType == EObjectType::ExternalizedTransaction ||
+        externalizedType == EObjectType::ExternalizedNestedTransaction);
+
     auto originalType = (externalizedType == EObjectType::ExternalizedTransaction)
         ? EObjectType::Transaction
         : EObjectType::NestedTransaction;

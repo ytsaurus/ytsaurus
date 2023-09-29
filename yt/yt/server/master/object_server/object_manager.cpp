@@ -900,6 +900,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 
     // NB: The highest 16 bits of hash are used for externalizing cell tag in
     // externalized transaction ids.
+    // NB: System transactions are not externalizeable.
     if (type == EObjectType::Transaction || type == EObjectType::NestedTransaction) {
         hash &= 0xffff;
     }

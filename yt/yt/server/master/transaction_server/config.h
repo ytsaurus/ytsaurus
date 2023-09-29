@@ -51,16 +51,15 @@ public:
     TDuration MaxTransactionTimeout;
     int MaxTransactionDepth;
 
-    // COMPAT(shakurov): remove this once all (anticipated at the moment of this
-    // writing) problems with lazy tx replication have been ironed out.
-    bool EnableLazyTransactionReplication;
-
     TTransactionPresenceCacheConfigPtr TransactionPresenceCache;
     TBoomerangTrackerConfigPtr BoomerangTracker;
 
     TDuration ProfilingPeriod;
 
     bool IgnoreCypressTransactions;
+
+    // COMPAT(h0pless): This is a panic button in case new types cause issues for users.
+    bool EnableDedicatedTypesForSystemTransactions;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 

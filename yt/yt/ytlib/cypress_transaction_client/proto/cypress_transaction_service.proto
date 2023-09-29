@@ -1,0 +1,64 @@
+package NYT.NCypressTransactionClient.NProto;
+
+import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{
+    required int64 timeout = 1;
+    optional uint64 deadline = 2;
+
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
+    optional string title = 4;
+
+    optional NYT.NProto.TGuid parent_id = 5;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 6;
+
+    repeated int32 replicate_to_cell_tags = 7;
+}
+
+message TRspStartTransaction
+{
+    required NYT.NProto.TGuid id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 2;
+}
+
+message TRspCommitTransaction
+{
+    required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional bool force = 2 [default = false];
+}
+
+message TRspAbortTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional bool ping_ancestors = 2 [default = false];
+}
+
+message TRspPingTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

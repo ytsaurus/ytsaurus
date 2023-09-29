@@ -534,6 +534,19 @@ class TestStderrTableShardedTx(TestStderrTable):
     }
 
 
+class TestStderrTableShardedTxCTxS(TestStderrTableShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+
 ##################################################################
 
 

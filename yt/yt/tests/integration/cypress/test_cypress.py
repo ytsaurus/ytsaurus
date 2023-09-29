@@ -3865,6 +3865,19 @@ class TestCypressShardedTx(TestCypressPortal):
     }
 
 
+class TestCypressShardedTxCTxS(TestCypressShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+
 class TestCypressNoLocalReadExecutor(TestCypress):
     def setup_method(self, method):
         super(TestCypressNoLocalReadExecutor, self).setup_method(method)

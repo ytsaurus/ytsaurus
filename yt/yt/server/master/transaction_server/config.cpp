@@ -37,8 +37,6 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_transaction_depth", &TThis::MaxTransactionDepth)
         .GreaterThan(0)
         .Default(32);
-    registrar.Parameter("enable_lazy_transaction_replication", &TThis::EnableLazyTransactionReplication)
-        .Default(true);
     registrar.Parameter("transaction_presence_cache", &TThis::TransactionPresenceCache)
         .DefaultNew();
     registrar.Parameter("boomerang_tracker", &TThis::BoomerangTracker)
@@ -50,6 +48,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     // behavior.
     registrar.Parameter("ignore_cypress_transactions", &TThis::IgnoreCypressTransactions)
         .Default(false);
+
+    // COMPAT(h0pless): This is a panic button.
+    registrar.Parameter("enable_dedicated_types_for_system_transactions", &TThis::EnableDedicatedTypesForSystemTransactions)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
