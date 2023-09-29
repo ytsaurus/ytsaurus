@@ -232,8 +232,15 @@ def _extract_code_globals(co):
     """
     out_names = _extract_code_globals_cache.get(co)
     if out_names is None:
-        names = co.co_names
-        out_names = {names[oparg] for _, oparg in _walk_global_ops(co)}
+        # SPYT-415: From Spark 3.4
+        if sys.version_info < (3, 11):
+            names = co.co_names
+            out_names = {names[oparg] for _, oparg in _walk_global_ops(co)}
+        else:
+            # We use a dict with None values instead of a set to get a
+            # deterministic order (assuming Python 3.6+) and avoid introducing
+            # non-deterministic pickle bytes as a results.
+            out_names = {name: None for name in _walk_global_ops(co)}
 
         # Declaring a function inside another one using the "def ..."
         # syntax generates a constant code object corresonding to the one
@@ -244,7 +251,7 @@ def _extract_code_globals(co):
         if co.co_consts:
             for const in co.co_consts:
                 if isinstance(const, types.CodeType):
-                    out_names |= _extract_code_globals(const)
+                    out_names.update(_extract_code_globals(const))
 
         _extract_code_globals_cache[co] = out_names
 
@@ -417,15 +424,26 @@ def _builtin_type(name):
     return getattr(types, name)
 
 
-def _walk_global_ops(code):
-    """
-    Yield (opcode, argument number) tuples for all
-    global-referencing instructions in *code*.
-    """
-    for instr in dis.get_instructions(code):
-        op = instr.opcode
-        if op in GLOBAL_OPS:
-            yield op, instr.arg
+# SPYT-415: From Spark 3.4
+if sys.version_info < (3, 11):
+    def _walk_global_ops(code):
+        """
+        Yield (opcode, argument number) tuples for all
+        global-referencing instructions in *code*.
+        """
+        for instr in dis.get_instructions(code):
+            op = instr.opcode
+            if op in GLOBAL_OPS:
+                yield op, instr.arg
+else:
+    def _walk_global_ops(code):
+        """
+        Yield referenced name for all global-referencing instructions in *code*.
+        """
+        for instr in dis.get_instructions(code):
+            op = instr.opcode
+            if op in GLOBAL_OPS:
+                yield instr.argval
 
 
 def _extract_class_dict(cls):
