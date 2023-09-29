@@ -386,7 +386,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.Id = partialRecord.Key.QueryId;
     query.Engine = partialRecord.Engine;
     query.Query = partialRecord.Query;
-    query.Files = partialRecord.Files.value_or(TYsonString());
+    query.Files = partialRecord.Files.value_or(std::nullopt);
     query.StartTime = partialRecord.StartTime;
     query.FinishTime = partialRecord.FinishTime.value_or(std::nullopt);
     query.Settings = partialRecord.Settings.value_or(TYsonString());
