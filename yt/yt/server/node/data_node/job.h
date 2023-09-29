@@ -1,6 +1,6 @@
 #pragma once
 
-#include "job.h"
+#include "job_info.h"
 #include "public.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -65,9 +65,9 @@ public:
 
     NJobTrackerClient::NProto::TJobResult GetResult() const;
 
-    void BuildOrchid(NYTree::TFluentMap /*fluent*/) const;
-
     TInstant GetStartTime() const;
+
+    TBriefJobInfo GetBriefInfo() const;
 
 protected:
     IBootstrap* const Bootstrap_;

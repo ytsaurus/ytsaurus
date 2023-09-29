@@ -1849,7 +1849,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
         # We want to control the moment we start schedule jobs on node.
         disable_scheduler_jobs_on_node(first_node, "test node heartbeat delay")
         wait(
-            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(first_node)) == 0
+            lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/user_slots".format(first_node)) == 0
         )
 
         set_banned_flag(True, nodes=[second_node], wait_for_scheduler=True)
@@ -1864,7 +1864,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
         # Scheduler starts making a delay in heartbeat processing here.
         enable_scheduler_jobs_on_node(first_node)
         wait(
-            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(first_node)) > 0
+            lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/user_slots".format(first_node)) > 0
         )
 
         # We want to ban node during delay in heartbeat.

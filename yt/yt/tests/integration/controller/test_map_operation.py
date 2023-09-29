@@ -846,8 +846,21 @@ print row + table_index
         )
         wait_breakpoint(job_count=5)
 
-        for n in get("//sys/cluster_nodes"):
-            scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
+        nodes_info = get("//sys/cluster_nodes", attributes=["flavors", "version"])
+
+        exec_nodes = {
+            node: attr.attributes["version"]
+            for node, attr in nodes_info.items() if "exec" in attr.attributes.get("flavors", ["exec"])
+        }
+
+        for node, version in exec_nodes.items():
+            if version < "23.3":
+                scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node))
+                slot_manager = get("//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(node))
+            else:
+                scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs".format(node))
+                slot_manager = get("//sys/cluster_nodes/{0}/orchid/exec_node/slot_manager".format(node))
+
             for job_id, values in scheduler_jobs.items():
                 assert "start_time" in values
                 assert "operation_id" in values
@@ -855,7 +868,6 @@ print row + table_index
                 assert "job_type" in values
                 assert "duration" in values
 
-            slot_manager = get("//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(n))
             assert "free_slot_count" in slot_manager
             assert "slot_count" in slot_manager
 

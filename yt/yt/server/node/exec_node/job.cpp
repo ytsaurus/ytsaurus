@@ -1103,7 +1103,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
         GetStored(),
         GetSlotIndex(),
         GetStartTime(),
-        TInstant::Now() - GetStartTime(),
+        /*jobDuration=*/ TInstant::Now() - GetStartTime(),
         GetStatistics(),
         GetOperationId(),
         GetResourceUsage(),

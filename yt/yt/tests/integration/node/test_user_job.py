@@ -2403,7 +2403,7 @@ class TestHealExecNode(YTEnvSetup):
         abort_job(job_id)
 
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
-        wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/job_controller/slot_manager/alerts".format(node_address)))
+        wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/alerts".format(node_address)))
 
         update_nodes_dynamic_config({}, replace=True)
 
@@ -2694,9 +2694,9 @@ class TestIdleSlots(YTEnvSetup):
         return (job_id, job["address"])
 
     def _check_slot_count(self, node, common_used, idle_used):
-        slot_count = get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/slot_count")
-        free_slot_count = get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/free_slot_count")
-        used_idle_slot_count = get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/used_idle_slot_count")
+        slot_count = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/slot_manager/slot_count")
+        free_slot_count = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/slot_manager/free_slot_count")
+        used_idle_slot_count = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/slot_manager/used_idle_slot_count")
 
         return (free_slot_count + common_used + idle_used == slot_count) and (used_idle_slot_count == idle_used)
 
@@ -2873,7 +2873,7 @@ class TestCpuSet(YTEnvSetup):
         })
 
     def _get_numa_node_free_cpu_count(self, node, numa_node_id):
-        return get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/numa_node_states/node_{numa_node_id}/free_cpu_count")
+        return get(f"//sys/cluster_nodes/{node}/orchid/exec_node/slot_manager/numa_node_states/node_{numa_node_id}/free_cpu_count")
 
     @authors("nadya73")
     def test_greedy(self):
@@ -2944,7 +2944,7 @@ class TestCpuSet(YTEnvSetup):
 
         op_with_numa_node.track()
         op_without_numa_node.track()
-        wait(lambda: get(f"//sys/cluster_nodes/{node_with_numa_node}/orchid/job_controller/slot_manager/free_slot_count") == 10)
+        wait(lambda: get(f"//sys/cluster_nodes/{node_with_numa_node}/orchid/exec_node/slot_manager/free_slot_count") == 10)
 
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 4.0)
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
@@ -3286,7 +3286,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         time.sleep(5)
 
         wait(lambda: are_almost_equal(get("//sys/scheduler/orchid/scheduler/cluster/resource_usage/cpu"), 0))
-        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[0])) == 0)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_usage/user_slots".format(nodes[0])) == 0)
 
         update_nodes_dynamic_config({
             "exec_node": {

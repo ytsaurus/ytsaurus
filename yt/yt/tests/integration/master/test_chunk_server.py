@@ -94,7 +94,7 @@ class TestChunkServer(YTEnvSetup):
 
         for node in nodes:
             if not (
-                id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/cluster_nodes/%s/orchid/stored_chunks" % node)]
+                id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/cluster_nodes/%s/orchid/data_node/stored_chunks" % node)]
             ):
                 return False
         return True
@@ -313,13 +313,13 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) == 3)
 
         node_id = get("#{0}/@stored_replicas".format(chunk_id))[0]
-        location_path = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}/location".format(node_id, chunk_id))
+        location_path = get("//sys/cluster_nodes/{}/orchid/data_node/stored_chunks/{}/location".format(node_id, chunk_id))
 
         with open("{}/disabled".format(location_path), "wb") as f:
             f.write(b"{foo=bar}")
 
         wait(lambda: node_id not in get("#{0}/@stored_replicas".format(chunk_id)))
-        assert not exists("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(node_id, chunk_id))
+        assert not exists("//sys/cluster_nodes/{}/orchid/data_node/stored_chunks/{}".format(node_id, chunk_id))
 
         # Repair node for future tests.
         os.remove("{}/disabled".format(location_path))

@@ -82,11 +82,7 @@ public:
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 
-    virtual void BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) const = 0;
-    virtual void BuildJobsInfo(NYTree::TFluentAny fluent) const = 0;
-    virtual void BuildJobControllerInfo(NYTree::TFluentMap fluent) const = 0;
-
-    virtual int GetActiveJobCount() const = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
     virtual void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) = 0;
 

@@ -128,14 +128,14 @@ class TestJournalsBase(YTEnvSetup):
     def _get_chunk_replica_length(self, chunk_id):
         result = []
         for replica in get("#{}/@stored_replicas".format(chunk_id)):
-            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+            orchid = get("//sys/cluster_nodes/{}/orchid/data_node/stored_chunks/{}".format(replica, chunk_id))
             result.append(orchid["flushed_row_count"])
         return result
 
     def _find_replicas_with_length(self, chunk_id, length):
         result = []
         for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
-            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+            orchid = get("//sys/cluster_nodes/{}/orchid/data_node/stored_chunks/{}".format(replica, chunk_id))
             if orchid["flushed_row_count"] == length:
                 result.append(replica)
         return result
@@ -530,7 +530,7 @@ class TestJournals(TestJournalsBase):
         self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
         chunk_id = get("//tmp/j/@chunk_ids/0")
         replica = get("#{}/@last_seen_replicas/0".format(chunk_id))
-        orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+        orchid = get("//sys/cluster_nodes/{}/orchid/data_node/stored_chunks/{}".format(replica, chunk_id))
         assert "location" in orchid
         assert "disk_space" in orchid
 

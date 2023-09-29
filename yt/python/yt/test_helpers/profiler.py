@@ -206,7 +206,7 @@ class ProfilerFactory(object):
         return Profiler(self.yt_client, "//sys/cluster_nodes/{0}/orchid/sensors".format(node), *args, **kwargs)
 
     def at_job_proxy(self, node, *args, **kwargs):
-        return Profiler(self.yt_client, "//sys/cluster_nodes/{0}/orchid/job_proxy_sensors".format(node), *args, **kwargs)
+        return Profiler(self.yt_client, "//sys/cluster_nodes/{0}/orchid/exec_node/job_proxy_sensors".format(node), *args, **kwargs)
 
     def at_tablet_node(self, table, tablet_cell_bundle="default", fixed_tags=None):
         if fixed_tags is None:

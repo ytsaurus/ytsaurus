@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
-    authors, run_test_vanilla, with_breakpoint, wait_breakpoint, get, ls, release_breakpoint)
+    authors, run_test_vanilla, with_breakpoint, wait_breakpoint, get, ls, release_breakpoint, exists)
 
 
 class TestJobControllerOrchid(YTEnvSetup):
@@ -23,8 +23,10 @@ class TestJobControllerOrchid(YTEnvSetup):
 
         release_breakpoint()
 
-        wait(lambda: job_id in get("//sys/cluster_nodes/{}/orchid/job_controller/jobs_waiting_for_cleanup".format(node)))
+        wait(lambda: job_id in get("//sys/cluster_nodes/{}/orchid/exec_node/job_controller/jobs_waiting_for_cleanup".format(node)))
 
-        assert job_id not in get("//sys/cluster_nodes/{}/orchid/job_controller/active_jobs".format(node))
+        assert job_id not in get("//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs".format(node))
+
+        assert not exists("//sys/cluster_nodes/{0}/orchid/data_node/job_controller/active_jobs/{1}".format(node, job_id))
 
         op.track()

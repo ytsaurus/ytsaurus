@@ -71,7 +71,7 @@ class TestAllyReplicas(YTEnvSetup):
 
         stored_replicas = get("//sys/chunks/{}/@stored_replicas".format(chunk_id))
         for r in stored_replicas:
-            orchid = "//sys/cluster_nodes/{}/orchid/stored_chunks".format(r)
+            orchid = "//sys/cluster_nodes/{}/orchid/data_node/stored_chunks".format(r)
             encoded_chunk_id = self._encode_chunk_id(chunk_id, _get_replica_index(r))
             if not exists(orchid + "/" + encoded_chunk_id):
                 return False

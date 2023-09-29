@@ -180,29 +180,7 @@ public:
             MakeWeak(this)));
     }
 
-    void BuildJobsInfo(TFluentAny fluent) const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        auto jobs = GetJobs();
-
-        fluent.DoMapFor(
-            jobs,
-            [&] (TFluentMap fluent, const TMasterJobBasePtr& job) {
-                fluent.Item(ToString(job->GetId()))
-                    .BeginMap()
-                        .Item("job_state").Value(job->GetState())
-                        .Item("job_type").Value(job->GetType())
-                        .Item("job_tracker_address").Value(job->GetJobTrackerAddress())
-                        .Item("start_time").Value(job->GetStartTime())
-                        .Item("duration").Value(TInstant::Now() - job->GetStartTime())
-                        .Item("resource_usage").Value(job->GetResourceUsage())
-                        .Do(std::bind(&TMasterJobBase::BuildOrchid, job, std::placeholders::_1))
-                    .EndMap();
-            });
-    }
-
-    int GetActiveJobCount() const override
+    int GetActiveJobCount() const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -212,6 +190,15 @@ public:
         }
 
         return totalJobCount;
+    }
+
+    IYPathServicePtr GetOrchidService() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND_NO_PROPAGATE(
+            &TJobController::BuildOrchid,
+            MakeStrong(this)));
     }
 
 private:
@@ -565,6 +552,66 @@ private:
             TWithTagGuard tagGuard(writer, "origin", FormatEnum(EJobOrigin::Master));
             writer->AddGauge("/active_job_count", GetJobs().size());
         });
+    }
+
+    static void BuildJobsInfo(const std::vector<TBriefJobInfo>& jobsInfo, TFluentAny fluent)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        fluent.DoMapFor(
+            jobsInfo,
+            [&] (TFluentMap fluent, const TBriefJobInfo& jobInfo) {
+                jobInfo.BuildOrchid(fluent);
+            });
+    }
+
+    auto DoGetStateSnapshot() const
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        std::vector<TBriefJobInfo> jobsInfo;
+        jobsInfo.reserve(GetActiveJobCount());
+
+        for (const auto& [jobTrackerAddress, jobMap] : JobMaps_){
+            for (auto [id, job] : jobMap) {
+                jobsInfo.push_back(job->GetBriefInfo());
+            }
+        }
+
+        return jobsInfo;
+    }
+
+    auto GetStateSnapshot() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto snapshotOrError = WaitFor(BIND(
+            &TJobController::DoGetStateSnapshot,
+            MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run());
+
+        YT_LOG_FATAL_UNLESS(
+            snapshotOrError.IsOK(),
+            snapshotOrError,
+            "Unexpected faliure while making data node job controller info snapshot");
+
+        return std::move(snapshotOrError.Value());
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto jobsInfo = GetStateSnapshot();
+
+        BuildYsonFluently(consumer).BeginMap()
+            .Item("active_job_count").Value(std::ssize(jobsInfo))
+            .Item("active_jobs").Do(std::bind(
+                &TJobController::BuildJobsInfo,
+                jobsInfo,
+                std::placeholders::_1))
+        .EndMap();
     }
 };
 

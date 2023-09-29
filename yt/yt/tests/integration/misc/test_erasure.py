@@ -42,7 +42,7 @@ class TestErasureBase(YTEnvSetup):
         parts = [int(s, 16) for s in chunk_id.split("-")]
         parts[2] = (parts[2] // 2 ** 16) * (2 ** 16) + 103 + replica_index
         node_chunk_id = "-".join(hex(i)[2:] for i in parts)
-        return get("//sys/cluster_nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
+        return get("//sys/cluster_nodes/{0}/orchid/data_node/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
 
     def _prepare_table(self, erasure_codec, dynamic=False):
         for node in ls("//sys/cluster_nodes"):

@@ -133,6 +133,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/disk_location.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/job.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/job_controller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/job_info.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/journal_chunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/journal_dispatcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/journal_manager.cpp
@@ -146,6 +147,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/medium_updater.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/network_statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/offloaded_chunk_read_session.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/orchid.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/p2p.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/session_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/session_manager.cpp
@@ -168,6 +170,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_prober_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_workspace_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/orchid.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/slot.cpp
@@ -175,7 +178,6 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/slot_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/supervisor_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/job_agent/orchid_service_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/job_agent/job_resource_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/helpers.cpp

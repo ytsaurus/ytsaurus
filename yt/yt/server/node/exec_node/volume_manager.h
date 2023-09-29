@@ -63,7 +63,7 @@ struct IVolumeManager
 
     virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
 
-    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) const = 0;
+    virtual void BuildOrchid(NYTree::TFluentAny fluent) const = 0;
 
     virtual void ClearCaches() const = 0;
 

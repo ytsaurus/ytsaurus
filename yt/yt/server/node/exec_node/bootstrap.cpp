@@ -8,6 +8,7 @@
 #include "job_controller.h"
 #include "job_prober_service.h"
 #include "master_connector.h"
+#include "orchid.h"
 #include "private.h"
 #include "scheduler_connector.h"
 #include "slot_manager.h"
@@ -155,13 +156,9 @@ public:
     {
         SetNodeByYPath(
             GetOrchidRoot(),
-            "/cached_chunks",
-            CreateVirtualNode(CreateCachedChunkMapService(ChunkCache_)
-                ->Via(GetControlInvoker())));
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/job_proxy_sensors",
-            CreateVirtualNode(JobProxySolomonExporter_->GetSensorService()));
+            "/exec_node",
+            CreateVirtualNode(GetOrchidService(this))
+        );
 
         JobProxySolomonExporter_->Register("/solomon/job_proxy", GetHttpServer());
         JobProxySolomonExporter_->Start();

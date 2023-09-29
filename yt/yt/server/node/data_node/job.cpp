@@ -256,14 +256,26 @@ TJobResult TMasterJobBase::GetResult() const
     return Result_;
 }
 
-void TMasterJobBase::BuildOrchid(NYTree::TFluentMap /*fluent*/) const
-{ }
-
 TInstant TMasterJobBase::GetStartTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return StartTime_;
+}
+
+
+TBriefJobInfo TMasterJobBase::GetBriefInfo() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return TBriefJobInfo(
+        JobId_,
+        JobState_,
+        GetType(),
+        GetJobTrackerAddress(),
+        GetStartTime(),
+        /*jobDuration=*/ TInstant::Now() - GetStartTime(),
+        GetResourceUsage());
 }
 
 void TMasterJobBase::GuardedRun()

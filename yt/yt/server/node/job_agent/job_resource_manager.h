@@ -57,6 +57,8 @@ public:
 
     virtual void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumer) = 0;
 
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+
     static IJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
 
     DECLARE_INTERFACE_SIGNAL(void(), ResourcesAcquired);

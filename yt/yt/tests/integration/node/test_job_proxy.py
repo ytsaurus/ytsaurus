@@ -79,7 +79,7 @@ class TestJobProxyBinary(JobProxyTestBase):
         path = f"//sys/cluster_nodes/{n}"
         attribute_name = "job_proxy_build_version"
         attribute_path = f"{path}/@{attribute_name}"
-        orchid_path = f"{path}/orchid/job_controller/job_proxy_build/version"
+        orchid_path = f"{path}/orchid/exec_node/job_controller/job_proxy_build/version"
 
         assert attribute_name in ls(f"{path}/@")
 
@@ -102,7 +102,7 @@ class TestJobProxyBinary(JobProxyTestBase):
                        build["version"] == expected_version
 
         def check_direct(expect_error):
-            job_proxy_build = get(orchid_path + "/job_controller/job_proxy_build")
+            job_proxy_build = get(orchid_path + "/exec_node/job_controller/job_proxy_build")
             return check_build(job_proxy_build, expect_error)
 
         def check_discover_versions(expect_error):

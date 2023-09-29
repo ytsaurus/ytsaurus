@@ -1820,7 +1820,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("savrus", "gritukan")
     def test_tablet_slot_charges_cpu_resource_limit(self):
-        get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))  # noqa
+        get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/exec_node/job_resource_manager/resource_limits/cpu".format(x))  # noqa
 
         create_tablet_cell_bundle("b")
         cell = sync_create_cells(1, tablet_cell_bundle="b")[0]

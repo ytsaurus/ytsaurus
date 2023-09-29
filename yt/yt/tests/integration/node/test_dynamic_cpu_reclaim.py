@@ -187,7 +187,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
 
     def wait_and_get_stats_path(self, job_id):
         node = ls("//sys/cluster_nodes")[0]
-        result = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy".format(
+        result = "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}/statistics/job_proxy".format(
             node, job_id
         )
         wait(lambda: exists(result + "/smoothed_cpu_usage_x100"), sleep_backoff=0.1)
