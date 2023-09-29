@@ -419,14 +419,14 @@ public:
             waitingResources = WaitingResources_;
         }
 
-        if (resources.SystemMemory) {
+        if (resourceHolderStarted && resources.SystemMemory) {
             auto systemMemory = resources.SystemMemory;
             YT_VERIFY(systemMemory >= 0);
 
             SystemMemoryUsageTracker_->Release(systemMemory);
         }
 
-        if (resources.UserMemory) {
+        if (resourceHolderStarted && resources.UserMemory) {
             auto userMemory = resources.UserMemory;
             YT_VERIFY(userMemory >= 0);
 
@@ -439,7 +439,9 @@ public:
             FormatResources(currentResourceUsage),
             FormatResources(waitingResources));
 
-        NotifyResourcesReleased(resourcesConsumerType, /*fullyReleased*/ true);
+        if (resourceHolderStarted) {
+            NotifyResourcesReleased(resourcesConsumerType, /*fullyReleased*/ true);
+        }
     }
 
     void OnResourcesUpdated(
