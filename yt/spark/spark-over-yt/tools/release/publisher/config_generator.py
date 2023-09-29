@@ -123,7 +123,7 @@ def prepare_launch_config(conf_local_dir: str, client: Client, versions: Version
             client.resolve_from_root("delta/python/layer_with_python311_libs.tar.gz"),
             client.resolve_from_root("delta/python/layer_with_python39_focal.tar.gz"),
             client.resolve_from_root("delta/python/layer_with_python38_libs.tar.gz"),
-            client.resolve_from_root("delta/python/layer_with_python37_focal.tar.gz"),
+            client.resolve_from_root("delta/python/layer_with_python37_focal_2.tar.gz"),
             "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
         ]
         ytserver_proxy_path = client.yt_client.get(f"{YTSERVER_PROXY}&/@target_path")

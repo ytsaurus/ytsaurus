@@ -106,7 +106,7 @@ object SparkLaunchConfig {
     s"$sparkYtDeltaLayerPath/python/layer_with_python311_libs.tar.gz",
     s"$sparkYtDeltaLayerPath/python/layer_with_python39_focal.tar.gz",
     s"$sparkYtDeltaLayerPath/python/layer_with_python38_libs.tar.gz",
-    s"$sparkYtDeltaLayerPath/python/layer_with_python37_focal.tar.gz",
+    s"$sparkYtDeltaLayerPath/python/layer_with_python37_focal_2.tar.gz",
     s"$ytPortoBaseLayersPath/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
   )
 
