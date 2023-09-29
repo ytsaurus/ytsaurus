@@ -35,7 +35,7 @@ token=""
 #### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.2.1 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.4.0 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
@@ -53,7 +53,7 @@ kubectl create namespace <namespace>
 kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace> 
 ```
 
-Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.4.0/cluster_v1_demo.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
 
 Необходимо прописать гарантии или лимиты ресурсов в секции `execNodes`, указанные значения будут отражены в конфигурации нод, и будут видны планировщику. Для надёжного хранения данных, обязательно выделите персистентные тома.
 
@@ -102,7 +102,7 @@ ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0  
 
 #### Запуск кластера {{product-name}}
 
-Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_minikube.yaml) в кластер `kubectl apply -f cluster_v1_minikube.yaml`.
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.4.0/cluster_v1_minikube.yaml) в кластер `kubectl apply -f cluster_v1_minikube.yaml`.
 
 Если загрузка прошла успешно, через некоторое время список запущенных подов будет выглядеть следующим образом:
 
