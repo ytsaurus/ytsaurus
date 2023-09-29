@@ -3109,6 +3109,7 @@ void TClient::DoUpdateChaosTableReplicaProgress(
     ToProto(req->mutable_replication_card_id(), replicationCardId);
     ToProto(req->mutable_replica_id(), replicaId);
     ToProto(req->mutable_replication_progress(), options.Progress);
+    req->set_force(options.Force);
 
     WaitFor(req->Invoke())
         .ThrowOnError();
