@@ -540,6 +540,7 @@ public:
         auto taggedHistogramProfiler = ChunkServerHistogramProfiler
             .WithDefaultDisabled()
             .WithSparse()
+            .WithGlobal()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()));
 
         auto bucketBounds = GenerateGenericBucketBounds();
@@ -3141,10 +3142,6 @@ private:
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
     {
         YT_VERIFY(HasHydraContext());
-
-        if (!IsLeader()) {
-            return;
-        }
 
         if (!chunk->IsBlob() || !chunk->IsConfirmed() || chunk->IsForeign()) {
             return;
