@@ -1300,6 +1300,24 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_table("//tmp/t2") == rows
 
+    # TODO(ifsmirnov): YT-20044
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_no_hunks(self, dynamic):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+        ]
+        self._create_sorted_table("//tmp/t1", schema=schema, dynamic=dynamic, driver=self.remote_driver)
+        self._create_sorted_table("//tmp/t2", schema=schema, dynamic=dynamic)
+
+        with raises_yt_error():
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+            )
+
 
 ##################################################################
 

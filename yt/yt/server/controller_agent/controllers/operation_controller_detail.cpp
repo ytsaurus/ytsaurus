@@ -6154,6 +6154,12 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     << TErrorAttribute("table_path", table->Path);
             }
         }
+
+        // TODO(ifsmirnov): YT-20044
+        if (table->Schema->HasHunkColumns() && OperationType == EOperationType::RemoteCopy) {
+            THROW_ERROR_EXCEPTION("Table with hunk columns cannot be copied to another cluster")
+                << TErrorAttribute("table_path", table->Path);
+        }
     }
 
     if (Spec_->EnableDynamicStoreRead == true && !haveTablesWithEnabledDynamicStoreRead) {
