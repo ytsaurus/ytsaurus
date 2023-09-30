@@ -897,6 +897,7 @@ private:
 
         if (cqe->res < 0) {
             request->TrySetFailed(cqe);
+            ReleaseIovBuffer(request);
             DisposeRequest(request);
             return;
         }

@@ -72,6 +72,40 @@ protected:
     }
 };
 
+TEST_P(TIOEngineTest, WriteError)
+{
+    if (GetIOEngineType() != EIOEngineType::Uring && GetIOEngineType() != EIOEngineType::FairShareUring) {
+        GTEST_SKIP();
+    }
+
+    auto engine = CreateIOEngine();
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    auto file = engine->Open({fileName, RdWr | CreateAlways})
+        .Get()
+        .ValueOrThrow();
+
+    constexpr auto S = 64_KB;
+    auto data = GenerateRandomBlob(S);
+
+    auto writeToFail = [&] {
+        return engine->Write({
+            .Handle= file,
+            .Offset = -10,
+            .Buffers = {data.Slice(0, 10), data.Slice(20, 30), data, data.Slice(40, 50)},
+            .Flush = true,
+        })
+            .Get();
+    };
+
+    for (int i = 0; i < 1000; ++i) {
+        auto result = writeToFail();
+        EXPECT_FALSE(result.IsOK());
+    }
+}
+
 TEST_P(TIOEngineTest, ReadWrite)
 {
     auto engine = CreateIOEngine();
