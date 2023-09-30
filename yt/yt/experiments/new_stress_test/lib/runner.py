@@ -101,13 +101,6 @@ def run_with_spec(base_path, spec, args):
     yt.write_file(base_path + "/spec", pprint.pformat(spec.to_dict()).encode())
     attributes = prepare_attributes(spec)
 
-    seed = spec.seed
-    if seed is None:
-        seed = random.randint(1, 10**9)
-        logger.info("Your seed is %s", seed)
-    random.seed(seed)
-    np_random.seed(seed)
-
     if spec.mode == "iterative":
         logger.iteration = None
         if spec.table_type == "sorted":
@@ -129,10 +122,19 @@ def run_test(spec, args):
     else:
         base_path = args.path
 
-    modes = variate_modes(spec)
-
     for repeat in range(args.repeats):
         logger.generation = repeat
+
+        seed = Spec(spec).seed
+        if seed is None:
+            seed = random.randint(1, 10**9)
+            logger.info("Your seed is %s", seed)
+        seed += repeat
+        random.seed(seed)
+        np_random.seed(seed)
+
+        modes = variate_modes(spec)
+
         for mode_index, (resulting_spec, description) in enumerate(modes):
             print("Variated options:")
             for k, v in description:
