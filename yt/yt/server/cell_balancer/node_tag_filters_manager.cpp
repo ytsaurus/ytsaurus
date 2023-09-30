@@ -862,6 +862,15 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
                         dataCenterName),
                 });
             }
+
+            if (std::ssize(spareInfo.ExternallyDecommissioned) > 0) {
+                mutations->AlertsToFire.push_back({
+                    .Id = "externally_decommissioned_spare_nodes",
+                    .Description = Format("Externally decommissioned spare nodes in zone: %v in data center: %v.",
+                        zoneName,
+                        dataCenterName),
+                });
+            }
         }
     }
 

@@ -4246,7 +4246,9 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
     mutations = {};
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "externally_decommissioned_spare_nodes");
+
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
 
@@ -4262,7 +4264,9 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
     ApplyChangedStates(&input, mutations);
     mutations = {};
     ScheduleBundles(input, &mutations);
-    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "externally_decommissioned_spare_nodes");
 
     for (const TString& dataCenter : activeDataCenters) {
         const auto& spareNodesInfo = input.ZoneToSpareNodes["default-zone"][dataCenter];
