@@ -16,6 +16,7 @@ namespace NYT::NHydra {
 template <class TValue>
 struct TDefaultEntityMapTraits
 {
+    int GetParallelSaveBatchSize() const;
     std::unique_ptr<TValue> Create(const TEntityKey<TValue>& key) const;
 };
 
@@ -177,10 +178,6 @@ private:
     std::vector<TKey> LoadKeys_;
     std::vector<TValue*> LoadValues_;
     mutable std::vector<typename TMapType::const_iterator> SaveIterators_;
-
-
-    template <class TContext>
-    int EstimateParallelSaveBatchSize(TContext& context) const;
 
     TDynamicData* AllocateDynamicData();
     void FreeDynamicData(TDynamicData* data);

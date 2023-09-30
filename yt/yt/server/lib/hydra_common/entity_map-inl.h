@@ -21,6 +21,12 @@ struct TEntityMapSaveBufferTag
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
+int TDefaultEntityMapTraits<TValue>::GetParallelSaveBatchSize() const
+{
+    return 1'000;
+}
+
+template <class TValue>
 std::unique_ptr<TValue> TDefaultEntityMapTraits<TValue>::Create(const TEntityKey<TValue>& key) const
 {
     if constexpr(std::is_base_of_v<TPoolAllocator::TObjectBase, TValue>) {
@@ -357,7 +363,7 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
         return;
     }
 
-    int batchSize = EstimateParallelSaveBatchSize(context);
+    int batchSize = Traits_.GetParallelSaveBatchSize();
 
     struct TBatchResult
     {
@@ -433,33 +439,6 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
 
     SaveIterators_.clear();
 
-}
-
-template <class TValue, class TTraits>
-template <class TContext>
-int TEntityMap<TValue, TTraits>::EstimateParallelSaveBatchSize(TContext& context) const
-{
-    constexpr auto TargetBatchDuration = TDuration::MilliSeconds(100);
-    const auto TargetCpuDuration = NProfiling::DurationToCpuDuration(TargetBatchDuration);
-
-    TChunkedOutputStream batchOutput(GetRefCountedTypeCookie<TEntityMapSaveBufferTag>());
-    TContext batchContext(&batchOutput, &context);
-
-    NProfiling::TWallTimer timer;
-    int index = 0;
-    while (index < std::ssize(SaveIterators_)) {
-        Save(batchContext, *SaveIterators_[index++]->second);
-        if (timer.GetElapsedCpuTime() >= TargetCpuDuration) {
-            break;
-        }
-    }
-
-    int batchSize = index;
-    // Make sure we actually save values in parallel; this is important for test coverage.
-    batchSize = std::min(batchSize, static_cast<int>(std::ssize(SaveIterators_) / context.GetBackgroundParallelism()));
-    // The above could have decreased the size down to zero; fix it.
-    batchSize = std::max(batchSize, 1);
-    return batchSize;
 }
 
 template <class TValue, class TTraits>
