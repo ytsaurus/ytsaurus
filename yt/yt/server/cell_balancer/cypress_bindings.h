@@ -12,6 +12,7 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TSysConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
@@ -67,6 +68,20 @@ inline static const TString DeallocationStrategyHulkRequest = "hulk_deallocation
 inline static const TString DeallocationStrategyReturnToBB = "return_to_bundle_balancer";
 
 inline static const TString TrashRole = "trash-role";
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSysConfig
+    : public NYTree::TYsonStruct
+{
+    bool DisableBundleController;
+
+    REGISTER_YSON_STRUCT(TSysConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSysConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,6 +304,7 @@ struct TBundleInfo
     TString NodeTagFilter;
     std::optional<TString> ShortName;
     std::optional<TString> RpcProxyRole;
+    THashSet<TString> ForbiddenDataCenters;
 
     bool EnableBundleController;
     bool EnableInstanceAllocation;

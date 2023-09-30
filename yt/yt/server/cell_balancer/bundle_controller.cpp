@@ -328,7 +328,16 @@ private:
         auto inputState = GetInputState(transaction);
         TSchedulerMutations mutations;
         ScheduleBundles(inputState, &mutations);
-        Mutate(transaction, mutations);
+
+        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController ) {
+            Mutate(transaction, mutations);
+        } else {
+            YT_LOG_WARNING("Bundle controller is disabled");
+            RegisterAlert({
+                .Id = "bundle_controller_is_disabled",
+                .Description = "BundleController is explicitly disabled",
+            });
+        }
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
@@ -880,6 +889,8 @@ private:
 
         inputState.DynamicConfig = GetBundlesDynamicConfig(transaction);
 
+        inputState.SysConfig = GetSystemConfig(transaction);
+
         YT_LOG_DEBUG("Bundle Controller input state loaded "
             "(ZoneCount: %v, BundleCount: %v, BundleStateCount: %v, TabletNodeCount %v, TabletCellCount: %v, "
             "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v, RpcProxyCount: %v, SystemAccounts: %v)",
@@ -1096,6 +1107,13 @@ private:
         auto yson = WaitFor(transaction->GetNode(path))
             .ValueOrThrow();
         return ConvertTo<TSystemAccountPtr>(yson);
+    }
+
+    static TSysConfigPtr GetSystemConfig(const ITransactionPtr& transaction)
+    {
+        auto yson = WaitFor(transaction->GetNode("//sys/@"))
+            .ValueOrThrow();
+        return ConvertTo<TSysConfigPtr>(yson);
     }
 
     static void SetRootSystemAccountLimits(const ITransactionPtr& transaction, const TAccountResourcesPtr& limits)

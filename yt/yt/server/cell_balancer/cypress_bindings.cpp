@@ -10,6 +10,12 @@ static const TString DefaultSpareNodeName = "spare";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSysConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disable_bundle_controller", &TThis::DisableBundleController)
+        .Default(false);
+}
+
 void TCpuLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("write_thread_pool_size", &TThis::WriteThreadPoolSize)
@@ -202,6 +208,8 @@ void TBundleInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "short_name", &TThis::ShortName)
         .Optional();
     RegisterAttribute(registrar, "rpc_proxy_role", &TThis::RpcProxyRole)
+        .Optional();
+    RegisterAttribute(registrar, "forbidden_data_centers", &TThis::ForbiddenDataCenters)
         .Optional();
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
