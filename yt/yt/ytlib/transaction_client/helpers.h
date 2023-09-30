@@ -31,6 +31,13 @@ TTransactionId MakeTabletTransactionId(
     ui32 hash);
 
 //! Constructs the id of the transaction externalized by cell #externalizingCellTag.
+//! Throws if the transaction is of a wrong type (system transactions cannot and
+//! should not be externalized).
+TTransactionId MakeExternalizedTransactionIdOrThrow(
+    TTransactionId originalId,
+    NObjectClient::TCellTag externalizingCellTag);
+
+//! Same as |MakeExternalizedTransactionIdOrThrow| but crashes instead of throwing.
 TTransactionId MakeExternalizedTransactionId(
     TTransactionId originalId,
     NObjectClient::TCellTag externalizingCellTag);

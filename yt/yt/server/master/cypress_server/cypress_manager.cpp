@@ -2035,6 +2035,18 @@ public:
 
         // Is it OK?
         if (error.IsOK()) {
+
+            // COMPAT(shakurov): dirty hotfix: validate the transaction is of a
+            // correct type. To be removed soon.
+            if (trunkNode->IsExternal() && trunkNode->IsNative() &&
+                !transaction->IsUpload() && transaction->IsForeign())
+            {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                NTransactionClient::MakeExternalizedTransactionIdOrThrow(
+                    transaction->GetId(),
+                    multicellManager->GetCellTag());
+            }
+
             auto* lock = DoCreateLock(trunkNode, transaction, request, false);
             auto* branchedNode = DoAcquireLock(lock);
             return {lock, branchedNode};

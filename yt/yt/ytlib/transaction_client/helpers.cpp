@@ -79,17 +79,20 @@ TTransactionId MakeTabletTransactionId(
         hash);
 }
 
-TTransactionId MakeExternalizedTransactionId(
+template <class T>
+static TTransactionId MakeExternalizedTransactionIdImpl(
     TTransactionId originalId,
-    TCellTag externalizingCellTag)
+    TCellTag externalizingCellTag,
+    T checkTransactionId)
 {
     if (!originalId) {
         return {};
     }
 
+    checkTransactionId(originalId);
+
     auto originalType = TypeFromId(originalId);
 
-    YT_VERIFY(originalType == EObjectType::Transaction || originalType == EObjectType::NestedTransaction);
     auto externalizedType = (originalType == EObjectType::Transaction)
         ? EObjectType::ExternalizedTransaction
         : EObjectType::ExternalizedNestedTransaction;
@@ -100,6 +103,36 @@ TTransactionId MakeExternalizedTransactionId(
         (static_cast<ui32>(externalizingCellTag.Underlying()) << 16) | static_cast<ui32>(externalizedType), // replace type and native cell tag
         originalId.Parts32[2],
         originalId.Parts32[3]);
+}
+
+TTransactionId MakeExternalizedTransactionIdOrThrow(
+    TTransactionId originalId,
+    TCellTag externalizingCellTag)
+{
+    return MakeExternalizedTransactionIdImpl(
+        originalId,
+        externalizingCellTag,
+        [] (TTransactionId transactionId) {
+            auto transactionType = TypeFromId(transactionId);
+            if (transactionType != EObjectType::Transaction && transactionType != EObjectType::NestedTransaction) {
+                THROW_ERROR_EXCEPTION("Transaction is of a non-externalizable type")
+                    << TErrorAttribute("transaction_id", transactionId)
+                    << TErrorAttribute("transaction_type", transactionType);
+            }
+        });
+}
+
+TTransactionId MakeExternalizedTransactionId(
+    TTransactionId originalId,
+    TCellTag externalizingCellTag)
+{
+    return MakeExternalizedTransactionIdImpl(
+        originalId,
+        externalizingCellTag,
+        [] (TTransactionId transactionId) {
+            auto transactionType = TypeFromId(transactionId);
+            YT_VERIFY(transactionType == EObjectType::Transaction || transactionType == EObjectType::NestedTransaction);
+        });
 }
 
 TTransactionId OriginalFromExternalizedTransactionId(TTransactionId externalizedId)

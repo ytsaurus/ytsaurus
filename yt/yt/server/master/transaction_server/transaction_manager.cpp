@@ -1546,6 +1546,22 @@ private:
         // COMPAT(h0pless): This should always be false when clients will switch to cypress tx service from tx service.
         auto isCypressTransaction = request->is_cypress_transaction();
 
+        // COMPAT(shakurov): dirty hotfix. To be removed soon.
+        // Bad tx was: 1239d-66f-bcf0009-ea69ca0e.
+        // Reading logs, last mutation logged at leader there was:
+        auto hotfixLastVersionWithOldBehavior = TVersion(0x1239d, 0x9f4);
+        auto hotfixCellTag = TCellTag(0xbcf);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto* mutationContext = GetCurrentMutationContext();
+        if (hotfixCellTag == multicellManager->GetCellTag() &&
+            mutationContext->GetVersion() <= hotfixLastVersionWithOldBehavior)
+        {
+            // Old behavior: false by default.
+            if (!request->has_is_cypress_transaction()) {
+                isCypressTransaction = false;
+            }
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         if (!isCypressTransaction && GetDynamicConfig()->EnableDedicatedTypesForSystemTransactions) {
             auto* schema = objectManager->GetSchema(EObjectType::SystemTransaction);
