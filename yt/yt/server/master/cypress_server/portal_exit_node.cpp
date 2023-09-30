@@ -9,17 +9,17 @@ using namespace NSecurityServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPortalExitNode::TPortalExitNode(TVersionedNodeId nodeId)
-    : TMapNode(nodeId)
+    : TCypressMapNode(nodeId)
     , DirectAcd_(this)
 { }
 
 TPortalExitNode::TPortalExitNode(TObjectId objectId)
-    : TMapNode(objectId)
+    : TCypressMapNode(objectId)
 { }
 
 void TPortalExitNode::Save(TSaveContext& context) const
 {
-    TMapNode::Save(context);
+    TCypressMapNode::Save(context);
 
     using NYT::Save;
     Save(context, RemovalStarted_);
@@ -34,7 +34,7 @@ void TPortalExitNode::Save(TSaveContext& context) const
 
 void TPortalExitNode::Load(TLoadContext& context)
 {
-    TMapNode::Load(context);
+    TCypressMapNode::Load(context);
 
     using NYT::Load;
     Load(context, RemovalStarted_);

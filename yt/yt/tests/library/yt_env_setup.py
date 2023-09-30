@@ -276,6 +276,7 @@ class YTEnvSetup(object):
     USE_PERMISSION_CACHE = True
     USE_PRIMARY_CLOCKS = True
     USE_SEQUOIA = False
+    ENABLE_TMP_ROOTSTOCK = False
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
@@ -629,6 +630,20 @@ class YTEnvSetup(object):
 
             yt_commands.create(
                 "table",
+                "//sys/sequoia/reverse_resolve_node",
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "node_id", "type": "string", "sort_order": "ascending"},
+                        {"name": "path", "type": "string"},
+                    ],
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                })
+            yt_commands.sync_mount_table("//sys/sequoia/reverse_resolve_node")
+
+            yt_commands.create(
+                "table",
                 "//sys/sequoia/chunk_replicas",
                 attributes={
                     "dynamic": True,
@@ -933,7 +948,16 @@ class YTEnvSetup(object):
                 orchids.append("//sys/scheduler/orchid/scheduler")
                 _wait_for_configs(orchids)
 
-            if self.ENABLE_TMP_PORTAL and cluster_index == 0:
+            if self.ENABLE_TMP_ROOTSTOCK:
+                assert self.USE_SEQUOIA
+                yt_commands.create(
+                    "rootstock",
+                    "//tmp",
+                    attributes={"scion_cell_tag": 10},
+                    force=True,
+                    driver=driver
+                )
+            elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
                 yt_commands.create(
                     "portal_entrance",
                     "//tmp",
@@ -1016,11 +1040,20 @@ class YTEnvSetup(object):
 
             self._abort_transactions(driver=driver)
 
-            yt_commands.remove("//tmp", driver=driver)
-            if self.ENABLE_TMP_PORTAL:
-                yt_commands.remove("//portals", driver=driver)
-                # XXX(babenko): portals
-                wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
+            if self.USE_SEQUOIA:
+                scions = yt_commands.ls("//sys/scions", driver=driver)
+                for scion in scions:
+                    yt_commands.remove(f"#{scion}", driver=driver)
+                yt_commands.gc_collect(driver=driver)
+                wait(lambda: yt_commands.select_rows("* from [//sys/sequoia/resolve_node]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows("* from [//sys/sequoia/reverse_resolve_node]", driver=driver) == [])
+
+            if not self.ENABLE_TMP_ROOTSTOCK:
+                yt_commands.remove("//tmp", driver=driver)
+                if self.ENABLE_TMP_PORTAL:
+                    yt_commands.remove("//portals", driver=driver)
+                    # XXX(babenko): portals
+                    wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
 
             self._remove_objects(
                 enable_secondary_cells_cleanup=self.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),

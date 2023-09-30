@@ -17,10 +17,10 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TScionTypeHandler
-    : public TMapNodeTypeHandlerImpl<TScionNode>
+    : public TSequoiaMapNodeTypeHandlerImpl<TScionNode>
 {
 public:
-    using TMapNodeTypeHandlerImpl::TMapNodeTypeHandlerImpl;
+    using TSequoiaMapNodeTypeHandlerImpl::TSequoiaMapNodeTypeHandlerImpl;
 
     EObjectType GetObjectType() const override
     {
@@ -29,7 +29,7 @@ public:
 
     ETypeFlags GetFlags() const override
     {
-        return ETypeFlags::Removable;
+        return ETypeFlags::None;
     }
 
 private:
@@ -51,7 +51,7 @@ private:
             graftingManager->OnScionDestroyed(node);
         }
 
-        TMapNodeTypeHandlerImpl::DoDestroy(node);
+        TCypressNodeTypeHandlerBase::DoDestroy(node);
     }
 
     void DoBeginCopy(

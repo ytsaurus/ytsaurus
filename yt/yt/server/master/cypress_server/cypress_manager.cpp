@@ -1036,7 +1036,7 @@ public:
         RegisterHandler(New<TUint64NodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap_));
-        RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap_));
+        RegisterHandler(New<TCypressMapNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TListNodeTypeHandler>(Bootstrap_));
         RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateDocumentNodeTypeHandler(Bootstrap_));
@@ -1050,6 +1050,7 @@ public:
         RegisterHandler(CreateRootstockMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateScionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateClusterProxyNodeTypeHandler(Bootstrap_));
+        RegisterHandler(New<TSequoiaMapNodeTypeHandler>(Bootstrap_));
 
         RegisterLoader(
             "CypressManager.Keys",
@@ -1406,7 +1407,7 @@ public:
     }
 
 
-    TMapNode* GetRootNode() const override
+    TCypressMapNode* GetRootNode() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1466,7 +1467,7 @@ public:
             auto* currentParentNode = GetVersionedNode(currentParentTrunkNode, transaction);
             switch (currentParentTrunkNode->GetNodeType()) {
                 case ENodeType::Map: {
-                    auto key = FindMapNodeChildKey(currentParentNode->As<TMapNode>(), currentTrunkNode);
+                    auto key = FindMapNodeChildKey(currentParentNode->As<TCypressMapNode>(), currentTrunkNode);
                     if (!key.data()) {
                         return fallbackToId();
                     }
@@ -1500,11 +1501,10 @@ public:
             if (pathRootType) {
                 *pathRootType = EPathRootType::PortalExit;
             }
-        } else if (currentNode->GetType() == EObjectType::Scion) {
-            const auto* scion = currentNode->GetTrunkNode()->As<TScionNode>();
-            builder.AppendString(scion->GetPath());
+        } else if (currentNode->SequoiaProperties()) {
+            builder.AppendString(currentNode->SequoiaProperties()->Path);
             if (pathRootType) {
-                *pathRootType = EPathRootType::Scion;
+                *pathRootType = EPathRootType::SequoiaNode;
             }
         } else {
             return fallbackToId();
@@ -2499,7 +2499,7 @@ private:
     TEnumIndexedVector<NObjectClient::EObjectType, INodeTypeHandlerPtr> TypeToHandler_;
 
     TNodeId RootNodeId_;
-    TMapNode* RootNode_ = nullptr;
+    TCypressMapNode* RootNode_ = nullptr;
 
     TCypressShardId RootShardId_;
     TCypressShard* RootShard_ = nullptr;
@@ -2871,11 +2871,11 @@ private:
     {
         if (auto* untypedRootNode = FindNode(TVersionedNodeId(RootNodeId_))) {
             // Root node already exists.
-            RootNode_ = untypedRootNode->As<TMapNode>();
+            RootNode_ = untypedRootNode->As<TCypressMapNode>();
         } else {
             // Create the root node.
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto rootNodeHolder = TPoolAllocator::New<TMapNode>(TVersionedNodeId(RootNodeId_));
+            auto rootNodeHolder = TPoolAllocator::New<TCypressMapNode>(TVersionedNodeId(RootNodeId_));
             rootNodeHolder->SetTrunkNode(rootNodeHolder.get());
             rootNodeHolder->Account().Assign(securityManager->GetSysAccount());
             rootNodeHolder->Acd().SetInherit(false);
@@ -3869,7 +3869,7 @@ private:
                 auto originators = GetNodeReverseOriginators(transaction, trunkNode);
                 THashMap<TString, TCypressNode*> children;
                 for (const auto* node : originators) {
-                    const auto* mapNode = node->As<TMapNode>();
+                    const auto* mapNode = node->As<TCypressMapNode>();
                     for (const auto& [key, child] : mapNode->KeyToChild()) {
                         if (child) {
                             children[key] = child;

@@ -24,14 +24,14 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMapProxy
-    : public TMapNodeProxy
+    : public TCypressMapNodeProxy
 {
 public:
     TCellMapProxy(
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
-        TMapNode* trunkNode,
+        TCypressMapNode* trunkNode,
         ECellarType cellarType)
         : TBase(
             bootstrap,
@@ -42,7 +42,7 @@ public:
     { }
 
 private:
-    using TBase = TMapNodeProxy;
+    using TBase = TCypressMapNodeProxy;
 
     ECellarType CellarType_;
 
@@ -87,7 +87,7 @@ ICypressNodeProxyPtr CreateCellMapProxy(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     ECellarType cellarType)
 {
     return New<TCellMapProxy>(

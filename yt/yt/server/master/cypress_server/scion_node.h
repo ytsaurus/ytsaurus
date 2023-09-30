@@ -8,20 +8,12 @@ namespace NYT::NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TScionNode
-    : public TMapNode
+    : public TSequoiaMapNode
 {
 public:
-    using TMapNode::TMapNode;
+    using TSequoiaMapNode::TSequoiaMapNode;
 
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, RootstockId);
-
-    DEFINE_BYVAL_RW_PROPERTY(bool, RemovalStarted);
-
-    // TODO: In Sequoia this will be required for all nodes, so
-    // some general mechanism should be used.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Key);
-    DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
-    DEFINE_BYVAL_RW_PROPERTY(TString, Path);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TPersistentAttributes>, EffectiveInheritableAttributes);
     DEFINE_BYREF_RW_PROPERTY(std::optional<NYPath::TYPath>, EffectiveAnnotationPath);

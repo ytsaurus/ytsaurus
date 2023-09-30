@@ -87,10 +87,10 @@ INodeTypeHandlerPtr CreateAreaMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellNodeProxy
-    : public TMapNodeProxy
+    : public TCypressMapNodeProxy
 {
 public:
-    using TMapNodeProxy::TMapNodeProxy;
+    using TCypressMapNodeProxy::TCypressMapNodeProxy;
 
     TResolveResult ResolveSelf(
         const TYPath& path,
@@ -100,7 +100,7 @@ public:
         if (method == "Remove") {
             return TResolveResultThere{GetTargetProxy(), path};
         } else {
-            return TMapNodeProxy::ResolveSelf(path, context);
+            return TCypressMapNodeProxy::ResolveSelf(path, context);
         }
     }
 
@@ -136,10 +136,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellNodeTypeHandler
-    : public TMapNodeTypeHandler
+    : public TCypressMapNodeTypeHandler
 {
 public:
-    using TMapNodeTypeHandler::TMapNodeTypeHandlerImpl;
+    using TCypressMapNodeTypeHandler::TCypressMapNodeTypeHandler;
 
     EObjectType GetObjectType() const override
     {
@@ -148,7 +148,7 @@ public:
 
 private:
     ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
+        TCypressMapNode* trunkNode,
         TTransaction* transaction) override
     {
         return New<TCellNodeProxy>(

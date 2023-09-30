@@ -292,7 +292,7 @@ int TCellProxyBase::GetMaxHydraFileId(const TYPath& path) const
             node->GetType())
             << TErrorAttribute("path", path);
     }
-    auto* mapNode = node->As<TMapNode>();
+    auto* mapNode = node->As<TCypressMapNode>();
 
     int maxId = -1;
     for (const auto& [key, child] : mapNode->KeyToChild()) {

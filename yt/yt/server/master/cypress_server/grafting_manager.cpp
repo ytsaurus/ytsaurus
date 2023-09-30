@@ -69,15 +69,10 @@ public:
             BIND(&TGraftingManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TGraftingManager::HydraCreateScion, Unretained(this)));
-        RegisterMethod(BIND(&TGraftingManager::HydraRemoveRootstock, Unretained(this)));
-        RegisterMethod(BIND(&TGraftingManager::HydraRemoveScion, Unretained(this)));
     }
 
     void Initialize() override
     {
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TGraftingManager::OnDynamicConfigChanged, MakeWeak(this)));
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateRootstock, Unretained(this))),
@@ -114,16 +109,6 @@ public:
         }
 
         auto scionNodeId = rootstockNode->GetScionId();
-        auto scionCellTag = CellTagFromId(scionNodeId);
-
-        NProto::TReqRemoveScion scionRequest;
-        ToProto(scionRequest.mutable_scion_node_id(), scionNodeId);
-        if (scionCellTag == Bootstrap_->GetCellTag()) {
-            HydraRemoveScion(&scionRequest);
-        } else {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(scionRequest, scionCellTag);
-        }
 
         YT_LOG_DEBUG(
             "Rootstock unregistered (RootstockNodeId: %v, ScionNodeId: %v)",
@@ -144,25 +129,9 @@ public:
             return;
         }
 
-        if (ScionIdsToRemove_.erase(scionNode->GetId())) {
-            YT_LOG_DEBUG(
-                "Scion removed from removal queue (ScionNodeId: %v, RootstockNodeId: %v)",
-                scionNode->GetId(),
-                scionNode->GetRootstockId());
-        }
-
         auto rootstockNodeId = scionNode->GetRootstockId();
         auto rootstockCellTag = CellTagFromId(rootstockNodeId);
         YT_VERIFY(rootstockCellTag == Bootstrap_->GetPrimaryCellTag());
-
-        NProto::TReqRemoveRootstock rootstockRequest;
-        ToProto(rootstockRequest.mutable_rootstock_node_id(), rootstockNodeId);
-        if (rootstockCellTag == Bootstrap_->GetCellTag()) {
-            HydraRemoveRootstock(&rootstockRequest);
-        } else {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(rootstockRequest, rootstockCellTag);
-        }
 
         YT_LOG_DEBUG(
             "Scion unregistered (ScionNodeId: %v, RootstockNodeId: %v)",
@@ -190,27 +159,6 @@ private:
     TRootstockNodeMap RootstockNodes_;
     TScionNodeMap ScionNodes_;
 
-    THashSet<TNodeId> ScionIdsToRemove_;
-
-    TPeriodicExecutorPtr ScionRemovalExecutor_;
-
-    void OnLeaderActive() override
-    {
-        YT_VERIFY(!ScionRemovalExecutor_);
-        ScionRemovalExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GraftingManager),
-            BIND(&TGraftingManager::OnRemoveScions, MakeWeak(this)));
-        ScionRemovalExecutor_->Start();
-    }
-
-    void OnStopLeading() override
-    {
-        if (ScionRemovalExecutor_) {
-            ScionRemovalExecutor_->Stop();
-            ScionRemovalExecutor_.Reset();
-        }
-    }
-
     void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
     { }
 
@@ -220,7 +168,6 @@ private:
 
         Save(context, RootstockNodes_);
         Save(context, ScionNodes_);
-        Save(context, ScionIdsToRemove_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& /*context*/)
@@ -236,7 +183,10 @@ private:
 
         Load(context, RootstockNodes_);
         Load(context, ScionNodes_);
-        Load(context, ScionIdsToRemove_);
+        // COMPAT(kvk1920)
+        if (context.GetVersion() < EMasterReign::SequoiaMapNode) {
+            Load<THashSet<TNodeId>>(context);
+        }
     }
 
     void Clear() override
@@ -247,46 +197,6 @@ private:
 
         RootstockNodes_.clear();
         ScionNodes_.clear();
-        ScionIdsToRemove_.clear();
-    }
-
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
-    {
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto& config = configManager->GetConfig()->CypressManager;
-        if (ScionRemovalExecutor_) {
-            ScionRemovalExecutor_->SetPeriod(config->ScionRemovalPeriod);
-        }
-    }
-
-    void OnRemoveScions()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (ScionIdsToRemove_.empty()) {
-            YT_LOG_DEBUG("Skipping scions removal iteration since there are no enqueued scions");
-            return;
-        }
-
-        auto scionNodeId = *ScionIdsToRemove_.begin();
-        YT_LOG_DEBUG("Scion removal started (ScionNodeId: %v)",
-            scionNodeId);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto rootService = objectManager->GetRootService();
-        auto removeReq = TYPathProxy::Remove(FromObjectId(scionNodeId));
-        removeReq->set_force(true);
-        removeReq->set_recursive(true);
-
-        auto rspOrError = WaitFor(ExecuteVerb(rootService, removeReq));
-        if (rspOrError.IsOK()) {
-            YT_LOG_DEBUG("Scion removal completed (ScionNodeId: %v)",
-                scionNodeId);
-        } else {
-            YT_LOG_WARNING(rspOrError,
-                "Failed to remove scion (ScionNodeId: %v)",
-                scionNodeId);
-        }
     }
 
     void HydraCreateRootstock(
@@ -337,7 +247,6 @@ private:
         ToProto(request.mutable_account_id(), rootstockNode->Account()->GetId());
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
-        ToProto(request.mutable_parent_id(), rootstockNode->GetParent()->GetId());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto path = cypressManager->GetNodePath(trunkNode, transaction);
@@ -410,8 +319,6 @@ private:
         }
 
         const auto& path = request->path();
-
-        auto parentId = FromProto<TNodeId>(request->parent_id());
         const auto& key = request->key();
 
         auto effectiveAcl = DeserializeAcl(
@@ -458,9 +365,11 @@ private:
             scionNode->EffectiveInheritableAttributes().emplace(effectiveInheritableAttributes->Attributes().ToPersistent());
         }
 
-        scionNode->SetPath(path);
-        scionNode->SetParentId(parentId);
-        scionNode->SetKey(key);
+        scionNode->SequoiaProperties() = std::make_unique<TCypressNode::TSequoiaProperties>();
+        *scionNode->SequoiaProperties() = {
+            .Key = key,
+            .Path = path,
+        };
 
         scionNode->Acd().SetEntries(effectiveAcl);
         scionNode->Acd().SetInherit(inheritAcl);
@@ -503,81 +412,6 @@ private:
             "(RootstockNodeId: %v, ScionNodeId: %v)",
             rootstockNodeId,
             scionNodeId);
-    }
-
-    void HydraRemoveRootstock(NProto::TReqRemoveRootstock* request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(HasMutationContext());
-
-        auto rootstockNodeId = FromProto<TNodeId>(request->rootstock_node_id());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* rootstockNode = cypressManager
-            ->FindNode(TVersionedObjectId(rootstockNodeId))
-            ->As<TRootstockNode>();
-        if (!IsObjectAlive(rootstockNode)) {
-            YT_LOG_DEBUG(
-                "Attempted to remove a non-existing rootstock, ignored (RootstockNodeId: %v)",
-                rootstockNodeId);
-            return;
-        }
-
-        auto* parentNode = rootstockNode->GetParent();
-        if (!parentNode) {
-            YT_LOG_DEBUG(
-                "Attempted to remove rootstock that is already detached from a parent, ignored "
-                "(RootstockNodeId: %v)",
-                rootstockNodeId);
-            return;
-        }
-
-        YT_LOG_DEBUG(
-            "Detaching rootstock from parent for future removal "
-            "RootstockNodeId: %v, ParentNodeId: %v)",
-            rootstockNode->GetId(),
-            parentNode->GetId());
-
-        auto rootstockProxy = cypressManager->GetNodeProxy(rootstockNode);
-        auto parentProxy = cypressManager->GetNodeProxy(parentNode)->AsComposite();
-        parentProxy->RemoveChild(rootstockProxy);
-    }
-
-    void HydraRemoveScion(NProto::TReqRemoveScion* request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(HasMutationContext());
-
-        auto scionNodeId = FromProto<TNodeId>(request->scion_node_id());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* scionNode = cypressManager
-            ->FindNode(TVersionedNodeId(scionNodeId))
-            ->As<TScionNode>();
-        if (!IsObjectAlive(scionNode)) {
-            YT_LOG_DEBUG(
-                "Attempted to remove a non-existing scion, ignored (ScionNodeId: %v)",
-                scionNodeId);
-            return;
-        }
-
-        if (scionNode->GetRemovalStarted()) {
-            YT_LOG_ALERT("Attempted to remove scion for which removal is "
-                "already started, ignored (ScionNodeId: %v, RootstockNodeId: %v)",
-                scionNodeId,
-                scionNode->GetRootstockId());
-            return;
-        }
-
-        scionNode->SetRemovalStarted(true);
-
-        YT_LOG_DEBUG(
-            "Adding scion to removal queue "
-            "(ScionNodeId: %v, RootstockNodeId: %v)",
-            scionNodeId,
-            scionNode->GetRootstockId());
-
-        InsertOrCrash(ScionIdsToRemove_, scionNode->GetId());
     }
 };
 

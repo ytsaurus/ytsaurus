@@ -1255,6 +1255,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
@@ -1358,6 +1359,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/resolve_node.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/chunk_replicas.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/location_replicas.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
@@ -1438,6 +1440,25 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}
   --output-cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/location_replicas.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h
+  DEPENDS
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/reverse_resolve_node.yaml
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  COMMAND
+  Python3::Interpreter
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/reverse_resolve_node.yaml
+  --output-root
+  ${CMAKE_BINARY_DIR}
+  --output-cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )

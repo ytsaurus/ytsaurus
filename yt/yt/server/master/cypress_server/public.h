@@ -59,7 +59,11 @@ using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;
 
 struct TLockRequest;
 
-class TMapNode;
+template <class TChild>
+class TMapNodeImpl;
+using TCypressMapNode = TMapNodeImpl<TCypressNode*>;
+using TSequoiaMapNode = TMapNodeImpl<TNodeId>;
+
 class TListNode;
 
 template <class T>

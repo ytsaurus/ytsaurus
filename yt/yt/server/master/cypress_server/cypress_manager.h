@@ -52,7 +52,7 @@ struct TNodeFactoryOptions
 DEFINE_ENUM(EPathRootType,
     (RootNode)
     (PortalExit)
-    (Scion)
+    (SequoiaNode)
     (Other)
 );
 
@@ -123,7 +123,7 @@ public:
         TNodeId sourceNodeId) = 0;
 
     //! Returns the root node.
-    virtual TMapNode* GetRootNode() const = 0;
+    virtual TCypressMapNode* GetRootNode() const = 0;
 
     //! Returns the root shard.
     virtual TCypressShard* GetRootCypressShard() const = 0;

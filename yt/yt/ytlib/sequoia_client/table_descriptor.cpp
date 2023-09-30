@@ -2,6 +2,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/location_replicas.record.h>
 
@@ -63,6 +64,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(ResolveNode, "resolve_node")
         XX(ChunkReplicas, "chunk_replicas")
         XX(LocationReplicas, "location_replicas")
+        XX(ReverseResolveNode, "reverse_resolve_node")
         default:
             YT_ABORT();
     }

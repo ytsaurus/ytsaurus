@@ -348,7 +348,7 @@ private:
                             : NApi::RpcProxiesPath);
                 }
 
-                const auto& targetMap = targetMapNode->As<NCypressServer::TMapNode>()->KeyToChild();
+                const auto& targetMap = targetMapNode->As<NCypressServer::TCypressMapNode>()->KeyToChild();
                 auto it = targetMap.find(address);
                 if (it == targetMap.end()) {
                     return TError("No such proxy %Qv", address)

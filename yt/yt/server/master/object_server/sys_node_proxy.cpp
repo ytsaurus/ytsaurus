@@ -35,13 +35,13 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSysNodeProxy
-    : public TMapNodeProxy
+    : public TCypressMapNodeProxy
 {
 public:
-    using TMapNodeProxy::TMapNodeProxy;
+    using TCypressMapNodeProxy::TCypressMapNodeProxy;
 
 private:
-    using TBase = TMapNodeProxy;
+    using TBase = TCypressMapNodeProxy;
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
@@ -239,7 +239,7 @@ ICypressNodeProxyPtr CreateSysNodeProxy(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
-    TMapNode* trunkNode)
+    TCypressMapNode* trunkNode)
 {
     return New<TSysNodeProxy>(
         bootstrap,

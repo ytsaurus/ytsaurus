@@ -161,6 +161,7 @@ DEFINE_ENUM(EMasterReign,
     ((KeyPrefixFilter)                                              (2429))  // akozhikhov
     ((MulticellChunkReincarnator)                                   (2430))  // kvk1920
     ((CypressTransactionService)                                    (2431))  // h0pless
+    ((SequoiaMapNode)                                               (2432))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

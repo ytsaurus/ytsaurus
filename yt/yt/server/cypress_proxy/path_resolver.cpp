@@ -1,6 +1,10 @@
 #include "path_resolver.h"
 
+#include "private.h"
+
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
@@ -25,6 +29,10 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto SlashYPath = TYPath("/");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPathResolver
 {
 public:
@@ -37,7 +45,6 @@ public:
 
     TResolveResult Resolve()
     {
-        static const auto SlashYPath = TYPath("/");
         Tokenizer_.Reset(Path_);
         TYPath rewrittenPath;
 
@@ -59,7 +66,7 @@ public:
             TCompactVector<TResolveAttempt, TypicalTokenCount> resolveAttempts;
 
             TYPath currentPrefix = SlashYPath;
-            currentPrefix.reserve(Path_.size());
+            currentPrefix.reserve(Tokenizer_.GetInput().size());
 
             while (Tokenizer_.Skip(ETokenType::Slash)) {
                 if (Tokenizer_.GetType() != ETokenType::Literal) {
@@ -82,7 +89,7 @@ public:
             prefixKeys.reserve(resolveAttempts.size());
             for (const auto& resolveAttempt : resolveAttempts) {
                 prefixKeys.push_back(NRecords::TResolveNodeKey{
-                    .Path = resolveAttempt.Prefix,
+                    .Path = MangleCypressPath(resolveAttempt.Prefix),
                 });
             }
 
@@ -109,7 +116,7 @@ public:
 
                     if (scionFound) {
                         const auto& resolveAttempt = resolveAttempts[index];
-                        YT_VERIFY(resolveAttempt.Prefix == rsp->Key.Path);
+                        YT_VERIFY(resolveAttempt.Prefix + SlashYPath == rsp->Key.Path);
 
                         result = TSequoiaResolveResult{
                             .ResolvedPrefix = resolveAttempt.Prefix,
@@ -153,7 +160,34 @@ private:
                     Tokenizer_.ThrowUnexpected();
                 }
 
-                THROW_ERROR_EXCEPTION("Object id syntax is not supported yet");
+                auto idWithoutPrefix = token.substr(ObjectIdPathPrefix.size());
+                auto objectId = TObjectId::FromString(idWithoutPrefix);
+
+                if (!IsSequoiaId(objectId)) {
+                    THROW_ERROR_EXCEPTION("Object id syntax for non-Sequoia objects is not supported yet");
+                }
+
+                const auto& schema = ITableDescriptor::Get(ESequoiaTable::ResolveNode)
+                    ->GetRecordDescriptor()
+                    ->GetSchema();
+                NTableClient::TColumnFilter columnFilter({
+                    schema->GetColumnIndex("node_id"),
+                    schema->GetColumnIndex("path"),
+                });
+
+                std::vector<NRecords::TReverseResolveNodeKey> key;
+                key.push_back(NRecords::TReverseResolveNodeKey{.NodeId = TString(idWithoutPrefix)});
+                auto lookupRsp = std::move(WaitFor(Transaction_->LookupRows(key, columnFilter))
+                    .ValueOrThrow()[0]);
+
+                if (!lookupRsp) {
+                    THROW_ERROR_EXCEPTION("No such object")
+                        << TErrorAttribute("object_id", objectId);
+                }
+
+                Tokenizer_.Advance();
+
+                return lookupRsp->Path + Tokenizer_.GetInput();
             }
 
             default:

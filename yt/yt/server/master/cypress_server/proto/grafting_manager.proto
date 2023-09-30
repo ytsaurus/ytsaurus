@@ -18,7 +18,6 @@ message TReqCreateScion
 
     required string path = 6;
 
-    required NYT.NProto.TGuid parent_id = 7;
     optional string key = 8;
 
     required bytes effective_acl = 9;
@@ -34,13 +33,6 @@ message TReqCreateScion
 message TReqRemoveRootstock
 {
     required NYT.NProto.TGuid rootstock_node_id = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqRemoveScion
-{
-    required NYT.NProto.TGuid scion_node_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

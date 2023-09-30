@@ -15,10 +15,10 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortalExitTypeHandler
-    : public TMapNodeTypeHandlerImpl<TPortalExitNode>
+    : public TCypressMapNodeTypeHandlerImpl<TPortalExitNode>
 {
 public:
-    using TMapNodeTypeHandlerImpl::TMapNodeTypeHandlerImpl;
+    using TCypressMapNodeTypeHandlerImpl::TCypressMapNodeTypeHandlerImpl;
 
     EObjectType GetObjectType() const override
     {
@@ -54,7 +54,7 @@ private:
             portalManager->DestroyExitNode(node);
         }
 
-        TMapNodeTypeHandlerImpl::DoDestroy(node);
+        TCypressMapNodeTypeHandlerImpl::DoDestroy(node);
     }
 
     void DoBeginCopy(
@@ -63,7 +63,7 @@ private:
     {
         // NB: Portal exits _must_ be snapshot-wise compatible with map nodes
         // due to type erasure in TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore.
-        TMapNodeTypeHandlerImpl::DoBeginCopy(node, context);
+        TCypressMapNodeTypeHandlerImpl::DoBeginCopy(node, context);
     }
 
     void DoEndCopy(

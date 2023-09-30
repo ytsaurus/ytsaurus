@@ -102,7 +102,7 @@ private:
                 THashMap<TString, TCypressNode*> childMapStorage;
                 const auto& childMap = GetMapNodeChildMap(
                     CypressManager_,
-                    trunkNode->As<TMapNode>(),
+                    trunkNode->As<TCypressMapNode>(),
                     Transaction_.Get(),
                     &childMapStorage);
                 entry.TrunkChildren.reserve(childMap.size());
