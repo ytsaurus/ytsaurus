@@ -1651,7 +1651,8 @@ class TestQuery(YTEnvSetup):
             assert expected == actual
 
     @authors("akozhikhov")
-    def test_filter_ranges(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_filter_ranges(self, optimize_for):
         sync_create_cells(1)
 
         create(
@@ -1673,7 +1674,8 @@ class TestQuery(YTEnvSetup):
                 },
                 "mount_config": {
                     "enable_key_filter_for_lookup": True,
-                }
+                },
+                "optimize_for": optimize_for,
             },
         )
 
