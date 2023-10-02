@@ -306,6 +306,18 @@ protected:
         SamplesMemoryUsageGuard_.IncrementSize(rowSize);
     }
 
+    void MaybeWriteKeyFilterBlocks()
+    {
+        if (KeyFilterBuilder_) {
+            KeyFilterBuilder_->FlushBlock(LastKey_, /*force*/ true);
+
+            auto blocks = KeyFilterBuilder_->SerializeBlocks(&SystemBlockMetaExt_);
+            for (auto& block : blocks) {
+                EncodingChunkWriter_->WriteBlock(std::move(block), KeyFilterBuilder_->GetBlockType());
+            }
+        }
+    }
+
     static void ValidateRowsOrder(TVersionedRow row, TUnversionedValueRange prevKey)
     {
         YT_VERIFY(
@@ -612,14 +624,7 @@ private:
 
         OnDataBlocksWritten(LastKey_.Elements(), &SystemBlockMetaExt_, EncodingChunkWriter_);
 
-        if (KeyFilterBuilder_) {
-            KeyFilterBuilder_->FlushBlock(LastKey_, /*force*/ true);
-
-            auto blocks = KeyFilterBuilder_->SerializeBlocks(&SystemBlockMetaExt_);
-            for (auto& block : blocks) {
-                EncodingChunkWriter_->WriteBlock(std::move(block), KeyFilterBuilder_->GetBlockType());
-            }
-        }
+        MaybeWriteKeyFilterBlocks();
 
         PrepareChunkMeta();
 
@@ -864,6 +869,8 @@ private:
                 FinishBlock(i, LastKey_.Elements());
             }
         }
+
+        MaybeWriteKeyFilterBlocks();
 
         PrepareChunkMeta();
 
