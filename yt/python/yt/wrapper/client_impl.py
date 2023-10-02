@@ -2519,7 +2519,7 @@ class YtClient(ClientState):
             self,
             source_table,
             destination_table=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None,
-            spec=None, check_codecs=False, optimize_for=None):
+            spec=None, check_codecs=False, optimize_for=None, force_empty=False):
         """
         Transforms source table to destination table writing data with given compression and erasure codecs.
 
@@ -2531,7 +2531,8 @@ class YtClient(ClientState):
             source_table,
             client=self,
             destination_table=destination_table, erasure_codec=erasure_codec, compression_codec=compression_codec,
-            desired_chunk_size=desired_chunk_size, spec=spec, check_codecs=check_codecs, optimize_for=optimize_for)
+            desired_chunk_size=desired_chunk_size, spec=spec, check_codecs=check_codecs, optimize_for=optimize_for,
+            force_empty=force_empty)
 
     def trim_rows(
             self,

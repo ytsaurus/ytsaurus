@@ -60,7 +60,7 @@ def _check_codec(table, codec_name, codec_value, client):
 
 
 def transform(source_table, destination_table=None, erasure_codec=None, compression_codec=None,
-              desired_chunk_size=None, spec=None, check_codecs=False, optimize_for=None, client=None):
+              desired_chunk_size=None, spec=None, check_codecs=False, optimize_for=None, force_empty=False, client=None):
     """Transforms source table to destination table writing data with given compression and erasure codecs.
 
     Automatically calculates desired chunk size and data size per job. Also can be used to convert chunks in
@@ -99,7 +99,11 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
             set(dst + "/@optimize_for", optimize_for, client=client)
 
         src_attributes = get(src, attributes=["row_count", "dynamic", "chunk_row_count"], client=client).attributes
-        if src_attributes.get("row_count") == 0 or src_attributes.get("dynamic") and src_attributes.get("chunk_row_count") == 0:
+        if not force_empty and (
+            src_attributes.get("row_count") == 0 or
+            src_attributes.get("dynamic") and
+            src_attributes.get("chunk_row_count") == 0
+        ):
             logger.debug("Table %s is empty", src)
             return False
 
@@ -115,13 +119,11 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         if ratio is None:
             ratio = get(src + "/@compression_ratio", client=client)
 
-        data_size_per_job = max(
-            1,
-            min(
-                get_config(client)["transform_options"]["max_data_size_per_job"],
-                int(desired_chunk_size / ratio)
-            )
-        )
+        max_data_size_per_job = get_config(client)["transform_options"]["max_data_size_per_job"]
+        if ratio == 0.0:
+            data_size_per_job = min(1, max_data_size_per_job)
+        else:
+            data_size_per_job = max(1, min(max_data_size_per_job, int(desired_chunk_size / ratio)))
 
         spec = update(
             {
