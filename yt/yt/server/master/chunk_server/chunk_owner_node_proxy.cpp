@@ -1635,15 +1635,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ? multicellManager->GetCellTag()
         : externalCellTag);
 
-    auto maybeExternalizeTransaction = [&] (TCellTag dstCellTag) {
-        return node->IsExternal()
-            ? transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag})
-            : GetObjectId(Transaction_);
-    };
-
     if (node->IsExternal()) {
-        auto externalizedTransactionId = maybeExternalizeTransaction(externalCellTag);
-
+        auto externalizedTransactionId =
+            transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag});
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
         SetTransactionId(replicationRequest, externalizedTransactionId);
         replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
@@ -1659,7 +1653,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     if (!replicateStartToCellTags.empty()) {
         for (auto dstCellTag : replicateStartToCellTags) {
-            auto externalizedTransactionId = maybeExternalizeTransaction(dstCellTag);
+            auto externalizedTransactionId =
+                transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag});
 
             NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
             ToProto(startRequest.mutable_id(), uploadTransactionId);
