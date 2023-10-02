@@ -270,7 +270,7 @@ public:
 
         TJobResources resourceUsage;
 
-        std::optional<TJobResources> maybeWaitingResources = std::nullopt;
+        std::optional<TJobResources> maybeWaitingResources;
 
         {
             auto guard = ReaderGuard(ResourcesLock_);
