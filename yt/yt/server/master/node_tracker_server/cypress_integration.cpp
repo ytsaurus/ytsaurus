@@ -52,10 +52,10 @@ using namespace NChunkServer;
 
 // COMPAT(gritukan)
 class TClusterNodeNodeProxy
-    : public TMapNodeProxy
+    : public TCypressMapNodeProxy
 {
 public:
-    using TMapNodeProxy::TMapNodeProxy;
+    using TCypressMapNodeProxy::TCypressMapNodeProxy;
 
     TResolveResult ResolveSelf(
         const TYPath& path,
@@ -65,7 +65,7 @@ public:
         if (method == "Remove") {
             return TResolveResultThere{GetTargetProxy(), path};
         } else {
-            return TMapNodeProxy::ResolveSelf(path, context);
+            return TCypressMapNodeProxy::ResolveSelf(path, context);
         }
     }
 
@@ -97,11 +97,11 @@ private:
 };
 
 class TClusterNodeNodeTypeHandler
-    : public TMapNodeTypeHandler
+    : public TCypressMapNodeTypeHandler
 {
 public:
     explicit TClusterNodeNodeTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandlerImpl(bootstrap)
+        : TCypressMapNodeTypeHandler(bootstrap)
     { }
 
     EObjectType GetObjectType() const override
@@ -111,7 +111,7 @@ public:
 
 private:
     ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
+        TCypressMapNode* trunkNode,
         TTransaction* transaction) override
     {
         return New<TClusterNodeNodeProxy>(
@@ -131,11 +131,11 @@ INodeTypeHandlerPtr CreateClusterNodeNodeTypeHandler(TBootstrap* bootstrap)
 
 // COMPAT(gritukan)
 class TLegacyClusterNodeMapTypeHandler
-    : public TMapNodeTypeHandler
+    : public TCypressMapNodeTypeHandler
 {
 public:
     explicit TLegacyClusterNodeMapTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandlerImpl(bootstrap)
+        : TCypressMapNodeTypeHandler(bootstrap)
     { }
 
     EObjectType GetObjectType() const override
@@ -145,10 +145,10 @@ public:
 
 private:
     ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
+        TCypressMapNode* trunkNode,
         TTransaction* transaction) override
     {
-        return New<TMapNodeProxy>(
+        return New<TCypressMapNodeProxy>(
             GetBootstrap(),
             &Metadata_,
             transaction,

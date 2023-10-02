@@ -313,11 +313,11 @@ void DoExportSnapshot(
 
         std::vector<NCypressClient::TNodeId> extraNodesHeld;
         if (config->CalculateExtendedBranchStatistics && !node->IsTrunk() && nodeType == EObjectType::MapNode) {
-            auto* mapNode = node->As<TMapNode>();
+            auto* mapNode = node->As<TCypressMapNode>();
             const auto& nodeChildren = mapNode->ChildToKey();
             auto isSnapshotBranch = mapNode->GetLockMode() == ELockMode::Snapshot;
 
-            auto* originator = node->GetOriginator()->As<TMapNode>();
+            auto* originator = node->GetOriginator()->As<TCypressMapNode>();
             const auto& originatorChildren = originator->ChildToKey();
 
             for (const auto& [child, _] : nodeChildren) {

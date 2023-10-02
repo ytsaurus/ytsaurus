@@ -19,13 +19,13 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortalExitProxy
-    : public TMapNodeProxy
+    : public TCypressMapNodeProxy
 {
 public:
-    using TMapNodeProxy::TMapNodeProxy;
+    using TCypressMapNodeProxy::TCypressMapNodeProxy;
 
 private:
-    using TBase = TMapNodeProxy;
+    using TBase = TCypressMapNodeProxy;
 
     TPortalExitNode* GetThisImpl()
     {

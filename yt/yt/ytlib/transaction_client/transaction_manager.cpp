@@ -1210,7 +1210,7 @@ private:
             PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
             return TError();
         } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
-                    TypeFromId(cellId) == EObjectType::MasterCell)
+                    !IsTabletTransactionType(TypeFromId(Id_)))
         {
             // Hard error.
             // NB: For tablet cells, transactions are started asynchronously so NoSuchTransaction

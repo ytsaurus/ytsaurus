@@ -974,7 +974,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
                     VisitList(trunkChild->As<TListNode>());
                     break;
                 case ENodeType::Map:
-                    VisitMap(trunkChild->As<TMapNode>());
+                    VisitMap(trunkChild->As<TCypressMapNode>());
                     break;
                 default:
                     VisitOther(trunkChild);
@@ -1027,7 +1027,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             THashMap<TString, TCypressNode*> keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
-                node->As<TMapNode>(),
+                node->As<TCypressMapNode>(),
                 Transaction_,
                 &keyToChildMapStorage);
             for (const auto& [key, child] : keyToChildMap) {
@@ -2519,7 +2519,7 @@ void TSupportsForcefulSetSelfMixin::ValidateSetSelf(bool force) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMapNodeProxy::SetRecursive(
+void TCypressMapNodeProxy::SetRecursive(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
@@ -2529,7 +2529,7 @@ void TMapNodeProxy::SetRecursive(
     TMapNodeMixin::SetRecursive(path, request, response, context);
 }
 
-void TMapNodeProxy::Clear()
+void TCypressMapNodeProxy::Clear()
 {
     // Take shared lock for the node itself.
     auto* impl = LockThisImpl(ELockMode::Shared);
@@ -2538,7 +2538,7 @@ void TMapNodeProxy::Clear()
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode_->As<TMapNode>(),
+        TrunkNode_->As<TCypressMapNode>(),
         Transaction_,
         &keyToChildMapStorage);
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
@@ -2561,14 +2561,14 @@ void TMapNodeProxy::Clear()
     SetModified(EModificationType::Content);
 }
 
-int TMapNodeProxy::GetChildCount() const
+int TCypressMapNodeProxy::GetChildCount() const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Transaction_, TrunkNode_);
 
     int result = 0;
     for (const auto* node : originators) {
-        const auto* mapNode = node->As<TMapNode>();
+        const auto* mapNode = node->As<TCypressMapNode>();
         result += mapNode->ChildCountDelta();
 
         if (mapNode->GetLockMode() == ELockMode::Snapshot) {
@@ -2578,12 +2578,12 @@ int TMapNodeProxy::GetChildCount() const
     return result;
 }
 
-std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
+std::vector<std::pair<TString, INodePtr>> TCypressMapNodeProxy::GetChildren() const
 {
     THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode_->As<TMapNode>(),
+        TrunkNode_->As<TCypressMapNode>(),
         Transaction_,
         &keyToChildStorage);
 
@@ -2596,12 +2596,12 @@ std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
     return result;
 }
 
-std::vector<TString> TMapNodeProxy::GetKeys() const
+std::vector<TString> TCypressMapNodeProxy::GetKeys() const
 {
     THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode_->As<TMapNode>(),
+        TrunkNode_->As<TCypressMapNode>(),
         Transaction_,
         &keyToChildStorage);
 
@@ -2613,17 +2613,17 @@ std::vector<TString> TMapNodeProxy::GetKeys() const
     return result;
 }
 
-INodePtr TMapNodeProxy::FindChild(const TString& key) const
+INodePtr TCypressMapNodeProxy::FindChild(const TString& key) const
 {
     auto* trunkChildNode = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
-        TrunkNode_->As<TMapNode>(),
+        TrunkNode_->As<TCypressMapNode>(),
         Transaction_,
         key);
     return trunkChildNode ? GetProxy(trunkChildNode) : nullptr;
 }
 
-bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
+bool TCypressMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
 {
     YT_ASSERT(!key.empty());
 
@@ -2650,11 +2650,11 @@ bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
     return true;
 }
 
-bool TMapNodeProxy::RemoveChild(const TString& key)
+bool TCypressMapNodeProxy::RemoveChild(const TString& key)
 {
     auto* trunkChildImpl = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
-        TrunkNode_->As<TMapNode>(),
+        TrunkNode_->As<TCypressMapNode>(),
         Transaction_,
         key);
     if (!trunkChildImpl) {
@@ -2670,7 +2670,7 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
     return true;
 }
 
-void TMapNodeProxy::RemoveChild(const INodePtr& child)
+void TCypressMapNodeProxy::RemoveChild(const INodePtr& child)
 {
     auto optionalKey = FindChildKey(child);
     if (!optionalKey) {
@@ -2687,7 +2687,7 @@ void TMapNodeProxy::RemoveChild(const INodePtr& child)
     SetModified(EModificationType::Content);
 }
 
-void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
+void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
 {
     if (oldChild == newChild) {
         return;
@@ -2719,7 +2719,7 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
     SetModified(EModificationType::Content);
 }
 
-std::optional<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
+std::optional<TString> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child)
 {
     return FindNodeKey(
         Bootstrap_->GetCypressManager(),
@@ -2727,7 +2727,7 @@ std::optional<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
         Transaction_);
 }
 
-void TMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+void TCypressMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     TBase::ListSystemAttributes(descriptors);
 
@@ -2736,7 +2736,7 @@ void TMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* desc
     }
 }
 
-bool TMapNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
+bool TCypressMapNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
     switch(key) {
         case EInternedAttributeKey::CoWCookie: {
@@ -2756,13 +2756,13 @@ bool TMapNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TMapNodeProxy::DoInvoke(const IYPathServiceContextPtr& context)
+bool TCypressMapNodeProxy::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);
     return TBase::DoInvoke(context);
 }
 
-void TMapNodeProxy::SetChildNode(
+void TCypressMapNodeProxy::SetChildNode(
     INodeFactory* factory,
     const TYPath& path,
     const INodePtr& child,
@@ -2775,25 +2775,25 @@ void TMapNodeProxy::SetChildNode(
         recursive);
 }
 
-int TMapNodeProxy::GetMaxChildCount() const
+int TCypressMapNodeProxy::GetMaxChildCount() const
 {
     return GetDynamicCypressManagerConfig()->MaxNodeChildCount;
 }
 
-int TMapNodeProxy::GetMaxKeyLength() const
+int TCypressMapNodeProxy::GetMaxKeyLength() const
 {
     return GetDynamicCypressManagerConfig()->MaxMapNodeKeyLength;
 }
 
-IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
+IYPathService::TResolveResult TCypressMapNodeProxy::ResolveRecursive(
     const TYPath& path,
     const IYPathServiceContextPtr& context)
 {
     return TMapNodeMixin::ResolveRecursive(path, context);
 }
 
-void TMapNodeProxy::DoRemoveChild(
-    TMapNode* impl,
+void TCypressMapNodeProxy::DoRemoveChild(
+    TCypressMapNode* impl,
     const TString& key,
     TCypressNode* childImpl)
 {
@@ -2811,7 +2811,7 @@ void TMapNodeProxy::DoRemoveChild(
     securityManager->UpdateMasterMemoryUsage(impl);
 }
 
-void TMapNodeProxy::ListSelf(
+void TCypressMapNodeProxy::ListSelf(
     TReqList* request,
     TRspList* response,
     const TCtxListPtr& context)
@@ -2844,7 +2844,7 @@ void TMapNodeProxy::ListSelf(
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
-        TrunkNode_->As<TMapNode>(),
+        TrunkNode_->As<TCypressMapNode>(),
         Transaction_,
         &keyToChildMapStorage);
 
@@ -2883,6 +2883,45 @@ void TMapNodeProxy::ListSelf(
                 context->Reply(resultOrError);
             }
         }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
+    NYTree::TInternedAttributeKey key,
+    NYson::IYsonConsumer* consumer)
+{
+    auto* mapNode = GetThisImpl();
+    const auto Logger = CypressServerLogger;
+
+    switch (key) {
+        case EInternedAttributeKey::Type:
+            BuildYsonFluently(consumer)
+                .Value(EObjectType::MapNode);
+            return true;
+        case EInternedAttributeKey::Path:
+            if (mapNode->SequoiaProperties()) {
+                BuildYsonFluently(consumer)
+                    .Value(mapNode->SequoiaProperties()->Path);
+                return true;
+            }
+            YT_LOG_ALERT("Sequoia node is lacking required attribute \"path\" (NodeId: %v)",
+                mapNode->GetId());
+            return false;
+        case EInternedAttributeKey::Key:
+            if (mapNode->SequoiaProperties()) {
+                BuildYsonFluently(consumer)
+                    .Value(mapNode->SequoiaProperties()->Key);
+                return true;
+            }
+            YT_LOG_ALERT("Sequoia node is lacking required attribute \"key\" (NodeId: %v)",
+                mapNode->GetId());
+            return false;
+        default:
+            break;
+    }
+
+    return TBase::GetBuiltinAttribute(key, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

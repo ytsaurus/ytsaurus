@@ -1,23 +1,22 @@
 #include "scion_node.h"
 
+#include <yt/yt/core/ypath/helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TScionNode::Save(TSaveContext& context) const
 {
-    TMapNode::Save(context);
+    TSequoiaMapNode::Save(context);
 
     using NYT::Save;
 
     Save(context, RootstockId_);
-    Save(context, RemovalStarted_);
-    Save(context, Key_);
-    Save(context, ParentId_);
-    Save(context, Path_);
     Save(context, EffectiveInheritableAttributes_);
     Save(context, EffectiveAnnotationPath_);
     Save(context, DirectAcd_);
@@ -25,15 +24,25 @@ void TScionNode::Save(TSaveContext& context) const
 
 void TScionNode::Load(TLoadContext& context)
 {
-    TMapNode::Load(context);
+    TSequoiaMapNode::Load(context);
 
     using NYT::Load;
 
     Load(context, RootstockId_);
-    Load(context, RemovalStarted_);
-    Load(context, Key_);
-    Load(context, ParentId_);
-    Load(context, Path_);
+    // COMPAT(kvk1920)
+    if (context.GetVersion() < EMasterReign::SequoiaMapNode) {
+        YT_VERIFY(SequoiaProperties_);
+
+        Load<bool>(context); // RemovalStarted.
+        auto key = Load<std::optional<TString>>(context);
+        Load<TNodeId>(context); // ParentId.
+        Load(context, SequoiaProperties()->Path);
+        if (key) {
+            SequoiaProperties()->Key = std::move(*key);
+        } else {
+            SequoiaProperties()->Key = DirNameAndBaseName(SequoiaProperties()->Path).second;
+        }
+    }
     Load(context, EffectiveInheritableAttributes_);
     Load(context, EffectiveAnnotationPath_);
     Load(context, DirectAcd_);

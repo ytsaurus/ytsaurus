@@ -229,6 +229,16 @@ public:
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
 
+    struct TSequoiaProperties
+    {
+        NYPath::TYPath Key;
+        TString Path;
+
+        void Save(NCellMaster::TSaveContext& context) const;
+        void Load(NCellMaster::TLoadContext& context);
+    };
+    DEFINE_BYREF_RW_PROPERTY(std::unique_ptr<TSequoiaProperties>, SequoiaProperties);
+
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
     virtual ~TCypressNode();
@@ -320,6 +330,8 @@ public:
 
     void SaveEctoplasm(TStreamSaveContext& context) const override;
     void LoadEctoplasm(TStreamLoadContext& context) override;
+
+    void VerifySequoia() const;
 
 private:
     TCypressNode* Parent_ = nullptr;

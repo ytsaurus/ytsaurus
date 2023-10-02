@@ -18,7 +18,7 @@ NCypressServer::ICypressNodeProxyPtr CreateSysNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::TObjectTypeMetadata* metadata,
     NTransactionServer::TTransaction* transaction,
-    NCypressServer::TMapNode* trunkNode);
+    NCypressServer::TCypressMapNode* trunkNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,6 +8,7 @@ message TReqCreateNode
 {
     required int32 type = 1;
     required NYT.NProto.TGuid node_id = 2;
+    required string path = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +18,21 @@ message TReqAttachChild
     required NYT.NProto.TGuid parent_id = 1;
     required NYT.NProto.TGuid child_id = 2;
     required string key = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveNode
+{
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDetachChild
+{
+    required NYT.NProto.TGuid parent_id = 1;
+    required string key = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

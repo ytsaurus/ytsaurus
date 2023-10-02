@@ -12,10 +12,10 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSysNodeTypeHandler
-    : public TMapNodeTypeHandler
+    : public TCypressMapNodeTypeHandler
 {
 public:
-    using TMapNodeTypeHandler::TMapNodeTypeHandler;
+    using TCypressMapNodeTypeHandler::TCypressMapNodeTypeHandler;
 
     EObjectType GetObjectType() const override
     {
@@ -24,7 +24,7 @@ public:
 
 private:
     ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
+        TCypressMapNode* trunkNode,
         TTransaction* transaction) override
     {
         return CreateSysNodeProxy(

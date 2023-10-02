@@ -3,12 +3,13 @@
 namespace NYT::NMaintenanceTrackerServer {
 
 using namespace NCellMaster;
+using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TClusterProxyNode::Save(TSaveContext& context) const
 {
-    TMapNode::Save(context);
+    TCypressMapNode::Save(context);
     TMaintenanceTarget::Save(context);
 }
 
@@ -17,7 +18,7 @@ void TClusterProxyNode::Load(TLoadContext& context)
     // COMPAT(kvk1920):
     YT_VERIFY(context.GetVersion() >= EMasterReign::ProxyMaintenanceRequests);
 
-    TMapNode::Load(context);
+    TCypressMapNode::Load(context);
     TMaintenanceTarget::Load(context);
 }
 

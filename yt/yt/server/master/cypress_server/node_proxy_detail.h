@@ -428,8 +428,8 @@ END_DEFINE_SCALAR_TYPE(Boolean, bool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapNodeProxy
-    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
+class TCypressMapNodeProxy
+    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TCypressMapNode>
     , public NYTree::TMapNodeMixin
     , public TSupportsForcefulSetSelfMixin
 {
@@ -455,7 +455,7 @@ protected:
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
 private:
-    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
+    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TCypressMapNode>;
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
@@ -484,9 +484,32 @@ private:
         const TCtxSetPtr& context) override;
 
     void DoRemoveChild(
-        TMapNode* impl,
+        TCypressMapNode* impl,
         const TString& key,
         TCypressNode* childImpl);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSequoiaMapNodeProxy
+    : public TCypressNodeProxyBase<
+        TNontemplateCypressNodeProxyBase,
+        NYTree::IEntityNode,
+        TSequoiaMapNode>
+    , public virtual NYTree::TSupportsList
+{
+public:
+    using TBase = TCypressNodeProxyBase<
+        TNontemplateCypressNodeProxyBase,
+        NYTree::IEntityNode,
+        TSequoiaMapNode>;
+
+    YTREE_NODE_TYPE_OVERRIDES(Entity)
+
+public:
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
+
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

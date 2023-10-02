@@ -15,14 +15,14 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMapTypeHandler
-    : public TMapNodeTypeHandler
+    : public TCypressMapNodeTypeHandler
 {
 public:
     TCellMapTypeHandler(
         TBootstrap* bootstrap,
         ECellarType cellarType,
         EObjectType cellMapType)
-        : TMapNodeTypeHandler(bootstrap)
+        : TCypressMapNodeTypeHandler(bootstrap)
         , CellarType_(cellarType)
         , CellMapType_(cellMapType)
     { }
@@ -37,7 +37,7 @@ private:
     const EObjectType CellMapType_;
 
     ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
+        TCypressMapNode* trunkNode,
         TTransaction* transaction) override
     {
         return CreateCellMapProxy(

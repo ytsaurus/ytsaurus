@@ -7,7 +7,9 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -66,16 +68,18 @@ public:
         // NB: Rootstock is not a sequoia object.
         YT_VERIFY(!IsSequoiaId(rootstockId));
 
+        // TODO(kvk1920): Tie rootstock's and scion's ids in some way.
         auto scionId = transaction->GenerateObjectId(EObjectType::Scion, scionCellTag);
         attributes->Set("scion_id", scionId);
 
-        NRecords::TResolveNode record{
-            .Key = {
-                .Path = path,
-            },
+        transaction->WriteRow(NRecords::TResolveNode{
+            .Key = {.Path = MangleCypressPath(path)},
             .NodeId = ToString(scionId),
-        };
-        transaction->WriteRow(record);
+        });
+        transaction->WriteRow(NRecords::TReverseResolveNode{
+            .Key = {.NodeId = ToString(scionId)},
+            .Path = path,
+        });
 
         NCypressClient::NProto::TReqCreateRootstock rootstockAction;
         auto* request = rootstockAction.mutable_request();

@@ -18,13 +18,13 @@ namespace NYT::NCypressServer {
 
 const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
     THashMap<TString, TCypressNode*>* storage);
 
 std::vector<TCypressNode*> GetMapNodeChildList(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 const std::vector<TCypressNode*>& GetListNodeChildList(
@@ -34,18 +34,18 @@ const std::vector<TCypressNode*>& GetListNodeChildList(
 
 TCypressNode* FindMapNodeChild(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
     TStringBuf key);
 
 TCypressNode* GetMapNodeChildOrThrow(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
     TStringBuf key);
 
 TStringBuf FindMapNodeChildKey(
-    TMapNode* parentNode,
+    TCypressMapNode* parentNode,
     TCypressNode* trunkChildNode);
 
 TCypressNode* FindListNodeChild(

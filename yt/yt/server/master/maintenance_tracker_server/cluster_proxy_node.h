@@ -9,11 +9,11 @@ namespace NYT::NMaintenanceTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterProxyNode
-    : public NCypressServer::TMapNode
+    : public NCypressServer::TCypressMapNode
     , public TMaintenanceTarget<TClusterProxyNode, EMaintenanceType::Ban>
 {
 public:
-    using TMapNode::TMapNode;
+    using NCypressServer::TCypressMapNode::TCypressMapNode;
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;

@@ -28,6 +28,7 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/path_resolver.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/program.cpp

@@ -242,6 +242,8 @@ bool TCypressNode::CanCacheResolve() const
 void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
 {
     TObject::CheckInvariants(bootstrap);
+
+    YT_VERIFY(!SequoiaProperties() || (IsSequoia() || GetType() == EObjectType::Rootstock));
 }
 
 void TCypressNode::Save(NCellMaster::TSaveContext& context) const
@@ -271,6 +273,7 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, AccessCounter_);
     Save(context, Shard_);
     Save(context, Annotation_);
+    TUniquePtrSerializer<>::Save(context, SequoiaProperties_);
 }
 
 void TCypressNode::Load(NCellMaster::TLoadContext& context)
@@ -304,6 +307,12 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, AccessCounter_);
     Load(context, Shard_);
     Load(context, Annotation_);
+
+    if (context.GetVersion() >= EMasterReign::SequoiaMapNode) {
+        TUniquePtrSerializer<>::Load(context, SequoiaProperties_);
+    } else if (IsSequoia()) {
+        SequoiaProperties() = std::make_unique<TSequoiaProperties>();
+    }
 }
 
 void TCypressNode::SaveEctoplasm(TStreamSaveContext& context) const
@@ -322,6 +331,27 @@ void TCypressNode::LoadEctoplasm(TStreamLoadContext& context)
     using NYT::Load;
     Load(context, reinterpret_cast<uintptr_t&>(TrunkNode_));
     Load(context, TransactionId_);
+}
+
+void TCypressNode::VerifySequoia() const
+{
+    YT_VERIFY(IsSequoia() && SequoiaProperties());
+}
+
+void TCypressNode::TSequoiaProperties::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, Key);
+    Save(context, Path);
+}
+
+void TCypressNode::TSequoiaProperties::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, Key);
+    Load(context, Path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

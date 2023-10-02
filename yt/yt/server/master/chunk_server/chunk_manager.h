@@ -409,8 +409,10 @@ struct IChunkManager
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TChunkReplicas>> GetSequoiaChunkReplicas(TChunkId chunkId) const = 0;
 
-    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicas(const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
-    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
+    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicas(
+        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
+    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(
+        const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
 
 
 private:

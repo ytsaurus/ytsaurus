@@ -197,16 +197,6 @@ public:
     {
         auto* typedNode = node->As<TImpl>();
         DoDestroySequoiaObject(typedNode, transaction);
-
-        // TODO: Rewrite after removal implementation.
-        if (node->IsTrunk()) {
-            const auto& cypressManager = GetBootstrap()->GetCypressManager();
-            auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr);
-            NSequoiaClient::NRecords::TResolveNodeKey key{
-                .Path = path,
-            };
-            transaction->DeleteRow(key);
-        }
     }
 
     void RecreateAsGhost(TCypressNode* node) override
@@ -803,11 +793,26 @@ protected:
 
 //! The core of a map node. May be shared between multiple map nodes for CoW optimization.
 //! Designed to be wrapped into TObjectPartCoWPtr.
+// NB: The implementation of this template class can be found in _cpp_file,
+// together with all relevant explicit instantiations.
+template <class TNonOwnedChild>
 class TMapNodeChildren
 {
+    using TMaybeOwnedChild = std::conditional_t<
+        std::is_pointer_v<TNonOwnedChild>,
+        NObjectServer::TStrongObjectPtr<std::remove_pointer_t<TNonOwnedChild>>,
+        TNonOwnedChild>;
+
+    static TMaybeOwnedChild ToOwnedOnLoad(TNonOwnedChild child);
+    static TMaybeOwnedChild Clone(const TMaybeOwnedChild& child);
+    static void MaybeVerifyIsTrunk(TNonOwnedChild child);
+
 public:
-    using TKeyToChild = THashMap<TString, TCypressNode*>;
-    using TChildToKey = THashMap<TCypressNodePtr, TString>;
+    constexpr static bool ChildIsPointer = std::is_pointer_v<TNonOwnedChild>;
+    using TKeyToChild = THashMap<TString, TNonOwnedChild>;
+    using TChildToKey = THashMap<TMaybeOwnedChild, TString>;
+
+    static bool IsNull(TNonOwnedChild child) noexcept;
 
     TMapNodeChildren() = default;
 
@@ -820,9 +825,9 @@ public:
 
     void RecomputeMasterMemoryUsage();
 
-    void Set(const TString& key, TCypressNode* child);
-    void Insert(const TString& key, TCypressNode* child);
-    void Remove(const TString& key, TCypressNode* child);
+    void Set(const TString& key, TNonOwnedChild child);
+    void Insert(const TString& key, TNonOwnedChild child);
+    void Remove(const TString& key, TNonOwnedChild child);
     bool Contains(const TString& key) const;
 
     const TKeyToChild& KeyToChild() const;
@@ -844,53 +849,61 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapNode
+// NB: The implementation of this template class can be found in _cpp_file,
+// together with all relevant explicit instantiations.
+template <class TChild>
+class TMapNodeImpl
     : public TCompositeNodeBase
 {
 public:
-    using TKeyToChild = TMapNodeChildren::TKeyToChild;
-    using TChildToKey = TMapNodeChildren::TChildToKey;
+    using TChildren = TMapNodeChildren<TChild>;
+    using TKeyToChild = typename TChildren::TKeyToChild;
+    using TChildToKey = typename TChildren::TChildToKey;
 
     DEFINE_BYREF_RW_PROPERTY(int, ChildCountDelta);
 
 public:
     using TCompositeNodeBase::TCompositeNodeBase;
 
-    explicit TMapNode(const TMapNode&) = delete;
-    TMapNode& operator=(const TMapNode&) = delete;
+    explicit TMapNodeImpl(const TMapNodeImpl&) = delete;
+    TMapNodeImpl& operator=(const TMapNodeImpl&) = delete;
 
     const TKeyToChild& KeyToChild() const;
     const TChildToKey& ChildToKey() const;
 
     // Potentially does the 'copy' part of CoW.
-    TMapNodeChildren& MutableChildren();
+    TChildren& MutableChildren();
 
     NYTree::ENodeType GetNodeType() const override;
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 
+    void AssignChildren(const NObjectServer::TObjectPartCoWPtr<TChildren>& children);
+
     int GetGCWeight() const override;
 
     NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
 
-    void AssignChildren(const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children);
-
     uintptr_t GetMapNodeChildrenAddress() const;
 
-private:
-    NObjectServer::TObjectPartCoWPtr<TMapNodeChildren> Children_;
+    static bool IsNull(TChild child) noexcept;
+
+protected:
+    NObjectServer::TObjectPartCoWPtr<TChildren> Children_;
 
     template <class TImpl>
-    friend class TMapNodeTypeHandlerImpl;
+    friend class TCypressMapNodeTypeHandlerImpl;
+    template <class TImpl>
+    friend class TSequoiaMapNodeTypeHandlerImpl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: The implementation of this template class can be found in _cpp_file,
 // together with all relevant explicit instantiations.
-template <class TImpl = TMapNode>
-class TMapNodeTypeHandlerImpl
+template <class TImpl = TCypressMapNode>
+class TCypressMapNodeTypeHandlerImpl
     : public TCompositeNodeTypeHandler<TImpl>
 {
 public:
@@ -937,7 +950,61 @@ protected:
         ICypressNodeFactory* factory) override;
 };
 
-using TMapNodeTypeHandler = TMapNodeTypeHandlerImpl<TMapNode>;
+using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNode>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(kvk1920): Try to make some common base for cypress and sequoia map nodes.
+// (E.g. branching is similar in both cases).
+template <class TImpl = TSequoiaMapNode>
+class TSequoiaMapNodeTypeHandlerImpl
+    : public TCypressNodeTypeHandlerBase<TImpl>
+{
+public:
+    using TBase = TCypressNodeTypeHandlerBase<TImpl>;
+
+    using TBase::TBase;
+
+    NObjectClient::EObjectType GetObjectType() const override;
+    NYTree::ENodeType GetNodeType() const override;
+
+protected:
+    ICypressNodeProxyPtr DoGetProxy(
+        TImpl* trunkNode,
+        NTransactionServer::TTransaction* transaction) override;
+
+    void DoDestroy(TImpl* node) override;
+
+    void DoBranch(
+        const TImpl* originatingNode,
+        TImpl* branchedNode,
+        const TLockRequest& lockRequest) override;
+
+    void DoMerge(
+        TImpl* originatingNode,
+        TImpl* branchedNode) override;
+
+    void DoClone(
+        TImpl* sourceNode,
+        TImpl* clonedTrunkNode,
+        ICypressNodeFactory* factory,
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
+
+    bool HasBranchedChangesImpl(
+        TImpl* originatingNode,
+        TImpl* branchedNode) override;
+
+    void DoBeginCopy(
+        TImpl* node,
+        TBeginCopyContext* context) override;
+    void DoEndCopy(
+        TImpl* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override;
+};
+
+using TSequoiaMapNodeTypeHandler = TSequoiaMapNodeTypeHandlerImpl<TSequoiaMapNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

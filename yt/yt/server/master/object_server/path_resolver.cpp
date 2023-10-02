@@ -4,11 +4,11 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/helpers.h>
 #include <yt/yt/server/master/cypress_server/link_node.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 #include <yt/yt/server/master/cypress_server/portal_entrance_node.h>
 #include <yt/yt/server/master/cypress_server/rootstock_node.h>
-#include <yt/yt/server/master/cypress_server/helpers.h>
 #include <yt/yt/server/master/cypress_server/resolve_cache.h>
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
@@ -73,13 +73,13 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
     if (Service_ == TMasterYPathProxy::GetDescriptor().ServiceName) {
         YT_VERIFY(options.EnablePartialResolve);
         return TResolveResult{
-            Path_,
-            TLocalObjectPayload{
+            .UnresolvedPathSuffix = Path_,
+            .Payload = TLocalObjectPayload{
                 Bootstrap_->GetObjectManager()->GetMasterObject(),
                 GetTransaction()
             },
-            /*canCacheResolve*/ false,
-            /*resolveDepth*/ 0
+            .CanCacheResolve = false,
+            .ResolveDepth = 0,
         };
     }
 
@@ -147,6 +147,26 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
         auto* currentNode = currentObject->As<TCypressNode>();
         canCacheResolve &= currentNode->CanCacheResolve();
 
+        auto redirectToSequoia = [&] {
+            auto* rootstockNode = currentNode->As<TRootstockNode>();
+            auto rootstockNodePath = cypressManager->GetNodePath(
+                rootstockNode->GetTrunkNode(),
+                GetTransaction());
+            return TResolveResult{
+                TYPath(unresolvedPathSuffix),
+                TSequoiaRedirectPayload{
+                    .RootstockNodeId = rootstockNode->GetId(),
+                    .RootstockPath = rootstockNodePath,
+                },
+                canCacheResolve,
+                resolveDepth
+            };
+        };
+
+        if (currentNode->GetType() == EObjectType::Rootstock && Method_ == "Remove") {
+            return redirectToSequoia();
+        }
+
         TResolveCacheNodePtr currentCacheNode;
         if (options.PopulateResolveCache) {
             currentCacheNode = resolveCache->FindNode(currentNode->GetId());
@@ -183,11 +203,11 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             TObject* childNode;
             if (options.EnablePartialResolve) {
                 childNode = currentNode->GetNodeType() == ENodeType::Map
-                    ? FindMapNodeChild(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), key)
+                    ? FindMapNodeChild(cypressManager, currentNode->As<TCypressMapNode>(), GetTransaction(), key)
                     : FindListNodeChild(cypressManager, currentNode->As<TListNode>(), GetTransaction(), key);
             } else {
                 childNode = currentNode->GetNodeType() == ENodeType::Map
-                    ? GetMapNodeChildOrThrow(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), key)
+                    ? GetMapNodeChildOrThrow(cypressManager, currentNode->As<TCypressMapNode>(), GetTransaction(), key)
                     : GetListNodeChildOrThrow(cypressManager, currentNode->As<TListNode>(), GetTransaction(), key);
             }
 
@@ -258,19 +278,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 return makeCurrentLocalObjectResult();
             }
 
-            auto* rootstockNode = currentNode->As<TRootstockNode>();
-            auto rootstockNodePath = cypressManager->GetNodePath(
-                rootstockNode->GetTrunkNode(),
-                GetTransaction());
-            return TResolveResult{
-                TYPath(unresolvedPathSuffix),
-                TSequoiaRedirectPayload{
-                    .RootstockNodeId = rootstockNode->GetId(),
-                    .RootstockPath = rootstockNodePath,
-                },
-                canCacheResolve,
-                resolveDepth
-            };
+            return redirectToSequoia();
         } else {
             return makeCurrentLocalObjectResult();
         }
@@ -325,6 +333,20 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
                 // Zero guid is often used to signify a null transaction and
                 // should be treated as an ID of a special always-missing object.
                 return TMissingObjectPayload{};
+            }
+
+            // TODO(kvk1920): This check should be performed on Cypress Proxy.
+            if (IsSequoiaId(objectId) &&
+                Tokenizer_.GetType() == ETokenType::EndOfStream &&
+                Method_ == "Remove")
+            {
+                // NB: These field should not be optional because in the future
+                // such requests will be handled on Cypress Proxy without
+                // redirecting to Master.
+                return TSequoiaRedirectPayload{
+                    .RootstockNodeId = TNodeId{},
+                    .RootstockPath = "",
+                };
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();

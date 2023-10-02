@@ -803,14 +803,57 @@ void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMapNodeChildren::Save(NCellMaster::TSaveContext& context) const
+template <class TNonOwnedChild>
+bool TMapNodeChildren<TNonOwnedChild>::IsNull(TNonOwnedChild child) noexcept
+{
+    if constexpr (ChildIsPointer) {
+        return child == nullptr;
+    } else {
+        static_assert(std::is_same_v<TNonOwnedChild, TGuid>);
+        return child == TGuid();
+    }
+}
+
+template <class TNonOwnedChild>
+typename TMapNodeChildren<TNonOwnedChild>::TMaybeOwnedChild
+TMapNodeChildren<TNonOwnedChild>::ToOwnedOnLoad(TNonOwnedChild child)
+{
+    if constexpr (ChildIsPointer) {
+        return TMaybeOwnedChild(child, TObjectPtrLoadTag());
+    } else {
+        return child;
+    }
+}
+
+template <class TNonOwnedChild>
+typename TMapNodeChildren<TNonOwnedChild>::TMaybeOwnedChild
+TMapNodeChildren<TNonOwnedChild>::Clone(const TMaybeOwnedChild& child)
+{
+    if constexpr (ChildIsPointer) {
+        return child.Clone();
+    } else {
+        return child;
+    }
+}
+
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::MaybeVerifyIsTrunk(TNonOwnedChild child)
+{
+    if constexpr (ChildIsPointer) {
+        YT_VERIFY(!child || child->IsTrunk());
+    }
+}
+
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 
     Save(context, KeyToChild_);
 }
 
-void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
@@ -818,15 +861,16 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
 
     // Reconstruct ChildToKey map.
     for (const auto& [key, childNode] : KeyToChild_) {
-        if (childNode) {
-            EmplaceOrCrash(ChildToKey_, TCypressNodePtr(childNode, TObjectPtrLoadTag()), key);
+        if (!IsNull(childNode)) {
+            EmplaceOrCrash(ChildToKey_, ToOwnedOnLoad(childNode), key);
         }
     }
 
     RecomputeMasterMemoryUsage();
 }
 
-void TMapNodeChildren::RecomputeMasterMemoryUsage()
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::RecomputeMasterMemoryUsage()
 {
     MasterMemoryUsage_ = 0;
     for (const auto& [key, childNode] : KeyToChild_) {
@@ -834,9 +878,10 @@ void TMapNodeChildren::RecomputeMasterMemoryUsage()
     }
 }
 
-void TMapNodeChildren::Set(const TString& key, TCypressNode* child)
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::Set(const TString& key, TNonOwnedChild child)
 {
-    YT_VERIFY(!child || child->IsTrunk());
+    MaybeVerifyIsTrunk(child);
 
     auto it = KeyToChild_.find(key);
     if (it == KeyToChild_.end()) {
@@ -854,9 +899,10 @@ void TMapNodeChildren::Set(const TString& key, TCypressNode* child)
     }
 }
 
-void TMapNodeChildren::Insert(const TString& key, TCypressNode* child)
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::Insert(const TString& key, TNonOwnedChild child)
 {
-    YT_VERIFY(!child || child->IsTrunk());
+    MaybeVerifyIsTrunk(child);
 
     YT_VERIFY(KeyToChild_.emplace(key, child).second);
     MasterMemoryUsage_ += std::ssize(key);
@@ -866,9 +912,10 @@ void TMapNodeChildren::Insert(const TString& key, TCypressNode* child)
     }
 }
 
-void TMapNodeChildren::Remove(const TString& key, TCypressNode* child)
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::Remove(const TString& key, TNonOwnedChild child)
 {
-    YT_VERIFY(!child || child->IsTrunk());
+    MaybeVerifyIsTrunk(child);
 
     auto it = KeyToChild_.find(key);
     YT_VERIFY(it != KeyToChild_.end());
@@ -880,37 +927,45 @@ void TMapNodeChildren::Remove(const TString& key, TCypressNode* child)
     }
 }
 
-bool TMapNodeChildren::Contains(const TString& key) const
+template <class TNonOwnedChild>
+bool TMapNodeChildren<TNonOwnedChild>::Contains(const TString& key) const
 {
     return KeyToChild_.find(key) != KeyToChild_.end();
 }
 
-const TMapNodeChildren::TKeyToChild& TMapNodeChildren::KeyToChild() const
+template <class TNonOwnedChild>
+const typename TMapNodeChildren<TNonOwnedChild>::TKeyToChild& TMapNodeChildren<TNonOwnedChild>::KeyToChild() const
 {
     return KeyToChild_;
 }
 
-const TMapNodeChildren::TChildToKey& TMapNodeChildren::ChildToKey() const
+template <class TNonOwnedChild>
+const typename TMapNodeChildren<TNonOwnedChild>::TChildToKey& TMapNodeChildren<TNonOwnedChild>::ChildToKey() const
 {
     return ChildToKey_;
 }
 
-int TMapNodeChildren::GetRefCount() const noexcept
+template <class TNonOwnedChild>
+int TMapNodeChildren<TNonOwnedChild>::GetRefCount() const noexcept
 {
     return RefCount_;
 }
 
-void TMapNodeChildren::Ref() noexcept
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::Ref() noexcept
 {
     ++RefCount_;
 }
 
-void TMapNodeChildren::Unref() noexcept
+template <class TNonOwnedChild>
+void TMapNodeChildren<TNonOwnedChild>::Unref() noexcept
 {
     YT_VERIFY(--RefCount_ >= 0);
 }
 
-/*static*/ std::unique_ptr<TMapNodeChildren> TMapNodeChildren::Copy(TMapNodeChildren* srcChildren)
+template <class TNonOwnedChild>
+/*static*/ std::unique_ptr<TMapNodeChildren<TNonOwnedChild>> TMapNodeChildren<TNonOwnedChild>::Copy(
+    TMapNodeChildren* srcChildren)
 {
     YT_VERIFY(srcChildren->GetRefCount() != 0);
 
@@ -920,7 +975,7 @@ void TMapNodeChildren::Unref() noexcept
     // NB: the order of refs here is non-deterministic but this should not be a problem.
     dstChildren->ChildToKey_.reserve(srcChildren->ChildToKey_.size());
     for (const auto& [child, key] : srcChildren->ChildToKey_) {
-        dstChildren->ChildToKey_.emplace(child.Clone(), key);
+        dstChildren->ChildToKey_.emplace(Clone(child), key);
     }
 
     dstChildren->RecomputeMasterMemoryUsage();
@@ -928,29 +983,37 @@ void TMapNodeChildren::Unref() noexcept
     return dstChildren;
 }
 
+template class TMapNodeChildren<TCypressNode*>;
+template class TMapNodeChildren<TNodeId>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
+template <class TChild>
+const typename TMapNodeImpl<TChild>::TKeyToChild& TMapNodeImpl<TChild>::KeyToChild() const
 {
     return Children_.Get().KeyToChild();
 }
 
-const TMapNode::TChildToKey& TMapNode::ChildToKey() const
+template <class TChild>
+const typename TMapNodeImpl<TChild>::TChildToKey& TMapNodeImpl<TChild>::ChildToKey() const
 {
     return Children_.Get().ChildToKey();
 }
 
-TMapNodeChildren& TMapNode::MutableChildren()
+template <class TChild>
+typename TMapNodeImpl<TChild>::TChildren& TMapNodeImpl<TChild>::MutableChildren()
 {
     return Children_.MutableGet();
 }
 
-ENodeType TMapNode::GetNodeType() const
+template <class TChild>
+ENodeType TMapNodeImpl<TChild>::GetNodeType() const
 {
     return ENodeType::Map;
 }
 
-void TMapNode::Save(NCellMaster::TSaveContext& context) const
+template <class TChild>
+void TMapNodeImpl<TChild>::Save(NCellMaster::TSaveContext& context) const
 {
     TCompositeNodeBase::Save(context);
 
@@ -959,7 +1022,8 @@ void TMapNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Children_);
 }
 
-void TMapNode::Load(NCellMaster::TLoadContext& context)
+template <class TChild>
+void TMapNodeImpl<TChild>::Load(NCellMaster::TLoadContext& context)
 {
     TCompositeNodeBase::Load(context);
 
@@ -969,44 +1033,73 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Children_);
 }
 
-int TMapNode::GetGCWeight() const
+template <class TChild>
+int TMapNodeImpl<TChild>::GetGCWeight() const
 {
-    return TObject::GetGCWeight() + KeyToChild().size();
+    if constexpr (TChildren::ChildIsPointer) {
+        return TObject::GetGCWeight() + KeyToChild().size();
+    } else {
+        return TCompositeNodeBase::GetGCWeight();
+    }
 }
 
-TDetailedMasterMemory TMapNode::GetDetailedMasterMemoryUsage() const
+template <class TChild>
+TDetailedMasterMemory TMapNodeImpl<TChild>::GetDetailedMasterMemoryUsage() const
 {
     auto result = TCompositeNodeBase::GetDetailedMasterMemoryUsage();
     result[EMasterMemoryType::Nodes] += Children_.Get().GetMasterMemoryUsage();
     return result;
 }
 
-void TMapNode::AssignChildren(const TObjectPartCoWPtr<TMapNodeChildren>& children)
+template <class TChild>
+void TMapNodeImpl<TChild>::AssignChildren(const TObjectPartCoWPtr<TChildren>& children)
 {
     Children_.Assign(children);
 }
 
-uintptr_t TMapNode::GetMapNodeChildrenAddress() const
+template <class TChild>
+uintptr_t TMapNodeImpl<TChild>::GetMapNodeChildrenAddress() const
 {
     return reinterpret_cast<uintptr_t>(&Children_.Get());
 }
 
+template <class TChild>
+bool TMapNodeImpl<TChild>::IsNull(TChild child) noexcept
+{
+    return TChildren::IsNull(child);
+}
+
+template class TMapNodeImpl<TCypressNode*>;
+template class TMapNodeImpl<TNodeId>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
-EObjectType TMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
+EObjectType TCypressMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
 {
     return EObjectType::MapNode;
 }
 
 template <class TImpl>
-ENodeType TMapNodeTypeHandlerImpl<TImpl>::GetNodeType() const
+ENodeType TCypressMapNodeTypeHandlerImpl<TImpl>::GetNodeType() const
 {
     return ENodeType::Map;
 }
 
 template <class TImpl>
-void TMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* node)
+ICypressNodeProxyPtr TCypressMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
+    TImpl* trunkNode,
+    TTransaction* transaction)
+{
+    return New<TCypressMapNodeProxy>(
+        this->GetBootstrap(),
+        &this->Metadata_,
+        transaction,
+        trunkNode);
+}
+
+template <class TImpl>
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* node)
 {
     node->ChildCountDelta_ = 0;
     node->Children_.Reset();
@@ -1015,7 +1108,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* node)
 }
 
 template <class TImpl>
-void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBranch(
     const TImpl* originatingNode,
     TImpl* branchedNode,
     const TLockRequest& lockRequest)
@@ -1034,7 +1127,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
             THashMap<TString, TCypressNode*> keyToChildStorage;
             const auto& originatingNodeChildren = GetMapNodeChildMap(
                 cypressManager,
-                originatingNode->GetTrunkNode()->template As<TMapNode>(),
+                originatingNode->GetTrunkNode()->template As<TImpl>(),
                 originatingNode->GetTransaction(),
                 &keyToChildStorage);
 
@@ -1050,7 +1143,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
 }
 
 template <class TImpl>
-void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoMerge(
     TImpl* originatingNode,
     TImpl* branchedNode)
 {
@@ -1091,19 +1184,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
 }
 
 template <class TImpl>
-ICypressNodeProxyPtr TMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
-    TImpl* trunkNode,
-    TTransaction* transaction)
-{
-    return New<TMapNodeProxy>(
-        this->GetBootstrap(),
-        &this->Metadata_,
-        transaction,
-        trunkNode);
-}
-
-template <class TImpl>
-void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
     ICypressNodeFactory* factory,
@@ -1119,7 +1200,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
-        sourceNode->GetTrunkNode()->template As<TMapNode>(),
+        sourceNode->GetTrunkNode()->template As<TCypressMapNode>(),
         transaction,
         &keyToChildMapStorage);
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
@@ -1141,7 +1222,9 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
 }
 
 template <class TImpl>
-bool TMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode)
+bool TCypressMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
 {
     if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
         return true;
@@ -1155,7 +1238,7 @@ bool TMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(TImpl* originatingNo
 }
 
 template <class TImpl>
-void TMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
     TImpl* node,
     TBeginCopyContext* context)
 {
@@ -1181,7 +1264,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
 }
 
 template <class TImpl>
-void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
     TImpl* trunkNode,
     TEndCopyContext* context,
     ICypressNodeFactory* factory)
@@ -1208,10 +1291,120 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
 }
 
 // Explicit instantiations.
-template class TMapNodeTypeHandlerImpl<TMapNode>;
-template class TMapNodeTypeHandlerImpl<TPortalExitNode>;
-template class TMapNodeTypeHandlerImpl<TScionNode>;
-template class TMapNodeTypeHandlerImpl<NMaintenanceTrackerServer::TClusterProxyNode>;
+template class TCypressMapNodeTypeHandlerImpl<TCypressMapNode>;
+template class TCypressMapNodeTypeHandlerImpl<TPortalExitNode>;
+template class TCypressMapNodeTypeHandlerImpl<NMaintenanceTrackerServer::TClusterProxyNode>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+[[noreturn]] void ThrowCypressTransactionsInSequoiaNotImplemented()
+{
+    THROW_ERROR_EXCEPTION("Cypress transactions in Sequoia are not implemented yet");
+}
+
+[[noreturn]] void ThrowSequoiaNodeCloningNotImplemented()
+{
+    THROW_ERROR_EXCEPTION("Sequoia node cloning is not implemented yet");
+}
+
+} // namespace
+
+template <class TImpl>
+EObjectType TSequoiaMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
+{
+    return EObjectType::SequoiaMapNode;
+}
+
+template <class TImpl>
+ENodeType TSequoiaMapNodeTypeHandlerImpl<TImpl>::GetNodeType() const
+{
+    return ENodeType::Entity;
+}
+
+template <class TImpl>
+ICypressNodeProxyPtr TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
+    TImpl* trunkNode,
+    TTransaction* transaction)
+{
+    if (transaction) [[unlikely]] {
+        ThrowCypressTransactionsInSequoiaNotImplemented();
+    }
+
+    return New<TSequoiaMapNodeProxy>(
+        this->GetBootstrap(),
+        &this->Metadata_,
+        transaction,
+        trunkNode);
+}
+
+template <class TImpl>
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* trunkNode)
+{
+    trunkNode->ChildCountDelta_ = 0;
+    trunkNode->Children_.Reset();
+
+    TBase::DoDestroy(trunkNode);
+}
+
+
+template <class TImpl>
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoBranch(
+    const TImpl* /*originatingNode*/,
+    TImpl* /*branchedNode*/,
+    const TLockRequest& /*lockRequest*/)
+{
+    ThrowCypressTransactionsInSequoiaNotImplemented();
+}
+
+template <class TImpl>
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoMerge(
+    TImpl* /*originatingNode*/,
+    TImpl* /*branchedNode*/)
+{
+    ThrowCypressTransactionsInSequoiaNotImplemented();
+}
+
+template <class TImpl>
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoClone(
+    TImpl* /*sourceNode*/,
+    TImpl* /*clonedTrunkNode*/,
+    ICypressNodeFactory* /*factory*/,
+    ENodeCloneMode /*mode*/,
+    TAccount* /*account*/)
+{
+    ThrowSequoiaNodeCloningNotImplemented();
+}
+
+template <class TImpl>
+bool TSequoiaMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
+    TImpl* /*originatingNode*/,
+    TImpl* /*branchedNode*/)
+{
+    ThrowCypressTransactionsInSequoiaNotImplemented();
+}
+
+template <class TImpl>
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
+    TImpl* /*node*/,
+    TBeginCopyContext* /*context*/)
+{
+    ThrowSequoiaNodeCloningNotImplemented();
+}
+
+template <class TImpl>
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
+    TImpl* /*trunkNode*/,
+    TEndCopyContext* /*context*/,
+    ICypressNodeFactory* /*factory*/)
+{
+    ThrowSequoiaNodeCloningNotImplemented();
+}
+
+// Explicit instantiations.
+template class TSequoiaMapNodeTypeHandlerImpl<TSequoiaMapNode>;
+template class TSequoiaMapNodeTypeHandlerImpl<TScionNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

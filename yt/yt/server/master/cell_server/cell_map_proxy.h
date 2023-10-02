@@ -20,7 +20,7 @@ NCypressServer::ICypressNodeProxyPtr CreateCellMapProxy(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::TObjectTypeMetadata* metadata,
     NTransactionServer::TTransaction* transaction,
-    NCypressServer::TMapNode* trunkNode,
+    NCypressServer::TCypressMapNode* trunkNode,
     NCellarClient::ECellarType cellarType);
 
 ////////////////////////////////////////////////////////////////////////////////

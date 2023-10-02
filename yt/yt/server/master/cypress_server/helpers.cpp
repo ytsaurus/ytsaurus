@@ -21,7 +21,7 @@ using namespace NSecurityServer;
 
 const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     TTransaction* transaction,
     THashMap<TString, TCypressNode*>* storage)
 {
@@ -36,7 +36,7 @@ const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
     storage->clear();
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
     for (const auto* node : originators) {
-        const auto* mapNode = node->As<TMapNode>();
+        const auto* mapNode = node->As<TCypressMapNode>();
         const auto& keyToChild = mapNode->KeyToChild();
 
         if (mapNode->GetLockMode() == ELockMode::None ||
@@ -63,7 +63,7 @@ const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
 
 std::vector<TCypressNode*> GetMapNodeChildList(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     TTransaction* transaction)
 {
     YT_ASSERT(trunkNode->IsTrunk());
@@ -91,7 +91,7 @@ const std::vector<TCypressNode*>& GetListNodeChildList(
 
 TCypressNode* FindMapNodeChild(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     TTransaction* transaction,
     TStringBuf key)
 {
@@ -99,7 +99,7 @@ TCypressNode* FindMapNodeChild(
 
     auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
     for (const auto* node : originators) {
-        const auto* mapNode = node->As<TMapNode>();
+        const auto* mapNode = node->As<TCypressMapNode>();
         auto it = mapNode->KeyToChild().find(key);
         if (it != mapNode->KeyToChild().end()) {
             return it->second;
@@ -114,7 +114,7 @@ TCypressNode* FindMapNodeChild(
 
 TCypressNode* GetMapNodeChildOrThrow(
     const ICypressManagerPtr& cypressManager,
-    TMapNode* trunkNode,
+    TCypressMapNode* trunkNode,
     TTransaction* transaction,
     TStringBuf key)
 {
@@ -132,7 +132,7 @@ TCypressNode* GetMapNodeChildOrThrow(
 }
 
 TStringBuf FindMapNodeChildKey(
-    TMapNode* parentNode,
+    TCypressMapNode* parentNode,
     TCypressNode* trunkChildNode)
 {
     YT_ASSERT(trunkChildNode->IsTrunk());
@@ -154,7 +154,7 @@ TStringBuf FindMapNodeChildKey(
         if (!originator) {
             break;
         }
-        currentParentNode = originator->As<TMapNode>();
+        currentParentNode = originator->As<TCypressMapNode>();
     }
 
     if (!key.data()) {
@@ -175,7 +175,7 @@ TStringBuf FindMapNodeChildKey(
         if (!originator) {
             break;
         }
-        currentParentNode = originator->As<TMapNode>();
+        currentParentNode = originator->As<TCypressMapNode>();
     }
 
     return key;
@@ -344,7 +344,7 @@ std::optional<TString> FindNodeKey(
 
         auto originators = cypressManager->GetNodeOriginators(transaction, parent);
         for (const auto* originator : originators) {
-            const auto* mapOriginator = originator->As<TMapNode>();
+            const auto* mapOriginator = originator->As<TCypressMapNode>();
             auto it = mapOriginator->ChildToKey().find(trunkNode);
             if (it != mapOriginator->ChildToKey().end()) {
                 return it->second;

@@ -11,6 +11,7 @@ DEFINE_ENUM(ESequoiaTable,
     (ResolveNode)
     (ChunkReplicas)
     (LocationReplicas)
+    (ReverseResolveNode)
 );
 
 namespace NRecords {
@@ -19,6 +20,7 @@ struct TChunkMetaExtensionsKey;
 struct TChunkMetaExtensions;
 
 struct TResolveNode;
+struct TReverseResolveNode;
 
 struct TChunkReplicas;
 struct TLocationReplicas;

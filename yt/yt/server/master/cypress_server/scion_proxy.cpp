@@ -16,13 +16,13 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TScionProxy
-    : public TMapNodeProxy
+    : public TSequoiaMapNodeProxy
 {
 public:
-    using TMapNodeProxy::TMapNodeProxy;
+    using TSequoiaMapNodeProxy::TSequoiaMapNodeProxy;
 
 private:
-    using TBase = TMapNodeProxy;
+    using TBase = TSequoiaMapNodeProxy;
 
     TScionNode* GetThisImpl()
     {
@@ -40,6 +40,11 @@ private:
     {
         const auto* node = GetThisImpl();
         switch (key) {
+            case EInternedAttributeKey::Type:
+                // NB: This attribute is overrided in `TSequoiaMapNodeProxy`.
+                BuildYsonFluently(consumer)
+                    .Value(EObjectType::Scion);
+                return true;
             case EInternedAttributeKey::RootstockId:
                 BuildYsonFluently(consumer)
                     .Value(node->GetRootstockId());

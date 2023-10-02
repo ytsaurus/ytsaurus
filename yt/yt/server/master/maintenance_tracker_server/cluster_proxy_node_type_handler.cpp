@@ -12,10 +12,10 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class TClusterProxyNodeTypeHandler
-    : public TMapNodeTypeHandlerImpl<TClusterProxyNode>
+    : public TCypressMapNodeTypeHandlerImpl<TClusterProxyNode>
 {
 public:
-    using TMapNodeTypeHandlerImpl::TMapNodeTypeHandlerImpl;
+    using TCypressMapNodeTypeHandlerImpl::TCypressMapNodeTypeHandlerImpl;
 
     EObjectType GetObjectType() const override
     {

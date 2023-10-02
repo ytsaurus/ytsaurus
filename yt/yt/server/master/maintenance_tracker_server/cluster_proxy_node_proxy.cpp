@@ -21,13 +21,13 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterProxyNodeProxy
-    : public TMapNodeProxy
+    : public TCypressMapNodeProxy
 {
 public:
-    using TMapNodeProxy::TMapNodeProxy;
+    using TCypressMapNodeProxy::TCypressMapNodeProxy;
 
 private:
-    using TBase = TMapNodeProxy;
+    using TBase = TCypressMapNodeProxy;
 
     TClusterProxyNode* GetThisImpl()
     {

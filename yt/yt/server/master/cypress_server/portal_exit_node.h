@@ -8,7 +8,7 @@ namespace NYT::NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortalExitNode
-    : public TMapNode
+    : public TCypressMapNode
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, RemovalStarted);
