@@ -56,8 +56,8 @@ struct TGpuMetricsIndex
         , MemoryTotal(Register("memory.total"))
         , PowerDraw(Register("power.draw"))
         , PowerLimit(Register("power.limit"))
-        , ClocksSm(Register("clocks.sm"))
-        , ClocksMaxSm(Register("clocks.max.sm"))
+        , ClocksSM(Register("clocks.sm"))
+        , ClocksMaxSM(Register("clocks.max.sm"))
     { }
 
     int Register(const TString& name)
@@ -82,8 +82,8 @@ struct TGpuMetricsIndex
     int MemoryTotal;
     int PowerDraw;
     int PowerLimit;
-    int ClocksSm;
-    int ClocksMaxSm;
+    int ClocksSM;
+    int ClocksMaxSM;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,8 +228,8 @@ void FromProto(TGpuInfo* gpuInfo, int index, const nvgpu::GpuDevice& device)
     gpuInfo->MemoryTotal = spec.memory_size_mb() * 1_MB;
     gpuInfo->PowerDraw = status.power();
     gpuInfo->PowerLimit = spec.power();
-    gpuInfo->SmUtilizationRate = std::max(0.0, static_cast<double>(status.sm_utilization())) / 100.0;
-    gpuInfo->SmOccupancyRate = std::max(0.0, static_cast<double>(status.sm_occupancy())) / 100.0;
+    gpuInfo->SMUtilizationRate = std::max(0.0, static_cast<double>(status.sm_utilization())) / 100.0;
+    gpuInfo->SMOccupancyRate = std::max(0.0, static_cast<double>(status.sm_occupancy())) / 100.0;
     gpuInfo->Stuck = NYT::FromProto<NDetail::TCondition>(status.stuck());
 }
 
@@ -384,8 +384,8 @@ public:
             info.MemoryTotal = FromString<i64>(StripString(tokens[Index.MemoryTotal])) * 1_MB;
             info.PowerDraw = FromString<double>(StripString(tokens[Index.PowerDraw]));
             info.PowerLimit = FromString<double>(StripString(tokens[Index.PowerLimit]));
-            info.ClocksSm = FromString<i64>(StripString(tokens[Index.ClocksSm]));
-            info.ClocksMaxSm = FromString<i64>(StripString(tokens[Index.ClocksMaxSm]));
+            info.ClocksSM = FromString<i64>(StripString(tokens[Index.ClocksSM]));
+            info.ClocksMaxSM = FromString<i64>(StripString(tokens[Index.ClocksMaxSM]));
             result.emplace_back(std::move(info));
         }
 

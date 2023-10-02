@@ -154,8 +154,8 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
         EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(123_MB));
         EXPECT_EQ(gpuInfo.PowerDraw, 100);
         EXPECT_EQ(gpuInfo.PowerLimit, 123);
-        EXPECT_EQ(gpuInfo.SmUtilizationRate, 0.2);
-        EXPECT_EQ(gpuInfo.SmOccupancyRate, 0.1);
+        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.2);
+        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
         EXPECT_FALSE(gpuInfo.Stuck.Status);
     }
 
@@ -169,8 +169,8 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
         EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(234_MB));
         EXPECT_EQ(gpuInfo.PowerDraw, 200);
         EXPECT_EQ(gpuInfo.PowerLimit, 234);
-        EXPECT_EQ(gpuInfo.SmUtilizationRate, 0.25);
-        EXPECT_EQ(gpuInfo.SmOccupancyRate, 0.1);
+        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.25);
+        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
         EXPECT_TRUE(gpuInfo.Stuck.Status);
     }
 }

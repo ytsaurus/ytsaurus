@@ -110,8 +110,8 @@ void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo)
     writer->AddGauge("/memory_limit", gpuInfo.MemoryTotal);
     writer->AddGauge("/power_used", gpuInfo.PowerDraw);
     writer->AddGauge("/power_limit", gpuInfo.PowerLimit);
-    writer->AddGauge("/sm_utilization_rate", gpuInfo.SmUtilizationRate);
-    writer->AddGauge("/sm_occupancy_rate", gpuInfo.SmOccupancyRate);
+    writer->AddGauge("/sm_utilization_rate", gpuInfo.SMUtilizationRate);
+    writer->AddGauge("/sm_occupancy_rate", gpuInfo.SMOccupancyRate);
     writer->AddGauge("/stuck", static_cast<double>(gpuInfo.Stuck.Status));
 }
 

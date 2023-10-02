@@ -40,10 +40,10 @@ struct TGpuInfo
     i64 MemoryTotal = 0;
     double PowerDraw = 0.0;
     double PowerLimit = 0.0;
-    i64 ClocksSm = 0;
-    i64 ClocksMaxSm = 0;
-    double SmUtilizationRate = 0.0;
-    double SmOccupancyRate = 0.0;
+    i64 ClocksSM = 0;
+    i64 ClocksMaxSM = 0;
+    double SMUtilizationRate = 0.0;
+    double SMOccupancyRate = 0.0;
     NDetail::TCondition Stuck;
 };
 
