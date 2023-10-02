@@ -98,26 +98,7 @@ private:
 
                     // TODO(pogorelov): Move to BuildJobControllerInfo
                     fluent
-                        .Item("gpu_utilization").DoMapFor(
-                            execNodeBootstrap->GetGpuManager()->GetGpuInfoMap(),
-                            [&] (TFluentMap fluent, const auto& pair) {
-                                const auto& [_, gpuInfo] = pair;
-                                fluent.Item(ToString(gpuInfo.Index))
-                                    .BeginMap()
-                                        .Item("update_time").Value(gpuInfo.UpdateTime)
-                                        .Item("utilization_gpu_rate").Value(gpuInfo.UtilizationGpuRate)
-                                        .Item("utilization_memory_rate").Value(gpuInfo.UtilizationMemoryRate)
-                                        .Item("memory_used").Value(gpuInfo.MemoryUsed)
-                                        .Item("memory_limit").Value(gpuInfo.MemoryTotal)
-                                        .Item("power_used").Value(gpuInfo.PowerDraw)
-                                        .Item("power_limit").Value(gpuInfo.PowerLimit)
-                                        .Item("clocks_sm_used").Value(gpuInfo.ClocksSm)
-                                        .Item("clocks_sm_limit").Value(gpuInfo.ClocksMaxSm)
-                                        .Item("sm_utilization_rate").Value(gpuInfo.SMUtilizationRate)
-                                        .Item("sm_occupancy_rate").Value(gpuInfo.SMOccupancyRate)
-                                        .Item("stuck").Value(gpuInfo.Stuck.Status)
-                                    .EndMap();
-                            })
+                        .Item("gpu_utilization").Value(execNodeBootstrap->GetGpuManager()->GetGpuInfoMap())
                         .Item("slot_manager").DoMap(std::bind(
                             &NExecNode::TSlotManager::BuildOrchidYson,
                             Bootstrap_->GetExecNodeBootstrap()->GetSlotManager(),

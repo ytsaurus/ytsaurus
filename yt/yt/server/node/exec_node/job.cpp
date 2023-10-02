@@ -258,9 +258,7 @@ void TJob::DoStart()
 
             if (NeedGpu()) {
                 for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
-                    GpuStatistics_.push_back(TGpuStatistics{
-                        .LastUpdateTime = now
-                    });
+                    GpuStatistics_.emplace_back(TGpuStatistics{}, /*lastUpdateTime*/ now);
                 }
             }
 
@@ -2793,24 +2791,14 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    i64 totalCumulativeUtilizationGpu = 0;
-    i64 totalCumulativeUtilizationMemory = 0;
-    i64 totalCumulativeMemory = 0;
-    i64 totalCumulativeMemoryMBSec = 0;
-    i64 totalCumulativeLoad = 0;
-    i64 totalCumulativeUtilizationPower = 0;
-    i64 totalCumulativePower = 0;
-    i64 totalMaxMemoryUsed = 0;
-    i64 totalMemoryTotal = 0;
-    i64 totalCumulativeSMUtilization = 0;
-    i64 totalCumulativeSMOccupancy = 0;
-    i64 aggregateMaxStuckDuration = 0;
+    TGpuStatistics aggregatedGpuStatistics;
+    i64 totalGpuMemory = 0;
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
         const auto& gpuSlot = GpuSlots_[index];
         auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
-        auto& slotStatistics = GpuStatistics_[index];
+        auto& [slotStatistics, slotStatisticsLastUpdateTime] = GpuStatistics_[index];
 
         TGpuInfo gpuInfo;
         {
@@ -2821,7 +2809,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
             gpuInfo = it->second;
         }
 
-        auto period = gpuInfo.UpdateTime - slotStatistics.LastUpdateTime;
+        auto period = gpuInfo.UpdateTime - slotStatisticsLastUpdateTime;
         slotStatistics.CumulativeUtilizationGpu += period.MilliSeconds() * gpuInfo.UtilizationGpuRate;
         if (gpuInfo.UtilizationGpuRate > 0) {
             slotStatistics.CumulativeLoad += period.MilliSeconds();
@@ -2833,42 +2821,51 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         slotStatistics.CumulativePower += period.MilliSeconds() * gpuInfo.PowerDraw;
         slotStatistics.CumulativeUtilizationClocksSm += period.MilliSeconds() *
             (static_cast<double>(gpuInfo.ClocksSm) / gpuInfo.ClocksMaxSm);
-        slotStatistics.CumulativeSMUtilization += period.MilliSeconds() * gpuInfo.SMUtilizationRate;
-        slotStatistics.CumulativeSMOccupancy += period.MilliSeconds() * gpuInfo.SMOccupancyRate;
+        slotStatistics.CumulativeSmUtilization += period.MilliSeconds() * gpuInfo.SmUtilizationRate;
+        slotStatistics.CumulativeSmOccupancy += period.MilliSeconds() * gpuInfo.SmOccupancyRate;
         slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
         if (gpuInfo.Stuck.Status && gpuInfo.Stuck.LastTransitionTime) {
             slotStatistics.MaxStuckDuration = std::max(
                 slotStatistics.MaxStuckDuration,
                 static_cast<i64>((gpuInfo.UpdateTime - *gpuInfo.Stuck.LastTransitionTime).MilliSeconds()));
         }
-        slotStatistics.LastUpdateTime = gpuInfo.UpdateTime;
 
-        totalCumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
-        totalCumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
-        totalCumulativeMemory += slotStatistics.CumulativeMemory;
-        totalCumulativeMemoryMBSec += slotStatistics.CumulativeMemoryMBSec;
-        totalCumulativeLoad += slotStatistics.CumulativeLoad;
-        totalCumulativeUtilizationPower += slotStatistics.CumulativeUtilizationPower;
-        totalCumulativePower += slotStatistics.CumulativePower;
-        totalCumulativeSMUtilization += slotStatistics.CumulativeSMUtilization;
-        totalCumulativeSMOccupancy += slotStatistics.CumulativeSMOccupancy;
-        totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
-        totalMemoryTotal += gpuInfo.MemoryTotal;
-        aggregateMaxStuckDuration = std::max(aggregateMaxStuckDuration, slotStatistics.MaxStuckDuration);
+        slotStatisticsLastUpdateTime = gpuInfo.UpdateTime;
+
+        YT_LOG_DEBUG("Updated job GPU slot statistics (GpuInfo: %v, SlotStatistics: %v)",
+            gpuInfo,
+            slotStatistics);
+
+        aggregatedGpuStatistics.CumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
+        aggregatedGpuStatistics.CumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
+        aggregatedGpuStatistics.CumulativeMemory += slotStatistics.CumulativeMemory;
+        aggregatedGpuStatistics.CumulativeMemoryMBSec += slotStatistics.CumulativeMemoryMBSec;
+        aggregatedGpuStatistics.CumulativeLoad += slotStatistics.CumulativeLoad;
+        aggregatedGpuStatistics.CumulativeUtilizationPower += slotStatistics.CumulativeUtilizationPower;
+        aggregatedGpuStatistics.CumulativePower += slotStatistics.CumulativePower;
+        aggregatedGpuStatistics.CumulativeSmUtilization += slotStatistics.CumulativeSmUtilization;
+        aggregatedGpuStatistics.CumulativeSmOccupancy += slotStatistics.CumulativeSmOccupancy;
+        aggregatedGpuStatistics.MaxMemoryUsed += slotStatistics.MaxMemoryUsed;
+        aggregatedGpuStatistics.MaxStuckDuration = std::max(aggregatedGpuStatistics.MaxStuckDuration, slotStatistics.MaxStuckDuration);
+        totalGpuMemory += gpuInfo.MemoryTotal;
     }
 
-    statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", totalCumulativeUtilizationGpu);
-    statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", totalCumulativeUtilizationMemory);
-    statistics->AddSample("/user_job/gpu/cumulative_utilization_power", totalCumulativeUtilizationPower);
-    statistics->AddSample("/user_job/gpu/cumulative_memory", totalCumulativeMemory);
-    statistics->AddSample("/user_job/gpu/cumulative_memory_mb_sec", totalCumulativeMemoryMBSec);
-    statistics->AddSample("/user_job/gpu/cumulative_power", totalCumulativePower);
-    statistics->AddSample("/user_job/gpu/cumulative_load", totalCumulativeLoad);
-    statistics->AddSample("/user_job/gpu/max_memory_used", totalMaxMemoryUsed);
-    statistics->AddSample("/user_job/gpu/memory_total", totalMemoryTotal);
-    statistics->AddSample("/user_job/gpu/cumulative_sm_utilization", totalCumulativeSMUtilization);
-    statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy", totalCumulativeSMOccupancy);
-    statistics->AddSample("/user_job/gpu/max_stuck_duration", aggregateMaxStuckDuration);
+    YT_LOG_DEBUG("Updated job aggregate GPU statistics (AggregateGpuStatistics: %v, TotalGpuMemory: %v)",
+        aggregatedGpuStatistics,
+        totalGpuMemory);
+
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", aggregatedGpuStatistics.CumulativeUtilizationGpu);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", aggregatedGpuStatistics.CumulativeUtilizationMemory);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_power", aggregatedGpuStatistics.CumulativeUtilizationPower);
+    statistics->AddSample("/user_job/gpu/cumulative_memory", aggregatedGpuStatistics.CumulativeMemory);
+    statistics->AddSample("/user_job/gpu/cumulative_memory_mb_sec", aggregatedGpuStatistics.CumulativeMemoryMBSec);
+    statistics->AddSample("/user_job/gpu/cumulative_power", aggregatedGpuStatistics.CumulativePower);
+    statistics->AddSample("/user_job/gpu/cumulative_load", aggregatedGpuStatistics.CumulativeLoad);
+    statistics->AddSample("/user_job/gpu/max_memory_used", aggregatedGpuStatistics.MaxMemoryUsed);
+    statistics->AddSample("/user_job/gpu/cumulative_sm_utilization", aggregatedGpuStatistics.CumulativeSmUtilization);
+    statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy", aggregatedGpuStatistics.CumulativeSmOccupancy);
+    statistics->AddSample("/user_job/gpu/max_stuck_duration", aggregatedGpuStatistics.MaxStuckDuration);
+    statistics->AddSample("/user_job/gpu/memory_total", totalGpuMemory);
 }
 
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
@@ -3193,8 +3190,8 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
                 ? 0.0
                 : gpuInfo.PowerDraw / gpuInfo.PowerLimit);
         profileSensorIfNeeded(PowerName, gpuInfo.PowerDraw);
-        profileSensorIfNeeded(SMUtilizationName, gpuInfo.SMUtilizationRate);
-        profileSensorIfNeeded(SMOccupancyName, gpuInfo.SMOccupancyRate);
+        profileSensorIfNeeded(SMUtilizationName, gpuInfo.SmUtilizationRate);
+        profileSensorIfNeeded(SMOccupancyName, gpuInfo.SmOccupancyRate);
         profileSensorIfNeeded(StuckName, static_cast<double>(gpuInfo.Stuck.Status));
     }
 }

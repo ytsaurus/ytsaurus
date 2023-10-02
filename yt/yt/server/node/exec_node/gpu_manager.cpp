@@ -76,6 +76,30 @@ TGpuSlot::~TGpuSlot()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistics, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "{CumulativeUtilizationGpu: %v, CumulativeUtilizationMemory: %v, "
+        "CumulativeMemory: %v, CumulativeMemoryMBSec: %v, "
+        "MaxMemoryUsed: %v, CumulativeLoad: %v, CumulativeUtilizationPower: %v, CumulativePower: %v, "
+        "CumulativeUtilizationClocksSm: %v, CumulativeSMUtilization: %v, "
+        "CumulativeSMOccupancy: %v, MaxStuckDuration: %v}",
+        gpuStatistics.CumulativeUtilizationGpu,
+        gpuStatistics.CumulativeUtilizationMemory,
+        gpuStatistics.CumulativeMemory,
+        gpuStatistics.CumulativeMemoryMBSec,
+        gpuStatistics.MaxMemoryUsed,
+        gpuStatistics.CumulativeLoad,
+        gpuStatistics.CumulativeUtilizationPower,
+        gpuStatistics.CumulativePower,
+        gpuStatistics.CumulativeUtilizationClocksSm,
+        gpuStatistics.CumulativeSmUtilization,
+        gpuStatistics.CumulativeSmOccupancy,
+        gpuStatistics.MaxStuckDuration);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGpuManager::TGpuManager(
     IBootstrap* bootstrap,
     TGpuManagerConfigPtr config)
