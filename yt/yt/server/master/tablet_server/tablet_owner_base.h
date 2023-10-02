@@ -123,7 +123,8 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys) const;
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts) const;
 
     void LockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
     void UnlockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);

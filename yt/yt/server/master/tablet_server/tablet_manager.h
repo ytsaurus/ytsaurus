@@ -72,6 +72,7 @@ public:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts,
         bool create = false);
 
     void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
@@ -116,14 +117,15 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys);
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts);
 
     void CloneTabletOwner(
         TTabletOwnerBase* sourceNode,
         TTabletOwnerBase* clonedNode,
         NCypressServer::ENodeCloneMode mode);
 
-    void MakeTableDynamic(NTableServer::TTableNode* table);
+    void MakeTableDynamic(NTableServer::TTableNode* table, i64 trimmedRowCount = 0);
     void MakeTableStatic(NTableServer::TTableNode* table);
 
     void AlterTableReplica(

@@ -131,6 +131,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
     auto enableStripedErasure = combinedAttributes->GetAndRemove<bool>("use_striped_erasure", false);
     auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
+    auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
 
     ValidateReplicationFactor(replicationFactor);
 
@@ -181,6 +182,28 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     if (replicationProgress && !IsChaosTableReplicaType(TypeFromId(upstreamReplicaId))) {
         THROW_ERROR_EXCEPTION("Replication progress can only be initialized for tables bound for chaos replication");
+    }
+
+    if (!trimmedRowCounts.empty()) {
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("\"trimmed_row_counts\" can only be provided for dynamic tables");
+        }
+        if (log) {
+            THROW_ERROR_EXCEPTION("\"trimmed_row_counts\" cannot not be provided for table of type %Qlv",
+                type);
+        }
+        if (effectiveTableSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("\"trimmed_row_counts\" can only be set for ordered tables");
+        }
+        if (!optionalTabletCount) {
+            THROW_ERROR_EXCEPTION("\"trimmed_row_counts\" cannot be specified without \"tablet_count\"");
+        }
+        if (ssize(trimmedRowCounts) != *optionalTabletCount) {
+            THROW_ERROR_EXCEPTION("\"trimmed_row_counts\" has invalid size: expected %v or %v, got %v",
+                0,
+                *optionalTabletCount,
+                ssize(trimmedRowCounts));
+        }
     }
 
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
@@ -271,7 +294,15 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 tabletManager->ValidateMakeTableDynamic(node);
             }
 
-            tabletManager->MakeTableDynamic(node);
+            tabletManager->MakeTableDynamic(
+                node,
+                trimmedRowCounts.empty() ? 0 : trimmedRowCounts[0]);
+
+            std::vector<i64> adjustedTrimmedRowCounts;
+            if (!trimmedRowCounts.empty()) {
+                adjustedTrimmedRowCounts = std::move(trimmedRowCounts);
+                adjustedTrimmedRowCounts.erase(adjustedTrimmedRowCounts.begin());
+            }
 
             if (node->IsTrackedQueueObject()) {
                 tableManager->RegisterQueue(node);
@@ -283,17 +314,42 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             if (node->IsNative()) {
                 if (optionalTabletCount) {
-                    tabletManager->PrepareReshard(node, 0, 0, *optionalTabletCount, {}, true);
+                    tabletManager->PrepareReshard(
+                        node,
+                        /*firstTabletIndex*/ 0,
+                        /*lastTabletIndex*/ 0,
+                        *optionalTabletCount,
+                        /*pivotKeys*/ {},
+                        adjustedTrimmedRowCounts,
+                        /*create*/ true);
                 } else if (optionalPivotKeys) {
-                    tabletManager->PrepareReshard(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys, true);
+                    tabletManager->PrepareReshard(
+                        node,
+                        /*firstTabletIndex*/ 0,
+                        /*lastTabletIndex*/ 0,
+                        optionalPivotKeys->size(),
+                        *optionalPivotKeys,
+                        adjustedTrimmedRowCounts,
+                        /*create*/ true);
                 }
             }
 
             if (!node->IsExternal()) {
                 if (optionalTabletCount) {
-                    tabletManager->Reshard(node, 0, 0, *optionalTabletCount, {});
+                    tabletManager->Reshard(
+                        node,
+                        /*firstTabletIndex*/ 0,
+                        /*lastTabletIndex*/ 0,
+                        *optionalTabletCount,
+                        /*pivotKeys*/ {},
+                        adjustedTrimmedRowCounts);
                 } else if (optionalPivotKeys) {
-                    tabletManager->Reshard(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys);
+                    tabletManager->Reshard(node,
+                        /*firstTabletIndex*/ 0,
+                        /*lastTabletIndex*/ 0,
+                        optionalPivotKeys->size(),
+                        *optionalPivotKeys,
+                        adjustedTrimmedRowCounts);
                 }
             }
 

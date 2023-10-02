@@ -94,13 +94,15 @@ protected:
                 /*lastTabletIndex*/ -1,
                 /*newTabletCount*/ tabletCount,
                 /*pivotKeys*/ {},
+                /*trimmedRowCounts*/ {},
                 /*create*/ true);
             tabletManager->Reshard(
                 node,
                 /*firstTabletIndex*/ -1,
                 /*lastTabletIndex*/ -1,
                 /*newTabletCount*/ tabletCount,
-                /*pivotKeys*/ {});
+                /*pivotKeys*/ {},
+                /*trimmedRowCounts*/ {});
         } catch (const std::exception&) {
             this->Destroy(node);
             throw;

@@ -89,6 +89,7 @@ message TReqReshard
     repeated bytes pivot_keys = 3;
     required int32 tablet_count = 4;
     required NYT.NProto.TGuid table_id = 5;
+    repeated int64 trimmed_row_counts = 6;
 }
 
 message TRspReshard

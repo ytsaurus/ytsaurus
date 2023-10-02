@@ -1320,6 +1320,7 @@ public:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts,
         bool create = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1330,7 +1331,8 @@ public:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
-            pivotKeys);
+            pivotKeys,
+            trimmedRowCounts);
 
         if (!create && !table->IsForeign()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1395,7 +1397,8 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TLegacyOwningKey>& pivotKeys)
+        const std::vector<TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts)
     {
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -1407,7 +1410,8 @@ public:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
-            pivotKeys);
+            pivotKeys,
+            trimmedRowCounts);
 
         UpdateTabletState(table);
     }
@@ -2125,7 +2129,7 @@ public:
         ValidateResourceUsageIncrease(table, TTabletResources().SetTabletCount(1));
     }
 
-    void MakeTableDynamic(TTableNode* table)
+    void MakeTableDynamic(TTableNode* table, i64 trimmedRowCount)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -2145,6 +2149,7 @@ public:
         if (table->IsSorted()) {
             tablet->SetPivotKey(EmptyKey());
         }
+        tablet->SetTrimmedRowCount(trimmedRowCount);
         table->MutableTablets() = {tablet};
         table->RecomputeTabletMasterMemoryUsage();
 
@@ -3262,13 +3267,15 @@ private:
                                 firstTabletIndex,
                                 lastTabletIndex,
                                 newTabletCount,
-                                action->PivotKeys());
+                                action->PivotKeys(),
+                                /*trimmedRowCounts*/ {});
                             newTabletCount = DoReshard(
                                 table,
                                 firstTabletIndex,
                                 lastTabletIndex,
                                 newTabletCount,
-                                action->PivotKeys());
+                                action->PivotKeys(),
+                                /*trimmedRowCounts*/ {});
                         } catch (const std::exception& ex) {
                             for (auto* tablet : oldTablets) {
                                 YT_VERIFY(IsObjectAlive(tablet));
@@ -4031,7 +4038,8 @@ private:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TLegacyOwningKey>& pivotKeys)
+        const std::vector<TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts)
     {
         if (IsTableType(table->GetType())) {
             return DoReshardTable(
@@ -4039,7 +4047,8 @@ private:
                 firstTabletIndex,
                 lastTabletIndex,
                 newTabletCount,
-                pivotKeys);
+                pivotKeys,
+                trimmedRowCounts);
         } else if (table->GetType() == EObjectType::HunkStorage) {
             return DoReshardHunkStorage(
                 table->As<THunkStorageNode>(),
@@ -4056,7 +4065,8 @@ private:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TLegacyOwningKey>& pivotKeys)
+        const std::vector<TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts)
     {
         if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
             ReshardTableImpl(
@@ -4064,7 +4074,8 @@ private:
                 firstTabletIndex,
                 lastTabletIndex,
                 newTabletCount,
-                pivotKeys);
+                pivotKeys,
+                trimmedRowCounts);
             return newTabletCount;
         } else {
             auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
@@ -4074,7 +4085,8 @@ private:
                 firstTabletIndex,
                 lastTabletIndex,
                 newTabletCount,
-                newPivotKeys);
+                newPivotKeys,
+                /*trimmedRowCounts*/ {});
             return newTabletCount;
         }
     }
@@ -4154,7 +4166,8 @@ private:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TLegacyOwningKey>& pivotKeys)
+        const std::vector<TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -4210,8 +4223,14 @@ private:
             auto* oldTablet = index < oldTabletCount ? tablets[index + firstTabletIndex]->As<TTablet>() : nullptr;
             if (table->IsSorted()) {
                 newTablet->SetPivotKey(pivotKeys[index]);
-            } else if (oldTablet) {
-                newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
+            } else {
+                if (oldTablet) {
+                    newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
+                } else if (!trimmedRowCounts.empty()) {
+                    int relativeIndex = index - oldTabletCount;
+                    YT_VERIFY(relativeIndex < ssize(trimmedRowCounts));
+                    newTablet->SetTrimmedRowCount(trimmedRowCounts[relativeIndex]);
+                }
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
@@ -6922,6 +6941,7 @@ void TTabletManager::PrepareReshard(
     int lastTabletIndex,
     int newTabletCount,
     const std::vector<TLegacyOwningKey>& pivotKeys,
+    const std::vector<i64>& trimmedRowCounts,
     bool create)
 {
     Impl_->PrepareReshard(
@@ -6930,6 +6950,7 @@ void TTabletManager::PrepareReshard(
         lastTabletIndex,
         newTabletCount,
         pivotKeys,
+        trimmedRowCounts,
         create);
 }
 
@@ -7015,14 +7036,16 @@ void TTabletManager::Reshard(
     int firstTabletIndex,
     int lastTabletIndex,
     int newTabletCount,
-    const std::vector<TLegacyOwningKey>& pivotKeys)
+    const std::vector<TLegacyOwningKey>& pivotKeys,
+    const std::vector<i64>& trimmedRowCounts)
 {
     Impl_->Reshard(
         table,
         firstTabletIndex,
         lastTabletIndex,
         newTabletCount,
-        pivotKeys);
+        pivotKeys,
+        trimmedRowCounts);
 }
 
 void TTabletManager::ValidateCloneTabletOwner(
@@ -7056,9 +7079,9 @@ void TTabletManager::CloneTabletOwner(
         mode);
 }
 
-void TTabletManager::MakeTableDynamic(TTableNode* table)
+void TTabletManager::MakeTableDynamic(TTableNode* table, i64 trimmedRowCount)
 {
-    Impl_->MakeTableDynamic(table);
+    Impl_->MakeTableDynamic(table, trimmedRowCount);
 }
 
 void TTabletManager::MakeTableStatic(TTableNode* table)
