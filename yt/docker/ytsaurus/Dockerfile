@@ -33,12 +33,15 @@ RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:deadsnakes/ppa
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  containerd \
   curl \
   less \
   gdb \
   lsof \
   strace \
   telnet \
+  tini \
+  zstd \
   dnsutils \
   iputils-ping \
   lsb-release \
