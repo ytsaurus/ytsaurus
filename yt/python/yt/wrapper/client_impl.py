@@ -1221,7 +1221,7 @@ class YtClient(ClientState):
             self,
             path,
             max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None,
-            cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None):
+            cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, suppress_upstream_sync=None):
         """
         Lists directory (map_node) content. Node type must be "map_node".
 
@@ -1245,7 +1245,8 @@ class YtClient(ClientState):
             path,
             client=self,
             max_size=max_size, format=format, absolute=absolute, attributes=attributes, sort=sort,
-            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
+            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,
+            suppress_upstream_sync=suppress_upstream_sync)
 
     def list_jobs(
             self,

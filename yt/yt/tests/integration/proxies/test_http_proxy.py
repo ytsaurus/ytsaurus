@@ -75,6 +75,9 @@ class HttpProxyTestBase(YTEnvSetup):
     def _get_build_snapshot_url(self):
         return self._get_proxy_address() + "/api/v4/build_snapshot"
 
+    def _get_master_exit_read_only_url(self):
+        return self._get_proxy_address() + "/api/v4/master_exit_read_only"
+
     def _get_master_address(self):
         return ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)[0]
 
@@ -859,6 +862,19 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
 
         return yson.loads(rsp.content)["snapshot_id"]
 
+    def _master_exit_read_only(self):
+        params = {
+            "retry": True,
+        }
+        headers = {
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
+        }
+
+        rsp = requests.post(self._get_master_exit_read_only_url(), headers=headers)
+        rsp.raise_for_status()
+
     def _build_snapshot_and_check(self, set_read_only):
         master = self._get_master_address()
 
@@ -894,6 +910,10 @@ class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
 
 
 class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
+    def _check_no_read_only(self):
+        monitoring = self._get_hydra_monitoring()
+        return "active" in monitoring and monitoring["active"] and not monitoring["read_only"]
+
     @authors("babenko")
     def test_read_only(self):
         self._build_snapshot_and_check(True)
@@ -901,7 +921,9 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        wait(lambda: self._get_hydra_monitoring().get("read_only", None))
+        self._master_exit_read_only()
+
+        wait(lambda: self._check_no_read_only())
 
     @authors("alexkolodezny")
     def test_read_only_proxy_availability(self):
@@ -915,4 +937,6 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        wait(lambda: self._get_hydra_monitoring().get("read_only", None))
+        self._master_exit_read_only()
+
+        wait(lambda: self._check_no_read_only())
