@@ -468,6 +468,10 @@ ru:
       to: /user-guide/storage/chunks.md
       type: redirect
 
+    - from: /description/storage/chunk_merger.md
+      to: /user-guide/data-processing/operations/chunk-merger.md
+      type: redirect
+
     - from: /description/storage/data_types.md
       to: /user-guide/storage/data-types.md
       type: redirect
