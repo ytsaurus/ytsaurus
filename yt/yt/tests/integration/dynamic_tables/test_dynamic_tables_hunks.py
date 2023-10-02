@@ -29,6 +29,15 @@ import builtins
 
 ################################################################################
 
+HUNK_COMPATIBLE_CHUNK_FORMATS = [
+    "table_versioned_simple",
+    "table_versioned_columnar",
+    "table_versioned_slim",
+    "table_versioned_indexed",
+]
+
+################################################################################
+
 
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 7
@@ -95,11 +104,13 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                               hunk_erasure_codec=hunk_erasure_codec)
 
     @authors("babenko")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_flush_inline(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in range(10)]
@@ -123,11 +134,13 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("babenko")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_flush_to_hunk_chunk(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in range(10)]
@@ -177,7 +190,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: not exists("#{}".format(store_chunk_id)) and not exists("#{}".format(hunk_chunk_id)))
 
     @authors("gritukan")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_flush_nulls_to_hunk_chunk(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
@@ -188,6 +201,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             {"name": "null_value", "type": "string", "max_inline_hunk_size": 20},
         ]
         self._create_table(chunk_format=chunk_format, hunk_erasure_codec=hunk_erasure_codec, schema=SCHEMA_WITH_NULL)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20, "null_value": yson.YsonEntity()} for i in range(10)]
@@ -203,13 +218,15 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         remove("//tmp/t")
 
     @authors("gritukan")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     def test_lookup_hunk_chunk_with_repair(self, chunk_format):
         self._separate_tablet_and_data_nodes()
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
 
         sync_create_cells(1)[0]
         self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3")
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in range(10)]
@@ -244,13 +261,15 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set_ban_for_parts([0, 1, 2, 4], False)
 
     @authors("gritukan")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("available", [False, True])
     def test_repair_erasure_hunk_chunk(self, chunk_format, available):
         self._separate_tablet_and_data_nodes()
 
         sync_create_cells(1)[0]
         self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3")
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in range(10)]
@@ -288,13 +307,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             assert hunk_chunk_id in ls("//sys/parity_missing_chunks")
 
     @authors("babenko")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_compaction(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, hunk_erasure_codec=hunk_erasure_codec)
         set("//tmp/t/@max_hunk_compaction_size", 1)
-
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         keys1 = [{"key": i} for i in range(10)]
@@ -513,11 +533,13 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
     @authors("babenko")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_compaction_writes_hunk_chunk(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, max_inline_hunk_size=1000, hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
@@ -565,13 +587,15 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert hunk_statistics["total_referenced_hunk_length"] == 260
 
     @authors("babenko")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_compaction_inlines_hunks(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format,
                            max_inline_hunk_size=10,
                            hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
@@ -618,11 +642,13 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert hunk_statistics["total_referenced_hunk_length"] == 0
 
     @authors("babenko")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_compaction_rewrites_hunk_chunk(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, max_inline_hunk_size=10, hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
@@ -766,12 +792,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: _check_account_resource_usage(0))
 
     @authors("gritukan")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_hunks_in_operation(self, chunk_format, hunk_type, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
         sync_mount_table("//tmp/t")
 
         if hunk_type == "inline":
@@ -796,7 +824,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t_out") == rows
 
     @authors("akozhikhov")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     def test_lookup_any_value_with_hunks(self, chunk_format):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -805,6 +833,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, schema=schema)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", self.ROWS_WITH_VARIOUS_ANY_VALUES)
@@ -840,7 +870,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t") == self.ROWS_WITH_VARIOUS_ANY_VALUES
 
     @authors("gritukan")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_hunks_in_operation_any_value(self, chunk_format, hunk_type, hunk_erasure_codec):
@@ -851,6 +881,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, schema=schema, hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
         sync_mount_table("//tmp/t")
 
         if hunk_type == "inline":
@@ -875,11 +907,13 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t_out") == rows
 
     @authors("babenko")
-    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
     def test_alter_to_hunks(self, chunk_format, hunk_erasure_codec):
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, max_inline_hunk_size=None, hunk_erasure_codec=hunk_erasure_codec)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows1)
