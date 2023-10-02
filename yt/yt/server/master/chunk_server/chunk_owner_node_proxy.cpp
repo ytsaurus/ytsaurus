@@ -1798,9 +1798,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     if (!replicateStartToCellTags.empty()) {
         for (auto dstCellTag : replicateStartToCellTags) {
-            auto externalizedTransactionId = node->IsExternal()
-                ? transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag})
-                : GetObjectId(Transaction_);
+            auto externalizedTransactionId =
+                transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag});
 
             NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
             ToProto(startRequest.mutable_id(), uploadTransactionId);
