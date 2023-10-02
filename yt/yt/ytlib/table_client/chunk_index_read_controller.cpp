@@ -2,6 +2,7 @@
 
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_column_mapping.h"
+#include "hunks.h"
 #include "versioned_block_reader.h"
 
 #include <yt/yt/client/table_client/comparator.h>
@@ -55,6 +56,7 @@ public:
             ChunkMeta_->HashTableChunkIndexMeta()->IndexedBlockFormatDetail.GetGroupCount())
         , GroupIndexesToRead_(
             ChunkMeta_->HashTableChunkIndexMeta()->IndexedBlockFormatDetail.GetGroupIndexesToRead(SchemaIdMapping_))
+        , HasHunkColumns_(ChunkMeta_->ChunkSchema()->HasHunkColumns())
         , TestingOptions_(std::move(testingOptions))
         , Logger(logger.WithTag("ChunkId: %v",
             ChunkId_))
@@ -303,6 +305,7 @@ private:
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
     const int GroupCount_;
     const std::vector<int> GroupIndexesToRead_;
+    const bool HasHunkColumns_;
     const std::optional<TChunkIndexReadControllerTestingOptions> TestingOptions_;
 
     const TLogger Logger;
@@ -491,6 +494,9 @@ private:
                 KeyComparer_) == 0)
         {
             request->State = EKeyRequestState::Finished;
+            if (HasHunkColumns_) {
+                GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
+            }
             Result_[requestIndex] = row;
         } else {
             request->CurrentSlotIndex = request->FormatDetail->GetNextSlotIndex(request->CurrentSlotIndex);
