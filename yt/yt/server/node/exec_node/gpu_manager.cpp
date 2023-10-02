@@ -82,7 +82,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         "{CumulativeUtilizationGpu: %v, CumulativeUtilizationMemory: %v, "
         "CumulativeMemory: %v, CumulativeMemoryMBSec: %v, "
         "MaxMemoryUsed: %v, CumulativeLoad: %v, CumulativeUtilizationPower: %v, CumulativePower: %v, "
-        "CumulativeUtilizationClocksSm: %v, CumulativeSMUtilization: %v, "
+        "CumulativeUtilizationClocksSM: %v, CumulativeSMUtilization: %v, "
         "CumulativeSMOccupancy: %v, MaxStuckDuration: %v}",
         gpuStatistics.CumulativeUtilizationGpu,
         gpuStatistics.CumulativeUtilizationMemory,
@@ -92,9 +92,9 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.CumulativeLoad,
         gpuStatistics.CumulativeUtilizationPower,
         gpuStatistics.CumulativePower,
-        gpuStatistics.CumulativeUtilizationClocksSm,
-        gpuStatistics.CumulativeSmUtilization,
-        gpuStatistics.CumulativeSmOccupancy,
+        gpuStatistics.CumulativeUtilizationClocksSM,
+        gpuStatistics.CumulativeSMUtilization,
+        gpuStatistics.CumulativeSMOccupancy,
         gpuStatistics.MaxStuckDuration);
 }
 
