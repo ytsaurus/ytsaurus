@@ -162,6 +162,7 @@ DEFINE_ENUM(EMasterReign,
     ((MulticellChunkReincarnator)                                   (2430))  // kvk1920
     ((CypressTransactionService)                                    (2431))  // h0pless
     ((SequoiaMapNode)                                               (2432))  // kvk1920
+    ((ConcatToSingleCellChunkOwner)                                 (2433))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

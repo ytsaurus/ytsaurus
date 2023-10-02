@@ -834,6 +834,24 @@ class TestConcatenateMulticell(TestConcatenate):
         abort_transaction(tx1)
         assert read_table("//tmp/t3") == [{"a": "b"}]
 
+    @authors("shakurov")
+    @pytest.mark.parametrize("attributes", [
+        {"src": {"external_cell_tag": 11}, "dst": {"external": False}},
+        {"src": {"external": False}, "dst": {"external_cell_tag": 11}},
+        {"src": {"external": False}, "dst": {"external": False}},
+        {"src": {"external_cell_tag": 11}, "dst": {"external": False}},
+    ])
+    def test_concatenate_externality(self, attributes):
+        create("table", "//tmp/t1", attributes=attributes["src"])
+        write_table("//tmp/t1", [{"a": "b"}])
+        create("table", "//tmp/t", attributes=attributes["dst"])
+
+        tx = start_transaction()
+        concatenate(["//tmp/t1"], "//tmp/t", tx=tx)
+        commit_transaction(tx)
+
+        assert read_table("//tmp/t") == [{"a": "b"}]
+
 
 class TestConcatenatePortal(TestConcatenateMulticell):
     ENABLE_TMP_PORTAL = True
