@@ -202,17 +202,21 @@ public:
         auto req = BaseHttpRequest_;                                                                    \
         request.Serialize(&req);                                                                        \
                                                                                                         \
-        PrepareHttpRequest(                                                                             \
-            &req,                                                                                       \
-            Config_->AccessKeyId,                                                                       \
-            Config_->SecretAccessKey);                                                                  \
+        return BIND([this, this_ = MakeStrong(this)](THttpRequest req) {                                \
+            PrepareHttpRequest(                                                                         \
+                &req,                                                                                   \
+                Config_->AccessKeyId,                                                                   \
+                Config_->SecretAccessKey);                                                              \
                                                                                                         \
-        auto response = WaitFor(Client_->MakeRequest(req))                                              \
-            .ValueOrThrow();                                                                            \
-        T ## Command ## Response rsp;                                                                   \
-        rsp.Deserialize(response);                                                                      \
-                                                                                                        \
-        return MakeFuture<T ## Command ## Response>(rsp);                                               \
+            return Client_->MakeRequest(std::move(req))                                                 \
+                .Apply(BIND([](const NHttp::IResponsePtr& response) {                                   \
+                    T ## Command ## Response rsp;                                                       \
+                    rsp.Deserialize(response);                                                          \
+                    return rsp;                                                                         \
+                }));                                                                                    \
+        })                                                                                              \
+            .AsyncVia(ExecutionInvoker_)                                                                \
+            .Run(std::move(req));                                                                       \
     }
 
     DEFINE_STRUCTURED_COMMAND(ListBuckets)

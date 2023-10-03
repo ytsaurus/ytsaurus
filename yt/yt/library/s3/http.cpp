@@ -250,14 +250,9 @@ private:
 
     const IInvokerPtr Invoker_;
 
-    TAsyncReaderWriterLock Lock_;
-
     NHttp::IResponsePtr DoMakeRequest(THttpRequest request)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
-            .ValueOrThrow();
 
         auto connection = WaitFor(Dialer_->Dial(Address_))
             .ValueOrThrow();
