@@ -423,8 +423,19 @@ class _ToolChainLatestMatchedResourceFetcher(_ToolChainFetcherImplBase):
             raise Exception('File {} is mandatory if auto update is disabled'.format(info_path))
         return None
 
+    def _compact_res_info(self, res):
+        # XXX 'links' field might be really huge
+        limit = 10
+
+        links = res.get('http', {}).get('links', [])
+        if len(links) > limit:
+            res = res.copy()
+            res['http'] = res['http'].copy()
+            res['http']['links'] = links[:limit] + ['<{} more links>'.format(len(links) - limit)]
+
+        return res
+
     def _find_resource(self):
-        resources = []
         failed_queries = []
         for sb_api_query in self._get_sb_api_queries():
             logger.debug('%s: lookup resources with query: %s', self._toolchain_name, sb_api_query)
@@ -432,7 +443,7 @@ class _ToolChainLatestMatchedResourceFetcher(_ToolChainFetcherImplBase):
             if resources:
                 assert len(resources) == 1
                 resource = resources[0]
-                logger.debug('%s: found resource: %s', self._toolchain_name, resource)
+                logger.debug('%s: found resource: %s', self._toolchain_name, self._compact_res_info(resource))
                 return resource
             failed_queries.append(json.dumps(sb_api_query))
         raise ResourceNotFound('{}: no resource is found. Sandbox queries made:\n{}'.format(self._toolchain_name, ',\n'.join(failed_queries)))
