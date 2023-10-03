@@ -42,8 +42,6 @@
 
 namespace NYT::NControllerAgent {
 
-using namespace NTracing;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TControllerTransactionIds
@@ -696,7 +694,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
     TOperation* operation,
-    TTraceContext* parentTraceContext = nullptr);
+    NTracing::TTraceContext* parentTraceContext = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

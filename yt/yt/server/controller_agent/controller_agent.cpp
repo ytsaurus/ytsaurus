@@ -588,9 +588,9 @@ public:
 
         auto parentTraceContext = TryGetCurrentTraceContext();
 
-        auto traceContext = CreateTraceContextFromCurrent("RegisterOperation");
-        auto traceContextGuard = TTraceContextGuard(traceContext);
-        traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+        auto traceContextGuard = CreateOperationTraceContextGuard(
+            "RegisterOperation",
+            operationId);
 
         {
             // TODO(pogorelov): Refactor operation creation.

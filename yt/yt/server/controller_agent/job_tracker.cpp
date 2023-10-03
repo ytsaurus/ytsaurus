@@ -277,9 +277,9 @@ public:
         if (auto jobIt = nodeJobs.Jobs.find(jobId);
             jobIt != std::end(nodeJobs.Jobs))
         {
-            auto traceContext = CreateTraceContextFromCurrent("JobTrackerJobOrchidService");
-            auto traceContextGuard = TTraceContextGuard(traceContext);
-            traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(jobIt->second.OperationId)}});
+            auto traceContextGuard = CreateOperationTraceContextGuard(
+                "JobTrackerJobOrchidService",
+                jobIt->second.OperationId);
 
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value(
@@ -292,9 +292,9 @@ public:
         } else if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
             jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
         {
-            auto traceContext = CreateTraceContextFromCurrent("JobTrackerJobOrchidService");
-            auto traceContextGuard = TTraceContextGuard(traceContext);
-            traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(jobToConfirmIt->second.OperationId)}});
+            auto traceContextGuard = CreateOperationTraceContextGuard(
+                "JobTrackerJobOrchidService",
+                jobToConfirmIt->second.OperationId);
 
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value("confirmation")
@@ -379,9 +379,9 @@ public:
 
         const auto& operationInfo = operationInfoIt->second;
 
-        auto traceContext = CreateTraceContextFromCurrent("JobTrackerOperationOrchidService");
-        auto traceContextGuard = TTraceContextGuard(traceContext);
-        traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+        auto traceContextGuard = CreateOperationTraceContextGuard(
+            "JobTrackerOperationOrchidService",
+            operationId);
 
         auto producer = TYsonProducer(BIND([
             jobsReady = operationInfo.JobsReady,
@@ -506,9 +506,9 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     for (auto& job : *request->mutable_jobs()) {
         auto operationId = FromProto<TOperationId>(job.operation_id());
 
-        auto traceContext = CreateTraceContextFromCurrent("ProcessHeartbeat");
-        auto traceContextGuard = TTraceContextGuard(traceContext);
-        traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+        auto traceContextGuard = CreateOperationTraceContextGuard(
+            "ProcessHeartbeat",
+            operationId);
 
         auto jobSummary = ParseJobSummary(&job, Logger);
         groupedJobSummaries[operationId].push_back(std::move(jobSummary));
@@ -928,9 +928,9 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
             "OperationId: %v",
             operationId);
 
-        auto traceContext = CreateTraceContextFromCurrent("ProcessJobSummaries");
-        traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
-        auto traceContextGuard = TCurrentTraceContextGuard(traceContext);
+        auto traceContextGuard = CreateOperationTraceContextGuard(
+            "ProcessJobSummaries",
+            operationId);
 
         auto operationIt = RegisteredOperations_.find(operationId);
         if (operationIt == std::end(RegisteredOperations_)) {
