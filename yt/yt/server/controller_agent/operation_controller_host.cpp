@@ -396,11 +396,6 @@ const TAsyncSemaphorePtr& TOperationControllerHost::GetCoreSemaphore()
     return Bootstrap_->GetControllerAgent()->GetCoreSemaphore();
 }
 
-TMemoryTagQueue* TOperationControllerHost::GetMemoryTagQueue()
-{
-    return Bootstrap_->GetControllerAgent()->GetMemoryTagQueue();
-}
-
 TJobProfiler* TOperationControllerHost::GetJobProfiler() const
 {
     return Bootstrap_->GetControllerAgent()->GetJobProfiler();

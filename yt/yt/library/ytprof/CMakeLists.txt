@@ -8,7 +8,6 @@
 
 add_subdirectory(api)
 add_subdirectory(http)
-add_subdirectory(memory_tag_compat)
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency

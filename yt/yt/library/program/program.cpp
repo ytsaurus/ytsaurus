@@ -361,7 +361,9 @@ void ConfigureAllocator(const TAllocatorOptions& options)
     }
 
     NProfiling::EnableTCMallocProfiler();
-    NYTProf::EnableMemoryProfilingTags();
+
+    NYTProf::EnableMemoryProfilingTags(options.SnapshotUpdatePeriod);
+
     absl::SetStackUnwinder(NYTProf::AbslStackUnwinder);
     // TODO(prime@): tune parameters.
     tcmalloc::MallocExtension::SetProfileSamplingRate(2_MB);

@@ -640,11 +640,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_operation_count", &TThis::MaxOperationCount)
         .Default(5000)
-        .GreaterThan(0)
-        // This value corresponds to the maximum possible number of memory tags.
-        // It should be changed simultaneously with values of all `MaxTagValue`
-        // across the code base.
-        .LessThan(MaxMemoryTag);
+        .GreaterThan(0);
 
     registrar.Parameter("operations_without_tentative_pool_trees", &TThis::OperationsWithoutTentativePoolTrees)
         .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});

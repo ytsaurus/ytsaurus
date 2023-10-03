@@ -953,9 +953,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("cached_running_jobs_update_period", &TThis::CachedRunningJobsUpdatePeriod)
         .Default();
 
-    registrar.Parameter("tagged_memory_statistics_update_period", &TThis::TaggedMemoryStatisticsUpdatePeriod)
-        .Default(TDuration::Seconds(5));
-
     registrar.Parameter("alerts_update_period", &TThis::AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
 

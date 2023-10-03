@@ -40,7 +40,6 @@ target_link_libraries(ytserver-all PUBLIC
   yt-server-timestamp_provider
   yt-server-tools
   yt-library-oom
-  library-ytprof-memory_tag_compat
 )
 target_link_options(ytserver-all PRIVATE
   -ldl

@@ -38,6 +38,7 @@ static const auto NodeHeartbeatProfiler = JobTrackerProfiler.WithPrefix("/node_h
 using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NNodeTrackerClient;
+using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
 
@@ -276,6 +277,10 @@ public:
         if (auto jobIt = nodeJobs.Jobs.find(jobId);
             jobIt != std::end(nodeJobs.Jobs))
         {
+            auto traceContextGuard = CreateOperationTraceContextGuard(
+                "JobTrackerJobOrchidService",
+                jobIt->second.OperationId);
+
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value(
                         JobTracker_->IsJobRunning(jobIt->second)
@@ -287,6 +292,10 @@ public:
         } else if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
             jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
         {
+            auto traceContextGuard = CreateOperationTraceContextGuard(
+                "JobTrackerJobOrchidService",
+                jobToConfirmIt->second.OperationId);
+
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value("confirmation")
                     .Item("operation_id").Value(jobToConfirmIt->second.OperationId)
@@ -369,6 +378,10 @@ public:
         }
 
         const auto& operationInfo = operationInfoIt->second;
+
+        auto traceContextGuard = CreateOperationTraceContextGuard(
+            "JobTrackerOperationOrchidService",
+            operationId);
 
         auto producer = TYsonProducer(BIND([
             jobsReady = operationInfo.JobsReady,
@@ -492,6 +505,11 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
     for (auto& job : *request->mutable_jobs()) {
         auto operationId = FromProto<TOperationId>(job.operation_id());
+
+        auto traceContextGuard = CreateOperationTraceContextGuard(
+            "ProcessHeartbeat",
+            operationId);
+
         auto jobSummary = ParseJobSummary(&job, Logger);
         groupedJobSummaries[operationId].push_back(std::move(jobSummary));
     }
@@ -908,6 +926,10 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
     for (auto& [operationId, jobSummaries] : heartbeatProcessingContext.Request.GroupedJobSummaries) {
         auto Logger = heartbeatProcessingLogger.WithTag(
             "OperationId: %v",
+            operationId);
+
+        auto traceContextGuard = CreateOperationTraceContextGuard(
+            "ProcessJobSummaries",
             operationId);
 
         auto operationIt = RegisteredOperations_.find(operationId);
@@ -2026,11 +2048,17 @@ TJobTrackerOperationHandler::TJobTrackerOperationHandler(
     : JobTracker_(jobTracker)
     , CancelableInvoker_(std::move(cancelableInvoker))
     , OperationId_(operationId)
-{ }
+    , TraceContext_(CreateTraceContextFromCurrent("JobTrackerOperationHandler"))
+    , TraceContextFinishGuard_(TraceContext_)
+{
+    TraceContext_->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+}
 
 void TJobTrackerOperationHandler::RegisterJob(TStartedJobInfo jobInfo)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
 
     CancelableInvoker_->Invoke(BIND(
         &TJobTracker::DoRegisterJob,
@@ -2043,6 +2071,8 @@ void TJobTrackerOperationHandler::ReviveJobs(std::vector<TStartedJobInfo> jobs)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
+
     CancelableInvoker_->Invoke(BIND(
         &TJobTracker::DoReviveJobs,
         MakeStrong(JobTracker_),
@@ -2053,6 +2083,8 @@ void TJobTrackerOperationHandler::ReviveJobs(std::vector<TStartedJobInfo> jobs)
 void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
 
     CancelableInvoker_->Invoke(BIND(
         &TJobTracker::DoReleaseJobs,
@@ -2066,6 +2098,8 @@ void TJobTrackerOperationHandler::RequestJobAbortion(
     EAbortReason reason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
 
     CancelableInvoker_->Invoke(BIND(
         &TJobTracker::RequestJobAbortion,
@@ -2082,6 +2116,8 @@ void TJobTrackerOperationHandler::RequestJobInterruption(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
+
     CancelableInvoker_->Invoke(BIND(
         &TJobTracker::RequestJobInterruption,
         MakeStrong(JobTracker_),
@@ -2094,6 +2130,8 @@ void TJobTrackerOperationHandler::RequestJobInterruption(
 void TJobTrackerOperationHandler::RequestJobFailure(TJobId jobId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
 
     CancelableInvoker_->Invoke(BIND(
         &TJobTracker::RequestJobFailure,

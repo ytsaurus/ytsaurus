@@ -38,8 +38,8 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
                     "use_columnar_statistics": True,
                 },
             },
-            "tagged_memory_statistics_update_period": 100,
         },
+        "heap_profiler_update_snapshot_period": 100,
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {
@@ -671,7 +671,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
             }
         )
 
-    @authors("max42")
+    @authors("max42", "ni-stoiko")
     def test_fetch_cancellation(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
         create("table", "//tmp/d")
@@ -706,10 +706,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
             op.track()
 
         def operation_disposed():
-            entry = get(controller_agent_orchid + "/tagged_memory_statistics/0")
-            if entry["operation_id"] != op.id:
-                return False
-            return not entry["alive"]
+            return not get(controller_agent_orchid + "/tagged_memory_statistics")
 
         wait(operation_disposed)
 
@@ -750,12 +747,12 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
                     "use_columnar_statistics": True,
                 },
             },
-            "tagged_memory_statistics_update_period": 100,
             "enable_columnar_statistics_early_finish": True,
             "fetcher": {
                 "node_rpc_timeout": 3000
             },
         },
+        "heap_profiler_update_snapshot_period": 100,
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {

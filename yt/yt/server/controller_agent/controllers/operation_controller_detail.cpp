@@ -88,13 +88,15 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
 
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
 
-#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+#include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/client/security_client/acl.h>
 
@@ -182,6 +184,7 @@ using namespace NVectorHdrf;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTAlloc;
+using namespace NYTProf;
 using namespace NYTree;
 
 using NYT::FromProto;
@@ -266,7 +269,6 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
     , JobSpecBuildInvoker_(Host->GetJobSpecBuildPoolInvoker())
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
-    , MemoryTag_(operation->GetMemoryTag())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
     , Options(std::move(options))
@@ -321,9 +323,13 @@ TOperationControllerBase::TOperationControllerBase(
         Config->UpdateAccountResourceUsageLeasesPeriod))
     , TotalJobCounter_(New<TProgressCounter>())
     , TestingAllocationSize_(
-        (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize)
-        ? *Spec_->TestingOperationOptions->AllocationSize
+        Spec_->TestingOperationOptions
+        ? Spec_->TestingOperationOptions->AllocationSize.value_or(0)
         : 0)
+    , KeepAllocationDelay_(
+        Spec_->TestingOperationOptions
+        ? Spec_->TestingOperationOptions->KeepAllocationDelay
+        : std::nullopt)
     , FastIntermediateMediumLimit_(std::min(
         Spec_->FastIntermediateMediumLimit,
         Config->FastIntermediateMediumLimit))
@@ -417,6 +423,54 @@ void TOperationControllerBase::SleepInInitialize()
     if (auto delay = Spec_->TestingOperationOptions->DelayInsideInitialize) {
         TDelayedExecutor::WaitForDuration(*delay);
     }
+}
+
+std::vector<TTestAllocGuard> TOperationControllerBase::TestHeap() const
+{
+    if (Spec_->TestingOperationOptions) {
+        auto Logger = ControllerLogger.WithTag("TestHeap");
+
+        constexpr i64 allocationPartSize = 1_MB;
+
+        std::vector<TTestAllocGuard> testHeap;
+
+        std::function<void()> incrementer = [
+                operationId = ToString(OperationId),
+                Logger = Logger,
+                this_ = MakeStrong(this)
+            ] () mutable {
+            auto size = this_->TestingAllocationSize_.fetch_add(allocationPartSize);
+            YT_LOG_DEBUG("TestingAllocationSize was incremented (OperationId: %v, TestingAllocationSize: %v)",
+                operationId,
+                size + allocationPartSize);
+        };
+
+        std::function<void()> decrementer = [
+            OperationId = ToString(OperationId),
+            Logger = Logger,
+            this_ = MakeStrong(this)] () mutable {
+            auto size = this_->TestingAllocationSize_.fetch_sub(allocationPartSize);
+            YT_LOG_DEBUG("TestingAllocationSize was decremented (OperationId: %v, TestingAllocationSize: %v)",
+                OperationId,
+                size - allocationPartSize);
+        };
+
+        while (TestingAllocationSize_ > 0) {
+            testHeap.emplace_back(
+                allocationPartSize,
+                decrementer,
+                incrementer,
+                KeepAllocationDelay_.value_or(TDuration::Zero()),
+                GetInvoker());
+        }
+
+        YT_LOG_DEBUG("TestHeap allocation is finished (OperationId: %v, MemoryUsage: %v)",
+            OperationId,
+            GetMemoryUsage());
+        return testHeap;
+    }
+
+    return {};
 }
 
 void TOperationControllerBase::InitializeClients()
@@ -8437,7 +8491,7 @@ i64 TOperationControllerBase::GetMemoryUsage() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TestingAllocationSize_ + GetMemoryUsageForTag(MemoryTag_);
+    return GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(OperationId));
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)

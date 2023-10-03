@@ -144,7 +144,6 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
     const TJobReporterPtr& GetJobReporter() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
-    TMemoryTagQueue* GetMemoryTagQueue() override;
 
     TJobProfiler* GetJobProfiler() const override;
 

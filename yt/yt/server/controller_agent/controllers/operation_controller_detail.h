@@ -275,6 +275,8 @@ public:
 
     bool IsRunning() const override;
 
+    std::vector<TTestAllocGuard> TestHeap() const override;
+
     void SetProgressAttributesUpdated() override;
     bool ShouldUpdateProgressAttributes() const override;
 
@@ -1035,8 +1037,6 @@ protected:
 private:
     using TThis = TOperationControllerBase;
 
-    const TMemoryTag MemoryTag_;
-
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;
 
@@ -1284,7 +1284,10 @@ private:
 
     TProgressCounterPtr TotalJobCounter_;
 
-    std::atomic<i64> TestingAllocationSize_;
+    //! Size of allocation will produced by method TestHeap().
+    mutable std::atomic<i64> TestingAllocationSize_;
+    //! Duration of storing allocations on heap.
+    std::optional<TDuration> KeepAllocationDelay_;
 
     //! Per transaction intermediate data weight limit for the fast medium (SSD)
     //! in the public intermediate account.

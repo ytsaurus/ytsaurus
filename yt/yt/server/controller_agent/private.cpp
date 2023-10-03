@@ -4,6 +4,8 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NTracing;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*format*/)
@@ -17,6 +19,17 @@ void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& de
 TString ToString(const TJobMonitoringDescriptor& descriptor)
 {
     return ToStringViaBuilder(descriptor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTraceContextGuard CreateOperationTraceContextGuard(
+    TString spanName,
+    TOperationId operationId)
+{
+    auto traceContext = CreateTraceContextFromCurrent(std::move(spanName));
+    traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+    return TTraceContextGuard(std::move(traceContext));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,10 +44,6 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto OperationIdAllocationTag = "operation_id";
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TControllerTransactionIds
 {
     NTransactionClient::TTransactionId AsyncId;
@@ -229,7 +225,6 @@ struct IOperationControllerHost
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
     virtual const TJobReporterPtr& GetJobReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
-    virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
     virtual TJobProfiler* GetJobProfiler() const = 0;
 
@@ -453,6 +448,38 @@ struct TOperationInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Produces allocation on heap and keeps it for testing.
+class TTestAllocGuard
+{
+public:
+    TTestAllocGuard(
+        i64 allocationPartSize,
+        std::function<void()> constructCallback,
+        std::function<void()> destructCallback,
+        TDuration delayBeforeDestruct = TDuration::Zero(),
+        IInvokerPtr destructCallbackInvoker = nullptr);
+
+    TTestAllocGuard(const TTestAllocGuard& other) = delete;
+
+    TTestAllocGuard(TTestAllocGuard&& other);
+
+    TTestAllocGuard& operator=(const TTestAllocGuard& other) = delete;
+
+    TTestAllocGuard& operator=(TTestAllocGuard&& other);
+
+    ~TTestAllocGuard();
+
+private:
+    TString Raw_;
+    bool Active_ = false;
+    std::function<void()> ConstructCallback_;
+    std::function<void()> DestructCallback_;
+    TDuration DelayBeforeDestruct_;
+    IInvokerPtr DestructCallbackInvoker_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Invoker affinity: Controller invoker
  */
@@ -489,6 +516,9 @@ struct IOperationController
      *  \note Thread affinity: any
      */
     virtual bool IsThrottling() const noexcept = 0;
+
+    //! Produces allocations on heap for testing and returns container.
+    virtual std::vector<TTestAllocGuard> TestHeap() const = 0;
 
     //! Returns the total resources that are additionally needed.
     /*!
@@ -663,7 +693,8 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
-    TOperation* operation);
+    TOperation* operation,
+    NTracing::TTraceContext* parentTraceContext = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,6 +14,7 @@ DECLARE_REFCOUNTED_CLASS(TSingletonsConfig)
 DECLARE_REFCOUNTED_CLASS(TSingletonsDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDiagnosticDumpConfig)
 DECLARE_REFCOUNTED_CLASS(THeapSizeLimit)
+DECLARE_REFCOUNTED_CLASS(THeapProfilerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

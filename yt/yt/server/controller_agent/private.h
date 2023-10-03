@@ -4,9 +4,12 @@
 
 #include <yt/yt/server/lib/controller_agent/persistence.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/core/tracing/trace_context.h>
+
 
 namespace NYT::NControllerAgent {
 
@@ -18,6 +21,10 @@ DEFINE_ENUM(ELegacyLivePreviewMode,
     (DoNotCare)
     (NotSupported)
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr auto OperationIdAllocationTag = "operation_id";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +91,15 @@ inline const NProfiling::TProfiler ControllerAgentProfiler("/controller_agent");
 
 using TOperationIdToControllerMap = THashMap<TOperationId, IOperationControllerPtr>;
 using TOperationIdToWeakControllerMap = THashMap<TOperationId, IOperationControllerWeakPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates a child trace context for operation and set allocation tags to it.
+//! Returns TraceContextGuard with the trace context.
+
+NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
+    TString spanName,
+    TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
