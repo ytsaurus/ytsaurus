@@ -126,3 +126,46 @@ class TestArrowFormat(YTEnvSetup):
 
         assert column_names[5] == "bool"
         assert parsed_table[column_names[5]].to_pylist() == [True, False]
+
+
+@authors("nadya73")
+class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    def test_integer_column(self):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "a", "type_v3": "int64"},
+                ],
+                "optimize_for": "scan"
+            },
+            force=True,
+        )
+
+        for i in range(0, 6, 3):
+            write_table(
+                "<append=%true>//tmp/t_in",
+                [
+                    {
+                        "a": i,
+                    },
+                    {
+                        "a": i + 1,
+                    },
+                    {
+                        "a": i + 2,
+                    },
+                ]
+            )
+
+        format = yson.YsonString(b"arrow")
+
+        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=format, control_attributes={"enable_row_index": True, "enable_range_index": True}))
+        column_names = parsed_table.column_names
+
+        assert "a" in column_names
+        assert parsed_table["a"].to_pylist() == [0, 1, 2, 3, 4, 5]
