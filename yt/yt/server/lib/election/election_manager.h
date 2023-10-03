@@ -46,6 +46,9 @@ struct IElectionCallbacks
 
     //! Enables pretty-printing peer priorities in logs.
     virtual TString FormatPriority(TPeerPriority priority) = 0;
+
+    //! Called when the current peer has entered discombobulated state.
+    virtual void OnDiscombobulate(i64 sequenceNumber) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)
@@ -124,6 +127,9 @@ struct TEpochContext
 
     //! Time when the epoch has started.
     TInstant StartTime;
+
+    //! Do not restart nonvoting peer in leader`s absence.
+    bool Discombobulated = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)

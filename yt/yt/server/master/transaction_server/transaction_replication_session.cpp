@@ -187,6 +187,10 @@ TCellTagList TTransactionReplicationSessionBase::GetCellTagsToSyncWithBeforeInvo
         UnsyncedLocalTransactionCells_.end(),
         std::back_inserter(result));
 
+    result.erase(
+        std::remove(result.begin(), result.end(), Bootstrap_->GetCellTag()),
+        result.end());
+
     return result;
 }
 

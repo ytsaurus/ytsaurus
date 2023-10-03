@@ -114,6 +114,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(build_master_snapshots, BuildMasterSnapshots, "Forces to build snapshots for all master cells");
         PYCXX_ADD_KEYWORDS_METHOD(exit_read_only, ExitReadOnly, "Exits read-only mode at given cell");
         PYCXX_ADD_KEYWORDS_METHOD(master_exit_read_only, MasterExitReadOnly, "Exits read-only mode at all master cells");
+        PYCXX_ADD_KEYWORDS_METHOD(discombobulate_nonvoting_peers, DiscombobulateNonvotingPeers, "Do not restart nonvoting peers in leader`s absence");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
 
@@ -318,6 +319,27 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to exit read-only mode at all master cells");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, MasterExitReadOnly)
+
+    Py::Object DiscombobulateNonvotingPeers(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TDiscombobulateNonvotingPeersOptions();
+
+        if (!HasArgument(args, kwargs, "cell_id")) {
+            throw CreateYtError("Missing argument 'cell_id'");
+        }
+
+        auto cellId = NHydra::TCellId::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "cell_id")));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            WaitFor(client->DiscombobulateNonvotingPeers(cellId, options))
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to discombobulate nonvoting peers at given cell");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, DiscombobulateNonvotingPeers)
 
     Py::Object ClearMetadataCaches(Py::Tuple& args, Py::Dict& kwargs)
     {

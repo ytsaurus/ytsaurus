@@ -253,6 +253,24 @@ void TClient::DoMasterExitReadOnly(
     }
 }
 
+void TClient::DoDiscombobulateNonvotingPeers(
+    TCellId cellId,
+    const TDiscombobulateNonvotingPeersOptions& options)
+{
+    ValidatePermissionsWithAcn(
+        EAccessControlObject::DiscombobulateNonvotingPeers,
+        EPermission::Use);
+
+    auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellId);
+
+    THydraServiceProxy proxy(channel);
+    auto req = proxy.DiscombobulateNonvotingPeers();
+    req->SetTimeout(options.Timeout);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
 void TClient::DoSwitchLeader(
     TCellId cellId,
     const TString& newLeaderAddress,

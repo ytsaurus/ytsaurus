@@ -27,6 +27,10 @@ def master_exit_read_only(*args, **kwargs):
     get_driver_instance(None).master_exit_read_only(*args, **kwargs)
 
 
+def discombobulate_nonvoting_peers(*args, **kwargs):
+    get_driver_instance(None).discombobulate_nonvoting_peers(args, kwargs)
+
+
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
 
@@ -89,7 +93,7 @@ def main():
     add_wait_for_snapshot_completion_parser(build_master_snapshot_parser)
     build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
 
-    exit_read_only_parser = subparsers.add_parser("exit-read-only", help="Exit read-only mode at given master cell")
+    exit_read_only_parser = subparsers.add_parser("exit-read-only", help="Exit read-only mode at given cell")
     exit_read_only_parser.set_defaults(func=exit_read_only)
     exit_read_only_parser.add_argument("--cell-id", required=True)
 
@@ -97,6 +101,11 @@ def main():
                                                          help="Exit read-only at all master cells")
     master_exit_read_only_parser.set_defaults(func=master_exit_read_only)
     master_exit_read_only_parser.add_argument("--retry", action="store_true", default=True)
+
+    discombobulate_nonvoting_peers_parser = subparsers.add_parser("discombobulate-nonvoting-peers",
+                                                            help="Discombobualate nonvoting peers at given cell")
+    discombobulate_nonvoting_peers_parser.set_defaults(func=discombobulate_nonvoting_peers)
+    discombobulate_nonvoting_peers_parser.add_argument("--cell-id", required=True)
 
     add_switch_leader_parser(subparsers)
 

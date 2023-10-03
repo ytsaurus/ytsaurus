@@ -97,6 +97,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, PingFollower);
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
+    DECLARE_RPC_SERVICE_METHOD(NElection::NProto, Discombobulate);
 
     void Reset();
     void CancelContext();
@@ -120,6 +121,7 @@ private:
     TFuture<void> StopLeading(const TError& error);
     TFuture<void> StopFollowing(const TError& error);
     TFuture<void> StopVoting(const TError& error);
+    TFuture<void> Discombobulate(i64 leaderSequenceNumber);
 
     void InitEpochContext(TPeerId leaderId, TEpochId epoch);
     void SetState(EPeerState newState);
@@ -593,6 +595,7 @@ TDistributedElectionManager::TDistributedElectionManager(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Discombobulate));
 }
 
 void TDistributedElectionManager::Initialize()
@@ -937,6 +940,28 @@ TFuture<void> TDistributedElectionManager::StopVoting(const TError& error)
     return future;
 }
 
+TFuture<void> TDistributedElectionManager::Discombobulate(i64 leaderSequenceNumber)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_VERIFY(State_ == EPeerState::Following);
+
+    if (EpochContext_->Discombobulated) {
+        YT_LOG_INFO("Already in discombobulated state");
+        return VoidFuture;
+    }
+
+    YT_LOG_INFO("Entering discombobulated state (EpochId: %v)",
+        EpochContext_->EpochId);
+
+    TLeaseManager::RenewLease(
+        LeaderPingLease_,
+        Config_->DiscombobulatedLeaderPingTimeout);
+
+    return BIND(&IElectionCallbacks::OnDiscombobulate, ElectionCallbacks_)
+        .AsyncVia(ControlInvoker_)
+        .Run(leaderSequenceNumber);
+}
+
 void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, TEpochId epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -948,6 +973,8 @@ void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, TEpochId ep
 
 void TDistributedElectionManager::SetState(EPeerState newState)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (newState == State_)
         return;
 
@@ -1025,6 +1052,28 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
         VoteId_,
         ElectionCallbacks_->FormatPriority(priority),
         VoteEpochId_);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, Discombobulate)
+{
+    Y_UNUSED(request, response);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    i64 leaderSequenceNumber = request->sequence_number();
+    context->SetRequestInfo("LeaderSequenceNumber: %v", leaderSequenceNumber);
+
+    if (IsVotingPeer() || State_ != EPeerState::Following) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Not a following observer");
+    }
+
+    WaitFor(Discombobulate(leaderSequenceNumber))
+        .ThrowOnError();
+
+    EpochContext_->Discombobulated = true;
 
     context->Reply();
 }

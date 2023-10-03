@@ -100,6 +100,7 @@ struct TEpochContext
     bool CatchingUp = false;
 
     std::atomic<bool> ReadOnly = false;
+    std::atomic<bool> Discombobulated = false;
 
     TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> LeaderSyncBatcher;
     std::optional<i64> LeaderSyncSequenceNumber;
