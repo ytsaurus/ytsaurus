@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/client/api/public.h>
 
 namespace NYT::NCypressProxy {
@@ -27,6 +29,7 @@ struct IBootstrap
 
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() const = 0;
     virtual const NApi::NNative::IClientPtr& GetNativeClient() const = 0;
+    virtual const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const = 0;
     virtual NApi::IClientPtr GetRootClient() const = 0;
 
     virtual const NYTree::IYPathServicePtr& GetSequoiaService() const = 0;

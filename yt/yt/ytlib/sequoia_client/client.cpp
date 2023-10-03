@@ -34,14 +34,12 @@ public:
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
         const NTableClient::TColumnFilter& columnFilter,
-        std::optional<NTransactionClient::TTimestamp> timestamp) override
+        NTransactionClient::TTimestamp timestamp) override
     {
-        NApi::TLookupRowsOptions options;
+        NApi::TLookupRowsOptions options = {};
         options.KeepMissingRows = true;
         options.ColumnFilter = columnFilter;
-        if (timestamp) {
-            options.Timestamp = *timestamp;
-        }
+        options.Timestamp = timestamp;
 
         const auto* tableDescriptor = ITableDescriptor::Get(table);
         return Client_->LookupRows(
@@ -55,7 +53,7 @@ public:
         ESequoiaTable table,
         const std::vector<TString>& whereConjuncts,
         std::optional<i64> limit,
-        std::optional<NTransactionClient::TTimestamp> timestamp) override
+        NTransactionClient::TTimestamp timestamp) override
     {
         auto* tableDescriptor = ITableDescriptor::Get(table);
         TQueryBuilder builder;
@@ -71,9 +69,7 @@ public:
         NApi::TSelectRowsOptions options;
         options.FailOnIncompleteResult = true;
         options.AllowFullScan = false;
-        if (timestamp) {
-            options.Timestamp = *timestamp;
-        }
+        options.Timestamp = timestamp;
 
         return Client_->SelectRows(builder.Build(), options);
     }
@@ -84,7 +80,7 @@ public:
         return NDetail::StartSequoiaTransaction(this, options);
     }
 
-    TLogger GetLogger() const override
+    const TLogger& GetLogger() const override
     {
         return Logger;
     }
@@ -94,20 +90,9 @@ public:
         return Client_;
     }
 
-    const TRowBufferPtr& GetRowBuffer() const override
-    {
-        return RowBuffer_;
-    }
-
 private:
     const NNative::IClientPtr Client_;
     const TLogger Logger;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RowBufferLock_);
-
-    struct TSequoiaClientTag
-    { };
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSequoiaClientTag());
 };
 
 ////////////////////////////////////////////////////////////////////////////////

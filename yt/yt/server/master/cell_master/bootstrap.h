@@ -66,6 +66,8 @@
 
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -112,6 +114,7 @@ public:
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
     const NApi::NNative::IClientPtr& GetRootClient() const;
+    const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
@@ -197,6 +200,7 @@ protected:
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;
     NApi::NNative::IClientPtr RootClient_;
+    NSequoiaClient::ISequoiaClientPtr SequoiaClient_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
     NElection::TCellManagerPtr CellManager_;
