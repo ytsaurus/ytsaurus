@@ -74,7 +74,7 @@ class TExportProgress
     : public TYsonStruct
 {
 public:
-    TTimestamp LastExportIterationTimestamp;
+    TInstant LastExportIterationInstant;
     ui64 LastExportedFragmentUnixTs;
     THashMap<i64, TTabletExportProgressPtr> Tablets;
 
@@ -94,8 +94,8 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("last_export_iteration_timestamp", &TThis::LastExportIterationTimestamp)
-            .Default(NullTimestamp);
+        registrar.Parameter("last_export_iteration_instant", &TThis::LastExportIterationInstant)
+            .Default(TInstant::Zero());
         registrar.Parameter("last_exported_fragment_unix_ts", &TThis::LastExportedFragmentUnixTs)
             .Default(0);
         registrar.Parameter("tablets", &TThis::Tablets)
@@ -149,19 +149,21 @@ private:
 
     const TLogger Logger;
 
-    //! Main master transaction used for export.
-    ITransactionPtr Transaction_;
     //! Options used for Cypress requests.
     NApi::TTransactionalOptions Options_;
 
+    //! Instant of current export iteration.
+    TInstant ExportInstant_;
+    //! The output table unix ts corresponding to the current export iteration.
+    //! NB: We use the instant above to compute this value, i.e. it corresponds to the host's physical time.
+    //! This is fine, see the comment for DoRun below.
+    ui64 ExportFragmentUnixTs_;
     //! Corresponds to the queue being exported.
     TUserObject QueueObject_;
     //! Original chunk specs fetched from master.
     std::vector<TChunkSpec> ChunkSpecs_;
     //! Pointers to chunk specs for chunks that are going to be exported within this iteration.
     std::vector<const TChunkSpec*> ChunkSpecsToExport_;
-    //! The unix timestamp corresponding to the current export iteration.
-    ui64 ExportFragmentUnixTs_;
     //! Corresponds to the actual output table created.
     TUserObject DestinationObject_;
     TTransactionPtr UploadTransaction_;
@@ -174,33 +176,40 @@ private:
     //! Performs the following steps:
     //!   1) Starts transaction, obtains locks on input queue (snapshot) and export directory (exclusive).
     //!   2) Determines the export fragment timestamp as the largest fragment timestamp which is not greater than the
-    //!      start timestamp of the export transaction.
+    //!      current physical time.
     //!      A fragment timestamp is always divisible by the export period in seconds.
     //!   3) Fetches chunk specs, skipping dynamic stores, already exported chunks and chunks with timestamp larger than
     //!      the export fragment timestamp.
     //!   4) Teleports and uploads these chunks to an appropriately named output table to the export directory.
+    //!
+    //! NB: We use the host's physical time to compute the unix ts of the next table to export.
+    //! We rely on this time being mostly monotonous and not too different from the cluster time obtained via timestamp generation.
+    //! In any case, we will only produce an output table if its unix ts is strictly greater than the one of the last exported table.
+    //! If the physical time diverges from the cluster time, the only effect is that some chunks might end up being
+    //! exported into later tables, which is perfectly fine.
     void DoRun()
     {
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
 
         YT_LOG_INFO("Started queue static export iteration");
 
-        Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+        auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
             .ValueOrThrow();
 
-        auto transactionId = Transaction_->GetId();
-        WaitFor(Transaction_->LockNode(Queue_, ELockMode::Snapshot))
+        auto transactionId = transaction->GetId();
+        WaitFor(transaction->LockNode(Queue_, ELockMode::Snapshot))
             .ThrowOnError();
-        WaitFor(Transaction_->LockNode(ExportDirectory_, ELockMode::Exclusive))
+        WaitFor(transaction->LockNode(ExportDirectory_, ELockMode::Exclusive))
             .ThrowOnError();
 
         Options_.TransactionId = transactionId;
 
         YT_LOG_INFO("Started export transaction and locked nodes (TransactionId: %v)", transactionId);
 
-        QueueObject_ = TUserObject(Queue_, transactionId);
-
+        ExportInstant_ = TInstant::Now();
         ComputeExportFragmentUnixTs();
+
+        QueueObject_ = TUserObject(Queue_, transactionId);
 
         PrepareQueueForExport();
         auto currentExportProgress = ValidateDestinationAndFetchProgress();
@@ -210,7 +219,7 @@ private:
 
         if (ChunkSpecsToExport_.empty()) {
             YT_LOG_DEBUG("No chunks to export, aborting export transaction (TransactionId: %v)", transactionId);
-            Transaction_->Abort();
+            transaction->Abort();
             return;
         }
 
@@ -222,7 +231,7 @@ private:
 
         UpdateCypressExportProgress(currentExportProgress, newExportProgress);
 
-        auto commitResultOrError = WaitFor(Transaction_->Commit());
+        auto commitResultOrError = WaitFor(transaction->Commit());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             commitResultOrError,
             "Error committing main export task transaction for queue %v",
@@ -244,14 +253,12 @@ private:
 
     void ComputeExportFragmentUnixTs()
     {
-        YT_VERIFY(Transaction_);
-
         auto period = ExportPeriod_.Seconds();
         YT_VERIFY(period > 0);
 
-        auto startUnixTs = UnixTimeFromTimestamp(Transaction_->GetStartTimestamp());
-        // NB: The timestamp is in range [startUnixTs, startUnixTs + 1). We save the unix ts of the closest tick to the left.
-        ExportFragmentUnixTs_ = (startUnixTs / period) * period;
+        auto exportUnixTs = ExportInstant_.Seconds();
+        // NB: The unix ts of the closest tick to the left.
+        ExportFragmentUnixTs_ = (exportUnixTs / period) * period;
     }
 
     void GetAndFillBasicAttributes(
@@ -401,7 +408,7 @@ private:
         }
 
         newExportProgress->LastExportedFragmentUnixTs = ExportFragmentUnixTs_;
-        newExportProgress->LastExportIterationTimestamp = Transaction_->GetStartTimestamp();
+        newExportProgress->LastExportIterationInstant = ExportInstant_;
         return newExportProgress;
     }
 
