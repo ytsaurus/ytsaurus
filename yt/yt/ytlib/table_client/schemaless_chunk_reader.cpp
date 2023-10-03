@@ -1939,13 +1939,12 @@ private:
             auto columnRange = TMutableRange<IUnversionedColumnarRowBatch::TColumn>(
                 allBatchColumns->data() + currentBatchColumnIndex,
                 columnCount);
-            VirtualValues_.FillColumns(columnRange, index, GetTableRowIndex(), rowCount);
+            VirtualValues_.FillColumns(columnRange, index, RowIndex_, rowCount);
             currentBatchColumnIndex += columnCount;
             rootBatchColumns->push_back(&columnRange.Front());
         }
 
         // Add row_index column.
-
         if (RowIndexId_ != -1) {
             auto dataValues = TMutableRange<ui64>(Pool_.AllocateUninitialized<ui64>(rowCount), rowCount);
             for (ssize_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
@@ -1954,7 +1953,7 @@ private:
 
             ReadColumnarIntegerValues(
                 allBatchColumns->data() + currentBatchColumnIndex,
-                GetTableRowIndex(),
+                /* startIndex */ 0,
                 rowCount,
                 NTableClient::EValueType::Int64,
                 /* baseValue */ 0,

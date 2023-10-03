@@ -1016,6 +1016,15 @@ TEST_F(TArrowTestBase, YTADMINREQ_33599)
 
 TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
 {
+    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", ConvertToYsonString(THashMap<TString, int>{})))
+        .ThrowOnError();
+
+    WaitFor(Client_->SetNode(
+        "//sys/rpc_proxies/@config/api",
+        ConvertToYsonString(THashMap<TString, int>{{"read_buffer_row_count", 1}}))).ThrowOnError();
+
+    Sleep(TDuration::Seconds(0.5));
+
     TRichYPath tablePath("//tmp/test_arrow_reading_with_system_columns");
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
@@ -1032,10 +1041,22 @@ TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
 
         auto intColumnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
 
-        auto value = MakeUnversionedInt64Value(1, intColumnId);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        int chunkRowCount = 3;
+        for (int chunkIdx = 0; chunkIdx < 2; ++chunkIdx) {
+            std::vector<TUnversionedRow> rows;
+            rows.reserve(chunkRowCount);
+            std::vector<TUnversionedRowBuilder> rowsBuilders(chunkRowCount);
 
-        YT_VERIFY(writer->Write({owningRow}));
+            for (int rowIdx = 0; rowIdx < chunkRowCount; rowIdx++) {
+                rowsBuilders[rowIdx].AddValue(MakeUnversionedInt64Value(chunkIdx * chunkRowCount + rowIdx, intColumnId));
+            }
+
+            for (int rowIdx = 0; rowIdx < std::ssize(rowsBuilders); rowIdx++) {
+                rows.push_back(rowsBuilders[rowIdx].GetRow());
+            }
+
+            YT_VERIFY(writer->Write(rows));
+        }
         WaitFor(writer->Close())
             .ThrowOnError();
     }
@@ -1047,7 +1068,7 @@ TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
     req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     req->set_format("<format=text>yson");
 
-    // ask range_index and row_index column
+    // Ask range_index and row_index column.
 
     req->set_enable_range_index(true);
     req->set_enable_row_index(true);
