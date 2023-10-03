@@ -12,15 +12,6 @@ spec:
   discovery:
     instanceCount: 1
 
-  chyt:
-    resources:
-      limits:
-        memory: 100Mi
-
-  spyt:
-    sparkVersion: '1.69.0'
-    spytVersion: '1.69.3'
-
   primaryMasters:
     instanceCount: 3
     cellTag: 1
@@ -52,7 +43,6 @@ spec:
 
   dataNodes:
     - instanceCount: 3
-
       resources:
         limits:
           cpu: 3
@@ -89,7 +79,7 @@ spec:
       volumes:
         - name: node-data
           emptyDir:
-            sizeLimit: 20Gi
+            sizeLimit: 40Gi
 
       locations:
         - locationType: ChunkCache
@@ -98,13 +88,15 @@ spec:
           path: /yt/node-data/slots
 
   tabletNodes:
-    - instanceCount: 4
+    - instanceCount: 3
 
   queryTrackers:
     instanceCount: 1
+    image: ytsaurus/query-tracker-nightly:dev-66906-ce55146bc191ec5c82efcde5d6e0d592fc0ec50a
 
   yqlAgents:
     instanceCount: 1
+    image: ytsaurus/query-tracker-nightly:dev-66906-ce55146bc191ec5c82efcde5d6e0d592fc0ec50a
 
   schedulers:
     instanceCount: 1
