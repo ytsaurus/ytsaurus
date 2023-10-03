@@ -2729,7 +2729,9 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         slotStatistics.CumulativeUtilizationPower += period.MilliSeconds() * (gpuInfo.PowerDraw / gpuInfo.PowerLimit);
         slotStatistics.CumulativePower += period.MilliSeconds() * gpuInfo.PowerDraw;
         slotStatistics.CumulativeUtilizationClocksSM += period.MilliSeconds() *
-            (static_cast<double>(gpuInfo.ClocksSM) / gpuInfo.ClocksMaxSM);
+            (gpuInfo.ClocksMaxSM > 0
+                ? static_cast<double>(gpuInfo.ClocksSM) / gpuInfo.ClocksMaxSM
+                : 0.0);
         slotStatistics.CumulativeSMUtilization += period.MilliSeconds() * gpuInfo.SMUtilizationRate;
         slotStatistics.CumulativeSMOccupancy += period.MilliSeconds() * gpuInfo.SMOccupancyRate;
         slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
@@ -2741,9 +2743,13 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 
         slotStatisticsLastUpdateTime = gpuInfo.UpdateTime;
 
-        YT_LOG_DEBUG("Updated job GPU slot statistics (GpuInfo: %v, SlotStatistics: %v)",
+        YT_LOG_DEBUG(
+            "Updated job GPU slot statistics "
+            "(GpuInfo: %v, SlotStatistics: %v, SlotStatisticsLastUpdateTime: %v, Period: %v)",
             gpuInfo,
-            slotStatistics);
+            slotStatistics,
+            slotStatisticsLastUpdateTime,
+            period);
 
         aggregatedGpuStatistics.CumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
         aggregatedGpuStatistics.CumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
