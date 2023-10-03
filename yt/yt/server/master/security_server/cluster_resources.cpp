@@ -112,6 +112,50 @@ i64 TClusterResources::GetTotalMasterMemory() const
     return DetailedMasterMemory_.GetTotal();
 }
 
+
+
+TClusterResources::TMediaDiskSpace TClusterResources::GetPatchedDiskSpace(
+    const IChunkManagerPtr& chunkManager,
+    const TCompactVector<int, 4>& additionalMediumIndexes) const
+{
+    auto compareByMediumIndexes =
+        [] (std::pair<const TMedium*, i64> a, std::pair<const TMedium*, i64> b) {
+            return a.first->GetIndex() < b.first->GetIndex();
+        };
+
+    // Disk space patched with additional media.
+    TCompactVector<std::pair<const TMedium*, i64>, 4> diskSpace;
+    auto addMediumIndex = [&] (int mediumIndex, i64 mediumDiskSpace) {
+        const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (!IsObjectAlive(medium)) {
+            return;
+        }
+
+        auto [it, ite] = std::equal_range(
+            diskSpace.begin(),
+            diskSpace.end(),
+            std::pair<const TMedium*, i64>(medium, mediumDiskSpace),
+            compareByMediumIndexes);
+
+        if (auto distance = std::distance(it, ite); distance > 0) {
+            YT_ASSERT(distance == 1); // No duplicate media.
+            YT_ASSERT(mediumDiskSpace == 0);
+            return;
+        }
+
+        diskSpace.insert(it, {medium, mediumDiskSpace}); // No emplace in TCompactVector.
+    };
+
+    for (auto [mediumIndex, mediumDiskSpace] : DiskSpace()) {
+        addMediumIndex(mediumIndex, mediumDiskSpace);
+    }
+    for (auto mediumIndex : additionalMediumIndexes) {
+        addMediumIndex(mediumIndex, 0);
+    }
+    YT_ASSERT(std::is_sorted(diskSpace.begin(), diskSpace.end(), compareByMediumIndexes));
+    return diskSpace;
+}
+
 void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
@@ -344,43 +388,15 @@ void DoSerializeClusterResources(
                 return total + (committed ? pair.second.CommittedResourceUsage : pair.second.ResourceUsage);
             }));
 
-    auto compareByMediumIndexes =
-        [] (std::pair<const TMedium*, i64> a, std::pair<const TMedium*, i64> b) {
-            return a.first->GetIndex() < b.first->GetIndex();
-        };
-
     // Disk space patched with additional media.
-    TCompactVector<std::pair<const TMedium*, i64>, 4> diskSpace;
+    TCompactVector<std::pair<const TMedium*, i64>, 4> diskSpace = clusterResources.GetPatchedDiskSpace(
+        chunkManager,
+        additionalMediumIndexes);
+
     auto totalDiskSpace = i64(0);
-    auto addMediumIndex = [&] (int mediumIndex, i64 mediumDiskSpace) {
-        const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!IsObjectAlive(medium)) {
-            return;
-        }
-
-        auto [it, ite] = std::equal_range(
-            diskSpace.begin(),
-            diskSpace.end(),
-            std::pair<const TMedium*, i64>(medium, mediumDiskSpace),
-            compareByMediumIndexes);
-
-        if (auto distance = std::distance(it, ite); distance > 0) {
-            YT_ASSERT(distance == 1); // No duplicate media.
-            YT_ASSERT(mediumDiskSpace == 0);
-            return;
-        }
-
-        diskSpace.insert(it, {medium, mediumDiskSpace}); // No emplace in TCompactVector.
-        totalDiskSpace += mediumDiskSpace;
-    };
-
-    for (auto [mediumIndex, mediumDiskSpace] : clusterResources.DiskSpace()) {
-        addMediumIndex(mediumIndex, mediumDiskSpace);
+    for (const auto& [medium, size] : diskSpace) {
+        totalDiskSpace += size;
     }
-    for (auto mediumIndex : additionalMediumIndexes) {
-        addMediumIndex(mediumIndex, 0);
-    }
-    YT_ASSERT(std::is_sorted(diskSpace.begin(), diskSpace.end(), compareByMediumIndexes));
 
     fluent
         .Item("node_count").Value(clusterResources.GetNodeCount())

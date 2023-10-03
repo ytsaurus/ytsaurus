@@ -16,6 +16,8 @@ from yt_commands import (
 from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
 
+from yt_helpers import profiler_factory
+
 from flaky import flaky
 
 import pytest
@@ -23,6 +25,8 @@ from time import sleep
 from operator import itemgetter
 from copy import deepcopy
 import builtins
+
+from functools import reduce
 
 ##################################################################
 
@@ -4208,6 +4212,23 @@ class TestAccountTree(AccountsTestSuiteBase):
             move("//sys/account_tree/d", "//sys/account_tree/c/ca/caa")
         set("//sys/@config/security_manager/max_account_subtree_size", 5)
         move("//sys/account_tree/d", "//sys/account_tree/c/ca/caa")
+
+    @authors("vovamelnikov")
+    def test_sensors_existance(self):
+        primary_addresses = ls("//sys/primary_masters")
+        profilers = [profiler_factory().at_primary_master(master_address) for master_address in primary_addresses]
+
+        secondary_masters = get("//sys/secondary_masters")
+        secondary_profilers = []
+        for tag in secondary_masters:
+            addrs = [address for address in secondary_masters[tag]]
+            secondary_profilers += [profiler_factory().at_secondary_master(tag, master_address) for master_address in addrs]
+
+        values = [profiler.gauge("accounts/disk_space_in_gb").get_all() for profiler in profilers]
+        secondary_values = [profiler.gauge("accounts/disk_space_in_gb").get_all() for profiler in secondary_profilers]
+
+        assert len(reduce(lambda a, b: a + b, secondary_values, [])) == 0
+        assert len(list(filter(lambda x: len(x) != 0, values))) == 1
 
 
 ##################################################################

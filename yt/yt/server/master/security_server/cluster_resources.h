@@ -56,6 +56,14 @@ public:
 
     i64 GetTotalMasterMemory() const;
 
+
+    using TMediumDiskSpace = std::pair<const NChunkServer::TMedium*, i64>;
+    using TMediaDiskSpace = TCompactVector<TMediumDiskSpace, 4>;
+
+    TMediaDiskSpace GetPatchedDiskSpace(
+        const NChunkServer::IChunkManagerPtr& chunkManager,
+        const TCompactVector<int, 4>& additionalMediumIndexes) const;
+
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, NodeCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, ChunkCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, int, TabletCount);
