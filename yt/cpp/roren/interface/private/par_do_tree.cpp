@@ -286,7 +286,7 @@ std::vector<TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::AddParDo(
     }
     Y_VERIFY(IsDefined(PCollectionNodes_[input].RowVtable));
 
-    CheckPCollectionType(input, tags[0].GetRowVtable());
+    CheckPCollectionType(input, "ParDo being connected input", tags[0].GetRowVtable());
 
     std::vector<TPCollectionNodeId> outputs;
     const auto& outputTags = parDo->GetOutputTags();
@@ -351,12 +351,18 @@ TParDoTreeBuilder::TPCollectionNodeId TParDoTreeBuilder::AddPCollectionNode(cons
     return result;
 }
 
-void TParDoTreeBuilder::CheckPCollectionType(int nodeId, const TRowVtable& rowVtable)
+void TParDoTreeBuilder::CheckPCollectionType(int nodeId, TStringBuf expectedDescription, const TRowVtable& expectedRowVtable)
 {
     Y_VERIFY(0 <= nodeId && nodeId < std::ssize(PCollectionNodes_));
     const auto& pCollectionRowVtable = PCollectionNodes_[nodeId].RowVtable;
-    if (pCollectionRowVtable.TypeName != rowVtable.TypeName) {
-        ythrow yexception() << "Type mismatch. Checked type: " << rowVtable.TypeName << "Node " << nodeId << " type " << pCollectionRowVtable.TypeName;
+    if (pCollectionRowVtable.TypeName != expectedRowVtable.TypeName) {
+        TStringStream error;
+        error
+            << "Type mismatch. "
+            << "Node " << nodeId << " type: " << pCollectionRowVtable.TypeName
+            << " " << expectedDescription
+            << " type: " << expectedRowVtable.TypeName;
+        Y_FAIL("%s", error.Str().c_str());
     }
 }
 
@@ -370,7 +376,7 @@ void TParDoTreeBuilder::MarkAsOutput(TPCollectionNodeId nodeId, const TDynamicTy
     PCollectionNodes_[nodeId].GlobalOutputIndex = std::ssize(MarkedOutputTypeTags_);
     MarkedOutputTypeTags_.push_back(tag);
     if (tag) {
-        CheckPCollectionType(nodeId, tag.GetRowVtable());
+        CheckPCollectionType(nodeId, "marked output tag", tag.GetRowVtable());
     }
 }
 

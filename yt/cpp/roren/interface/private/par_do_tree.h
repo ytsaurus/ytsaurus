@@ -65,7 +65,7 @@ private:
 private:
     TPCollectionNodeId AddPCollectionNode(const TRowVtable& sourceParDoNode);
     void CheckNoHangingPCollectionNodes() const;
-    void CheckPCollectionType(int pCollectionNodeId, const TRowVtable& rowVtable);
+    void CheckPCollectionType(int pCollectionNodeId, TStringBuf expectedDescription, const TRowVtable& expectedRowVtable);
 
 private:
     static constexpr int InvalidOutputIndex = -1;
