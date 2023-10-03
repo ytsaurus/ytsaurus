@@ -1085,8 +1085,7 @@ TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
         THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
     }
 
-    while (auto block = WaitFor(stream->Read()).ValueOrThrow()) {
-
+    if (auto block = WaitFor(stream->Read()).ValueOrThrow()) {
         NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
         NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
         auto payloadRef = NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
