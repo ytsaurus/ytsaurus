@@ -129,6 +129,7 @@ DEFINE_ENUM(EMasterReign,
     ((ThrowErrorOnMutatingRequestInFilteredChunksContain)           (2355))  // danilalexeev
     ((KeyPrefixFilter_23_1)                                         (2356))  // akozhikhov
     ((ConcatToSingleCellChunkOwner_23_1)                            (2357))  // shakurov
+    ((AccountsProfilingInSecurityManager_23_1)                      (2358))  // vovamelnikov
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
