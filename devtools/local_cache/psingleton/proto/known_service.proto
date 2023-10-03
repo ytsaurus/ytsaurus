@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package NUserService;
+
+service TUserService {
+    rpc Shutdown(TShutdown) returns (TStatus);
+    rpc StopProcessing(TStopProcessing) returns (TStatus);
+    rpc StartProcessing(TStartProcessing) returns (TStatus);
+    rpc SetMasterMode(TMasterMode) returns (TStatus);
+    rpc GetStatus(TPeer) returns (TStatus);
+}
+
+// See TProcessUID
+message TProc {
+    uint32 Pid = 1;
+    uint64 StartTime = 2;
+    uint64 ExpectedLifeTime = 3;
+}
+
+message TPeer {
+    TProc Proc = 1;
+    string TaskGSID = 2;
+}
+
+message TShutdown {
+    TPeer Peer = 1;
+}
+
+message TStopProcessing {
+    TPeer Peer = 1;
+}
+
+message TStartProcessing {
+    TPeer Peer = 1;
+}
+
+message TMasterMode {
+    TPeer Peer = 1;
+    bool MasterMode = 2;
+}
+
+// Processing -> Suspended -> Processing
+// Processing -> ShuttingDown
+// Suspended -> ShuttingDown
+enum EState {
+    ShuttingDown = 0;
+    Suspended = 1;
+    Processing = 2;
+}
+
+message TStatus {
+    EState State = 1;
+    int32 ExitCode = 2; // Exit code for shutdown
+    bool MasterMode = 3;
+}

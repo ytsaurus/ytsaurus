@@ -1,0 +1,148 @@
+#include <devtools/local_cache/psingleton/systemptr.h>
+
+#include <util/generic/strbuf.h>
+#include <util/generic/string.h>
+#include <util/generic/yexception.h>
+#include <util/network/sock.h>
+#include <util/stream/output.h>
+
+#include <limits>
+
+using namespace NSystemWideName;
+
+%%{
+machine SystemName;
+
+action ClearInt {
+    accum = 0;
+}
+action AddDigit {
+    accum *= 10;
+    accum += *p - '0';
+}
+action ClearName {
+    nstart = p;
+}
+action SetName {
+    out.Address = TString(nstart, p - nstart + 1);
+}
+action SetPort {
+    if (std::numeric_limits<decltype(out.Port)>::max() < accum) {
+        ythrow(TParseException() << "Too big Port: " << accum);
+    }
+    out.Port = accum;
+}
+action SetCtime {
+    if (std::numeric_limits<decltype(out.Ctime)>::max() < accum) {
+        ythrow(TParseException() << "Too big Ctime: " << accum);
+    }
+    out.Ctime = accum;
+}
+action SetPid {
+    if (std::numeric_limits<decltype(out.Pid)>::max() < accum) {
+        ythrow(TParseException() << "Too big Pid: " << accum);
+    }
+    out.Pid = accum;
+}
+action IncorrectPort {
+    p = static_cast<const char*>(memchr(p, '\n', pe - p));
+    p = p ? p : pe;
+    fgoto pid;
+}
+action IncorrectPid {
+    p = static_cast<const char*>(memchr(p, '\n', pe - p));
+    p = p ? p : pe;
+    fgoto ctime;
+}
+action IncorrectCtime {
+    p = static_cast<const char*>(memchr(p, '\n', pe - p));
+    p = p ? p : pe;
+}
+
+action SetLocal {
+    out.Namespace = YAF_LOCAL;
+}
+action SetIpv6 {
+    out.Namespace = AF_INET6;
+}
+action SetIpv4 {
+    out.Namespace = AF_INET;
+}
+action TrackLine {
+    line++;
+    last_line = p;
+}
+
+wsc = ([ \t\v\f\r] | ("//"(any * --"\n") "\n"));
+ws = wsc*;
+eol = "\n" $TrackLine;
+
+pos_int = ([1-9] digit**)$AddDigit;
+
+port = (ws "Port" ws "=" > ClearInt ws(pos_int | 0) ws eol) @SetPort;
+pid = (ws "Pid" ws "=" > ClearInt ws(pos_int) ws eol) @SetPid;
+ctime = (ws "Ctime" ws "=" > ClearInt ws pos_int ws eol) $eof(SetCtime) @SetCtime;
+name = (any * --'"') > ClearName @SetName;
+address = ws "Address" ws "=" ws '"'(("local") @SetLocal | ("inet") @SetIpv4 | ("inet6") @SetIpv6) ":" name '"' ws eol;
+bare_info = (pid $err(IncorrectPid)) (ctime $err(IncorrectCtime));
+
+main := (
+    (address)
+    (port $err(IncorrectPort))?
+    (bare_info)
+);
+
+}%%
+
+%% write data;
+
+void NSystemWideName::ReadProcessInfo(const TStringBuf& input, TAddress& out) {
+    int cs;
+    const char* start = input.begin();
+    const char* pe = input.end();
+    const char* p = start;
+    const char* eof = pe;
+
+    int line = 0;
+    const char* last_line = p;
+
+    int64_t accum;
+    const char* nstart;
+
+    %% write init;
+    %% write exec;
+
+    if (cs == %%{ write error; }%%) {
+        ythrow(TParseException() << "ProcessInfo failed at (" << line << ":"
+                                 << (p - last_line) << ":" << p - start << ")");
+    }
+}
+
+void NSystemWideName::ReadProcessInfo(const TStringBuf& input, TAddressBare& out_bair) {
+    int cs;
+    const char* start = input.begin();
+    const char* pe = input.end();
+    const char* p = start;
+    const char* eof = pe;
+
+    int line = 0;
+    const char* last_line = p;
+
+    int64_t accum;
+    const char* nstart;
+
+    TAddress out;
+
+    %% write init nocs;
+    cs = SystemName_en_main_bare_info_pid;
+    %% write exec;
+
+    if (cs == %%{ write error; }%%) {
+        ythrow(TParseException() << "ProcessInfo failed at (" << line << ":"
+                                 << (p - last_line) << ":" << p - start << ")");
+    }
+
+    out_bair = out;
+}
+
+// vim:ft=cpp

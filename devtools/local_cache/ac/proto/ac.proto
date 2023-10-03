@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+import public "devtools/local_cache/psingleton/proto/known_service.proto";
+
+package NACCache;
+
+service TACCache {
+    /// CAS-related methods
+    rpc PutBlob(TBlobInfo) returns (TStatus);
+    rpc GetBlob(TBlobInfo) returns (TStatus);
+    // TODO:
+    rpc EnumerateBlobs(TBlobFilter) returns (stream THash);
+    /// End of CAS-related methods
+
+    /// AC-related methods
+    rpc Put(TPutUid) returns (TACStatus);
+    rpc Get(TGetUid) returns (TACStatus);
+    rpc Has(THasUid) returns (TACStatus);
+    rpc Remove(TRemoveUid) returns (TACStatus);
+    // TODO:
+    rpc EnumerateUids(TFilter) returns (stream THash);
+    /// End of AC-related methods
+
+    /// Force one-shot GC.
+    rpc ForceGC(TForceGC) returns (TStatus);
+    rpc SynchronousGC(TSyncronousGC) returns (TStatus);
+
+    /// GetStat
+    rpc GetTaskStats(NUserService.TPeer) returns (TTaskStatus);
+    rpc GetCacheStats(TStatus) returns (stream TStatus);
+    rpc AnalyzeDU(TStatus) returns (TDiskUsageSummary);
+
+    /// Locked ACs are not needed any more
+    /// Used in testing at this point
+    rpc ReleaseAll(NUserService.TPeer) returns (TTaskStatus);
+
+    /// Graph-related calls
+    rpc PutDeps(TNodeDependencies) returns (TACStatus);
+    /// End of graph-related calls
+}
+
+// See db/db.sql
+enum EBlobStoreMode {
+    /// Blob is stored on FS, db contains only path relative to root
+    OnFS = 0;
+    /// Blob is stored in DB
+    DataInPlace = 1;
+    /// TODO: Blob is removed in DB, only placeholder left.
+    DataRemoved = 2;
+};
+
+message TBlobFilter {
+    /// Bit-mask related to EBlobStoreMode
+    uint64 StoreMask = 1;
+};
+
+message THash {
+    string Uid = 1;
+}
+
+enum EOptim {
+    Rename = 0;
+    Hardlink = 1;
+    Copy = 2;
+}
+
+message TBlobInfo {
+    /// optional for put-method
+    THash CASHash = 1;
+    /// Src for put-method, Dest for get-method
+    string Path = 2;
+    EOptim Optimization = 3;
+}
+
+enum EOrigin {
+    Distbuild = 0;
+    RemoteCache = 1;
+    User = 2;
+}
+
+message TOrigin {
+    EOrigin OriginKind = 1;
+}
+
+message TFilter {
+    /// Bit-mask related to EOrigin
+    uint64 OriginMask = 1;
+}
+
+enum EPutMode {
+    UseOldBlobs = 0;
+    ForceBlobReplacement = 1;
+};
+
+message TPutUid {
+    THash ACHash = 1;
+    /// For each blob memoize path relative to RootPath.
+    string RootPath = 2;
+    /// We trust CAS uids, track origin for AC uids.
+    TOrigin Origin = 3;
+    /// Information is extracted using file-system-related syscalls (stat)
+    /// Thus simplified information provided.
+    repeated TBlobInfo BlobInfo = 4;
+    /// File names to use in DB (to use for conversion from old cache to new one)
+    repeated string DBFileNames = 9;
+    NUserService.TPeer Peer = 5;
+    int64 Weight = 6;
+    EPutMode ReplacementMode = 7;
+    bool Result = 8;
+}
+
+message TGetUid {
+    THash ACHash = 1;
+    /// For each blob unpack to RootPath using relative paths stored in DB.
+    string DestPath = 2;
+    TFilter Filter = 3;
+    EOptim Optimization = 4;
+    bool Result = 5;
+    NUserService.TPeer Peer = 6;
+    bool Release = 7;
+}
+
+message THasUid {
+    THash ACHash = 1;
+    // If it is set, then uid is locked for GC.
+    NUserService.TPeer Peer = 2;
+    bool Result = 3;
+}
+
+message TRemoveUid {
+    THash ACHash = 1;
+    TFilter Filter = 2;
+    bool ForcedRemoval = 3;
+}
+
+message TNodeDependencies {
+    THash NodeHash = 1;
+    repeated THash RequiredHashes = 2;
+}
+
+message TStatus {
+    uint64 TotalFSSize = 1;
+    uint64 TotalSize = 2;
+    bool Master = 3;
+    uint64 TotalDBSize = 4;
+    uint32 BlobCount = 5;
+    uint32 UidCount = 6;
+    uint32 ProcessesCount = 7;
+}
+
+message TTaskStatus {
+    uint64 TotalFSSize = 1;
+    uint64 TotalSize = 2;
+}
+
+message TACStatus {
+    TStatus Stats = 1;
+    bool Success = 2;
+    EOptim Optim = 3;
+}
+
+message TForceGC {
+    NUserService.TPeer Peer = 1;
+    uint64 TargetSize = 2;
+    /// TODO:
+    bool RemoveDB = 3;
+}
+
+message TSyncronousGC {
+    oneof Config {
+        // Min last access time in milliseconds since epoch
+        int64 Timestamp = 1;
+        // Max blob size
+        int64 BLobSize = 2;
+        int64 TotalSize = 3;
+    }
+}
+
+message TDiskUsageSummary {
+    message TFileStat {
+        string Path = 1;
+        int64 FSSize = 2;
+        int64 Size = 3;
+        int32 Freq = 4;
+    };
+    repeated TFileStat FileStats = 1;
+    TStatus Stats = 2;
+}
