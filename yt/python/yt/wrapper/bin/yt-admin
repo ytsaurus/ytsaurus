@@ -28,7 +28,7 @@ def master_exit_read_only(*args, **kwargs):
 
 
 def discombobulate_nonvoting_peers(*args, **kwargs):
-    get_driver_instance(None).discombobulate_nonvoting_peers(args, kwargs)
+    get_driver_instance(None).discombobulate_nonvoting_peers(*args, **kwargs)
 
 
 def gc_collect(*args, **kwargs):
