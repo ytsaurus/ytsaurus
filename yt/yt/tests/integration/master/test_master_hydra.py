@@ -3,11 +3,12 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, get, set, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address,
-    reset_state_hash)
+    reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers)
 
 from yt.common import YtError
 
 import pytest
+import time
 
 ##################################################################
 
@@ -72,3 +73,58 @@ class TestMasterResetStateHash(YTEnvSetup):
 
         _test(new_state_hash=None)
         _test(new_state_hash=0xbebebebe)
+
+
+class TestDiscombobulate(YTEnvSetup):
+    NUM_MASTERS = 5
+    NUM_NONVOTING_MASTERS = 2
+
+    DELTA_MASTER_CONFIG = {
+        "election_manager": {
+            "follower_ping_period": 200,
+            "leader_ping_timeout": 500,
+        }
+    }
+
+    @authors("danilalexeev")
+    def test_discombobulate_nonvoting_peers(self):
+        build_master_snapshots(set_read_only=True)
+
+        primary_master_config = self.Env.configs["master"][0]["primary_master"]
+
+        discombobulate_nonvoting_peers(primary_master_config["cell_id"])
+
+        def wait_active(master_ids):
+            for idx in master_ids:
+                address = primary_master_config["addresses"][idx]
+                wait(lambda: get(
+                    "{}/{}/orchid/monitoring/hydra/active".format("//sys/primary_masters", address),
+                    default=False), ignore_exceptions=True)
+
+        def restart_check_masters(master_ids):
+            self.Env.kill_service("master", indexes=master_ids)
+            time.sleep(1)
+
+            get("//sys/@config")
+
+            self.Env.start_master_cell(set_config=False)
+            wait_active(master_ids)
+
+            get("//sys/@config")
+
+        voting_ids = [0, 1, 2]
+        nonvoting_ids = [3, 4]
+
+        for address in primary_master_config["addresses"][3:]:
+            wait(lambda: get(
+                "{}/{}/orchid/monitoring/hydra/discombobulated".format("//sys/primary_masters", address),
+                default=False))
+
+        restart_check_masters(voting_ids)
+
+        restart_check_masters(nonvoting_ids)
+
+        for address in primary_master_config["addresses"][3:]:
+            assert not get(
+                "{}/{}/orchid/monitoring/hydra/discombobulated".format("//sys/primary_masters", address),
+                default=True)

@@ -26,6 +26,7 @@
 #include <yt/yt/server/lib/election/config.h>
 #include <yt/yt/server/lib/election/public.h>
 
+#include <yt/yt/ytlib/election/election_service_proxy.h>
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
@@ -142,6 +143,14 @@ public:
                 &TDistributedHydraManager::OnElectionStopVoting,
                 Owner_,
                 error));
+        }
+
+        void OnDiscombobulate(i64 leaderSequenceNumber) override
+        {
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnDiscombobulate,
+                Owner_,
+                leaderSequenceNumber));
         }
 
         TPeerPriority GetPriority() override
@@ -446,6 +455,7 @@ public:
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
                     .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                     .Item("last_snapshot_read_only").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotReadOnly())
+                    .Item("discombobulated").Value(GetDiscombobulated())
                 .EndMap();
         });
     }
@@ -468,7 +478,9 @@ public:
                 "Not an active peer"));
         }
 
-        if (epochContext->LeaderId == epochContext->CellManager->GetSelfPeerId()) {
+        if (epochContext->LeaderId == epochContext->CellManager->GetSelfPeerId() ||
+            epochContext->Discombobulated)
+        {
             // NB: Leader lease is already checked in IsActive.
             return VoidFuture;
         }
@@ -717,6 +729,7 @@ private:
             RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ResetStateHash));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ExitReadOnly));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
         }
 
     private:
@@ -830,6 +843,16 @@ private:
                     }
                     context->Reply();
                 }).Via(owner->ControlInvoker_));
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, DiscombobulateNonvotingPeers)
+        {
+            context->SetRequestInfo();
+
+            auto owner = GetOwnerOrThrow();
+            owner->DiscombobulateNonvotingPeers();
+
+            context->Reply();
         }
     };
     const TIntrusivePtr<THydraService> HydraService_;
@@ -2443,6 +2466,28 @@ private:
         Participate();
     }
 
+    void OnDiscombobulate(i64 leaderSequenceNumber)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Entering discomobulated state");
+
+        WaitFor(SyncWithLeader())
+            .ThrowOnError();
+
+        auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+        if (sequenceNumber < leaderSequenceNumber) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Couldn`t sync to required sequence number (expected: %v, actual: %v)",
+                leaderSequenceNumber,
+                sequenceNumber);
+        }
+
+        YT_VERIFY(ControlState_ == EPeerState::Following && ControlEpochContext_);
+        ControlEpochContext_->Discombobulated = true;
+    }
+
     bool CheckForInitialPing(TReachableState committedState, int term)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2539,6 +2584,7 @@ private:
         epochContext->LeaderSyncBatcher = New<TAsyncBatcher<void>>(
             BIND_NO_PROPAGATE(&TDistributedHydraManager::DoSyncWithLeader, MakeWeak(this), MakeWeak(epochContext)),
             Config_->Get()->LeaderSyncDelay);
+        epochContext->Discombobulated = electionEpochContext->Discombobulated;
 
         YT_VERIFY(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
@@ -2677,6 +2723,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
         auto sequenceNumber = rsp->sync_sequence_number();
+
 
         YT_LOG_DEBUG("Received synchronization response from leader (SyncSequenceNumber: %v)",
             sequenceNumber);
@@ -2865,6 +2912,61 @@ private:
         YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery || ControlState_ == EPeerState::FollowerRecovery);
 
         SetReadOnly(DecoratedAutomaton_->GetReadOnly());
+    }
+
+    bool GetDiscombobulated() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (auto epochContext = AtomicEpochContext_.Acquire()) {
+            return epochContext->Discombobulated;
+        }
+        return false;
+    }
+
+    void DiscombobulateNonvotingPeers()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Discombobulating nonvoting peers");
+
+        auto epochContext = ControlEpochContext_;
+        if (!IsActiveLeader() || !epochContext || !epochContext->LeaderCommitter) {
+            THROW_ERROR_EXCEPTION(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Not an active leader"));
+        }
+
+        if (!GetReadOnly()) {
+            THROW_ERROR_EXCEPTION(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Must be in read-only mode to discombobulate"));
+        }
+
+        std::vector<TFuture<TElectionServiceProxy::TRspDiscombobulatePtr>> futures;
+        const auto& cellManager = epochContext->CellManager;
+        for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
+            if (cellManager->GetPeerConfig(peerId)->Voting) {
+                continue;
+            }
+
+            auto peerChannel = cellManager->GetPeerChannel(peerId);
+            if (!peerChannel) {
+                continue;
+            }
+
+            YT_LOG_INFO("Discombobulating observer (PeerId: %v)",
+                peerId);
+
+            TElectionServiceProxy proxy(std::move(peerChannel));
+            auto req = proxy.Discombobulate();
+            req->set_sequence_number(DecoratedAutomaton_->GetSequenceNumber());
+            futures.push_back(req->Invoke());
+        }
+
+        AllSucceeded(std::move(futures))
+            .Get()
+            .ThrowOnError();
     }
 };
 

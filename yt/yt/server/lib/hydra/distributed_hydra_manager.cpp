@@ -119,6 +119,9 @@ public:
                 error));
         }
 
+        void OnDiscombobulate(i64 /*leaderSequenceNumber*/) override
+        { }
+
         TPeerPriority GetPriority() override
         {
             auto owner = Owner_.Lock();

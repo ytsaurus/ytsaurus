@@ -16,6 +16,7 @@ public:
     TDuration FollowerPingRpcTimeout;
     TDuration LeaderPingTimeout;
     TDuration FollowerGraceTimeout;
+    TDuration DiscombobulatedLeaderPingTimeout;
 
     REGISTER_YSON_STRUCT(TDistributedElectionManagerConfig);
 

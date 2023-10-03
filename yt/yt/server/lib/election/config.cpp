@@ -18,6 +18,8 @@ void TDistributedElectionManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::MilliSeconds(5000));
     registrar.Parameter("follower_grace_timeout", &TThis::FollowerGraceTimeout)
         .Default(TDuration::MilliSeconds(5000));
+    registrar.Parameter("discombobulated_leader_ping_timeout", &TThis::DiscombobulatedLeaderPingTimeout)
+        .Default(TDuration::Hours(24));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

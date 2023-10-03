@@ -705,6 +705,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExitReadOnly));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
@@ -4233,6 +4234,23 @@ private:
             context,
             [=] {
                 return client->MasterExitReadOnly(options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscombobulateNonvotingPeers)
+    {
+        TDiscombobulateNonvotingPeersOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto cellId = FromProto<TCellId>(request->cell_id());
+
+        context->SetRequestInfo("CellId: %v", cellId);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->DiscombobulateNonvotingPeers(cellId, options);
             });
     }
 

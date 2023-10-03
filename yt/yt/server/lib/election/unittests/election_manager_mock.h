@@ -20,6 +20,8 @@ public:
 
     MOCK_METHOD(void, OnStopVoting, (const TError&), (override));
 
+    MOCK_METHOD(void, OnDiscombobulate, (i64), (override));
+
     MOCK_METHOD(TPeerPriority, GetPriority, (), (override));
     MOCK_METHOD(TString, FormatPriority, (TPeerPriority priority), (override));
 };

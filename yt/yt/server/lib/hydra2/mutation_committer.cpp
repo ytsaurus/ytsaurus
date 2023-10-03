@@ -1299,6 +1299,8 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
     request.Data = std::move(mutationData);
     request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
 
+    YT_VERIFY(!EpochContext_->Discombobulated || IsSystemMutationType(request.Type));
+
     AcceptedMutations_.push(
         New<TPendingMutation>(
             TVersion(MutationHeader_.segment_id(), MutationHeader_.record_id()),

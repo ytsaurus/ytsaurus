@@ -1703,6 +1703,11 @@ def master_exit_read_only(**kwargs):
     return execute_command("master_exit_read_only", kwargs)
 
 
+def discombobulate_nonvoting_peers(cell_id, **kwargs):
+    kwargs["cell_id"] = cell_id
+    return execute_command("discombobulate_nonvoting_peers", kwargs)
+
+
 def switch_leader(cell_id, new_leader_address):
     parameters = {"cell_id": cell_id, "new_leader_address": new_leader_address}
     return execute_command("switch_leader", parameters, parse_yson=True)

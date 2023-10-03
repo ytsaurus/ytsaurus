@@ -617,6 +617,10 @@ public:
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, DiscombobulateNonvotingPeers, (
+        NObjectClient::TCellId cellId,
+        const TDiscombobulateNonvotingPeersOptions& options),
+        (cellId, options))
     IMPLEMENT_METHOD(void, SwitchLeader, (
         NObjectClient::TCellId cellId,
         const TString& newLeaderAddress,
@@ -1626,6 +1630,9 @@ private:
         const TExitReadOnlyOptions& options);
     void DoMasterExitReadOnly(
         const TMasterExitReadOnlyOptions& options);
+    void DoDiscombobulateNonvotingPeers(
+        NObjectClient::TCellId cellId,
+        const TDiscombobulateNonvotingPeersOptions& options);
     void DoSwitchLeader(
         NObjectClient::TCellId cellId,
         const TString& newLeaderAddress,
