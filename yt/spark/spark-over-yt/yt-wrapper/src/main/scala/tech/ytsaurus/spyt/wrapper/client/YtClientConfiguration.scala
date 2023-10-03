@@ -39,7 +39,7 @@ object YtClientConfiguration {
   }
 
   def apply(getByName: String => Option[String], proxy: Option[String] = None): YtClientConfiguration = {
-    val byopEnabled = getByName("byop.enabled").forall(_.toBoolean)
+    val byopEnabled = getByName("byop.enabled").orElse(sys.env.get("SPARK_YT_BYOP_ENABLED")).exists(_.toBoolean)
 
     YtClientConfiguration(
       proxy.getOrElse(getByName("proxy").orElse(sys.env.get("YT_PROXY")).getOrElse(
