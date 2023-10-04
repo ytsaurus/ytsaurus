@@ -459,45 +459,60 @@ public:
         return castedData;
     }
 
-    TCGValue Cast(const TCGIRBuilderPtr& builder, EValueType dest) const
+    TCGValue Cast(const TCGIRBuilderPtr& builder, EValueType destination) const
     {
-        if (dest == StaticType_) {
+        if (destination == StaticType_) {
             return *this;
         }
 
         auto value = GetTypedData(builder);
 
         Value* result;
-        if (dest == EValueType::Int64) {
-            auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
-            if (StaticType_ == EValueType::Uint64 || StaticType_ == EValueType::Boolean) {
-                result = builder->CreateIntCast(value, destType, false);
-            } else if (StaticType_ == EValueType::Double) {
-                result = builder->CreateFPToSI(value, destType);
-            } else {
-                YT_ABORT();
+        switch (destination) {
+            case EValueType::Int64: {
+                auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
+                if (StaticType_ == EValueType::Uint64 || StaticType_ == EValueType::Boolean) {
+                    result = builder->CreateIntCast(value, destType, false);
+                } else if (StaticType_ == EValueType::Double) {
+                    result = builder->CreateFPToSI(value, destType);
+                } else {
+                    YT_ABORT();
+                }
+                break;
             }
-        } else if (dest == EValueType::Uint64) {
-            // signed/unsigned are equal to llvm
-            auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
-            if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Boolean) {
-                result = builder->CreateIntCast(value, destType, true);
-            } else if (StaticType_ == EValueType::Double) {
-                result = builder->CreateFPToUI(value, destType);
-            } else {
-                YT_ABORT();
+            case EValueType::Uint64: {
+                // signed/unsigned are equal to llvm
+                auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
+                if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Boolean) {
+                    result = builder->CreateIntCast(value, destType, true);
+                } else if (StaticType_ == EValueType::Double) {
+                    result = builder->CreateFPToUI(value, destType);
+                } else {
+                    YT_ABORT();
+                }
+                break;
             }
-        } else if (dest == EValueType::Double) {
-            auto destType = TDataTypeBuilder::TDouble::Get(builder->getContext());
-            if (StaticType_ == EValueType::Uint64) {
-                result = builder->CreateUIToFP(value, destType);
-            } else if (StaticType_ == EValueType::Int64) {
-                result = builder->CreateSIToFP(value, destType);
-            } else {
-                YT_ABORT();
+            case EValueType::Double: {
+                auto destType = TDataTypeBuilder::TDouble::Get(builder->getContext());
+                if (StaticType_ == EValueType::Uint64) {
+                    result = builder->CreateUIToFP(value, destType);
+                } else if (StaticType_ == EValueType::Int64) {
+                    result = builder->CreateSIToFP(value, destType);
+                } else {
+                    YT_ABORT();
+                }
+                break;
             }
-        } else {
-            YT_ABORT();
+            case EValueType::Boolean: {
+                if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Uint64) {
+                    result = builder->CreateIsNotNull(value);
+                } else {
+                    YT_ABORT();
+                }
+                break;
+            }
+            default:
+                YT_ABORT();
         }
 
         return Create(
@@ -508,7 +523,7 @@ public:
                 ? GetLength()
                 : nullptr,
             result,
-            dest);
+            destination);
     }
 };
 

@@ -143,13 +143,35 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Null,
         EValueType::Double));
 
-    result->emplace("boolean", New<TFunctionTypeInferrer>(
-        std::vector<TType>{EValueType::Any},
-        EValueType::Boolean));
+    {
+        auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+        castConstraints[typeArg] = std::vector<EValueType>{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Boolean,
+            EValueType::Any,
+        };
 
-    result->emplace("string", New<TFunctionTypeInferrer>(
-        std::vector<TType>{EValueType::Any},
-        EValueType::String));
+        result->emplace("boolean", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{typeArg},
+            EValueType::Null,
+            EValueType::Boolean));
+    }
+
+    {
+        auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+        castConstraints[typeArg] = std::vector<EValueType>{
+            EValueType::String,
+            EValueType::Any,
+        };
+
+        result->emplace("string", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{typeArg},
+            EValueType::Null,
+            EValueType::String));
+    }
 
     result->emplace("if_null", New<TFunctionTypeInferrer>(
         std::unordered_map<TTypeArgument, TUnionType>(),
