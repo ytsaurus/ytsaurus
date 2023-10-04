@@ -1,10 +1,16 @@
 #include "serialize.h"
 
+#include "private.h"
+
 #include <util/generic/cast.h>
 
 namespace NYT::NChaosNode {
 
 using namespace NHydra;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ChaosNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +31,11 @@ bool ValidateSnapshotReign(TReign reign)
 
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
-    YT_VERIFY(reign <= GetCurrentReign());
+    YT_LOG_FATAL_UNLESS(reign <= GetCurrentReign(),
+        "Attempted to recover chaos cell from invalid reign "
+        "(RecoverReign: %v, CurrentReign: %v)",
+        reign,
+        GetCurrentReign());
 
     if (reign < GetCurrentReign()) {
         return EFinalRecoveryAction::BuildSnapshotAndRestart;
