@@ -343,8 +343,9 @@ private:
 
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];
 
-            auto commitTimestamp = FromUnversionedValue<ui64>(row[1]);
-            consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(commitTimestamp).first;
+            if (auto commitTimestamp = FromUnversionedValue<std::optional<ui64>>(row[1])) {
+                consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(*commitTimestamp).first;
+            }
         }
 
         YT_LOG_DEBUG("Consumer timestamps collected");

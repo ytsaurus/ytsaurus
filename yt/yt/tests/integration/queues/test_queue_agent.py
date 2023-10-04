@@ -397,6 +397,26 @@ class TestQueueController(TestQueueAgentBase):
         consumer_partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
         assert_partition(consumer_partitions[1], 2)
 
+    @authors("achulkov2")
+    def test_null_columns(self):
+        orchid = QueueAgentOrchid()
+
+        schema, _ = self._create_queue("//tmp/q", enable_timestamp_column=False, enable_cumulative_data_weight_column=False)
+        insert_rows("//tmp/q", [{"data": "foo"}] * 3)
+
+        schema += [{"name": "$timestamp", "type": "uint64"}]
+        schema += [{"name": "$cumulative_data_weight", "type": "int64"}]
+        sync_unmount_table("//tmp/q")
+        alter_table("//tmp/q", schema=schema)
+        sync_mount_table("//tmp/q")
+
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
+
+        self._wait_for_component_passes()
+
+        assert orchid.get_queue_orchid("primary://tmp/q").get_status()["partition_count"] == 1
+        assert orchid.get_consumer_orchid("primary://tmp/c").get_status()["queues"]["primary://tmp/q"]["partition_count"] == 1
+
     @authors("max42")
     def test_consumer_partition_disposition(self):
         orchid = QueueAgentOrchid()
