@@ -1076,6 +1076,7 @@ class TabletBalancerBase(TabletActionsBase):
             "//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer",
             False,
         )
+        self._wait_full_iteration()
         remove("//tmp/t/@tablet_balancer_config/enable_auto_reshard")
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
@@ -1395,6 +1396,9 @@ class TestTabletBalancer(TabletBalancerBase):
             "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
             value
         )
+
+    def _wait_full_iteration(self):
+        pass
 
     def _set_default_schedule_formula(self, value):
         set(

@@ -134,6 +134,10 @@ private:
 
     TScheduledActionCountLimiter ActionCountLimiter_;
     TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
+
+    // Presized iteration start time used for liveness reporting.
+    TInstant PresizedCurrentIterationStartTime_;
+    // Logical iteration start time used for iteration scheduling.
     TInstant CurrentIterationStartTime_;
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
     i64 IterationIndex_;
@@ -255,6 +259,7 @@ void TTabletBalancer::BalancerIteration()
     auto newBundles = UpdateBundleList();
     YT_LOG_INFO("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
 
+    PresizedCurrentIterationStartTime_ = Now();
     CurrentIterationStartTime_ = TruncatedNow();
     auto dynamicConfig = DynamicConfig_.Acquire();
     RemoveBundleErrorsByTtl(dynamicConfig->BundleErrorsTtl);
@@ -438,7 +443,9 @@ void TTabletBalancer::BuildOrchid(IYsonConsumer* consumer) const
                         fluent.Item().Value(error);
                     });
                 })
-            .Item("last_iteration_start_time").Value(CurrentIterationStartTime_)
+            .DoIf(PresizedCurrentIterationStartTime_ != TInstant::Zero(), [&] (TFluentMap fluent) {
+                fluent.Item("last_iteration_start_time").Value(PresizedCurrentIterationStartTime_);
+            })
         .EndMap();
 }
 
