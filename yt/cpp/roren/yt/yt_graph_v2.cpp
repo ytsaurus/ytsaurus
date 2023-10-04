@@ -1463,11 +1463,10 @@ std::vector<std::vector<IYtGraph::TOperationNodeId>> TYtGraphV2::GetOperationLev
                     dependencyMap.erase(operation);
                 }
             }
-
-            operationNodeLevels.emplace_back();
-            operationNodeLevels.back().reserve(readyOperations.size());
         }
 
+        operationNodeLevels.emplace_back();
+        operationNodeLevels.back().reserve(readyOperations.size());
         readyTables.clear();
         for (const auto* operation : readyOperations) {
             operationNodeLevels.back().push_back(idMap[operation]);
