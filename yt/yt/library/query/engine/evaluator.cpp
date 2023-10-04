@@ -226,14 +226,9 @@ private:
             cachedQueryImage = compileWithLogging();
         }
 
-        TCGQueryInstance instance;
-        {
-            NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
-            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
-            instance = cachedQueryImage->Image.Instantiate();
-        }
-
-        return instance;
+        NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
+        TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
+        return cachedQueryImage->Image.Instantiate();
     }
 };
 

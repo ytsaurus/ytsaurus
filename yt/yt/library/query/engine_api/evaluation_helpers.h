@@ -352,7 +352,7 @@ public:
         TExecutionContext* context);
 
 private:
-    TCGQueryCallback Callback_;
+    const TCGQueryCallback Callback_;
 };
 
 class TCGQueryImage
@@ -363,7 +363,7 @@ public:
     TCGQueryInstance Instantiate() const;
 
 private:
-    TCGQueryCallback Callback_;
+    const TCGQueryCallback Callback_;
 };
 
 //! NB: TCGExpressionInstance is NOT thread-safe.

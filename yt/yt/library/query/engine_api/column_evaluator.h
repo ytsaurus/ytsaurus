@@ -62,9 +62,11 @@ public:
 private:
     struct TColumn
     {
-        mutable TCGExpressionInstance EvaluatorInstance; // NB(dtorilov): WebAssembly instances are NOT thread-safe.
+        // NB(dtorilov): WebAssembly instances are NOT thread-safe.
+        mutable TCGExpressionInstance EvaluatorInstance;
         TCGExpressionImage EvaluatorImage;
-        TCGVariables Variables; // FIXME(dtorilov): Variables destruction is undefined.
+        // TODO(dtorilov): Variables destruction is undefined.
+        TCGVariables Variables;
         std::vector<int> ReferenceIds;
         TConstExpressionPtr Expression;
         mutable TCGAggregateInstance AggregateInstance;

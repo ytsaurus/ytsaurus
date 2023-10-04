@@ -183,7 +183,7 @@ TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGQueryInstance::TCGQueryInstance(TCGQueryCallback callback)
-    : Callback_(callback)
+    : Callback_(std::move(callback))
 { }
 
 void TCGQueryInstance::Run(
@@ -194,8 +194,10 @@ void TCGQueryInstance::Run(
     Callback_(literalValues, opaqueData, context);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCGQueryImage::TCGQueryImage(TCGQueryCallback callback)
-    : Callback_(callback)
+    : Callback_(std::move(callback))
 { }
 
 TCGQueryInstance TCGQueryImage::Instantiate() const
@@ -203,8 +205,10 @@ TCGQueryInstance TCGQueryImage::Instantiate() const
     return TCGQueryInstance(Callback_);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCGExpressionInstance::TCGExpressionInstance(TCGExpressionCallback callback)
-    : Callback_(callback)
+    : Callback_(std::move(callback))
 { }
 
 void TCGExpressionInstance::Run(
@@ -222,8 +226,10 @@ TCGExpressionInstance::operator bool() const
     return bool(Callback_);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCGExpressionImage::TCGExpressionImage(TCGExpressionCallback callback)
-    : Callback_(callback)
+    : Callback_(std::move(callback))
 { }
 
 TCGExpressionInstance TCGExpressionImage::Instantiate() const
@@ -236,8 +242,10 @@ TCGExpressionImage::operator bool() const
     return bool(Callback_);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCGAggregateInstance::TCGAggregateInstance(TCGAggregateCallbacks callbacks)
-    : Callbacks_(callbacks)
+    : Callbacks_(std::move(callbacks))
 { }
 
 void TCGAggregateInstance::RunInit(TRowBuffer* buffer, TValue* state)
@@ -260,8 +268,10 @@ void TCGAggregateInstance::RunFinalize(TRowBuffer* buffer, TValue* firstState, c
     Callbacks_.Finalize(buffer, firstState, secondState);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCGAggregateImage::TCGAggregateImage(TCGAggregateCallbacks callbacks)
-    : Callbacks_(callbacks)
+    : Callbacks_(std::move(callbacks))
 { }
 
 TCGAggregateInstance TCGAggregateImage::Instantiate() const
