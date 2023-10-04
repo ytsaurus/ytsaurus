@@ -309,8 +309,6 @@ static bool IsCumulativeStatistics(EStatField statistic)
 
         statistic == EStatField::MinorPageFaults ||
         statistic == EStatField::MajorPageFaults ||
-        statistic == EStatField::OomKills ||
-        statistic == EStatField::OomKillsTotal ||
 
         statistic == EStatField::IOReadByte ||
         statistic == EStatField::IOWriteByte ||
