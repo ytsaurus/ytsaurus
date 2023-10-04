@@ -1671,16 +1671,17 @@ public:
         Find(layer->GetKey());
     }
 
-    void BuildOrchidYson(TFluentMap fluent) const
+    void BuildOrchid(TFluentAny fluent) const
     {
-        fluent
+        fluent.BeginMap()
             .Item("cached_layer_count").Value(GetSize())
             .Item("regular_tmpfs_cache").DoMap([&] (auto fluentMap) {
                 RegularTmpfsLayerCache_->BuildOrchid(fluentMap);
             })
             .Item("nirvana_tmpfs_cache").DoMap([&] (auto fluentMap) {
                 NirvanaTmpfsLayerCache_->BuildOrchid(fluentMap);
-            });
+            })
+        .EndMap();
     }
 
 private:
@@ -2160,9 +2161,9 @@ private:
         });
     }
 
-    void BuildOrchidYson(NYTree::TFluentMap fluent) const override
+    void BuildOrchid(NYTree::TFluentAny fluent) const override
     {
-        LayerCache_->BuildOrchidYson(fluent);
+        LayerCache_->BuildOrchid(fluent);
     }
 
     TLayeredVolumePtr CreateVolume(

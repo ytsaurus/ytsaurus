@@ -434,6 +434,24 @@ void TGpuManager::ReleaseGpuSlot(int deviceIndex)
     }
 }
 
+NYTree::IYPathServicePtr TGpuManager::GetOrchidService() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return IYPathService::FromProducer(BIND_NO_PROPAGATE(
+        &TGpuManager::BuildOrchid,
+        MakeStrong(this)));
+}
+
+void TGpuManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("gpu_infos").Value(GetGpuInfoMap())
+    .EndMap();
+}
+
 TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
 {
     VERIFY_THREAD_AFFINITY_ANY();

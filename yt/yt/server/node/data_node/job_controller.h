@@ -51,9 +51,7 @@ public:
         const TString& jobTrackerAddress,
         const TRspHeartbeatPtr& response) = 0;
 
-    virtual void BuildJobsInfo(NYTree::TFluentAny fluent) const = 0;
-
-    virtual int GetActiveJobCount() const = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobController)

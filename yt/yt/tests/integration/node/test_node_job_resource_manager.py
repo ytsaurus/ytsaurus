@@ -31,7 +31,7 @@ class TestMemoryPressureDetector(YTEnvSetup):
     @authors("renadeen")
     def test_memory_pressure_detector_at_node(self):
         node = ls("//sys/cluster_nodes")[0]
-        node_memory = "//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_memory".format(node)
+        node_memory = "//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/user_memory".format(node)
 
         memory_before_pressure = get(node_memory)
 

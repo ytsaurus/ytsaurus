@@ -241,7 +241,7 @@ class TestJobTracker(YTEnvSetup):
 
         release_breakpoint()
 
-        node_job_orchid_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}".format(job_info["node_address"], job_id)
+        node_job_orchid_path = "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}".format(job_info["node_address"], job_id)
 
         wait(lambda: get(node_job_orchid_path)["stored"])
 

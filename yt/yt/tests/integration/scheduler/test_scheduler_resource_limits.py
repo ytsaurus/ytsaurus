@@ -856,7 +856,7 @@ class TestSchedulerGpu(YTEnvSetup):
                 return False
             assert next(iter(jobs.values()))["address"] == gpu_node
             job_info = get(
-                "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, next(iter(jobs.keys())))
+                "//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs/{}".format(gpu_node, next(iter(jobs.keys())))
             )
             job_gpu_indexes = sorted([device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]])
             if job_gpu_indexes != sorted(gpu_indexes):

@@ -1107,7 +1107,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         node = nodes[0]
 
         def gpu_check_is_running(job_id):
-            node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}"\
+            node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs/{}"\
                                    .format(node, job_id)
             if not exists(node_orchid_job_path):
                 return False

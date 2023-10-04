@@ -13,6 +13,7 @@
 #include "journal_dispatcher.h"
 #include "master_connector.h"
 #include "medium_updater.h"
+#include "orchid.h"
 #include "p2p.h"
 #include "private.h"
 #include "session_manager.h"
@@ -268,19 +269,8 @@ public:
 
         SetNodeByYPath(
             GetOrchidRoot(),
-            "/location_manager",
-            CreateVirtualNode(LocationManager_->GetOrchidService()));
-
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/stored_chunks",
-            CreateVirtualNode(CreateStoredChunkMapService(ChunkStore_, GetAllyReplicaManager())
-                ->Via(GetControlInvoker())));
-
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/ally_replica_manager",
-            CreateVirtualNode(AllyReplicaManager_->GetOrchidService()));
+            "/data_node",
+            CreateVirtualNode(GetOrchidService(this)));
 
         MasterConnector_->Initialize();
 

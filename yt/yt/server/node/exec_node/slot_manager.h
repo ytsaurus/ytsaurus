@@ -136,7 +136,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
+    NYTree::IYPathServicePtr GetOrchidService() const;
 
     /*!
      *  \note
@@ -192,7 +192,23 @@ private:
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
+    struct TSlotManagerInfo
+    {
+        int SlotCount;
+        int FreeSlotCount;
+        int UsedIdleSlotCount;
+
+        double IdlePolicyRequestedCpu;
+
+        std::vector<TNumaNodeState> NumaNodeStates;
+
+        TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts;
+    };
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    TSlotManagerInfo DoGetStateSnapshot() const;
+    auto GetStateSnapshot() const;
 
     bool HasNonFatalAlerts() const;
     bool HasGpuAlerts() const;
@@ -236,6 +252,8 @@ private:
     void ResetConsecutiveAbortedJobCount();
     void ResetConsecutiveFailedGpuJobCount();
     void PopulateAlerts(std::vector<TError>* alerts);
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotManager)

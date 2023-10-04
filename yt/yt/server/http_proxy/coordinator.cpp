@@ -774,7 +774,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
             "//sys/cluster_nodes",
             fallbackInstances,
             "job_proxy",
-            "/orchid/job_controller/job_proxy_build");
+            "/orchid/exec_node/job_controller/job_proxy_build");
 
         for (auto& jobProxy : fallbackJobProxies) {
             instances.emplace_back(std::move(jobProxy));

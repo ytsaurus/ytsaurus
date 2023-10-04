@@ -1083,7 +1083,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
             "//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[0]),
             {"cpu": 0},
         )
-        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 0.0)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/cpu".format(nodes[0])) == 0.0)
 
         create("table", "//tmp/t_in")
         for i in range(1):
@@ -1110,7 +1110,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/cpu".format(nodes[1])) == 2.0)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_usage/cpu".format(nodes[1])) == 2.0)
 
         # TODO(ignat): add check that jobs are not preemptible.
 
@@ -1118,13 +1118,13 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
             "//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[0]),
             {"cpu": 2},
         )
-        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 2.0)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/cpu".format(nodes[0])) == 2.0)
 
         set(
             "//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[1]),
             {"cpu": 0},
         )
-        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[1])) == 0.0)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/cpu".format(nodes[1])) == 0.0)
 
         wait(lambda: op1.get_job_count("aborted") == 1)
         wait(lambda: op2.get_job_count("aborted") == 1)
@@ -1139,7 +1139,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         disable_scheduler_jobs_on_node(nodes[0], "test scheduler force abort")
         wait(
-            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 0
+            lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/user_slots".format(nodes[0])) == 0
         )
 
         create("table", "//tmp/t_in")
@@ -1165,19 +1165,19 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
         wait(
-            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[1])) == 2
+            lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_usage/user_slots".format(nodes[1])) == 2
         )
 
         # TODO(ignat): add check that jobs are not preemptible.
 
         enable_scheduler_jobs_on_node(nodes[0])
         wait(
-            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 2
+            lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/user_slots".format(nodes[0])) == 2
         )
 
         disable_scheduler_jobs_on_node(nodes[1], "test scheduler force abort")
         wait(
-            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[1])) == 0
+            lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/user_slots".format(nodes[1])) == 0
         )
 
         wait(lambda: op1.get_job_count("aborted") == 1)

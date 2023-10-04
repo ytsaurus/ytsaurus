@@ -454,6 +454,44 @@ bool TSlotManager::HasNonFatalAlerts() const
         HasGpuAlerts();
 }
 
+TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    TEnumIndexedVector<ESlotManagerAlertType, TError> alerts;
+
+    {
+        auto guard = ReaderGuard(AlertsLock_);
+
+        alerts = Alerts_;
+    }
+
+    return {
+        .SlotCount = SlotCount_,
+        .FreeSlotCount = static_cast<int>(FreeSlots_.size()),
+        .UsedIdleSlotCount = UsedIdleSlotCount_,
+        .IdlePolicyRequestedCpu = IdlePolicyRequestedCpu_,
+        .NumaNodeStates = NumaNodeStates_,
+        .Alerts = std::move(alerts),
+    };
+}
+
+auto TSlotManager::GetStateSnapshot() const
+{
+    auto snapshotOrError = WaitFor(BIND(
+        &TSlotManager::DoGetStateSnapshot,
+        MakeStrong(this))
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run());
+
+    YT_LOG_FATAL_IF(
+        !snapshotOrError.IsOK(),
+        snapshotOrError,
+        "Unexpected failure during slot manager info lookup");
+
+    return std::move(snapshotOrError.Value());
+}
+
 bool TSlotManager::HasSlotDisablingAlert() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -736,45 +774,57 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
-void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
+IYPathServicePtr TSlotManager::GetOrchidService() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    fluent
-        .Item("slot_count").Value(SlotCount_)
-        .Item("free_slot_count").Value(FreeSlots_.size())
-        .Item("used_idle_slot_count").Value(UsedIdleSlotCount_)
-        .Item("idle_policy_requested_cpu").Value(IdlePolicyRequestedCpu_)
-        .Item("numa_node_states").DoMapFor(
-            NumaNodeStates_,
-            [&] (TFluentMap fluent, const TNumaNodeState& numaNodeState) {
-                VERIFY_THREAD_AFFINITY(JobThread);
+    return IYPathService::FromProducer(BIND_NO_PROPAGATE(
+        &TSlotManager::BuildOrchid,
+        MakeStrong(this)));
+}
 
-                fluent
-                    .Item(Format("node_%v", numaNodeState.NumaNodeInfo.NumaNodeId)).BeginMap()
-                        .Item("free_cpu_count").Value(numaNodeState.FreeCpuCount)
-                        .Item("cpu_set").Value(numaNodeState.NumaNodeInfo.CpuSet)
-                    .EndMap();
-            }
-        )
-        .Item("alerts").DoMapFor(
-            TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
-            [&] (TFluentMap fluent, ESlotManagerAlertType alertType) {
-                VERIFY_THREAD_AFFINITY(JobThread);
+void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
 
-                auto guard = ReaderGuard(AlertsLock_);
+    auto slotManagerInfo = GetStateSnapshot();
 
-                const auto& error = Alerts_[alertType];
-                if (!error.IsOK()) {
+    auto rootVolumeManager = RootVolumeManager_.Acquire();
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("slot_count").Value(slotManagerInfo.SlotCount)
+            .Item("free_slot_count").Value(slotManagerInfo.FreeSlotCount)
+            .Item("used_idle_slot_count").Value(slotManagerInfo.UsedIdleSlotCount)
+            .Item("idle_policy_requested_cpu").Value(slotManagerInfo.IdlePolicyRequestedCpu)
+            .Item("numa_node_states").DoMapFor(
+                slotManagerInfo.NumaNodeStates,
+                [&] (TFluentMap fluent, const TNumaNodeState& numaNodeState) {
                     fluent
-                        .Item(FormatEnum(alertType)).Value(error);
-                }
-            });
-
-    if (auto rootVolumeManager = RootVolumeManager_.Acquire()) {
-        fluent
-            .Item("root_volume_manager").DoMap(BIND(&IVolumeManager::BuildOrchidYson, rootVolumeManager));
-    }
+                        .Item(Format("node_%v", numaNodeState.NumaNodeInfo.NumaNodeId)).BeginMap()
+                            .Item("free_cpu_count").Value(numaNodeState.FreeCpuCount)
+                            .Item("cpu_set").Value(numaNodeState.NumaNodeInfo.CpuSet)
+                        .EndMap();
+                })
+            .Item("alerts").DoMapFor(
+                TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
+                [&] (TFluentMap fluent, ESlotManagerAlertType alertType) {
+                    const auto& error = slotManagerInfo.Alerts[alertType];
+                    if (!error.IsOK()) {
+                        fluent
+                            .Item(FormatEnum(alertType)).Value(error);
+                    }
+                })
+            .DoIf(
+                static_cast<bool>(rootVolumeManager),
+                [rootVolumeManager = std::move(rootVolumeManager)](TFluentMap fluent){
+                    fluent
+                        .Item("root_volume_manager").Do(std::bind(
+                            &IVolumeManager::BuildOrchid,
+                            rootVolumeManager,
+                            std::placeholders::_1));
+                })
+        .EndMap();
 }
 
 void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory)

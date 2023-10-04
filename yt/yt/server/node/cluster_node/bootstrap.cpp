@@ -48,7 +48,6 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
-#include <yt/yt/server/node/job_agent/orchid_service_provider.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
@@ -695,7 +694,6 @@ private:
     NApi::NNative::IConnectionPtr Connection_;
     IAuthenticatorPtr NativeAuthenticator_;
 
-    IOrchidServiceProviderPtr JobsOrchidServiceProvider_;
     IJobResourceManagerPtr JobResourceManager_;
 
     TRestartManagerPtr RestartManager_;
@@ -917,8 +915,6 @@ private:
 
         auto localAddress = GetDefaultAddress(localRpcAddresses);
 
-        JobsOrchidServiceProvider_ = CreateOrchidServiceProvider(this);
-
         JobResourceManager_ = IJobResourceManager::CreateJobResourceManager(this);
 
         RestartManager_ = New<TRestartManager>(GetControlInvoker());
@@ -1058,7 +1054,6 @@ private:
         }
 
         JobResourceManager_->Initialize();
-        JobsOrchidServiceProvider_->Initialize();
     }
 
     void DoRun()
@@ -1105,10 +1100,6 @@ private:
             OrchidRoot_,
             "/restart_manager",
             CreateVirtualNode(RestartManager_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/job_controller",
-            CreateVirtualNode(JobsOrchidServiceProvider_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/cluster_connection",

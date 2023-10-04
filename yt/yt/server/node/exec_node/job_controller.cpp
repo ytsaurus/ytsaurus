@@ -325,77 +325,6 @@ public:
         return DisableJobs_.load();
     }
 
-    void BuildJobProxyBuildInfo(TFluentAny fluent) const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        auto buildInfo = CachedJobProxyBuildInfo_.Load();
-
-        if (buildInfo.IsOK()) {
-            fluent.Value(buildInfo.Value());
-        } else {
-            fluent
-                .BeginMap()
-                    .Item("error").Value(static_cast<TError>(buildInfo))
-                .EndMap();
-        }
-    }
-
-    void BuildJobsInfo(TFluentAny fluent) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto jobsBriefInfoOrError = WaitFor(BIND([this, this_ = MakeStrong(this)]{
-            std::vector<TBriefJobInfo> result;
-            result.reserve(JobMap_.size());
-
-            for(TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_){
-                result.push_back(job->GetBriefInfo());
-            }
-
-            return result;
-        })
-            .AsyncVia(Bootstrap_->GetJobInvoker())
-            .Run());
-
-        YT_LOG_FATAL_IF(
-            !jobsBriefInfoOrError.IsOK(),
-            jobsBriefInfoOrError,
-            "Unexpected failure while getting job info");
-
-        fluent.DoMapFor(
-            jobsBriefInfoOrError.Value(),
-            [&] (TFluentMap fluent, const TBriefJobInfo& job) {
-                fluent.Do(std::bind(&TBriefJobInfo::BuildOrchid, job, std::placeholders::_1));
-            });
-    }
-
-    void BuildJobControllerInfo(NYTree::TFluentMap fluent) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto jobsWaitingForCleanupOrError = WaitFor(BIND([this, this_ = MakeStrong(this)] {
-            return std::vector(std::begin(JobsWaitingForCleanup_), std::end(JobsWaitingForCleanup_));
-        })
-            .AsyncVia(Bootstrap_->GetJobInvoker())
-            .Run());
-
-        YT_LOG_FATAL_IF(
-            !jobsWaitingForCleanupOrError.IsOK(),
-            jobsWaitingForCleanupOrError,
-            "Unexpected fail during getting jobs, waiting for cleanup");
-
-        fluent
-            .Item("jobs_waiting_for_cleanup").DoMapFor(
-                jobsWaitingForCleanupOrError.Value(),
-                [] (TFluentMap fluent, const TJobPtr& job) {
-                    fluent
-                        .Item(ToString(job->GetId())).BeginMap()
-                            .Item("phase").Value(job->GetPhase())
-                        .EndMap();
-                });
-    }
-
     void ScheduleStartJobs() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -410,11 +339,13 @@ public:
         StartJobsScheduled_ = true;
     }
 
-    int GetActiveJobCount() const override
+    IYPathServicePtr GetOrchidService() const override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return std::ssize(JobMap_);
+        return IYPathService::FromProducer(BIND_NO_PROPAGATE(
+            &TJobController::BuildOrchid,
+            MakeStrong(this)));
     }
 
     void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) override
@@ -571,7 +502,7 @@ private:
         std::vector<TJobPtr> currentJobs;
         currentJobs.reserve(JobMap_.size());
 
-        for(const auto& [id, job] : JobMap_) {
+        for (const auto& [id, job] : JobMap_) {
             currentJobs.push_back(job);
         }
 
@@ -2183,6 +2114,121 @@ private:
         initiator->AddUnconfirmedJobIds(std::move(unconfirmedJobIds));
 
         Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool()->SendOutOfBandHeartbeatsIfNeeded();
+    }
+
+    static void BuildJobsInfo(const std::vector<TBriefJobInfo>& jobsInfo, TFluentAny fluent)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        fluent.DoMapFor(
+            jobsInfo,
+            [&] (TFluentMap fluent, const TBriefJobInfo& jobInfo) {
+                jobInfo.BuildOrchid(fluent);
+            });
+    }
+
+    static void BuildJobsWaitingForCleanupInfo(
+        const std::vector<std::pair<TJobId, EJobPhase>>& jobsWaitingForCleanupInfo,
+        TFluentAny fluent)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        fluent.DoMapFor(
+            jobsWaitingForCleanupInfo,
+            [] (TFluentMap fluent, const auto& jobInfo) {
+                auto [id, phase] = jobInfo;
+
+                fluent
+                    .Item(ToString(id)).BeginMap()
+                        .Item("phase").Value(phase)
+                    .EndMap();
+            });
+    }
+
+    static void BuildJobProxyBuildInfo(const TErrorOr<TBuildInfoPtr>& buildInfo, TFluentAny fluent)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (buildInfo.IsOK()) {
+            fluent.Value(buildInfo.Value());
+        } else {
+            fluent
+                .BeginMap()
+                    .Item("error").Value(static_cast<TError>(buildInfo))
+                .EndMap();
+        }
+    }
+
+    auto DoGetStateSnapshot() const
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+        TForbidContextSwitchGuard guard;
+
+        std::vector<TBriefJobInfo> jobInfo;
+        jobInfo.reserve(JobMap_.size());
+
+        for (const auto& [id, job] : JobMap_) {
+            jobInfo.emplace_back(job->GetBriefInfo());
+        }
+
+        std::vector<std::pair<TJobId, EJobPhase>> jobsWaitingForCleanupInfo;
+
+        jobsWaitingForCleanupInfo.reserve(JobsWaitingForCleanup_.size());
+
+        for (TForbidContextSwitchGuard guard; const auto& job : JobsWaitingForCleanup_) {
+            jobsWaitingForCleanupInfo.emplace_back(job->GetId(), job->GetPhase());
+        }
+
+        return make_tuple(
+            std::move(jobInfo),
+            std::move(jobsWaitingForCleanupInfo),
+            CachedJobProxyBuildInfo_.Load());
+    }
+
+    auto GetStateSnapshot() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto snapshotOrError = WaitFor(BIND(
+            &TJobController::DoGetStateSnapshot,
+            MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run());
+
+        YT_LOG_FATAL_UNLESS(
+            snapshotOrError.IsOK(),
+            snapshotOrError,
+            "Unexpected failure while making exec node job controller info snapshot"
+        );
+
+        return std::move(snapshotOrError.Value());
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto [
+            jobsInfo,
+            jobsWaitingForCleanupInfo,
+            buildInfo
+        ] = GetStateSnapshot();
+
+        BuildYsonFluently(consumer).BeginMap()
+            .Item("active_job_count").Value(std::ssize(jobsInfo))
+            .Item("active_jobs").Do(std::bind(
+                &TJobController::BuildJobsInfo,
+                jobsInfo,
+                std::placeholders::_1))
+            .Item("jobs_waiting_for_cleanup").Do(std::bind(
+                &TJobController::BuildJobsWaitingForCleanupInfo,
+                jobsWaitingForCleanupInfo,
+                std::placeholders::_1))
+            .Item("job_proxy_build").Do(std::bind(
+                &TJobController::BuildJobProxyBuildInfo,
+                buildInfo,
+                std::placeholders::_1))
+        .EndMap();
     }
 };
 

@@ -35,7 +35,7 @@ class TestChunkCache(YTEnvSetup):
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["run_here"])
 
     def damage_chunks(self):
-        path = "//sys/cluster_nodes/{0}/orchid/cached_chunks".format(self.select_node())
+        path = "//sys/cluster_nodes/{0}/orchid/exec_node/cached_chunks".format(self.select_node())
         cached_chunks = ls(path)
 
         for chunk in cached_chunks:

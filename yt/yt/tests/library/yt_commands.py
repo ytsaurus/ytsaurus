@@ -1256,7 +1256,7 @@ class Operation(object):
         )
 
     def get_job_node_orchid(self, job_id):
-        job_orchid_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}".format(
+        job_orchid_path = "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}".format(
             self.get_node(job_id), job_id
         )
 

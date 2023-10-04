@@ -93,6 +93,8 @@ public:
 
     void ReleaseGpuSlot(int deviceIndex);
 
+    NYTree::IYPathServicePtr GetOrchidService() const;
+
 private:
     IBootstrap* const Bootstrap_;
     const NJobAgent::TGpuManagerConfigPtr Config_;
@@ -140,6 +142,8 @@ private:
     void OnFetchDriverLayerInfo();
     bool IsDriverLayerMissing() const;
     void PopulateAlerts(std::vector<TError>* alerts) const;
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)

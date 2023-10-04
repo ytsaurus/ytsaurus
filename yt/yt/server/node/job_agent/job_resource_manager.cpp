@@ -42,6 +42,8 @@ using namespace NProfiling;
 using namespace NNodeTrackerClient;
 using namespace NNet;
 using namespace NLogging;
+using namespace NYson;
+using namespace NYTree;
 
 using NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides;
 using NNodeTrackerClient::NProto::TDiskResources;
@@ -811,6 +813,15 @@ public:
         ResourcesConsumerCallbacks_[consumerType].Subscribe(std::move(onResourcesReleased));
     }
 
+    IYPathServicePtr GetOrchidService() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND_NO_PROPAGATE(
+            &IJobResourceManager::TImpl::BuildOrchid,
+            MakeStrong(this)));
+    }
+
 private:
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     IBootstrapBase* const Bootstrap_;
@@ -852,7 +863,87 @@ private:
 
     bool HasActiveResourceAcquiring_ = false;
 
+    struct TJobResourceManagerInfo
+    {
+        NClusterNode::TJobResources ResourceLimits;
+        NClusterNode::TJobResources ResourceUsage;
+
+        NClusterNode::TJobResources WaitingResources;
+
+        int WaitingResourceHolderCount;
+
+        i64 LastMajorPageFaultCount;
+
+        double FreeMemoryWatermarkMultiplier;
+
+        double CpuToVCpuFactor;
+
+        THashSet<int> FreePorts;
+    };
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    TJobResourceManagerInfo DoGetStateSnapshot() const
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        TJobResources waitingResources;
+        int waitingResourceHolderCount;
+
+        {
+            auto guard = ReaderGuard(ResourcesLock_);
+
+            waitingResources = WaitingResources_;
+            waitingResourceHolderCount = WaitingResourceHolderCount_;
+        }
+
+        return {
+            .ResourceLimits = GetResourceLimits(),
+            .ResourceUsage = GetResourceUsage(),
+            .WaitingResources = waitingResources,
+            .WaitingResourceHolderCount = waitingResourceHolderCount,
+            .LastMajorPageFaultCount = LastMajorPageFaultCount_,
+            .FreeMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_,
+            .CpuToVCpuFactor = GetCpuToVCpuFactor(),
+            .FreePorts = FreePorts_,
+        };
+    }
+
+    auto GetStateSnapshot() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto infoOrError = WaitFor(BIND(
+            &IJobResourceManager::TImpl::DoGetStateSnapshot,
+            MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run());
+
+        YT_LOG_FATAL_UNLESS(
+            infoOrError.IsOK(),
+            infoOrError,
+            "Unexpected failure while making job resource manager info snapshot");
+
+        return std::move(infoOrError.Value());
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto jobResourceManagerInfo = GetStateSnapshot();
+
+        BuildYsonFluently(consumer).BeginMap()
+            .Item("resource_limits").Value(jobResourceManagerInfo.ResourceLimits)
+            .Item("resource_usage").Value(ToNodeResources(jobResourceManagerInfo.ResourceUsage))
+            .Item("waiting_resources").Value(jobResourceManagerInfo.WaitingResources)
+            .Item("waiting_resource_holder_count").Value(jobResourceManagerInfo.WaitingResourceHolderCount)
+            .Item("last_major_page_fault_count").Value(jobResourceManagerInfo.LastMajorPageFaultCount)
+            .Item("free_memory_multiplier").Value(jobResourceManagerInfo.FreeMemoryWatermarkMultiplier)
+            .Item("cpu_to_vcpu_factor").Value(jobResourceManagerInfo.CpuToVCpuFactor)
+            .Item("free_ports").Value(jobResourceManagerInfo.FreePorts)
+        .EndMap();
+    }
 
     void NotifyResourcesReleased(EResourcesConsumerType resourcesConsumerType, bool fullyReleased)
     {

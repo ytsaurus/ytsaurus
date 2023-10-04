@@ -831,7 +831,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
-        node_orchid_jobs_path = "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler".format(nodes[0])
+        node_orchid_jobs_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs".format(nodes[0])
 
         wait(lambda: len(ls(node_orchid_jobs_path)) == 2)
 
@@ -932,7 +932,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
         assert len(nodes) == 1
         assert len(jobs) == 1
 
-        node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}"\
+        node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs/{}"\
                                .format(nodes[0], jobs[0])
         wait(lambda: exists(node_orchid_job_path))
         wait(lambda: get(node_orchid_job_path + "/exec_attributes/medium_name") == "ssd")

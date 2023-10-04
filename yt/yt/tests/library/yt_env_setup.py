@@ -1553,34 +1553,58 @@ class YTEnvSetup(object):
             assert not yt_commands.get_batch_error(response)
 
     def _wait_for_jobs_to_vanish(self, driver=None):
-        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
+        nodes_info = yt_commands.get("//sys/cluster_nodes", driver=driver, attributes=["flavors", "version"])
+
+        exec_nodes = {
+            node: attr.attributes["version"]
+            for node, attr in nodes_info.items() if "exec" in attr.attributes.get("flavors", ["exec"])
+        }
+
+        def version_stable_path(version, entry, node):
+            if version < "23.3":
+                return "//sys/cluster_nodes/{0}/orchid/job_controller/{1}".format(node, entry)
+            else:
+                return "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/{1}".format(node, entry)
 
         def check_no_jobs():
             requests = [
                 yt_commands.make_batch_request(
                     "get",
-                    path="//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node),
+                    path=version_stable_path(version, "active_job_count", node),
                     return_only_value=True,
                 )
-                for node in nodes
+                for node, version in exec_nodes.items()
             ]
+
             responses = yt_commands.execute_batch(requests, driver=driver)
-            return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
+            result = True
+
+            for idx, (node, version) in enumerate(exec_nodes.items()):
+                if version < "23.3":
+                    response_result = yt_commands.get_batch_output(responses[idx]).get("scheduler", 0) == 0
+                else:
+                    response_result = yt_commands.get_batch_output(responses[idx]) == 0
+
+                result = result and response_result
+
+            return result
 
         try:
             wait(check_no_jobs, iter=300)
         except WaitFailed:
             requests = [
                 yt_commands.make_batch_request(
-                    "list",
-                    path="//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node),
+                    "get",
+                    path=version_stable_path(version, "active_jobs", node),
                     return_only_value=True,
                 )
-                for node in nodes
+                for node, version in exec_nodes.items()
             ]
+
             responses = yt_commands.execute_batch(requests, driver=driver)
             print("There are remaining scheduler jobs:", file=sys.stderr)
-            for node, response in zip(nodes, responses):
+
+            for node, response in zip(exec_nodes, responses):
                 print("Node {}: {}".format(node, response), file=sys.stderr)
 
 

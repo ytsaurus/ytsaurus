@@ -669,7 +669,7 @@ class TestCoreTable(YTEnvSetup):
             try:
                 node = ls("//sys/cluster_nodes")[0]
                 slot_index = get(
-                    "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/slot_index".format(
+                    "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}/slot_index".format(
                         node, job_id
                     )
                 )
@@ -733,7 +733,7 @@ class TestCoreTable(YTEnvSetup):
         def produce_gpu_core(self, job_id, ret_dict):
             node = ls("//sys/cluster_nodes")[0]
             slot_index = get(
-                "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/slot_index".format(
+                "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}/slot_index".format(
                     node, job_id
                 )
             )

@@ -622,7 +622,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
     def test_tmpfs_layer_cache(self):
         self.setup_files()
 
-        orchid_path = "orchid/job_controller/slot_manager/root_volume_manager"
+        orchid_path = "orchid/exec_node/slot_manager/root_volume_manager"
 
         for node in ls("//sys/cluster_nodes"):
             assert get("//sys/cluster_nodes/{0}/{1}/regular_tmpfs_cache/layer_count".format(node, orchid_path)) == 0
