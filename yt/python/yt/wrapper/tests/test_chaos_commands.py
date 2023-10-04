@@ -7,6 +7,7 @@ import yt.wrapper as yt
 
 import pytest
 
+import copy
 import random
 
 
@@ -41,8 +42,24 @@ def generate_chaos_cell_id():
     return _format_chaos_cell_id(_generate_chaos_cell_tag())
 
 
+DEFAULT_SORTED_SCHEMA = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value", "type": "string"},
+]
+
+DEFAULT_REPLICATION_PROGRESS = {
+    "segments": [{"lower_key": [], "timestamp": 1}],
+    "upper_key": [yt.yson.to_yson_type(None, attributes={"type": "max"})],
+}
+
+
 @pytest.mark.usefixtures("yt_env_chaos")
 class TestChaosCommands(object):
+    def _sync_create_tablet_cell(self):
+        cell_id = yt.create("tablet_cell", attributes={"size": 1})
+        wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
+        return cell_id
+
     def _sync_create_chaos_bundle_and_cell(self):
         # Only chaos with one cluster supported.
 
@@ -84,6 +101,23 @@ class TestChaosCommands(object):
 
         return cell_id
 
+    def _create_chaos_table_replica(self, card_id, replica):
+        attributes = {
+            "enabled": replica.get("enabled", False),
+            "replication_card_id": card_id,
+        }
+        for key in [
+            "cluster_name", "replica_path", "content_type", "mode", "replication_card_id",
+            "table_path", "catchup", "replication_progress", "enable_replicated_table_tracker"
+        ]:
+            if key in replica:
+                attributes[key] = replica[key]
+
+        return yt.create(
+            type="chaos_table_replica",
+            attributes=attributes,
+        )
+
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("method", ["alter", "remove"])
     def test_replication_card_collocation_removed(self, method):
@@ -124,3 +158,45 @@ class TestChaosCommands(object):
         wait(lambda: yt.get("{0}/{1}/replication_card_ids".format(collocation_path, collocation_id)) == [card2])
         _unbind(crt2, card2)
         wait(lambda: len(yt.get(collocation_path)) == 0)
+
+    @authors("ponasenko-rs")
+    def test_replication_progress_attribute(self):
+        self._sync_create_tablet_cell()
+        yt.set("//sys/accounts/tmp/@resource_limits/tablet_count", 1)
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        yt.set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        replica = {
+            "cluster_name": "primary",
+            "content_type": "data",
+            "mode": "async",
+            "enabled": True,
+            "replica_path": "//tmp/t",
+        }
+
+        card_id = yt.create(
+            type="replication_card",
+            attributes={"chaos_cell_id": cell_id},
+        )
+        replica_id = self._create_chaos_table_replica(card_id, replica)
+
+        yt.create(
+            "table",
+            replica["replica_path"],
+            attributes={
+                "upstream_replica_id": replica_id,
+                "schema": DEFAULT_SORTED_SCHEMA,
+                "dynamic": True,
+            },
+        )
+
+        assert yt.get("//tmp/t/@replication_progress") == DEFAULT_REPLICATION_PROGRESS
+
+        progress = copy.deepcopy(DEFAULT_REPLICATION_PROGRESS)
+        progress.update({
+            "segments": [{"lower_key": [], "timestamp": 2}]
+        })
+        yt.alter_table("//tmp/t", replication_progress=progress)
+
+        assert yt.get("//tmp/t/@replication_progress") == progress
