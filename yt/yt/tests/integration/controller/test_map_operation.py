@@ -854,7 +854,7 @@ print row + table_index
         }
 
         for node, version in exec_nodes.items():
-            if version < "23.3":
+            if version < "23.2.12362008-stable-ya~0e283816d7200f01":
                 scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node))
                 slot_manager = get("//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(node))
             else:

@@ -1561,7 +1561,7 @@ class YTEnvSetup(object):
         }
 
         def version_stable_path(version, entry, node):
-            if version < "23.3":
+            if version < "23.2.12362008-stable-ya~0e283816d7200f01":
                 return "//sys/cluster_nodes/{0}/orchid/job_controller/{1}".format(node, entry)
             else:
                 return "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/{1}".format(node, entry)
@@ -1580,7 +1580,7 @@ class YTEnvSetup(object):
             result = True
 
             for idx, (node, version) in enumerate(exec_nodes.items()):
-                if version < "23.3":
+                if version < "23.2.12362008-stable-ya~0e283816d7200f01":
                     response_result = yt_commands.get_batch_output(responses[idx]).get("scheduler", 0) == 0
                 else:
                     response_result = yt_commands.get_batch_output(responses[idx]) == 0
