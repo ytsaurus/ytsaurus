@@ -37,6 +37,20 @@ class TestStandaloneTabletBalancerBase:
             "pick_reshard_pivot_keys": False,
         })
 
+    def _wait_full_iteration(self):
+        first_iteration_start_time = None
+        instances = ls(self.root_path + "/instances")
+
+        def get_instances_iteration_start_time():
+            for instance in instances:
+                orchid = get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer")
+                iteration_start_time = orchid.get("last_iteration_start_time")
+                if iteration_start_time:
+                    yield iteration_start_time
+
+        first_iteration_start_time = max(get_instances_iteration_start_time())
+        wait(lambda: first_iteration_start_time < max(get_instances_iteration_start_time()))
+
     @classmethod
     def modify_tablet_balancer_config(cls, config):
         update_inplace(config, {
