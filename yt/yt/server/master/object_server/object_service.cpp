@@ -787,8 +787,12 @@ private:
         }
 
         const auto& multicellExt = RpcContext_->RequestHeader().GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
-        for (auto cellTag : multicellExt.cell_tags_to_sync_with()) {
-            addCellTagToSyncWith(FromProto<TCellTag>(cellTag));
+        for (auto protoCellTag : multicellExt.cell_tags_to_sync_with()) {
+            auto cellTag = FromProto<TCellTag>(protoCellTag);
+            if (cellTag == Bootstrap_->GetCellTag()) {
+                continue;
+            }
+            addCellTagToSyncWith(cellTag);
         }
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
@@ -809,8 +813,12 @@ private:
                     subrequest.RemoteTransactionReplicationSession->GetCellTagsToSyncWithBeforeInvocation());
             }
 
-            for (auto cellTag : subrequest.MulticellSyncExt->cell_tags_to_sync_with()) {
-                addCellTagToSyncWith(FromProto<TCellTag>(cellTag));
+            for (auto protoCellTag : subrequest.MulticellSyncExt->cell_tags_to_sync_with()) {
+                auto cellTag = FromProto<TCellTag>(protoCellTag);
+                if (cellTag == Bootstrap_->GetCellTag()) {
+                    continue;
+                }
+                addCellTagToSyncWith(cellTag);
             }
         }
 
@@ -855,7 +863,7 @@ private:
         if (!cellTags.empty() && hydraManager->GetReadOnly()) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::ReadOnly,
-                "Read-only mode is active");
+                "Cannot sync when read-only mode is active");
         }
 
         if (additionalFuture) {

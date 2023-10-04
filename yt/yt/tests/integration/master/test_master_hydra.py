@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, get, set, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address,
-    reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers)
+    reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers, create, write_table, read_table)
 
 from yt.common import YtError
 
@@ -88,6 +88,10 @@ class TestDiscombobulate(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_discombobulate_nonvoting_peers(self):
+        rows = [{"a": "b"}]
+        create("table", "//tmp/t")
+        write_table("//tmp/t", rows)
+
         build_master_snapshots(set_read_only=True)
 
         primary_master_config = self.Env.configs["master"][0]["primary_master"]
@@ -105,12 +109,12 @@ class TestDiscombobulate(YTEnvSetup):
             self.Env.kill_service("master", indexes=master_ids)
             time.sleep(1)
 
-            get("//sys/@config")
+            assert read_table("//tmp/t") == rows
 
             self.Env.start_master_cell(set_config=False)
             wait_active(master_ids)
 
-            get("//sys/@config")
+            assert read_table("//tmp/t") == rows
 
         voting_ids = [0, 1, 2]
         nonvoting_ids = [3, 4]
