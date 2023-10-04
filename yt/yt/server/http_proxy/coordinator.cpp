@@ -758,6 +758,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
         if (instance.Banned) {
             continue;
         }
+
         if (instance.JobProxyVersion) {
             instance.Type = "job_proxy";
             instance.Version = *instance.JobProxyVersion;
@@ -771,6 +772,23 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
         YT_LOG_DEBUG("Falling back to fetching job proxy versions from orchids (InstanceCount: %v)", fallbackInstances.size());
 
         auto fallbackJobProxies = GetAttributes(
+            "//sys/cluster_nodes",
+            fallbackInstances,
+            "job_proxy",
+            "/orchid/job_controller/job_proxy_build");
+
+        // COMPAT(arkady-e1ppa): Remove this when all nodes will be 23.2
+        fallbackInstances.clear();
+
+        for (auto& jobProxy : fallbackJobProxies) {
+            if (jobProxy.Error.IsOK()) {
+                instances.emplace_back(std::move(jobProxy));
+            } else {
+                fallbackInstances.emplace_back(std::move(jobProxy.Address));
+            }
+        }
+
+        fallbackJobProxies = GetAttributes(
             "//sys/cluster_nodes",
             fallbackInstances,
             "job_proxy",
