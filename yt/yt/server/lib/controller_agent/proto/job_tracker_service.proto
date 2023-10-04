@@ -82,14 +82,14 @@ message TReqSettleJob
 
 message TRspSettleJob
 {
-    message TBreifJobInfo
+    message TBriefJobInfo
     {
         required NYT.NProto.TGuid job_id  = 1;
     }
 
     oneof job_info_or_error {
         NYT.NProto.TError error = 1;
-        TBreifJobInfo job_info = 2;
+        TBriefJobInfo job_info = 2;
     }
     // The actual spec is passed via attachments.
 }

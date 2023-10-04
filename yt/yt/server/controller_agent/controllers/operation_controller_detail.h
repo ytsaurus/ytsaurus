@@ -170,12 +170,6 @@ private: \
         (TAbortedBySchedulerJobSummary&& abortedJobSummary),
         (std::move(abortedJobSummary)),
         true)
-    IMPLEMENT_SAFE_METHOD(
-        void,
-        OnJobRunning,
-        (std::unique_ptr<TRunningJobSummary> jobSummary),
-        (std::move(jobSummary)),
-        true)
 
     IMPLEMENT_SAFE_METHOD(
         void,
@@ -1432,6 +1426,7 @@ private:
 
     NYTree::IYPathServicePtr BuildZombieOrchid();
 
+    void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary);
     void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary);
     void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary);
     void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);

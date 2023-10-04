@@ -1227,7 +1227,7 @@ def _build_cluster_connection_config(yt_config,
         "cell_directory": _get_balancing_channel_config(),
         "primary_master": master_connection_configs[primary_cell_tag],
         "transaction_manager": {
-            "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
+            "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD,
         },
         "timestamp_provider": {
             # COMPAT(aleksandra-zh)
@@ -1237,7 +1237,7 @@ def _build_cluster_connection_config(yt_config,
                                                           clock_connection_config, timestamp_provider_addresses),
             "update_period": 500,
             "soft_backoff_time": 100,
-            "hard_backoff_time": 100
+            "hard_backoff_time": 100,
         },
         "cell_directory_synchronizer": {
             "sync_period": 500,
@@ -1251,13 +1251,13 @@ def _build_cluster_connection_config(yt_config,
         "cluster_directory_synchronizer": {
             "sync_period": 500,
             "expire_after_successful_update_time": 500,
-            "expire_after_failed_update_time": 500
+            "expire_after_failed_update_time": 500,
         },
         "table_mount_cache": {
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
-            "refresh_time": 0
+            "refresh_time": 0,
         },
         "sync_replica_cache": {
             "expire_after_successful_update_time": 0,
@@ -1281,21 +1281,21 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
-            "refresh_time": 0
+            "refresh_time": 0,
         },
         "master_cell_directory_synchronizer": {
             "sync_period": 500,
             "expire_after_successful_update_time": 500,
-            "expire_after_failed_update_time": 500
+            "expire_after_failed_update_time": 500,
         },
         "job_node_descriptor_cache": {
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
-            "refresh_time": 0
+            "refresh_time": 0,
         },
         "scheduler": {
-            "retry_backoff_time": 100
+            "retry_backoff_time": 100,
         },
         "node_directory_synchronizer": {
             "sync_period": 500,

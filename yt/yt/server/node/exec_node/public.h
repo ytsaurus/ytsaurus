@@ -24,8 +24,6 @@ class TJobProxyResources;
 
 } // namespace NProto
 
-struct TControllerAgentDescriptor;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBootstrap;

@@ -3496,7 +3496,7 @@ void TOperationControllerBase::SafeOnJobAbortedEventReceivedFromScheduler(TAbort
     OnJobAborted(std::move(jobSummary));
 }
 
-void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
+void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
@@ -3529,7 +3529,8 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
             YT_LOG_ERROR("Crashing controller agent");
             YT_ABORT();
         } else {
-            auto error = TError("User %Qv is not a superuser but tried to crash controller agent using testing options in spec. "
+            auto error = TError(
+                "User %Qv is not a superuser but tried to crash controller agent using testing options in spec. "
                 "This incident will be reported.",
                 AuthenticatedUser);
             YT_LOG_ALERT(error);
@@ -3596,7 +3597,8 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
     YT_LOG_DEBUG("Abandon job (JobId: %v)", jobId);
 
     if (State != EControllerState::Running) {
-        THROW_ERROR_EXCEPTION("Operation %v is not running",
+        THROW_ERROR_EXCEPTION(
+            "Operation %v is not running",
             OperationId);
     }
 
@@ -3613,19 +3615,21 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
         case EJobType::Vanilla:
             break;
         default:
-            THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it has type %Qlv",
+            THROW_ERROR_EXCEPTION(
+                "Cannot abandon job %v of operation %v since it has type %Qlv",
                 jobId,
                 OperationId,
                 joblet->JobType);
     }
 
     if (!ShouldProcessJobEvents()) {
-        THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v that is not running",
+        THROW_ERROR_EXCEPTION(
+            "Cannot abandon job %v of operation %v that is not running",
             jobId,
             OperationId);
     }
 
-    Host->AbortJob(jobId, EAbortReason::Other);
+    Host->AbortJob(jobId, EAbortReason::Abandoned);
 
     OnJobCompleted(CreateAbandonedJobSummary(jobId));
 }

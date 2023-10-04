@@ -431,11 +431,6 @@ public:
         return DoExecuteGuarded(&IOperationControllerSchedulerHost::OnJobAbortedEventReceivedFromScheduler, std::move(eventSummary));
     }
 
-    void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
-    {
-        return DoExecuteGuarded(&IOperationController::OnJobRunning, std::move(jobSummary));
-    }
-
     void AbandonJob(TJobId jobId) override
     {
         return DoExecuteGuarded(&IOperationController::AbandonJob, std::move(jobId));

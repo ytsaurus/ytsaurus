@@ -22,6 +22,8 @@ DECLARE_REFCOUNTED_STRUCT(TSchedulerHeartbeatContext)
 
 DECLARE_REFCOUNTED_STRUCT(TAgentHeartbeatContext)
 
+struct TControllerAgentDescriptor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const NLogging::TLogger ExecNodeLogger("ExecNode");

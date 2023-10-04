@@ -53,7 +53,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -131,7 +130,8 @@ private:
         TJobShellDescriptor jobShellDescriptor;
         jobShellDescriptor.Subcontainer = subcontainer;
 
-        context->SetRequestInfo("JobId: %v, Subcontainer: %v",
+        context->SetRequestInfo(
+            "JobId: %v, Subcontainer: %v",
             jobId,
             subcontainer);
 
@@ -154,18 +154,21 @@ private:
 
         auto timeout = FromProto<TDuration>(request->timeout());
 
-        context->SetRequestInfo("JobId: %v, InterruptionTimeout: %v",
+        context->SetRequestInfo(
+            "JobId: %v, InterruptionTimeout: %v",
             jobId, timeout);
 
         if (NObjectClient::TypeFromId(jobId) != NCypressClient::EObjectType::SchedulerJob) {
-            THROW_ERROR_EXCEPTION("Cannot interrupt job %v because it is not a scheduler job",
+            THROW_ERROR_EXCEPTION(
+                "Cannot interrupt job %v because it is not a scheduler job",
                 jobId);
         }
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
 
         if (!job->IsInterruptible()) {
-            THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
+            THROW_ERROR_EXCEPTION(
+                "Cannot interrupt job %v of type %Qlv "
                 "because it does not support interruption or \"interruption_signal\" is not set",
                 jobId,
                 job->GetType());

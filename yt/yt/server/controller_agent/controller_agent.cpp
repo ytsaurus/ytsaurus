@@ -1300,6 +1300,8 @@ private:
             .ValueOrThrow();
 
         if (auto maybeDelay = Config_->TestingOptions->DelayInHandshake) {
+            YT_LOG_DEBUG("Sleeping before performing handshake (Timeout: %v)", *maybeDelay);
+
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }
 

@@ -557,13 +557,12 @@ std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
             jobShellName);
     }
 
-    auto owners = jobShell->Owners;
     const auto& optionsPerJobShell = RuntimeParameters_->OptionsPerJobShell;
     if (auto it = optionsPerJobShell.find(jobShellName); it != optionsPerJobShell.end()) {
         const auto& options = it->second;
-        owners = options->Owners;
+        return options->Owners;
     }
-    return owners;
+    return jobShell->Owners;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
