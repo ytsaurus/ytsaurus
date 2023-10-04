@@ -941,9 +941,17 @@ public:
                 podFutures.push_back(Executor_->RunPodSandbox(podSpec));
             }
 
-             PodDescriptors_ = WaitFor(AllSucceeded(std::move(podFutures))).
-                ValueOrThrow();
-             YT_VERIFY(std::ssize(PodDescriptors_) == slotCount);
+            // FIXME(khlebnikov) add pull policy "IfNotPresent'
+            auto imageFuture = Executor_->PullImage(TCriImageDescriptor{
+                .Image = Config_->JobProxyImage,
+            });
+
+            PodDescriptors_ = WaitFor(AllSucceeded(std::move(podFutures)))
+                .ValueOrThrow();
+            YT_VERIFY(std::ssize(PodDescriptors_) == slotCount);
+
+            WaitFor(imageFuture)
+                .ThrowOnError();
         }
     }
 
