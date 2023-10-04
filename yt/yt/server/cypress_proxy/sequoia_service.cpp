@@ -9,6 +9,7 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -40,9 +41,7 @@ public:
         const IYPathServiceContextPtr& context) override
     {
         auto Logger = CypressProxyLogger.WithTag("CypressRequestId: %v", context->GetRequestId());
-        auto transaction = WaitFor(StartSequoiaTransaction(
-            Bootstrap_->GetNativeClient(),
-            Logger))
+        auto transaction = WaitFor(Bootstrap_->GetSequoiaClient()->StartTransaction())
             .ValueOrThrow();
 
         auto resolveResult = ResolvePath(transaction, path);

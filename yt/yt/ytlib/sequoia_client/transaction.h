@@ -35,7 +35,7 @@ struct ISequoiaTransaction
     template <class TRecordKey>
     TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> SelectRows(
         const std::vector<TString>& whereConjunts,
-        std::optional<i64> limit = {});
+        std::optional<i64> limit = std::nullopt);
 
     virtual void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,
@@ -98,11 +98,6 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     const NApi::TTransactionStartOptions& options = {});
 
 } // namespace NDetail
-
-TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
-    NApi::NNative::IClientPtr client,
-    NLogging::TLogger logger,
-    const NApi::TTransactionStartOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

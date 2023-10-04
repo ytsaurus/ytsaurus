@@ -318,7 +318,7 @@ TFuture<void> FetchChunkMetasFromSequoia(
         keys.push_back(GetChunkMetaExtensionsKey(chunkId));
     }
 
-    auto client = CreateSequoiaClient(bootstrap->GetRootClient(), Logger);
+    auto client = bootstrap->GetSequoiaClient();
     // TODO(babenko): capturing client is needed to ensure its in-flight requests get executed properly
     return client
         ->LookupRows(keys, columnFilter)

@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
@@ -50,7 +51,8 @@ public:
             THROW_ERROR_EXCEPTION("Rootstocks cannot be created in transaction");
         }
 
-        auto transaction = WaitFor(StartSequoiaTransaction(Client_, ApiLogger))
+        auto sequoiaClient = CreateSequoiaClient(Client_, ApiLogger);
+        auto transaction = WaitFor(sequoiaClient->StartTransaction())
             .ValueOrThrow();
 
         const auto& connection = Client_->GetNativeConnection();

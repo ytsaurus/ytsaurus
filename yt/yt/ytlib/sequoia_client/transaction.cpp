@@ -577,14 +577,6 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
 
 } // namespace NDetail
 
-TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
-    NApi::NNative::IClientPtr client,
-    NLogging::TLogger logger,
-    const NApi::TTransactionStartOptions& options)
-{
-    return CreateSequoiaClient(std::move(client), std::move(logger))->StartTransaction(options);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient

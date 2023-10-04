@@ -165,6 +165,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
+
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -357,6 +359,11 @@ const NNative::IConnectionPtr& TBootstrap::GetClusterConnection() const
 const NNative::IClientPtr& TBootstrap::GetRootClient() const
 {
     return RootClient_;
+}
+
+const NSequoiaClient::ISequoiaClientPtr& TBootstrap::GetSequoiaClient() const
+{
+    return SequoiaClient_;
 }
 
 const TCellManagerPtr& TBootstrap::GetCellManager() const
@@ -770,6 +777,8 @@ void TBootstrap::DoInitialize()
     ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
 
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    SequoiaClient_ = NSequoiaClient::CreateSequoiaClient(RootClient_, Logger);
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 

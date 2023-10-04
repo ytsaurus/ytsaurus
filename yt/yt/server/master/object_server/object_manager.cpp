@@ -57,6 +57,7 @@
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
@@ -1946,7 +1947,9 @@ void TObjectManager::HydraPrepareDestroyObjects(
 
 TFuture<void> TObjectManager::DestroySequoiaObjects(NProto::TReqDestroyObjects request)
 {
-    return StartSequoiaTransaction(Bootstrap_->GetRootClient(), Logger)
+    return Bootstrap_
+        ->GetSequoiaClient()
+        ->StartTransaction()
         .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) mutable {
             for (auto protoId : request.object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);

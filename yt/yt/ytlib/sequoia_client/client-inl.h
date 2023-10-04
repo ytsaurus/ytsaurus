@@ -14,11 +14,11 @@ template <class TRecordKey>
 TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> ISequoiaClient::LookupRows(
     const std::vector<TRecordKey>& keys,
     const NTableClient::TColumnFilter& columnFilter,
-    std::optional<NTransactionClient::TTimestamp> timestamp)
+    NTransactionClient::TTimestamp timestamp)
 {
     auto rowsetFuture = LookupRows(
         TRecordKey::Table,
-        FromRecordKeys<TRecordKey>(keys, GetRowBuffer()),
+        NTableClient::FromRecordKeys<TRecordKey>(keys),
         columnFilter,
         timestamp);
     return rowsetFuture.Apply(BIND([] (const NApi::IUnversionedRowsetPtr& rowset) {
@@ -30,7 +30,7 @@ template <class TRecord>
 TFuture<std::vector<TRecord>> ISequoiaClient::SelectRows(
     const std::vector<TString>& whereConjuncts,
     std::optional<i64> limit,
-    std::optional<NTransactionClient::TTimestamp> timestamp)
+    NTransactionClient::TTimestamp timestamp)
 {
     auto resultFuture = SelectRows(TRecord::Table, whereConjuncts, limit, timestamp);
     return resultFuture.Apply(BIND([] (const NApi::TSelectRowsResult& result) {

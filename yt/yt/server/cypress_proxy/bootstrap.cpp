@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/program/helpers.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/build_attributes.h>
@@ -50,6 +52,7 @@ using namespace NConcurrency;
 using namespace NCoreDump;
 using namespace NMonitoring;
 using namespace NOrchid;
+using namespace NSequoiaClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +126,11 @@ public:
         return NativeRootClient_;
     }
 
+    const ISequoiaClientPtr& GetSequoiaClient() const override
+    {
+        return SequoiaClient_;
+    }
+
     NApi::IClientPtr GetRootClient() const override
     {
         return NativeRootClient_;
@@ -138,6 +146,7 @@ private:
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeRootClient_;
+    ISequoiaClientPtr SequoiaClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     IYPathServicePtr SequoiaService_;
@@ -170,6 +179,7 @@ private:
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
+        SequoiaClient_ = CreateSequoiaClient(NativeRootClient_, Logger);
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
