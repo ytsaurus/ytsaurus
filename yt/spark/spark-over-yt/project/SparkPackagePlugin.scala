@@ -149,7 +149,7 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val sparkBuildCommand = s"$sparkHome/dev/make-distribution.sh -Phadoop-2.7"
+    val sparkBuildCommand = s"$sparkHome/dev/make-distribution.sh"
     println("Make distribution. Building spark...")
     val code = (sparkBuildCommand !)
 
