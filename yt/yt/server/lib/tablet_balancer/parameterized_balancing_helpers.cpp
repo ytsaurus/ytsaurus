@@ -458,7 +458,8 @@ void TParameterizedReassignSolver:: TryMoveTablet(
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
         "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %v, CurrentBestMetric: %v, "
-        "NewMetric: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v)",
+        "NewMetric: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v, "
+        "SourceNodeMetric: %v, DestinationNodeMetric: %v)",
         tablet->Tablet->Id,
         cell->Cell->Id,
         CurrentMetric_,
@@ -466,7 +467,9 @@ void TParameterizedReassignSolver:: TryMoveTablet(
         newMetric,
         tablet->Metric,
         sourceCell->Metric,
-        cell->Metric);
+        cell->Metric,
+        sourceNode->Metric,
+        destonationNode->Metric);
 
     if (newMetric < BestAction_.Metric) {
         BestAction_.Metric = newMetric;
@@ -609,7 +612,7 @@ void TParameterizedReassignSolver::TrySwapTablets(
         Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
         "Trying to swap tablets (LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v, "
         "CurrentMetric: %v, CurrentBestMetric: %v, NewMetric: %v, LhsTabletMetric: %v, "
-        "RhsTabletMetric: %v, LhsCellMetric: %v, RhsCellMetric: %v)",
+        "RhsTabletMetric: %v, LhsCellMetric: %v, RhsCellMetric: %v, LhsNodeMetric: %v, RhsNodeMetric: %v)",
         lhsTablet->Tablet->Id,
         rhsTablet->Tablet->Id,
         lhsCell->Cell->Id,
@@ -620,7 +623,9 @@ void TParameterizedReassignSolver::TrySwapTablets(
         lhsTablet->Metric,
         rhsTablet->Metric,
         lhsCell->Metric,
-        rhsCell->Metric);
+        rhsCell->Metric,
+        lhsNode->Metric,
+        rhsTablet->Metric);
 
     if (newMetric < BestAction_.Metric) {
         BestAction_.Metric = newMetric;

@@ -119,7 +119,7 @@ void TActionManager::CreateActions(const TString& bundleName)
     }
 
     if (!PendingActionDescriptors_.contains(bundleName)) {
-        YT_LOG_DEBUG("Action manager has no actions to create (BundleName: %v)", bundleName);
+        YT_LOG_INFO("Action manager has no actions to create (BundleName: %v)", bundleName);
         return;
     }
 
@@ -164,6 +164,9 @@ void TActionManager::CreateActions(const TString& bundleName)
     }
 
     EraseOrCrash(PendingActionDescriptors_, bundleName);
+    YT_LOG_INFO("Created tablet actions for bundle (ActionCount: %v, BundleName: %v)",
+        std::ssize(runningActions),
+        bundleName);
 }
 
 bool TActionManager::HasUnfinishedActions(const TString& bundleName) const
