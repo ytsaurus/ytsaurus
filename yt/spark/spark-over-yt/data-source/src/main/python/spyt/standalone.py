@@ -66,7 +66,7 @@ class SparkDefaultArguments(object):
 
 
 Worker = namedtuple(
-    'Worker', ['cores', 'memory', 'num', 'cores_overhead', 'timeout'])
+    'Worker', ['cores', 'memory', 'num', 'cores_overhead', 'timeout', 'memory_overhead'])
 
 
 def _add_conf(spark_conf, spark_args):
@@ -568,7 +568,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         builder.begin_task("workers") \
             .job_count(worker.num) \
             .command(worker_command) \
-            .memory_limit(_parse_memory(worker.memory) + _parse_memory(tmpfs_limit)) \
+            .memory_limit(_parse_memory(worker.memory) + _parse_memory(tmpfs_limit) + _parse_memory(worker.memory_overhead)) \
             .cpu_limit(worker.cores + worker_cores_overhead) \
             .spec(worker_task_spec) \
             .file_paths(worker_file_paths) \
@@ -621,7 +621,7 @@ def abort_spark_operations(spark_discovery, client):
 
 
 def start_spark_cluster(worker_cores, worker_memory, worker_num,
-                        worker_cores_overhead=None,
+                        worker_cores_overhead=None, worker_memory_overhead=None,
                         worker_timeout=SparkDefaultArguments.SPARK_WORKER_TIMEOUT,
                         operation_alias=None, discovery_path=None, pool=None,
                         tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
@@ -652,6 +652,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param worker_memory: amount of memory that will be available on worker
     :param worker_num: number of workers
     :param worker_cores_overhead: additional worker cores
+    :param worker_memory_overhead: additional worker memory
     :param worker_timeout: timeout to fail master waiting
     :param tmpfs_limit: limit of tmpfs usage, default 150G
     :param ssd_limit: limit of ssd usage, default None, ssd disabled
@@ -696,10 +697,10 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
-                    worker_cores_overhead, worker_timeout)
+                    worker_cores_overhead, worker_timeout, worker_memory_overhead)
     driver = Worker(driver_cores or worker_cores, driver_memory or worker_memory,
                     driver_num or worker_num, driver_cores_overhead or worker_cores_overhead,
-                    driver_timeout or worker_timeout)
+                    driver_timeout or worker_timeout, worker_memory_overhead)
     dedicated_operation_mode = dedicated_operation_mode and driver_num > 0
 
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)

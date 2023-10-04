@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--worker-memory", required=True)
     parser.add_argument("--worker-num", required=True, type=int)
     parser.add_argument("--worker-cores-overhead", required=False, type=int)
+    parser.add_argument("--worker-memory-overhead", required=False, default="4G")
     parser.add_argument("--worker-timeout", required=False, default="10m")
     parser.add_argument("--pool", required=False)
     parser.add_argument("--tmpfs-limit", required=False, default="150G")
@@ -169,6 +170,7 @@ def main():
                         worker_memory=args.worker_memory,
                         worker_num=args.worker_num,
                         worker_cores_overhead=args.worker_cores_overhead,
+                        worker_memory_overhead=args.worker_memory_overhead,
                         worker_timeout=args.worker_timeout,
                         operation_alias=args.operation_alias,
                         discovery_path=args.discovery_path,
