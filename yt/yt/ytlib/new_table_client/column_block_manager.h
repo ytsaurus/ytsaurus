@@ -25,7 +25,8 @@ public:
 
     bool NeedUpdateBlock(ui32 rowIndex) const;
 
-    TSharedRef SetBlock(TSharedRef data);
+    // Returns old block.
+    TSharedRef SwitchBlock(TSharedRef data);
 
     // Returns block id.
     std::optional<ui32> SkipToBlock(ui32 rowIndex);
