@@ -150,8 +150,8 @@ struct TSelectRowsOptionsBase
     bool VerboseLogging = false;
     // COMPAT(lukyan)
     //! Use fixed and rewritten range inference.
-    bool NewRangeInference = false;
-    //! Enables canonical sql behaviour for relational operators, i.e. null </=/> value -> null.
+    bool NewRangeInference = true;
+    //! Enables canonical SQL behaviour for relational operators, i.e. null </=/> value -> null.
     bool UseCanonicalNullRelations = false;
 };
 
