@@ -401,11 +401,6 @@ TJobProfiler* TOperationControllerHost::GetJobProfiler() const
     return Bootstrap_->GetControllerAgent()->GetJobProfiler();
 }
 
-TJobTracker* TOperationControllerHost::GetJobTracker() const
-{
-    return Bootstrap_->GetControllerAgent()->GetJobTracker();
-}
-
 int TOperationControllerHost::GetOnlineExecNodeCount()
 {
     return Bootstrap_->GetControllerAgent()->GetOnlineExecNodeCount();

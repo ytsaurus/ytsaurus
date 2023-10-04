@@ -147,8 +147,6 @@ public:
 
     TJobProfiler* GetJobProfiler() const override;
 
-    TJobTracker* GetJobTracker() const override;
-
     int GetOnlineExecNodeCount() override;
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
     TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) override;

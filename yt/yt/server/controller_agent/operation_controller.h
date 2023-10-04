@@ -228,8 +228,6 @@ struct IOperationControllerHost
 
     virtual TJobProfiler* GetJobProfiler() const = 0;
 
-    virtual TJobTracker* GetJobTracker() const = 0;
-
     virtual int GetOnlineExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) = 0;
     virtual TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) = 0;
@@ -337,12 +335,6 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: cancellable Controller invoker
      */
     virtual void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) = 0;
-
-    //! Called during heartbeat processing to notify the controller that a job is still running.
-    /*!
-     *  \note Invoker affinity: cancelable Controller invoker
-     */
-    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
 
     //! Called by a scheduler when user comes with abandon job request.
     /*!

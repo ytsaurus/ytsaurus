@@ -540,14 +540,14 @@ public:
         TJobId jobId,
         const TString& user)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         try {
             NControllerAgent::TJobFile file{
-                jobId,
-                path,
-                chunkId,
-                "input_context"
+                .JobId = jobId,
+                .Path = path,
+                .ChunkId = chunkId,
+                .DescriptionType = "input_context",
             };
             auto client = Bootstrap_->GetClient()->GetNativeConnection()->CreateNativeClient(TClientOptions::FromUser(user));
             NControllerAgent::SaveJobFiles(client, operationId, { file });

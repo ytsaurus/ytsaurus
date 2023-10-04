@@ -36,7 +36,8 @@ TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
 const IOperationControllerPtr& TOperation::GetControllerOrThrow() const
 {
     if (!Controller_) {
-        THROW_ERROR_EXCEPTION("Operation %v is missing controller",
+        THROW_ERROR_EXCEPTION(
+            "Operation %v is missing controller",
             Id_);
     }
     return Controller_;
