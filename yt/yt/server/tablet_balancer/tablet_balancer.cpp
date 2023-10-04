@@ -174,7 +174,8 @@ private:
     void PickReshardPivotKeysIfNeeded(
         TReshardDescriptor* descriptor,
         const TTablePtr& table,
-        const TBundleStatePtr& bundleState,
+        int firstTabletIndex,
+        int lastTabletIndex,
         std::optional<double> slicingAccuracy,
         bool enableVerboseLogging) const;
 };
@@ -244,15 +245,15 @@ void TTabletBalancer::BalancerIteration()
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     if (!DynamicConfig_.Acquire()->Enable) {
-        YT_LOG_DEBUG("Standalone tablet balancer is not enabled");
+        YT_LOG_INFO("Standalone tablet balancer is not enabled");
         return;
     }
 
     YT_LOG_INFO("Balancer iteration (IterationIndex: %v)", IterationIndex_);
 
-    YT_LOG_DEBUG("Started fetching bundles");
+    YT_LOG_INFO("Started fetching bundles");
     auto newBundles = UpdateBundleList();
-    YT_LOG_DEBUG("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
+    YT_LOG_INFO("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
 
     CurrentIterationStartTime_ = TruncatedNow();
     auto dynamicConfig = DynamicConfig_.Acquire();
@@ -272,12 +273,12 @@ void TTabletBalancer::BalancerIteration()
         }
 
         if (bundle->GetHasUntrackedUnfinishedActions() || ActionManager_->HasUnfinishedActions(bundleName)) {
-            YT_LOG_DEBUG("Skip balancing iteration since bundle has unfinished actions (BundleName: %v)",
+            YT_LOG_INFO("Skip balancing iteration since bundle has unfinished actions (BundleName: %v)",
                 bundleName);
             continue;
         }
 
-        YT_LOG_DEBUG("Started fetching (BundleName: %v)", bundleName);
+        YT_LOG_INFO("Started fetching (BundleName: %v)", bundleName);
 
         if (auto result = WaitFor(bundle->UpdateState(DynamicConfig_.Acquire()->FetchTabletCellsFromSecondaryMasters)); !result.IsOK()) {
             YT_LOG_ERROR(result, "Failed to update meta registry (BundleName: %v)", bundleName);
@@ -290,7 +291,7 @@ void TTabletBalancer::BalancerIteration()
         }
 
         if (!IsBalancingAllowed(bundle)) {
-            YT_LOG_DEBUG("Balancing is disabled (BundleName: %v)",
+            YT_LOG_INFO("Balancing is disabled (BundleName: %v)",
                 bundleName);
             continue;
         }
@@ -305,7 +306,9 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
+        YT_LOG_INFO("Bundle balancing iteration started (BundleName: %v)", bundleName);
         BalanceBundle(bundle);
+        YT_LOG_INFO("Bundle balancing iteration finished (BundleName: %v)", bundleName);
 
         ActionManager_->CreateActions(bundleName);
     }
@@ -346,7 +349,7 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
                         GroupsToMoveOnNextIteration_.erase(it);
                         TryBalanceViaMoveParameterized(bundle, groupName);
                     } else {
-                        YT_LOG_DEBUG("Skip parameterized balancing iteration due to "
+                        YT_LOG_INFO("Skip parameterized balancing iteration due to "
                             "recalculation of performance counters (BundleName: %v, Group: %v)",
                             bundleName,
                             groupName);
@@ -357,7 +360,7 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
             GroupsToMoveOnNextIteration_.insert(std::move(groupTag));
             BalanceViaReshard(bundle, groupName);
         } else {
-            YT_LOG_DEBUG("Skip balancing iteration because the time has not yet come (BundleName: %v, Group: %v)",
+            YT_LOG_INFO("Skip balancing iteration because the time has not yet come (BundleName: %v, Group: %v)",
                 bundleName,
                 groupName);
         }
@@ -860,18 +863,29 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             .ValueOrThrow();
 
         std::vector<TReshardDescriptor> scheduledDescriptors;
-        for (auto& descriptor : descriptors) {
+        for (auto descriptor : descriptors) {
+            auto firstTablet = GetOrCrash(bundleState->Tablets(), descriptor.Tablets[0]);
+            auto firstTabletIndex = firstTablet->Index;
+            auto lastTabletIndex = firstTablet->Index + std::ssize(descriptor.Tablets) - 1;
             if (pickReshardPivotKeys) {
                 try {
-                    PickReshardPivotKeysIfNeeded(&descriptor, table, bundleState, slicingAccuracy, enableVerboseLogging);
+                    PickReshardPivotKeysIfNeeded(
+                        &descriptor,
+                        table,
+                        firstTabletIndex,
+                        lastTabletIndex,
+                        slicingAccuracy,
+                        enableVerboseLogging);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex,
                         "Failed to pick pivot keys for reshard action "
-                        "(TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
+                        "(TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v, TabletIndexes: %v-%v)",
                         descriptor.Tablets,
                         descriptor.TabletCount,
                         descriptor.DataSize,
-                        table->Id);
+                        table->Id,
+                        firstTabletIndex,
+                        lastTabletIndex);
                     PickPivotFailures.Increment(1);
                 }
             }
@@ -888,11 +902,14 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             }
 
             ++actionCount;
-            YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
+            YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, "
+                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize,
-                table->Id);
+                table->Id,
+                firstTabletIndex,
+                lastTabletIndex);
 
             scheduledDescriptors.emplace_back(std::move(descriptor));
         }
@@ -954,7 +971,8 @@ void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl)
 void TTabletBalancer::PickReshardPivotKeysIfNeeded(
     TReshardDescriptor* descriptor,
     const TTablePtr& table,
-    const TBundleStatePtr& bundleState,
+    int firstTabletIndex,
+    int lastTabletIndex,
     std::optional<double> slicingAccuracy,
     bool enableVerboseLogging) const
 {
@@ -968,12 +986,11 @@ void TTabletBalancer::PickReshardPivotKeysIfNeeded(
         .SlicingAccuracy = slicingAccuracy,
     };
 
-    auto tablet = GetOrCrash(bundleState->Tablets(), descriptor->Tablets[0]);
-    options.FirstTabletIndex = tablet->Index;
-    options.LastTabletIndex = tablet->Index + std::ssize(descriptor->Tablets) - 1;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
 
     int partitionCount = 0;
-    for (int index = *options.FirstTabletIndex; index <= options.LastTabletIndex; ++index) {
+    for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
         partitionCount += table->Tablets[index]->Statistics.PartitionCount;
     }
 

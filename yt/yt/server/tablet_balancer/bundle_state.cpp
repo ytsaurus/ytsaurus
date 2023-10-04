@@ -144,7 +144,6 @@ void TBundleState::UpdateBundleAttributes(
     try {
         Bundle_->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
     } catch (const std::exception& ex) {
-        // TODO(alexelexa): show such errors in orchid
         YT_LOG_ERROR(ex, "Error parsing bundle attribute \"tablet_balancer_config\", skip bundle balancing iteration");
         Bundle_->Config.Reset();
     }

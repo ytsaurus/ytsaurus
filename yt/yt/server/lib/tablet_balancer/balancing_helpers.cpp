@@ -208,12 +208,27 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     i64 desiredSize = bounds.DesiredTabletSize;
     i64 size = GetTabletBalancingSize(tablet);
     const auto& table = tablet->Table;
+    auto enableVerboseLogging = tablet->Table->TableConfig->EnableVerboseLogging ||
+        tablet->Table->Bundle->Config->EnableVerboseLogging;
 
     if (size >= bounds.MinTabletSize && size <= bounds.MaxTabletSize) {
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "Tablet fits the size restrictions (TabletId: %v, TabletIndex: %v, TabletSize: %v)",
+            tablet->Id,
+            tablet->Index,
+            size);
+
         return {};
     }
 
     if (size < bounds.MinTabletSize && table->Tablets.size() == 1) {
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "Tablet is too small, but it's the only one in the table "
+            "(TabletId: %v, TabletIndex: %v, TabletSize: %v)",
+            tablet->Id,
+            tablet->Index,
+            size);
+
         return {};
     }
 
@@ -221,6 +236,15 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         std::ssize(table->Tablets) <= bounds.MinTabletCount &&
         size < bounds.MinTabletSize)
     {
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "Tablet is too small, but tablet count is less than or equal to the minimum "
+            "(TabletId: %v, TabletIndex: %v, TabletSize: %v, TabletCount: %v, MinTabletCount: %v)",
+            tablet->Id,
+            tablet->Index,
+            size,
+            std::ssize(table->Tablets),
+            *bounds.MinTabletCount);
+
         return {};
     }
 
@@ -285,6 +309,12 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
     if (!pickPivotKeys) {
         if (endIndex == startIndex && tablet->Statistics.PartitionCount == 1) {
+            YT_LOG_DEBUG_IF(enableVerboseLogging,
+                "Tablet balancer is unable to reshard tablet with one partition "
+                "(TabletId: %v, TabletIndex: %v, TabletSize: %v)",
+                tablet->Id,
+                tablet->Index,
+                size);
             return {};
         }
     }
@@ -310,11 +340,26 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     }
 
     std::vector<TTabletId> tablets;
+    std::vector<i64> sizes;
     for (int index = startIndex; index <= endIndex; ++index) {
         auto tabletId = table->Tablets[index]->Id;
         tablets.push_back(tabletId);
         context->TouchedTablets.insert(tabletId);
+
+        if (enableVerboseLogging) {
+            sizes.push_back(GetTabletBalancingSize(table->Tablets[index]));
+        }
     }
+
+    YT_LOG_DEBUG_IF(enableVerboseLogging,
+        "Planning to create reshard action (Tablets: %v, TabletSizes: %v, "
+        "TabletCount: %v, TotalSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
+        tablets,
+        sizes,
+        newTabletCount,
+        size,
+        startIndex,
+        endIndex);
 
     return {TReshardDescriptor{.Tablets = std::move(tablets), .TabletCount = newTabletCount, .DataSize = size}};
 }
@@ -529,9 +574,19 @@ void ReassignOrdinaryTabletsOfTable(
     const std::vector<TTabletCellPtr>& bundleCells,
     THashMap<const TTablet*, TTabletCellId>* tabletToTargetCell,
     THashMap<const TTabletCell*, std::vector<TTabletPtr>>* slackTablets,
-    const TLogger& /*Logger*/)
+    const TLogger& Logger)
 {
     YT_VERIFY(!tablets.empty());
+
+    const auto& table = tablets[0]->Table;
+    auto enableVerboseLogging = table->TableConfig->EnableVerboseLogging ||
+        table->Bundle->Config->EnableVerboseLogging;
+
+    YT_LOG_DEBUG_IF(enableVerboseLogging,
+        "Ordinary table balancing started (BundleName: %v, TableId: %v, TabletCount: %v)",
+        table->Bundle->Name,
+        table->Id,
+        std::ssize(tablets));
 
     THashMap<const TTabletCell*, std::vector<TTabletPtr>> cellToTablets;
     for (const auto& tablet : tablets) {
@@ -747,6 +802,12 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
             tableToTablets[tablet->Table].push_back(tablet);
         }
     }
+
+    YT_LOG_DEBUG_IF(bundle->Config->EnableVerboseLogging,
+        "Balancing ordinary tables (BundleName: %v, CellCount: %v, HaveEmptyCells: %v)",
+        bundle->Name,
+        std::ssize(cells),
+        haveEmptyCells);
 
     THashMap<const TTablet*, TTabletCellId> tabletToTargetCell;
     for (const auto& [table, tablets] : tableToTablets) {
