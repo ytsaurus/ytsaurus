@@ -1,6 +1,8 @@
 #include "cell_commit_session.h"
 
 #include "client.h"
+#include "config.h"
+#include "connection.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -110,6 +112,7 @@ private:
         NTabletClient::TTabletServiceProxy proxy(channel);
         auto req = proxy.RegisterTransactionActions();
         req->SetResponseHeavy(true);
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
         req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
@@ -123,6 +126,7 @@ private:
         TTransactionServiceProxy proxy(channel);
         auto req = proxy.RegisterTransactionActions();
         req->SetResponseHeavy(true);
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
@@ -132,6 +136,7 @@ private:
     {
         NChaosClient::TCoordinatorServiceProxy proxy(channel);
         auto req = proxy.RegisterTransactionActions();
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
         req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
