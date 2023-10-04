@@ -11,7 +11,6 @@ from .spec import variate_modes, Spec
 import yt.wrapper as yt
 from yt.wrapper.http_helpers import get_token
 import random
-import numpy.random as np_random
 import sys
 import traceback
 import pprint
@@ -113,6 +112,15 @@ def run_with_spec(base_path, spec, args):
     elif spec.mode == "compare_replicas":
         run_compare_replicas(base_path, spec, attributes, args)
 
+def set_seed(seed):
+    random.seed(seed)
+
+    try:
+        import numpy.random as np_random
+        np_random.seed(seed)
+    except ModuleNotFoundError:
+        pass
+
 def run_test(spec, args):
     if args.random_name:
         r = random.Random()
@@ -130,8 +138,6 @@ def run_test(spec, args):
             seed = random.randint(1, 10**9)
             logger.info("Your seed is %s", seed)
         seed += repeat
-        random.seed(seed)
-        np_random.seed(seed)
 
         modes = variate_modes(spec)
 
