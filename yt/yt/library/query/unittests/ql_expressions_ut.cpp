@@ -2271,6 +2271,22 @@ INSTANTIATE_TEST_SUITE_P(
             "string(any)",
             MakeString("hello")),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=hello",
+            "string(string(any))",
+            MakeString("hello")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=0",
+            "boolean(boolean(i1))",
+            MakeBoolean(false)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=42u",
+            "boolean(boolean(u1))",
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-42",
+            "boolean(boolean(i1))",
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "any=#",
             "int64(any)",
             MakeNull()),
