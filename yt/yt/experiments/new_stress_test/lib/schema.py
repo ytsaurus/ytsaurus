@@ -1,19 +1,10 @@
 import yt.yson as yson
 
-import numpy.random as np_random
+from .helpers import random_string
 import random
 import copy
 import string
 import functools
-
-if not hasattr(np_random, "choice"):
-    def do_choice(ar, n=None):
-        if n is None:
-            return ar[np_random.randint(0, len(ar) - 1)]
-        indexes = np_random.randint(0, len(ar) - 1, n)
-        return [ar[i] for i in indexes]
-    np_random.choice = do_choice
-
 
 @functools.total_ordering
 class ComparableYsonEntity(yson.YsonEntity):
@@ -120,7 +111,7 @@ class RandomStringGenerator():
         return res
 
     def _refill(self):
-        self.data = self.data[self.ptr:] + "".join(np_random.choice(tuple(string.ascii_uppercase), 100000))
+        self.data = self.data[self.ptr:] + random_string(100000)
         self.ptr = 0
 
 class TString():

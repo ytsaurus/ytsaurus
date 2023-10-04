@@ -7,8 +7,21 @@ from yt.wrapper.http_helpers import get_proxy_url
 from yt.common import wait, WaitFailed
 
 from time import sleep
-import random
 import copy
+import random
+import string
+
+def random_string_stdlib(n=100000):
+    return "".join(random.choices(tuple(string.ascii_uppercase), k=n))
+
+random_string = random_string_stdlib
+
+try:
+    import numpy.random as np_random
+    if hasattr(np_random, "choice"):
+        random_string = lambda n: "".join(np_random.choice(tuple(string.ascii_uppercase), n))
+except ModuleNotFoundError:
+    pass
 
 def create_client(proxy=None, config=yt.config.config, api_version=None):
     if proxy is None:
