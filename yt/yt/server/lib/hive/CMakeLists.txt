@@ -32,7 +32,6 @@ target_link_libraries(server-lib-hive PUBLIC
   yutil
   yt-yt-core
   server-lib-election
-  server-lib-hydra
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-hive PRIVATE

@@ -18,7 +18,7 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 

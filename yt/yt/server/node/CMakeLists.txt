@@ -76,22 +76,22 @@ target_link_libraries(yt-server-node PUBLIC
   library-query-engine
   library-query-row_comparer
   library-dns_over_rpc-server
+  yt-library-re2
+  yt-library-containers
+  library-containers-cri
+  library-containers-disk_manager
+  yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
   yt-server-tools
-  yt-library-re2
-  yt-ytlib-distributed_throttler
   ytserver
   server-lib-io
   server-lib-cellar_agent
   server-lib-chaos_node
   server-lib-chunk_server
-  yt-library-containers
-  library-containers-cri
-  library-containers-disk_manager
   server-lib-exec_node
   server-lib-tablet_server
-  server-lib-hydra
+  server-lib-hydra_common
   lib-hydra_common-dry_run
   server-lib-hydra2
   server-lib-lsm

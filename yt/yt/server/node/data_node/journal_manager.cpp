@@ -15,8 +15,6 @@
 #include <yt/yt/server/lib/hydra_common/private.h>
 #include <yt/yt/server/lib/hydra_common/file_changelog_dispatcher.h>
 
-#include <yt/yt/server/lib/hydra/private.h>
-
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>

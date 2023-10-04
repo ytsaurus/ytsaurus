@@ -20,7 +20,7 @@ target_link_libraries(cpp-integration-test-hydra PUBLIC
   cpp-testing-gtest_main
   library-query-engine
   tests-cpp-test_base
-  server-lib-hydra
+  server-lib-hydra2
   yt-yt-ytlib
   yt-core-test_framework
 )

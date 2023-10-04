@@ -59,8 +59,6 @@
 #include <yt/yt/server/lib/hydra_common/dry_run/dry_run_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/dry_run/public.h>
 
-#include <yt/yt/server/lib/hydra/local_snapshot_service.h>
-
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
 

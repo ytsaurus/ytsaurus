@@ -917,7 +917,6 @@
   "yt/yt/server/lib/election/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/exec_node/CMakeLists.txt":"",
   "yt/yt/server/lib/hive/CMakeLists.txt":"",
-  "yt/yt/server/lib/hydra/CMakeLists.txt":"",
   "yt/yt/server/lib/hydra2/CMakeLists.txt":"",
   "yt/yt/server/lib/hydra_common/CMakeLists.txt":"",
   "yt/yt/server/lib/hydra_common/dry_run/CMakeLists.txt":"",

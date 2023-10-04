@@ -32,7 +32,6 @@ target_link_libraries(server-lib-transaction_supervisor PUBLIC
   yutil
   yt-yt-core
   server-lib-election
-  server-lib-hydra
   server-lib-transaction_server
   contrib-libs-protobuf
 )

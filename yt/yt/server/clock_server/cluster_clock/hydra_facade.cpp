@@ -15,9 +15,6 @@
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/local_hydra_janitor.h>
 
-#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/private.h>
-
 #include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra2/private.h>
 

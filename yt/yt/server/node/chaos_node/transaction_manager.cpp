@@ -13,7 +13,6 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
-#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 

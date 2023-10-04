@@ -19,8 +19,6 @@
 #include <yt/yt/server/lib/hydra_common/snapshot_store_thunk.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 
-#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-
 #include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra2/dry_run_hydra_manager.h>
 

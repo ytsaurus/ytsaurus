@@ -243,7 +243,6 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-chunk_server
   server-lib-discovery_server
   server-lib-hive
-  server-lib-hydra
   lib-hydra_common-dry_run
   server-lib-hydra2
   server-lib-incumbent_client

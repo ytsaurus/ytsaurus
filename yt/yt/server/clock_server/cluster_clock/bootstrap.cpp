@@ -9,8 +9,6 @@
 #include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 
-#include <yt/yt/server/lib/hydra/local_snapshot_service.h>
-
 #include <yt/yt/server/lib/timestamp_server/timestamp_manager.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
@@ -250,11 +248,6 @@ void TBootstrap::DoInitialize()
         /*authenticator*/ nullptr);
 
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
-    // TODO(shakurov): only register when using old Hydra.
-    RpcServer_->RegisterService(CreateLocalSnapshotService(
-        CellId_,
-        snapshotStore,
-        /*authenticator*/ nullptr)); // cell realm
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
         CoreDumper_,

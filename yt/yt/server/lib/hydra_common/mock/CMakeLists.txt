@@ -15,7 +15,7 @@ target_link_libraries(lib-hydra_common-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  server-lib-hydra
+  server-lib-hydra2
 )
 target_sources(lib-hydra_common-mock PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/mock/simple_hydra_manager_mock.cpp
