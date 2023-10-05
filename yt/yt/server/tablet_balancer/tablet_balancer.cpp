@@ -147,6 +147,7 @@ private:
     void BalancerIteration();
     void TryBalancerIteration();
     void BalanceBundle(const TBundleStatePtr& bundleState);
+    IListNodePtr FetchNodeStatistics() const;
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
     bool TryScheduleActionCreation(const TGlobalGroupTag& groupTag, const TActionDescriptor& descriptor);
@@ -244,6 +245,29 @@ void TTabletBalancer::Stop()
     YT_LOG_INFO("Tablet balancer instance stopped");
 }
 
+IListNodePtr TTabletBalancer::FetchNodeStatistics() const
+{
+    TListNodeOptions options;
+    static const TString TabletStaticPath = "/statistics/memory/tablet_static";
+    static const TString TabletSlotsPath = "/tablet_slots";
+    options.Attributes = TAttributeFilter({}, {TabletStaticPath, TabletSlotsPath});
+
+    static const TString TabletNodesPath = "//sys/tablet_nodes";
+    YT_LOG_DEBUG("Started fetching node statistics");
+
+    auto nodesOrError = WaitFor(Bootstrap_
+        ->GetClient()
+        ->ListNode(TabletNodesPath, options));
+
+    if (!nodesOrError.IsOK()) {
+        YT_LOG_ERROR(nodesOrError, "Failed to fetch node statistics");
+        return {};
+    }
+
+    YT_LOG_DEBUG("Failed to fetch node statistics");
+    return ConvertTo<IListNodePtr>(nodesOrError.ValueOrThrow());
+}
+
 void TTabletBalancer::BalancerIteration()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -266,6 +290,7 @@ void TTabletBalancer::BalancerIteration()
     ActionCountLimiter_ = TScheduledActionCountLimiter{
         .GroupLimit = dynamicConfig->MaxActionsPerGroup};
 
+    auto nodeList = FetchNodeStatistics();
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetBundle()->Config) {
             YT_LOG_ERROR("Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
@@ -301,7 +326,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (auto result = WaitFor(bundle->FetchStatistics()); !result.IsOK()) {
+        if (auto result = WaitFor(bundle->FetchStatistics(nodeList)); !result.IsOK()) {
             YT_LOG_ERROR(result, "Fetch statistics failed (BundleName: %v)", bundleName);
 
             SaveBundleError(bundleName, TError(

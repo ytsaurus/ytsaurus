@@ -34,13 +34,13 @@ TTabletCellBundle::TTabletCellBundle(TString name)
     : Name(std::move(name))
 { }
 
-void Deserialize(TTabletCellBundle::TNodeMemoryStatistics& value, NYTree::INodePtr node)
+void Deserialize(TTabletCellBundle::TNodeStatistics& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    value.Used = mapNode->GetChildValueOrThrow<i64>("used");
+    value.MemoryUsed = mapNode->GetChildValueOrThrow<i64>("used");
 
     if (auto limit = mapNode->FindChildValue<i64>("limit")) {
-        value.Limit = *limit;
+        value.MemoryLimit = *limit;
     }
 }
 ////////////////////////////////////////////////////////////////////////////////

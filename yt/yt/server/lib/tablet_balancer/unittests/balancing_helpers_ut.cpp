@@ -882,16 +882,16 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
         NodeMemoryUsed[*cell->NodeAddress] += GetOrCrash(cellToSize, cellId);
     }
 
-    for (const auto& [node, statistics] : bundle->NodeMemoryStatistics) {
+    for (const auto& [node, statistics] : bundle->NodeStatistics) {
         i64 used = 0;
         if (auto it = NodeMemoryUsed.find(node); it != NodeMemoryUsed.end()) {
             used = it->second;
         }
 
-        if (statistics.Limit >= statistics.Used) {
-            EXPECT_LE(used, statistics.Limit);
+        if (statistics.MemoryLimit >= statistics.MemoryUsed) {
+            EXPECT_LE(used, statistics.MemoryLimit);
         } else {
-            EXPECT_LE(used, statistics.Used);
+            EXPECT_LE(used, statistics.MemoryUsed);
         }
     }
 }

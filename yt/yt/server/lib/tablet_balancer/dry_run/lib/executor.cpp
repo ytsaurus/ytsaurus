@@ -122,7 +122,7 @@ void ValidateBundle(const TTabletCellBundlePtr& bundle)
 {
     YT_LOG_ERROR_IF(bundle->TabletCells.empty(), "Bundle has no cells");
     YT_LOG_ERROR_IF(bundle->Tables.empty(), "Bundle has no tables");
-    YT_LOG_ERROR_IF(bundle->NodeMemoryStatistics.empty(), "Bundle has no nodes");
+    YT_LOG_ERROR_IF(bundle->NodeStatistics.empty(), "Bundle has no nodes");
 
     YT_LOG_DEBUG_UNLESS(bundle->TabletCells.empty(),
         "Reporting cell count (CellCount: %v)",
@@ -132,9 +132,9 @@ void ValidateBundle(const TTabletCellBundlePtr& bundle)
         "Reporting table count (TableCount: %v)",
         bundle->Tables.size());
 
-    YT_LOG_DEBUG_UNLESS(bundle->NodeMemoryStatistics.empty(),
+    YT_LOG_DEBUG_UNLESS(bundle->NodeStatistics.empty(),
         "Reporting node count (NodeCount: %v)",
-        bundle->NodeMemoryStatistics.size());
+        bundle->NodeStatistics.size());
 
     for (const auto& [id, table] : bundle->Tables) {
         YT_LOG_ERROR_IF(table->Tablets.empty(), "Table has no tablets (TableId: %v)", id);

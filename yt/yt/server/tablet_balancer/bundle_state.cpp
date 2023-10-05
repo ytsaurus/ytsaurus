@@ -109,7 +109,6 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
     , BasicTableAttributesRequestCount(profiler.WithSparse().Counter("/master_requests/basic_table_attributes_count"))
     , ActualTableSettingsRequestCount(profiler.WithSparse().Counter("/master_requests/actual_table_settings_count"))
     , TableStatisticsRequestCount(profiler.WithSparse().Counter("/master_requests/table_statistics_count"))
-    , NodeStatisticsRequestCount(profiler.WithSparse().Counter("/master_requests/node_statistics_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,9 +155,9 @@ TFuture<void> TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMaster
         .Run();
 }
 
-TFuture<void> TBundleState::FetchStatistics()
+TFuture<void> TBundleState::FetchStatistics(const IListNodePtr& nodeStatistics)
 {
-    return BIND(&TBundleState::DoFetchStatistics, MakeStrong(this))
+    return BIND(&TBundleState::DoFetchStatistics, MakeStrong(this), nodeStatistics)
         .AsyncVia(Invoker_)
         .Run();
 }
@@ -275,7 +274,7 @@ bool TBundleState::IsParameterizedBalancingEnabled() const
     return false;
 }
 
-void TBundleState::DoFetchStatistics()
+void TBundleState::DoFetchStatistics(const IListNodePtr& nodeStatistics)
 {
     YT_LOG_DEBUG("Started fetching actual table settings (TableCount: %v)", Bundle_->Tables.size());
     Counters_->ActualTableSettingsRequestCount.Increment(Bundle_->Tables.size());
@@ -399,9 +398,16 @@ void TBundleState::DoFetchStatistics()
     DropMissingKeys(Tablets_, tabletIds);
     DropMissingKeys(ProfilingCounters_, finalTableIds);
 
-    Bundle_->NodeMemoryStatistics.clear();
+    Bundle_->NodeStatistics.clear();
 
     if (IsParameterizedBalancingEnabled()) {
+        if (!nodeStatistics) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to get node statistics because node fetch "
+                "failed earlier during the current iteration (BundleName: %v)",
+                Bundle_->Name);
+        }
+
         THashSet<TNodeAddress> addresses;
         for (const auto& [id, cell] : Bundle_->TabletCells) {
             if (cell->NodeAddress) {
@@ -409,10 +415,7 @@ void TBundleState::DoFetchStatistics()
             }
         }
 
-        YT_LOG_DEBUG("Started fetching node statistics (NodeCount: %v)", addresses.size());
-        Counters_->NodeStatisticsRequestCount.Increment(addresses.size());
-        Bundle_->NodeMemoryStatistics = FetchNodeStatistics(addresses);
-        YT_LOG_DEBUG("Finished fetching node statistics (NodeCount: %v)", addresses.size());
+        Bundle_->NodeStatistics = GetNodeStatistics(nodeStatistics, addresses);
     }
 }
 
@@ -493,32 +496,31 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
     return tabletCells;
 }
 
-THashMap<TNodeAddress, TTabletCellBundle::TNodeMemoryStatistics> TBundleState::FetchNodeStatistics(
+THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNodeStatistics(
+    const IListNodePtr& nodeStatisticsList,
     const THashSet<TNodeAddress>& addresses) const
 {
-    TListNodeOptions options;
+    YT_VERIFY(nodeStatisticsList);
+
     static const TString TabletStaticPath = "/statistics/memory/tablet_static";
-    options.Attributes = TAttributeFilter({}, {TabletStaticPath});
+    static const TString TabletSlotsPath = "/tablet_slots";
 
-    auto nodes = WaitFor(Client_
-        ->ListNode("//sys/tablet_nodes", options))
-        .ValueOrThrow();
-    auto nodeList = ConvertTo<IListNodePtr>(nodes);
-
-    THashMap<TNodeAddress, TTabletCellBundle::TNodeMemoryStatistics> nodeStatistics;
-    for (const auto& node : nodeList->GetChildren()) {
+    THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> nodeStatistics;
+    for (const auto& node : nodeStatisticsList->GetChildren()) {
         const auto& address = node->AsString()->GetValue();
         if (!addresses.contains(address)) {
             continue;
         }
 
         try {
-            auto statistics = ConvertTo<TTabletCellBundle::TNodeMemoryStatistics>(
+            auto statistics = ConvertTo<TTabletCellBundle::TNodeStatistics>(
                 SyncYPathGet(node->Attributes().ToMap(), TabletStaticPath));
+            statistics.TabletSlotCount = ConvertTo<IListNodePtr>(
+                SyncYPathGet(node->Attributes().ToMap(), TabletSlotsPath))->GetChildCount();
 
             EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to get tablet_static attribute for node %v",
+            YT_LOG_ERROR(ex, "Failed to get \"statistics\" or \"tablet_slots\" attribute attribute for node %v",
                 address);
         }
     }
