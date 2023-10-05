@@ -2496,6 +2496,14 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
         })
 
     @staticmethod
+    def remove_export_destination(export_directory):
+        def try_remove():
+            remove(export_directory)
+            return True
+
+        wait(try_remove, ignore_exceptions=True)
+
+    @staticmethod
     def _check_export(export_directory, expected_data):
         export_fragments = sorted(ls(export_directory))
         assert len(export_fragments) == len(expected_data)
@@ -2563,6 +2571,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir)) == 2)
         self._check_export(export_dir, [["bar"] * 7, ["foo"] * 5])
 
+        self.remove_export_destination(export_dir)
+
     # TODO(achulkov2): Add test that replicated/chaos queues are not exported.
 
     @authors("cherepashka", "achulkov2")
@@ -2591,17 +2601,22 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         expected_data = [["first chunk"] * 2 + ["second chunk"] * 2 + ["third chunk"] * 2]
         self._check_export(export_dir, expected_data)
 
+        self.remove_export_destination(export_dir)
+
     @authors("cherepashka", "achulkov2")
     def test_export_to_the_same_folder(self):
-        _, queue_id = self._create_queue("//tmp/q")
+        export_dir = "//tmp/export"
+        create("map_node", export_dir)
 
-        export_dir = "//tmp"
+        queue_path = f"{export_dir}/q"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table(queue_path)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "export_directory": export_dir,
             "export_period": 3 * 1000,
         })
@@ -2609,8 +2624,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir)) == 2)
 
         # So that it's easier to check via common function.
-        remove("//tmp/q")
+        remove(queue_path)
         self._check_export(export_dir, [["foo"] * 6])
+
+        self.remove_export_destination(export_dir)
 
     @authors("cherepashka", "achulkov2")
     def test_wrong_originating_queue(self):
@@ -2640,6 +2657,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         # The export directory is not configured to accept exports from //tmp/q, so none should have been performed.
         assert len(ls(export_dir)) == 0
+
+        self.remove_export_destination(export_dir)
 
 
 class TestQueueStaticExportPortals(TestQueueStaticExport):

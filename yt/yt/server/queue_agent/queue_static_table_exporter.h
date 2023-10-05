@@ -32,10 +32,10 @@ public:
         TDuration exportPeriod);
 
 private:
-    NApi::NNative::IClientPtr Client_;
-    IInvokerPtr Invoker_;
+    const NApi::NNative::IClientPtr Client_;
+    const IInvokerPtr Invoker_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueExporter)

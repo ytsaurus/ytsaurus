@@ -442,7 +442,7 @@ private:
             staticExportConfig->ExportDirectory,
             staticExportConfig->ExportPeriod));
         if (!exportError.IsOK()) {
-            YT_LOG_DEBUG(exportError, "Failed to perform static export for queue");
+            YT_LOG_ERROR(exportError, "Failed to perform static export for queue");
             return;
         }
     }

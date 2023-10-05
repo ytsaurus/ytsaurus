@@ -295,9 +295,12 @@ private:
 
     IAttributeDictionaryPtr FetchNodeAttributes(const TYPath& path, const std::vector<TStringBuf>& attributeKeys) const
     {
-        YT_LOG_DEBUG("Started fetching attributes (Path: %v, PathRequestedAttributes: %v)", path, attributeKeys);
+        YT_LOG_DEBUG(
+            "Started fetching attributes (Path: %v, PathRequestedAttributes: %v)",
+            path,
+            attributeKeys);
 
-        // TODO(achulkov2): Change to simple Get with attributes.
+        // TODO(achulkov2): Change to simple Client_->GetNode with attributes.
         auto proxy = CreateObjectServiceReadProxy(Client_, TMasterReadOptions().ReadFrom);
         auto req = TYPathProxy::Get(path + "/@");
         SetTransactionId(req, Options_.TransactionId);
@@ -305,9 +308,14 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, "Error fetching attributes %v for path %v", path);
+            rspOrError,
+            "Error fetching attributes %v for path %v",
+            path);
 
-        YT_LOG_DEBUG("Finished fetching attributes (Path: %v, PathRequestedAttributes: %v)", path, attributeKeys);
+        YT_LOG_DEBUG(
+            "Finished fetching attributes (Path: %v, PathRequestedAttributes: %v)",
+            path,
+            attributeKeys);
         return ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
     }
 
@@ -454,8 +462,6 @@ private:
         DestinationObject_ = TUserObject(destinationPath, Options_.TransactionId);
 
         TCreateNodeOptions createOptions;
-        createOptions.Recursive = true;
-        createOptions.IgnoreExisting = true;
         createOptions.TransactionId = Options_.TransactionId;
         createOptions.Attributes = CreateEphemeralAttributes();
         WaitFor(Client_->CreateNode(DestinationObject_.GetPath(), EObjectType::Table, createOptions))
