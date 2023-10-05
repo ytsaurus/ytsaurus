@@ -8,9 +8,11 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath MangleCypressPath(NYPath::TYPath rawPath);
+TMangledSequoiaPath MangleSequoiaPath(const NYPath::TYPath& rawPath);
 
-NYPath::TYPath DemangleCypressPath(NYPath::TYPath mangledPath);
+NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
+
+TMangledSequoiaPath MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(TMangledSequoiaPath prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -89,7 +89,7 @@ public:
             prefixKeys.reserve(resolveAttempts.size());
             for (const auto& resolveAttempt : resolveAttempts) {
                 prefixKeys.push_back(NRecords::TResolveNodeKey{
-                    .Path = MangleCypressPath(resolveAttempt.Prefix),
+                    .Path = MangleSequoiaPath(resolveAttempt.Prefix),
                 });
             }
 
@@ -116,7 +116,7 @@ public:
 
                     if (scionFound) {
                         const auto& resolveAttempt = resolveAttempts[index];
-                        YT_VERIFY(resolveAttempt.Prefix + SlashYPath == rsp->Key.Path);
+                        YT_VERIFY(MangleSequoiaPath(resolveAttempt.Prefix) == rsp->Key.Path);
 
                         result = TSequoiaResolveResult{
                             .ResolvedPrefix = resolveAttempt.Prefix,
@@ -176,7 +176,7 @@ private:
                 });
 
                 std::vector<NRecords::TReverseResolveNodeKey> key;
-                key.push_back(NRecords::TReverseResolveNodeKey{.NodeId = TString(idWithoutPrefix)});
+                key.push_back(NRecords::TReverseResolveNodeKey{.NodeId = TNodeId::FromString(idWithoutPrefix)});
                 auto lookupRsp = std::move(WaitFor(Transaction_->LookupRows(key, columnFilter))
                     .ValueOrThrow()[0]);
 

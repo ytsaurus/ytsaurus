@@ -4,13 +4,13 @@ types:
   - type_name: TReverseResolveNode
     fields:
       - cpp_name: NodeId
-        cpp_type: TString
+        cpp_type: NCypressClient::TNodeId
         column_name: node_id
         column_type: String
         sort_order: Ascending
 
       - cpp_name: Path
-        cpp_type: TString
+        cpp_type: NYPath::TYPath
         column_name: path
         column_type: String
 

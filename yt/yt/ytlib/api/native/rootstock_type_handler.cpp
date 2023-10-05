@@ -75,11 +75,11 @@ public:
         attributes->Set("scion_id", scionId);
 
         transaction->WriteRow(NRecords::TResolveNode{
-            .Key = {.Path = MangleCypressPath(path)},
-            .NodeId = ToString(scionId),
+            .Key = {.Path = MangleSequoiaPath(path)},
+            .NodeId = scionId,
         });
         transaction->WriteRow(NRecords::TReverseResolveNode{
-            .Key = {.NodeId = ToString(scionId)},
+            .Key = {.NodeId = scionId},
             .Path = path,
         });
 
