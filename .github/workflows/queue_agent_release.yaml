@@ -1,0 +1,98 @@
+name: Release queue agent
+
+on:
+  push:
+    tags:
+      - 'docker/queue-agent/[0-9]+\.[0-9]+\.[0-9]+'
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 16
+          memory: 32GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 93GB
+
+  checkout:
+    name: Checkout
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: ytsaurus
+
+  build:
+    name: Build
+    needs:
+      - start-vm
+      - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-python: true
+      build-ytsaurus: true
+    uses: ./.github/workflows/build-jobs.yaml
+
+  tag:
+    name: Parse tag
+    needs:
+      - start-vm
+      - build
+    outputs:
+      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Parse tag
+        id: tag
+        run: |
+          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/queue-agent/})" >> $GITHUB_OUTPUT
+
+  release:
+    name: Release
+    needs:
+      - start-vm
+      - tag
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      publish-queue-agent: true
+      image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
+    secrets:
+      DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+    uses: ./.github/workflows/docker-jobs.yaml
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - release
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}

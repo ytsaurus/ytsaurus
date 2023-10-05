@@ -103,6 +103,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-ytsaurus: true
       publish-query-tracker: true
+      publish-queue-agent: true
       publish-chyt: true
       publish-local: true
       publish-strawberry: true
