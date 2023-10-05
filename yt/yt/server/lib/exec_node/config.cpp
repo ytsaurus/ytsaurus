@@ -606,6 +606,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
+    registrar.Parameter("job_proxy_authentication_manager", &TThis::JobProxyAuthenticationManager)
+        .DefaultNew();
+
     registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)
         .DefaultNew();
     registrar.Parameter("sensor_dump_timeout", &TThis::SensorDumpTimeout)

@@ -1002,6 +1002,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
 
+    registrar.Parameter("enable_rpc_proxy_in_job_proxy", &TThis::EnableRpcProxyInJobProxy)
+        .Default(false);
+
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(

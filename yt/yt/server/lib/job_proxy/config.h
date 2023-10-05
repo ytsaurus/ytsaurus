@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/rpc_proxy/config.h>
+
 #include <yt/yt/ytlib/auth/config.h>
 
 #include <yt/yt/ytlib/hydra/config.h>
@@ -237,11 +239,18 @@ public:
 
     bool SendHeartbeatBeforeAbort;
 
+    NYT::NRpcProxy::TApiServiceConfigPtr ApiService;
+
     std::optional<int> StatisticsOutputTableCountLimit;
 
     NDns::TDnsOverRpcResolverConfigPtr DnsOverRpcResolver;
 
     NJobProxy::TJobTestingOptionsPtr JobTestingOptions;
+
+    NAuth::TAuthenticationManagerConfigPtr AuthenticationManager;
+
+    //! Supports ability to use direct connection to masters.
+    NApi::NNative::TConnectionCompoundConfigPtr OriginalClusterConnection;
 
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 

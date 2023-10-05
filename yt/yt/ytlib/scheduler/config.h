@@ -1235,6 +1235,8 @@ public:
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
 
+    bool EnableRpcProxyInJobProxy;
+
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);

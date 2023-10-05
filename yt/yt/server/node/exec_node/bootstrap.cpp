@@ -280,7 +280,10 @@ private:
         JobProxyConfigTemplate_->ChunkClientDispatcher = GetConfig()->ChunkClientDispatcher;
 
         JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
+        JobProxyConfigTemplate_->OriginalClusterConnection = JobProxyConfigTemplate_->ClusterConnection->Clone();
         JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
+
+        JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxyAuthenticationManager;
 
         JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
         JobProxyConfigTemplate_->SupervisorConnection->Address = localAddress;

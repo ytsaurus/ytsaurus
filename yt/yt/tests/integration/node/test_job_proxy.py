@@ -3,11 +3,16 @@ from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    ls, get, print_debug, authors, wait, run_test_vanilla,
+    ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
     wait_breakpoint, with_breakpoint, release_breakpoint)
 
+from yt.common import YtError, update_inplace
+from yt.wrapper import YtClient
+
+import pytest
 
 import datetime
+from hashlib import sha1
 import os.path
 import re
 import shutil
@@ -147,6 +152,74 @@ class TestJobProxyBinary(JobProxyTestBase):
         content = op.read_stderr(job_id).decode("ascii").strip()
         release_breakpoint()
         assert re.match(r"^.*/pipes/.*-job-proxy-[0-9]+$", content)
+
+
+class TestRpcProxyInJobProxy(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_HTTP_PROXY = False
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy_authentication_manager": {
+                "enable_authentication": True,
+                "cypress_token_authenticator": {
+                    "secure": True,
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestRpcProxyInJobProxy, self).setup_method(method)
+        create_user("tester_name")
+        set("//sys/tokens/" + sha1(b"tester_token").hexdigest(), "tester_name")
+
+    def create_client_from_uds(self, socket_file, config=None):
+        default_config = {
+            "backend": "rpc",
+            "driver_config": {
+                "connection_type": "rpc",
+                "proxy_unix_domain_socket": socket_file,
+            },
+        }
+        if config:
+            update_inplace(default_config, config)
+        return YtClient(proxy=None, config=default_config)
+
+    def run_job_proxy(self, enable_rpc_proxy_in_job_proxy, time_limit=2000):
+        op = run_test_vanilla(
+            with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT; sleep {}".format(time_limit)),
+            task_patch={"enable_rpc_proxy_in_job_proxy": enable_rpc_proxy_in_job_proxy}
+        )
+        job_id = wait_breakpoint()[0]
+        socket_file = op.read_stderr(job_id).decode("ascii").strip()
+        release_breakpoint()
+        return socket_file
+
+    @authors("alex-shishkin")
+    def test_disabled_rpc_proxy(self):
+        with pytest.raises(YtError):
+            socket_file = self.run_job_proxy(enable_rpc_proxy_in_job_proxy=False)
+            client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
+            client.list("/")
+
+    @authors("alex-shishkin")
+    def test_rpc_proxy_simple_query(self):
+        socket_file = self.run_job_proxy(enable_rpc_proxy_in_job_proxy=True)
+        client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
+        root_listing = client.list("/")
+        assert root_listing == ["sys", "tmp"]
+
+    @authors("alex-shishkin")
+    def test_failed_rpc_proxy_auth(self):
+        with pytest.raises(YtError):
+            socket_file = self.run_job_proxy(enable_rpc_proxy_in_job_proxy=True)
+            client = self.create_client_from_uds(socket_file, config={"token": "wrong_token"})
+            client.list("/")
 
 
 class TestUnavailableJobProxy(JobProxyTestBase):

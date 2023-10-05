@@ -528,6 +528,8 @@ public:
 
     TMasterConnectorConfigPtr MasterConnector;
 
+    NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
+
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
     TDuration SensorDumpTimeout;
 

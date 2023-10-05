@@ -199,6 +199,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("tvm_bridge", &TThis::TvmBridge)
         .Default();
 
+    registrar.Parameter("api_service", &TThis::ApiService)
+        .DefaultNew();
+
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
         .Default();
 
@@ -206,6 +209,12 @@ void TJobProxyConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("job_testing_options", &TThis::JobTestingOptions)
+        .Default();
+
+    registrar.Parameter("authentication_manager", &TThis::AuthenticationManager)
+        .DefaultNew();
+
+    registrar.Parameter("original_cluster_connection", &TThis::OriginalClusterConnection)
         .Default();
 
     registrar.Preprocessor([] (TThis* config) {

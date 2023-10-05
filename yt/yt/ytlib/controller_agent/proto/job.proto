@@ -284,6 +284,8 @@ message TUserJobSpec
     // Memory size reserved for job proxy. Used in tests for checking job proxy memory overdraft.
     optional int64 job_proxy_memory_reserve = 66;
 
+    optional bool enable_rpc_proxy_in_job_proxy = 70 [default = false];
+
     reserved 38, 48, 61, 62;
 }
 

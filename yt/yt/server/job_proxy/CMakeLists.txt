@@ -23,6 +23,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   yt-library-containers
   library-containers-cri
   server-lib-exec_node
+  server-lib-rpc_proxy
   yt-server-tools
   server-lib-shell
   server-lib-user_job
