@@ -185,6 +185,9 @@ public class ApiServiceUtil {
     }
 
     public static TableSchema deserializeRowsetSchema(TRowsetDescriptor descriptor) {
+        if (descriptor.hasSchema()) {
+            return deserializeTableSchema(descriptor.getSchema());
+        }
         TableSchema.Builder builder = new TableSchema.Builder().setUniqueKeys(false);
         for (TRowsetDescriptor.TNameTableEntry entry : descriptor.getNameTableEntriesList()) {
             String name = "";
