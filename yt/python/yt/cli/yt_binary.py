@@ -1419,8 +1419,9 @@ def add_remote_copy_parser(add_parser):
 def run_vanilla_operation(sync, tasks, spec):
     """Run vanilla operation."""
     spec_builder = VanillaSpecBuilder()
-    for name, description in iteritems(tasks):
-        spec_builder.task(name, description)
+    if tasks is not None:
+        for name, description in iteritems(tasks):
+            spec_builder.task(name, description)
     spec_builder.spec(spec)
     return yt.run_operation(spec_builder, sync=sync)
 
