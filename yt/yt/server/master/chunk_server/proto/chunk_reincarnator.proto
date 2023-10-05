@@ -1,6 +1,5 @@
 package NYT.NChunkServer.NProto;
 
-import "yt/ytlib/chunk_client/proto/chunk_service.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
