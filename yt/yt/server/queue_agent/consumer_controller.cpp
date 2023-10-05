@@ -190,6 +190,8 @@ private:
             return subSnapshot;
         }
 
+        subSnapshot->HasCumulativeDataWeightColumn = queueSnapshot->HasCumulativeDataWeightColumn;
+
         // Assume partition count to be the same as the partition count in the current queue snapshot.
         auto partitionCount = queueSnapshot->PartitionCount;
         subSnapshot->PartitionCount = partitionCount;

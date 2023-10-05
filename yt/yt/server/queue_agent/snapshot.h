@@ -100,6 +100,10 @@ struct TSubConsumerSnapshot
 
     TError Error;
 
+    //! Temporary information for debugging. Equal to the same value of the corresponding queue.
+    //! COMPAT(achulkov2): Remove this.
+    bool HasCumulativeDataWeightColumn = false;
+
     std::vector<TConsumerPartitionSnapshotPtr> PartitionSnapshots;
 };
 
