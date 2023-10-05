@@ -22,7 +22,7 @@ df.write
 
 ## transaction
 
-Чтение под [транзакцией](../../../../../user-guide/storage/transactions.md). Подробнее можно узнать в разделе [Чтение под транзакцией](../read-transaction.md).
+Чтение под [транзакцией](../../../../../user-guide/storage/transactions.md). Подробнее можно узнать в разделе [Чтение и запись под транзакцией](../read-transaction.md).
 
 Пример на Scala:
 

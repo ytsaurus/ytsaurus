@@ -269,7 +269,7 @@ items:
               #    href: user-guide/data-processing/spyt/cluster/prometheus.md
                - name: Configurations
                  href: user-guide/data-processing/spyt/cluster/configuration.md
-             - name: Reading from a transaction
+             - name: Reading and writing within a transaction
                href: user-guide/data-processing/spyt/read-transaction.md
              - name: Logs
                href: user-guide/data-processing/spyt/logs.md

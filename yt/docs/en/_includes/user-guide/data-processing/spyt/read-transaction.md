@@ -1,4 +1,4 @@
-# Reading from a transaction
+# Reading and writing within a transaction
 
 {% if audience == "public" %}
 
@@ -32,3 +32,8 @@ You can enable creation of a global transaction that will open at the top of a S
 
 {% endnote %}
 
+When you need to write a DataFrame within a transaction you should use `write_transaction` option:
+
+```python
+df.write.option('write_transaction', transaction_id).yt("//target/table/path")
+```

@@ -271,7 +271,7 @@ items:
               #   href: user-guide/data-processing/spyt/cluster/prometheus.md
               - name: Конфигурации
                 href: user-guide/data-processing/spyt/cluster/configuration.md
-            - name: Чтение под транзакцией
+            - name: Чтение и запись под транзакцией
               href: user-guide/data-processing/spyt/read-transaction.md
             - name: Логи
               href: user-guide/data-processing/spyt/logs.md
