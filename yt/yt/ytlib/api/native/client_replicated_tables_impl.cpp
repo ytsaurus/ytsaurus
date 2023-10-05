@@ -555,10 +555,12 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
         NAst::TTableDescriptor* descriptor,
         const TTableReplicaInfoPtrList& replicaInfos,
         TTableSchemaPtr tableSchema,
-        const IBannedReplicaTrackerPtr& bannedReplicaTracker)
+        const std::vector<TTableReplicaId>& bannedIds)
     {
         for (const auto& replicaInfo : replicaInfos) {
-            if (replicaInfo->ClusterName == inSyncClusterName && !bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+            if (replicaInfo->ClusterName == inSyncClusterName &&
+                std::find(bannedIds.begin(), bannedIds.end(), replicaInfo->ReplicaId) == bannedIds.end())
+            {
                 pickedReplicaIds.push_back(replicaInfo->ReplicaId);
                 descriptor->Path = replicaInfo->ReplicaPath;
                 if (tableSchema) {
@@ -574,14 +576,14 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
         &query->Table,
         candidates[0],
         chaosTableSchemas[0],
-        bannedReplicaTrackers[0]);
+        bannedSyncReplicaIds[0]);
 
     for (size_t index = 0; index < query->Joins.size(); ++index) {
         patchTableDescriptor(
             &query->Joins[index].Table,
             candidates[index + 1],
             chaosTableSchemas[index + 1],
-            bannedReplicaTrackers[index + 1]);
+            bannedSyncReplicaIds[index + 1]);
     }
 
     YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v, ReplicaIds: %v)",
