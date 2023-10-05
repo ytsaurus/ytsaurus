@@ -984,6 +984,8 @@ public:
     //! If |true|, node will abort when location becomes disabled.
     bool AbortOnLocationDisabled;
 
+    bool TrackMemoryAfterSessionCompletion;
+
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;
 

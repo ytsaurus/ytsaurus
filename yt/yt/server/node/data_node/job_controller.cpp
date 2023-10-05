@@ -480,6 +480,7 @@ private:
         }
 
         YT_VERIFY(std::ssize(response->Attachments()) == response->jobs_to_start_size());
+        auto config = DynamicConfig_.Acquire();
         int attachmentIndex = 0;
         for (const auto& startInfo : response->jobs_to_start()) {
             auto jobId = FromProto<TJobId>(startInfo.job_id());
@@ -494,10 +495,18 @@ private:
 
             const auto& resourceLimits = startInfo.resource_limits();
 
+            auto jobResourceLimits = FromNodeResources(resourceLimits);
+
+            if (!config->AccountMasterMemoryRequest) {
+                // COMPAT(don-dron): Remove memory request on master. Only for repair jobs (256Mb).
+                // See set_system_memory in server/master/chunk_server/chunk_replicator.cpp::TRepairJob.
+                jobResourceLimits.SystemMemory = 0;
+            }
+
             CreateJob(
                 jobId,
                 jobTrackerAddress,
-                FromNodeResources(resourceLimits),
+                jobResourceLimits,
                 TJobResourceAttributes(),
                 std::move(spec));
 

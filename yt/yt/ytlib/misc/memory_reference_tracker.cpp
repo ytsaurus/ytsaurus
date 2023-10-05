@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/core/concurrency/delayed_executor.h>
+
 #include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <library/cpp/yt/threading/public.h>
@@ -284,6 +286,40 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeMemoryReferenceTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDelayedReferenceHolder::TDelayedReferenceHolder(
+    TSharedRef underlying,
+    TDuration delayBeforeFree,
+    IInvokerPtr dtorInvoker)
+    : Underlying_(std::move(underlying))
+    , DelayBeforeFree_(delayBeforeFree)
+    , DtorInvoker_(std::move(dtorInvoker))
+{ }
+
+TSharedRangeHolderPtr TDelayedReferenceHolder::Clone(const TSharedRangeHolderCloneOptions& options)
+{
+    if (options.KeepMemoryReferenceTracking) {
+        return this;
+    }
+    return Underlying_.GetHolder()->Clone(options);
+}
+
+std::optional<size_t> TDelayedReferenceHolder::GetTotalByteSize() const
+{
+    return Underlying_.GetHolder()->GetTotalByteSize();
+}
+
+TDelayedReferenceHolder::~TDelayedReferenceHolder()
+{
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([] (TSharedRef reference) {
+            reference.ReleaseHolder();
+        }, Passed(std::move(Underlying_))),
+        DelayBeforeFree_,
+        DtorInvoker_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

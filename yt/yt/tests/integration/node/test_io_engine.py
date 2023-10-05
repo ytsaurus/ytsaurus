@@ -86,10 +86,11 @@ class TestIoEngine(YTEnvSetup):
 
     @authors("don-dron")
     def test_pending_read_write_memory_tracking(self):
-        REPLICATION_FACTOR = 6
+        REPLICATION_FACTOR = 1
 
         update_nodes_dynamic_config({
             "data_node": {
+                "track_memory_after_session_completion": True,
                 "testing_options": {
                     "delay_before_blob_session_block_free": 100000,
                 },
@@ -104,7 +105,7 @@ class TestIoEngine(YTEnvSetup):
                 "replication_factor": REPLICATION_FACTOR,
             })
 
-        ys = [{"key": "x" * 1024} for i in range(1024)]
+        ys = [{"key": "x" * (8 * 1024)} for i in range(1024)]
         write_table("//tmp/test", ys)
 
         wait(lambda: any(self.get_pending_write_memory(node) > 1024 for node in nodes))
