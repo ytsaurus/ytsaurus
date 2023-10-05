@@ -1553,52 +1553,37 @@ class YTEnvSetup(object):
             assert not yt_commands.get_batch_error(response)
 
     def _wait_for_jobs_to_vanish(self, driver=None):
-        nodes_info = yt_commands.get("//sys/cluster_nodes", driver=driver, attributes=["flavors", "version"])
+        nodes_with_flavors = yt_commands.get("//sys/cluster_nodes", driver=driver, attributes=["flavors"])
 
-        exec_nodes = {
-            node: attr.attributes["version"]
-            for node, attr in nodes_info.items() if "exec" in attr.attributes.get("flavors", ["exec"])
-        }
+        exec_nodes = [
+            node
+            for node, attr in nodes_with_flavors.items() if "exec" in attr.attributes.get("flavors", ["exec"])
+        ]
 
-        def version_stable_path(version, entry, node):
-            if version < "23.3":
-                return "//sys/cluster_nodes/{0}/orchid/job_controller/{1}".format(node, entry)
-            else:
-                return "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/{1}".format(node, entry)
-
-        def check_no_jobs():
+        def check_no_exec_node_jobs():
             requests = [
                 yt_commands.make_batch_request(
                     "get",
-                    path=version_stable_path(version, "active_job_count", node),
+                    path="//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_job_count".format(node),
                     return_only_value=True,
                 )
-                for node, version in exec_nodes.items()
+                for node in exec_nodes
             ]
 
             responses = yt_commands.execute_batch(requests, driver=driver)
-            result = True
 
-            for idx, (node, version) in enumerate(exec_nodes.items()):
-                if version < "23.3":
-                    response_result = yt_commands.get_batch_output(responses[idx]).get("scheduler", 0) == 0
-                else:
-                    response_result = yt_commands.get_batch_output(responses[idx]) == 0
-
-                result = result and response_result
-
-            return result
+            return all([yt_commands.get_batch_output(response) == 0 for response in responses])
 
         try:
-            wait(check_no_jobs, iter=300)
+            wait(check_no_exec_node_jobs, iter=300)
         except WaitFailed:
             requests = [
                 yt_commands.make_batch_request(
                     "get",
-                    path=version_stable_path(version, "active_jobs", node),
+                    path="//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs".format(node),
                     return_only_value=True,
                 )
-                for node, version in exec_nodes.items()
+                for node, version in exec_nodes
             ]
 
             responses = yt_commands.execute_batch(requests, driver=driver)

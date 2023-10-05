@@ -846,20 +846,16 @@ print row + table_index
         )
         wait_breakpoint(job_count=5)
 
-        nodes_info = get("//sys/cluster_nodes", attributes=["flavors", "version"])
+        nodes_with_flavors = get("//sys/cluster_nodes", attributes=["flavors"])
 
-        exec_nodes = {
-            node: attr.attributes["version"]
-            for node, attr in nodes_info.items() if "exec" in attr.attributes.get("flavors", ["exec"])
-        }
+        exec_nodes = [
+            node
+            for node, attr in nodes_with_flavors.items() if "exec" in attr.attributes.get("flavors", ["exec"])
+        ]
 
-        for node, version in exec_nodes.items():
-            if version < "23.3":
-                scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node))
-                slot_manager = get("//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(node))
-            else:
-                scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs".format(node))
-                slot_manager = get("//sys/cluster_nodes/{0}/orchid/exec_node/slot_manager".format(node))
+        for node in exec_nodes:
+            scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs".format(node))
+            slot_manager = get("//sys/cluster_nodes/{0}/orchid/exec_node/slot_manager".format(node))
 
             for job_id, values in scheduler_jobs.items():
                 assert "start_time" in values
