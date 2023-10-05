@@ -1250,17 +1250,43 @@ class Operation(object):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
         return get(job_path + "/address", verbose=False, driver=self._driver)
 
+    def get_node_version(self, node_address):
+        return get("//sys/cluster_nodes/{0}/@version".format(node_address))
+
     def get_job_node_orchid_path(self, job_id):
         return "//sys/cluster_nodes/{0}/orchid".format(
             self.get_node(job_id)
         )
 
     def get_job_node_orchid(self, job_id):
-        job_orchid_path = "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}".format(
-            self.get_node(job_id), job_id
+        node_address = self.get_node(job_id)
+        node_version = self.get_node_version(node_address)
+
+        # COMPAT(pogorelov): Remove after 23.3 is branched.
+        if node_version >= "23.2":
+            orchid_path_template = "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}"
+        else:
+            orchid_path_template = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
+
+        job_orchid_path = orchid_path_template.format(
+            node_address, job_id
         )
 
         return get(job_orchid_path, verbose=False, driver=self._driver)
+
+    def interrupt_job(self, job_id, interruption_timeout=10000):
+        node_address = self.get_node(job_id)
+        node_version = self.get_node_version(node_address)
+
+        # COMPAT(pogorelov): Remove after 23.3 is branched.
+        if node_version >= "23.2":
+            wait(lambda: self.get_job_node_orchid(job_id)["job_state"] == "running")
+
+            interrupt_job(job_id, interruption_timeout)
+
+            wait(lambda: self.get_job_node_orchid(job_id)["interrupted"])
+        else:
+            interrupt_job(job_id, interruption_timeout)
 
     def get_job_phase(self, job_id):
         job_orchid = self.get_job_node_orchid(job_id)
