@@ -54,6 +54,7 @@ RECEIVE_TOKEN_FROM_SSH_SESSION = \
     "TEST_TOOL" not in os.environ
 
 TVM_ONLY_HTTP_PROXY_PORT = 9026
+TVM_ONLY_HTTPS_PROXY_PORT = 9443
 
 _FAILED_TO_RECEIVE_TOKEN_WARNED = False
 
@@ -469,10 +470,10 @@ def make_request_with_retries(method, url=None, **kwargs):
     return RequestRetrier(method=method, url=url, **kwargs).run()
 
 
-def _get_proxy_url_parts(required=True, client=None, replace_host=None):
+def _get_proxy_url_parts(required=True, client=None, replace_host_proxy=None):
     """Get proxy url parts from config or params (try to guess scheme from config)
     """
-    proxy = replace_host if replace_host else get_config(client=client)["proxy"]["url"]
+    proxy = replace_host_proxy if replace_host_proxy else get_config(client=client)["proxy"]["url"]
 
     if proxy is None:
         if required:
@@ -484,24 +485,25 @@ def _get_proxy_url_parts(required=True, client=None, replace_host=None):
     parts = urlparse(proxy)
     scheme, hostname, port = parts.scheme, parts.hostname, parts.port
 
-    # tyr get scheme from config
-    if replace_host and not scheme and get_config(client=client)["proxy"]["url"].startswith("https://"):
+    # get scheme for replace_host_proxy from original proxy
+    if replace_host_proxy and not scheme and get_config(client=client)["proxy"]["url"].startswith("https://"):
         scheme = "https"
 
-    # expand aliases
+    # expand host aliases
     if "." not in hostname and "localhost" not in hostname and not port and not scheme:
         hostname = hostname + get_config(client=client)["proxy"]["default_suffix"]
 
-    # tvm host
-    tvm_only = get_config(client=client)["proxy"]["tvm_only"]
-    if tvm_only and not port:
-        hostname = "tvm." + hostname
-        port = TVM_ONLY_HTTP_PROXY_PORT
-
-    # force scheme
+    # get scheme from config
     prefer_https = get_config(client=client)["proxy"]["prefer_https"]
     if not scheme:
         scheme = "https" if prefer_https else "http"
+
+    # tvm host/port
+    tvm_only = get_config(client=client)["proxy"]["tvm_only"]
+    if tvm_only and not port:
+        if not hostname.startswith("tvm.") and not replace_host_proxy:
+            hostname = "tvm." + hostname
+        port = TVM_ONLY_HTTP_PROXY_PORT if scheme == "http" else TVM_ONLY_HTTPS_PROXY_PORT
 
     return (scheme, hostname + (":" + str(port) if port else ""))
 
@@ -509,14 +511,14 @@ def _get_proxy_url_parts(required=True, client=None, replace_host=None):
 def get_proxy_address_netloc(required=True, client=None, replace_host=None):
     """Get proxy "hostname:port" from config or params
     """
-    scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host=replace_host)
+    scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host_proxy=replace_host)
     return netloc
 
 
 def get_proxy_address_url(required=True, client=None, add_path=None, replace_host=None):
     """Get proxy "schema://hostname:port" from config or params
     """
-    scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host=replace_host)
+    scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host_proxy=replace_host)
     if not netloc:
         return None
     if add_path and not add_path.startswith("/"):

@@ -7,7 +7,7 @@ from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExc
                      create_http_response_error)
 from .format import JsonFormat
 from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
-                           get_proxy_address_url, get_error_from_headers, get_header_format, ProxyProvider, TVM_ONLY_HTTP_PROXY_PORT)
+                           get_proxy_address_url, get_error_from_headers, get_header_format, ProxyProvider)
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -103,7 +103,6 @@ class HeavyProxyProvider(ProxyProvider):
         if tvm_only:
             if ":" in proxy:
                 raise YtError('Cannot create TVM-only proxy for {}'.format(proxy))
-            proxy = "{}:{}".format(proxy, TVM_ONLY_HTTP_PROXY_PORT)
         return get_proxy_address_url(client=self.client, replace_host=proxy)
 
     def _discover_heavy_proxies(self):

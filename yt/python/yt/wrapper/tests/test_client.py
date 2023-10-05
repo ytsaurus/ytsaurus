@@ -356,6 +356,16 @@ class TestClient(object):
                 "http://tvm.cluster1.yt.yandex.net:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
             ),
             (
+                "tvm_only_https",
+                {"url": "https://cluster1", "tvm_only": True},
+                "https://tvm.cluster1:{}".format(http.TVM_ONLY_HTTPS_PROXY_PORT),
+            ),
+            (
+                "tvm_only_http",
+                {"url": "http://cluster1", "tvm_only": True},
+                "http://tvm.cluster1:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
+            ),
+            (
                 "default_suffix",
                 {"url": "cluster1", "default_suffix": ".imaginary.yt.yandex.net"},
                 "http://cluster1.imaginary.yt.yandex.net",
@@ -393,7 +403,7 @@ class TestClient(object):
             (
                 "tvm_only config https",
                 {"url": "cluster1", "tvm_only": True, "prefer_https": True},
-                "https://tvm.cluster1.yt.yandex.net:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
+                "https://tvm.cluster1.yt.yandex.net:{}".format(http.TVM_ONLY_HTTPS_PROXY_PORT),
             ),
             (
                 "default_suffix config https",
@@ -431,3 +441,11 @@ class TestClient(object):
 
         client = yt.YtClient(config={"proxy": {"url": "https://secuered.host:555", "prefer_https": None}})
         assert http.get_proxy_address_url(client=client, replace_host="must_secured.host") == "https://must_secured.host"
+
+        client = yt.YtClient(config={"proxy": {"url": "secured_tvm_cluster", "tvm_only": True, "prefer_https": True}})
+        assert http.get_proxy_address_url(client=client) == "https://tvm.secured_tvm_cluster.yt.yandex.net:9443"
+        assert http.get_proxy_address_url(client=client, replace_host="heavy.proxy.full.fqdn") == "https://heavy.proxy.full.fqdn:9443"
+
+        client = yt.YtClient(config={"proxy": {"url": "secured_tvm_cluster", "tvm_only": True, "prefer_https": False}})
+        assert http.get_proxy_address_url(client=client) == "http://tvm.secured_tvm_cluster.yt.yandex.net:9026"
+        assert http.get_proxy_address_url(client=client, replace_host="heavy.proxy.full.fqdn") == "http://heavy.proxy.full.fqdn:9026"
