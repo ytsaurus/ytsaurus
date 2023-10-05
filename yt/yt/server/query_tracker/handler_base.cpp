@@ -127,7 +127,8 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction() const
         TActiveQueryDescriptor::Get()->GetNameTable(),
         MakeSharedRange(std::move(keys), std::move(rowBuffer)),
         options))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
     auto optionalRecords = ToOptionalRecords<TActiveQuery>(rowset);
     YT_VERIFY(optionalRecords.size() == 1);
     if (!optionalRecords[0]) {

@@ -3299,7 +3299,9 @@ private:
                     options);
             },
             [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
-            (const auto& context, const auto& rowset) {
+            (const auto& context, const auto& result) {
+                const auto& rowset = result.Rowset;
+
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
@@ -3365,7 +3367,9 @@ private:
                     options);
             },
             [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
-            (const auto& context, const auto& rowset) {
+            (const auto& context, const auto& result) {
+                const auto& rowset = result.Rowset;
+
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
@@ -3464,14 +3468,15 @@ private:
                     std::move(options));
             },
             [=, this, this_ = MakeStrong(this), profilingInfos = std::move(profilingInfos)]
-            (const auto& context, const auto& rowsets) {
+            (const auto& context, const auto& results) {
                 auto* response = &context->Response();
 
-                YT_VERIFY(subrequestCount == std::ssize(rowsets));
+                YT_VERIFY(subrequestCount == std::ssize(results));
 
                 std::vector<int> rowCounts;
                 rowCounts.reserve(subrequestCount);
-                for (const auto& rowset : rowsets) {
+                for (const auto& result : results) {
+                    const auto& rowset = result.Rowset;
                     auto* subresponse = response->add_subresponses();
                     auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
                     subresponse->set_attachment_count(attachments.size());

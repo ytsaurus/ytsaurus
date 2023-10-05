@@ -218,20 +218,21 @@ TEST_F(TLookupFilterTest, TestLookupAll)
         {"k0", "k1", "k2"},
         "<id=0> 10; <id=1> 11; <id=2> 12");
 
-    auto res = WaitFor(Client_->LookupRows(
+    auto rowset = WaitFor(Client_->LookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey)))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    auto actual = ToString(res->GetRows()[0]);
+    auto actual = ToString(rowset->GetRows()[0]);
     auto expected = ToString(YsonToSchemalessRow("<id=0> 10; <id=1> 11; <id=2> 12; <id=3> 13; <id=4> 14; <id=5> 15"));
     EXPECT_EQ(expected, actual);
 
     auto schema = ConvertTo<TTableSchema>(TYsonString(
         su + "[" + ku0 + ku1 + ku2 + v3 + v4 + v5 + "]"));
 
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto actualSchema = ConvertToYsonString(rowset->GetSchema(), EYsonFormat::Text).ToString();
     auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema);
 }
@@ -242,13 +243,14 @@ TEST_F(TLookupFilterTest, TestVersionedLookupAll)
         {"k0", "k1", "k2"},
         "<id=0> 10; <id=1> 11; <id=2> 12");
 
-    auto res = WaitFor(Client_->VersionedLookupRows(
+    auto rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey)))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    auto actual = ToString(res->GetRows()[0]);
+    auto actual = ToString(rowset->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(
         "<id=0> 10; <id=1> 11; <id=2> 12",
         "<id=3;ts=0> 13; <id=4;ts=0> 14; <id=5;ts=0> 15"));
@@ -257,7 +259,7 @@ TEST_F(TLookupFilterTest, TestVersionedLookupAll)
     auto schema = ConvertTo<TTableSchema>(TYsonString(
         su + "[" + ku0 + ku1 + ku2 + v3 + v4 + v5 + "]"));
 
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto actualSchema = ConvertToYsonString(rowset->GetSchema(), EYsonFormat::Text).ToString();
     auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema);
 }
@@ -280,16 +282,17 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
     TLookupRowsOptions options;
     options.ColumnFilter = TColumnFilter(std::move(columnFilter));
 
-    auto res = WaitFor(Client_->LookupRows(
+    auto rowset = WaitFor(Client_->LookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey),
         options))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    ASSERT_EQ(1u, res->GetRows().Size());
+    ASSERT_EQ(1u, rowset->GetRows().Size());
 
-    auto actual = ToString(res->GetRows()[0]);
+    auto actual = ToString(rowset->GetRows()[0]);
     auto expected = ToString(YsonToSchemalessRow(rowString));
     EXPECT_EQ(expected, actual)
         << "key: " << keyString << std::endl
@@ -299,7 +302,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         << "expectedSchema: " << schemaString << std::endl;
 
     auto schema = ConvertTo<TTableSchema>(TYsonString(schemaString));
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto actualSchema = ConvertToYsonString(rowset->GetSchema(), EYsonFormat::Text).ToString();
     auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema)
         << "key: " << keyString << std::endl
@@ -333,16 +336,17 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
     TVersionedLookupRowsOptions options;
     options.ColumnFilter = TColumnFilter(std::move(columnFilter));
 
-    auto res = WaitFor(Client_->VersionedLookupRows(
+    auto rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey),
         options))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    ASSERT_EQ(1u, res->GetRows().Size());
+    ASSERT_EQ(1u, rowset->GetRows().Size());
 
-    auto actual = ToString(res->GetRows()[0]);
+    auto actual = ToString(rowset->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(
         resultKeyString,
         resultValueString,
@@ -356,7 +360,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         << "expectedSchema: " << schemaString << std::endl;
 
     auto schema = ConvertTo<TTableSchema>(TYsonString(schemaString));
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto actualSchema = ConvertToYsonString(rowset->GetSchema(), EYsonFormat::Text).ToString();
     auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema)
         << "key: " << keyString << std::endl
@@ -442,15 +446,16 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         {"k0", "k1", "k2", "v4"},
         "<id=0> 20; <id=1> 20; <id=2> 20");
 
-    auto res = WaitFor(Client_->VersionedLookupRows(
+    auto rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey)))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    ASSERT_EQ(1u, res->GetRows().Size());
+    ASSERT_EQ(1u, rowset->GetRows().Size());
 
-    auto actual = ToString(res->GetRows()[0]);
+    auto actual = ToString(rowset->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(
         "<id=0> 20; <id=1> 20; <id=2> 20",
         "<id=3;ts=2> 21; <id=3;ts=1> 20;"));
@@ -464,16 +469,17 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
     options.RetentionConfig->MaxDataVersions = 1;
     options.Timestamp = CommitTimestamps_[2] + 1;
 
-    res = WaitFor(Client_->VersionedLookupRows(
+    rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey),
         options))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    ASSERT_EQ(1u, res->GetRows().Size());
+    ASSERT_EQ(1u, rowset->GetRows().Size());
 
-    actual = ToString(res->GetRows()[0]);
+    actual = ToString(rowset->GetRows()[0]);
     expected = ToString(BuildVersionedRow(
         "<id=0> 20; <id=1> 20; <id=2> 20",
         "<id=3;ts=2> 21;"));
@@ -481,16 +487,17 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
 
     options.ColumnFilter = TColumnFilter({0,1,2,3});
 
-    res = WaitFor(Client_->VersionedLookupRows(
+    rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey),
         options))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    ASSERT_EQ(1u, res->GetRows().Size());
+    ASSERT_EQ(1u, rowset->GetRows().Size());
 
-    actual = ToString(res->GetRows()[0]);
+    actual = ToString(rowset->GetRows()[0]);
     expected = ToString(BuildVersionedRow(
         "<id=0> 20; <id=1> 20; <id=2> 20",
         "",
@@ -502,16 +509,17 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
     preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2", "v3"},
         "<id=0> 20; <id=1> 20; <id=2> 20");
-    res = WaitFor(Client_->VersionedLookupRows(
+    rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey),
         options))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    ASSERT_EQ(1u, res->GetRows().Size());
+    ASSERT_EQ(1u, rowset->GetRows().Size());
 
-    actual = ToString(res->GetRows()[0]);
+    actual = ToString(rowset->GetRows()[0]);
     expected = ToString(BuildVersionedRow(
         "",
         "<id=0;ts=2> 21;"));
@@ -534,13 +542,15 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
     TVersionedLookupRowsOptions options;
 
     auto executeLookup = [&] {
-        auto res = WaitFor(Client_->VersionedLookupRows(
+        auto rowset = WaitFor(Client_->VersionedLookupRows(
             Table_,
             std::get<1>(preparedKey),
             std::get<0>(preparedKey),
-            options)).ValueOrThrow();
-        EXPECT_EQ(1u, res->GetRows().Size());
-        return ToString(res->GetRows()[0]);
+            options))
+            .ValueOrThrow()
+            .Rowset;
+        EXPECT_EQ(1u, rowset->GetRows().Size());
+        return ToString(rowset->GetRows()[0]);
     };
 
     WriteUnversionedRow(
@@ -660,22 +670,26 @@ TEST_F(TLookupFilterTest, YT_10159)
 
         {
             options.Timestamp = CommitTimestamps_[7];
-            auto res = WaitFor(Client_->VersionedLookupRows(
+            auto rowset = WaitFor(Client_->VersionedLookupRows(
                 Table_,
                 std::get<1>(preparedKey),
                 std::get<0>(preparedKey),
-                options)).ValueOrThrow();
-            EXPECT_EQ(0u, res->GetRows().Size());
+                options))
+                .ValueOrThrow()
+                .Rowset;
+            EXPECT_EQ(0u, rowset->GetRows().Size());
         }
 
         {
             options.Timestamp = CommitTimestamps_[8];
-            auto res = WaitFor(Client_->VersionedLookupRows(
+            auto rowset = WaitFor(Client_->VersionedLookupRows(
                 Table_,
                 std::get<1>(preparedKey),
                 std::get<0>(preparedKey),
-                options)).ValueOrThrow();
-            EXPECT_EQ(1u, res->GetRows().Size());
+                options))
+                .ValueOrThrow()
+                .Rowset;
+            EXPECT_EQ(1u, rowset->GetRows().Size());
         }
 
         if (iter == 0) {
@@ -722,8 +736,10 @@ TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
         {"v2", "v3", "v1", "$tablet_index"},
         "<id=0> 24; <id=1> 25; <id=2> 23; <id=3> 0;");
 
-    auto res = WaitFor(Client_->SelectRows(Format("* from [%v]", Table_))).ValueOrThrow();
-    auto rows = res.Rowset->GetRows();
+    auto rowset = WaitFor(Client_->SelectRows(Format("* from [%v]", Table_)))
+        .ValueOrThrow()
+        .Rowset;
+    auto rows = rowset->GetRows();
 
     ASSERT_EQ(4u, rows.Size());
 

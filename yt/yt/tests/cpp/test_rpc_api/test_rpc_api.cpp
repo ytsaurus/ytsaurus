@@ -365,22 +365,24 @@ TEST_F(TMultiLookupTest, TestMultiLookup)
         std::get<0>(key1),
         TLookupRowsOptions()});
 
-    auto rowsets = WaitFor(Client_->MultiLookup(
+    auto results = WaitFor(Client_->MultiLookup(
         subrequests,
         TMultiLookupOptions()))
         .ValueOrThrow();
 
-    ASSERT_EQ(2u, rowsets.size());
+    ASSERT_EQ(2u, results.size());
+    const auto& rowset0 = results[0].Rowset;
+    const auto& rowset1 = results[1].Rowset;
 
-    ASSERT_EQ(1u, rowsets[0]->GetRows().Size());
-    ASSERT_EQ(1u, rowsets[1]->GetRows().Size());
+    ASSERT_EQ(1u, rowset0->GetRows().Size());
+    ASSERT_EQ(1u, rowset1->GetRows().Size());
 
     auto expected = ToString(YsonToSchemalessRow("<id=0> 0; <id=1> 0;"));
-    auto actual = ToString(rowsets[0]->GetRows()[0]);
+    auto actual = ToString(rowset0->GetRows()[0]);
     EXPECT_EQ(expected, actual);
 
     expected = ToString(YsonToSchemalessRow("<id=0> 1; <id=1> 1;"));
-    actual = ToString(rowsets[1]->GetRows()[0]);
+    actual = ToString(rowset1->GetRows()[0]);
     EXPECT_EQ(expected, actual);
 }
 

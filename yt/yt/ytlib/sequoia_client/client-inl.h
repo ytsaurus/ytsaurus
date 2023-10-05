@@ -21,8 +21,8 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
         NTableClient::FromRecordKeys<TRecordKey>(keys),
         columnFilter,
         timestamp);
-    return rowsetFuture.Apply(BIND([] (const NApi::IUnversionedRowsetPtr& rowset) {
-        return NTableClient::ToOptionalRecords<typename TRecordKey::TRecordDescriptor::TRecord>(rowset);
+    return rowsetFuture.Apply(BIND([] (const NApi::TUnversionedLookupRowsResult& result) {
+        return NTableClient::ToOptionalRecords<typename TRecordKey::TRecordDescriptor::TRecord>(result.Rowset);
     }));
 }
 

@@ -402,19 +402,19 @@ public:
         } \
     }
 
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<IUnversionedRowsetPtr>, LookupRows, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<TUnversionedLookupRowsResult>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<IVersionedRowsetPtr>, VersionedLookupRows, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<TVersionedLookupRowsResult>, VersionedLookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, nameTable, keys, options))
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<std::vector<IUnversionedRowsetPtr>>, MultiLookup, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<std::vector<TUnversionedLookupRowsResult>>, MultiLookup, (
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options),
         (subrequests, options))

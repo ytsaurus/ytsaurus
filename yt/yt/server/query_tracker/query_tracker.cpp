@@ -402,8 +402,8 @@ private:
             TActiveQueryDescriptor::Get()->GetNameTable(),
             MakeSharedRange(std::move(keys), std::move(rowBuffer)),
             options);
-        return asyncLookupResult.Apply(BIND([] (const IUnversionedRowsetPtr& rowset) {
-            auto optionalRecords = ToOptionalRecords<TActiveQuery>(rowset);
+        return asyncLookupResult.Apply(BIND([] (const TUnversionedLookupRowsResult& result) {
+            auto optionalRecords = ToOptionalRecords<TActiveQuery>(result.Rowset);
             YT_VERIFY(optionalRecords.size() == 1);
             return optionalRecords[0];
         }));

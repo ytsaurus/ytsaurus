@@ -127,19 +127,19 @@ public:
 #define IMPLEMENT_METHOD(returnType, method, signature, args) \
     IMPLEMENT_OVERLOADED_METHOD(returnType, method, Do##method, signature, args)
 
-    IMPLEMENT_METHOD(IUnversionedRowsetPtr, LookupRows, (
+    IMPLEMENT_METHOD(TUnversionedLookupRowsResult, LookupRows, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options),
         (path, std::move(nameTable), std::move(keys), options))
-    IMPLEMENT_METHOD(IVersionedRowsetPtr, VersionedLookupRows, (
+    IMPLEMENT_METHOD(TVersionedLookupRowsResult, VersionedLookupRows, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, std::move(nameTable), std::move(keys), options))
-    IMPLEMENT_METHOD(std::vector<IUnversionedRowsetPtr>, MultiLookup, (
+    IMPLEMENT_METHOD(std::vector<TUnversionedLookupRowsResult>, MultiLookup, (
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options),
         (subrequests, options))
@@ -869,17 +869,17 @@ private:
         const NYTree::IAttributeDictionary& attributes,
         const TCreateNodeOptions& options);
 
-    IUnversionedRowsetPtr DoLookupRows(
+    TUnversionedLookupRowsResult DoLookupRows(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options);
-    IVersionedRowsetPtr DoVersionedLookupRows(
+    TVersionedLookupRowsResult DoVersionedLookupRows(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options);
-    std::vector<IUnversionedRowsetPtr> DoMultiLookup(
+    std::vector<TUnversionedLookupRowsResult> DoMultiLookup(
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options);
 
@@ -908,8 +908,8 @@ private:
     using TReplicaFallbackHandler = std::function<TFuture<TResult>(
         const TReplicaFallbackInfo& replicaFallbackInfo)>;
 
-    template <class TRowset, class TRow>
-    TRowset DoLookupRowsOnce(
+    template <class IRowset, class TRow>
+    TLookupRowsResult<IRowset> DoLookupRowsOnce(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
@@ -917,7 +917,7 @@ private:
         const std::optional<TString>& retentionConfig,
         TEncoderWithMapping encoderWithMapping,
         TDecoderWithMapping decoderWithMapping,
-        TReplicaFallbackHandler<TRowset> replicaFallbackHandler);
+        TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler);
 
     static NTabletClient::TTableReplicaInfoPtr PickRandomReplica(
         const TTableReplicaInfoPtrList& replicas);

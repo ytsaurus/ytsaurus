@@ -402,11 +402,15 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
     lookupOptions.ColumnFilter = columnFilter;
     lookupOptions.Timeout = timeout;
     lookupOptions.KeepMissingRows = true;
-    return WaitFor(client->LookupRows(
+    auto resultOrError = WaitFor(client->LookupRows(
         GetOperationsArchiveOrderedByIdPath(),
         tableDescriptor.NameTable,
         MakeSharedRange(std::move(keys), std::move(rowBuffer)),
         lookupOptions));
+    if (!resultOrError.IsOK()) {
+        return TError(resultOrError);
+    }
+    return resultOrError.Value().Rowset;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

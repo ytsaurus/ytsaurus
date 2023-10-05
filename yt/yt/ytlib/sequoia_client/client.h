@@ -14,7 +14,7 @@ struct ISequoiaClient
     : public TRefCounted
 {
 public:
-    virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
+    virtual TFuture<NApi::TUnversionedLookupRowsResult> LookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
         const NTableClient::TColumnFilter& columnFilter,

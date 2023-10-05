@@ -595,15 +595,16 @@ TEST_F(TVersionedWriteTest, TestWriteRemapping)
         {"k0", "k1", "k2", "v3", "v4", "v5"},
         "<id=0> 30; <id=1> 30; <id=2> 30");
 
-    auto res = WaitFor(Client_->VersionedLookupRows(
+    auto rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
         std::get<1>(preparedKey),
         std::get<0>(preparedKey)))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
-    ASSERT_EQ(1u, res->GetRows().Size());
+    ASSERT_EQ(1u, rowset->GetRows().Size());
 
-    auto actual = ToString(res->GetRows()[0]);
+    auto actual = ToString(rowset->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(
         "<id=0> 30; <id=1> 30; <id=2> 30",
         "<id=3;ts=2> 23; <id=3;ts=1> 13; <id=4;ts=2> 24; <id=4;ts=1> 14; <id=5;ts=2> 25; <id=5;ts=1> 15;"));

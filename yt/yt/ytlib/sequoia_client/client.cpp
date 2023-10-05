@@ -30,7 +30,7 @@ public:
         , Logger(std::move(logger))
     { }
 
-    TFuture<IUnversionedRowsetPtr> LookupRows(
+    TFuture<TUnversionedLookupRowsResult> LookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
         const NTableClient::TColumnFilter& columnFilter,

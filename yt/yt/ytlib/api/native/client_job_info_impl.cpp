@@ -333,19 +333,20 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
     };
     auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
-    auto rowsetOrError = WaitFor(LookupRows(
+    auto resultOrError = WaitFor(LookupRows(
         GetOperationsArchiveJobSpecsPath(),
         NRecords::TJobSpecDescriptor::Get()->GetNameTable(),
         keys,
         /*options*/ {}));
 
-    if (!rowsetOrError.IsOK()) {
+    if (!resultOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to get job spec from operation archive")
             << TErrorAttribute("job_id", jobId)
-            << rowsetOrError;
+            << resultOrError;
     }
 
-    const auto& rowset = rowsetOrError.Value();
+    const auto& result = resultOrError.Value();
+    const auto& rowset = result.Rowset;
 
     auto records = ToRecords<NRecords::TJobSpec>(rowset);
     YT_VERIFY(records.size() <= 1);
@@ -390,7 +391,9 @@ TOperationId TClient::TryGetOperationId(
         return {};
     }
 
-    auto rowset = rowsetOrError.ValueOrThrow();
+    auto rowset = rowsetOrError
+        .ValueOrThrow()
+        .Rowset;
 
     auto records = ToRecords<NRecords::TOperationId>(rowset);
     YT_VERIFY(records.size() <= 1);
@@ -762,7 +765,8 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
             NRecords::TJobStderrDescriptor::Get()->GetNameTable(),
             keys,
             /*options*/ {}))
-            .ValueOrThrow();
+            .ValueOrThrow()
+            .Rowset;
 
         auto records = ToRecords<NRecords::TJobStderr>(rowset);
         YT_VERIFY(records.size() <= 1);
@@ -883,7 +887,8 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
             NRecords::TJobFailContextDescriptor::Get()->GetNameTable(),
             std::move(keys),
             lookupOptions))
-            .ValueOrThrow();
+            .ValueOrThrow()
+            .Rowset;
 
         auto optionalRecords = ToOptionalRecords<NRecords::TJobFailContextPartial>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
@@ -1998,7 +2003,8 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         table.NameTable,
         MakeSharedRange(std::move(keys), std::move(rowBuffer)),
         lookupOptions))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
     auto rows = rowset->GetRows();
     YT_VERIFY(!rows.Empty());

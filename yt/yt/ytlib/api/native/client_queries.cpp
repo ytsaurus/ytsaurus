@@ -185,7 +185,8 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
             MakeSharedRange(std::move(keys), rowBuffer),
             options);
         auto rowset = WaitFor(asyncLookupResult)
-            .ValueOrThrow();
+            .ValueOrThrow()
+            .Rowset;
         auto optionalRecords = ToOptionalRecords<TActiveQuery>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
         if (!optionalRecords[0]) {
@@ -239,7 +240,8 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
             MakeSharedRange(std::move(keys), rowBuffer),
             options);
         auto rowset = WaitFor(asyncLookupResult)
-            .ValueOrThrow();
+            .ValueOrThrow()
+            .Rowset;
         auto optionalRecords = ToOptionalRecords<TFinishedQueryResult>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
         if (!optionalRecords[0]) {
@@ -323,7 +325,8 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
             MakeSharedRange(std::move(keys), rowBuffer),
             options);
         auto rowset = WaitFor(asyncLookupResult)
-            .ValueOrThrow();
+            .ValueOrThrow()
+            .Rowset;
         auto optionalRecords = ToOptionalRecords<TFinishedQueryResult>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
         if (!optionalRecords[0]) {
@@ -468,8 +471,8 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
             TRecordDescriptor::Get()->GetNameTable(),
             MakeSharedRange(std::move(keys), rowBuffer),
             lookupOptions);
-        auto asyncRecord = asyncLookupResult.Apply(BIND([=] (const IUnversionedRowsetPtr& rowset) {
-            auto optionalRecords = ToOptionalRecords<typename TRecordDescriptor::TRecordPartial>(rowset);
+        auto asyncRecord = asyncLookupResult.Apply(BIND([=] (const TUnversionedLookupRowsResult& result) {
+            auto optionalRecords = ToOptionalRecords<typename TRecordDescriptor::TRecordPartial>(result.Rowset);
             YT_VERIFY(optionalRecords.size() == 1);
             if (!optionalRecords[0]) {
                 THROW_ERROR_EXCEPTION("Query %v is not found in %Qv query table",

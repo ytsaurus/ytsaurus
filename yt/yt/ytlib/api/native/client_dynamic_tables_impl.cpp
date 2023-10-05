@@ -623,13 +623,13 @@ TClient::TDecoderWithMapping TClient::GetLookupRowsDecoder() const
     };
 }
 
-IUnversionedRowsetPtr TClient::DoLookupRows(
+TUnversionedLookupRowsResult TClient::DoLookupRows(
     const TYPath& path,
     const TNameTablePtr& nameTable,
     const TSharedRange<NTableClient::TLegacyKey>& keys,
     const TLookupRowsOptions& options)
 {
-    TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
+    TReplicaFallbackHandler<TUnversionedLookupRowsResult> fallbackHandler = [&] (
         const TReplicaFallbackInfo& replicaFallbackInfo)
     {
         auto unresolveOptions = options;
@@ -647,7 +647,7 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
     return CallAndRetryIfMetadataCacheIsInconsistent(
         options.DetailedProfilingInfo,
         [&] {
-            return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
+            return DoLookupRowsOnce<IUnversionedRowset, TUnversionedRow>(
                 path,
                 nameTable,
                 keys,
@@ -659,7 +659,7 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
         });
 }
 
-IVersionedRowsetPtr TClient::DoVersionedLookupRows(
+TVersionedLookupRowsResult TClient::DoVersionedLookupRows(
     const TYPath& path,
     const TNameTablePtr& nameTable,
     const TSharedRange<NTableClient::TLegacyKey>& keys,
@@ -690,7 +690,7 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
         return reader->ReadVersionedRow(schemaData, true).ToTypeErasedRow();
     };
 
-    TReplicaFallbackHandler<IVersionedRowsetPtr> fallbackHandler = [&] (
+    TReplicaFallbackHandler<TVersionedLookupRowsResult> fallbackHandler = [&] (
         const TReplicaFallbackInfo& replicaFallbackInfo)
     {
         auto unresolveOptions = options;
@@ -717,7 +717,7 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
     return CallAndRetryIfMetadataCacheIsInconsistent(
         options.DetailedProfilingInfo,
         [&] {
-            return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
+            return DoLookupRowsOnce<IVersionedRowset, TVersionedRow>(
                 path,
                 nameTable,
                 keys,
@@ -729,26 +729,26 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
         });
 }
 
-std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
+std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookup(
     const std::vector<TMultiLookupSubrequest>& subrequests,
     const TMultiLookupOptions& options)
 {
-    std::vector<TFuture<IUnversionedRowsetPtr>> asyncRowsets;
-    asyncRowsets.reserve(subrequests.size());
+    std::vector<TFuture<TUnversionedLookupRowsResult>> asyncResults;
+    asyncResults.reserve(subrequests.size());
     for (const auto& subrequest : subrequests) {
         TLookupRowsOptions lookupRowsOptions;
         static_cast<TTabletReadOptionsBase&>(lookupRowsOptions) = options;
         static_cast<TMultiplexingBandOptions&>(lookupRowsOptions) = options;
         static_cast<TLookupRequestOptions&>(lookupRowsOptions) = std::move(subrequest.Options);
 
-        asyncRowsets.push_back(BIND(
+        asyncResults.push_back(BIND(
             [
                 =,
                 this,
                 this_ = MakeStrong(this),
                 lookupRowsOptions = std::move(lookupRowsOptions)
             ] {
-                TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
+                TReplicaFallbackHandler<TUnversionedLookupRowsResult> fallbackHandler = [&] (
                     const TReplicaFallbackInfo& replicaFallbackInfo)
                 {
                     auto unresolveOptions = lookupRowsOptions;
@@ -766,7 +766,7 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
                 return CallAndRetryIfMetadataCacheIsInconsistent(
                     lookupRowsOptions.DetailedProfilingInfo,
                     [&] {
-                        return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
+                        return DoLookupRowsOnce<IUnversionedRowset, TUnversionedRow>(
                             subrequest.Path,
                             subrequest.NameTable,
                             subrequest.Keys,
@@ -781,12 +781,12 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
             .Run());
     }
 
-    return WaitFor(AllSucceeded(std::move(asyncRowsets)))
+    return WaitFor(AllSucceeded(std::move(asyncResults)))
         .ValueOrThrow();
 }
 
-template <class TRowset, class TRow>
-TRowset TClient::DoLookupRowsOnce(
+template <class IRowset, class TRow>
+TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     const TYPath& path,
     const TNameTablePtr& nameTable,
     const TSharedRange<NTableClient::TLegacyKey>& keys,
@@ -794,7 +794,7 @@ TRowset TClient::DoLookupRowsOnce(
     const std::optional<TString>& retentionConfig,
     TEncoderWithMapping encoderWithMapping,
     TDecoderWithMapping decoderWithMapping,
-    TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
+    TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler)
 {
     if (options.EnablePartialResult && options.KeepMissingRows) {
         THROW_ERROR_EXCEPTION("Options \"enable_partial_result\" and \"keep_missing_rows\" cannot be used together");
@@ -861,7 +861,9 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     if (keys.Empty()) {
-        return CreateRowset(resultSchema, TSharedRange<TRow>());
+        return {
+            .Rowset = CreateRowset(resultSchema, TSharedRange<TRow>()),
+        };
     }
 
     // NB: The server-side requires the keys to be sorted.
@@ -941,7 +943,7 @@ TRowset TClient::DoLookupRowsOnce(
         };
 
         auto pickedSyncReplicas = pickInSyncReplicas();
-        TErrorOr<TRowset> resultOrError;
+        TErrorOr<TLookupRowsResult<IRowset>> resultOrError;
 
         auto retryCountLimit = tableInfo->ReplicationCardId
             ? connectionConfig->ReplicaFallbackRetryCount
@@ -1262,7 +1264,9 @@ TRowset TClient::DoLookupRowsOnce(
 
     auto rowRange = ReinterpretCastRange<TRow>(
         MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer)));
-    return CreateRowset(resultSchema, std::move(rowRange));
+    return {
+        .Rowset = CreateRowset(resultSchema, std::move(rowRange)),
+    };
 }
 
 TSelectRowsResult TClient::DoSelectRows(

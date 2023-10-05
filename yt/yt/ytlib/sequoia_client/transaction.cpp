@@ -98,7 +98,7 @@ public:
                 .AsyncVia(SerializedInvoker_));
     }
 
-    TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
+    TFuture<TUnversionedLookupRowsResult> LookupRows(
         ESequoiaTable table,
         TSharedRange<TLegacyKey> keys,
         const TColumnFilter& columnFilter) override

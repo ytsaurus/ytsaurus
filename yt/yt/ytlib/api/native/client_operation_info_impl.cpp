@@ -431,7 +431,8 @@ TOperationId TClient::ResolveOperationAlias(
         NRecords::TOperationAliasDescriptor::Get()->GetNameTable(),
         MakeSharedRange(std::move(keys), std::move(rowBuffer)),
         lookupOptions))
-        .ValueOrThrow();
+        .ValueOrThrow()
+        .Rowset;
 
     auto optionalRecords = ToOptionalRecords<NRecords::TOperationAlias>(rowset);
 

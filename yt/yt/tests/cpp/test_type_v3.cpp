@@ -256,7 +256,8 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
                     }),
                     nameTable
                 )))
-            .ValueOrThrow();
+            .ValueOrThrow()
+            .Rowset;
 
         auto actual = rowset->GetRows().ToVector();
         auto expected = std::vector<TUnversionedRow>({row});

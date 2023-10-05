@@ -166,7 +166,7 @@ protected:
                 auto result = Client_->LookupRows(path, prepareRows.NameTable, prepareRows.Rows).Get();
                 if (!ValidateResult(result)) return;
 
-                const auto& rowset = result.Value();
+                const auto& rowset = result.Value().Rowset;
                 Cout << "Schema: " << ToString(rowset->GetSchema()) << Endl;
                 Cout << "Rows: " << rowset->GetRows().Size() << Endl;
                 int i = 0;
@@ -179,7 +179,7 @@ protected:
                 auto result = Client_->VersionedLookupRows(path, prepareRows.NameTable, prepareRows.Rows).Get();
                 if (!ValidateResult(result)) return;
 
-                const auto& rowset = result.Value();
+                const auto& rowset = result.Value().Rowset;
                 Cout << "Schema: " << ToString(rowset->GetSchema()) << Endl;
                 Cout << "Rows: " << rowset->GetRows().Size() << Endl;
                 int i = 0;
