@@ -43,8 +43,6 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
         super(MasterSnapshotsCompatibilityBase, self).teardown_method(method)
 
     def restart_with_update(self, service, build_snapshots=True):
-        master_exit_read_only_sync()
-
         if build_snapshots:
             build_master_snapshots(set_read_only=True)
 
