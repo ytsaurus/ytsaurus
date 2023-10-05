@@ -2395,6 +2395,8 @@ TJobProxyConfigPtr TJob::CreateConfig()
         ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(ESandboxKind::User);
         ExecAttributes_.MediumName = userSlot->GetMediumName();
 
+        ExecAttributes_.JobProxySocketPath = userSlot->GetJobProxyUnixDomainSocketPath();
+
         ExecAttributes_.IPAddresses.reserve(ipAddresses.size());
         for (const auto& address : ipAddresses) {
             ExecAttributes_.IPAddresses.push_back(ToString(address));

@@ -1155,6 +1155,8 @@ private:
             Environment_.push_back(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
         }
 
+        Environment_.push_back(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
+
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
         }

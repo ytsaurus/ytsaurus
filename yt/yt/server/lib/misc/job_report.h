@@ -124,6 +124,9 @@ struct TExecAttributes
     //! Medium of disk acquired by slot.
     TString MediumName;
 
+    //! Absolute path to job proxy socket file.
+    TString JobProxySocketPath;
+
     //! GPU devices used by job.
     std::vector<TIntrusivePtr<TGpuDevice>> GpuDevices;
 

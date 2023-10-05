@@ -372,6 +372,14 @@ public:
         Logger.AddTag("AllocationId: %v", allocationId);
     }
 
+    TString GetJobProxyUnixDomainSocketPath() const override
+    {
+        return NFS::CombinePaths({
+            Location_->GetSlotPath(SlotIndex_),
+            "pipes",
+            Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
+    }
+
 private:
     const IJobEnvironmentPtr JobEnvironment_;
     const TSlotLocationPtr Location_;
@@ -422,14 +430,6 @@ private:
                 : preparationFuture);
             return future;
         }
-    }
-
-    TString GetJobProxyUnixDomainSocketPath() const
-    {
-        return NFS::CombinePaths({
-            Location_->GetSlotPath(SlotIndex_),
-            "pipes",
-            Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 };
 
