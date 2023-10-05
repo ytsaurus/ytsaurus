@@ -129,8 +129,12 @@ public:
                     .Item(AnnotationsAttributeName).Value(Config_->CypressAnnotations)
                     .Item(AddressesAttributeName).Value(descriptor.Addresses)
                     .Finish(),
-                .NodeType = EObjectType::ClusterProxyNode,
             };
+
+            if (!descriptor.IsGrpc) {
+                options.NodeType = NObjectClient::EObjectType::ClusterProxyNode;
+            }
+
             CypressRegistrars_.push_back(CreateCypressRegistrar(
                 std::move(options),
                 Config_->DiscoveryService->CypressRegistrar,
@@ -199,6 +203,7 @@ private:
     {
         TProxyAddressMap Addresses;
         TString CypressPath;
+        bool IsGrpc = false;
     };
 
     std::vector<TProxyDescriptor> GetProxyDescriptors() const
@@ -218,7 +223,11 @@ private:
             auto grpcProxyAddressMap = TProxyAddressMap{
                 {EAddressType::InternalRpc, GetLocalAddresses({}, *GrpcPort_)}
             };
-            descriptors.push_back({grpcProxyAddressMap, *GrpcProxyPath_});
+            descriptors.push_back({
+                .Addresses = grpcProxyAddressMap,
+                .CypressPath = *GrpcProxyPath_,
+                .IsGrpc = true
+            });
         }
 
         return descriptors;
