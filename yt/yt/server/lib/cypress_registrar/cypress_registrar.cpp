@@ -197,7 +197,7 @@ private:
                 SetRequestOptions(options);
                 options.Recursive = true;
                 options.Attributes = Options_.AttributesOnCreation->Clone();
-                options.Attributes->Set("banned", banned);
+                options.Attributes->Set("banned", banned.value_or(false));
                 options.Force = true;
 
                 auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, options));
