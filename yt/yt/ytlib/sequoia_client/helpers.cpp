@@ -6,22 +6,23 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath MangleCypressPath(TYPath rawPath)
+TMangledSequoiaPath MangleSequoiaPath(const TYPath& path)
 {
-    YT_ASSERT(!rawPath.empty());
-    YT_ASSERT(rawPath.back() != '/');
-
-    rawPath.push_back('/');
-    return rawPath;
+    YT_VERIFY(!path.empty());
+    YT_VERIFY(path == "/" || path.back() != '/');
+    return TMangledSequoiaPath(path + '/');
 }
 
-TYPath DemangleCypressPath(TYPath mangledPath)
+TYPath DemangleSequoiaPath(TMangledSequoiaPath mangledPath)
 {
-    YT_ASSERT(!mangledPath.empty());
-    YT_ASSERT(mangledPath.back() == '/');
+    YT_VERIFY(!mangledPath.Underlying().empty());
+    YT_VERIFY(mangledPath.Underlying().back() == '/');
+    return mangledPath.Underlying().substr(0, mangledPath.Underlying().size() - 1);
+}
 
-    mangledPath.pop_back();
-    return mangledPath;
+TMangledSequoiaPath MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(TMangledSequoiaPath prefix)
+{
+    return TMangledSequoiaPath(prefix.Underlying() + '\xFF');
 }
 
 ////////////////////////////////////////////////////////////////////////////////

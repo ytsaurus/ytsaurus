@@ -117,7 +117,7 @@ protected:
     {
         YT_VERIFY(!unresolvedSuffix.empty());
 
-        // Try to reproduce cypress behaviour.
+        // Try to reproduce Cypress behavior.
 
         auto type = TypeFromId(Id_);
         // TODO(kvk1920): Implement `IsCompositeNodeType()` helper.
@@ -212,25 +212,25 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
         THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
     }
 
-    auto [mangledParentPath, thisName] = DirNameAndBaseName(Path_);
+    auto [parentPath, thisName] = DirNameAndBaseName(Path_);
+
 
     // Acquire shared lock on parent node.
-    NRecords::TResolveNodeKey parentKey{.Path = mangledParentPath};
+    NRecords::TResolveNodeKey parentKey{.Path = MangleSequoiaPath(parentPath)};
     Transaction_->LockRow(parentKey, ELockType::SharedStrong);
 
-    auto parent = ResolvePath(Transaction_, parentKey.Path);
+    auto parent = ResolvePath(Transaction_, parentPath);
     TCellTag coordinatorCellTag;
     if (std::holds_alternative<TCypressResolveResult>(parent)) {
         if (TypeFromId(Id_) != EObjectType::Scion) {
             YT_LOG_ALERT("Attempted to remove Sequoia node with non-Sequoia parent (ParentPath: %v, NodePath: %v, NodeId: %v)",
-                mangledParentPath,
+                parentPath,
                 Path_,
                 Id_);
-            THROW_ERROR_EXCEPTION(
-                "Failed to remove Sequoia node: node is not scion but has non-Sequoia parent (ParentPath: %v, NodePath: %v, NodeId: %v)",
-                mangledParentPath,
-                Path_,
-                Id_);
+            THROW_ERROR_EXCEPTION("Failed to remove Sequoia node: node is not scion but has non-Sequoia parent")
+                << TErrorAttribute("parent_path", parentPath)
+                << TErrorAttribute("node_path", Path_)
+                << TErrorAttribute("node_id", Id_);
         }
 
         // Scion removal causes rootstock removal.
@@ -238,16 +238,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
         // `DetachChild()` isn't needed.
 
         // TODO(kvk1920): Think about inferring rootstock's id from scion's one.
-        auto getRequest = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
-        auto getResponse = WaitFor(CreateReadProxyForObject(Id_).Execute(getRequest))
+        auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
+        auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
             .ValueOrThrow();
-        auto rootstockId = ConvertTo<TNodeId>(NYson::TYsonString(getResponse->value()));
+        auto rootstockId = ConvertTo<TNodeId>(NYson::TYsonString(rspGet->value()));
 
-        NCypressServer::NProto::TReqRemoveNode removeRootstock;
-        ToProto(removeRootstock.mutable_node_id(), rootstockId);
+        NCypressServer::NProto::TReqRemoveNode reqRemoveRootstock;
+        ToProto(reqRemoveRootstock.mutable_node_id(), rootstockId);
         Transaction_->AddTransactionAction(
             CellTagFromId(rootstockId),
-            MakeTransactionActionData(removeRootstock));
+            MakeTransactionActionData(reqRemoveRootstock));
         coordinatorCellTag = CellTagFromId(rootstockId);
     } else {
         // Ensure that every case is handled.
@@ -261,14 +261,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
         coordinatorCellTag = CellTagFromId(parentId);
     }
 
-    auto mangledPath = MangleCypressPath(Path_);
+    auto mangledPath = MangleSequoiaPath(Path_);
 
     // NB: For non-recursive removal we have to check if directory is empty.
     // This can be done via requesting just 2 rows.
     auto selectedRowsLimit = request->recursive() ? std::nullopt : std::optional(2);
 
     auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TResolveNodeKey>(
-        {Format("path >= %Qv", mangledPath), Format("path <= %Qv", mangledPath + '\xff')},
+        {Format("path >= %Qv", mangledPath), Format("path <= %Qv", MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(mangledPath))},
         selectedRowsLimit))
         .ValueOrThrow();
     YT_ASSERT(nodesToRemove.size() >= 1);
@@ -277,7 +277,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
         THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
     }
 
-    for (auto node : nodesToRemove) {
+    for (const auto& node : nodesToRemove) {
         auto nodeId = ConvertTo<TNodeId>(node.NodeId);
 
         // Delete node from resolve table.
@@ -285,11 +285,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
         // Delete node from back resolve table.
         Transaction_->DeleteRow(NRecords::TReverseResolveNodeKey{.NodeId = node.NodeId});
         // Delete node on master.
-        NCypressServer::NProto::TReqRemoveNode removeNodeRequest;
-        ToProto(removeNodeRequest.mutable_node_id(), nodeId);
+        NCypressServer::NProto::TReqRemoveNode reqRemoveNode;
+        ToProto(reqRemoveNode.mutable_node_id(), nodeId);
         Transaction_->AddTransactionAction(
             CellTagFromId(nodeId),
-            MakeTransactionActionData(removeNodeRequest));
+            MakeTransactionActionData(reqRemoveNode));
     }
 
     WaitFor(Transaction_->Commit({
@@ -321,17 +321,17 @@ public:
         }
     }
 
+private:
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
+
+    constexpr static auto TypicalUnresolvedSuffixTokenCountOnNodeCreation = 2;
+
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Create);
 
         return TNodeProxyBase::DoInvoke(context);
     }
-
-private:
-    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
-
-    constexpr static auto TypicalUnresolvedSuffixTokenCountOnNodeCreation = 2;
 
     // TODO(kvk1920): Return vector of tokens when recursive creation will be supported.
     TYPath TokenizeUnresolvedSuffixOnNodeCreation(const TYPath& unresolvedSuffix)
@@ -444,7 +444,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     const auto& parentPath = Path_;
     auto parentId = Id_;
     // NB: May differ from original path due to path rewrites.
-    auto childPath = Format("%v/%v", parentPath, childKey);
+    auto childPath = YPathJoin(parentPath, childKey);
 
     auto parentCellTag = CellTagFromId(parentId);
 
@@ -466,18 +466,18 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
 
     // Acquire shared lock on parent node.
     NRecords::TResolveNodeKey parentKey{
-        .Path = MangleCypressPath(parentPath),
+        .Path = MangleSequoiaPath(parentPath),
     };
     Transaction_->LockRow(parentKey, ELockType::SharedStrong);
 
     // Store new node in resolve tables with exclusive lock.
     Transaction_->WriteRow(NRecords::TResolveNode{
-        .Key = {.Path = MangleCypressPath(childPath)},
-        .NodeId = ToString(childId),
+        .Key = {.Path = MangleSequoiaPath(childPath)},
+        .NodeId = childId,
     });
     Transaction_->WriteRow(NRecords::TReverseResolveNode{
-        .Key = {.NodeId = ToString(childId)},
-        .Path = MangleCypressPath(childPath),
+        .Key = {.NodeId = childId},
+        .Path = childPath,
     });
 
     // Create child on destination cell.
