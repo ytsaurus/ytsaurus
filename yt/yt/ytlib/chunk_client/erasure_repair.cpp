@@ -217,6 +217,7 @@ private:
                 ReadBlocksOptions_);
             blockProducers.push_back(New<TPartReader>(
                 monotonicReader,
+                ReadBlocksOptions_,
                 RepairPartBlockRanges_[index]));
         }
 
@@ -454,6 +455,7 @@ public:
         for (int index = 0; index < std::ssize(repairIndices); ++index) {
             BlockProducers_.push_back(New<TPartReader>(
                 RepairPartReaders_[index],
+                ReadBlocksOptions_,
                 RepairPartBlockRanges_[index]));
         }
 

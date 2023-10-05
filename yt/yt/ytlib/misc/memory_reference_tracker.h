@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/actions/public.h>
+
 #include <yt/yt/core/misc/ref_counted.h>
 
 #include <library/cpp/yt/memory/ref.h>
@@ -20,6 +22,29 @@ struct INodeMemoryReferenceTracker
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryReferenceTracker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDelayedReferenceHolder
+    : public TSharedRangeHolder
+{
+public:
+    TDelayedReferenceHolder(
+        TSharedRef underlying,
+        TDuration delayBeforeFree,
+        IInvokerPtr dtorInvoker);
+
+    TSharedRangeHolderPtr Clone(const TSharedRangeHolderCloneOptions& options) override;
+
+    std::optional<size_t> GetTotalByteSize() const override;
+
+    ~TDelayedReferenceHolder() override;
+
+private:
+    TSharedRef Underlying_;
+    const TDuration DelayBeforeFree_;
+    const IInvokerPtr DtorInvoker_;
+};
 
 /////////////////////////////////////////////////////////////////////////////
 

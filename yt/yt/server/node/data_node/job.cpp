@@ -59,6 +59,12 @@
 
 #include <yt/yt/ytlib/object_client/helpers.h>
 
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+
+#include <yt/yt/ytlib/misc/public.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
+
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_reader.h>
@@ -479,6 +485,15 @@ private:
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
         chunkReadOptions.BlockCache = Bootstrap_->GetBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        chunkReadOptions.MemoryReferenceTracker = Bootstrap_
+            ->GetNodeMemoryReferenceTracker()
+            ->WithCategory(EMemoryCategory::SystemJobs);
+        chunkReadOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
+            ->GetDataNodeBootstrap()
+            ->GetDynamicConfigManager()
+            ->GetConfig()
+            ->DataNode
+            ->TrackMemoryAfterSessionCompletion;
 
         TRefCountedChunkMetaPtr meta;
         {
@@ -849,6 +864,15 @@ private:
         IChunkReader::TReadBlocksOptions readBlocksOptions{
             .ClientOptions = TClientChunkReadOptions{
                 .WorkloadDescriptor = workloadDescriptor,
+                .TrackMemoryAfterSessionCompletion = Bootstrap_
+                    ->GetDataNodeBootstrap()
+                    ->GetDynamicConfigManager()
+                    ->GetConfig()
+                    ->DataNode
+                    ->TrackMemoryAfterSessionCompletion,
+                .MemoryReferenceTracker = Bootstrap_
+                    ->GetNodeMemoryReferenceTracker()
+                    ->WithCategory(EMemoryCategory::SystemJobs)
             },
         };
 
@@ -1024,6 +1048,15 @@ private:
             IChunkReader::TReadBlocksOptions readBlocksOptions{
                 .ClientOptions = TClientChunkReadOptions{
                     .WorkloadDescriptor = workloadDescriptor,
+                    .TrackMemoryAfterSessionCompletion = Bootstrap_
+                        ->GetDataNodeBootstrap()
+                        ->GetDynamicConfigManager()
+                        ->GetConfig()
+                        ->DataNode
+                        ->TrackMemoryAfterSessionCompletion,
+                    .MemoryReferenceTracker = Bootstrap_
+                        ->GetNodeMemoryReferenceTracker()
+                        ->WithCategory(EMemoryCategory::SystemJobs)
                 },
             };
 
@@ -1869,6 +1902,13 @@ private:
                 /*band*/ 0,
                 /*instant*/ {},
                 {Format("Reincarnate chunk %v", OldChunkId_)}),
+            .TrackMemoryAfterSessionCompletion = Bootstrap_
+                ->GetDataNodeBootstrap()
+                ->GetDynamicConfigManager()
+                ->GetConfig()
+                ->DataNode
+                ->TrackMemoryAfterSessionCompletion,
+            .MemoryReferenceTracker = Bootstrap_->GetNodeMemoryReferenceTracker()->WithCategory(EMemoryCategory::SystemJobs)
         };
 
         auto oldChunkMeta = New<TDeferredChunkMeta>();
@@ -2244,6 +2284,15 @@ private:
             bodyChunkReplicas);
 
         IChunkReader::TReadBlocksOptions readBlocksOptions;
+        readBlocksOptions.ClientOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
+            ->GetDataNodeBootstrap()
+            ->GetDynamicConfigManager()
+            ->GetConfig()
+            ->DataNode
+            ->TrackMemoryAfterSessionCompletion;
+        readBlocksOptions.ClientOptions.MemoryReferenceTracker = Bootstrap_
+            ->GetNodeMemoryReferenceTracker()
+            ->WithCategory(EMemoryCategory::SystemJobs);
         auto& workloadDescriptor = readBlocksOptions.ClientOptions.WorkloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
         workloadDescriptor.Annotations = {Format("Autotomy of chunk %v", BodyChunkId_)};

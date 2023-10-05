@@ -501,6 +501,11 @@ public:
         return NodeMemoryReferenceTracker_;
     }
 
+    const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const override
+    {
+        return ReadBlockMemoryReferenceTracker_;
+    }
+
     const IChunkMetaManagerPtr& GetChunkMetaManager() const override
     {
         return ChunkMetaManager_;
@@ -700,6 +705,7 @@ private:
     IMasterConnectorPtr MasterConnector_;
 
     INodeMemoryReferenceTrackerPtr NodeMemoryReferenceTracker_;
+    IMemoryReferenceTrackerPtr ReadBlockMemoryReferenceTracker_;
 
     IBlockCachePtr BlockCache_;
     IClientBlockCachePtr ClientBlockCache_;
@@ -840,6 +846,7 @@ private:
         AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
         NodeMemoryReferenceTracker_ = CreateNodeMemoryReferenceTracker(MemoryUsageTracker_);
+        ReadBlockMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::PendingDiskRead);
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
@@ -1604,6 +1611,11 @@ const IBlockCachePtr& TBootstrapBase::GetBlockCache() const
 const INodeMemoryReferenceTrackerPtr& TBootstrapBase::GetNodeMemoryReferenceTracker() const
 {
     return Bootstrap_->GetNodeMemoryReferenceTracker();
+}
+
+const IMemoryReferenceTrackerPtr& TBootstrapBase::GetReadBlockMemoryReferenceTracker() const
+{
+    return Bootstrap_->GetReadBlockMemoryReferenceTracker();
 }
 
 const IChunkMetaManagerPtr& TBootstrapBase::GetChunkMetaManager() const

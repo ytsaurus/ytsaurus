@@ -119,7 +119,10 @@ class TPartReader
     : public IPartBlockProducer
 {
 public:
-    TPartReader(IBlocksReaderPtr reader, const std::vector<TPartRange>& blockRanges);
+    TPartReader(
+        IBlocksReaderPtr reader,
+        IChunkReader::TReadBlocksOptions readBlockOptions,
+        const std::vector<TPartRange>& blockRanges);
 
     ~TPartReader();
 

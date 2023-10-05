@@ -913,6 +913,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_location_disabled", &TThis::AbortOnLocationDisabled)
         .Default(true);
 
+    registrar.Parameter("track_memory_after_session_completion", &TThis::TrackMemoryAfterSessionCompletion)
+        .Default(false);
+
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
         .Default();
 

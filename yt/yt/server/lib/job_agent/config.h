@@ -197,6 +197,8 @@ public:
     std::optional<TDuration> CpuOverdraftTimeout;
     std::optional<double> CpuToVCpuFactor;
     bool EnableCpuToVCpuFactor;
+    bool AccountMasterMemoryRequest;
+
     std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
     std::optional<TDuration> MemoryOverdraftTimeout;
 
