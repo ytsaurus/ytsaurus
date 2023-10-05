@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - queue-agent-flow-test
 
 jobs:
   start-vm:
