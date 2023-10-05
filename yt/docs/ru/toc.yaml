@@ -375,7 +375,40 @@ items:
         href: api/query-parameters.md
       - name: Коды ошибок
         href: api/error-codes.md
-
+  - name: Руководство администратора
+    items:
+      - name: Компоненты кластера
+        href: admin-guide/components.md
+      - name: Установка YTsaurus
+        href: admin-guide/install-ytsaurus.md
+      - name: Подготовка спецификации YTsaurus
+        items:
+          - name: Описание
+            href: admin-guide/prepare-spec.md
+          - name: Разметка дисков и локаций
+            href: admin-guide/locations.md
+          - name: Настройка логирования
+            href: admin-guide/logging.md
+      - name: Установка дополнительных компонент
+        href: admin-guide/install-additional-components.md
+          #      - name: Интеграции с внешними системами
+          #        href: admin-guide/external-systems.md
+      - name: Мониторинг
+        href: admin-guide/monitoring.md
+          #      - name: Изменение конфигурации кластера
+          #        href: admin-guide/configuration.md
+      - name: Обновление серверных компонент
+        href: admin-guide/update-ytsaurus.md
+      - name: Эксплуатация кластера
+        href: admin-guide/cluster-operations.md
+          #      - name: Как построить production-инсталляцию
+          #        href: admin-guide/production.md
+      - name: Тегирование нод кластера
+        href: admin-guide/node-tags.md
+      - name: Релизы
+        href: admin-guide/releases.md
+      - name: Возможные проблемы
+        href: admin-guide/problems.md
   - name: FAQ
     href: faq/faq.md
   - name: Как сообщить о проблеме
