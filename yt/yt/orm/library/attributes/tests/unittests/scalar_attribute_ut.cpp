@@ -674,6 +674,26 @@ TEST(SetAttribute, MapWithNonStringKey)
     ASSERT_TRUE(e3);
 }
 
+TEST(SetAttribute, ResetWithEntity)
+{
+    NProto::TMessage message;
+    message.set_string_field("42");
+    message.mutable_nested_message()->set_int32_field(42);
+    message.mutable_nested_message()->add_repeated_int32_field(15);
+    message.add_repeated_int32_field(5);
+    message.add_repeated_int32_field(42);
+    SetProtobufFieldByPath(message, "/string_field", NYTree::BuildYsonNodeFluently().Entity());
+    EXPECT_EQ(message.string_field(), "");
+    SetProtobufFieldByPath(message, "/nested_message/int32_field", NYTree::BuildYsonNodeFluently().Entity());
+    EXPECT_EQ(message.nested_message().int32_field(), 0);
+    EXPECT_EQ(message.nested_message().repeated_int32_field(0), 15);
+    SetProtobufFieldByPath(message, "/repeated_int32_field/1", NYTree::BuildYsonNodeFluently().Entity());
+    EXPECT_EQ(message.repeated_int32_field(0), 5);
+    EXPECT_EQ(message.repeated_int32_field(1), 0);
+    SetProtobufFieldByPath(message, "/repeated_int32_field", NYTree::BuildYsonNodeFluently().Entity());
+    EXPECT_EQ(message.repeated_int32_field().size(), 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TScalarAttributesEqualitySuite
