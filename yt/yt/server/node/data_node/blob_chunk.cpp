@@ -9,20 +9,25 @@
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
+#include <yt/yt/server/lib/io/io_engine_base.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <util/system/align.h>
 
 namespace NYT::NDataNode {
 
@@ -182,6 +187,17 @@ void TBlobChunkBase::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGu
         Location_->GetId());
 }
 
+TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef&& rawReference, TDuration delayBeforeFree)
+{
+    YT_LOG_DEBUG("Simulate delay before blob read session block free (BlockSize: %v, Delay: %v)", rawReference.Size(), delayBeforeFree);
+
+    auto underlyingHolder = rawReference.GetHolder();
+    auto underlyingReference = TSharedRef(rawReference, std::move(underlyingHolder));
+    return TSharedRef(
+        rawReference,
+        New<TDelayedReferenceHolder>(std::move(underlyingReference), delayBeforeFree, GetCurrentInvoker()));
+}
+
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -192,6 +208,9 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
     ProfileReadBlockSetLatency(session);
 
+    auto guard = session->PendingIOGuard.MoveMemoryTrackerGuard();
+    auto delayBeforeFree = Location_->GetDelayBeforeBlobSessionBlockFree();
+
     std::vector<TBlock> blocks;
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
@@ -199,25 +218,21 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         if (std::ssize(blocks) <= originalEntryIndex) {
             blocks.resize(originalEntryIndex + 1);
         }
-        blocks[originalEntryIndex] = std::move(entry.Block);
+
+        auto block = std::move(entry.Block);
+
+        if (session->Options.TrackMemoryAfterSessionCompletion) {
+            block.Data = TrackMemory(session->Options.MemoryReferenceTracker, std::move(block.Data), true);
+
+            if (delayBeforeFree) {
+                block.Data = WrapBlockWithDelayedReferenceHolder(std::move(block.Data), *delayBeforeFree);
+            }
+        }
+
+        blocks[originalEntryIndex] = std::move(block);
     }
 
     session->SessionPromise.TrySet(std::move(blocks));
-
-    auto delayBeforeFree = Location_->GetDelayBeforeBlobSessionBlockFree();
-
-    if (delayBeforeFree) {
-        auto guard = session->PendingIOGuard.MoveMemoryTrackerGuard();
-        YT_LOG_DEBUG("Simulate delay before blob read session block free (BlockSize: %v, Delay: %v)", guard.GetSize(), *delayBeforeFree);
-
-        BIND([=] (TMemoryUsageTrackerGuard guard) {
-            TDelayedExecutor::WaitForDuration(*delayBeforeFree);
-            guard.Release();
-        })
-        .AsyncVia(GetCurrentInvoker())
-        .Run(std::move(guard));
-    }
-
     session->PendingIOGuard.Release();
 }
 
@@ -380,22 +395,24 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         }
     }
 
+    auto alignedPendingDataSize = AlignUp<i64>(pendingDataSize, DefaultPageSize);
+
     if (diskFetchNeeded) {
         session->DiskFetchPromise = NewPromise<void>();
         session->Futures.push_back(session->DiskFetchPromise.ToFuture());
 
         auto readCallback = BIND([=, this, this_ = MakeStrong(this)] {
-            DoReadSession(session, pendingDataSize);
+            DoReadSession(session, alignedPendingDataSize);
         });
 
         const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
-        if (outThrottler->TryAcquire(pendingDataSize)) {
+        if (outThrottler->TryAcquire(alignedPendingDataSize)) {
             session->Invoker->Invoke(std::move(readCallback));
         } else {
             YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)",
-                pendingDataSize,
+                alignedPendingDataSize,
                 session->Options.WorkloadDescriptor);
-            auto throttleFuture = outThrottler->Throttle(pendingDataSize);
+            auto throttleFuture = outThrottler->Throttle(alignedPendingDataSize);
             session->Futures.push_back(throttleFuture.Apply(readCallback.AsyncVia(session->Invoker)));
         }
     }
@@ -530,11 +547,13 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
 
     try {
         auto reader = GetReader();
+
         auto asyncBlocks = reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
             blocksToRead,
             session->BlocksExt);
+
         asyncBlocks.Subscribe(
             BIND(
                 &TBlobChunkBase::OnBlocksRead,
@@ -691,7 +710,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             entry.BlockIndex = blockIndexes[entryIndex];
             entry.EntryIndex = entryIndex;
         }
+        session->Options.MemoryReferenceTracker = options.MemoryReferenceTracker;
         session->Options.UseDedicatedAllocations = true;
+        session->Options.TrackMemoryAfterSessionCompletion = options.TrackMemoryAfterSessionCompletion;
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }

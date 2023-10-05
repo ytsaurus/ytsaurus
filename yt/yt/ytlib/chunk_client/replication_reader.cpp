@@ -1980,7 +1980,7 @@ private:
 
         auto response = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
 
-        for (auto& block: response) {
+        for (auto& block : response) {
             block.Data = TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(block.Data));
         }
 
@@ -2349,6 +2349,10 @@ private:
         }
 
         auto blocks = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
+
+        for (auto& block : blocks) {
+            block.Data = TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(block.Data));
+        }
 
         int blocksReceived = 0;
         i64 bytesReceived = 0;
@@ -3066,7 +3070,8 @@ private:
             "(BytesThrottled: %v, Backup: %v)",
             BytesThrottled_,
             backup);
-        Promise_.TrySet(std::move(result));
+
+        Promise_.TrySet(TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(result)));
     }
 
     bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& probeResult) override

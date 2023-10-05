@@ -204,6 +204,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_cpu_to_vcpu_factor", &TThis::EnableCpuToVCpuFactor)
         .Default(false);
 
+    registrar.Parameter("account_master_memory_request", &TThis::AccountMasterMemoryRequest)
+        .Default(true);
+
     registrar.Parameter("cpu_model_to_cpu_to_vcpu_factor", &TThis::CpuModelToCpuToVCpuFactor)
         .Default();
 

@@ -128,6 +128,7 @@ struct IBootstrapBase
 
     // Block tracker.
     virtual const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const = 0;
+    virtual const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const = 0;
 
     // Common node caches.
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const = 0;
@@ -271,6 +272,7 @@ public:
     const NRpc::IServerPtr& GetRpcServer() const override;
 
     const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override;
+    const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const override;
 
     const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
     const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;

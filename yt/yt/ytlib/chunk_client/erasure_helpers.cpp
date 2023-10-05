@@ -13,6 +13,7 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <library/cpp/yt/assert/assert.h>
 
@@ -374,8 +375,10 @@ class TPartReader::TImpl
 public:
     TImpl(
         IBlocksReaderPtr reader,
+        IChunkReader::TReadBlocksOptions readBlockOptions,
         const std::vector<TPartRange>& blockRanges)
         : Reader_(reader)
+        , ReadBlockOptions_(readBlockOptions)
         , BlockRanges_(blockRanges)
     { }
 
@@ -430,6 +433,7 @@ public:
 
 private:
     const IBlocksReaderPtr Reader_;
+    const IChunkReader::TReadBlocksOptions ReadBlockOptions_;
     const std::vector<TPartRange> BlockRanges_;
 
     THashMap<int, TSharedRef> RequestedBlocks_;
@@ -453,7 +457,10 @@ private:
         auto initialize = [&] () {
             if (!result) {
                 struct TErasureWriterSliceTag { };
-                result = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(range.Size());
+                auto ref = TrackMemory(
+                    ReadBlockOptions_.ClientOptions.MemoryReferenceTracker,
+                    TSharedMutableRef::Allocate<TErasureWriterSliceTag>(range.Size()));
+                result = TSharedMutableRef(const_cast<char*>(ref.Begin()), ref.Size(), ref.GetHolder());
             }
         };
 
@@ -491,9 +498,11 @@ private:
 
 TPartReader::TPartReader(
     IBlocksReaderPtr reader,
+    IChunkReader::TReadBlocksOptions readBlockOptions,
     const std::vector<TPartRange>& blockRanges)
     : Impl_(New<TImpl>(
-        reader,
+        std::move(reader),
+        std::move(readBlockOptions),
         blockRanges))
 { }
 

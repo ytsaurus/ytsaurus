@@ -833,6 +833,9 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
             options.ReadSessionId = readSessionId;
+            options.MemoryReferenceTracker = Bootstrap_->GetReadBlockMemoryReferenceTracker();
+            options.TrackMemoryAfterSessionCompletion = GetDynamicConfig()->TrackMemoryAfterSessionCompletion;
+
             if (context->GetTimeout() && context->GetStartTime()) {
                 options.Deadline =
                     *context->GetStartTime() +
@@ -966,6 +969,9 @@ private:
         options.FetchFromCache = !netThrottling;
         options.FetchFromDisk = !netThrottling && !diskThrottling;
         options.ChunkReaderStatistics = chunkReaderStatistics;
+        options.MemoryReferenceTracker = Bootstrap_->GetReadBlockMemoryReferenceTracker();
+        options.TrackMemoryAfterSessionCompletion = GetDynamicConfig()->TrackMemoryAfterSessionCompletion;
+
         if (context->GetTimeout() && context->GetStartTime()) {
             options.Deadline =
                 *context->GetStartTime() +
@@ -1097,7 +1103,9 @@ private:
 
                         TClientChunkReadOptions options{
                             .WorkloadDescriptor = workloadDescriptor,
-                            .ReadSessionId = readSessionId
+                            .ReadSessionId = readSessionId,
+                            .TrackMemoryAfterSessionCompletion = GetDynamicConfig()->TrackMemoryAfterSessionCompletion,
+                            .MemoryReferenceTracker = Bootstrap_->GetReadBlockMemoryReferenceTracker()
                         };
                         if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
                             YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
