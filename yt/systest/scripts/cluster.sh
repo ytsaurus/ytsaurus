@@ -79,6 +79,5 @@ bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_f
 helm install ${nsflags} ${name_systest} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/systest
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name systest ${tester_flags}
 
-# NOTE(orlovorlov) temporarily disable new_stress_test until a user job can run in a docker image. It needs numpy.
-#helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
-#bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name newstresstest ${tester_flags}
+helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name newstresstest ${tester_flags}

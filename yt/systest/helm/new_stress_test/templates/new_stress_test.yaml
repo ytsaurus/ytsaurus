@@ -14,4 +14,4 @@ spec:
       value: 'password'
     - name: YT_PROXY
       value: "$(HTTP_PROXIES_LB_SERVICE_HOST):$(HTTP_PROXIES_LB_SERVICE_PORT)"
-    command: ['python3.7', '/usr/new_stress_test/__main__.py', '--ipv4', '--preset', 'full', '--path', '//home']
+    command: ['python3.7', '/usr/new_stress_test/__main__.py', '--ipv4', '--preset', 'simple_sorted', '--path', '//home']
