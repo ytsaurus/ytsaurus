@@ -20,6 +20,11 @@
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
 
+#include <yt/yt/server/lib/rpc_proxy/access_checker.h>
+#include <yt/yt/server/lib/rpc_proxy/api_service.h>
+#include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
+#include <yt/yt/server/lib/rpc_proxy/security_manager.h>
+
 #include <yt/yt/server/exec/user_job_synchronizer.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -36,6 +41,8 @@
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/ytlib/program/helpers.h>
+
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
@@ -49,7 +56,14 @@
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
+#include <yt/yt/library/auth_server/authentication_manager.h>
+#include <yt/yt/library/auth_server/public.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/library/program/program.h>
+
+#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -61,11 +75,13 @@
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -76,6 +92,7 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
+#include <yt/yt/core/rpc/authenticator.h>
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 #include <yt/yt/core/rpc/helpers.h>
@@ -104,6 +121,7 @@ using namespace NExecNode;
 using namespace NExecNode::NProto;
 using namespace NBus;
 using namespace NRpc;
+using namespace NRpcProxy;
 using namespace NApi;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -630,6 +648,35 @@ void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
     JobProxyEnvironment_.Store(std::move(environment));
 }
 
+void TJobProxy::EnableRpcProxyInJobProxy()
+{
+    YT_VERIFY(Config_->OriginalClusterConnection);
+    NLogging::TLogger proxyLogger("RpcProxy");
+    auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
+    auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    auto proxyCoordinator = CreateProxyCoordinator();
+    proxyCoordinator->SetAvailableState(true);
+    auto securityManager = CreateSecurityManager(Config_->ApiService->SecurityManager, connection, proxyLogger);
+    auto authenticationManager = NAuth::CreateAuthenticationManager(
+        Config_->AuthenticationManager,
+        NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
+        rootClient);
+    auto ApiService_ = CreateApiService(
+        Config_->ApiService,
+        GetControlInvoker(),
+        connection,
+        authenticationManager->GetRpcAuthenticator(),
+        proxyCoordinator,
+        CreateNoopAccessChecker(),
+        securityManager,
+        New<TSampler>(),
+        proxyLogger,
+        TProfiler());
+    GetRpcServer()->RegisterService(ApiService_);
+    YT_LOG_INFO("RPC proxy API service registered");
+}
+
 IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
 {
     return JobProxyEnvironment_.Acquire();
@@ -749,6 +796,9 @@ TJobResult TJobProxy::RunJob()
         const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
         if (jobSpecExt.is_traced()) {
             RootSpan_->SetSampled();
+        }
+        if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().enable_rpc_proxy_in_job_proxy()) {
+            EnableRpcProxyInJobProxy();
         }
 
         JobProxyMemoryOvercommitLimit_ = jobSpecExt.has_job_proxy_memory_overcommit_limit()

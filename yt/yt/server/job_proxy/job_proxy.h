@@ -164,6 +164,8 @@ private:
     void SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment);
     IJobProxyEnvironmentPtr FindJobProxyEnvironment() const;
 
+    void EnableRpcProxyInJobProxy();
+
     void DoRun();
     NControllerAgent::NProto::TJobResult RunJob();
 

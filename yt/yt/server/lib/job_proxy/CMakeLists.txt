@@ -18,6 +18,7 @@ target_link_libraries(server-lib-job_proxy PUBLIC
   yt-yt-core
   library-dns_over_rpc-client
   server-lib-misc
+  server-lib-rpc_proxy
 )
 target_sources(server-lib-job_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp

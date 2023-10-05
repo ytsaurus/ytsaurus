@@ -9549,6 +9549,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_enable_squashfs(*Spec_->EnableSquashFS);
     }
 
+    jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
+
     // Pass external docker image into job spec as is.
     if (jobSpecConfig->DockerImage &&
         !TDockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry).IsInternal())
