@@ -42,6 +42,9 @@ struct TIntermediateBufferTag
 struct TPermanentBufferTag
 { };
 
+struct TForeignExecutorBufferTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr const size_t InitialGroupOpHashtableCapacity = 1024;
