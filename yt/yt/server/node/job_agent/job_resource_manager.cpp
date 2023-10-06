@@ -299,7 +299,7 @@ public:
             if (!error.IsOK()) {
                 return true;
             } else {
-                UserMemoryUsageTracker_->Release(delta.UserMemory);
+                UserMemoryUsageTracker_->Release(delta.user_memory());
             }
         }
 
