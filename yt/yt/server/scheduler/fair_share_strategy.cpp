@@ -1376,6 +1376,13 @@ public:
         }
     }
 
+    std::optional<TString> GetMaybeTreeIdForNode(TNodeId nodeId) const override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        return GetOrDefault(NodeIdToDescriptor_, nodeId).TreeId;
+    }
+
 private:
     class TPoolTreeService;
     friend class TPoolTreeService;
@@ -1429,8 +1436,8 @@ private:
 
     THashMap<TNodeId, TStrategyExecNodeDescriptor> NodeIdToDescriptor_;
     THashSet<TString> NodeAddresses_;
-    THashMap<TString, THashSet<TNodeId>> NodeIdsPerTree_;
-    THashSet<TNodeId> NodeIdsWithoutTree_;
+    THashMap<TString, TNodeIdSet> NodeIdsPerTree_;
+    TNodeIdSet NodeIdsWithoutTree_;
 
     TYsonString LastPoolTreesYson_;
     TYsonString LastTemplatePoolTreeConfigMapYson_;
@@ -2048,7 +2055,7 @@ private:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         for (const auto& treeId : treeIdsToAdd) {
-            EmplaceOrCrash(NodeIdsPerTree_, treeId, THashSet<TNodeId>{});
+            EmplaceOrCrash(NodeIdsPerTree_, treeId, TNodeIdSet{});
         }
 
         // NB(eshcherbin): |OnNodeChangedFairShareTree| requires both trees to be present in |NodeIdsPerTree_|.

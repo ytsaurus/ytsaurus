@@ -5,7 +5,9 @@ from yt_commands import (
     wait, wait_no_assert,
     create, ls, get, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla,
-    update_pool_tree_config, ban_node, unban_node)
+    update_pool_tree_config, update_scheduler_config, update_pool_tree_config_option,
+    create_pool_tree, remove_pool_tree, set,
+    ban_node, unban_node)
 
 from yt_helpers import read_structured_log, write_log_barrier
 
@@ -39,6 +41,15 @@ class TestEventLog(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"event_log": {"flush_period": 1000}}}
 
     LOG_WRITE_WAIT_TIME = 0.5
+
+    @staticmethod
+    def _check_keys(event, included_keys=None, excluded_keys=None):
+        if included_keys is not None:
+            for key in included_keys:
+                assert key in event
+        if excluded_keys is not None:
+            for key in excluded_keys:
+                assert key not in event
 
     @authors("ignat")
     def test_scheduler_event_log(self):
@@ -172,21 +183,13 @@ class TestEventLog(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_split_fair_share_info_events(self):
-        def check_keys(event, included_keys=None, excluded_keys=None):
-            if included_keys is not None:
-                for key in included_keys:
-                    assert key in event
-            if excluded_keys is not None:
-                for key in excluded_keys:
-                    assert key not in event
-
         def read_fair_share_info_events():
             event_log = read_table("//sys/scheduler/event_log", verbose=False)
             events_by_timestamp = defaultdict(list)
             events_by_snapshot_id = defaultdict(list)
             for event in event_log:
-                if event["event_type"] == "fair_share_info":
-                    check_keys(event, included_keys=["tree_id", "tree_snapshot_id"])
+                if event["event_type"] == "fair_share_info" and event["tree_id"] == "default":
+                    TestEventLog._check_keys(event, included_keys=["tree_id", "tree_snapshot_id"])
                     events_by_timestamp[event["timestamp"]].append(event)
                     events_by_snapshot_id[event["tree_snapshot_id"]].append(event)
 
@@ -197,9 +200,9 @@ class TestEventLog(YTEnvSetup):
             if not events_by_timestamp:
                 return None
 
-            for _, events in events_by_timestamp.items():
+            for events in events_by_timestamp.values():
                 assert len(frozenset(e["tree_snapshot_id"] for e in events)) == 1
-            for _, events in events_by_snapshot_id.items():
+            for events in events_by_snapshot_id.values():
                 assert len(frozenset(e["timestamp"] for e in events)) == 1
 
             return events_by_timestamp[max(events_by_timestamp)]
@@ -218,13 +221,13 @@ class TestEventLog(YTEnvSetup):
             actual_operation_batch_sizes = {}
             for event in events:
                 if "pools" in event:
-                    check_keys(event, included_keys=pools_info_event_keys, excluded_keys=base_event_keys + operations_info_event_keys)
+                    TestEventLog._check_keys(event, included_keys=pools_info_event_keys, excluded_keys=base_event_keys + operations_info_event_keys)
                     actual_pool_batch_sizes[event["pools_batch_index"]] = len(event["pools"])
                 elif "operations" in event:
-                    check_keys(event, included_keys=operations_info_event_keys, excluded_keys=base_event_keys + pools_info_event_keys)
+                    TestEventLog._check_keys(event, included_keys=operations_info_event_keys, excluded_keys=base_event_keys + pools_info_event_keys)
                     actual_operation_batch_sizes[event["operations_batch_index"]] = len(event["operations"])
                 else:
-                    check_keys(event, included_keys=base_event_keys, excluded_keys=pools_info_event_keys + operations_info_event_keys)
+                    TestEventLog._check_keys(event, included_keys=base_event_keys, excluded_keys=pools_info_event_keys + operations_info_event_keys)
                     base_event_count += 1
 
             assert base_event_count == 1
@@ -247,7 +250,7 @@ class TestEventLog(YTEnvSetup):
             "max_event_log_operation_batch_size": 4,
         })
 
-        for i in range(4):
+        for _ in range(4):
             run_sleeping_vanilla()
 
         wait(lambda: check_events([2], [4]))
@@ -258,6 +261,61 @@ class TestEventLog(YTEnvSetup):
         })
 
         wait(lambda: check_events([1, 1], [3, 1]))
+
+    @authors("omgronny")
+    def test_nodes_info(self):
+        def read_latest_nodes_info_events():
+            event_log = read_table("//sys/scheduler/event_log", verbose=False)
+            events_by_tree_id = {}
+            for event in event_log:
+                if event["event_type"] == "nodes_info":
+                    TestEventLog._check_keys(event, included_keys=["tree_id", "nodes"])
+                    if event["tree_id"] not in events_by_tree_id or \
+                            events_by_tree_id[event["tree_id"]]["timestamp"] < event["timestamp"]:
+                        events_by_tree_id[event["tree_id"]] = event
+            return events_by_tree_id
+
+        all_nodes = ls("//sys/cluster_nodes")
+        for i, node in enumerate(all_nodes):
+            if i <= len(all_nodes) / 2:
+                set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagA"])
+            else:
+                set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagB"])
+        update_pool_tree_config_option(tree="default", option="nodes_filter", value="default")
+
+        create_pool_tree("treeA", config={"nodes_filter": "tagA"})
+        create_pool_tree("treeB", config={"nodes_filter": "tagB"})
+
+        create_pool("poolA", pool_tree="treeA")
+        create_pool("poolB", pool_tree="treeB")
+
+        update_scheduler_config("nodes_info_logging_period", 500)
+
+        for _ in range(4):
+            run_sleeping_vanilla(spec={
+                "pool": "poolA",
+                "pool_trees": ["treeA"],
+            })
+            run_sleeping_vanilla(spec={
+                "pool": "poolB",
+                "pool_trees": ["treeB"],
+            })
+
+        @wait_no_assert
+        def check_nodes_info():
+            nodes_info = read_latest_nodes_info_events()
+            assert len(nodes_info) >= 2
+
+            for node_info in nodes_info["treeA"]["nodes"].values():
+                assert "tagA" in node_info["tags"]
+                assert node_info["tree"] == "treeA"
+
+            for node_info in nodes_info["treeB"]["nodes"].values():
+                assert "tagB" in node_info["tags"]
+                assert node_info["tree"] == "treeB"
+
+        remove_pool_tree("treeA")
+        remove_pool_tree("treeB")
 
     @authors("ignat")
     def test_accumulated_usage(self):

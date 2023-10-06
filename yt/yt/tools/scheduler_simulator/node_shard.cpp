@@ -83,7 +83,7 @@ void TSimulatorNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    for (const auto& [id, node] : IdToNode_) {
+    for (const auto& [nodeId, node] : IdToNode_) {
         BuildNodeYson(node, fluent);
     }
 }
@@ -313,7 +313,7 @@ int TSimulatorNodeShard::GetNodeShardId(TNodeId nodeId, int nodeShardCount)
     return THash<TNodeId>()(nodeId) % nodeShardCount;
 }
 
-void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
+void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent) const
 {
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()

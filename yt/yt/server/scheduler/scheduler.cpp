@@ -125,6 +125,8 @@ using NYT::ToProto;
 
 static const auto& Logger = SchedulerLogger;
 
+static const TString UnknownTreeId = "<unknown>";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPoolTreeKeysHolder
@@ -1990,12 +1992,20 @@ private:
             return;
         }
 
-        auto nodesInfo = BuildYsonStringFluently().BeginMap()
-            .Do(std::bind(&TNodeManager::BuildNodesYson, NodeManager_, _1))
-        .EndMap();
+        auto nodeYsonList = NodeManager_->BuildNodeYsonList();
+        THashMap<TString, std::vector<TYsonString>> nodeYsonsPerTree;
+        for (auto& [nodeId, nodeYson] : nodeYsonList) {
+            auto treeId = Strategy_->GetMaybeTreeIdForNode(nodeId).value_or(UnknownTreeId);
+            nodeYsonsPerTree[treeId].push_back(std::move(nodeYson));
+        }
 
-        LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
-            .Item("nodes").Value(std::move(nodesInfo));
+        for (const auto& [treeId, nodeYsons] : nodeYsonsPerTree) {
+            LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
+                .Item("tree_id").Value(treeId)
+                .Item("nodes").DoMapFor(nodeYsons, [&] (TFluentMap fluent, const TYsonString& nodeYson) {
+                    fluent.Items(nodeYson);
+                });
+        }
     }
 
 
@@ -3635,6 +3645,7 @@ private:
 
         RemoveExpiredResourceLimitsTags();
 
+        auto nodeYsons = NodeManager_->BuildNodeYsonList();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
@@ -3672,9 +3683,10 @@ private:
                 .Item("suspicious_jobs").BeginMap()
                     .Items(BuildSuspiciousJobsYson())
                 .EndMap()
-                .Item("nodes").BeginMap()
-                    .Do(std::bind(&TNodeManager::BuildNodesYson, NodeManager_, _1))
-                .EndMap()
+                .Item("nodes").DoMapFor(nodeYsons, [] (TFluentMap fluent, const TNodeYsonList::value_type& pair) {
+                        const auto& [_, nodeYson] = pair;
+                        fluent.Items(nodeYson);
+                })
                 .Item("user_to_default_pool").Value(UserToDefaultPoolMap_)
                 .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
             .EndMap();

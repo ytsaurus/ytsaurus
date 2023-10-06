@@ -84,7 +84,7 @@ public:
 
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
 
-    void BuildNodesYson(NYTree::TFluentMap fluent);
+    TNodeYsonList BuildNodeYsonList() const;
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId job);
 

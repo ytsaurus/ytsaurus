@@ -51,6 +51,9 @@ using TOperationIdToJobResources = THashMap<TOperationId, TJobResources>;
 using TNonOwningPoolElementMap = THashMap<TString, TSchedulerPoolElement*>;
 using TPoolElementMap = THashMap<TString, TSchedulerPoolElementPtr>;
 
+using TNodeIdSet = THashSet<NNodeTrackerClient::TNodeId>;
+using TNodeYsonList = std::vector<std::pair<NNodeTrackerClient::TNodeId, NYson::TYsonString>>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESchedulableStatus,
