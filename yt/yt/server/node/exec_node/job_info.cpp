@@ -10,6 +10,7 @@ TBriefJobInfo::TBriefJobInfo(
     EJobPhase jobPhase,
     EJobType jobType,
     bool stored,
+    bool interrupted,
     int jobSlotIndex,
     TInstant jobStartTime,
     TDuration jobDuration,
@@ -25,6 +26,7 @@ TBriefJobInfo::TBriefJobInfo(
     , JobPhase_(jobPhase)
     , JobType_(jobType)
     , Stored_(stored)
+    , Interrupted_(interrupted)
     , JobSlotIndex_(jobSlotIndex)
     , JobStartTime_(jobStartTime)
     , JobDuration_(jobDuration)
@@ -39,15 +41,16 @@ void TBriefJobInfo::BuildOrchid(NYTree::TFluentMap fluent) const
 {
     fluent
         .Item(ToString(JobId_)).BeginMap()
+            .Item("operation_id").Value(OperationId_)
             .Item("job_state").Value(JobState_)
             .Item("job_phase").Value(JobPhase_)
             .Item("job_type").Value(JobType_)
             .Item("stored").Value(Stored_)
+            .Item("interrupted").Value(Interrupted_)
             .Item("slot_index").Value(JobSlotIndex_)
             .Item("start_time").Value(JobStartTime_)
             .Item("duration").Value(JobDuration_)
             .OptionalItem("statistics", JobStatistics_)
-            .OptionalItem("operation_id", OperationId_)
             .Item("resource_usage").Value(JobResourceUsage_)
             .Item("events").Value(JobEvents_)
             .Item("core_infos").Value(JobCoreInfos_)

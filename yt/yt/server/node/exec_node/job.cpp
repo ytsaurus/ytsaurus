@@ -1101,6 +1101,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
         GetPhase(),
         GetType(),
         GetStored(),
+        IsInterrupted(),
         GetSlotIndex(),
         GetStartTime(),
         /*jobDuration=*/ TInstant::Now() - GetStartTime(),
@@ -1268,6 +1269,8 @@ void TJob::DoInterrupt(
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(interruptionReason != EInterruptReason::None);
 
     if (InterruptionDeadline_ && InterruptionDeadline_ < TInstant::Now() + timeout) {
         YT_LOG_DEBUG(
@@ -1474,6 +1477,11 @@ void TJob::Fail(std::optional<TError> error)
 NScheduler::EInterruptReason TJob::GetInterruptionReason() const noexcept
 {
     return InterruptionReason_;
+}
+
+bool TJob::IsInterrupted() const noexcept
+{
+    return InterruptionReason_ != EInterruptReason::None;
 }
 
 const std::optional<NScheduler::TPreemptedFor>& TJob::GetPreemptedFor() const noexcept
