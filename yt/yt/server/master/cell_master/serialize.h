@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((CypressTransactionService)                                    (2431))  // h0pless
     ((SequoiaMapNode)                                               (2432))  // kvk1920
     ((ConcatToSingleCellChunkOwner)                                 (2433))  // shakurov
+    ((ChunkMergerQueuesUsagePerAccount)                             (2434))  // vovamelnikov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

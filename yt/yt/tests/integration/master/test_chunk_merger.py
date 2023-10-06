@@ -12,7 +12,9 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 
-from yt_helpers import get_chunk_owner_master_cell_counters
+from yt_helpers import (
+    get_chunk_owner_master_cell_counters,
+    profiler_factory)
 
 from yt_type_helpers import make_schema
 
@@ -22,6 +24,8 @@ import yt.yson as yson
 import pytest
 
 from time import sleep
+
+from functools import reduce
 
 #################################################################
 
@@ -1165,6 +1169,64 @@ class TestChunkMerger(YTEnvSetup):
 
         wait(lambda: get("//tmp/d/t/@chunk_count") == 1)
         assert read_table("//tmp/d/t") == rows
+
+    @authors("vovamelnikov")
+    def test_queue_profiling(self):
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunks_per_iteration", 0)
+        wait_for_sys_config_sync()
+
+        accounts = [f"a{i}" for i in range(5)]
+
+        def __devide_limit(val):
+            if isinstance(val, dict):
+                return {key: __devide_limit(val[key]) for key in val}
+            else:
+                return val // 10
+
+        tmp_limits = get("//sys/accounts/tmp/@resource_limits")
+        limits = __devide_limit(tmp_limits)
+        for account in accounts:
+            create_account(account, "tmp")
+            set(f"//sys/accounts/{account}/@resource_limits", limits)
+
+        for i in range(10):
+            create("table", f"//tmp/t{i}")
+
+        primary_addresses = ls("//sys/primary_masters")
+        profilers = [profiler_factory().at_primary_master(master_address) for master_address in primary_addresses]
+
+        secondary_masters = get("//sys/secondary_masters")
+        for tag in secondary_masters:
+            addrs = [address for address in secondary_masters[tag]]
+            profilers += [profiler_factory().at_secondary_master(tag, master_address) for master_address in addrs]
+
+        for i in range(10):
+            for _j in range(2):
+                write_table(f"<append=true>//tmp/t{i}", {"a": "b"})
+            set(f"//tmp/t{i}/@account", accounts[i // 2])
+            # Trigger merge.
+            set(f"//tmp/t{i}/@chunk_merger_mode", 'deep')
+
+        # Wait for next iteration of merger.
+        sleep(2)
+
+        nodes_being_merged_list = list(
+            reduce(
+                lambda a, b: a + b,
+                [profiler.gauge("chunk_server/chunk_merger_nodes_being_merged").get_all() for profiler in profilers],
+            )
+        )
+
+        nodes_being_merged_by_account = [
+            item for item in nodes_being_merged_list if {i for i in item["tags"].keys()} == {"account", "account_id"}
+        ]
+
+        def get_entire_number(x):
+            return reduce(lambda a, b: a + b, [i["value"] for i in x])
+
+        for i in range(5):
+            part = [item for item in nodes_being_merged_by_account if item["tags"]["account"] == accounts[i]]
+            assert get_entire_number(part) == 2.0
 
 
 class TestChunkMergerMulticell(TestChunkMerger):

@@ -53,6 +53,8 @@ struct TMergeJobInfo
     TChunkId OutputChunkId;
 
     NChunkClient::EChunkMergerMode MergeMode;
+
+    NSecurityServer::TAccountId AccountId;
 };
 
 struct TChunkMergerSession
@@ -118,7 +120,8 @@ struct IMergeChunkVisitorHost
         int jobIndex,
         NCypressClient::TObjectId nodeId,
         TChunkListId parentChunkListId,
-        std::vector<TChunkId> inputChunkIds) = 0;
+        std::vector<TChunkId> inputChunkIds,
+        NSecurityServer::TAccountId accountId) = 0;
     virtual void OnTraversalFinished(
         NCypressClient::TObjectId nodeId,
         EMergeSessionResult result,
@@ -168,7 +171,7 @@ private:
 
     // Persistent fields.
     NTransactionServer::TTransactionRotator TransactionRotator_;
-    THashSet<NCypressClient::TObjectId> NodesBeingMerged_;
+    THashMap<NCypressClient::TObjectId, NSecurityServer::TAccountId> NodesBeingMerged_;
     i64 ConfigVersion_ = 0;
 
     struct TChunkMergerStatistics
@@ -186,6 +189,10 @@ private:
 
     THashMap<NCypressClient::TObjectId, TChunkMergerSession> RunningSessions_;
 
+    // COMPAT(vovamelnikov): ChunkMergerQueuesUsagePerAccount
+    // It is only used to store old version of NodesBeingMerged
+    // until accountId will be restored from loaded chunks in OnAfterSnapshotLoaded.
+    std::unique_ptr<THashSet<NCypressClient::TObjectId>> OldNodesBeingMerged_;
 
     // TODO(shakurov): ephemeral ptrs?
     using TNodeQueue = std::queue<NCypressClient::TObjectId>;
@@ -213,6 +220,26 @@ private:
     };
     std::queue<TMergeSessionResult> SessionsAwaitingFinalization_;
 
+    struct TAccountQueuesUsage
+    {
+        int JobsAwaitingChunkCreation = 0;
+        int JobsUndergoingChunkCreation = 0;
+        int JobsAwaitingNodeHeartbeat = 0;
+
+        bool operator==(const TAccountQueuesUsage& another) const = default;
+    };
+
+    THashMap<NSecurityServer::TAccountId, TAccountQueuesUsage> QueuesUsage_;
+
+    THashMap<NSecurityServer::TAccountId, int> NodesBeingMergedPerAccount_;
+
+
+    void IncrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
+    void DecrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
+
+    void IncrementPersistentTracker(NSecurityServer::TAccountId accountId);
+    void DecrementPersistentTracker(NSecurityServer::TAccountId accountId);
+
     void OnLeaderActive() override;
     void OnStopLeading() override;
 
@@ -228,7 +255,9 @@ private:
         int jobIndex,
         NCypressClient::TObjectId nodeId,
         TChunkListId parentChunkListId,
-        std::vector<TChunkId> inputChunkIds) override;
+        std::vector<TChunkId> inputChunkIds,
+        NSecurityServer::TAccountId accountId) override;
+
     void OnTraversalFinished(
         NCypressClient::TObjectId nodeId,
         EMergeSessionResult result,
@@ -290,6 +319,10 @@ private:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    // COMPAT(vovamelnikov): ChunkMergerQueuesUsagePerAccount
+    // It is only used to restore accountId from old snapshot.
+    void OnAfterSnapshotLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkMerger)
