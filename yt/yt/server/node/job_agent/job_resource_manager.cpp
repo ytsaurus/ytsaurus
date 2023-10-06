@@ -298,6 +298,8 @@ public:
             auto error = UserMemoryUsageTracker_->TryAcquire(delta.user_memory());
             if (!error.IsOK()) {
                 return true;
+            } else {
+                UserMemoryUsageTracker_->Release(delta.UserMemory);
             }
         }
 
