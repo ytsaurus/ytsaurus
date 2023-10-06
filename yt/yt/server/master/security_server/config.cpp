@@ -20,7 +20,7 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("account_statistics_gossip_period", &TThis::AccountStatisticsGossipPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("accounts_profiling_period", &TThis::AccountsProfilingPeriod)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(60));
     registrar.Parameter("request_rate_smoothing_period", &TThis::RequestRateSmoothingPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("account_master_memory_usage_update_period", &TThis::AccountMasterMemoryUsageUpdatePeriod)
