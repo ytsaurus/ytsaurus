@@ -28,6 +28,8 @@ private:
 
     bool Stored_;
 
+    bool Interrupted_;
+
     int JobSlotIndex_;
 
     TInstant JobStartTime_;
@@ -51,6 +53,7 @@ private:
         EJobPhase jobPhase,
         EJobType jobType,
         bool stored,
+        bool interrupted,
         int jobSlotIndex,
         TInstant jobStartTime,
         TDuration jobDuration,

@@ -227,6 +227,7 @@ public:
     void Fail(std::optional<TError> error);
 
     NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
+    bool IsInterrupted() const noexcept;
     const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
 
     bool IsFinished() const noexcept;
