@@ -1,10 +1,9 @@
-name: C++ CI
+name: Release queue agent
 
 on:
   push:
-    branches:
-      - main
-      - stable/[0-9]+\.[0-9]+
+    tags:
+      - 'docker/queue-agent/[0-9]+\.[0-9]+\.[0-9]+'
 
 jobs:
   start-vm:
@@ -29,25 +28,17 @@ jobs:
           memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 279GB
+          disk-size: 93GB
 
   checkout:
-    name: Checkout sources
+    name: Checkout
     needs: start-vm
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name: Checkout ytsaurus
+      - name: Checkout
         uses: actions/checkout@v3
         with:
           path: ytsaurus
-          fetch-depth: 0
-
-      - name: Checkout ydb
-        uses: actions/checkout@v3
-        with:
-          repository: ydb-platform/ydb
-          ref: 1ddfdf5e0386126afd13afb315bd51b7272ec6fa
-          path: ydb
 
   build:
     name: Build
@@ -56,109 +47,44 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: true
-      build-ytsaurus: true
-      build-query-tracker: true
-      build-chyt: true
       build-python: true
+      build-ytsaurus: true
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
-    name: Calculate docker tag
+    name: Parse tag
     needs:
       - start-vm
       - build
-    runs-on: ${{ needs.start-vm.outputs.label }}
     outputs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
-      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name: Calculate docker tag
+      - name: Parse tag
         id: tag
         run: |
-          if [[ $GITHUB_REF =~ main$ ]];
-          then
-            IMAGE_TAG=dev
-          elif [[ $GITHUB_REF =~ test ]];
-          then
-            IMAGE_TAG=test
-          elif [[ $GITHUB_REF =~ stable ]];
-          then
-            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
-          else
-            IMAGE_TAG=dev-test
-          fi
+          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/queue-agent/})" >> $GITHUB_OUTPUT
 
-          cd ytsaurus
-          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git rev-list --count HEAD)-${GITHUB_SHA}
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
-
-  docker:
-    name: Docker images
+  release:
+    name: Release
     needs:
       - start-vm
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      publish-ytsaurus: true
-      publish-query-tracker: true
       publish-queue-agent: true
-      publish-chyt: true
-      publish-local: true
-      publish-strawberry: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
     secrets:
       DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
     uses: ./.github/workflows/docker-jobs.yaml
 
-  check:
-    name: Check
-    needs:
-      - start-vm
-      - docker
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-    secrets:
-      NEBIUS_TESTMO_TOKEN: ${{ secrets.NEBIUS_TESTMO_TOKEN }}
-    uses: ./.github/workflows/check-jobs.yaml
-
-  systest:
-    name: systest
-    needs:
-      - start-vm
-      - tag
-      - check
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Mark latest nightly
-        run: |
-          if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
-          then
-            docker tag ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }} ytsaurus/ytsaurus-nightly:latest
-            docker push ytsaurus/ytsaurus-nightly:latest
-          fi
-
-      - name: Download benchmarks
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "benchmark-0.0.1.tgz"
-
-      - name: Docker systest
-        shell: bash
-        run: |
-          mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
-          docker push ytsaurus/ytsaurus-systest:latest
-
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - systest
+      - release
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -192,4 +118,3 @@ jobs:
             ```
             ${{github.event.head_commit.message}}
             ```
-

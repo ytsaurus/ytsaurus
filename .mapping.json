@@ -12,6 +12,7 @@
   ".github/workflows/pr_notifications.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/pr_notifications.yaml",
   ".github/workflows/python_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/python_release.yaml",
   ".github/workflows/query_tracker_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/query_tracker_release.yaml",
+  ".github/workflows/queue_agent_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/queue_agent_release.yaml",
   ".github/workflows/spyt_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/spyt_release.yaml",
   ".github/workflows/strawberry_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/strawberry_release.yaml",
   ".github/workflows/systest.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/systest.yaml",

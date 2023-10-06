@@ -16,6 +16,10 @@ on:
         required: false
         default: false
         type: boolean
+      publish-queue-agent:
+        required: false
+        default: false
+        type: boolean
       publish-chyt:
         required: false
         default: false
@@ -71,6 +75,19 @@ jobs:
           docker push ytsaurus/query-tracker:${IMAGE_TAG}
           docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
           docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
+
+      - name: Queue agent image
+        if: ${{ inputs.publish-queue-agent }}
+        run: |
+          mkdir -p ../docker-queue-agent-build
+          IMAGE_TAG=${{ inputs.image-tag }}
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}
+
+          bash ./ytsaurus/yt/docker/queue-agent/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-queue-agent-build --image-tag ${IMAGE_TAG}
+
+          docker push ytsaurus/queue-agent:${IMAGE_TAG}
+          docker tag ytsaurus/queue-agent:${IMAGE_TAG} ytsaurus/queue-agent-nightly:${NIGHTLY_IMAGE_TAG}
+          docker push ytsaurus/queue-agent-nightly:${NIGHTLY_IMAGE_TAG}
 
       - name: CHYT image
         if: ${{ inputs.publish-chyt }}
@@ -130,6 +147,20 @@ jobs:
           docker push ytsaurus/query-tracker:${IMAGE_TAG}
           docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
           docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
+
+      - name: Queue agent image (relwithdebinfo)
+        if: ${{ inputs.publish-queue-agent }}
+        run: |
+          IMAGE_TAG=${{ inputs.image-tag }}-relwithdebinfo
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-relwithdebinfo
+
+          mv ../build_relwithdebinfo/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all || true
+
+          bash ./ytsaurus/yt/docker/queue-agent/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-queue-agent-build --image-tag ${IMAGE_TAG}
+
+          docker push ytsaurus/queue-agent:${IMAGE_TAG}
+          docker tag ytsaurus/queue-agent:${IMAGE_TAG} ytsaurus/queue-agent-nightly:${NIGHTLY_IMAGE_TAG}
+          docker push ytsaurus/queue-agent-nightly:${NIGHTLY_IMAGE_TAG}
 
       - name: Chyt image (relwithdebinfo)
         if: ${{ inputs.publish-chyt }}
