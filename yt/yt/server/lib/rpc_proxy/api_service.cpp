@@ -5008,11 +5008,26 @@ private:
     // TABLES
     ////////////////////////////////////////////////////////////////////////////////
 
+    void ValidateFormat(const TString& user, const INodePtr& formatNode)
+    {
+        const auto& config = Config_.Acquire();
+        const auto& formatConfigs = config->Formats;
+        TFormatManager formatManager(formatConfigs, user);
+        formatManager.ValidateAndPatchFormatNode(formatNode, "format");
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto path = FromProto<NYPath::TRichYPath>(request->path());
+
+        std::optional<NFormats::TFormat> format;
+        if (request->has_format()) {
+            auto stringFormat = TYsonStringBuf(request->format());
+            ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(stringFormat));
+            format = ConvertTo<NFormats::TFormat>(stringFormat);
+        }
 
         NApi::TTableReaderOptions options;
         options.Unordered = request->unordered();
@@ -5047,11 +5062,6 @@ private:
 
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
-
-        std::optional<NFormats::TFormat> format;
-        if (request->has_format()) {
-            format = ConvertTo<NFormats::TFormat>(TYsonStringBuf(request->format()));
-        }
 
         auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
         controlAttributesConfig->EnableRowIndex = request->enable_row_index();
@@ -5115,6 +5125,13 @@ private:
 
         auto path = FromProto<NYPath::TRichYPath>(request->path());
 
+        std::optional<NFormats::TFormat> format;
+        if (request->has_format()) {
+            auto stringFormat = TYsonStringBuf(request->format());
+            ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(stringFormat));
+            format = ConvertTo<NFormats::TFormat>(stringFormat);
+        }
+
         NApi::TTableWriterOptions options;
         if (request->has_config()) {
             options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
@@ -5134,11 +5151,6 @@ private:
 
         auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
             .ValueOrThrow();
-
-        std::optional<NFormats::TFormat> format;
-        if (request->has_format()) {
-            format = ConvertTo<NFormats::TFormat>(TYsonString(request->format()));
-        }
 
         THashMap<NApi::NRpcProxy::NProto::ERowsetFormat, IRowStreamDecoderPtr> parserMap;
         auto getOrCreateDecoder = [&] (NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat) {
