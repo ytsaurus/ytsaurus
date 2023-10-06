@@ -399,6 +399,8 @@ void MultiJoinOpHelper(
             YT_LOG_DEBUG("Joining finished");
         });
 
+        auto foreignExecutorRowBuffer = New<TRowBuffer>(TForeignExecutorBufferTag());
+
         std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
@@ -416,12 +418,10 @@ void MultiJoinOpHelper(
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
-            auto copy = CopyAndConvertFromPI(closure.Items[joinId].Buffer.Get(), orderedKeys, false);
-
-            auto reader = parameters->Items[joinId].ExecuteForeign(
-                copy,
-                closure.Items[joinId].Buffer);
+            auto foreignExecutorCopy = CopyAndConvertFromPI(foreignExecutorRowBuffer.Get(), orderedKeys, false);
+            auto reader = parameters->Items[joinId].ExecuteForeign(foreignExecutorCopy, foreignExecutorRowBuffer);
             readers.push_back(reader);
+
             closure.Items[joinId].Lookup.clear();
             closure.Items[joinId].LastKey = nullptr;
         }
