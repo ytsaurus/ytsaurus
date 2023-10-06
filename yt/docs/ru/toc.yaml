@@ -390,7 +390,11 @@ items:
           - name: Настройка логирования
             href: admin-guide/logging.md
       - name: Установка дополнительных компонент
-        href: admin-guide/install-additional-components.md
+        items:
+          - name: CHYT
+            href: admin-guide/chyt.md
+          - name: SPYT
+            href: admin-guide/spyt.md
           #      - name: Интеграции с внешними системами
           #        href: admin-guide/external-systems.md
       - name: Мониторинг
@@ -405,10 +409,10 @@ items:
           #        href: admin-guide/production.md
       - name: Тегирование нод кластера
         href: admin-guide/node-tags.md
-      - name: Релизы
-        href: admin-guide/releases.md
       - name: Возможные проблемы
         href: admin-guide/problems.md
+  - name: Релизы
+    href: admin-guide/releases.md
   - name: FAQ
     href: faq/faq.md
   - name: Как сообщить о проблеме

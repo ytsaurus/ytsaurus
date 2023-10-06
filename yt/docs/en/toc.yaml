@@ -433,6 +433,8 @@ items:
 #       - name: Quota monitoring
 #         when: audience == "public"
 #         href: user-guide/best-practice/quota-monitoring.md
+   - name: Releases
+     href: admin-guide/releases.md
    - name: FAQ
      when: audience == "public"
      href: faq/faq.md

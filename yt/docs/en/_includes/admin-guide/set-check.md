@@ -1,1 +1,0 @@
-# Validating an install

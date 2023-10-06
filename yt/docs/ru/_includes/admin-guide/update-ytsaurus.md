@@ -102,12 +102,12 @@ $ kubectl describe ytsaurus -n <namespace>
 3. Проверить, что старые поды оператора удалились, а новые создались:
 ```bash
 $ kubectl get pod -n <namespace>
-NAME                                                       READY   STATUS        RESTARTS   AGE
+NAME                                                      READY   STATUS        RESTARTS   AGE
 ytsaurus-ytop-chart-controller-manager-6f67fd5d5c-6bbws   2/2     Running       0          21s
 ytsaurus-ytop-chart-controller-manager-7478f9b6cb-qr8wd   2/2     Terminating   0          23h
 
 $ kubectl get pod -n <namespace>
-NAME                                                       READY   STATUS    RESTARTS   AGE
+NAME                                                      READY   STATUS    RESTARTS   AGE
 ytsaurus-ytop-chart-controller-manager-6f67fd5d5c-6bbws   2/2     Running   0          25s
 ```
 
