@@ -420,7 +420,13 @@ public:
             } else {
                 externalCellTag = multicellManager->PickSecondaryChunkHostCell(externalCellBias);
                 if (externalCellTag == InvalidCellTag) {
-                    THROW_ERROR_EXCEPTION("No secondary masters with a chunk host role were found");
+                    auto roles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
+                    if (Any(roles & EMasterCellRoles::ChunkHost)) {
+                        external = false;
+                        externalCellTag = NotReplicatedCellTagSentinel;
+                    } else {
+                        THROW_ERROR_EXCEPTION("No secondary masters with a chunk host role were found");
+                    }
                 }
             }
         }
