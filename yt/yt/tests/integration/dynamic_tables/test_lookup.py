@@ -1308,22 +1308,20 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
             return time.time() - start_time
 
         update_nodes_dynamic_config({
-            "out_throttlers": {
-                "default": {
-                    "limit": 1000,
-                }
+            "default": {
+                "limit": 1000,
             }
-        })
+        }, path="out_throttlers", replace=True)
+
         # TODO(akozhikhov): Check if overdraft instead.
         assert _check() < 1
 
         update_nodes_dynamic_config({
-            "out_throttlers": {
-                "default": {
-                    "relative_limit": 0.1,
-                }
+            "default": {
+                "relative_limit": 0.1,
             }
-        })
+        }, path="out_throttlers", replace=True)
+
         assert _check() > 1
 
 ################################################################################

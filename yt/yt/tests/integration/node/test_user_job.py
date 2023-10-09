@@ -2405,7 +2405,7 @@ class TestHealExecNode(YTEnvSetup):
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
         wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/alerts".format(node_address)))
 
-        update_nodes_dynamic_config({}, replace=True)
+        update_nodes_dynamic_config(value={}, path="", replace=True)
 
         wait(lambda: len(op.get_running_jobs()) == 0)
 
@@ -2998,6 +2998,14 @@ class TestSlotManagerResurrect(YTEnvSetup):
         }
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "abort_on_jobs_disabled": False,
+            }
+        }
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
@@ -3040,17 +3048,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         update_nodes_dynamic_config({
-            "exec_node": {
-                "slot_manager": {
-                    "enable_job_environment_resurrection": True,
-                    "abort_on_jobs_disabled": False
-                }
-            },
-            "porto_executor": {
-                "enable_test_porto_not_responding": False,
-                "enable_test_porto_failures": False,
-            }
-        })
+            "enable_job_environment_resurrection": True,
+        }, path="exec_node/slot_manager", replace=True)
 
         def check_enable():
             node = ls("//sys/cluster_nodes")[0]
@@ -3085,16 +3084,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
         wait(lambda: get_job(op.id, job)["state"] == "running")
 
         update_nodes_dynamic_config({
-            "exec_node": {
-                "slot_manager": {
-                    "abort_on_jobs_disabled": False,
-                    "enable_job_environment_resurrection": True,
-                }
-            },
-            "porto_executor": {
-                "enable_test_porto_failures": True
-            }
-        })
+            "enable_test_porto_failures": True
+        }, path="porto_executor", replace=True)
 
         def check_disable():
             node = ls("//sys/cluster_nodes")[0]
@@ -3117,17 +3108,9 @@ class TestSlotManagerResurrect(YTEnvSetup):
         ##################################################################
 
         update_nodes_dynamic_config({
-            "exec_node": {
-                "slot_manager": {
-                    "abort_on_jobs_disabled": False,
-                    "enable_job_environment_resurrection": True,
-                }
-            },
-            "porto_executor": {
-                "enable_test_porto_not_responding": False,
-                "enable_test_porto_failures": False,
-            }
-        })
+            "enable_test_porto_not_responding": False,
+            "enable_test_porto_failures": False,
+        }, path="porto_executor", replace=True)
 
         def check_resurrect():
             node = ls("//sys/cluster_nodes")[0]
@@ -3143,23 +3126,12 @@ class TestSlotManagerResurrect(YTEnvSetup):
 
         wait(lambda: get(op.get_path() + "/@state") == "completed")
 
-        update_nodes_dynamic_config({
-            "exec_node": {
-                "slot_manager": {
-                    "abort_on_jobs_disabled": False,
-                    "enable_job_environment_resurrection": True,
-                }
-            },
-            "porto_executor": {
-                "enable_test_porto_not_responding": False,
-                "enable_test_porto_failures": False,
-            }
-        })
-
         for location in locations:
             path = "{}/disabled".format(location["path"])
             if os.path.exists(path):
                 os.remove(path)
+
+        update_nodes_dynamic_config(value={}, path="porto_executor", replace=True)
 
     @authors("don-dron")
     def test_porto_fail_then_proxy_has_been_spawning(self):
@@ -3169,14 +3141,11 @@ class TestSlotManagerResurrect(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_node": {
                 "slot_manager": {
-                    "abort_on_jobs_disabled": False,
                     "enable_numa_node_scheduling": True
                 },
                 "job_proxy_preparation_timeout": 2000
             },
             "porto_executor": {
-                "enable_test_porto_not_responding": False,
-                "enable_test_porto_failures": False,
                 "api_timeout": 2500
             }
         })
@@ -3220,12 +3189,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
         wait(lambda: check_before_spawn_jp())
 
         update_nodes_dynamic_config({
-            "exec_node": {
-                "slot_manager": {
-                    "abort_on_jobs_disabled": False,
-                    "enable_numa_node_scheduling": True
-                }
-            },
             "porto_executor": {
                 "enable_test_porto_not_responding": True,
                 "api_timeout": 5000
@@ -3291,13 +3254,11 @@ class TestSlotManagerResurrect(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_node": {
                 "slot_manager": {
-                    "abort_on_jobs_disabled": False,
                     "enable_numa_node_scheduling": False
                 }
             },
             "porto_executor": {
                 "enable_test_porto_not_responding": False,
-                "enable_test_porto_failures": False,
                 "api_timeout": 5000
             }
         })
@@ -3306,6 +3267,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
             path = "{}/disabled".format(location["path"])
             if os.path.exists(path):
                 os.remove(path)
+
+        update_nodes_dynamic_config(value={}, path="porto_executor", replace=True)
 
     @authors("don-dron")
     @pytest.mark.skip(reason="Test broken")
@@ -3320,12 +3283,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
             "exec_node": {
                 "slot_manager": {
                     "enable_job_environment_resurrection": True,
-                    "abort_on_jobs_disabled": False
                 }
             },
-            "porto_executor": {
-                "enable_test_porto_failures": False
-            }
         })
 
         def check_enable():
@@ -3380,7 +3339,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
         ##################################################################
         update_nodes_dynamic_config({
             "porto_executor": {
-                "enable_test_porto_not_responding": False,
                 "enable_test_porto_failures": False,
             }
         })

@@ -153,10 +153,8 @@ class TestP2P(YTEnvSetup):
         throttled = self.seed_counter("data_node/p2p/throttled_bytes")
 
         update_nodes_dynamic_config({
-            "data_node": {
-                "p2p": {"enabled": False},
-            },
-        })
+            "p2p": {"enabled": False},
+        }, path="data_node", replace=True)
 
         for _ in range(10):
             self.access_table()
@@ -164,9 +162,7 @@ class TestP2P(YTEnvSetup):
 
         assert throttled.get_delta() == 0
 
-        update_nodes_dynamic_config({
-            "data_node": {},
-        })
+        update_nodes_dynamic_config({}, path="data_node", replace=True)
 
     @authors("prime")
     def test_last_seen_online(self):
@@ -174,17 +170,13 @@ class TestP2P(YTEnvSetup):
         assert eligible_nodes.get() > 0
 
         update_nodes_dynamic_config({
-            "data_node": {
-                "p2p": {
-                    "enabled": True,
-                    "node_refresh_period": 1000,
-                    "node_staleness_timeout": 0,
-                },
+            "p2p": {
+                "enabled": True,
+                "node_refresh_period": 1000,
+                "node_staleness_timeout": 0,
             },
-        })
+        }, path="data_node", replace=True)
 
         wait(lambda: eligible_nodes.get() == 0)
 
-        update_nodes_dynamic_config({
-            "data_node": {},
-        })
+        update_nodes_dynamic_config({}, path="data_node", replace=True)
