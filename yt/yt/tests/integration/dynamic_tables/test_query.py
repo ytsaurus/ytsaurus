@@ -1691,7 +1691,8 @@ class TestQuery(YTEnvSetup):
         sync_flush_table("//tmp/t")
 
         def _check_query(expected, predicate):
-            assert expected == select_rows(f"* from [//tmp/t] where {predicate}")
+            actual = select_rows(f"* from [//tmp/t] where {predicate}")
+            assert_items_equal(expected, actual)
 
         _check_query(rows[0:1], "(a) in ((1), (2))")
         _check_query(rows[0:1], "(a, b) in ((1, 1), (1, 2), (2, 1))")
