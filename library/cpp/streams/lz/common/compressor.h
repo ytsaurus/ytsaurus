@@ -99,7 +99,7 @@ private:
         if (len) {
             const size_t out = this->Compress((const char*)ptr, len, (char*)Block(), this->AdditionalDataLength());
             // catch compressor buffer overrun (e.g. SEARCH-2043)
-            //Y_VERIFY(out <= this->Hint(this->BlockSize()));
+            //Y_ABORT_UNLESS(out <= this->Hint(this->BlockSize()));
 
             if (out < len || TCompressor::SaveIncompressibleChunks()) {
                 compressed = true;

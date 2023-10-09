@@ -78,7 +78,7 @@ namespace {
 
     template <class TValue>
     size_t ConsistentHashingImpl(TValue a, TValue b, TValue c, TValue d, size_t n) {
-        Y_VERIFY(n > 0, "Can't map consistently to a zero values.");
+        Y_ABORT_UNLESS(n > 0, "Can't map consistently to a zero values.");
         // Uninteresting case
         if (n == 1) {
             return 0;
