@@ -13,7 +13,6 @@ from yt_helpers import read_structured_log, write_log_barrier
 import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import YtError
-
 import pytest
 
 import string
@@ -728,55 +727,47 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         )
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
 
-        update_nodes_dynamic_config(
-            {
-                "resource_limits": {
-                    "node_dedicated_cpu": 2,
-                    "total_cpu": 5,
-                    "cpu_per_tablet_slot": 1,
-                    "free_memory_watermark": 100000,
-                    "memory_limits": {
-                        "user_jobs": {
-                            "type": "static",
-                            "value": 12345678,
-                        },
-                        "tablet_static": {
-                            "type": "static",
-                            "value": 10 ** 9,
-                        },
-                        "tablet_dynamic": {
-                            "type": "dynamic",
-                        },
-                    },
-                }
-            }
-        )
+        update_nodes_dynamic_config({
+            "node_dedicated_cpu": 2,
+            "total_cpu": 5,
+            "cpu_per_tablet_slot": 1,
+            "free_memory_watermark": 100000,
+            "memory_limits": {
+                "user_jobs": {
+                    "type": "static",
+                    "value": 12345678,
+                },
+                "tablet_static": {
+                    "type": "static",
+                    "value": 10 ** 9,
+                },
+                "tablet_dynamic": {
+                    "type": "dynamic",
+                },
+            },
+        }, path="resource_limits", replace=True)
 
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))) == 12345678)
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 2)
 
-        update_nodes_dynamic_config(
-            {
-                "resource_limits": {
-                    "node_dedicated_cpu": 1,
-                    "total_cpu": 5,
-                    "cpu_per_tablet_slot": 1,
-                    "free_memory_watermark": 100000,
-                    "memory_limits": {
-                        "user_jobs": {
-                            "type": "dynamic",
-                        },
-                        "tablet_static": {
-                            "type": "static",
-                            "value": 10 ** 9,
-                        },
-                        "tablet_dynamic": {
-                            "type": "dynamic",
-                        },
-                    },
-                }
-            }
-        )
+        update_nodes_dynamic_config({
+            "node_dedicated_cpu": 1,
+            "total_cpu": 5,
+            "cpu_per_tablet_slot": 1,
+            "free_memory_watermark": 100000,
+            "memory_limits": {
+                "user_jobs": {
+                    "type": "dynamic",
+                },
+                "tablet_static": {
+                    "type": "static",
+                    "value": 10 ** 9,
+                },
+                "tablet_dynamic": {
+                    "type": "dynamic",
+                },
+            },
+        }, path="resource_limits", replace=True)
 
         wait(
             lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10 ** 7)

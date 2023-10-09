@@ -3166,14 +3166,45 @@ def get_applied_node_dynamic_config(node, driver=None):
                driver=driver)
 
 
-# Implements config.update(new_config) for dynamic nodes config and waits until config is applied
-# assuming the only nodes config filter is `%true`.
-def update_nodes_dynamic_config(new_config, replace=False, driver=None):
-    current_config = get("//sys/cluster_nodes/@config", driver=driver)
+def _update_config_by_path(config, path, replace, value):
+    assert path != ""
+
+    keys = path.split("/")
+
+    last_key = keys.pop(-1)
+    assert last_key != ""
+
+    ref = config
+
+    for key in keys:
+        if key not in ref:
+            if value == {}:
+                return
+            ref[key] = {}
+
+        ref = ref[key]
+
     if replace:
-        current_config["%true"] = new_config
+        ref[last_key] = value
     else:
-        current_config["%true"].update(new_config)
+        update_inplace(ref, {last_key: value})
+
+
+# Applies new config via update_inplace by first going to the specified path.
+# path="" implies updating config on the top level.
+# Assumes the only nodes config filter is `%true`.
+# Path is expected to neither start nor end with "/"
+def update_nodes_dynamic_config(value={}, path="", replace=False, driver=None):
+    current_config = get("//sys/cluster_nodes/@config", driver=driver)
+
+    if path == "":
+        if replace:
+            current_config["%true"] = value
+        else:
+            update_inplace(current_config["%true"], value)
+    else:
+        _update_config_by_path(current_config["%true"], path, replace, value)
+
     set("//sys/cluster_nodes/@config", current_config, driver=driver)
 
     for node in ls("//sys/cluster_nodes", driver=driver):
