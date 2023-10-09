@@ -3573,16 +3573,16 @@ void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributes(
     TJobSchedulerPostUpdateContext* postUpdateContext) const
 {
     auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
-    auto isAggressivePreemptionAllowed = IsAggressivePreemptionAllowed(element);
+    auto aggressivePreemptionAllowed = IsAggressivePreemptionAllowed(element);
     if (element->IsRoot()) {
-        YT_VERIFY(isAggressivePreemptionAllowed);
-        attributes.EffectiveAggressivePreemptionAllowed = *isAggressivePreemptionAllowed;
+        YT_VERIFY(aggressivePreemptionAllowed);
+        attributes.EffectiveAggressivePreemptionAllowed = *aggressivePreemptionAllowed;
     } else {
         const auto* parent = element->GetParent();
         YT_VERIFY(parent);
         const auto& parentAttributes = postUpdateContext->StaticAttributesList.AttributesOf(parent);
 
-        attributes.EffectiveAggressivePreemptionAllowed = isAggressivePreemptionAllowed
+        attributes.EffectiveAggressivePreemptionAllowed = aggressivePreemptionAllowed
             .value_or(parentAttributes.EffectiveAggressivePreemptionAllowed);
     }
 
@@ -3615,10 +3615,10 @@ void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributesAt
     // If fair share ratio equals demand ratio then we want to explicitly disable preemption.
     // It is necessary since some job's resource usage may increase before the next fair share update,
     // and in this case we don't want any jobs to become preemptible
-    bool isDominantFairShareEqualToDominantDemandShare =
+    bool dominantFairShareEqualToDominantDemandShare =
         TResourceVector::Near(element->Attributes().FairShare.Total, element->Attributes().DemandShare, NVectorHdrf::RatioComparisonPrecision) &&
             !Dominates(TResourceVector::Epsilon(), element->Attributes().DemandShare);
-    bool currentPreemptibleValue = !isDominantFairShareEqualToDominantDemandShare;
+    bool currentPreemptibleValue = !dominantFairShareEqualToDominantDemandShare;
 
     const auto& operationSharedState = postUpdateContext->StaticAttributesList.AttributesOf(element).OperationSharedState;
     operationSharedState->PublishFairShare(element->Attributes().FairShare.Total);
