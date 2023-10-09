@@ -1962,18 +1962,13 @@ private:
             ControlEpochContext_->CellManager,
             selfChangelogId,
             ChangelogStore_->GetTermOrThrow());
-        auto [changelogId, term] = WaitFor(asyncResult)
+        auto [changelogId, changelogTerm] = WaitFor(asyncResult)
             .ValueOrThrow();
 
-        auto snapshotParams = WaitFor(
-            DiscoverLatestSnapshot(Config_->Get(), ControlEpochContext_->CellManager))
-            .ValueOrThrow();
-        auto localLatestSnapshotId = WaitFor(SnapshotStore_->GetLatestSnapshotId())
-            .ValueOrThrow();
-        auto snapshotId = std::max(snapshotParams.SnapshotId, localLatestSnapshotId);
+        auto [snapshotId, snapshotTerm] = ComputeQuorumLatestSnapshotId();
 
         auto newChangelogId = std::max(snapshotId, changelogId) + 1;
-        auto newTerm = term + 1;
+        auto newTerm = std::max(snapshotTerm, changelogTerm) + 1;
 
         WaitFor(ChangelogStore_->SetTerm(newTerm))
             .ThrowOnError();
@@ -2964,6 +2959,26 @@ private:
         AllSucceeded(std::move(futures))
             .Get()
             .ThrowOnError();
+    }
+
+    std::pair<int, int> ComputeQuorumLatestSnapshotId()
+    {
+        auto getTerm = [] (const TSnapshotMeta& meta) {
+            return meta.has_last_mutation_term() ? meta.last_mutation_term() : 0;
+        };
+        auto snapshotId = WaitFor(SnapshotStore_->GetLatestSnapshotId())
+            .ValueOrThrow();
+        auto term = 0;
+        if (snapshotId != InvalidSegmentId) {
+            auto reader = SnapshotStore_->CreateReader(snapshotId);
+            term = getTerm(reader->GetParams().Meta);
+        }
+        auto snapshotParams = WaitFor(
+            DiscoverLatestSnapshot(Config_->Get(), ControlEpochContext_->CellManager))
+            .ValueOrThrow();
+        snapshotId = std::max(snapshotId, snapshotParams.SnapshotId);
+        term = std::max(term, getTerm(snapshotParams.Meta));
+        return {snapshotId, term};
     }
 };
 
