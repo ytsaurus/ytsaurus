@@ -24,7 +24,7 @@ TString Sha256HashHex(TSharedRef data);
 TString Sha256HashHex(const TString& string);
 
 //! Computes HMAC by using the SHA256 algorithm with the signing key provided.
-TString HmacSha256(const TString& key, const TString& message);
+TString HmacSha256(TStringBuf key, TStringBuf message);
 
 //! Remove any leading or trailing whitespace.
 TString Trim(const TString& string);

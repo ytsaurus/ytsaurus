@@ -32,7 +32,7 @@ TString Sha256HashHex(const TString& string)
     return Sha256HashHex(TSharedRef::FromString(string));
 }
 
-TString HmacSha256(const TString& key, const TString& message)
+TString HmacSha256(TStringBuf key, TStringBuf message)
 {
     return CreateSha256HmacRaw(key, message);
 }

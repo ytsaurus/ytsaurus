@@ -175,13 +175,14 @@ void PrepareHttpRequest(
 
     auto canonicalRequest = canonicalRequestStream.Str();
 
-    auto date = DateToString(requestTime.TimeT());
+    auto time = NCrypto::FormatTimeIso8601(requestTime);
+    auto date = TStringBuf(time).substr(0, "YYYYMMDD"sv.size());
     auto scope = Format("%v/%v/%v/aws4_request",
         date,
         request->Region,
         request->Service);
     auto stringToSign = Format("AWS4-HMAC-SHA256\n%v\n%v\n%v",
-        NCrypto::FormatTimeIso8601(requestTime),
+        time,
         scope,
         NCrypto::Sha256HashHex(canonicalRequest));
 
