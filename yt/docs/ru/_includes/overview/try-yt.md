@@ -35,7 +35,7 @@ token=""
 #### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.4.0 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.4.1 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
@@ -90,7 +90,7 @@ https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
 #### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.2.1 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.4.1 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
