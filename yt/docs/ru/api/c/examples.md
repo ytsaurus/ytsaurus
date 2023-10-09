@@ -1,1 +1,0 @@
-{% include [Примеры использования](../../_includes/api/c/examples.md) %}

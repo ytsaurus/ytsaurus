@@ -9,7 +9,7 @@ This section contains information about the different interfaces for working wit
 
 {% note info "Note" %}
 
-There are more convenient interfaces for working with the {{product-name}} system: [Python API](../../../api/python/start.md) and [С++ API](../../../api/c/description.md).
+There are more convenient interfaces for working with the {{product-name}} system: [Python API](../../../api/python/start.md) and [С++ API](../../../api/cpp/description.md).
 
 {% endnote %}
 

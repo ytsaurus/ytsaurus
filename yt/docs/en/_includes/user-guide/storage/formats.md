@@ -380,4 +380,4 @@ The values are specified in parentheses by default.
 - **enable_type_conversion** (`false`) — enable all of the above options. In most cases, this option will suffice.
 
 ## PROTOBUF { #PROTOBUF }
-For more information, see the [Protobuf](../../../api/c/protobuf.md) section.
+For more information, see the [Protobuf](../../../api/cpp/protobuf.md) section.

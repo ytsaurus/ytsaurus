@@ -3,7 +3,7 @@
 To use the features of {{product-name}}, you can use the [C++ client](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce).
 
 {% if audience == "internal" %}
-See also [Use cases](../../../api/c/examples.md).{% else %}{% endif %}
+See also [Use cases](../../../api/cpp/examples.md).{% else %}{% endif %}
 
 {% if audience == "public" %}
 
@@ -436,7 +436,7 @@ struct TYaMRRow
 
 ### Protobuf
 
-For more information about Protobuf, see [Protobuf representation of tables](../../../api/c/protobuf.md).
+For more information about Protobuf, see [Protobuf representation of tables](../../../api/cpp/protobuf.md).
 
 Here, it is possible to define a custom protobuf type. To display protobuf fields in column names, use the following extensions:
 
@@ -449,7 +449,7 @@ message TSampleProto {
 }
 ```
 
-There is support for nested structures, in which case binary protobuf serialization is used: a row with binary protobuf serialization of the [nested message](../../../api/c/protobuf.md#embedded) is stored in a table column. Nested structures can have `repeated` fields, which undergo binary serialization along with the rest of the nested message.
+There is support for nested structures, in which case binary protobuf serialization is used: a row with binary protobuf serialization of the [nested message](../../../api/cpp/protobuf.md#embedded) is stored in a table column. Nested structures can have `repeated` fields, which undergo binary serialization along with the rest of the nested message.
 
 {% note warning %}
 

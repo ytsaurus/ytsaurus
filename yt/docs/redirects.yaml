@@ -1,18 +1,39 @@
+common:
+    - from: /api/c/
+      to: /api/cpp/
+      type: redirect
+
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/c/description.md
+      type: redirect
+
+    - from: /api/c/description.md
+      to: /api/cpp/description.md
       type: redirect
 
     - from: /api/c\+\+/examples.md
       to: /api/c/examples.md
       type: redirect
 
+    - from: /api/c/examples.md
+      to: /api/cpp/examples.md
+      type: redirect
+
     - from: /api/c\+\+/lambda.md
       to: /api/c/lambda.md
       type: redirect
 
+    - from: /api/c/lambda.md
+      to: /api/cpp/lambda.md
+      type: redirect
+
     - from: /api/c\+\+/protobuf.md
       to: /api/c/protobuf.md
+      type: redirect
+
+    - from: /api/c/protobuf.md
+      to: /api/cpp/protobuf.md
       type: redirect
 
     - from: /api/error_codes.md

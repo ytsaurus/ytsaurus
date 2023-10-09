@@ -1,1 +1,0 @@
-{% include [Описание](../../_includes/api/c/description.md) %}

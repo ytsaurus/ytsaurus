@@ -352,15 +352,15 @@ items:
            - name: C++
              items:
                - name: Description
-                 href: api/c/description.md
+                 href: api/cpp/description.md
                - name: Protobuf representation of tables
-                 href: api/c/protobuf.md
+                 href: api/cpp/protobuf.md
                # - name: Лямбда-выражения
-               #   href: api/c/lambda.md
+               #   href: api/cpp/lambda.md
                # - name: Примеры использования
-               #   href: api/c/examples.md
+               #   href: api/cpp/examples.md
               # - name: Reference
-              #   href: api/c/reference.md
+              #   href: api/cpp/reference.md
            - name: Go API
              href: api/go/reference.md
            - name: Java API

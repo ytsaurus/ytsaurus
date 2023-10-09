@@ -9,7 +9,7 @@
 
 {% note info "Примечание" %}
 
-Для работы с системой {{product-name}} существуют более удобные интерфейсы: [python API](../../../api/python/start.md) и [С++ API](../../../api/c/description.md).
+Для работы с системой {{product-name}} существуют более удобные интерфейсы: [python API](../../../api/python/start.md) и [С++ API](../../../api/cpp/description.md).
 
 {% endnote %}
 

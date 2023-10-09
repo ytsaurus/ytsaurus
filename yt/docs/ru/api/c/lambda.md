@@ -1,1 +1,0 @@
-{% include [lambda функции](../../_includes/api/c/lambda.md) %}
