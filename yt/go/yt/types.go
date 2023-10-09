@@ -174,6 +174,14 @@ func (id *OperationID) UnmarshalYSON(data []byte) (err error) {
 	return
 }
 
+func (id OperationID) MarshalText() ([]byte, error) {
+	return guid.GUID(id).MarshalText()
+}
+
+func (id *OperationID) UnmarshalText(data []byte) error {
+	return (*guid.GUID)(id).UnmarshalText(data)
+}
+
 type TxID guid.GUID
 
 func (id TxID) String() string {
