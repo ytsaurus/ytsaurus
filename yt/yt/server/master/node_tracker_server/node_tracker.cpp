@@ -1798,7 +1798,7 @@ private:
 
             NodeOnline_.Fire(node);
 
-            YT_LOG_INFO("Node is online (NodeId: %v, Address: %v)",
+            YT_LOG_INFO("Node online (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
         }
