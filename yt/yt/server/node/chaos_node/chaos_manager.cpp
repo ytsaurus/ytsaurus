@@ -16,7 +16,7 @@
 
 #include <yt/server/node/chaos_node/chaos_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>

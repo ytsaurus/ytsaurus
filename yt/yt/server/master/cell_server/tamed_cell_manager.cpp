@@ -58,7 +58,7 @@
 
 #include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h>
 

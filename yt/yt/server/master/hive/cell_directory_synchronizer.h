@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/cell_server/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 

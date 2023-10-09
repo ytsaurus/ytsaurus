@@ -33,7 +33,7 @@ target_link_libraries(unittester-tablet-node PUBLIC
   library-query-row_comparer
   yt-server-node
   yt-server-tools
-  lib-hydra_common-mock
+  lib-hydra-mock
   contrib-libs-protobuf
 )
 target_link_options(unittester-tablet-node PRIVATE

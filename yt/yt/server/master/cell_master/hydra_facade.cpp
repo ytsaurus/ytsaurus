@@ -14,16 +14,14 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/private.h>
-#include <yt/yt/server/lib/hydra_common/local_hydra_janitor.h>
-#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
-
-#include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra2/dry_run_hydra_manager.h>
-#include <yt/yt/server/lib/hydra2/private.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
+#include <yt/yt/server/lib/hydra/private.h>
+#include <yt/yt/server/lib/hydra/local_hydra_janitor.h>
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/dry_run_hydra_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
@@ -124,7 +122,7 @@ public:
         if (Config_->DryRun->EnableDryRun) {
             hydraManagerOptions.UseFork = false;
 
-            HydraManager_ = NHydra2::CreateDryRunHydraManager(
+            HydraManager_ = NHydra::CreateDryRunHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
@@ -133,7 +131,7 @@ public:
                 hydraManagerOptions,
                 Bootstrap_->GetCellManager());
         } else {
-            HydraManager_ = NHydra2::CreateDistributedHydraManager(
+            HydraManager_ = NHydra::CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),

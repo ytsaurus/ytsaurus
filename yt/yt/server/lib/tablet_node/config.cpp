@@ -24,10 +24,6 @@ void TTabletHydraManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->PreallocateChangelogs = true;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -928,7 +924,6 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
 
     registrar.Preprocessor([] (TThis* config) {
         config->VersionedChunkMetaCache->Capacity = 10_GB;
-        config->HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
     });
 
     registrar.Postprocessor([] (TThis* config) {

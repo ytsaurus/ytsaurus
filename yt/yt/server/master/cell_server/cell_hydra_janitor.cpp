@@ -18,7 +18,7 @@
 
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_janitor_helpers.h>
+#include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 

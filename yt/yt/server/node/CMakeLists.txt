@@ -91,9 +91,8 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-chunk_server
   server-lib-exec_node
   server-lib-tablet_server
-  server-lib-hydra_common
-  lib-hydra_common-dry_run
-  server-lib-hydra2
+  server-lib-hydra
+  lib-hydra-dry_run
   server-lib-lsm
   server-lib-rpc
   server-lib-controller_agent

@@ -1,8 +1,8 @@
 #include <yt/yt/library/program/program.h>
 
-#include <yt/yt/server/lib/hydra_common/config.h>
-#include <yt/yt/server/lib/hydra_common/file_changelog.h>
-#include <yt/yt/server/lib/hydra_common/file_changelog_dispatcher.h>
+#include <yt/yt/server/lib/hydra/config.h>
+#include <yt/yt/server/lib/hydra/file_changelog.h>
+#include <yt/yt/server/lib/hydra/file_changelog_dispatcher.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
 

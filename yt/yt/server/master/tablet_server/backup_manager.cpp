@@ -20,7 +20,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/dynamic_store.h>
 
-#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 

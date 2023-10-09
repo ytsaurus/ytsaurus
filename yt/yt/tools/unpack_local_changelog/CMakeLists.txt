@@ -18,7 +18,7 @@ target_link_libraries(unpack-local-changelog PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
   yt-library-program
-  server-lib-hydra_common
+  server-lib-hydra
   cpp-getopt-small
 )
 target_link_options(unpack-local-changelog PRIVATE

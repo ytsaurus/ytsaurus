@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/server/master/object_server/public.h>
 

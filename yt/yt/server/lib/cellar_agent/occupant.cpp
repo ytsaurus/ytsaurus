@@ -8,19 +8,18 @@
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/distributed_election_manager.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog_store_factory_thunk.h>
-#include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/config.h>
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
-#include <yt/yt/server/lib/hydra_common/hydra_service.h>
-#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
-#include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/snapshot_store_thunk.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
-
-#include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra2/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/changelog_store_factory_thunk.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/config.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/snapshot_store_thunk.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/dry_run_hydra_manager.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/election_manager_thunk.h>
@@ -438,7 +437,7 @@ public:
             if (Config_->EnableDryRun) {
                 hydraManagerOptions.UseFork = false;
 
-                auto dryRunHydraManager = NHydra2::CreateDryRunHydraManager(
+                auto dryRunHydraManager = NHydra::CreateDryRunHydraManager(
                     Config_->HydraManager,
                     Bootstrap_->GetControlInvoker(),
                     occupier->GetMutationAutomatonInvoker(),
@@ -448,7 +447,7 @@ public:
                     CellManager_);
                 hydraManager = StaticPointerCast<IDistributedHydraManager>(dryRunHydraManager);
             } else {
-                hydraManager = NHydra2::CreateDistributedHydraManager(
+                hydraManager = NHydra::CreateDistributedHydraManager(
                     Config_->HydraManager,
                     Bootstrap_->GetControlInvoker(),
                     occupier->GetMutationAutomatonInvoker(),

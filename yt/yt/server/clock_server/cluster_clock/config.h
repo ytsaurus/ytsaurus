@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 

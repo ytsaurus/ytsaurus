@@ -14,7 +14,7 @@
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/journal_manager.h>
 
-#include <yt/yt/server/lib/hydra_common/file_changelog.h>
+#include <yt/yt/server/lib/hydra/file_changelog.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 

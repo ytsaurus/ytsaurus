@@ -49,15 +49,15 @@
 
 #include <yt/yt/server/master/hive/cell_directory_synchronizer.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/file_changelog_dispatcher.h>
-#include <yt/yt/server/lib/hydra_common/file_changelog.h>
-#include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
-#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/dry_run/dry_run_hydra_manager.h>
-#include <yt/yt/server/lib/hydra_common/dry_run/public.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/file_changelog_dispatcher.h>
+#include <yt/yt/server/lib/hydra/file_changelog.h>
+#include <yt/yt/server/lib/hydra/local_changelog_store.h>
+#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
+#include <yt/yt/server/lib/hydra/dry_run/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/dry_run/public.h>
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>

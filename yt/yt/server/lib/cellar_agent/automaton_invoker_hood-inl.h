@@ -4,7 +4,7 @@
 #include "automaton_invoker_hood.h"
 #endif
 
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 

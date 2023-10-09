@@ -22,7 +22,7 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 
-#include <yt/yt/server/lib/hydra_common/mock/simple_hydra_manager_mock.h>
+#include <yt/yt/server/lib/hydra/mock/simple_hydra_manager_mock.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 

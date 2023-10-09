@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 

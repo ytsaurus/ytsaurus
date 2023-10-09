@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_base.h>

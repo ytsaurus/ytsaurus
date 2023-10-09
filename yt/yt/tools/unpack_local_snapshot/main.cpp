@@ -1,6 +1,6 @@
 #include <yt/yt/library/program/program.h>
 
-#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 

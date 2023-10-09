@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 

@@ -91,7 +91,7 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>

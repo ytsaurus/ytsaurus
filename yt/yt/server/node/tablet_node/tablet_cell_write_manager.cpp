@@ -11,9 +11,9 @@
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
 
-#include <yt/yt/server/lib/hydra_common/automaton.h>
-#include <yt/yt/server/lib/hydra_common/mutation.h>
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/automaton.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>

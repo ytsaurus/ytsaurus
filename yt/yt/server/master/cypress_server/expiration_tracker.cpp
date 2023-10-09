@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/mutation.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>

@@ -17,7 +17,7 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
-#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/tablet_server/config.h>
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>

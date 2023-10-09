@@ -15,7 +15,7 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_context.h>
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 

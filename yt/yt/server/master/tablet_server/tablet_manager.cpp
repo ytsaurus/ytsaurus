@@ -67,7 +67,7 @@
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/subject.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_janitor_helpers.h>
+#include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>

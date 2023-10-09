@@ -8,11 +8,11 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
-#include <yt/yt/server/lib/hydra_common/hydra_service.h>
-#include <yt/yt/server/lib/hydra_common/mutation.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 

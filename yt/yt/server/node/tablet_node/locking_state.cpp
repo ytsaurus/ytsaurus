@@ -3,7 +3,7 @@
 #include "private.h"
 #include "serialize.h"
 
-#include <yt/yt/server/lib/hydra_common/hydra_context.h>
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/master/cell_master/proto/response_keeper_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
 #include <yt/yt/core/misc/serialize.h>
 

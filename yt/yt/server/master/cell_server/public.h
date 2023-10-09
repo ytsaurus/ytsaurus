@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/master/tablet_server/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
 

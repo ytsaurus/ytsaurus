@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/hydra_common/serialize.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
 
 #include <yt/yt/core/misc/property.h>
 

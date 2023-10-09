@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_context.h>
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 namespace NYT::NCypressServer {
 

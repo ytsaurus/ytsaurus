@@ -32,9 +32,9 @@
 #include <yt/yt/server/lib/hive/mailbox.h>
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 
-#include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
-#include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>

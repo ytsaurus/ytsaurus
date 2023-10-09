@@ -7,7 +7,7 @@
 
 #include <yt/yt/server/lib/chaos_node/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 

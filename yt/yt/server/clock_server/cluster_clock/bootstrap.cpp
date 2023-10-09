@@ -4,10 +4,10 @@
 #include "config.h"
 #include "hydra_facade.h"
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
-#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/local_changelog_store.h>
+#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
 
 #include <yt/yt/server/lib/timestamp_server/timestamp_manager.h>
 

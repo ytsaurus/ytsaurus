@@ -10,7 +10,7 @@
 #include "job_registry.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>

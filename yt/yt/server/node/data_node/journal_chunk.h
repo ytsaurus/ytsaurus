@@ -2,7 +2,7 @@
 
 #include "chunk_detail.h"
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 namespace NYT::NDataNode {
 

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "serialize.h"
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 

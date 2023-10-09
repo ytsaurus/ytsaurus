@@ -12,8 +12,8 @@
 
 #include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/mutation_context.h>
-#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>

@@ -2,7 +2,7 @@
 #include "config.h"
 #include "snapshot_exporter.h"
 
-#include <yt/yt/server/lib/hydra_common/dry_run/utils.h>
+#include <yt/yt/server/lib/hydra/dry_run/utils.h>
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>

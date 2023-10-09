@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 namespace NYT::NZookeeperServer {
 

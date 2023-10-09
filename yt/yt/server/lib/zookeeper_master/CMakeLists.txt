@@ -19,7 +19,7 @@ target_link_libraries(server-lib-zookeeper_master PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  server-lib-hydra_common
+  server-lib-hydra
 )
 target_sources(server-lib-zookeeper_master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/bootstrap.cpp

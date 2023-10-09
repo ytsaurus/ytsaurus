@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 

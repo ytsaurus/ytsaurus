@@ -11,7 +11,7 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra_common/file_changelog.h>
+#include <yt/yt/server/lib/hydra/file_changelog.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 

@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/lib/misc/cluster_connection.h>
 
-#include <yt/yt/server/lib/hydra_common/dry_run/utils.h>
+#include <yt/yt/server/lib/hydra/dry_run/utils.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 

@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 

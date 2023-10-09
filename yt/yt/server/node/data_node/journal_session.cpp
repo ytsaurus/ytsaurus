@@ -9,7 +9,7 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra_common/file_changelog.h>
+#include <yt/yt/server/lib/hydra/file_changelog.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 

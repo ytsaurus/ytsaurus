@@ -6,9 +6,9 @@
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
 
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
 
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 

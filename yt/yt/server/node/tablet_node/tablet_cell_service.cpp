@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/node/tablet_node/master_connector.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_service.h>
+#include <yt/yt/server/lib/hydra/hydra_service.h>
 
 #include <yt/yt/ytlib/cellar_client/tablet_cell_service_proxy.h>
 

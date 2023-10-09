@@ -14,7 +14,7 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 

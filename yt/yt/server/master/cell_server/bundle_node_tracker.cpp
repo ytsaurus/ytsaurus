@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 namespace NYT::NCellServer {
 

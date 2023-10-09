@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/core/misc/ref_counted.h>
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 

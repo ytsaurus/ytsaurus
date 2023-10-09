@@ -40,9 +40,9 @@
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
 
-#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra_common/mutation.h>
-#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 

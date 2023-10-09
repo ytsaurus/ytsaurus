@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>

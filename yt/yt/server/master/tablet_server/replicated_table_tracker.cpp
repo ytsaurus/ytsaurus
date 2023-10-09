@@ -33,7 +33,7 @@
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 

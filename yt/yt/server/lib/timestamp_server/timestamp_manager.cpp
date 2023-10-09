@@ -4,10 +4,10 @@
 
 #include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
-#include <yt/yt/server/lib/hydra_common/mutation.h>
-#include <yt/yt/server/lib/hydra_common/serialize.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
 
 #include <yt/yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h>
 

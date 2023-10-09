@@ -6,8 +6,8 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_tree_statistics.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
-#include <yt/yt/server/lib/hydra_common/mutation.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/master/object_server/public.h>
 

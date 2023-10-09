@@ -7,8 +7,8 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/lib/hydra_common/serialize.h>
-#include <yt/yt/server/lib/hydra_common/checkpointable_stream.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
+#include <yt/yt/server/lib/hydra/checkpointable_stream.h>
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 

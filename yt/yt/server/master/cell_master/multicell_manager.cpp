@@ -31,7 +31,7 @@
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/mutation.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>

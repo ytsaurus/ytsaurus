@@ -17,11 +17,11 @@
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-#include <yt/yt/server/lib/hydra_common/dry_run/dry_run_hydra_manager.h>
-#include <yt/yt/server/lib/hydra_common/dry_run/journal_as_local_file_read_only_changelog.h>
-#include <yt/yt/server/lib/hydra_common/dry_run/public.h>
-#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/dry_run/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.h>
+#include <yt/yt/server/lib/hydra/dry_run/public.h>
+#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
 
 #include <yt/yt/core/misc/fs.h>
 

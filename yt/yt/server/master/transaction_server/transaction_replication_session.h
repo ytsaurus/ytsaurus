@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 

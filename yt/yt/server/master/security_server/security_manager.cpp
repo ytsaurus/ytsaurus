@@ -42,8 +42,8 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
 #include <yt/yt/server/master/object_server/map_object.h>

@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 

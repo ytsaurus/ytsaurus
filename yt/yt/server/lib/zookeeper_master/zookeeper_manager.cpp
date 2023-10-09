@@ -3,8 +3,8 @@
 #include "bootstrap.h"
 #include "zookeeper_shard.h"
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-#include <yt/yt/server/lib/hydra_common/hydra_context.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 namespace NYT::NZookeeperMaster {
 

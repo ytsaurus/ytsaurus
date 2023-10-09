@@ -2,7 +2,7 @@
 
 #include "store_manager.h"
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/server/lib/lsm/public.h>
 

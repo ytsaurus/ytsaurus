@@ -4,7 +4,7 @@
 #include "replication_card_collocation.h"
 #include "serialize.h"
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/client/chaos_client/public.h>
 

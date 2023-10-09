@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/public.h>
 

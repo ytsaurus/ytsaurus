@@ -65,7 +65,7 @@
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/yt/server/lib/hydra_common/hydra_context.h>
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 

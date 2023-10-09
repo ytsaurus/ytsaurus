@@ -16,7 +16,7 @@ target_link_libraries(yt-server-clock_server PUBLIC
   contrib-libs-cxxsupp
   yutil
   ytserver
-  server-lib-hydra2
+  server-lib-hydra
   server-lib-hive
   server-lib-timestamp_server
 )
