@@ -95,6 +95,13 @@ DEFINE_REFCOUNTED_TYPE(IChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChangelogOptions
+{
+    //! If true, open/create requests to changelog store will return a changelog instance
+    //! that is ready to accept and flush new records with minimal latency.
+    bool CreateWriterEagerly = false;
+};
+
 //! Manages a collection of changelogs within a cell.
 struct IChangelogStore
     : public virtual TRefCounted
@@ -125,8 +132,8 @@ struct IChangelogStore
 
     //! Returns the initial reachable state, i.e this is
     //! |(t, n, m)| where |t| is changelog term,
-    // |n| is the maximum existing nonempty changelog id
-    // and |m| is the sequence number of the last record in it.
+    //! |n| is the maximum existing nonempty changelog id
+    //! and |m| is the sequence number of the last record in it.
     //! If no changelog exists in the store then |(0, 0, 0)| is returned.
     //! If the store is read-only then |std::nullopt| is returned.
     //! This reachable state captures the initial state and is never updated.
@@ -140,17 +147,15 @@ struct IChangelogStore
     virtual std::optional<TVersion> GetReachableVersion() const = 0;
 
     //! Creates a new changelog.
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) = 0;
+    virtual TFuture<IChangelogPtr> CreateChangelog(
+        int id,
+        const NProto::TChangelogMeta& meta,
+        const TChangelogOptions& options = {}) = 0;
 
     //! Opens an existing changelog.
-    /*!
-     *  The resulting changelog cannot be appended but can be truncated.
-     *
-     *  It is also possible that some writers are concurrently appending to this changelog.
-     *  Note that IChangelog::GetRecordCount may return, in this case, the number of records
-     *  that were present at the moment when the changelog was opened.
-     */
-    virtual TFuture<IChangelogPtr> OpenChangelog(int id) = 0;
+    virtual TFuture<IChangelogPtr> OpenChangelog(
+        int id,
+        const TChangelogOptions& options = {}) = 0;
 
     //! Removes an existing changelog.
     virtual TFuture<void> RemoveChangelog(int id) = 0;
@@ -165,7 +170,9 @@ struct IChangelogStore
 
     //! Opens an existing changelog.
     //! If the requested changelog is not found then returns |nullptr|.
-    TFuture<IChangelogPtr> TryOpenChangelog(int id);
+    TFuture<IChangelogPtr> TryOpenChangelog(
+        int id,
+        const TChangelogOptions& options = {});
 
     //! Aborts the locks being held by the instance; cf. #IChangelogStoreFactory::Lock.
     virtual void Abort() = 0;

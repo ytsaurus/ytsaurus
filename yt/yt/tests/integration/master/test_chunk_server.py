@@ -712,8 +712,8 @@ class TestChunkServerMulticell(TestChunkServer):
                     assert get("{0}/@external_cell_tag".format(changelog_path)) == expected_cell_tag
                 else:
                     assert get("{0}/@native_cell_tag".format(changelog_path)) == expected_cell_tag
-                chunk_id = get("{0}/@chunk_ids/0".format(changelog_path))
-                assert get("#{}/@native_cell_tag".format(chunk_id)) == expected_cell_tag
+                for chunk_id in get("{0}/@chunk_ids".format(changelog_path)):
+                    assert get("#{}/@native_cell_tag".format(chunk_id)) == expected_cell_tag
 
 
 ##################################################################
