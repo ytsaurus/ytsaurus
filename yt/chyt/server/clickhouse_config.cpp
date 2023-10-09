@@ -153,6 +153,20 @@ void TClickHouseConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_connections", &TThis::MaxConnections)
         .Default(1024);
 
+    registrar.Parameter("max_thread_pool_size", &TThis::MaxThreadPoolSize)
+        .Default(10000);
+    registrar.Parameter("max_thread_pool_free_size", &TThis::MaxThreadPoolFreeSize)
+        .Default(1000);
+    registrar.Parameter("thread_pool_queue_size", &TThis::ThreadPoolQueueSize)
+        .Default(10000);
+
+    registrar.Parameter("max_io_thread_pool_size", &TThis::MaxIOThreadPoolSize)
+        .Default(100);
+    registrar.Parameter("max_io_thread_pool_free_size", &TThis::MaxIOThreadPoolFreeSize)
+        .Default(0);
+    registrar.Parameter("io_thread_pool_queue_size", &TThis::IOThreadPoolQueueSize)
+        .Default(10000);
+
     registrar.Parameter("keep_alive_timeout", &TThis::KeepAliveTimeout)
         .Default(10);
 

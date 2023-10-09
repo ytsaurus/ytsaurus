@@ -189,6 +189,14 @@ public:
 
     int MaxConnections;
 
+    int MaxThreadPoolSize;
+    int MaxThreadPoolFreeSize;
+    int ThreadPoolQueueSize;
+
+    int MaxIOThreadPoolSize;
+    int MaxIOThreadPoolFreeSize;
+    int IOThreadPoolQueueSize;
+
     int KeepAliveTimeout;
 
     int TcpPort;

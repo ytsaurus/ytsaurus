@@ -33,6 +33,7 @@
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
+#include <IO/IOThreadPool.h>
 #include <Storages/StorageMemory.h>
 #include <Storages/System/attachSystemTables.h>
 #include <Storages/System/attachSystemTablesImpl.h>
@@ -186,6 +187,16 @@ private:
     void SetupContext()
     {
         YT_LOG_INFO("Setting up context");
+
+        GlobalThreadPool::initialize(
+            Config_->MaxThreadPoolSize,
+            Config_->MaxThreadPoolFreeSize,
+            Config_->ThreadPoolQueueSize);
+
+        DB::IOThreadPool::initialize(
+            Config_->MaxIOThreadPoolSize,
+            Config_->MaxIOThreadPoolFreeSize,
+            Config_->IOThreadPoolQueueSize);
 
         ServerContext_->makeGlobalContext();
         ServerContext_->setApplicationType(DB::Context::ApplicationType::SERVER);
