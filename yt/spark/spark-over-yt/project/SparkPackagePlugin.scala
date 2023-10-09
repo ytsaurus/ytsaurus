@@ -5,6 +5,7 @@ import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
 import spyt.SparkPaths._
+import spyt.SpytPlugin.autoImport.gpgPassphrase
 
 import java.io.{FileInputStream, FilenameFilter, InputStreamReader}
 import java.util.Properties
@@ -58,8 +59,6 @@ object SparkPackagePlugin extends AutoPlugin {
       LinuxPackageMapping(inner(Seq(src -> dst), Nil))
     }
   }
-
-  private def gpgPassphrase: Option[String] = Option(System.getProperty("gpg.passphrase"))
 
   private def readSparkDefaults(file: File): Map[String, String] = {
     import scala.collection.JavaConverters._

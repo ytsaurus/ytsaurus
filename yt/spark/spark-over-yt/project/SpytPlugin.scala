@@ -74,9 +74,11 @@ object SpytPlugin extends AutoPlugin {
     val releaseSparkForkCommitMessage = taskKey[String]("")
 
     def publishRepoEnabled: Boolean = Option(System.getProperty("publishRepo")).exists(_.toBoolean)
+    def publishMavenCentralEnabled: Boolean = Option(System.getProperty("publishMavenCentral")).exists(_.toBoolean)
     def publishYtEnabled: Boolean = Option(System.getProperty("publishYt")).forall(_.toBoolean)
     def customClusterVersion: Option[String] = Option(System.getProperty("customClusterVersion"))
     def customSparkForkVersion: Option[String] = Option(System.getProperty("customSparkForkVersion"))
+    def gpgPassphrase: Option[String] = Option(System.getProperty("gpg.passphrase"))
 
     private def getBuildDirectory(rootDirectory: File): File = {
       rootDirectory / "build_output"

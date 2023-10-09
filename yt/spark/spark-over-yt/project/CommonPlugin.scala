@@ -1,4 +1,5 @@
 import Dependencies._
+import com.jsuereth.sbtpgp.PgpKeys.pgpPassphrase
 import sbt.Keys._
 import sbt._
 import sbt.plugins.JvmPlugin
@@ -68,6 +69,19 @@ object CommonPlugin extends AutoPlugin {
     ThisBuild / version := (ThisBuild / spytClusterVersion).value,
     organization := "tech.ytsaurus",
     name := s"spark-yt-${name.value}",
+    organizationName := "YTsaurus",
+    organizationHomepage := Some(url("https://ytsaurus.tech/")),
+    scmInfo := Some(ScmInfo(url("https://github.com/ytsaurus/ytsaurus"), "scm:git@github.com:ytsaurus/ytsaurus.git")),
+    developers := List(
+      Developer("Alexvsalexvsalex", "Alexey Shishkin", "alex-shishkin@ytsaurus.tech", url("https://ytsaurus.tech/")),
+      Developer("alextokarew", "Aleksandr Tokarev", "atokarew@ytsaurus.tech", url("https://ytsaurus.tech/")),
+    ),
+    description := "Spark over YTsaurus",
+    licenses := List(
+      "The Apache License, Version 2.0" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")
+    ),
+    homepage := Some(url("https://ytsaurus.tech/")),
+    pomIncludeRepository := { _ => false },
     scalaVersion := "2.12.8",
     javacOptions ++= Seq("-source", "11", "-target", "11"),
     assembly / assemblyMergeStrategy := {
@@ -89,6 +103,7 @@ object CommonPlugin extends AutoPlugin {
       else
         Some("releases" at "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
     },
+    publishMavenStyle := true,
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
     credentials += Credentials(Path.userHome / ".sbt" / ".ossrh_credentials"),
     libraryDependencies ++= testDeps,
@@ -105,6 +120,7 @@ object CommonPlugin extends AutoPlugin {
       ).map(_ % Provided)
     },
     commonDependencies := ytsaurusClient ++ (ThisBuild / spytSparkForkDependency).value ++ circe ++ logging.map(_ % Provided),
-    Global / excludeLintKeys += commonDependencies
+    Global / excludeLintKeys += commonDependencies,
+    Global / pgpPassphrase := gpgPassphrase.map(_.toCharArray)
   )
 }

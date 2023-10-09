@@ -120,6 +120,7 @@ jobs:
           cd yt/spark/spark-over-yt
           sbt \
             -DpublishRepo=True \
+            -DpublishMavenCentral=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
@@ -205,6 +206,7 @@ jobs:
           cd yt/spark/spark-over-yt
           sbt \
             -DpublishRepo=True \
+            -DpublishMavenCentral=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \

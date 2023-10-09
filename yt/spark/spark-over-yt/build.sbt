@@ -1,5 +1,6 @@
 import CommonPlugin.autoImport._
 import Dependencies._
+import com.jsuereth.sbtpgp.PgpKeys.publishSigned
 import sbtassembly.AssemblyKeys.assembly
 import spyt.PythonPlugin.autoImport._
 import spyt.SparkPackagePlugin.autoImport._
@@ -335,13 +336,13 @@ lazy val root = (project in file("."))
     spytMvnInstallSparkFork := (`spark-fork` / sparkMvnInstall).value,
     spytMvnDeploySparkFork := (`spark-fork` / sparkMvnDeploy).value,
     spytPublishLibraries := {
-      if (publishRepoEnabled) {
+      if (publishMavenCentralEnabled) {
         Def.sequential(
-          `data-source` / publish,
-          `spark-submit` / publish,
-          `submit-client` / publish,
-          `file-system` / publish,
-          `yt-wrapper` / publish
+          `data-source` / publishSigned,
+          `spark-submit` / publishSigned,
+          `submit-client` / publishSigned,
+          `file-system` / publishSigned,
+          `yt-wrapper` / publishSigned
         ).value
       } else {
         streams.value.log.info("Publishing spyt libraries to maven is skipped because of disabled publishRepo")
