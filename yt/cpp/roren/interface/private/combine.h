@@ -87,7 +87,7 @@ private:
                 return ::MakeIntrusive<TRawCombine>(ERawTransformType::CombineGlobally, ::MakeIntrusive<TCombineFn>(), TRowVtable{}, TRowVtable{});
             };
         } else {
-            Y_VERIFY(GetType() == ERawTransformType::CombinePerKey);
+            Y_ABORT_UNLESS(GetType() == ERawTransformType::CombinePerKey);
             return []() -> IRawCombinePtr {
                 return ::MakeIntrusive<TRawCombine>(ERawTransformType::CombinePerKey, ::MakeIntrusive<TCombineFn>(), TRowVtable{}, TRowVtable{});
             };

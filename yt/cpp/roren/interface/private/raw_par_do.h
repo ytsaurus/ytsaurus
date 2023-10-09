@@ -42,11 +42,11 @@ public:
         , FnAttributes_(std::move(fnAttributes))
     {
         if constexpr (std::is_same_v<TOutputRow, void>) {
-            Y_VERIFY(OutputTags_.size() == 0);
+            Y_ABORT_UNLESS(OutputTags_.size() == 0);
         } else if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
             // Do nothing
         } else {
-            Y_VERIFY(OutputTags_.size() == 1, "OutputTags_.size() == %ld", OutputTags_.size());
+            Y_ABORT_UNLESS(OutputTags_.size() == 1, "OutputTags_.size() == %ld", OutputTags_.size());
         }
     }
 
@@ -57,7 +57,7 @@ public:
         } else if constexpr (std::is_same_v<typename TFunction::TOutputRow, TMultiRow>) {
             MultiOutput_.emplace(OutputTags_, outputs);
         } else {
-            Y_VERIFY(outputs.size() == 1);
+            Y_ABORT_UNLESS(outputs.size() == 1);
             SingleOutput_ = outputs[0];
         }
 

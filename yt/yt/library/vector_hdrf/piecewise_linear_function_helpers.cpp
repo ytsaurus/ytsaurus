@@ -75,7 +75,7 @@ TUnpackedVectorPiecewiseSegmentBounds GetBounds(const TUnpackedVectorPiecewiseSe
 TVectorPiecewiseLinearFunction CompressFunction(const TVectorPiecewiseLinearFunction& vecFunc, double epsilon)
 {
     const auto& functionSegments = vecFunc.Segments();
-    Y_VERIFY(!functionSegments.empty());
+    Y_ABORT_UNLESS(!functionSegments.empty());
 
     TVectorPiecewiseLinearFunction::TBuilder builder;
 

@@ -30,7 +30,7 @@ public:
     Y_FORCE_INLINE T* As()
     {
         auto casted = dynamic_cast<T*>(this);
-        Y_VERIFY(casted, "Trying to cast execution context for `%s` executor to incorrect type", GetExecutorName().c_str());
+        Y_ABORT_UNLESS(casted, "Trying to cast execution context for `%s` executor to incorrect type", GetExecutorName().c_str());
         return casted;
     }
 };

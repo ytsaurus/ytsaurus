@@ -29,7 +29,7 @@ protected:
     void DoUndo(size_t len) override
     {
         Current_ -= len;
-        Y_VERIFY(Current_ > Buffer_);
+        Y_ABORT_UNLESS(Current_ > Buffer_);
     }
 
     void DoFlush() override

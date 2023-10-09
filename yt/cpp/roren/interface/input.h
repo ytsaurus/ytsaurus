@@ -137,11 +137,11 @@ template <typename T>
 T ReadSingleRow(TInput<T>& input)
 {
     const auto* current = input.Next();
-    Y_VERIFY(current, "Input is empty");
+    Y_ABORT_UNLESS(current, "Input is empty");
     T result = std::move(*current);
 
     current = input.Next();
-    Y_VERIFY(current, "Input contains more than single entry");
+    Y_ABORT_UNLESS(current, "Input contains more than single entry");
 
     return result;
 }
@@ -156,7 +156,7 @@ std::optional<T> ReadOptionalRow(TInput<T>& input)
     std::optional<T> result = *current;
 
     current = input.Next();
-    Y_VERIFY(!current, "Input contains more than single entry");
+    Y_ABORT_UNLESS(!current, "Input contains more than single entry");
 
     return result;
 }
@@ -264,7 +264,7 @@ private:
                 RawCoders_.push_back(coder);
             }
         } else {
-            Y_VERIFY(RawCoders_.size() == tags.size());
+            Y_ABORT_UNLESS(RawCoders_.size() == tags.size());
         }
     }
 

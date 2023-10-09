@@ -46,7 +46,7 @@ public:
 
     static TNode GenerateRetriableError(TDuration retryDuration)
     {
-        Y_VERIFY(retryDuration - TDuration::Seconds(retryDuration.Seconds()) == TDuration::Zero());
+        Y_ABORT_UNLESS(retryDuration - TDuration::Seconds(retryDuration.Seconds()) == TDuration::Zero());
 
         return TNode()
             ("code", RetriableCode)

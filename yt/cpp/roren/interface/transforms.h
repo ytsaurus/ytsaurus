@@ -117,7 +117,7 @@ public:
         auto rawPipeline = NPrivate::GetRawPipeline(pipeline);
         auto transformNode = rawPipeline->AddTransform(RawRead_, {});
         const auto& sinkNodeList = transformNode->GetTaggedSinkNodeList();
-        Y_VERIFY(sinkNodeList.size() == 1);
+        Y_ABORT_UNLESS(sinkNodeList.size() == 1);
         return NPrivate::MakePCollection<TOutputRow>(sinkNodeList[0].second, rawPipeline);
     }
 
@@ -163,7 +163,7 @@ public:
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
         auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
         auto transformNode = rawPipeline->AddTransform(RawWrite_, {rawInputNode});
-        Y_VERIFY(transformNode->GetTaggedSinkNodeList().size() == 0);
+        Y_ABORT_UNLESS(transformNode->GetTaggedSinkNodeList().size() == 0);
     }
 
 private:
@@ -222,7 +222,7 @@ public:
         } else if constexpr (std::is_same_v<TOutput, void>) {
             return;
         } else {
-            Y_VERIFY(taggedSinkNodeList.size() == 1);
+            Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
             auto rawNode = taggedSinkNodeList[0].second;
             return NPrivate::MakePCollection<TOutput>(rawNode, rawPipeline);
         }
@@ -317,7 +317,7 @@ public:
         } else if constexpr (std::is_same_v<TOutput, void>) {
             return;
         } else {
-            Y_VERIFY(taggedSinkNodeList.size() == 1);
+            Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
             auto rawNode = taggedSinkNodeList[0].second;
             return NPrivate::MakePCollection<TOutput>(rawNode, rawPipeline);
         }
@@ -383,7 +383,7 @@ public:
         } else if constexpr (std::is_same_v<TOutput, void>) {
             return;
         } else {
-            Y_VERIFY(taggedSinkNodeList.size() == 1);
+            Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
             auto rawNode = taggedSinkNodeList[0].second;
             return NPrivate::MakePCollection<TOutput>(rawNode, rawPipeline);
         }
@@ -442,7 +442,7 @@ public:
         auto transformNode = rawPipeline->AddTransform(NPrivate::MakeRawGroupByKey<TKey, TValue>(), {rawInputNode});
 
         const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
-        Y_VERIFY(taggedSinkNodeList.size() == 1);
+        Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
         auto rawOutputNode = taggedSinkNodeList[0].second;
         return MakePCollection<TKV<TKey, TInputPtr<TValue>>>(rawOutputNode, rawPipeline);
     }
@@ -506,7 +506,7 @@ public:
         auto transformNode = rawPipeline->AddTransform(rawCombine, {rawInputNode});
         const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
 
-        Y_VERIFY(taggedSinkNodeList.size() == 1);
+        Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
         const auto& rawOutputNode = taggedSinkNodeList[0].second;
 
         return MakePCollection<TOutputRow>(rawOutputNode, rawPipeline);
@@ -577,12 +577,12 @@ public:
     template <typename TRow>
     TPCollection<TRow> ApplyTo(const std::vector<TPCollection<TRow>>& pCollectionList) const
     {
-        Y_VERIFY(pCollectionList.size() > 0, "Cannot flatten empty list of pCollection");
+        Y_ABORT_UNLESS(pCollectionList.size() > 0, "Cannot flatten empty list of pCollection");
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList.front());
         std::vector<NPrivate::TPCollectionNode*> pCollectionNodeList;
         for (const auto& pCollection : pCollectionList) {
             const auto& curRawPipeline = NPrivate::GetRawPipeline(pCollection);
-            Y_VERIFY(curRawPipeline.Get() == rawPipeline.Get(), "Cannot flatten pCollections belonging to different pipelines");
+            Y_ABORT_UNLESS(curRawPipeline.Get() == rawPipeline.Get(), "Cannot flatten pCollections belonging to different pipelines");
 
             auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
             pCollectionNodeList.push_back(rawInputNode);
@@ -592,7 +592,7 @@ public:
         auto transformNode = rawPipeline->AddTransform(rawFlatten, pCollectionNodeList);
         const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
 
-        Y_VERIFY(taggedSinkNodeList.size() == 1);
+        Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
         const auto& rawOutputNode = taggedSinkNodeList[0].second;
 
         NPrivate::MergeAttributes(*transformNode->GetRawTransform(), Attributes_);
@@ -627,12 +627,12 @@ TFlattenTransform Flatten();
 template <typename TRow>
 TPCollection<TRow> Flatten(const std::vector<TPCollection<TRow>>& pCollectionList)
 {
-    Y_VERIFY(pCollectionList.size() > 0, "Cannot flatten empty list of pCollection");
+    Y_ABORT_UNLESS(pCollectionList.size() > 0, "Cannot flatten empty list of pCollection");
     const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList.front());
     std::vector<NPrivate::TPCollectionNode*> pCollectionNodeList;
     for (const auto& pCollection : pCollectionList) {
         const auto& curRawPipeline = NPrivate::GetRawPipeline(pCollection);
-        Y_VERIFY(curRawPipeline.Get() == rawPipeline.Get(), "Cannot flatten pCollections belonging to different pipelines");
+        Y_ABORT_UNLESS(curRawPipeline.Get() == rawPipeline.Get(), "Cannot flatten pCollections belonging to different pipelines");
 
         auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
         pCollectionNodeList.push_back(rawInputNode);
@@ -642,7 +642,7 @@ TPCollection<TRow> Flatten(const std::vector<TPCollection<TRow>>& pCollectionLis
     auto transformNode = rawPipeline->AddTransform(rawFlatten, pCollectionNodeList);
     const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
 
-    Y_VERIFY(taggedSinkNodeList.size() == 1);
+    Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
     const auto& rawOutputNode = taggedSinkNodeList[0].second;
 
     return MakePCollection<TRow>(rawOutputNode, rawPipeline);

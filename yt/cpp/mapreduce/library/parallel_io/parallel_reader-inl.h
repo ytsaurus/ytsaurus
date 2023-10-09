@@ -169,7 +169,7 @@ public:
         , Paths_(paths)
         , Options_(options)
     {
-        Y_VERIFY(!Paths_.empty());
+        Y_ABORT_UNLESS(!Paths_.empty());
         auto totalRowCount = GetRowCount(Paths_[TableIndex_]);
         TableSlicer_ = TTableSlicer(Paths_[TableIndex_], totalRowCount / ThreadCount_ + 1);
     }
@@ -226,7 +226,7 @@ public:
         , Paths_(paths)
         , Options_(options)
     {
-        Y_VERIFY(!Paths_.empty());
+        Y_ABORT_UNLESS(!Paths_.empty());
         TableSlicer_ = TTableSlicer(Paths_[TableIndex_], Config_.BatchSize);
     }
 
@@ -723,7 +723,7 @@ public:
 
     ui32 GetTableIndex() const override
     {
-        Y_VERIFY(CurrentBuffer_);
+        Y_ABORT_UNLESS(CurrentBuffer_);
         return CurrentBuffer_->TableIndex;
     }
 
@@ -734,7 +734,7 @@ public:
 
     ui64 GetRowIndex() const override
     {
-        Y_VERIFY(CurrentBuffer_);
+        Y_ABORT_UNLESS(CurrentBuffer_);
         return CurrentBuffer_->FirstRowIndex + (CurrentBufferIt_ - CurrentBuffer_->Rows.begin());
     }
 

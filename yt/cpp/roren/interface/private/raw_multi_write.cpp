@@ -13,11 +13,11 @@ TRawMultiWrite::TRawMultiWrite() = default;
 TRawMultiWrite::TRawMultiWrite(std::vector<IRawWritePtr> writes)
     : Writes_(std::move(writes))
 {
-    Y_VERIFY(!Writes_.empty(), "Expected non empty transform list");
+    Y_ABORT_UNLESS(!Writes_.empty(), "Expected non empty transform list");
 
     auto getRowVtable = [&] (size_t idx) {
         auto tags = writes[idx]->GetOutputTags();
-        Y_VERIFY(tags.size() == 1, "Raw write output tag size: %d (expected: 1)", static_cast<int>(tags.size()));
+        Y_ABORT_UNLESS(tags.size() == 1, "Raw write output tag size: %d (expected: 1)", static_cast<int>(tags.size()));
         return tags.front().GetRowVtable();
     };
 

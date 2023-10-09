@@ -85,7 +85,7 @@ TStringBuf TSkiffOtherColumns::GetUnparsedBytes() const
 {
     char* buffer;
     Py_ssize_t size;
-    Y_VERIFY(UnparsedBytesObj_);
+    Y_ABORT_UNLESS(UnparsedBytesObj_);
     if (PyBytes_AsStringAndSize(UnparsedBytesObj_->ptr(), &buffer, &size) == -1) {
         throw Py::Exception();
     }

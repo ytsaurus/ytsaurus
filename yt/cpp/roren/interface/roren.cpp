@@ -48,7 +48,7 @@ TMultiPCollection::TMultiPCollection(
 {
     for (const auto& [tag, node] : nodes) {
         auto [it, inserted] = NodeMap_.emplace(tag.GetKey(), node);
-        Y_VERIFY(inserted);
+        Y_ABORT_UNLESS(inserted);
     }
 }
 

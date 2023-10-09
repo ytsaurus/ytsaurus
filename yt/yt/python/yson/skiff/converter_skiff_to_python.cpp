@@ -56,7 +56,7 @@ TSkiffToPythonConverter MaybeWrapSkiffToPythonConverter(
     bool validateOptionalOnRuntime = false)
 {
     if (forceOptional) {
-        Y_VERIFY(!IsTiTypeOptional(pySchema));
+        Y_ABORT_UNLESS(!IsTiTypeOptional(pySchema));
         return CreateOptionalSkiffToPythonConverter(std::move(converter), false);
     }
     if (IsTiTypeOptional(pySchema)) {

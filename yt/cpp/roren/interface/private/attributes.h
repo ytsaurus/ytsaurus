@@ -51,7 +51,7 @@ class TAttributes
 public:
     void SetAttribute(const TString& key, const std::any& value) override
     {
-        Y_VERIFY(value.has_value());
+        Y_ABORT_UNLESS(value.has_value());
         Attributes_[key] = value;
     }
 
@@ -112,7 +112,7 @@ const T* GetAttribute(const IWithAttributes& withAttributes, const TTypeTag<T>& 
         return nullptr;
     }
     const T* result = std::any_cast<T>(any);
-    Y_VERIFY(result != nullptr, "bad any cast");
+    Y_ABORT_UNLESS(result != nullptr, "bad any cast");
     return result;
 }
 
@@ -120,7 +120,7 @@ template <typename T>
 const T& GetRequiredAttribute(const IWithAttributes& withAttributes, const TTypeTag<T>& key)
 {
     const auto* result = GetAttribute(withAttributes, key);
-    Y_VERIFY(result, "missing required attribute %s", key.GetDescription().c_str());
+    Y_ABORT_UNLESS(result, "missing required attribute %s", key.GetDescription().c_str());
     return *result;
 }
 

@@ -50,13 +50,13 @@ class TOutput<TMultiRow>
 public:
     TOutput(const std::vector<TDynamicTypeTag>& tags, const std::vector<NPrivate::IRawOutputPtr>& outputs)
     {
-        Y_VERIFY(tags.size() == outputs.size());
-        Y_VERIFY(!tags.empty());
+        Y_ABORT_UNLESS(tags.size() == outputs.size());
+        Y_ABORT_UNLESS(!tags.empty());
         for (ssize_t i = 0; i < std::ssize(tags); ++i) {
             const auto& tag = tags[i];
             TKey key = tag.GetKey();
             auto emplaceResult = OutputMap_.emplace(key, outputs[i]);
-            Y_VERIFY(emplaceResult.second, "tags are not unique, duplicating tag: %s", ToString(tag).c_str());
+            Y_ABORT_UNLESS(emplaceResult.second, "tags are not unique, duplicating tag: %s", ToString(tag).c_str());
         }
     }
 

@@ -191,7 +191,7 @@ std::shared_ptr<TRawPipeline::TStartTransformGuard> TRawPipeline::StartTransform
 
 TTransformNodePtr TRawPipeline::AddTransform(IRawTransformPtr transform, const std::vector<TPCollectionNode*>& inputs, const TRawPStateNodePtr& pState)
 {
-    Y_VERIFY(inputs.size() == transform->GetInputTags().size(),
+    Y_ABORT_UNLESS(inputs.size() == transform->GetInputTags().size(),
         "inputs.size() == %d; transform->GetInputTags().size() == %d",
         static_cast<int>(inputs.size()),
         static_cast<int>(transform->GetInputTags().size()));
@@ -225,7 +225,7 @@ std::vector<std::pair<TDynamicTypeTag, TPCollectionNodePtr>> TTransformNode::Get
 {
     const auto& tagList = GetRawTransform()->GetOutputTags();
     const auto& sinkNodeList = GetSinkList();
-    Y_VERIFY(ssize(tagList) == ssize(sinkNodeList));
+    Y_ABORT_UNLESS(ssize(tagList) == ssize(sinkNodeList));
 
     std::vector<std::pair<TDynamicTypeTag, TPCollectionNodePtr>> result;
     for (ssize_t i = 0; i < ssize(tagList); ++i) {

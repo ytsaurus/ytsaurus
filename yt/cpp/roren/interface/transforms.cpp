@@ -32,7 +32,7 @@ TPCollection<TCoGbkResult> TCoGroupByKeyTransform::ApplyTo(const TMultiPCollecti
             ythrow yexception() << "MultiPCollection contains non KV: " << rowVtable.TypeName;
         }
         auto keyVtable = rowVtable.KeyVtableFactory();
-        Y_VERIFY(!keyVtable.TypeName.empty());
+        Y_ABORT_UNLESS(!keyVtable.TypeName.empty());
         if (keyTypeName.empty()) {
             keyTypeName = keyVtable.TypeName;
         } else if (keyTypeName != keyVtable.TypeName) {
@@ -47,7 +47,7 @@ TPCollection<TCoGbkResult> TCoGroupByKeyTransform::ApplyTo(const TMultiPCollecti
     auto transformNode = rawPipeline->AddTransform(NPrivate::MakeRawCoGroupByKey(tags), inputs);
 
     auto sinkNodeList = transformNode->GetTaggedSinkNodeList();
-    Y_VERIFY(sinkNodeList.size() == 1);
+    Y_ABORT_UNLESS(sinkNodeList.size() == 1);
 
     return NPrivate::MakePCollection<TCoGbkResult>(sinkNodeList[0].second, rawPipeline);
 }

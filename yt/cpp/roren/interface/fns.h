@@ -33,7 +33,7 @@ public:
 
     const IExecutionContextPtr& GetExecutionContext() const
     {
-        Y_VERIFY(Context_);
+        Y_ABORT_UNLESS(Context_);
         return Context_;
     }
 

@@ -209,7 +209,7 @@ public:
     explicit IRawCombine(ERawTransformType type)
         : Type_(type)
     {
-        Y_VERIFY(type == ERawTransformType::CombinePerKey || type == ERawTransformType::CombineGlobally);
+        Y_ABORT_UNLESS(type == ERawTransformType::CombinePerKey || type == ERawTransformType::CombineGlobally);
     }
 
     [[nodiscard]] ERawTransformType GetType() const final

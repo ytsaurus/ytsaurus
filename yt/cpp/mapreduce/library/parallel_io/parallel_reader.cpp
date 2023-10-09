@@ -42,7 +42,7 @@ bool TTableSlicer::IsValid() const
 
 TReadRange TTableSlicer::GetRange() const
 {
-    Y_VERIFY(IsValid());
+    Y_ABORT_UNLESS(IsValid());
     auto begin = GetLowerLimit() + Offset_;
     auto end = ::Min(GetUpperLimit(), begin + BatchSize_);
     return TReadRange::FromRowIndices(begin, end);
@@ -74,7 +74,7 @@ TVector<TResult> CollectUniqueRawPathVectorCallResultsForRichPathVector(
     TVector<TYPath> rawPaths(uniqueRawPathsSet.begin(), uniqueRawPathsSet.end());
 
     auto valuesList = fn(client, rawPaths);
-    Y_VERIFY(valuesList.size() == rawPaths.size());
+    Y_ABORT_UNLESS(valuesList.size() == rawPaths.size());
     THashMap<TYPath, TResult> rawPathToResult;
     rawPathToResult.reserve(rawPaths.size());
     for (int i = 0; i < static_cast<int>(rawPaths.size()); i++) {

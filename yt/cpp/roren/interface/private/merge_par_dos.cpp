@@ -15,7 +15,7 @@ template <class TContainer, class... TArgs>
 auto EmplaceOrCrash(TContainer& container, TArgs&&... args)
 {
     auto [it, emplaced] = container.emplace(std::forward<TArgs>(args)...);
-    Y_VERIFY(emplaced);
+    Y_ABORT_UNLESS(emplaced);
     return it;
 }
 
@@ -23,7 +23,7 @@ template <class TMap, class TKey>
 auto& GetOrCrash(TMap& map, const TKey& key)
 {
     auto it = map.find(key);
-    Y_VERIFY(it != map.end());
+    Y_ABORT_UNLESS(it != map.end());
     return it->second;
 }
 
@@ -64,11 +64,11 @@ public:
 
             auto sourceNode = transform->GetSource(0);
             auto sourceNodeIdIterator = pCollectionNodeToId.find(sourceNode);
-            Y_VERIFY(sourceNodeIdIterator != pCollectionNodeToId.end());
+            Y_ABORT_UNLESS(sourceNodeIdIterator != pCollectionNodeToId.end());
             auto sourceNodeId = sourceNodeIdIterator->second;
 
             auto sinkNodeIds = builder.AddParDo(rawParDo, sourceNodeId);
-            Y_VERIFY(std::ssize(sinkNodeIds) == transform->GetSinkCount());
+            Y_ABORT_UNLESS(std::ssize(sinkNodeIds) == transform->GetSinkCount());
             for (int i = 0; i < transform->GetSinkCount(); ++i) {
                 const auto& sink = transform->GetSink(i);
                 auto sinkNodeId = sinkNodeIds[i];
@@ -115,7 +115,7 @@ public:
         }
         auto rawParDo = transform->GetRawTransform()->AsRawParDo();
 
-        Y_VERIFY(transform->GetSourceCount() == 1);
+        Y_ABORT_UNLESS(transform->GetSourceCount() == 1);
         auto* source = transform->GetSource(0).Get();
 
         if (auto it = RootToUnifiedParDoBuilders_.find(source);
@@ -131,7 +131,7 @@ public:
         {
             auto* root = it->second;
             auto builderIt = RootToUnifiedParDoBuilders_.find(root);
-            Y_VERIFY(builderIt != RootToUnifiedParDoBuilders_.end());
+            Y_ABORT_UNLESS(builderIt != RootToUnifiedParDoBuilders_.end());
             RegisterTransform(transform, root, builderIt->second);
             return;
         }
@@ -216,9 +216,9 @@ private:
         const std::vector<TPCollectionNodePtr>& src,
         const std::vector<TPCollectionNodePtr>& dst)
     {
-        Y_VERIFY(src.size() == dst.size());
+        Y_ABORT_UNLESS(src.size() == dst.size());
         for (int i = 0; i < std::ssize(src); ++i) {
-            Y_VERIFY(!PCollectionNodeMapping_.contains(src[i].Get()));
+            Y_ABORT_UNLESS(!PCollectionNodeMapping_.contains(src[i].Get()));
             PCollectionNodeMapping_.emplace(src[i].Get(), dst[i].Get());
         }
     }

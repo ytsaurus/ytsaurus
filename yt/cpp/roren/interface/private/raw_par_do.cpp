@@ -26,7 +26,7 @@ void TLambda1RawParDo::Start(const IExecutionContextPtr&, const std::vector<IRaw
         MultiOutput_.emplace(OutputTags_, outputs);
     } else if (WrapperType_ == EWrapperType::WrapperType1 || WrapperType_ == EWrapperType::WrapperType2) {
         if (outputs.size() > 0) {
-            Y_VERIFY(outputs.size() == 1);
+            Y_ABORT_UNLESS(outputs.size() == 1);
 
             SingleOutput_ = outputs[0];
             if (WrapperType_ == EWrapperType::WrapperType1) {
@@ -106,7 +106,7 @@ public:
 
     void Start(const IExecutionContextPtr&, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Output_ = outputs[0];
     }
 

@@ -155,7 +155,7 @@ public:
         // This statement always true
         // because even in an exceptional situation
         // owner class call Finish in destructor
-        Y_VERIFY(State_ == EWriterState::Finished);
+        Y_ABORT_UNLESS(State_ == EWriterState::Finished);
     }
 
     void Abort() override

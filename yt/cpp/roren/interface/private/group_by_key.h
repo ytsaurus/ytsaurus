@@ -58,7 +58,7 @@ public:
         auto upcastedOutput = rawOutput->Upcast<TKV<K, TInputPtr<V>>>();
 
         const auto* first = input->Next();
-        Y_VERIFY(first);
+        Y_ABORT_UNLESS(first);
         TKV<K, TInputPtr<V>> result;
         result.Key() = first->Key();
         result.Value() = TInputPtr<V>{MakeIntrusive<TValueIterator<K, V>>(&first->Value(), std::move(input))};

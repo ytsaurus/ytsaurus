@@ -13,7 +13,7 @@ TMultiInputPtr CreateMultiInput(const std::vector<std::pair<TDynamicTypeTag, NPr
     for (const auto& [tag, input] : taggedInputs) {
         auto key = tag.GetKey();
         auto emplaceResult = result->InputMap_.emplace(key, input);
-        Y_VERIFY(emplaceResult.second, "tags are not unique, duplicating tag: %s", ToString(tag).c_str());
+        Y_ABORT_UNLESS(emplaceResult.second, "tags are not unique, duplicating tag: %s", ToString(tag).c_str());
         result->Tags_.emplace_back(tag);
     }
 

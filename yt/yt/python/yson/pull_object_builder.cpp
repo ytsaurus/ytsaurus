@@ -166,7 +166,7 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
         if (PyTuple_SetItem(Tuple1_.get(), 0, result.release()) == -1) {
             throw Py::Exception();
         }
-        Y_VERIFY(constructor);
+        Y_ABORT_UNLESS(constructor);
         result = PyObjectPtr(PyObject_CallObject(constructor, Tuple1_.get()));
         if (!result) {
             throw Py::Exception();

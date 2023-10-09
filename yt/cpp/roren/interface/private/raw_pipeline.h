@@ -57,7 +57,7 @@ public:
         , Id_(id)
         , SinkOf_(outputOf)
     {
-        Y_VERIFY(IsDefined(RowVtable_));
+        Y_ABORT_UNLESS(IsDefined(RowVtable_));
     }
 
     int GetId() const
@@ -133,7 +133,7 @@ public:
     }
 
     const TPCollectionNodePtr& GetSink(ssize_t idx) const {
-        Y_VERIFY(idx >= 0 && idx < static_cast<ssize_t>(SinkList_.size()));
+        Y_ABORT_UNLESS(idx >= 0 && idx < static_cast<ssize_t>(SinkList_.size()));
         return SinkList_[idx];
     }
 
@@ -148,7 +148,7 @@ public:
     }
 
     const TPCollectionNodePtr& GetSource(ssize_t idx) const {
-        Y_VERIFY(idx >= 0 && idx < static_cast<ssize_t>(SourceList_.size()));
+        Y_ABORT_UNLESS(idx >= 0 && idx < static_cast<ssize_t>(SourceList_.size()));
         return SourceList_[idx];
     }
 

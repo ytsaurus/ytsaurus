@@ -8,7 +8,7 @@ template <typename T>
 T* CheckedCast(IRawTransform* t)
 {
     auto result = dynamic_cast<T*>(t);
-    Y_VERIFY(result);
+    Y_ABORT_UNLESS(result);
     return result;
 }
 
@@ -16,7 +16,7 @@ template <typename T>
 const T* CheckedCast(const IRawTransform* t)
 {
     auto result = dynamic_cast<const T*>(t);
-    Y_VERIFY(result);
+    Y_ABORT_UNLESS(result);
     return result;
 }
 

@@ -35,7 +35,7 @@ struct TRange
 
     size_t Length() const
     {
-        Y_VERIFY(Begin <= End);
+        Y_ABORT_UNLESS(Begin <= End);
         return End - Begin;
     }
 };
@@ -156,7 +156,7 @@ TParallelFileReader::~TParallelFileReader()
 
 void TParallelFileReader::SupervisorJob() noexcept
 {
-    Y_VERIFY(FileSize_);
+    Y_ABORT_UNLESS(FileSize_);
     if (FileSize_.value() == 0) {
         Batches_.Stop();
         return;
@@ -189,7 +189,7 @@ TBlob TParallelFileReader::ReadJob(const TRange& range)
         auto options = Options_.ReaderOptions_.GetOrElse({});
         options.Offset(range.Begin);
         options.Length(range.Length());
-        Y_VERIFY(LockedPath_);
+        Y_ABORT_UNLESS(LockedPath_);
         auto reader = Transaction_->CreateFileReader(LockedPath_.value(), options);
         auto data = reader->ReadAll();
 
@@ -246,8 +246,8 @@ size_t TParallelFileReader::DoReadWithCallback(void* ptr, size_t size, DoReadCal
         return curIdx;
     } else {
         size_t prevIdx = curIdx - curBlob->Size();
-        Y_VERIFY(!BatchTail_);
-        Y_VERIFY(curBlob.has_value());
+        Y_ABORT_UNLESS(!BatchTail_);
+        Y_ABORT_UNLESS(curBlob.has_value());
 
         BatchTail_ = curBlob->SubBlob(size - prevIdx, curBlob->Size());
 
@@ -280,7 +280,7 @@ std::optional<TBlob> TParallelFileReader::ReadNextBatch()
         return std::nullopt;
     }
     auto blob = result->first.ExtractValueSync();
-    Y_VERIFY(blob.Size() == result->second.GetLockedAmount());
+    Y_ABORT_UNLESS(blob.Size() == result->second.GetLockedAmount());
     return blob;
 }
 
@@ -289,7 +289,7 @@ TSplitter::TSplitter(size_t length, size_t batchSize, size_t offset)
     , Length_(offset + length)
     , BatchSize_(batchSize)
 {
-    Y_VERIFY(length > 0 && batchSize > 0);
+    Y_ABORT_UNLESS(length > 0 && batchSize > 0);
 }
 
 std::optional<TRange> TSplitter::Next()

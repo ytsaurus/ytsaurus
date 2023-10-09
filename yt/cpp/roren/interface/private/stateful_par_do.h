@@ -39,7 +39,7 @@ public:
         } else if constexpr (std::is_same_v<typename TFunction::TOutputRow, TMultiRow>) {
             MultiOutput_.emplace(OutputTags_, outputs);
         } else {
-            Y_VERIFY(outputs.size() == 1);
+            Y_ABORT_UNLESS(outputs.size() == 1);
             SingleOutput_ = outputs[0];
         }
 

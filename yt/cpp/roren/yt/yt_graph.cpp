@@ -152,7 +152,7 @@ public:
     void OptimizeInput()
     {
         auto& inputTable = Graph_->TableNodes_[Input_];
-        Y_VERIFY(inputTable.SinkOf_);
+        Y_ABORT_UNLESS(inputTable.SinkOf_);
         auto inputOperationId = *inputTable.SinkOf_;
         const auto& inputOperation = Graph_->OperationNodes_[inputOperationId];
 
@@ -162,13 +162,13 @@ public:
         }
 
         const auto* rawYtInput = dynamic_cast<const IRawYtRead*>(map->RawTransform_->AsRawRead().Get());
-        Y_VERIFY(rawYtInput);
+        Y_ABORT_UNLESS(rawYtInput);
         JobInput_ = rawYtInput->CreateJobInput();
 
         auto newInputTableId = map->Input_;
         auto& newInputTable = Graph_->TableNodes_[newInputTableId];
 
-        Y_VERIFY(inputTable.SourceFor_.erase(Id_) == 1);
+        Y_ABORT_UNLESS(inputTable.SourceFor_.erase(Id_) == 1);
         if (inputTable.SourceFor_.empty()) {
             Graph_->RemoveTable(Input_);
             Graph_->RemoveOperation(inputOperationId);
@@ -190,7 +190,7 @@ public:
                 return std::nullopt;
             }
 
-            Y_VERIFY(map->Outputs_.size() == 1);
+            Y_ABORT_UNLESS(map->Outputs_.size() == 1);
             auto newOutputTableId = map->Outputs_[0];
             auto newOutputIndex = std::ssize(newOutputs);
             newOutputs.push_back(newOutputTableId);
@@ -201,7 +201,7 @@ public:
             Graph_->RemoveOperation(outputOperationId);
 
             const auto* rawYtOutput = dynamic_cast<const IRawYtWrite*>(map->RawTransform_->AsRawWrite().Get());
-            Y_VERIFY(rawYtOutput);
+            Y_ABORT_UNLESS(rawYtOutput);
             return rawYtOutput->CreateJobOutput(newOutputIndex);
         };
 
@@ -246,7 +246,7 @@ private:
         switch (RawTransform_->GetType()) {
             case ERawTransformType::Read: {
                 const auto* rawYtInput = dynamic_cast<const IRawYtRead*>(RawTransform_->AsRawRead().Get());
-                Y_VERIFY(rawYtInput);
+                Y_ABORT_UNLESS(rawYtInput);
                 JobInput_ = rawYtInput->CreateJobInput();
                 auto sinkRowVtable = GetTableNode(Outputs_[0]).RowVtable_;
                 JobOutputs_ = {CreateEncodingJobOutput(sinkRowVtable, 0)};
@@ -255,7 +255,7 @@ private:
             }
             case ERawTransformType::Write: {
                 const auto* rawYtOutput = dynamic_cast<const IRawYtWrite*>(RawTransform_->AsRawWrite().Get());
-                Y_VERIFY(rawYtOutput);
+                Y_ABORT_UNLESS(rawYtOutput);
                 auto sourceRowVtable = GetTableNode(Input_).RowVtable_;
                 JobInput_ = CreateDecodingJobInput(sourceRowVtable);
                 JobOutputs_ = {rawYtOutput->CreateJobOutput()};
@@ -404,7 +404,7 @@ private:
             return;
         }
 
-        Y_VERIFY(inputTable.SinkOf_);
+        Y_ABORT_UNLESS(inputTable.SinkOf_);
         auto inputOperationId = *inputTable.SinkOf_;
         const auto& inputOperation = Graph_->OperationNodes_[inputOperationId];
 
@@ -414,13 +414,13 @@ private:
         }
 
         auto intermediateOutputIterator = std::find(map->Outputs_.begin(), map->Outputs_.end(), inputTableId);
-        Y_VERIFY(intermediateOutputIterator != map->Outputs_.end());
+        Y_ABORT_UNLESS(intermediateOutputIterator != map->Outputs_.end());
         auto intermediateOutputIndex = intermediateOutputIterator - map->Outputs_.begin();
 
         std::vector<IYtJobOutputPtr> mapperJobOutputs;
         mapperJobOutputs.reserve(map->Outputs_.size());
 
-        Y_VERIFY(MapOutputs_.empty());
+        Y_ABORT_UNLESS(MapOutputs_.empty());
         MapOutputs_.reserve(map->Outputs_.size() - 1);
 
         for (int i = 0; i < std::ssize(map->Outputs_); ++i) {
@@ -456,7 +456,7 @@ private:
     void OptimizeOutputs()
     {
         if (RawTransform_->GetType() != ERawTransformType::StatefulParDo) {
-            Y_VERIFY(Outputs_.size() == 1);
+            Y_ABORT_UNLESS(Outputs_.size() == 1);
         } else {
             return;  // TODO: optimize multiple outputs
         }
@@ -547,7 +547,7 @@ private:
                 break;
             }
             case ERawTransformType::CombinePerKey: {
-                Y_VERIFY(intermediateVtables.size() == 1);
+                Y_ABORT_UNLESS(intermediateVtables.size() == 1);
                 Mapper_ = CreateSplitKvMap(intermediateVtables.front());
                 ReduceCombiner_ = CreateCombineCombiner(RawTransform_->AsRawCombine(), intermediateVtables.front());
                 ForceReduceCombiners_ = true;
@@ -568,18 +568,18 @@ private:
     {
         switch (RawTransform_->GetType()) {
             case ERawTransformType::GroupByKey: {
-                Y_VERIFY(intermediateVtables.size() == 1);
+                Y_ABORT_UNLESS(intermediateVtables.size() == 1);
                 TParDoTreeBuilder userLogic;
                 auto nodeIdList = userLogic.AddParDo(
                     CreateGbkImpulseReadParDo(RawTransform_->AsRawGroupByKey()),
                     TParDoTreeBuilder::RootNodeId
                 );
-                Y_VERIFY(nodeIdList.size() == 1);
+                Y_ABORT_UNLESS(nodeIdList.size() == 1);
                 nodeIdList = userLogic.AddParDo(
                     CreateOutputParDo(jobOutputs[0], outputVtables[0]),
                     nodeIdList[0]
                 );
-                Y_VERIFY(nodeIdList.size() == 0);
+                Y_ABORT_UNLESS(nodeIdList.size() == 0);
                 return CreateImpulseJob(userLogic.Build());
             }
             case ERawTransformType::CoGroupByKey:
@@ -721,7 +721,7 @@ void TYtGraph::RemoveOperation(TOperationNodeId operationId)
 
 NYT::IOperationPtr TYtGraph::StartOperation(const IClientBasePtr& client, TOperationNodeId id) const
 {
-    Y_VERIFY(0 <= id && id < std::ssize(OperationNodes_));
+    Y_ABORT_UNLESS(0 <= id && id < std::ssize(OperationNodes_));
     return OperationNodes_[id]->Start(client);
 }
 
@@ -771,7 +771,7 @@ std::vector<std::vector<TYtGraph::TOperationNodeId>> TYtGraph::GetOperationLevel
         }
 
         // we must run at least one opertaion
-        Y_VERIFY(!levelOperations.empty());
+        Y_ABORT_UNLESS(!levelOperations.empty());
         result.emplace_back(std::move(levelOperations));
 
         // prepare for next iteration
@@ -935,9 +935,9 @@ public:
                 const TYtStateVtable* stateVtable = NPrivate::GetAttribute(*transform->GetPStateNode(), YtStateVtableTag);
                 const TString* stateInPath = NPrivate::GetAttribute(*transform->GetPStateNode(), YtStateInPathTag);
                 const TString* stateOutPath = NPrivate::GetAttribute(*transform->GetPStateNode(), YtStateOutPathTag);
-                Y_VERIFY(stateVtable);
-                Y_VERIFY(stateInPath);
-                Y_VERIFY(stateOutPath);
+                Y_ABORT_UNLESS(stateVtable);
+                Y_ABORT_UNLESS(stateInPath);
+                Y_ABORT_UNLESS(stateOutPath);
 
                 auto stateInNode = Graph_.AddTableNode(
                     *stateInPath,
@@ -969,7 +969,7 @@ private:
     TYtGraph::TTableNodeId MapPCollectionToTableNode(const TPCollectionNodePtr& pCollection)
     {
         auto it = PCollectionToTableNodeId_.find(pCollection.Get());
-        Y_VERIFY(it != PCollectionToTableNodeId_.end());
+        Y_ABORT_UNLESS(it != PCollectionToTableNodeId_.end());
         return it->second;
     }
 
@@ -1000,7 +1000,7 @@ private:
             );
             ytTableNodes.push_back(ytTableNode);
             auto [it, inserted] = PCollectionToTableNodeId_.emplace(pCollection.Get(), ytTableNode);
-            Y_VERIFY(inserted);
+            Y_ABORT_UNLESS(inserted);
         }
         return ytTableNodes;
     }

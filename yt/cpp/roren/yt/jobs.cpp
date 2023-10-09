@@ -81,7 +81,7 @@ public:
 
         try {
             auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
-            Y_VERIFY(ParDo_->GetOutputTags().empty());
+            Y_ABORT_UNLESS(ParDo_->GetOutputTags().empty());
             ParDo_->Start(executionContext, {});
             int impulse = 0;
             ParDo_->Do(&impulse, 1);
@@ -294,22 +294,22 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
 
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Processed_ = false;
         Output_ = outputs[0];
     }
 
     void Do(const void* rows, int count) override
     {
-        Y_VERIFY(count == 1);
-        Y_VERIFY(*static_cast<const int*>(rows) == 0);
-        Y_VERIFY(!Processed_);
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(!Processed_);
         Processed_ = true;
 
         const auto gbkInputTags = RawGroupByKey_->GetInputTags();
-        Y_VERIFY(gbkInputTags.size() == 1);
+        Y_ABORT_UNLESS(gbkInputTags.size() == 1);
         const auto& rowVtable = gbkInputTags[0].GetRowVtable();
 
         auto rangesReader = CreateRangesTableReader(&Cin);
@@ -384,7 +384,7 @@ void ProcessOneGroup(const IRawCoGroupByKeyPtr& rawComputation, const IYtNotSeri
         values[inputIndex].back().CopyFrom(raw);
     }
 
-    Y_VERIFY(IsDefined(keyVtable));
+    Y_ABORT_UNLESS(IsDefined(keyVtable));
 
     std::vector<std::pair<TDynamicTypeTag, IRawInputPtr>> taggedInputs;
     taggedInputs.reserve(inputTags.size());
@@ -542,8 +542,8 @@ public:
                     values[inputIndex].back().CopyFrom(raw);
                 }
 
-                Y_VERIFY(IsDefined(keyVtable));
-                Y_VERIFY(values[0].size() <= 1);
+                Y_ABORT_UNLESS(IsDefined(keyVtable));
+                Y_ABORT_UNLESS(values[0].size() <= 1);
 
                 TRawRowHolder stateTKV = values[0].empty()? TRawRowHolder(inRowVtables[0]) : std::move(values[0][0]);
                 TRawRowHolder state = values[0].empty()?
@@ -604,18 +604,18 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
 
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Processed_ = false;
         Output_ = outputs[0];
     }
 
     void Do(const void* rows, int count) override
     {
-        Y_VERIFY(count == 1);
-        Y_VERIFY(*static_cast<const int*>(rows) == 0);
-        Y_VERIFY(!Processed_);
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(!Processed_);
         Processed_ = true;
 
 
@@ -680,17 +680,17 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
 
-        Y_VERIFY(outputs.size() == 0);
+        Y_ABORT_UNLESS(outputs.size() == 0);
         Processed_ = false;
     }
 
     void Do(const void* rows, int count) override
     {
-        Y_VERIFY(count == 1);
-        Y_VERIFY(*static_cast<const int*>(rows) == 0);
-        Y_VERIFY(!Processed_);
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(!Processed_);
         Processed_ = true;
 
         auto rangesReader = CreateRangesTableReader(&Cin);
@@ -777,18 +777,18 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
 
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Processed_ = false;
         Output_ = outputs[0];
     }
 
     void Do(const void* rows, int count) override
     {
-        Y_VERIFY(count == 1);
-        Y_VERIFY(*static_cast<const int*>(rows) == 0);
-        Y_VERIFY(!Processed_);
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(!Processed_);
         Processed_ = true;
 
         auto outRowVtable = RawCombine_->GetOutputVtable();

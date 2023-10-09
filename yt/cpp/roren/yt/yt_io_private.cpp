@@ -58,7 +58,7 @@ std::vector<int> TYtJobOutput::GetSinkIndices() const
 
 void TYtJobOutput::SetSinkIndices(const std::vector<int>& sinkIndices)
 {
-    Y_VERIFY(sinkIndices.size() == 1);
+    Y_ABORT_UNLESS(sinkIndices.size() == 1);
     SinkIndex_ = std::move(sinkIndices[0]);
 }
 
@@ -352,7 +352,7 @@ public:
                     NYT::NYson::EYsonFormat::Binary,
                     ::NYson::EYsonType::ListFragment
                 );
-                Y_VERIFY(Encoder_);
+                Y_ABORT_UNLESS(Encoder_);
             }
             Value_.clear();
             TStringOutput str(Value_);
@@ -415,7 +415,7 @@ public:
         ValueEncoders_.reserve(RowVtables_.size());
 
         for (const auto& rowVtable : RowVtables_) {
-            Y_VERIFY(IsKv(rowVtable));
+            Y_ABORT_UNLESS(IsKv(rowVtable));
             KeyEncoders_.emplace_back(rowVtable.KeyVtableFactory().RawCoderFactory());
             ValueEncoders_.emplace_back(rowVtable.ValueVtableFactory().RawCoderFactory());
         }
@@ -458,10 +458,10 @@ public:
                 ::NYson::EYsonType::ListFragment
             );
             for (const auto& keyEncoder : KeyEncoders_) {
-                Y_VERIFY(keyEncoder);
+                Y_ABORT_UNLESS(keyEncoder);
             }
             for (const auto& valueEncoder : ValueEncoders_) {
-                Y_VERIFY(valueEncoder);
+                Y_ABORT_UNLESS(valueEncoder);
             }
         }
 
@@ -618,7 +618,7 @@ public:
 
     void AddRaw(const void* row, ssize_t count) override
     {
-        Y_VERIFY(!Outputs_.empty());
+        Y_ABORT_UNLESS(!Outputs_.empty());
         for (const auto& output : Outputs_) {
             output->AddRaw(row, count);
         }
@@ -684,7 +684,7 @@ public:
             output->SetSinkIndices(std::vector<int>(it, it + count));
             it += count;
         }
-        Y_VERIFY(it == sinkIndices.end());
+        Y_ABORT_UNLESS(it == sinkIndices.end());
     }
 
 protected:
@@ -813,8 +813,8 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(outputs.empty(), "Size of outputs: %ld", outputs.size());
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.empty(), "Size of outputs: %ld", outputs.size());
     }
 
     void Do(const void* rows, int count) override
@@ -876,8 +876,8 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Output_ = outputs[0];
         if (!Coder_) {
             Coder_ = OutputRowVtable_.RawCoderFactory();
@@ -950,8 +950,8 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Output_ = outputs[0];
         if (!Coder_) {
             Coder_ = InputRowVtable_.RawCoderFactory();
@@ -1026,8 +1026,8 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Output_ = outputs[0];
         if (!KeyCoder_) {
             KeyCoder_ = OutputRowVtable_.KeyVtableFactory().RawCoderFactory();
@@ -1102,8 +1102,8 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(outputs.size() == 1);
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.size() == 1);
         Output_ = outputs[0];
         if (!KeyCoder_) {
             KeyCoder_ = InputRowVtable_.KeyVtableFactory().RawCoderFactory();
@@ -1191,24 +1191,24 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(std::ssize(outputs) == TableCount_);
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(std::ssize(outputs) == TableCount_);
         Outputs_ = outputs;
         Processed_ = false;
     }
 
     void Do(const void* rows, int count) override
     {
-        Y_VERIFY(!Processed_);
+        Y_ABORT_UNLESS(!Processed_);
         Processed_ = true;
-        Y_VERIFY(count == 1);
-        Y_VERIFY(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
 
         auto reader = NYT::CreateTableReader<NYT::TNode>(&Cin);
 
         for (; reader->IsValid(); reader->Next()) {
             auto tableIndex = reader->GetTableIndex();
-            Y_VERIFY(tableIndex < TableCount_);
+            Y_ABORT_UNLESS(tableIndex < TableCount_);
             Outputs_[tableIndex]->AddRaw(&reader->GetRow(), 1);
         }
     }
@@ -1267,8 +1267,8 @@ public:
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(outputs.empty());
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.empty());
 
         auto fd = GetOutputFD(TableIndex_);
         Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
