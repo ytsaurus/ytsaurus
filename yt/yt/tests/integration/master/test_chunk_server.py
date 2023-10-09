@@ -592,6 +592,13 @@ class TestChunkServerMulticell(TestChunkServer):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
         create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
 
+    @authors("aleksandra-zh")
+    def test_multicell_with_primary_chunk_host(self):
+        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
+        set("//sys/@config/multicell_manager/cell_descriptors", {"10": {"roles": ["cypress_node_host", "chunk_host"]}})
+
+        create("table", "//tmp/t")
+
     @authors("babenko")
     def test_owning_nodes3(self):
         create("table", "//tmp/t0", attributes={"external": False})
