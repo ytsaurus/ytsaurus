@@ -6,9 +6,11 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/client/ypath/public.h>
 
-#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -82,6 +84,24 @@ DEFINE_REFCOUNTED_TYPE(TQLEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSpytEngineConfig
+    : public TEngineConfigBase
+{
+public:
+    TString DefaultCluster;
+    TString SpytHome;
+    NHttp::TClientConfigPtr HttpClient;
+    TDuration StatusPollPeriod;
+
+    REGISTER_YSON_STRUCT(TSpytEngineConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSpytEngineConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryTrackerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -95,6 +115,7 @@ public:
     TQLEngineConfigPtr QlEngine;
     TYqlEngineConfigPtr YqlEngine;
     TChytEngineConfigPtr ChytEngine;
+    TSpytEngineConfigPtr SpytEngine;
 
     REGISTER_YSON_STRUCT(TQueryTrackerDynamicConfig);
 

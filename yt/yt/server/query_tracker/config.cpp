@@ -50,6 +50,20 @@ void TQLEngineConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSpytEngineConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_cluster", &TThis::DefaultCluster)
+        .Default();
+    registrar.Parameter("spyt_home", &TThis::SpytHome)
+        .Default("//home/spark");
+    registrar.Parameter("http_client", &TThis::HttpClient)
+        .DefaultNew();
+    registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
+        .Default(TDuration::Seconds(3));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("active_query_acquisition_period", &TThis::ActiveQueryAcquisitionPeriod)
@@ -65,6 +79,8 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("yql_engine", &TThis::YqlEngine)
         .DefaultNew();
     registrar.Parameter("chyt_engine", &TThis::ChytEngine)
+        .DefaultNew();
+    registrar.Parameter("spyt_engine", &TThis::SpytEngine)
         .DefaultNew();
     registrar.Parameter("mock_engine", &TThis::MockEngine)
         .DefaultNew();

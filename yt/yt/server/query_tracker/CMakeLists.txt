@@ -39,5 +39,6 @@ target_sources(yt-server-query_tracker PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/mock_engine.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/ql_engine.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/yql_engine.cpp
 )
