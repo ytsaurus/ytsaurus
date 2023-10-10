@@ -938,8 +938,7 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::Running) {
-        auto delta = TResourceHolder::SetResourceUsage(newUsage);
-        ResourcesUpdated_.Fire(delta);
+        TResourceHolder::SetResourceUsage(newUsage);
     }
 }
 

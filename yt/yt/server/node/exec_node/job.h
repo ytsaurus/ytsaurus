@@ -66,7 +66,6 @@ class TJob
     : public NJobAgent::TResourceHolder
 {
 public:
-    DEFINE_SIGNAL(void(const NClusterNode::TJobResources&), ResourcesUpdated);
     DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
 

@@ -84,6 +84,7 @@ class IJobResourceManager::TImpl
 public:
     DEFINE_SIGNAL_OVERRIDE(void(), ResourcesAcquired);
     DEFINE_SIGNAL_OVERRIDE(void(EResourcesConsumerType, bool), ResourcesReleased);
+    DEFINE_SIGNAL_OVERRIDE(void(TResourceHolderPtr), ResourceUsageOverdrafted);
 
     DEFINE_SIGNAL_OVERRIDE(
         void(i64 mapped),
@@ -448,7 +449,8 @@ public:
         }
     }
 
-    void OnResourcesUpdated(
+    bool OnResourcesUpdated(
+        TResourceHolder* resourceHolder,
         EResourcesConsumerType resourcesConsumerType,
         const TLogger& Logger,
         const TJobResources& resourceDelta)
@@ -466,16 +468,18 @@ public:
             waitingResources = WaitingResources_;
         }
 
+        bool resourceUsageOverdrafted = false;
+
         auto systemMemory = resourceDelta.SystemMemory;
         if (systemMemory > 0) {
-            SystemMemoryUsageTracker_->Acquire(systemMemory);
+            resourceUsageOverdrafted |= SystemMemoryUsageTracker_->Acquire(systemMemory);
         } else if (systemMemory < 0) {
             SystemMemoryUsageTracker_->Release(-systemMemory);
         }
 
         auto userMemory = resourceDelta.UserMemory;
         if (userMemory > 0) {
-            UserMemoryUsageTracker_->Acquire(userMemory);
+            resourceUsageOverdrafted |= UserMemoryUsageTracker_->Acquire(userMemory);
         } else if (userMemory < 0) {
             UserMemoryUsageTracker_->Release(-userMemory);
         }
@@ -488,6 +492,14 @@ public:
         if (!Dominates(resourceDelta, ZeroJobResources())) {
             NotifyResourcesReleased(resourcesConsumerType, /*fullyReceived*/ false);
         }
+
+        if (resourceUsageOverdrafted) {
+            YT_LOG_DEBUG("Resource usage overdrafted (ResourceUsage: %v)", FormatResources(currentResourceUsage));
+
+            ResourceUsageOverdrafted_.Fire(MakeStrong(resourceHolder));
+        }
+
+        return resourceUsageOverdrafted;
     }
 
     TDiskResources GetDiskResources() const override
@@ -1198,7 +1210,7 @@ const std::vector<int>& TResourceHolder::GetPorts() const noexcept
     return Ports_;
 }
 
-TJobResources TResourceHolder::SetResourceUsage(TJobResources newResourceUsage)
+bool TResourceHolder::SetResourceUsage(TJobResources newResourceUsage)
 {
     auto guard = WriterGuard(ResourcesLock_);
 
@@ -1209,14 +1221,18 @@ TJobResources TResourceHolder::SetResourceUsage(TJobResources newResourceUsage)
         FormatResources(newResourceUsage));
 
     auto resourceDelta = newResourceUsage - Resources_;
-    ResourceManagerImpl_->OnResourcesUpdated(ResourcesConsumerType_, GetLogger(), resourceDelta);
+    bool overdrafted = ResourceManagerImpl_->OnResourcesUpdated(
+        this,
+        ResourcesConsumerType_,
+        GetLogger(),
+        resourceDelta);
 
     Resources_ = newResourceUsage;
 
-    return resourceDelta;
+    return !overdrafted;
 }
 
-TJobResources TResourceHolder::ChangeCumulativeResourceUsage(TJobResources resourceUsageDelta)
+bool TResourceHolder::ChangeCumulativeResourceUsage(TJobResources resourceUsageDelta)
 {
     auto guard = WriterGuard(ResourcesLock_);
 
@@ -1226,10 +1242,14 @@ TJobResources TResourceHolder::ChangeCumulativeResourceUsage(TJobResources resou
         State_,
         FormatResources(resourceUsageDelta));
 
-    ResourceManagerImpl_->OnResourcesUpdated(ResourcesConsumerType_, GetLogger(), resourceUsageDelta);
+    bool overdrafted = ResourceManagerImpl_->OnResourcesUpdated(
+        this,
+        ResourcesConsumerType_,
+        GetLogger(),
+        resourceUsageDelta);
     Resources_ += resourceUsageDelta;
 
-    return resourceUsageDelta;
+    return !overdrafted;
 }
 
 TJobResources TResourceHolder::GetResourceLimits() const noexcept

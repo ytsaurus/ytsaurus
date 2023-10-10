@@ -48,7 +48,7 @@ public:
     void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) override;
 
     // Always succeeds, may lead to an overcommit.
-    void Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
+    bool Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
     TError TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
     TError TryChange(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
     void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
@@ -133,9 +133,9 @@ public:
         return MemoryTracker_->TryChange(Category_, size, PoolTag_);
     }
 
-    void Acquire(i64 size) override
+    bool Acquire(i64 size) override
     {
-        MemoryTracker_->Acquire(Category_, size, PoolTag_);
+        return MemoryTracker_->Acquire(Category_, size, PoolTag_);
     }
 
     void Release(i64 size) override
@@ -393,7 +393,7 @@ void TNodeMemoryTracker::SetPoolWeight(const TPoolTag& poolTag, i64 newWeight)
     pool->Weight = newWeight;
 }
 
-void TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
     auto guard = Guard(SpinLock_);
 
@@ -401,8 +401,12 @@ void TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
 
     DoAcquire(category, size, pool);
 
+    bool overcommitted = false;
+
     auto currentFree = TotalFree_.load();
     if (currentFree < 0) {
+        overcommitted = true;
+
         YT_LOG_WARNING("Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
             -currentFree,
             category,
@@ -413,6 +417,8 @@ void TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         auto poolUsed = DoGetUsed(category, pool);
         auto poolLimit = DoGetLimit(category, pool);
         if (poolUsed > poolLimit) {
+            overcommitted = true;
+
             YT_LOG_WARNING("Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
                 poolUsed - poolLimit,
                 category,
@@ -420,6 +426,8 @@ void TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
                 size);
         }
     }
+
+    return !overcommitted;
 }
 
 TError TNodeMemoryTracker::TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)

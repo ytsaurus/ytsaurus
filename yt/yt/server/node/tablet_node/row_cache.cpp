@@ -32,10 +32,12 @@ public:
         return result;
     }
 
-    void Acquire(i64 size) override
+    bool Acquire(i64 size) override
     {
-        Underlying_->Acquire(size);
+        bool result = Underlying_->Acquire(size);
         Size_ += size;
+
+        return result;
     }
 
     void Release(i64 size) override

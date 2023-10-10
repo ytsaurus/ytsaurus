@@ -52,7 +52,8 @@ public:
     virtual void SetCategoryLimit(ECategory category, i64 newLimit) = 0;
     virtual void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) = 0;
 
-    virtual void Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
+    //! Returns true unless overcommit occurred.
+    virtual bool Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
     virtual TError TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
     virtual TError TryChange(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
     virtual void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
