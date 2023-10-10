@@ -135,13 +135,16 @@ struct TP2PChunk
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BlocksLock);
     std::vector<TBlockAccessCounter> Blocks;
+    TMemoryUsageTrackerGuard BlocksMemoryTrackerGuard;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersLock);
     i64 DistributedSize = 0;
     i64 PeersAllocatedAt = 0;
     TPeerList Peers;
 
-    void Reserve(size_t size);
+    void Reserve(
+        size_t size,
+        IMemoryUsageTrackerPtr memoryTracker);
 };
 
 DEFINE_REFCOUNTED_TYPE(TP2PChunk)
@@ -153,7 +156,9 @@ class TP2PSnooper
     , private TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>
 {
 public:
-    explicit TP2PSnooper(TP2PConfigPtr config);
+    TP2PSnooper(
+        TP2PConfigPtr config,
+        IMemoryUsageTrackerPtr memoryTracker);
 
     std::vector<TP2PSuggestion> OnBlockRead(
         TChunkId chunkId,
@@ -188,6 +193,8 @@ public:
 
 private:
     const TP2PConfigPtr Config_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
+
     TAtomicIntrusivePtr<TP2PConfig> DynamicConfig_;
 
     const TGuid SessionId_ = TGuid::Create();

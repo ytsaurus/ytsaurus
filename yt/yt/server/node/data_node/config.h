@@ -64,6 +64,8 @@ public:
     int HotBlockReplicaCount;
     int BlockRedistributionTicks;
 
+    bool TrackMemoryOfChunkBlocksBuffer;
+
     TBooleanFormula NodeTagFilter;
 
     REGISTER_YSON_STRUCT(TP2PConfig);
