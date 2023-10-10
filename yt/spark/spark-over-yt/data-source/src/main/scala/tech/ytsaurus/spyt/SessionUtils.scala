@@ -19,7 +19,10 @@ object SessionUtils {
     "spark.hadoop.yt.read.arrow.enabled" -> "true",
     "spark.hadoop.yt.profiling.enabled" -> "false",
     "spark.hadoop.yt.mtn.enabled" -> "false",
-    "spark.yt.enablers" -> Seq("byop", "read.arrow", "profiling", "mtn")
+    "spark.hadoop.yt.solomonAgent.enabled" -> "true",
+    "spark.hadoop.yt.preferenceIpv6.enabled" -> "true",
+    "spark.hadoop.yt.tcpProxy.enabled" -> "false",
+    "spark.yt.enablers" -> Seq("byop", "read.arrow", "profiling", "mtn", "solomonAgent", "preferenceIpv6", "tcpProxy")
       .map(s => s"spark.hadoop.yt.$s.enabled").mkString(",")
   )
 
