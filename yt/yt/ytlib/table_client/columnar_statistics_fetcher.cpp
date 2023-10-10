@@ -171,23 +171,25 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
         if (statistics.LegacyChunkDataWeight == 0) {
             // We have columnar statistics, so we can adjust input chunk data weight by setting column selectivity factor.
             i64 totalColumnDataWeight = 0;
-            if (chunk->GetChunkFormat() == EChunkFormat::TableUnversionedSchemalessHorizontal ||
-                chunk->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar)
-            {
-                // NB: we should add total row count to the column data weights because otherwise for the empty column list
-                // there will be zero data weight which does not allow unordered pool to work properly.
-                totalColumnDataWeight += chunk->GetTotalRowCount();
-            } else if (
-                chunk->GetChunkFormat() == EChunkFormat::TableVersionedSimple ||
-                chunk->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
-            {
-                // Default value of sizeof(TTimestamp) = 8 is used for versioned chunks that were written before
-                // we started to save the timestamp statistics to columnar statistics extension.
-                totalColumnDataWeight += statistics.TimestampTotalWeight.value_or(sizeof(TTimestamp));
-            } else {
-                THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an old table format")
-                    << TErrorAttribute("chunk_id", chunk->GetChunkId())
-                    << TErrorAttribute("chunk_format", chunk->GetChunkFormat());
+            switch (chunk->GetChunkFormat()) {
+                case EChunkFormat::TableUnversionedSchemalessHorizontal:
+                case EChunkFormat::TableUnversionedColumnar:
+                    // NB: we should add total row count to the column data weights because otherwise for the empty column list
+                    // there will be zero data weight which does not allow unordered pool to work properly.
+                    totalColumnDataWeight += chunk->GetTotalRowCount();
+                    break;
+                case EChunkFormat::TableVersionedSimple:
+                case EChunkFormat::TableVersionedColumnar:
+                case EChunkFormat::TableVersionedIndexed:
+                case EChunkFormat::TableVersionedSlim:
+                    // Default value of sizeof(TTimestamp) = 8 is used for versioned chunks that were written before
+                    // we started to save the timestamp statistics to columnar statistics extension.
+                    totalColumnDataWeight += statistics.TimestampTotalWeight.value_or(sizeof(TTimestamp));
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an unexpected format")
+                        << TErrorAttribute("chunk_id", chunk->GetChunkId())
+                        << TErrorAttribute("chunk_format", chunk->GetChunkFormat());
             }
             totalColumnDataWeight += statistics.ColumnDataWeightsSum;
             auto totalDataWeight = chunk->GetTotalDataWeight();
