@@ -352,7 +352,7 @@ class Format(object):
 
     def is_raw_load_supported(self):
         """Returns true if format supports loading raw YSON rows."""
-        return self.name() in ("dsv", "yamr", "yamred_dsv", "json", "yson", "schemaful_dsv")
+        return self.name() in ("arrow", "dsv", "yamr", "yamred_dsv", "json", "yson", "schemaful_dsv")
 
     @staticmethod
     def _copy_docs():
@@ -829,6 +829,31 @@ class YsonFormat(Format):
     def dumps_node(self, object):
         """Dumps python object."""
         return yson.dumps(object, yson_format=self.attributes["format"], encoding=self._dump_encoding)
+
+
+class ArrowFormat(Format):
+    """Streaming arrow data format.
+    .. seealso:: `Arrow in the docs <https://arrow.apache.org>`_
+
+    Supported only in raw mode.
+    """
+
+    def __init__(self, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
+        all_attributes = Format._make_attributes(get_value(attributes, {}), {}, {})
+        super(ArrowFormat, self).__init__("arrow", all_attributes, raw, encoding)
+
+    def load_row(self, stream, raw=None):
+        """Not supported."""
+        raise YtFormatError("load_row is not supported in Arrow")
+
+    def load_rows(self, stream, raw=None):
+        if not self._is_raw(raw):
+            raise YtFormatError("Not a raw format is not supported in Arrow")
+        return stream
+
+    def _dump_row(self, row, stream):
+        """Not supported."""
+        raise YtFormatError("_dump_row is not supported in Arrow")
 
 
 class YamrFormat(Format):
@@ -1483,7 +1508,8 @@ def create_format(yson_name, attributes=None, **kwargs):
         "schemaful_dsv": SchemafulDsvFormat,
         "yson": YsonFormat,
         "json": JsonFormat,
-        "skiff": SkiffFormat
+        "skiff": SkiffFormat,
+        "arrow": ArrowFormat
     }
 
     if name not in NAME_TO_FORMAT:

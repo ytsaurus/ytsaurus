@@ -20,7 +20,7 @@ target_link_libraries(unittester-client-table-client PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-client
-  yt-client-formats
+  yt-library-formats
   table_client-unittests-helpers
   client-unittests-mock
   yt-core-test_framework

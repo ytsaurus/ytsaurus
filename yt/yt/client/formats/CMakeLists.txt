@@ -22,33 +22,6 @@ target_link_libraries(yt-client-formats PUBLIC
 )
 target_sources(yt-client-formats PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/dsv_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/dsv_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/escape.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/protobuf.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/protobuf_options.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/protobuf_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/protobuf_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/schemaful_dsv_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/schemaful_dsv_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/schemaful_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/schemaless_writer_adapter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/web_json_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/skiff_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/skiff_yson_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/skiff_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/unversioned_value_yson_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/versioned_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yamr_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yamr_parser_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yamr_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yamr_writer_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yamred_dsv_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yamred_dsv_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yson_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yson_map_to_unversioned_value.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/yql_yson_converter.cpp
 )

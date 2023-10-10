@@ -4,8 +4,6 @@
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
-#include <yt/yt/client/formats/format.h>
-
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -16,6 +14,8 @@
 
 #include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/library/formats/format.h>
 
 namespace NYT::NApi::NRpcProxy {
 

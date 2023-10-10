@@ -887,6 +887,68 @@ TEST_F(TClearTmpTestBase, TestErrorneousSkiffReading_YTADMINREQ_32428)
     EXPECT_THROW_WITH_SUBSTRING(stream->ReadAll(), "Unexpected type of");
 }
 
+TEST_F(TClearTmpTestBase, FordiddenFormat_YT_20098)
+{
+    TString name = "foo";
+    if (!WaitFor(Client_->NodeExists("//sys/users/" + name)).ValueOrThrow()) {
+        TCreateObjectOptions options;
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("name", name);
+        options.Attributes = std::move(attributes);
+        WaitFor(Client_->CreateObject(NObjectClient::EObjectType::User, options))
+            .ThrowOnError();
+    }
+
+    auto clientOptions = TClientOptions::FromUser(name);
+    auto client_ = Connection_->CreateClient(clientOptions);
+
+    THashMap<TString, bool> enableFalse;
+    enableFalse["enable"] = false;
+    THashMap<TString, THashMap<TString, bool>> disableArrow;
+    disableArrow["arrow"] = enableFalse;
+    THashMap<TString, THashMap<TString, THashMap<TString, bool>>> formatsConf;
+    formatsConf["formats"] = disableArrow;
+
+    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", ConvertToYsonString(formatsConf))).ThrowOnError();
+
+    TRichYPath tablePath("//tmp/forbidden_format");
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"IntColumn", EValueType::Int64}}));
+    options.Attributes->Set("optimize_for", "scan");
+    options.Force = true;
+
+    WaitFor(client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+        .ThrowOnError();
+
+    {
+        auto writer = WaitFor(client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+        auto columnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
+
+        auto value = MakeUnversionedInt64Value(1, columnId);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
+        YT_VERIFY(writer->Write({owningRow}));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    auto apiServiceProxy = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(client_.Get())->CreateApiServiceProxy();
+    auto req = apiServiceProxy.ReadTable();
+
+    req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
+    auto format = BuildYsonStringFluently().Value("arrow");
+
+    req->set_format(format.ToString());
+
+    ToProto(req->mutable_path(), tablePath);
+
+    EXPECT_THROW_WITH_ERROR_CODE(WaitFor(NRpc::CreateRpcClientInputStream(req))
+        .ValueOrThrow(), NYT::NApi::EErrorCode::FormatDisabled);
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TArrowTestBase

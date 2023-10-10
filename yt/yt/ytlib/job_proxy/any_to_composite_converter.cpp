@@ -1,7 +1,5 @@
 #include "any_to_composite_converter.h"
 
-#include <yt/yt/client/formats/format.h>
-
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
