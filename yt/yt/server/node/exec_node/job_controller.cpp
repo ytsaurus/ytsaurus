@@ -1160,7 +1160,7 @@ private:
                     jobToAbort.JobId,
                     agentDescriptor);
 
-                AbortJob(job, jobToAbort);
+                AbortJob(job, jobToAbort.AbortReason);
             } else {
                 YT_LOG_WARNING(
                     "Agent requested to abort a non-existent job (JobId: %v, AbortReason: %v, AgentDescriptor: %v)",
@@ -1184,12 +1184,9 @@ private:
                 if (job->IsFinished()) {
                     RemoveJob(job, jobToRemove.ReleaseFlags);
                 } else {
-                    YT_LOG_DEBUG("Defer job removal since job is still running (JobId: %v, JobState: %v", jobId, job->GetState());
-                    job->SubscribeJobFinished(BIND([this, this_ = MakeStrong(this), job, releaseFlags = jobToRemove.ReleaseFlags] {
-                        YT_LOG_DEBUG("Process deferred job removal (JobId: %v, JobState: %v)", job->GetId(), job->GetState());
-
-                        RemoveJob(job, releaseFlags);
-                    }));
+                    YT_LOG_DEBUG("Requested to remove running job; aborting job (JobId: %v, JobState: %v)", jobId, job->GetState());
+                    AbortJob(job, EAbortReason::Other);
+                    RemoveJob(job, jobToRemove.ReleaseFlags);
                 }
             } else {
                 YT_LOG_WARNING(
@@ -1683,16 +1680,16 @@ private:
         DoAbortJob(job, std::move(error));
     }
 
-    void AbortJob(const TJobPtr& job, const NControllerAgent::TJobToAbort& abortAttributes)
+    void AbortJob(const TJobPtr& job, EAbortReason abortReason)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         YT_LOG_INFO("Aborting job (JobId: %v, AbortReason: %v)",
             job->GetId(),
-            abortAttributes.AbortReason);
+            abortReason);
 
         auto error = TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by controller agent")
-            << TErrorAttribute("abort_reason", abortAttributes.AbortReason);
+            << TErrorAttribute("abort_reason", abortReason);
 
         DoAbortJob(job, std::move(error));
     }

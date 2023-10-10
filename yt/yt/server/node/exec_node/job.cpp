@@ -539,6 +539,8 @@ void TJob::Finalize(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    TForbidContextSwitchGuard guard;
+
     if (!Finalize(
             /*finalJobState*/ std::nullopt,
             std::move(error),
@@ -567,14 +569,14 @@ bool TJob::Finalize(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    TForbidContextSwitchGuard guard;
+
     if (IsFinished()) {
         YT_LOG_DEBUG("Job already finalized");
         return false;
     }
 
     YT_LOG_DEBUG("Finalizing job (FinalState: %v)", finalJobState);
-
-    TForbidContextSwitchGuard guard;
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
