@@ -43,9 +43,9 @@ public:
         YT_ABORT();
     }
 
-    void Acquire(i64 size) override
+    bool Acquire(i64 size) override
     {
-        MemoryTracker_->Acquire(Category_, size);
+        return MemoryTracker_->Acquire(Category_, size);
     }
 
     void Release(i64 size) override
@@ -154,10 +154,11 @@ public:
     }
 
 
-    void Acquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& /*poolTag*/)
+    bool Acquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& /*poolTag*/)
     {
         YT_LOG_DEBUG("Acquire(%v, %v)", category, size);
         CategoryToUsage_[category] += size;
+        return false;
     }
 
     TError TryAcquire(EMemoryCategory /*category*/, i64 /*size*/, const std::optional<TPoolTag>& /*poolTag*/)

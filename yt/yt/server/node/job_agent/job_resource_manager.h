@@ -63,6 +63,7 @@ public:
 
     DECLARE_INTERFACE_SIGNAL(void(), ResourcesAcquired);
     DECLARE_INTERFACE_SIGNAL(void(EResourcesConsumerType, bool), ResourcesReleased);
+    DECLARE_INTERFACE_SIGNAL(void(TResourceHolderPtr), ResourceUsageOverdrafted);
 
     DECLARE_INTERFACE_SIGNAL(
         void(i64 mapped),
@@ -118,8 +119,9 @@ public:
 
     const std::vector<int>& GetPorts() const noexcept;
 
-    //! Returns resource usage delta.
-    NClusterNode::TJobResources SetResourceUsage(NClusterNode::TJobResources newResourceUsage);
+    //! Returns true unless overcommit occurred.
+    bool SetResourceUsage(NClusterNode::TJobResources newResourceUsage);
+    bool ChangeCumulativeResourceUsage(NClusterNode::TJobResources resourceUsageDelta);
 
     void ReleaseCumulativeResources();
 
@@ -128,8 +130,6 @@ public:
     const NClusterNode::TJobResourceAttributes& GetResourceAttributes() const noexcept;
 
     const NLogging::TLogger& GetLogger() const noexcept;
-
-    NClusterNode::TJobResources ChangeCumulativeResourceUsage(NClusterNode::TJobResources resourceUsageDelta);
 
     NClusterNode::TJobResources GetResourceLimits() const noexcept;
 

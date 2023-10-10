@@ -1190,11 +1190,11 @@ public:
         : ResourceHolder_(std::move(resourceHolder))
     { }
 
-    void Acquire(i64 size) override
+    bool Acquire(i64 size) override
     {
         TJobResources resources;
         resources.SystemMemory = size;
-        ResourceHolder_.Lock()->ChangeCumulativeResourceUsage(resources);
+        return ResourceHolder_.Lock()->ChangeCumulativeResourceUsage(resources);
     }
 
     TError TryAcquire(i64 /*size*/) override

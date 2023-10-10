@@ -144,6 +144,9 @@ public:
         JobResourceManager_->SubscribeReservedMemoryOvercommited(
             BIND_NO_PROPAGATE(&TJobController::OnReservedMemoryOvercommited, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
+        JobResourceManager_->SubscribeResourceUsageOverdrafted(
+            BIND_NO_PROPAGATE(&TJobController::OnResourceUsageOverdrafted, MakeWeak(this))
+                .Via(Bootstrap_->GetJobInvoker()));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
@@ -781,46 +784,47 @@ private:
         resources.clear_vcpu();
     }
 
-    void OnJobResourcesUpdated(const TWeakPtr<TJob>& weakCurrentJob, const NClusterNode::TJobResources& resourceDelta)
+    void OnResourceUsageOverdrafted(TResourceHolderPtr resourceHolder)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto currentJob = weakCurrentJob.Lock();
-        YT_VERIFY(currentJob);
+        TForbidContextSwitchGuard guard;
+
+        auto currentJob = DynamicPointerCast<TJob>(std::move(resourceHolder));
+        if (!currentJob) {
+            return;
+        }
 
         auto jobId = currentJob->GetId();
 
-        YT_LOG_DEBUG("Job resource usage updated (JobId: %v, Delta: %v)", jobId, FormatResources(resourceDelta));
+        YT_LOG_DEBUG("Resource usage overdrafted on job resources updating (JobId: %v)", jobId);
 
-        if (JobResourceManager_->CheckMemoryOverdraft(resourceDelta)) {
-            if (currentJob->ResourceUsageOverdrafted()) {
-                // TODO(pogorelov): Maybe do not abort job at RunningExtraGpuCheckCommand phase?
-                currentJob->Abort(TError(
-                    NExecNode::EErrorCode::ResourceOverdraft,
-                    "Failed to increase resource usage")
-                    << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
-            } else {
-                bool foundJobToAbort = false;
-                for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
-                    if (job->GetState() == EJobState::Running && job->ResourceUsageOverdrafted()) {
-                        job->Abort(TError(
-                            NExecNode::EErrorCode::ResourceOverdraft,
-                            "Failed to increase resource usage on node by some other job with guarantee")
-                            << TErrorAttribute("resource_delta", FormatResources(resourceDelta))
-                            << TErrorAttribute("other_job_id", currentJob->GetId()));
-                        foundJobToAbort = true;
-                        break;
-                    }
-                }
-
-                if (!foundJobToAbort) {
-                    currentJob->Abort(TError(
-                        NExecNode::EErrorCode::NodeResourceOvercommit,
-                        "Fail to increase resource usage since resource usage on node overcommitted")
-                        << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
+        if (currentJob->ResourceUsageOverdrafted()) {
+            // TODO(pogorelov): Maybe do not abort job at RunningExtraGpuCheckCommand phase?
+            currentJob->Abort(TError(
+                NExecNode::EErrorCode::ResourceOverdraft,
+                "Resource usage overdrafted")
+                // GetResourceUsage can be updated again, but it is pretty rare situation.
+                << TErrorAttribute("resource_usage", FormatResources(currentJob->GetResourceUsage())));
+        } else {
+            bool foundJobToAbort = false;
+            for (const auto& [id, job] : JobMap_) {
+                if (job->GetState() == EJobState::Running && job->ResourceUsageOverdrafted()) {
+                    job->Abort(TError(
+                        NExecNode::EErrorCode::ResourceOverdraft,
+                        "Some other job with guarantee overdrafted node resource usage")
+                        << TErrorAttribute("resource_usage", FormatResources(job->GetResourceUsage()))
+                        << TErrorAttribute("other_job_id", currentJob->GetId()));
+                    foundJobToAbort = true;
+                    break;
                 }
             }
-            return;
+
+            if (!foundJobToAbort) {
+                currentJob->Abort(TError(
+                    NExecNode::EErrorCode::NodeResourceOvercommit,
+                    "Resource usage on node overcommitted"));
+            }
         }
     }
 
@@ -1587,10 +1591,6 @@ private:
         }
 
         JobRegistered_.Fire(job);
-
-        job->SubscribeResourcesUpdated(
-            BIND_NO_PROPAGATE(&TJobController::OnJobResourcesUpdated, MakeWeak(this), MakeWeak(job))
-                .Via(Bootstrap_->GetJobInvoker()));
 
         job->SubscribeJobPrepared(
             BIND_NO_PROPAGATE(&TJobController::OnJobPrepared, MakeWeak(this), MakeWeak(job))
