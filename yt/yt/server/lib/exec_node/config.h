@@ -633,6 +633,10 @@ public:
     std::optional<TDuration> JobAbortionTimeout;
     TDuration SlotReleaseTimeout;
 
+    bool AbortOnFreeVolumeSynchronizationFailed;
+
+    bool AbortOnFreeSlotSynchronizationFailed;
+
     std::optional<TDuration> JobProxyPreparationTimeout;
 
     bool AbortOnJobsDisabled;
