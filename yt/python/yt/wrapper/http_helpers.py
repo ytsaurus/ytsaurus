@@ -490,7 +490,7 @@ def _get_proxy_url_parts(required=True, client=None, replace_host_proxy=None):
         scheme = "https"
 
     # expand host aliases
-    if "." not in hostname and "localhost" not in hostname and not port and not scheme:
+    if "." not in hostname and ":" not in hostname and "localhost" not in hostname and not port and not scheme:
         hostname = hostname + get_config(client=client)["proxy"]["default_suffix"]
 
     # get scheme from config
@@ -504,6 +504,10 @@ def _get_proxy_url_parts(required=True, client=None, replace_host_proxy=None):
         if not hostname.startswith("tvm.") and not replace_host_proxy:
             hostname = "tvm." + hostname
         port = TVM_ONLY_HTTP_PROXY_PORT if scheme == "http" else TVM_ONLY_HTTPS_PROXY_PORT
+
+    # IPv6 address RFC-2732
+    if parts.netloc.startswith('['):
+        hostname = '[' + hostname + ']'
 
     return (scheme, hostname + (":" + str(port) if port else ""))
 

@@ -308,6 +308,31 @@ class TestClient(object):
                 {"url": "cluster1", "default_suffix": ".imaginary.yt.yandex.net"},
                 "cluster1.imaginary.yt.yandex.net",
             ),
+            (
+                "ipv4",
+                {"url": "127.0.0.1"},
+                "127.0.0.1"
+            ),
+            (
+                "ipv4 with port",
+                {"url": "127.0.0.1:23924"},
+                "127.0.0.1:23924"
+            ),
+            (
+                "ipv6",
+                {"url": "[::1]"},
+                "[::1]"
+            ),
+            (
+                "ipv4-mapped",
+                {"url": "[::ffff:127.0.0.1]"},
+                "[::ffff:127.0.0.1]"
+            ),
+            (
+                "ipv6 with port",
+                {"url": "[::1]:23924"},
+                "[::1]:23924"
+            ),
         ]:
             client = yt.YtClient(config={"proxy": proxy_config})
             assert http.get_proxy_url(client=client) == expected_url, test_name
@@ -409,6 +434,41 @@ class TestClient(object):
                 "default_suffix config https",
                 {"url": "cluster1", "default_suffix": ".imaginary.yt.cluster.net", "prefer_https": True},
                 "https://cluster1.imaginary.yt.cluster.net",
+            ),
+            (
+                "ipv4",
+                {"url": "127.0.0.1"},
+                "http://127.0.0.1"
+            ),
+            (
+                "ipv4 with port",
+                {"url": "127.0.0.1:23924"},
+                "http://127.0.0.1:23924"
+            ),
+            (
+                "ipv4 with scheme and port",
+                {"url": "https://127.0.0.1:23924"},
+                "https://127.0.0.1:23924"
+            ),
+            (
+                "ipv6",
+                {"url": "[::1]"},
+                "http://[::1]"
+            ),
+            (
+                "ipv4-mapped",
+                {"url": "[::ffff:127.0.0.1]"},
+                "http://[::ffff:127.0.0.1]"
+            ),
+            (
+                "ipv6 with port",
+                {"url": "[::1]:23924"},
+                "http://[::1]:23924"
+            ),
+            (
+                "ipv6 with scheme and port",
+                {"url": "https://[::1]:23924"},
+                "https://[::1]:23924"
             ),
         ]:
             client = yt.YtClient(config={"proxy": proxy_config})
