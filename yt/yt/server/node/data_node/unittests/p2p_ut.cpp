@@ -34,7 +34,7 @@ public:
             Config,
             ActionQueue->GetInvoker(),
             GetNullMemoryUsageTracker());
-        Snooper = New<TP2PSnooper>(Config);
+        Snooper = New<TP2PSnooper>(Config, GetNullMemoryUsageTracker());
     }
 
     ~TP2PTest()

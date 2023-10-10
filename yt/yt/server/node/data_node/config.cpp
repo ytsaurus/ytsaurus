@@ -59,6 +59,8 @@ void TP2PConfig::Register(TRegistrar registrar)
         .Default(3);
     registrar.Parameter("block_redistribution_ticks", &TThis::BlockRedistributionTicks)
         .Default(3000);
+    registrar.Parameter("track_memory_of_chunk_blocks_buffer", &TThis::TrackMemoryOfChunkBlocksBuffer)
+        .Default(false);
 
     registrar.Parameter("node_tag_filter", &TThis::NodeTagFilter)
         .Default(MakeBooleanFormula("!CLOUD"));

@@ -219,7 +219,9 @@ public:
             GetConfig()->DataNode->P2P,
             P2PActionQueue_->GetInvoker(),
             GetMemoryUsageTracker()->WithCategory(EMemoryCategory::P2P));
-        P2PSnooper_ = New<TP2PSnooper>(GetConfig()->DataNode->P2P);
+        P2PSnooper_ = New<TP2PSnooper>(
+            GetConfig()->DataNode->P2P,
+            GetMemoryUsageTracker()->WithCategory(EMemoryCategory::P2P));
         P2PDistributor_ = New<TP2PDistributor>(
             GetConfig()->DataNode->P2P,
             P2PActionQueue_->GetInvoker(),
