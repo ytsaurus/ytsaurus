@@ -257,7 +257,7 @@ void TParameterizedReassignSolver::Initialize()
 
 void TParameterizedReassignSolver::CalculateMemory()
 {
-    if (Bundle_->NodeMemoryStatistics.empty()) {
+    if (Bundle_->NodeStatistics.empty()) {
         YT_LOG_DEBUG("Don't calculate memory because there are no in-memory tables with parameterized balancing");
         return;
     }
@@ -278,7 +278,7 @@ void TParameterizedReassignSolver::CalculateMemory()
     }
 
     THashMap<TNodeAddress, i64> cellMemoryLimit;
-    for (const auto& [address, statistics] : Bundle_->NodeMemoryStatistics) {
+    for (const auto& [address, statistics] : Bundle_->NodeStatistics) {
         if (!cellCount.contains(address)) {
             YT_LOG_DEBUG("There are no alive cells on the node (Node: %v)",
                 address);
@@ -286,27 +286,29 @@ void TParameterizedReassignSolver::CalculateMemory()
         }
 
         i64 actualUsage = GetOrCrash(actualMemoryUsage, address);
-        i64 free = statistics.Limit - statistics.Used;
+        i64 free = statistics.MemoryLimit - statistics.MemoryUsed;
         i64 unaccountedUsage = 0;
 
-        if (actualUsage > statistics.Used) {
+        if (actualUsage > statistics.MemoryUsed) {
             YT_LOG_DEBUG("Using total cell memory as node memory usage (Node: %v, Used: %v, Sum: %v, Limit: %v)",
                 address,
-                statistics.Used,
+                statistics.MemoryUsed,
                 actualUsage,
-                statistics.Limit);
+                statistics.MemoryLimit);
             THROW_ERROR_EXCEPTION_IF(
-                statistics.Limit < actualUsage,
+                statistics.MemoryLimit < actualUsage,
                 "Node memory size limit is less than the actual cell memory size");
-            free = statistics.Limit - actualUsage;
+            free = statistics.MemoryLimit - actualUsage;
         } else {
-            unaccountedUsage = statistics.Used - actualUsage;
+            unaccountedUsage = statistics.MemoryUsed - actualUsage;
         }
 
         auto count = GetOrCrash(cellCount, address);
+        auto tabletSlotCount = std::max(statistics.TabletSlotCount, count);
+        auto cellLimit = (statistics.MemoryLimit - unaccountedUsage) / tabletSlotCount;
 
         GetOrCrash(Nodes_, address).FreeNodeMemory = free;
-        EmplaceOrCrash(cellMemoryLimit, address, (statistics.Limit - unaccountedUsage) / count);
+        EmplaceOrCrash(cellMemoryLimit, address, cellLimit);
     }
 
     for (const auto& [cell, usage] : cellMemoryUsage) {

@@ -884,8 +884,8 @@ void ApplyMoveTabletAction(const TTabletPtr& tablet, const TTabletCellId& cellId
         sourceCell->Statistics.MemorySize -= size;
         cell->Statistics.MemorySize += size;
 
-        bundle->NodeMemoryStatistics[*sourceCell->NodeAddress].Used -= size;
-        bundle->NodeMemoryStatistics[*cell->NodeAddress].Used += size;
+        bundle->NodeStatistics[*sourceCell->NodeAddress].MemoryUsed -= size;
+        bundle->NodeStatistics[*cell->NodeAddress].MemoryUsed += size;
     }
 }
 

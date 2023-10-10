@@ -10,17 +10,18 @@ namespace NYT::NTabletBalancer {
 
 struct TTabletCellBundle final
 {
-    struct TNodeMemoryStatistics
+    struct TNodeStatistics
     {
-        i64 Limit = std::numeric_limits<i64>::max() / 2;
-        i64 Used;
+        int TabletSlotCount;
+        i64 MemoryLimit = std::numeric_limits<i64>::max() / 2;
+        i64 MemoryUsed;
     };
 
     const TString Name;
     TBundleTabletBalancerConfigPtr Config;
     THashMap<TTabletCellId, TTabletCellPtr> TabletCells;
     THashMap<TTableId, TTablePtr> Tables;
-    THashMap<TNodeAddress, TNodeMemoryStatistics> NodeMemoryStatistics;
+    THashMap<TNodeAddress, TNodeStatistics> NodeStatistics;
 
     TTabletCellBundle(TString name);
 
@@ -31,7 +32,7 @@ struct TTabletCellBundle final
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellBundle)
 
-void Deserialize(TTabletCellBundle::TNodeMemoryStatistics& value, NYTree::INodePtr node);
+void Deserialize(TTabletCellBundle::TNodeStatistics& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,7 +35,6 @@ struct TBundleProfilingCounters
     NProfiling::TCounter BasicTableAttributesRequestCount;
     NProfiling::TCounter ActualTableSettingsRequestCount;
     NProfiling::TCounter TableStatisticsRequestCount;
-    NProfiling::TCounter NodeStatisticsRequestCount;
 
     TBundleProfilingCounters(const NProfiling::TProfiler& profiler);
 };
@@ -72,7 +71,7 @@ public:
     bool IsParameterizedBalancingEnabled() const;
 
     TFuture<void> UpdateState(bool fetchTabletCellsFromSecondaryMasters);
-    TFuture<void> FetchStatistics();
+    TFuture<void> FetchStatistics(const NYTree::IListNodePtr& nodeStatistics);
 
     const TTableProfilingCounters& GetProfilingCounters(
         const TTable* table,
@@ -121,14 +120,15 @@ private:
 
     THashMap<TTableId, TTablePtr> FetchBasicTableAttributes(
         const THashSet<TTableId>& tableIds) const;
-    THashMap<TString, TTabletCellBundle::TNodeMemoryStatistics> FetchNodeStatistics(
+    THashMap<TString, TTabletCellBundle::TNodeStatistics> GetNodeStatistics(
+        const NYTree::IListNodePtr& nodeStatistics,
         const THashSet<TString>& addresses) const;
 
     TTabletCellInfo TabletCellInfoFromAttributes(
         TTabletCellId cellId,
         const NYTree::IAttributeDictionaryPtr& attributes) const;
 
-    void DoFetchStatistics();
+    void DoFetchStatistics(const NYTree::IListNodePtr& nodeStatistics);
 
     THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
     THashMap<TTableId, std::vector<TTabletStatisticsResponse>> FetchTableStatistics(

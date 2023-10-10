@@ -105,11 +105,14 @@ void TTableHolder::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellBundle::TNodeMemoryStatistics TNodeHolder::GetStatistics() const
+TTabletCellBundle::TNodeStatistics TNodeHolder::GetStatistics() const
 {
-    TTabletCellBundle::TNodeMemoryStatistics statistics{.Used = MemoryUsed};
+    TTabletCellBundle::TNodeStatistics statistics{
+        .TabletSlotCount = TabletSlotCount,
+        .MemoryUsed = MemoryUsed
+    };
     if (MemoryLimit) {
-        statistics.Limit = *MemoryLimit;
+        statistics.MemoryLimit = *MemoryLimit;
     }
     return statistics;
 }
@@ -118,6 +121,9 @@ void TNodeHolder::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_address", &TThis::NodeAddress)
         .Default();
+    registrar.Parameter("tablet_slot_count", &TThis::TabletSlotCount)
+        .Default(1)
+        .GreaterThanOrEqual(0);
     registrar.Parameter("memory_used", &TThis::MemoryUsed)
         .Default(0);
     registrar.Parameter("memory_limit", &TThis::MemoryLimit)
@@ -158,7 +164,7 @@ TTabletCellBundlePtr TBundleHolder::CreateBundle() const
 
     for (const auto& nodeHolder : Nodes) {
         EmplaceOrCrash(
-            bundle->NodeMemoryStatistics,
+            bundle->NodeStatistics,
             nodeHolder->NodeAddress,
             nodeHolder->GetStatistics());
     }

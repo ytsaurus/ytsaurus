@@ -67,10 +67,11 @@ struct TNodeHolder
     : public NYTree::TYsonStruct
 {
     TString NodeAddress;
+    int TabletSlotCount;
     i64 MemoryUsed;
     std::optional<i64> MemoryLimit;
 
-    TTabletCellBundle::TNodeMemoryStatistics GetStatistics() const;
+    TTabletCellBundle::TNodeStatistics GetStatistics() const;
 
     REGISTER_YSON_STRUCT(TNodeHolder);
 
