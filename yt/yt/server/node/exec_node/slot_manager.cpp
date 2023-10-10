@@ -631,7 +631,8 @@ bool TSlotManager::Disable(const TError& error)
         Alerts_[ESlotManagerAlertType::GenericPersistentError] = std::move(wrappedError);
     }
 
-    auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotReleaseTimeout;
+    auto config = Bootstrap_->GetDynamicConfig()->ExecNode;
+    auto timeout = config->SlotReleaseTimeout;
 
     auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs()
         .WithTimeout(timeout));
@@ -640,12 +641,17 @@ bool TSlotManager::Disable(const TError& error)
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .WithTimeout(timeout));
         YT_LOG_FATAL_IF(
+            config->AbortOnFreeVolumeSynchronizationFailed && !result.IsOK(),
+            result,
+            "Free volume synchronization failed");
+        YT_LOG_ERROR_IF(
             !result.IsOK(),
             result,
             "Free volume synchronization failed");
     }
 
-    YT_LOG_FATAL_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
+    YT_LOG_FATAL_IF(config->AbortOnFreeSlotSynchronizationFailed && !syncResult.IsOK(), syncResult, "Free slot synchronization failed");
+    YT_LOG_ERROR_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
 
     YT_LOG_WARNING("Disable slot manager finished");
 

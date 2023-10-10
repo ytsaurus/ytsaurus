@@ -705,6 +705,11 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
+    registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
+        .Default(true);
+    registrar.Parameter("abort_on_free_slot_synchronization_failed", &TThis::AbortOnFreeSlotSynchronizationFailed)
+        .Default(true);
+
     registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
         .Default(false);
 
