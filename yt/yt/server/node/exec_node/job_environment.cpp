@@ -1056,6 +1056,7 @@ private:
         if (!Config_->UseJobProxyFromImage) {
             auto jobProxyPath = Format("%v/%v", LocalBinDir, JobProxyProgramName);
             auto execProgramPath = Format("%v/%v", LocalBinDir, ExecProgramName);
+            auto toolsProgramPath = Format("%v/%v", LocalBinDir, ToolsProgramName);
 
             spec->Command = {jobProxyPath};
             spec->BindMounts.push_back(NCri::TCriBindMount{
@@ -1066,6 +1067,11 @@ private:
             spec->BindMounts.push_back(NCri::TCriBindMount{
                 .ContainerPath = execProgramPath,
                 .HostPath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                .ReadOnly = true,
+            });
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = toolsProgramPath,
+                .HostPath = ResolveBinaryPath(TString(ToolsProgramName)).ValueOrThrow(),
                 .ReadOnly = true,
             });
         }
