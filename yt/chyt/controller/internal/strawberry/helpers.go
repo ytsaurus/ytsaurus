@@ -64,8 +64,8 @@ func extractOpID(err error) yt.OperationID {
 }
 
 type FieldDiff struct {
-	OldValue any `yson:"old_value"`
-	NewValue any `yson:"new_value"`
+	OldValue any `yson:"old_value" json:"old_value"`
+	NewValue any `yson:"new_value" json:"new_value"`
 }
 
 func specletDiff(oldSpeclet, newSpeclet any) map[string]FieldDiff {

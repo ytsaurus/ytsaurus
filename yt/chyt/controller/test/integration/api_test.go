@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"reflect"
@@ -735,5 +736,40 @@ func TestHTTPAPIDescribeOptions(t *testing.T) {
 		Name:         "test_option",
 		Type:         "uint64",
 		CurrentValue: uint64(10),
+	})
+}
+
+func TestHTTPAPIJSONFormat(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequestWithFormat(
+		"create",
+		api.RequestParams{Params: map[string]any{"alias": alias}},
+		"json")
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequestWithFormat(
+		"list",
+		api.RequestParams{
+			Params: map[string]any{
+				"attributes": []string{"creator", "test_option"},
+			},
+		},
+		"json",
+	)
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var resultWithAttrs map[string][]api.AliasWithAttrs
+	require.NoError(t, json.Unmarshal(r.Body, &resultWithAttrs))
+
+	require.Contains(t, resultWithAttrs["result"], api.AliasWithAttrs{
+		Alias: alias,
+		Attrs: map[string]any{
+			"creator":     "root",
+			"test_option": nil,
+		},
 	})
 }

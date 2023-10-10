@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -68,11 +69,11 @@ type RequestClient struct {
 
 type Response struct {
 	StatusCode int
-	Body       yson.RawValue
+	Body       []byte
 }
 
-func (c *RequestClient) MakeRequest(httpMethod string, command string, params api.RequestParams) Response {
-	body, err := yson.Marshal(params)
+func (c *RequestClient) MakeRequest(httpMethod string, command string, params api.RequestParams, format api.FormatType) Response {
+	body, err := api.Marshal(params, format)
 	require.NoError(c.t, err)
 
 	c.env.L.Debug("making http api request", log.String("command", command), log.Any("params", params))
@@ -80,7 +81,8 @@ func (c *RequestClient) MakeRequest(httpMethod string, command string, params ap
 	req, err := http.NewRequest(httpMethod, c.Endpoint+"/"+command, bytes.NewReader(body))
 	require.NoError(c.t, err)
 
-	req.Header.Set("Content-Type", "application/yson")
+	req.Header.Set("Content-Type", fmt.Sprintf("application/%v", format))
+	req.Header.Set("Accept", fmt.Sprintf("application/%v", format))
 	req.Header.Set("X-YT-TestUser", c.User)
 
 	rsp, err := c.httpClient.Do(req)
@@ -97,16 +99,20 @@ func (c *RequestClient) MakeRequest(httpMethod string, command string, params ap
 
 	return Response{
 		StatusCode: rsp.StatusCode,
-		Body:       yson.RawValue(body),
+		Body:       body,
 	}
 }
 
 func (c *RequestClient) MakePostRequest(command string, params api.RequestParams) Response {
-	return c.MakeRequest(http.MethodPost, c.Proxy+"/"+command, params)
+	return c.MakeRequest(http.MethodPost, c.Proxy+"/"+command, params, api.DefaultFormat)
+}
+
+func (c *RequestClient) MakePostRequestWithFormat(command string, params api.RequestParams, format api.FormatType) Response {
+	return c.MakeRequest(http.MethodPost, c.Proxy+"/"+command, params, format)
 }
 
 func (c *RequestClient) MakeGetRequest(command string, params api.RequestParams) Response {
-	return c.MakeRequest(http.MethodGet, command, params)
+	return c.MakeRequest(http.MethodGet, command, params, api.DefaultFormat)
 }
 
 func PrepareClient(t *testing.T, env *Env, proxy string, server *httpserver.HTTPServer) *RequestClient {

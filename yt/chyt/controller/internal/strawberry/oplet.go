@@ -863,20 +863,20 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 }
 
 type OpletStatus struct {
-	Status           string               `yson:"status"`
-	SpecletDiff      map[string]FieldDiff `yson:"speclet_diff,omitempty"`
-	OperationURL     string               `yson:"operation_url,omitempty"`
-	OperationState   yt.OperationState    `yson:"yt_operation_state,omitempty"`
-	OperationID      yt.OperationID       `yson:"operation_id,omitempty"`
-	State            OperationState       `yson:"state"`
-	Creator          string               `yson:"creator,omitempty"`
-	Pool             string               `yson:"pool,omitempty"`
-	Stage            string               `yson:"stage"`
-	StartTime        yson.Time            `yson:"start_time,omitempty"`
-	FinishTime       yson.Time            `yson:"finish_time,omitempty"`
-	IncarnationIndex int                  `yson:"incarnation_index"`
-	CtlAttributes    map[string]any       `yson:"ctl_attributes"`
-	Error            string               `yson:"error,omitempty"`
+	Status           string               `yson:"status" json:"status"`
+	SpecletDiff      map[string]FieldDiff `yson:"speclet_diff,omitempty" json:"speclet_diff,omitempty"`
+	OperationURL     string               `yson:"operation_url,omitempty" json:"operation_url,omitempty"`
+	OperationState   yt.OperationState    `yson:"yt_operation_state,omitempty" json:"yt_operation_state,omitempty"`
+	OperationID      yt.OperationID       `yson:"operation_id,omitempty" json:"operation_id,omitempty"`
+	State            OperationState       `yson:"state" json:"state"`
+	Creator          string               `yson:"creator,omitempty" json:"creator,omitempty"`
+	Pool             string               `yson:"pool,omitempty" json:"pool,omitempty"`
+	Stage            string               `yson:"stage" json:"stage"`
+	StartTime        yson.Time            `yson:"start_time,omitempty" json:"start_time,omitempty"`
+	FinishTime       yson.Time            `yson:"finish_time,omitempty" json:"finish_time,omitempty"`
+	IncarnationIndex int                  `yson:"incarnation_index" json:"incarnation_index"`
+	CtlAttributes    map[string]any       `yson:"ctl_attributes" json:"ctl_attributes"`
+	Error            string               `yson:"error,omitempty" json:"error,omitempty"`
 }
 
 func (oplet *Oplet) Status() (s OpletStatus, err error) {

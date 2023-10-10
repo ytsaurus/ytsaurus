@@ -361,7 +361,7 @@ func (a *API) Status(ctx context.Context, alias string) (strawberry.OpletStatus,
 	return oplet.Status()
 }
 
-func (a *API) GetOption(ctx context.Context, alias, key string) (value yson.RawValue, err error) {
+func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err error) {
 	if err = a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return
 	}
@@ -405,8 +405,8 @@ func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
 }
 
 type AliasWithAttrs struct {
-	Alias string         `yson:",value"`
-	Attrs map[string]any `yson:",attrs"`
+	Alias string         `yson:",value" json:"$value"`
+	Attrs map[string]any `yson:",attrs" json:"$attributes"`
 }
 
 func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, error) {
@@ -483,7 +483,7 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 	return result, nil
 }
 
-func (a *API) GetSpeclet(ctx context.Context, alias string) (speclet yson.RawValue, err error) {
+func (a *API) GetSpeclet(ctx context.Context, alias string) (speclet map[string]any, err error) {
 	if err = a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return
 	}

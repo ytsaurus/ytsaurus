@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +18,7 @@ import (
 type RequestParams struct {
 	// Params contains request parameters which are set by the user.
 	// E.g. in CLI "--xxx yyy" should set an "xxx" parameter with the value "yyy".
-	Params map[string]any `yson:"params"`
+	Params map[string]any `yson:"params" json:"params"`
 
 	// Unparsed indicates that:
 	//
@@ -27,7 +28,48 @@ type RequestParams struct {
 	// 3. A null value for a param is equivalent to a missing param.
 	//
 	// It can be useful in CLI, where all params' types are unknown.
-	Unparsed bool `yson:"unparsed"`
+	Unparsed bool `yson:"unparsed" json:"unparsed"`
+}
+
+type FormatType string
+
+const (
+	FormatJSON FormatType = "json"
+	FormatYSON FormatType = "yson"
+
+	DefaultFormat FormatType = FormatYSON
+)
+
+func getFormat(formatHeader string) (FormatType, error) {
+	switch formatHeader {
+	case "application/yson":
+		return FormatYSON, nil
+	case "application/json":
+		return FormatJSON, nil
+	case "", "*/*":
+		return DefaultFormat, nil
+	}
+	return "", yterrors.Err("cannot get format, invalid header", yterrors.Attr("header", formatHeader))
+}
+
+func Unmarshal(data []byte, v any, format FormatType) error {
+	switch format {
+	case FormatYSON:
+		return yson.Unmarshal(data, v)
+	case FormatJSON:
+		return json.Unmarshal(data, v)
+	}
+	return yterrors.Err("cannot unmarshal, invalid format type")
+}
+
+func Marshal(v any, format FormatType) ([]byte, error) {
+	switch format {
+	case FormatYSON:
+		return yson.Marshal(v)
+	case FormatJSON:
+		return json.Marshal(v)
+	}
+	return nil, yterrors.Err("cannot marshal, invalid format type")
 }
 
 // HTTPAPI is a lightweight wrapper of API which handles http requests and transforms them to proper API calls.
@@ -46,13 +88,20 @@ func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l lo
 }
 
 func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
-	body, err := yson.Marshal(rsp)
+	format, err := getFormat(w.Header().Get("Content-Type"))
+	if err != nil {
+		a.l.Error("failed to get output format", log.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	body, err := Marshal(rsp, format)
 	if err != nil {
 		a.l.Error("failed to marshal response", log.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	w.Header()["Content-Type"] = []string{"application/yson"}
+
 	w.WriteHeader(status)
 	_, err = w.Write(body)
 	if err != nil {
@@ -123,14 +172,31 @@ func (c CmdParameter) AsExplicit() CmdParameter {
 	return c
 }
 
+type HandlerFunc func(api HTTPAPI, w http.ResponseWriter, r *http.Request, params map[string]any)
+
 type CmdDescriptor struct {
-	Name        string                                                                           `yson:"name"`
-	Parameters  []CmdParameter                                                                   `yson:"parameters"`
-	Description string                                                                           `yson:"description,omitempty"`
-	Handler     func(api HTTPAPI, w http.ResponseWriter, r *http.Request, params map[string]any) `yson:"-"`
+	Name        string         `yson:"name"`
+	Parameters  []CmdParameter `yson:"parameters"`
+	Description string         `yson:"description,omitempty"`
+	Handler     HandlerFunc    `yson:"-"`
 }
 
 func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Request, cmd CmdDescriptor) map[string]any {
+	outputFormat, err := getFormat(r.Header.Get("Accept"))
+	if err != nil {
+		a.replyWithError(w, err)
+		return nil
+	}
+
+	// We need to set this header immediately because all reply functions use it.
+	w.Header()["Content-Type"] = []string{fmt.Sprintf("application/%v", outputFormat)}
+
+	inputFormat, err := getFormat(r.Header.Get("Content-Type"))
+	if err != nil {
+		a.replyWithError(w, err)
+		return nil
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		a.replyWithError(w, yterrors.Err("error reading request body", err))
@@ -138,8 +204,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 	}
 
 	var request RequestParams
-	err = yson.Unmarshal(body, &request)
-	if err != nil {
+	if err = Unmarshal(body, &request, inputFormat); err != nil {
 		a.replyWithError(w, yterrors.Err("error parsing request body", err))
 		return nil
 	}
@@ -183,8 +248,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 					// Try to parse anything except the TypeString as a yson-string.
 					if param.Type != TypeString {
 						var parsedValue any
-						err := yson.Unmarshal([]byte(unparsedValue), &parsedValue)
-						if err != nil {
+						if err = Unmarshal([]byte(unparsedValue), &parsedValue, inputFormat); err != nil {
 							a.replyWithError(w, err)
 							return nil
 						}
@@ -202,8 +266,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 						}
 						if param.ElementType != TypeString {
 							var parsedElement any
-							err := yson.Unmarshal([]byte(unparsedElement), &parsedElement)
-							if err != nil {
+							if err := Unmarshal([]byte(unparsedElement), &parsedElement, inputFormat); err != nil {
 								a.replyWithError(w, err)
 								return nil
 							}
