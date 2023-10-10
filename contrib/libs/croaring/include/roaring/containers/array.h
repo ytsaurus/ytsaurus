@@ -158,6 +158,8 @@ void array_container_printf(const array_container_t *v);
 void array_container_printf_as_uint32_array(const array_container_t *v,
                                             uint32_t base);
 
+bool array_container_validate(const array_container_t *v, const char **reason);
+
 /**
  * Return the serialized size in bytes of a container having cardinality "card".
  */

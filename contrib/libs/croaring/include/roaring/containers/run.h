@@ -435,6 +435,8 @@ void run_container_printf(const run_container_t *v);
 void run_container_printf_as_uint32_array(const run_container_t *v,
                                           uint32_t base);
 
+bool run_container_validate(const run_container_t *run, const char **reason);
+
 /**
  * Return the serialized size in bytes of a container having "num_runs" runs.
  */

@@ -95,6 +95,43 @@ void container_printf_as_uint32_array(
     }
 }
 
+bool container_internal_validate(const container_t *container,
+                                 uint8_t typecode, const char **reason) {
+    if (container == NULL) {
+        *reason = "container is NULL";
+        return false;
+    }
+    // Not using container_unwrap_shared because it asserts if shared containers are nested
+    if (typecode == SHARED_CONTAINER_TYPE) {
+        const shared_container_t *shared_container = const_CAST_shared(container);
+        if (croaring_refcount_get(&shared_container->counter) == 0) {
+            *reason = "shared container has zero refcount";
+            return false;
+        }
+        if (shared_container->typecode == SHARED_CONTAINER_TYPE) {
+            *reason = "shared container is nested";
+            return false;
+        }
+        if (shared_container->container == NULL) {
+            *reason = "shared container has NULL container";
+            return false;
+        }
+        container = shared_container->container;
+        typecode = shared_container->typecode;
+    }
+    switch (typecode) {
+        case BITSET_CONTAINER_TYPE:
+            return bitset_container_validate(const_CAST_bitset(container), reason);
+        case ARRAY_CONTAINER_TYPE:
+            return array_container_validate(const_CAST_array(container), reason);
+        case RUN_CONTAINER_TYPE:
+            return run_container_validate(const_CAST_run(container), reason);
+        default:
+            *reason = "invalid typecode";
+            return false;
+    }
+}
+
 extern inline bool container_nonzero_cardinality(
         const container_t *c, uint8_t typecode);
 

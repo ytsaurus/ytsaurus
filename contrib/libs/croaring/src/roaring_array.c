@@ -76,7 +76,10 @@ bool ra_init_with_capacity(roaring_array_t *new_ra, uint32_t cap) {
     if (!new_ra) return false;
     ra_init(new_ra);
 
-    if (cap > INT32_MAX) { return false; }
+    // Containers hold 64Ki elements, so 64Ki containers is enough to hold `0x10000 * 0x10000` (all 2^32) elements
+    if (cap > 0x10000) {
+        cap = 0x10000;
+    }
 
     if(cap > 0) {
       void *bigalloc = roaring_malloc(cap *

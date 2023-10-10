@@ -110,6 +110,9 @@ roaring_bitmap_t *roaring_bitmap_copy(const roaring_bitmap_t *r);
  *
  * It might be preferable and simpler to call roaring_bitmap_copy except
  * that roaring_bitmap_overwrite can save on memory allocations.
+ *
+ * Returns true if successful, or false if there was an error. On failure,
+ * the dest bitmap is left in a valid, empty state (even if it was not empty before).
  */
 bool roaring_bitmap_overwrite(roaring_bitmap_t *dest,
                               const roaring_bitmap_t *src);
@@ -383,8 +386,8 @@ bool roaring_bitmap_contains_range(const roaring_bitmap_t *r,
                                    uint64_t range_end);
 
 /**
- * Check if an items is present, using context from a previous insert for speed
- * optimization.
+ * Check if an items is present, using context from a previous insert or search
+ * for speed optimization.
  *
  * `context` will be used to store information between calls to make bulk
  * operations faster. `*context` should be zero-initialized before the first
@@ -839,6 +842,16 @@ uint32_t roaring_bitmap_maximum(const roaring_bitmap_t *r);
  */
 void roaring_bitmap_statistics(const roaring_bitmap_t *r,
                                roaring_statistics_t *stat);
+
+/**
+ * Perform internal consistency checks. Returns true if the bitmap is consistent.
+ *
+ * Note that some operations intentionally leave bitmaps in an inconsistent state temporarily,
+ * for example, `roaring_bitmap_lazy_*` functions, until `roaring_bitmap_repair_after_lazy` is called.
+ *
+ * If reason is non-null, it will be set to a string describing the first inconsistency found if any.
+ */
+bool roaring_bitmap_internal_validate(const roaring_bitmap_t *r, const char **reason);
 
 /*********************
 * What follows is code use to iterate through values in a roaring bitmap

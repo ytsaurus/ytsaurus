@@ -1075,19 +1075,15 @@ public:
      */
     uint64_t rank(uint64_t x) const {
         uint64_t result = 0;
-        auto roaring_destination = roarings.find(highBytes(x));
-        if (roaring_destination != roarings.cend()) {
-            for (auto roaring_iter = roarings.cbegin();
-                 roaring_iter != roaring_destination; ++roaring_iter) {
-                result += roaring_iter->second.cardinality();
-            }
-            result += roaring_destination->second.rank(lowBytes(x));
-            return result;
+        // Find the first bitmap >= x's bucket. If that is the bucket x would be in, find it's rank in that bucket.
+        // Either way, we're left with a range of all buckets strictly smaller than x's bucket, add all their
+        // cardinalities together.
+        auto end = roarings.lower_bound(highBytes(x));
+        if (end != roarings.cend() && end->first == highBytes(x)) {
+            result += end->second.rank(lowBytes(x));
         }
-        roaring_destination = roarings.lower_bound(highBytes(x));
-        for (auto roaring_iter = roarings.cbegin();
-             roaring_iter != roaring_destination; ++roaring_iter) {
-            result += roaring_iter->second.cardinality();
+        for (auto iter = roarings.cbegin(); iter != end; ++iter) {
+            result += iter->second.cardinality();
         }
         return result;
     }
@@ -1556,10 +1552,10 @@ private:
     typedef std::map<uint32_t, Roaring> roarings_t;
     roarings_t roarings{}; // The empty constructor silences warnings from pedantic static analyzers.
     bool copyOnWrite{false};
-    static uint32_t highBytes(const uint64_t in) { return uint32_t(in >> 32); }
-    static uint32_t lowBytes(const uint64_t in) { return uint32_t(in); }
-    static uint64_t uniteBytes(const uint32_t highBytes,
-                               const uint32_t lowBytes) {
+    static constexpr uint32_t highBytes(const uint64_t in) { return uint32_t(in >> 32); }
+    static constexpr uint32_t lowBytes(const uint64_t in) { return uint32_t(in); }
+    static constexpr uint64_t uniteBytes(const uint32_t highBytes,
+                                         const uint32_t lowBytes) {
         return (uint64_t(highBytes) << 32) | uint64_t(lowBytes);
     }
     // this is needed to tolerate gcc's C++11 libstdc++ lacking emplace

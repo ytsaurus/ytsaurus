@@ -444,6 +444,46 @@ void array_container_printf_as_uint32_array(const array_container_t *v,
     }
 }
 
+/*
+ * Validate the container. Returns true if valid.
+ */
+bool array_container_validate(const array_container_t *v, const char **reason) {
+    if (v->capacity < 0) {
+        *reason = "negative capacity";
+        return false;
+    }
+    if (v->cardinality < 0) {
+        *reason = "negative cardinality";
+        return false;
+    }
+    if (v->cardinality > v->capacity) {
+        *reason = "cardinality exceeds capacity";
+        return false;
+    }
+    if (v->cardinality > DEFAULT_MAX_SIZE) {
+        *reason = "cardinality exceeds DEFAULT_MAX_SIZE";
+        return false;
+    }
+    if (v->cardinality == 0) {
+        return true;
+    }
+
+    if (v->array == NULL) {
+        *reason = "NULL array pointer";
+        return false;
+    }
+    uint16_t prev = v->array[0];
+    for (int i = 1; i < v->cardinality; ++i) {
+        if (v->array[i] <= prev) {
+            *reason = "array elements not strictly increasing";
+            return false;
+        }
+        prev = v->array[i];
+    }
+
+    return true;
+}
+
 /* Compute the number of runs */
 int32_t array_container_number_of_runs(const array_container_t *ac) {
     // Can SIMD work here?

@@ -680,6 +680,54 @@ void run_container_printf_as_uint32_array(const run_container_t *cont,
     }
 }
 
+/*
+ * Validate the container. Returns true if valid.
+ */
+bool run_container_validate(const run_container_t *run, const char **reason) {
+    if (run->n_runs < 0) {
+        *reason = "negative run count";
+        return false;
+    }
+    if (run->capacity < 0) {
+        *reason = "negative run capacity";
+        return false;
+    }
+    if (run->capacity < run->n_runs) {
+        *reason = "capacity less than run count";
+        return false;
+    }
+
+    if (run->n_runs == 0) {
+        return true;
+    }
+    if (run->runs == NULL) {
+        *reason = "NULL runs";
+        return false;
+    }
+
+    // Use uint32_t to avoid overflow issues on ranges that contain UINT16_MAX.
+    uint32_t last_end = 0;
+    for (int i = 0; i < run->n_runs; ++i) {
+        uint32_t start = run->runs[i].value;
+        uint32_t end = start + run->runs[i].length + 1;
+        if (end <= start) {
+            *reason = "run start + length overflow";
+            return false;
+        }
+
+        if (start < last_end) {
+            *reason = "run start less than last end";
+            return false;
+        }
+        if (start == last_end && last_end != 0) {
+            *reason = "run start equal to last end, should have combined";
+            return false;
+        }
+        last_end = end;
+    }
+    return true;
+}
+
 int32_t run_container_write(const run_container_t *container, char *buf) {
     uint16_t cast_16 = container->n_runs;
     memcpy(buf, &cast_16, sizeof(uint16_t));

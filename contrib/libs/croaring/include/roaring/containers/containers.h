@@ -435,6 +435,9 @@ void container_printf(const container_t *container, uint8_t typecode);
 void container_printf_as_uint32_array(const container_t *container,
                                       uint8_t typecode, uint32_t base);
 
+bool container_internal_validate(const container_t *container,
+                                 uint8_t typecode, const char **reason);
+
 /**
  * Checks whether a container is not empty, requires a  typecode
  */

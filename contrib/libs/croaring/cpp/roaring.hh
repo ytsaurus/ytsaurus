@@ -42,6 +42,28 @@ namespace roaring {
 
 class RoaringSetBitForwardIterator;
 
+/**
+ * A bit of context usable with `*Bulk()` functions.
+ *
+ * A context may only be used with a single bitmap, and any modification to a bitmap
+ * (other than modifications performed with `Bulk()` functions with the context
+ * passed) will invalidate any contexts associated with that bitmap.
+ */
+class BulkContext {
+   public:
+    friend class Roaring;
+    using roaring_bitmap_bulk_context_t = api::roaring_bulk_context_t;
+    BulkContext() : context_{nullptr, 0, 0, 0} {}
+
+    BulkContext(const BulkContext&) = delete;
+    BulkContext& operator=(const BulkContext&) = delete;
+    BulkContext(BulkContext&&) noexcept = default;
+    BulkContext& operator=(BulkContext&&) noexcept = default;
+
+   private:
+    roaring_bitmap_bulk_context_t context_;
+};
+
 class Roaring {
     typedef api::roaring_bitmap_t roaring_bitmap_t;  // class-local name alias
 
@@ -164,6 +186,30 @@ public:
      */
     void addMany(size_t n_args, const uint32_t *vals) noexcept {
         api::roaring_bitmap_add_many(&roaring, n_args, vals);
+    }
+
+    /**
+     * Add value val, using context from a previous insert for speed
+     * optimization.
+     *
+     * `context` will be used to store information between calls to make bulk
+     * operations faster. `context` should be default-initialized before the
+     * first call to this function.
+     */
+    void addBulk(BulkContext &context, uint32_t x) noexcept {
+        api::roaring_bitmap_add_bulk(&roaring, &context.context_, x);
+    }
+
+    /**
+     * Check if item x is present, using context from a previous insert or search
+     * for speed optimization.
+     *
+     * `context` will be used to store information between calls to make bulk
+     * operations faster. `context` should be default-initialized before the
+     * first call to this function.
+     */
+    bool containsBulk(BulkContext& context, uint32_t x) const noexcept {
+        return api::roaring_bitmap_contains_bulk(&roaring, &context.context_, x);
     }
 
     /**

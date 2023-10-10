@@ -413,6 +413,8 @@ void bitset_container_printf(const bitset_container_t *v);
 void bitset_container_printf_as_uint32_array(const bitset_container_t *v,
                                              uint32_t base);
 
+bool bitset_container_validate(const bitset_container_t *v, const char **reason);
+
 /**
  * Return the serialized size in bytes of a container.
  */
