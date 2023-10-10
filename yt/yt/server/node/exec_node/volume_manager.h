@@ -39,10 +39,14 @@ IVolumeChunkCachePtr CreateVolumeChunkCacheAdapter(TChunkCachePtr chunkCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TVolumeId = TGuid;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IVolume
     : public virtual TRefCounted
 {
-    virtual const TGuid& GetId() const = 0;
+    virtual const TVolumeId& GetId() const = 0;
     virtual const TString& GetPath() const = 0;
     virtual TFuture<void> Remove() = 0;
 };
