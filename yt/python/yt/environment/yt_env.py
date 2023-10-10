@@ -10,9 +10,9 @@ from .helpers import (
     is_port_opened, push_front_env_path)
 from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
-from .init_cluster import _initialize_world_for_local_cluster
+from .init_cluster import BatchProcessor, _initialize_world_for_local_cluster
 from .local_cypress import _synchronize_cypress_with_local_dir
-from .local_cluster_configuration import modify_cluster_configuration
+from .local_cluster_configuration import modify_cluster_configuration, get_patched_dynamic_node_config
 
 from yt.common import YtError, remove_file, makedirp, update, get_value, which, to_native_str
 from yt.wrapper.common import flatten
@@ -559,6 +559,7 @@ class YTInstance(object):
                             self.yt_config.meta_files_suffix,
                             client)
 
+            self._apply_nodes_dynamic_config(client)
             self._write_environment_info_to_file()
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
@@ -1992,3 +1993,37 @@ class YTInstance(object):
             raise
 
         logger.info("Watcher started")
+
+    def _apply_nodes_dynamic_config(self, client):
+        patched_dyn_node_config = get_patched_dynamic_node_config(self.yt_config)
+
+        client.set("//sys/cluster_nodes/@config", patched_dyn_node_config)
+
+        self._wait_for_dynamic_config(patched_dyn_node_config["%true"], client)
+
+    def _wait_for_dynamic_config(self, expected_config, client):
+        nodes = client.list("//sys/cluster_nodes")
+
+        def check():
+            batch_processor = BatchProcessor(client)
+
+            responses = [
+                batch_processor.get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager".format(node))
+                for node in nodes
+            ]
+
+            while batch_processor.has_requests():
+                batch_processor.execute()
+
+            for response in responses:
+                if not response.is_ok():
+                    raise YtResponseError(response.get_error())
+
+                output = response.get_result()
+
+                if expected_config != output.get("applied_config"):
+                    return False
+
+            return True
+
+        wait(check, error_message="Dynamic config from master didn't reach nodes in time")

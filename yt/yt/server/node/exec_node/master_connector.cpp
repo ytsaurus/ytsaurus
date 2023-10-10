@@ -41,9 +41,7 @@ class TMasterConnector
 public:
     TMasterConnector(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->ExecNode->MasterConnector)
-        , HeartbeatPeriod_(Config_->HeartbeatPeriod)
-        , HeartbeatPeriodSplay_(Config_->HeartbeatPeriodSplay)
+        , DynamicConfig_(TMasterConnectorDynamicConfig::Default())
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
@@ -51,9 +49,6 @@ public:
     void Initialize() override
     {
         Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TReqHeartbeat GetHeartbeatRequest() const
@@ -93,12 +88,9 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    const TMasterConnectorConfigPtr Config_;
+    TIntrusivePtr<const TMasterConnectorDynamicConfig> DynamicConfig_;
 
     IInvokerPtr HeartbeatInvoker_;
-
-    TDuration HeartbeatPeriod_;
-    TDuration HeartbeatPeriodSplay_;
 
     void OnMasterConnected(TNodeId /*nodeId*/)
     {
@@ -110,13 +102,20 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TMasterConnectorDynamicConfigPtr& oldConfig,
+        const TMasterConnectorDynamicConfigPtr& newConfig) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatPeriod_ = newNodeConfig->ExecNode->MasterConnector->HeartbeatPeriod.value_or(Config_->HeartbeatPeriod);
-        HeartbeatPeriodSplay_ = newNodeConfig->ExecNode->MasterConnector->HeartbeatPeriodSplay.value_or(Config_->HeartbeatPeriodSplay);
+        if (!oldConfig && !newConfig) {
+            return;
+        }
+
+        if (newConfig) {
+            DynamicConfig_ = newConfig;
+        } else {
+            DynamicConfig_ = TMasterConnectorDynamicConfig::Default();
+        }
     }
 
     void StartHeartbeats()
@@ -131,7 +130,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto delay = immediately ? TDuration::Zero() : HeartbeatPeriod_ + RandomDuration(HeartbeatPeriodSplay_);
+        auto delay = immediately
+            ? TDuration::Zero()
+            : DynamicConfig_->HeartbeatPeriod + RandomDuration(DynamicConfig_->HeartbeatSplay);
         TDelayedExecutor::Submit(
             BIND(&TMasterConnector::ReportHeartbeat, MakeWeak(this)),
             delay,

@@ -192,7 +192,7 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
+void TOldHeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default();
@@ -205,6 +205,25 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
     registrar.Parameter("failed_heartbeat_backoff_multiplier", &TThis::FailedHeartbeatBackoffMultiplier)
         .GreaterThanOrEqual(1.0)
         .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("heartbeat_splay", &TThis::HeartbeatSplay)
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("failed_heartbeat_backoff_start_time", &TThis::FailedHeartbeatBackoffStartTime)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("failed_heartbeat_backoff_max_time", &TThis::FailedHeartbeatBackoffMaxTime)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("failed_heartbeat_backoff_multiplier", &TThis::FailedHeartbeatBackoffMultiplier)
+        .GreaterThanOrEqual(1.0)
+        .Default(2.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,7 +271,7 @@ void THeartbeatReporterConfigBase::Register(TRegistrar registrar)
         .Default(2.0);
 }
 
-void THeartbeatReporterConfigBase::ApplyDynamicInplace(const THeartbeatReporterDynamicConfigBase& dynamicConfig)
+void THeartbeatReporterConfigBase::ApplyDynamicInplace(const TOldHeartbeatReporterDynamicConfigBase& dynamicConfig)
 {
     HeartbeatPeriod = dynamicConfig.HeartbeatPeriod.value_or(HeartbeatPeriod);
     HeartbeatSplay = dynamicConfig.HeartbeatSplay.value_or(HeartbeatSplay);
@@ -315,16 +334,6 @@ void TControllerAgentConnectorConfig::ApplyDynamicInplace(const TControllerAgent
         RunningJobStatisticsSendingBackoff);
 
     Postprocess();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TMasterConnectorConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default(TDuration::Seconds(30));
-    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
-        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -603,9 +612,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
         .DefaultNew();
 
-    registrar.Parameter("master_connector", &TThis::MasterConnector)
-        .DefaultNew();
-
     registrar.Parameter("job_proxy_authentication_manager", &TThis::JobProxyAuthenticationManager)
         .DefaultNew();
 
@@ -624,12 +630,15 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
 void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default();
-    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
-        .Default();
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
+}
+
+TIntrusivePtr<const TMasterConnectorDynamicConfig> TMasterConnectorDynamicConfig::Default()
+{
+    static auto defaultConfig = New<TMasterConnectorDynamicConfig>();
+
+    return defaultConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

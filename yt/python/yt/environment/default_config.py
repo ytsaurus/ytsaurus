@@ -494,11 +494,6 @@ def get_node_config():
             cpu_per_tablet_slot = 0.0;
             unknown_operation_jobs_removal_delay = 5000;
         };
-
-        master_connector = {
-            heartbeat_period = 100;
-            heartbeat_period_splay = 30;
-        };
     };
 
     cellar_node = {
@@ -707,6 +702,11 @@ def get_dynamic_node_config():
                 total_confirmation_period = 5000;
                 send_waiting_jobs = %true;
                 use_job_tracker_service_to_settle_jobs = %true;
+            };
+
+            master_connector = {
+                heartbeat_period = 100;
+                heartbeat_splay = 30;
             };
         };
     };

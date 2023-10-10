@@ -266,7 +266,7 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THeartbeatReporterDynamicConfigBase
+class TOldHeartbeatReporterDynamicConfigBase
     : public NYTree::TYsonStruct
 {
 public:
@@ -285,6 +285,32 @@ public:
     //! Backoff multiplier for sending the next heartbeat after a failure.
     std::optional<double> FailedHeartbeatBackoffMultiplier;
 
+    REGISTER_YSON_STRUCT(TOldHeartbeatReporterDynamicConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THeartbeatReporterDynamicConfigBase
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Period between consequent heartbeats.
+    TDuration HeartbeatPeriod;
+
+    //! Random delay before first heartbeat.
+    TDuration HeartbeatSplay;
+
+    //! Start backoff for sending the next heartbeat after a failure.
+    TDuration FailedHeartbeatBackoffStartTime;
+
+    //! Maximum backoff for sending the next heartbeat after a failure.
+    TDuration FailedHeartbeatBackoffMaxTime;
+
+    //! Backoff multiplier for sending the next heartbeat after a failure.
+    double FailedHeartbeatBackoffMultiplier;
+
     REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
 
     static void Register(TRegistrar registrar);
@@ -293,7 +319,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConnectorDynamicConfig
-    : public THeartbeatReporterDynamicConfigBase
+    : public TOldHeartbeatReporterDynamicConfigBase
 {
 public:
     bool SendHeartbeatOnJobFinished;
@@ -308,7 +334,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConnectorDynamicConfig
-    : public THeartbeatReporterDynamicConfigBase
+    : public TOldHeartbeatReporterDynamicConfigBase
 {
 public:
     TDuration TestHeartbeatDelay;
@@ -347,7 +373,7 @@ public:
     //! Backoff multiplier for sending the next heartbeat after a failure.
     double FailedHeartbeatBackoffMultiplier;
 
-    void ApplyDynamicInplace(const THeartbeatReporterDynamicConfigBase& dynamicConfig);
+    void ApplyDynamicInplace(const TOldHeartbeatReporterDynamicConfigBase& dynamicConfig);
 
     REGISTER_YSON_STRUCT(THeartbeatReporterConfigBase);
 
@@ -388,25 +414,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMasterConnectorConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    //! Period between consequent exec node heartbeats.
-    TDuration HeartbeatPeriod;
-
-    //! Splay for exec node heartbeats.
-    TDuration HeartbeatPeriodSplay;
-
-    REGISTER_YSON_STRUCT(TMasterConnectorConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -526,8 +533,6 @@ public:
 
     TUserJobMonitoringConfigPtr UserJobMonitoring;
 
-    TMasterConnectorConfigPtr MasterConnector;
-
     NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
 
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
@@ -551,17 +556,13 @@ DEFINE_REFCOUNTED_TYPE(TExecNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorDynamicConfig
-    : public NYTree::TYsonStruct
+    : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    //! Period between consequent exec node heartbeats.
-    std::optional<TDuration> HeartbeatPeriod;
-
-    //! Splay for exec node heartbeats.
-    std::optional<TDuration> HeartbeatPeriodSplay;
-
     //! Timeout of the exec node heartbeat RPC request.
     TDuration HeartbeatTimeout;
+
+    static TIntrusivePtr<const TMasterConnectorDynamicConfig> Default();
 
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 

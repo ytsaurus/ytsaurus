@@ -2,6 +2,8 @@ from yt.wrapper.common import MB, GB
 
 from yt.common import update_inplace
 
+from .default_config import get_dynamic_node_config
+
 try:
     from yt.packages.six import iteritems, itervalues
 except ImportError:
@@ -158,10 +160,6 @@ NODE_CONFIG_PATCHES = [
                 "heartbeat_period": 100,
                 "heartbeat_splay": 50
             },
-            "master_connector": {
-                "heartbeat_period": 300,
-                "heartbeat_period_splay": 50,
-            },
         },
         "cellar_node": {
             "master_connector": {
@@ -180,6 +178,17 @@ NODE_CONFIG_PATCHES = [
             }
         }
     }
+]
+
+DYNAMIC_NODE_CONFIG_PATCHES = [
+    {
+        "exec_node": {
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_splay": 50,
+            },
+        },
+    },
 ]
 
 NODE_STORE_LOCATION_PATCHES = [
@@ -213,6 +222,16 @@ def _remove_none_fields(node):
             del node[key]
 
     traverse(node)
+
+
+def get_patched_dynamic_node_config(yt_config):
+    dyn_node_config = get_dynamic_node_config()
+
+    if yt_config.optimize_config:
+        for patch in DYNAMIC_NODE_CONFIG_PATCHES:
+            update_inplace(dyn_node_config["%true"], patch)
+
+    return dyn_node_config
 
 
 def modify_cluster_configuration(yt_config, cluster_configuration):
