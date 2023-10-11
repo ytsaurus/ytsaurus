@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(bin)
 add_subdirectory(proto)
 add_subdirectory(unittests)
 
