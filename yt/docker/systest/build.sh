@@ -57,11 +57,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-
 systest="${ytsaurus_build_path}/yt/systest/tester/systest"
 dockerfile="${ytsaurus_source_path}/yt/docker/systest/Dockerfile"
 
 cp ${systest} ${output_path}
+
+
 cp ${dockerfile} ${output_path}
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 cp -r ${ytsaurus_source_path}/yt/yt/experiments/new_stress_test/ ${output_path}
