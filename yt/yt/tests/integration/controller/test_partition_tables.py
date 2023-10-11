@@ -248,7 +248,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             tables.append(table)
 
         max_partition_count = 2
-        with raises_yt_error(f"Maximum partition count exceeded"):
+        with raises_yt_error("Maximum partition count exceeded"):
             partition_tables(
                 tables,
                 partition_mode=partition_mode,
