@@ -43,6 +43,55 @@ void TSetSeedRowMapper::ToProto(NProto::TRowMapper* proto) const
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
+TIdentityRowMapper::TIdentityRowMapper(const TTable& input, std::vector<int> indices)
+    : IRowMapper(input)
+    , Indices_(indices)
+{
+    FillColumns();
+}
+
+TIdentityRowMapper::TIdentityRowMapper(const TTable& input, const NProto::TIdentityRowMapper& proto)
+    : IRowMapper(input)
+{
+    Indices_.reserve(proto.index_size());
+    for (int index : proto.index()) {
+        Indices_.push_back(index);
+    }
+    FillColumns();
+}
+
+void TIdentityRowMapper::FillColumns()
+{
+    for (int index : Indices_) {
+        OutputColumns_.push_back(InputTable().DataColumns[index]);
+    }
+}
+
+TRange<int> TIdentityRowMapper::InputColumns() const
+{
+    return TRange<int>(Indices_.begin(), Indices_.end());
+}
+
+TRange<TDataColumn> TIdentityRowMapper::OutputColumns() const
+{
+    return TRange<TDataColumn>(OutputColumns_.begin(), OutputColumns_.end());
+}
+
+void TIdentityRowMapper::ToProto(NProto::TRowMapper* proto) const
+{
+    auto* operationProto = proto->mutable_identity();
+    for (int index : Indices_) {
+        operationProto->add_index(index);
+    }
+}
+
+std::vector<TNode> TIdentityRowMapper::Run(TCallState* /*state*/, TRange<TNode> input) const
+{
+    return std::vector<TNode>(input.begin(), input.end());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
 TGenerateRandomRowMapper::TGenerateRandomRowMapper(const TTable& input, TDataColumn output)
     : IRowMapper(input)
     , OutputColumns_{output}
@@ -146,6 +195,7 @@ TConcatenateColumnsRowMapper::TConcatenateColumnsRowMapper(const TTable& input, 
     : IRowMapper(input)
 {
     Operations_.reserve(proto.inner_operations_size());
+    std::vector<const IOperation*> operationPtrs;
     for (const auto& operationProto : proto.inner_operations())
     {
         auto operation = CreateFromProto(input, operationProto);
@@ -154,7 +204,10 @@ TConcatenateColumnsRowMapper::TConcatenateColumnsRowMapper(const TTable& input, 
             std::back_inserter(OutputColumns_));
 
         Operations_.push_back(std::move(operation));
+        operationPtrs.push_back(Operations_.back().get());
     }
+
+    InputColumns_ = CollectInputColumns(operationPtrs);
 }
 
 TRange<int> TConcatenateColumnsRowMapper::InputColumns() const
@@ -185,6 +238,90 @@ std::vector<TNode> TConcatenateColumnsRowMapper::Run(TCallState* state, TRange<T
         std::move(innerNodes.begin(), innerNodes.end(), std::back_inserter(result));
     }
     return result;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+TDeleteColumnRowMapper::TDeleteColumnRowMapper(const TTable& input, int index)
+    : IRowMapper(input)
+    , Index_(index)
+{
+    InputColumns_[0] = Index_;
+}
+
+TDeleteColumnRowMapper::TDeleteColumnRowMapper(const TTable& input, const NProto::TDeleteColumnRowMapper& proto)
+    : IRowMapper(input)
+    , Index_(proto.index())
+{
+    InputColumns_[0] = Index_;
+}
+
+TRange<int> TDeleteColumnRowMapper::InputColumns() const
+{
+    return TRange<int>(InputColumns_, 1);
+}
+
+TRange<TDataColumn> TDeleteColumnRowMapper::OutputColumns() const
+{
+    return TRange<TDataColumn>(nullptr, nullptr);
+}
+
+std::vector<TNode> TDeleteColumnRowMapper::Run(TCallState* /*state*/, TRange<TNode> /*input*/) const
+{
+    return std::vector<TNode>{};
+}
+
+void TDeleteColumnRowMapper::ToProto(NProto::TRowMapper* proto) const
+{
+    auto* operationProto = proto->mutable_delete_column();
+    operationProto->set_index(Index_);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+TRenameColumnRowMapper::TRenameColumnRowMapper(const TTable& input, int index, const TString& name)
+    : IRowMapper(input)
+    , Index_(index)
+    , Name_(name)
+{
+    FillColumns();
+}
+
+TRenameColumnRowMapper::TRenameColumnRowMapper(const TTable& input, const NProto::TRenameColumnRowMapper& proto)
+    : IRowMapper(input)
+    , Index_(proto.index())
+    , Name_(proto.name())
+{
+    FillColumns();
+}
+
+void TRenameColumnRowMapper::FillColumns()
+{
+    InputColumns_[0] = Index_;
+    const auto& column = InputTable().DataColumns[Index_];
+    OutputColumns_[0] = TDataColumn{Name_, column.Type, column.Name};
+}
+
+TRange<int> TRenameColumnRowMapper::InputColumns() const
+{
+    return TRange<int>(InputColumns_, 1);
+}
+
+TRange<TDataColumn> TRenameColumnRowMapper::OutputColumns() const
+{
+    return TRange<TDataColumn>(OutputColumns_, 1);
+}
+
+std::vector<TNode> TRenameColumnRowMapper::Run(TCallState* /*state*/, TRange<TNode> input) const
+{
+    return std::vector<TNode>(input.begin(), input.end());
+}
+
+void TRenameColumnRowMapper::ToProto(NProto::TRowMapper* proto) const
+{
+    auto* operationProto = proto->mutable_rename_column();
+    operationProto->set_index(Index_);
+    operationProto->set_name(Name_);
 }
 
 }  // namespace NYT::NTest

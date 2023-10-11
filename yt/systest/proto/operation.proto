@@ -13,10 +13,13 @@ message TOperationOutputColumns {
 message TRowMapper {
     oneof operation {
         TSetSeedRowMapper set_seed = 1;
-        TGenerateRandomRowMapper generate_random = 2;
-        TConcatenateColumnsRowMapper concatenate_columns = 3;
+        TIdentityRowMapper identity = 2;
+        TGenerateRandomRowMapper generate_random = 3;
+        TConcatenateColumnsRowMapper concatenate_columns = 4;
+        TDeleteColumnRowMapper delete_column = 5;
+        TRenameColumnRowMapper rename_column = 6;
     }
-};
+}
 
 message TMultiMapper {
     oneof operation {
@@ -43,14 +46,26 @@ message TSetSeedRowMapper {
     required int32 this_seed = 2;
 }
 
+message TIdentityRowMapper {
+    repeated int32 index = 1;
+}
+
 message TGenerateRandomRowMapper {
     required TOperationOutputColumns columns = 2;
 }
 
-
 message TConcatenateColumnsRowMapper {
     repeated TRowMapper inner_operations = 1;
 };
+
+message TDeleteColumnRowMapper {
+    required int32 index = 1;
+}
+
+message TRenameColumnRowMapper {
+    required int32 index = 1;
+    required string name = 2;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

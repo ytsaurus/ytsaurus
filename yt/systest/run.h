@@ -9,11 +9,11 @@ namespace NYT::NTest {
 
 void RunMap(IClientPtr client, const TTestHome& home,
             const TString& inputPath, const TString& outputPath,
-            const TTable& table, const IMultiMapper& operation);
+            const TTable& inputTable, const TTable& outputTable, const IMultiMapper& operation);
 
 void RunReduce(IClientPtr client, const TTestHome& home,
                const TString& inputPath, const TString& outputPath,
-               const TTable& table, const TReduceOperation& operation);
+               const TTable& table, const TTable& outputTable, const TReduceOperation& operation);
 
 void RunSort(IClientPtr client,
              const TString& inputPath, const TString& outputPath,

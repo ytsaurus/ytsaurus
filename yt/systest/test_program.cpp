@@ -4,6 +4,7 @@
 #include <yt/cpp/mapreduce/interface/logging/logger.h>
 
 #include <yt/systest/bootstrap_dataset.h>
+#include <yt/systest/config.h>
 #include <yt/systest/dataset_operation.h>
 #include <yt/systest/map_dataset.h>
 #include <yt/systest/reduce_dataset.h>
@@ -18,10 +19,56 @@
 #include <yt/systest/sort_dataset.h>
 #include <yt/systest/table_dataset.h>
 #include <yt/systest/test_home.h>
-#include <yt/systest/test_program.h>
 #include <yt/systest/table.h>
 
+#include <yt/systest/test_program.h>
+
+#include <yt/yt/client/api/config.h>
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+
+#include <yt/yt/library/auth/auth.h>
+
+#include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/helpers.h>
+
+#include <util/system/env.h>
+
 namespace NYT::NTest {
+
+class TRpcConfig : public TSingletonsConfig
+{
+};
+
+DEFINE_REFCOUNTED_TYPE(TRpcConfig);
+
+NApi::IClientPtr CreateRpcClient(const TConfig& config) {
+    auto proxyAddress = GetEnv("YT_PROXY");
+    if (proxyAddress.empty()) {
+        THROW_ERROR_EXCEPTION("YT_PROXY environment variable must be set");
+    }
+    auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
+    connectionConfig->ClusterUrl = proxyAddress;
+    connectionConfig->ProxyListUpdatePeriod = TDuration::Seconds(5);
+
+    auto singletonsConfig = New<TRpcConfig>();
+    if (!config.Ipv6) {
+        singletonsConfig->AddressResolver->EnableIPv4 = true;
+        singletonsConfig->AddressResolver->EnableIPv6 = false;
+    }
+    ConfigureSingletons(singletonsConfig);
+
+    auto connection = NApi::NRpcProxy::CreateConnection(connectionConfig);
+
+    auto token = NAuth::LoadToken();
+    if (!token) {
+        THROW_ERROR_EXCEPTION("YT_TOKEN environment variable must be set");
+    }
+
+    NApi::TClientOptions clientOptions = NAuth::TAuthenticationOptions::FromToken(*token);
+    return connection->CreateClient(clientOptions);
+}
 
 void RunTestProgram(int argc, char* argv[]) {
     NYT::Initialize();
@@ -30,49 +77,13 @@ void RunTestProgram(int argc, char* argv[]) {
 
     YT_LOG_INFO("Starting tester");
 
-    int NumBootstrapRecords = 1000;
-    TString HomeDirectory("//home");
+    TConfig config;
+    config.ParseCommandline(argc, argv);
 
-    int NumOperations = 16;
-    int Seed = 42;
-    int opt;
-    while ((opt = getopt(argc, argv, "bhn:")) != -1) {
-        switch (opt) {
-            case 'b':
-                NumBootstrapRecords = atoi(optarg);
-                break;
-            case 'h':
-                HomeDirectory = optarg;
-                break;
-            case 's':
-                Seed = atoi(optarg);
-                break;
-            case 'n':
-                NumOperations = atoi(optarg);
-                break;
-            default:
-                printf("Usage: yttester [-b <num bootstrap records>]\n");
-                exit(EXIT_FAILURE);
-        }
-    }
     auto client = NYT::CreateClientFromEnv();
+    auto rpcClient = CreateRpcClient(config);
 
-    YT_LOG_INFO("Start systest (Seed: %v, NumOperations: %v)", Seed, NumOperations);
-    YT_LOG_INFO("Created client (HomeDirectory: %v)", HomeDirectory);
-
-    TTestHome testHome(client, HomeDirectory);
-    testHome.Init();
-
-    YT_LOG_INFO("Initialized test home (Directory: %v)", testHome.Dir());
-
-    std::unique_ptr<IDataset> bootstrapDataset = std::make_unique<TBootstrapDataset>(NumBootstrapRecords);
-
-    auto bootstrapPath = testHome.CreateRandomTablePath();
-    YT_LOG_INFO("Will write bootstrap table (Path: %v)", bootstrapPath);
-
-    auto bootstrapInfo = MaterializeIntoTable(client, bootstrapPath, *bootstrapDataset);
-
-    Runner runner(client, NumOperations, Seed, &testHome, bootstrapInfo);
+    TRunner runner(config.RunnerConfig, client, rpcClient);
     runner.Run();
 }
 

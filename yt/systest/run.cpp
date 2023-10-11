@@ -14,18 +14,6 @@
 
 namespace NYT::NTest {
 
-static TString BuildSortedByAttributes(const std::vector<TString>& columns) {
-    TString ret("<sorted_by=[");
-    for (int i = 0; i < std::ssize(columns); ++i) {
-        if (i > 0) {
-            ret += ";";
-        }
-        ret += columns[i];
-    }
-    ret += "]>";
-    return ret;
-}
-
 static std::unordered_map<TString, int> produceColumnPositions(const TTable& table, TRange<int> inputColumns)
 {
     std::unordered_map<TString, int> columnPositions;
@@ -214,11 +202,14 @@ void TTestOperationMapper::Do(TTableReader<TNode>* input, TTableWriter<TNode>* o
 
 void RunMap(IClientPtr client, const TTestHome& home,
             const TString& inputPath, const TString& outputPath,
-            const TTable& table, const IMultiMapper& operation)
+            const TTable& table, const TTable& outputTable, const IMultiMapper& operation)
 {
+    const auto attributePath = BuildAttributes(outputTable) + outputPath;
+    NYT::NLogging::TLogger Logger("test");
+    YT_LOG_INFO("Map (OutputTable: %v)", attributePath);
     TMapOperationSpec spec;
     spec.AddInput<TNode>(inputPath);
-    spec.AddOutput<TNode>(outputPath);
+    spec.AddOutput<TNode>(attributePath);
     spec.CoreTablePath(home.CoreTable());
     spec.StderrTablePath(home.StderrTable());
     spec.JobCount(10);
@@ -234,11 +225,16 @@ void RunMap(IClientPtr client, const TTestHome& home,
 
 void RunReduce(IClientPtr client, const TTestHome& home,
                const TString& inputPath, const TString& outputPath,
-               const TTable& table, const TReduceOperation& operation)
+               const TTable& table, const TTable& outputTable, const TReduceOperation& operation)
 {
+    const auto& attributePath = BuildAttributes(outputTable) + outputPath;
+
+    NYT::NLogging::TLogger Logger("test");
+    YT_LOG_INFO("Reduce (OutputTable: %v)", attributePath);
+
     TReduceOperationSpec spec;
     spec.AddInput<TNode>(inputPath);
-    spec.AddOutput<TNode>(BuildSortedByAttributes(operation.ReduceBy) + outputPath);
+    spec.AddOutput<TNode>(attributePath);
     spec.CoreTablePath(home.CoreTable());
     spec.StderrTablePath(home.StderrTable());
 

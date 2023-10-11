@@ -24,6 +24,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIdentityRowMapper : public IRowMapper
+{
+public:
+    TIdentityRowMapper(const TTable& input, std::vector<int> indices);
+    TIdentityRowMapper(const TTable& input, const NProto::TIdentityRowMapper& proto);
+
+    virtual TRange<int> InputColumns() const override;
+    virtual TRange<TDataColumn> OutputColumns() const override;
+    virtual void ToProto(NProto::TRowMapper* proto) const override;
+
+    virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
+
+private:
+    std::vector<int> Indices_;
+    std::vector<TDataColumn> OutputColumns_;
+
+    void FillColumns();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGenerateRandomRowMapper : public IRowMapper
 {
 public:
@@ -61,6 +82,50 @@ private:
     std::vector<TDataColumn> OutputColumns_;
 
     std::vector<int> InputColumns_;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+class TDeleteColumnRowMapper : public IRowMapper
+{
+public:
+    TDeleteColumnRowMapper(const TTable& input, int index);
+    TDeleteColumnRowMapper(const TTable& input, const NProto::TDeleteColumnRowMapper& proto);
+
+    virtual TRange<int> InputColumns() const override;
+    virtual TRange<TDataColumn> OutputColumns() const override;
+
+    virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
+    virtual void ToProto(NProto::TRowMapper* proto) const override;
+
+private:
+    int Index_;
+    int InputColumns_[1];
+
+    void FillColumns();
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+class TRenameColumnRowMapper : public IRowMapper
+{
+public:
+    TRenameColumnRowMapper(const TTable& input, int index, const TString& name);
+    TRenameColumnRowMapper(const TTable& input, const NProto::TRenameColumnRowMapper& proto);
+
+    virtual TRange<int> InputColumns() const override;
+    virtual TRange<TDataColumn> OutputColumns() const override;
+
+    virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
+    virtual void ToProto(NProto::TRowMapper* proto) const override;
+
+private:
+    int Index_;
+    TString Name_;
+    int InputColumns_[1];
+    TDataColumn OutputColumns_[1];
+
+    void FillColumns();
 };
 
 }  // namespace NYT::NTest

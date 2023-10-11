@@ -48,7 +48,7 @@ done
 
 if [[ ${image} == "" ]]; then
 echo "  --image is required"
-rint_usage
+print_usage
 fi
 
 kubectl cluster-info

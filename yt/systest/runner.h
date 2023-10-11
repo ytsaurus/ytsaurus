@@ -4,13 +4,27 @@
 #include <yt/systest/table_dataset.h>
 #include <yt/systest/test_home.h>
 
+#include <yt/yt/client/api/public.h>
+
 namespace NYT::NTest {
 
-class Runner
+struct TRunnerConfig
+{
+    TString HomeDirectory;
+    int NumBootstrapRecords;
+    int Seed;
+    int NumOperations;
+    bool EnableRenamesDeletes;
+
+    TRunnerConfig();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRunner
 {
 public:
-    Runner(IClientPtr client, int numOperations, int seed, TTestHome* testHome, const TStoredDataset bootstrapInfo);
-
+    TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr rpcClient);
     void Run();
 
 private:
@@ -22,18 +36,23 @@ private:
         TStoredDataset Stored;
     };
 
+    NYT::NLogging::TLogger Logger;
+    TRunnerConfig RunnerConfig_;
     IClientPtr Client_;
-    const int NumOperations_;
-    const int Seed_;
-    TTestHome* TestHome_;
-    const TStoredDataset BootstrapInfo_;
+    NApi::IClientPtr RpcClient_;
+
+    TTestHome TestHome_;
+    TStoredDataset BootstrapInfo_;
 
     std::vector<TDatasetInfo> Infos_;
 
     std::vector<std::unique_ptr<IDataset>> DatasetPtrs_;
     std::vector<std::unique_ptr<IOperation>> OperationPtrs_;
 
-    void SortAndReduce(int index, const TDatasetInfo& info);
+    void EnableRenamesDeletes();
+    void RenameAndDeleteColumn(const TDatasetInfo& info);
+
+    void RunSortAndReduce(const TDatasetInfo& info, const std::vector<TString>& columns, int sumIndex);
 };
 
 }  // namespace NYT::NTest

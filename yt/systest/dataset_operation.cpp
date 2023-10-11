@@ -21,7 +21,7 @@ std::unique_ptr<IMultiMapper> GenerateRandomColumn(const TTable& table, int seed
             10,
             std::make_unique<TGenerateRandomRowMapper>(
                 table,
-                TDataColumn{"X", NProto::EColumnType::EInt64}
+                TDataColumn{"X", NProto::EColumnType::EInt64, std::nullopt}
             )
         )
     );
@@ -30,10 +30,9 @@ std::unique_ptr<IMultiMapper> GenerateRandomColumn(const TTable& table, int seed
 std::unique_ptr<IMultiMapper> GenerateMultipleColumns(const TTable& table, int RowMultipler, int seed)
 {
     std::vector<std::unique_ptr<IRowMapper>> randomColumns;
-
     randomColumns.push_back(std::make_unique<TGenerateRandomRowMapper>(
                 table,
-                TDataColumn{"X0", NProto::EColumnType::EInt8}));
+                TDataColumn{"X0", NProto::EColumnType::EInt8, std::nullopt}));
 
     for (int i = 1; i < 10; i++) {
         NProto::EColumnType type;
@@ -53,7 +52,7 @@ std::unique_ptr<IMultiMapper> GenerateMultipleColumns(const TTable& table, int R
 
         randomColumns.push_back(std::make_unique<TGenerateRandomRowMapper>(
                 table,
-                TDataColumn{columnName, type}));
+                TDataColumn{columnName, type, std::nullopt}));
     }
 
     std::vector<std::unique_ptr<IRowMapper>> singleOperations;
