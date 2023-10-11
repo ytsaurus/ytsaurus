@@ -3,7 +3,8 @@ DOCS()
 OWNER(
     andozer
     arivkin
-    pewit
+    belokonnasty
+    ogorbacheva
 )
 
 DOCS_VARS(
