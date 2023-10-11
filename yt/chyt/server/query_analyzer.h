@@ -55,6 +55,7 @@ public:
 
     bool HasJoinWithTwoTables() const;
     bool HasGlobalJoin() const;
+    bool HasInOperator() const;
 
 private:
     const TStorageContext* StorageContext_;
@@ -74,6 +75,8 @@ private:
     bool CrossJoin_ = false;
     //! If the query joins two YT tables.
     bool TwoYTTableJoin_ = false;
+    //! If the query has in operator with subquery or table.
+    bool HasInOperator_ = false;
 
     int KeyColumnCount_ = 0;
     bool JoinedByKeyColumns_ = false;

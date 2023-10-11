@@ -940,17 +940,21 @@ public:
                     break;
             }
 
-            if (!distributeJoin) {
-                // We will only do first query stage (reading columns).
-                // Join/Group by and so on will be made by ClickHouse itself.
-                return DB::QueryProcessingStage::FetchColumns;
+            TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
+
+            if (!distributeJoin && analyzer.HasInOperator()) {
+                THROW_ERROR_EXCEPTION("IN operator with local join policy is unsupported (CHYT-1000); ",
+                    "to fix the problem you can rewrite join's first argument as a subquery");
             }
 
             if (queryContext->Settings->Execution->DistributeOnlyGlobalAndSortedJoin) {
-                TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
-                if (!analyzer.HasJoinWithTwoTables() && !analyzer.HasGlobalJoin()) {
-                    return DB::QueryProcessingStage::FetchColumns;
+                if (!analyzer.HasJoinWithTwoTables() && !analyzer.HasGlobalJoin() && !analyzer.HasInOperator()) {
+                    distributeJoin = false;
                 }
+            }
+
+            if (!distributeJoin) {
+                return DB::QueryProcessingStage::FetchColumns;
             }
         }
 

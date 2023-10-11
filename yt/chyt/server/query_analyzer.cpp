@@ -24,6 +24,8 @@
 #include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/IdentifierSemantic.h>
+#include <Interpreters/InDepthNodeVisitor.h>
+#include <Interpreters/misc.h>
 #include <Interpreters/TableJoin.h>
 #include <Interpreters/TranslateQualifiedNamesVisitor.h>
 #include <Interpreters/TreeRewriter.h>
@@ -31,7 +33,9 @@
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTSelectQuery.h>
+#include <Parsers/ASTSubquery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
+#include <Parsers/IAST.h>
 #include <Parsers/makeASTForLogicalFunction.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
@@ -473,6 +477,46 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     }
 }
 
+struct TInOperatorMatcher
+{
+    struct Data
+    {
+        bool HasInOperator = false;
+    };
+
+    static bool needChildVisit(const DB::ASTPtr& node, const DB::ASTPtr& child)
+    {
+        if (const auto* select = node->as<DB::ASTSelectQuery>()) {
+            if (child == select->having()) {
+                return false;
+            }
+        }
+
+        return !child->as<DB::ASTSubquery>();
+    }
+
+    static void visit(DB::ASTPtr& ast, Data& data)
+    {
+        if (const auto* functionAst = ast->as<DB::ASTFunction>()) {
+            if (DB::functionIsInOrGlobalInOperator(functionAst->name)) {
+                if (functionAst->arguments->children.size() != 2) {
+                    THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
+                        functionAst->name,
+                        functionAst->arguments->children.size());
+                }
+
+                auto rhs = functionAst->arguments->children[1];
+                if (rhs->as<DB::ASTSubquery>() || rhs->as<DB::ASTTableIdentifier>()) {
+                    data.HasInOperator = true;
+                    return;
+                }
+            }
+        }
+    }
+};
+
+using TInOperatorVisitor = DB::InDepthNodeVisitor<TInOperatorMatcher, true>;
+
 void TQueryAnalyzer::ParseQuery()
 {
     auto* selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
@@ -486,6 +530,10 @@ void TQueryAnalyzer::ParseQuery()
     YT_VERIFY(tablesInSelectQuery);
     YT_VERIFY(tablesInSelectQuery->children.size() >= 1);
     YT_VERIFY(tablesInSelectQuery->children.size() <= 2);
+
+    TInOperatorMatcher::Data data;
+    TInOperatorVisitor(data).visit(QueryInfo_.query);
+    HasInOperator_ = data.HasInOperator;
 
     for (int index = 0; index < std::ssize(tablesInSelectQuery->children); ++index) {
         auto& tableInSelectQuery = tablesInSelectQuery->children[index];
@@ -1007,6 +1055,11 @@ bool TQueryAnalyzer::HasJoinWithTwoTables() const
 bool TQueryAnalyzer::HasGlobalJoin() const
 {
     return GlobalJoin_;
+}
+
+bool TQueryAnalyzer::HasInOperator() const
+{
+    return HasInOperator_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

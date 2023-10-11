@@ -725,3 +725,108 @@ class TestJoinAndIn(ClickHouseTestBase):
                 "chyt.execution.distribute_only_global_and_sorted_join": 1,
             }
             assert clique.make_query(query, settings=settings) == [{"a.a": 2, "b.a": 2, "c.a": 2}]
+
+    @authors("gudqeit")
+    def test_where_in_and_join(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                ]
+            },
+        )
+        rows = [{"a": 0, "b": 0}]
+        write_table("//tmp/t", rows)
+
+        with Clique(1) as clique:
+            filters_with_expected_results = [
+                ('where not a.a = 0 or a.a in (select 0)', [{"count": 1}]),
+                ('where a.a not in (select 0)', [{"count": 0}]),
+                ('where (5 + (a.a in (select 0))) = 6', [{"count": 1}]),
+                ('prewhere a.a in (select 0)', [{"count": 1}]),
+                ('where (a.a, a.b) in "//tmp/t"', [{"count": 1}]),
+                ('where a.a global in (select 0)', [{"count": 1}]),
+            ]
+            for filter, expected in filters_with_expected_results:
+                query = '''select count(*) as count
+                        from "//tmp/t" a
+                        left join (select 0 as a) b
+                            on a.a = b.a
+                        {}'''.format(filter)
+
+                with raises_yt_error(QueryFailedError):
+                    clique.make_query(
+                        query,
+                        settings={"chyt.execution.join_policy": "local"},
+                    )
+
+                assert clique.make_query(query) == expected
+
+    @authors("gudqeit")
+    def test_in_operator_and_join(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                ]
+            },
+        )
+        rows = [{"a": 0, "b": 0}]
+        write_table("//tmp/t", rows)
+
+        with Clique(1) as clique:
+            query = '''select 5 + (a.a in (select a from "//tmp/t")) as sum
+                    from "//tmp/t" a
+                    left join (select 0 as a) b
+                        on a.a = b.a'''
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(
+                    query,
+                    settings={"chyt.execution.join_policy": "local"},
+                )
+
+            assert clique.make_query(query) == [{"sum": 6}]
+
+    @authors("gudqeit")
+    def test_in_operator_and_local_join(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                ]
+            },
+        )
+        rows = [{"a": 0, "b": 0}]
+        write_table("//tmp/t", rows)
+
+        with Clique(1, config_patch={"yt": {"execution": {"join_policy": "local"}}}) as clique:
+            query = '''select count(*) as count
+                    from "//tmp/t" a
+                    left join (select 0 as a) b
+                        on a.a = b.a
+                    where a.a = (select a from "//tmp/t")'''
+            assert clique.make_query(query) == [{"count": 1}]
+
+            query = '''select count(*) as count
+                       from (select * from "//tmp/t") a
+                       left join (select 0 as a) b
+                           on a.a = b.a
+                       where a.a in (select 0)'''
+            assert clique.make_query(query) == [{"count": 1}]
+
+            query = '''select count(*) as count
+                    from "//tmp/t" a
+                    left join (select 0 as a) b
+                        on a.a = b.a
+                    having count in (select 1)'''
+            assert clique.make_query(query) == [{"count": 1}]
