@@ -302,6 +302,11 @@ void TSchedulerConnector::PrepareHeartbeatRequest(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    SetNodeInfoToRequest(
+        Bootstrap_->GetNodeId(),
+        Bootstrap_->GetLocalDescriptor(),
+        request);
+
     auto error = WaitFor(BIND(
             &TSchedulerConnector::DoPrepareHeartbeatRequest,
             MakeStrong(this),

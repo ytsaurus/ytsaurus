@@ -843,8 +843,6 @@ private:
 
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
-        SetNodeInfoToRequest(Bootstrap_->GetExecNodeBootstrap(), request);
-
         ToProto(request->mutable_controller_agent_incarnation_id(), agentDescriptor.IncarnationId);
 
         auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
@@ -1219,8 +1217,6 @@ private:
         YT_LOG_DEBUG("Preparing scheduler heartbeat request");
 
         const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
-
-        SetNodeInfoToRequest(Bootstrap_->GetExecNodeBootstrap(), request);
 
         *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
         *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true));

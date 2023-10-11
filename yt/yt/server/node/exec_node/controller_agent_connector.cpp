@@ -24,6 +24,7 @@ namespace NYT::NExecNode {
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NNodeTrackerClient;
 
 using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
@@ -226,7 +227,12 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobTracke
 
         auto settleJobRequest = jobTrackerServiceProxy.SettleJob();
 
-        SetNodeInfoToRequest(ControllerAgentConnectorPool_->Bootstrap_, settleJobRequest);
+        const auto* bootstrap = ControllerAgentConnectorPool_->Bootstrap_;
+
+        SetNodeInfoToRequest(
+            bootstrap->GetNodeId(),
+            bootstrap->GetLocalDescriptor(),
+            settleJobRequest);
 
         ToProto(settleJobRequest->mutable_controller_agent_incarnation_id(), ControllerAgentDescriptor_.IncarnationId);
 
@@ -330,9 +336,14 @@ TControllerAgentConnectorPool::TControllerAgentConnector::GetCurrentConfig() con
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 {
-    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
+    const auto* bootstrap = ControllerAgentConnectorPool_->Bootstrap_;
 
-    if (!ControllerAgentConnectorPool_->Bootstrap_->IsConnected()) {
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetControlInvoker());
+
+    auto nodeId = bootstrap->GetNodeId();
+    auto nodeDescriptor = bootstrap->GetLocalDescriptor();
+
+    if (!bootstrap->IsConnected() || nodeId == InvalidNodeId) {
         return;
     }
 
@@ -353,7 +364,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
         TDelayedExecutor::WaitForDuration(ControllerAgentConnectorPool_->TestHeartbeatDelay_);
     }
 
-    PrepareHeartbeatRequest(request, context);
+    PrepareHeartbeatRequest(nodeId, nodeDescriptor, request, context);
 
     HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
@@ -405,17 +416,26 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatRequest(
+    TNodeId nodeId,
+    const TNodeDescriptor& nodeDescriptor,
     const TReqHeartbeatPtr& request,
     const TAgentHeartbeatContextPtr& context)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto* bootstrap = ControllerAgentConnectorPool_->Bootstrap_;
+
+    SetNodeInfoToRequest(
+        nodeId,
+        nodeDescriptor,
+        request);
 
     auto error = WaitFor(BIND(
             &TControllerAgentConnector::DoPrepareHeartbeatRequest,
             MakeStrong(this),
             request,
             context)
-        .AsyncVia(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker())
+        .AsyncVia(bootstrap->GetJobInvoker())
         .Run());
 
     YT_LOG_FATAL_IF(
