@@ -172,11 +172,7 @@ void array_container_grow(array_container_t *container, int32_t min,
         container->array = (uint16_t *)roaring_malloc(new_capacity * sizeof(uint16_t));
     }
 
-    //  handle the case where realloc fails
-    if (container->array == NULL) {
-      fprintf(stderr, "could not allocate memory\n");
-    }
-    assert(container->array != NULL);
+    // if realloc fails, we have container->array == NULL.
 }
 
 /* Copy one container into another. We assume that they are distinct. */
