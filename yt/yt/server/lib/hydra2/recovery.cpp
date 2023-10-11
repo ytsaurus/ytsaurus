@@ -232,7 +232,7 @@ void TRecovery::DoRun()
             YT_LOG_INFO("Changelog is missing and will be created (ChangelogId: %v)",
                 changelogId);
 
-            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, {}))
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, /*meta*/ {}))
                 .ValueOrThrow();
         }
 

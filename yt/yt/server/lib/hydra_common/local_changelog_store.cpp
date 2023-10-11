@@ -320,18 +320,18 @@ public:
             .Run(term);
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
+    TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta, const TChangelogOptions& options, ui64 epoch)
     {
         return BIND(&TLocalChangelogStoreFactory::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(BoundedConcurrencyInvoker_)
-            .Run(id, epoch, meta);
+            .Run(id, meta, options, epoch);
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(int id, ui64 epoch)
+    TFuture<IChangelogPtr> OpenChangelog(int id, const TChangelogOptions& options, ui64 epoch)
     {
         return BIND(&TLocalChangelogStoreFactory::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run(id, epoch);
+            .Run(id, options, epoch);
     }
 
     TFuture<void> RemoveChangelog(int id, ui64 epoch)
@@ -372,7 +372,7 @@ private:
             .ThrowOnError();
     }
 
-    TFuture<IChangelogPtr> DoCreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
+    TFuture<IChangelogPtr> DoCreateChangelog(int id, const TChangelogMeta& meta, const TChangelogOptions& /*options*/, ui64 epoch)
     {
         Lock_->ValidateAcquire(epoch);
 
@@ -402,7 +402,7 @@ private:
         return MakeEpochBoundLocalChangelog(epoch, cookie.GetValue());
     }
 
-    TFuture<IChangelogPtr> DoOpenChangelog(int id, ui64 epoch)
+    TFuture<IChangelogPtr> DoOpenChangelog( int id, const TChangelogOptions& /*options*/, ui64 epoch)
     {
         Lock_->ValidateAcquire(epoch);
 
@@ -546,13 +546,13 @@ private:
         }
 
         auto recordCountGetter = [&] (int changelogId) {
-            auto changelog = WaitFor(OpenChangelog(changelogId, epoch))
+            auto changelog = WaitFor(OpenChangelog(changelogId, /*options*/ {}, epoch))
                 .ValueOrThrow();
             return changelog->GetRecordCount();
         };
 
         auto recordReader = [&] (int changelogId, int recordId) {
-            auto changelog = WaitFor(OpenChangelog(changelogId, epoch))
+            auto changelog = WaitFor(OpenChangelog(changelogId, /*options*/ {}, epoch))
                 .ValueOrThrow();
 
             auto recordsData = WaitFor(changelog->Read(recordId, 1, std::numeric_limits<i64>::max()))
@@ -683,18 +683,18 @@ public:
         return ElectionPriority_;
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
+    TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta, const TChangelogOptions& options) override
     {
-        return Factory_->CreateChangelog(id, Epoch_, meta)
+        return Factory_->CreateChangelog(id, meta, options, Epoch_)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
                 UpdateLatestChangelogId(id);
                 return changelog;
             }));
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(int id) override
+    TFuture<IChangelogPtr> OpenChangelog(int id, const TChangelogOptions& options) override
     {
-        return Factory_->OpenChangelog(id, Epoch_);
+        return Factory_->OpenChangelog(id, options, Epoch_);
     }
 
     TFuture<void> RemoveChangelog(int id) override

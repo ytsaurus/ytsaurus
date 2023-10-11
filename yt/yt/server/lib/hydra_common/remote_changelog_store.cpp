@@ -194,18 +194,18 @@ public:
         return LatestChangelogId_.Load();
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) override
+    TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta, const TChangelogOptions& options) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetInvoker())
-            .Run(id, meta);
+            .Run(id, meta, options);
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(int id) override
+    TFuture<IChangelogPtr> OpenChangelog(int id, const TChangelogOptions& options) override
     {
         return BIND(&TRemoteChangelogStore::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(GetInvoker())
-            .Run(id);
+            .Run(id, options);
     }
 
     TFuture<void> RemoveChangelog(int id) override
@@ -271,7 +271,7 @@ private:
             id);
     }
 
-    IChangelogPtr DoCreateChangelog(int id, const NProto::TChangelogMeta& meta)
+    IChangelogPtr DoCreateChangelog(int id, const NProto::TChangelogMeta& meta, const TChangelogOptions& options)
     {
         auto path = GetChangelogPath(Path_, id);
         try {
@@ -288,7 +288,7 @@ private:
                 Options_->SnapshotAccount,
                 Options_->SnapshotPrimaryMedium);
 
-            TCreateNodeOptions options;
+            TCreateNodeOptions createNodeOptions;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("erasure_codec", Options_->ChangelogErasureCodec);
             attributes->Set("replication_factor", Options_->ChangelogReplicationFactor);
@@ -300,13 +300,13 @@ private:
                 attributes->Set("external", true);
                 attributes->Set("external_cell_tag", *Options_->ChangelogExternalCellTag);
             }
-            options.Attributes = std::move(attributes);
-            options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
+            createNodeOptions.Attributes = std::move(attributes);
+            createNodeOptions.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
             auto future = Client_->CreateNode(
                 path,
                 EObjectType::Journal,
-                options);
+                createNodeOptions);
             WaitFor(future)
                 .ThrowOnError();
 
@@ -321,7 +321,7 @@ private:
                 meta,
                 /*recordCount*/ 0,
                 /*dataSize*/ 0,
-                /*createWriter*/ true);
+                options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating remote changelog")
                 << TErrorAttribute("changelog_path", path)
@@ -329,16 +329,16 @@ private:
         }
     }
 
-    IChangelogPtr DoOpenChangelog(int id)
+    IChangelogPtr DoOpenChangelog(int id, const TChangelogOptions& options)
     {
         auto path = GetChangelogPath(Path_, id);
         try {
             YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
                 id);
 
-            TGetNodeOptions options;
-            options.Attributes = {"uncompressed_data_size", "quorum_row_count"};
-            auto result = WaitFor(Client_->GetNode(path, options));
+            TGetNodeOptions getNodeOptions;
+            getNodeOptions.Attributes = {"uncompressed_data_size", "quorum_row_count"};
+            auto result = WaitFor(Client_->GetNode(path, getNodeOptions));
             if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::NoSuchChangelog,
@@ -363,10 +363,10 @@ private:
             return MakeRemoteChangelog(
                 id,
                 path,
-                {},
+                /*meta*/ {},
                 recordCount,
                 dataSize,
-                /*createWriter*/ false);
+                options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening remote changelog")
                 << TErrorAttribute("changelog_path", path)
@@ -403,7 +403,7 @@ private:
         TChangelogMeta meta,
         int recordCount,
         i64 dataSize,
-        bool createWriter)
+        const TChangelogOptions& options)
     {
         return New<TRemoteChangelog>(
             id,
@@ -412,7 +412,7 @@ private:
             PrerequisiteTransaction_,
             recordCount,
             dataSize,
-            createWriter,
+            options,
             this);
     }
 
@@ -450,7 +450,7 @@ private:
             ITransactionPtr prerequisiteTransaction,
             int recordCount,
             i64 dataSize,
-            bool createWriter,
+            const TChangelogOptions& options,
             TRemoteChangelogStorePtr owner)
             : Id_(id)
             , Path_(std::move(path))
@@ -461,7 +461,7 @@ private:
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
         {
-            if (createWriter) {
+            if (options.CreateWriterEagerly) {
                 auto guard = Guard(WriterLock_);
                 CreateWriter();
             }
@@ -557,12 +557,15 @@ private:
 
         TFuture<void> Close() override
         {
-            YT_LOG_DEBUG("Closing remote changelog");
-
             TFuture<void> future;
             {
                 auto guard = Guard(WriterLock_);
-                future = Writer_ ? Writer_->Close() : VoidFuture;
+                if (!Writer_) {
+                    YT_LOG_DEBUG("Remote changelog has no underlying writer and is now closed");
+                    return VoidFuture;
+                }
+                YT_LOG_DEBUG("Closing remote changelog with its underlying writer");
+                future = Writer_->Close();
             }
 
             future.Subscribe(BIND([Logger = Logger] (const TError& error) {

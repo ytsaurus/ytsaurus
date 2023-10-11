@@ -106,7 +106,7 @@ private:
     TFuture<void> CreateAndCloseChangelog(int changelogId)
     {
         const auto& changelogStore = EpochContext_->ChangelogStore;
-        return changelogStore->CreateChangelog(changelogId, {})
+        return changelogStore->CreateChangelog(changelogId, /*meta*/ {})
             .Apply(BIND([] (const IChangelogPtr& changelog) {
                 return changelog->Close();
             }));

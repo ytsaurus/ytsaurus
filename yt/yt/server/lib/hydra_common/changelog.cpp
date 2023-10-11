@@ -4,6 +4,7 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 int IChangelogStore::GetTermOrThrow() const
 {
     auto optionalTerm = TryGetTerm();
@@ -22,9 +23,9 @@ int IChangelogStore::GetLatestChangelogIdOrThrow() const
     return *optionalChangelogId;
 }
 
-TFuture<IChangelogPtr> IChangelogStore::TryOpenChangelog(int id)
+TFuture<IChangelogPtr> IChangelogStore::TryOpenChangelog(int id, const TChangelogOptions& options)
 {
-    return OpenChangelog(id)
+    return OpenChangelog(id, options)
         .Apply(BIND([] (const TErrorOr<IChangelogPtr>& result) -> IChangelogPtr {
             if (!result.IsOK() && result.FindMatching(NHydra::EErrorCode::NoSuchChangelog)) {
                 return IChangelogPtr(nullptr);
