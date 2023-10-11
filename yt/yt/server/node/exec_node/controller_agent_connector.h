@@ -102,8 +102,6 @@ public:
         void DoSendHeartbeat();
 
         void PrepareHeartbeatRequest(
-            NNodeTrackerClient::TNodeId nodeId,
-            const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
             const TReqHeartbeatPtr& request,
             const TAgentHeartbeatContextPtr& context);
         void ProcessHeartbeatResponse(

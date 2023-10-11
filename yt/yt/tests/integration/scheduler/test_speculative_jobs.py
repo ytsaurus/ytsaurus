@@ -268,6 +268,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
     }
@@ -382,6 +383,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
             },
             "job_controller": {"resource_limits": {"user_slots": 4, "cpu": 4.0}},
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
     }
@@ -568,6 +570,7 @@ class TestSpeculativeJobsOther(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
             "job_controller": {"resource_limits": {"cpu": 3, "user_slots": 3}},
         }

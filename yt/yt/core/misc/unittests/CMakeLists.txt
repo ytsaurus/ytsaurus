@@ -85,7 +85,6 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/lru_cache_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/maybe_inf_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/memory_tag_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/moving_average_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_fair_share_queue_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_stack_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_queue_ut.cpp

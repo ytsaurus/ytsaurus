@@ -2,7 +2,6 @@
 
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
-#include <util/str_stl.h>
 
 /*
  * Zero-terminated string view.
@@ -34,8 +33,4 @@ public:
     const char* c_str() const {
         return data();
     }
-};
-
-template <>
-struct THash<TZtStringBuf> : public THash<TStringBuf> {
 };

@@ -214,14 +214,14 @@ public:
     switch (State) {
     case PS_BeforeBegin:
     case PS_AtEnd:
-      return PATHSTR("");
+      return PS("");
     case PS_InRootDir:
       if (RawEntry[0] == '\\')
-        return PATHSTR("\\");
+        return PS("\\");
       else
-        return PATHSTR("/");
+        return PS("/");
     case PS_InTrailingSep:
-      return PATHSTR("");
+      return PS("");
     case PS_InRootName:
     case PS_InFilenames:
       return RawEntry;
@@ -391,8 +391,8 @@ private:
 };
 
 string_view_pair separate_filename(string_view_t const& s) {
-  if (s == PATHSTR(".") || s == PATHSTR("..") || s.empty())
-    return string_view_pair{s, PATHSTR("")};
+  if (s == PS(".") || s == PS("..") || s.empty())
+    return string_view_pair{s, PS("")};
   auto pos = s.find_last_of('.');
   if (pos == string_view_t::npos || pos == 0)
     return string_view_pair{s, string_view_t{}};
@@ -1620,7 +1620,7 @@ path& path::replace_extension(path const& replacement) {
   }
   if (!replacement.empty()) {
     if (replacement.native()[0] != '.') {
-      __pn_ += PATHSTR(".");
+      __pn_ += PS(".");
     }
     __pn_.append(replacement.__pn_);
   }
@@ -1742,14 +1742,14 @@ enum PathPartKind : unsigned char {
 static PathPartKind ClassifyPathPart(string_view_t Part) {
   if (Part.empty())
     return PK_TrailingSep;
-  if (Part == PATHSTR("."))
+  if (Part == PS("."))
     return PK_Dot;
-  if (Part == PATHSTR(".."))
+  if (Part == PS(".."))
     return PK_DotDot;
-  if (Part == PATHSTR("/"))
+  if (Part == PS("/"))
     return PK_RootSep;
 #if defined(_LIBCPP_WIN32API)
-  if (Part == PATHSTR("\\"))
+  if (Part == PS("\\"))
     return PK_RootSep;
 #endif
   return PK_Filename;
@@ -1799,7 +1799,7 @@ path path::lexically_normal() const {
         NewPathSize -= Parts.back().first.size();
         Parts.pop_back();
       } else if (LastKind != PK_RootSep)
-        AddPart(PK_DotDot, PATHSTR(".."));
+        AddPart(PK_DotDot, PS(".."));
       MaybeNeedTrailingSep = LastKind == PK_Filename;
       break;
     }
@@ -1814,7 +1814,7 @@ path path::lexically_normal() const {
   }
   // [fs.path.generic]p6.8: If the path is empty, add a dot.
   if (Parts.empty())
-    return PATHSTR(".");
+    return PS(".");
 
   // [fs.path.generic]p6.7: If the last filename is dot-dot, remove any
   // trailing directory-separator.
@@ -1826,7 +1826,7 @@ path path::lexically_normal() const {
     Result /= PK.first;
 
   if (NeedTrailingSep)
-    Result /= PATHSTR("");
+    Result /= PS("");
 
   Result.make_preferred();
   return Result;
@@ -1836,9 +1836,9 @@ static int DetermineLexicalElementCount(PathParser PP) {
   int Count = 0;
   for (; PP; ++PP) {
     auto Elem = *PP;
-    if (Elem == PATHSTR(".."))
+    if (Elem == PS(".."))
       --Count;
-    else if (Elem != PATHSTR(".") && Elem != PATHSTR(""))
+    else if (Elem != PS(".") && Elem != PS(""))
       ++Count;
   }
   return Count;
@@ -1885,15 +1885,15 @@ path path::lexically_relative(const path& base) const {
     return {};
 
   // if n == 0 and (a == end() || a->empty()), returns path("."); otherwise
-  if (ElemCount == 0 && (PP.atEnd() || *PP == PATHSTR("")))
-    return PATHSTR(".");
+  if (ElemCount == 0 && (PP.atEnd() || *PP == PS("")))
+    return PS(".");
 
   // return a path constructed with 'n' dot-dot elements, followed by the the
   // elements of '*this' after the mismatch.
   path Result;
   // FIXME: Reserve enough room in Result that it won't have to re-allocate.
   while (ElemCount--)
-    Result /= PATHSTR("..");
+    Result /= PS("..");
   for (; PP; ++PP)
     Result /= *PP;
   return Result;
@@ -1906,7 +1906,7 @@ static int CompareRootName(PathParser *LHS, PathParser *RHS) {
     return 0;
 
   auto GetRootName = [](PathParser *Parser) -> string_view_t {
-    return Parser->inRootName() ? **Parser : PATHSTR("");
+    return Parser->inRootName() ? **Parser : PS("");
   };
   int res = GetRootName(LHS).compare(GetRootName(RHS));
   ConsumeRootName(LHS);

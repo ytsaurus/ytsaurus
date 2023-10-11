@@ -36,6 +36,9 @@
 #undef WIN32
 #endif
 
+#define next_lookup next_lookup_x
+#define file_lookup file_lookup_x
+
 struct addr_query {
   /* Arguments passed to ares_gethostbyaddr() */
   ares_channel channel;
@@ -285,3 +288,7 @@ static void ptr_rr_name(char *name, const struct ares_addr *addr)
                 bytes[1]&0xf, bytes[1] >> 4, bytes[0]&0xf, bytes[0] >> 4);
     }
 }
+
+#undef next_lookup
+#undef file_lookup
+

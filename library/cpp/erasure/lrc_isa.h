@@ -13,7 +13,6 @@ extern "C" {
 
 #include <util/generic/array_ref.h>
 
-#include <functional>
 #include <optional>
 #include <vector>
 

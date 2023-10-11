@@ -68,7 +68,9 @@ inline void YaDebugBreak() {
             }                            \
         } while (false)
 #else
-    #define Y_HIT_DEBUGGER() Y_SEMICOLON_GUARD
+    #define Y_HIT_DEBUGGER(a) \
+        do {                  \
+        } while (false)
 #endif
 
 namespace NPrivate {
@@ -92,6 +94,7 @@ namespace NPrivate {
                                                                                    " " __VA_ARGS__);         \
         }                                                                                                    \
     } while (false)
+#define Y_VERIFY(...) Y_ABORT_UNLESS(__VA_ARGS__)
 
 #define Y_ABORT(...) Y_ABORT_UNLESS(false, __VA_ARGS__)
 #define Y_FAIL Y_ABORT

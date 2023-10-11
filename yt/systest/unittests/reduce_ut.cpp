@@ -22,17 +22,22 @@ TEST_F(TReduceTest, SortReduce)
     TTable table{{
         TDataColumn{
             "a",
-            NProto::EColumnType::ELatinString100
+            NProto::EColumnType::ELatinString100,
+            std::nullopt
         },
         TDataColumn{
             "b",
-            NProto::EColumnType::ELatinString100
+            NProto::EColumnType::ELatinString100,
+            std::nullopt
         },
         TDataColumn{
             "c",
-            NProto::EColumnType::EInt16
+            NProto::EColumnType::EInt16,
+            std::nullopt
         }
-    }};
+    },
+    {}  // DeletedColumnNames
+    };
 
     std::vector<std::vector<TNode>> data{
         {"x", "x", 10},
@@ -64,7 +69,7 @@ TEST_F(TReduceTest, SortReduce)
     ExpectEqual(expectedSorted, iterator.get());
 
     TReduceOperation operation{
-        std::make_unique<TSumReducer>(table, 2, TDataColumn{"sum", NProto::EColumnType::EInt64}),
+        std::make_unique<TSumReducer>(table, 2, TDataColumn{"sum", NProto::EColumnType::EInt64, std::nullopt}),
         {"a", "b"},
     };
     TReduceDataset reducedDataset(sortDataset, operation);

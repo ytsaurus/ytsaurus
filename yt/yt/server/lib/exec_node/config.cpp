@@ -285,6 +285,26 @@ void THeartbeatReporterConfigBase::ApplyDynamicInplace(const TOldHeartbeatReport
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSchedulerConnectorConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+TSchedulerConnectorConfigPtr TSchedulerConnectorConfig::ApplyDynamic(
+    const TSchedulerConnectorDynamicConfigPtr& dynamicConfig) const
+{
+    auto newConfig = CloneYsonStruct(MakeStrong(this));
+    newConfig->ApplyDynamicInplace(*dynamicConfig);
+    return newConfig;
+}
+
+void TSchedulerConnectorConfig::ApplyDynamicInplace(
+    const TSchedulerConnectorDynamicConfig& dynamicConfig)
+{
+    THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
+    Postprocess();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TControllerAgentConnectorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
@@ -505,6 +525,8 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
         .DefaultNew();
+    registrar.Parameter("scheduler_connector", &TThis::SchedulerConnector)
+        .DefaultNew();
 
     registrar.Parameter("job_proxy_logging", &TThis::JobProxyLogging)
         .DefaultNew();
@@ -612,6 +634,13 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 }
 
+TIntrusivePtr<const TMasterConnectorDynamicConfig> TMasterConnectorDynamicConfig::Default()
+{
+    static auto defaultConfig = New<TMasterConnectorDynamicConfig>();
+
+    return defaultConfig;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
@@ -663,7 +692,7 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("scheduler_connector", &TThis::SchedulerConnector)
-        .DefaultNew();
+        .Default();
 
     registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
         .Default();

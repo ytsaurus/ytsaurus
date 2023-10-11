@@ -41,7 +41,7 @@ class TMasterConnector
 public:
     TMasterConnector(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , DynamicConfig_(New<TMasterConnectorDynamicConfig>())
+        , DynamicConfig_(TMasterConnectorDynamicConfig::Default())
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
@@ -49,15 +49,6 @@ public:
     void Initialize() override
     {
         Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-    }
-
-    void OnDynamicConfigChanged(
-        const TMasterConnectorDynamicConfigPtr& /*oldConfig*/,
-        const TMasterConnectorDynamicConfigPtr& newConfig) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        DynamicConfig_ = newConfig;
     }
 
     TReqHeartbeat GetHeartbeatRequest() const
@@ -108,6 +99,23 @@ private:
         HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
         StartHeartbeats();
+    }
+
+    void OnDynamicConfigChanged(
+        const TMasterConnectorDynamicConfigPtr& oldConfig,
+        const TMasterConnectorDynamicConfigPtr& newConfig) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!oldConfig && !newConfig) {
+            return;
+        }
+
+        if (newConfig) {
+            DynamicConfig_ = newConfig;
+        } else {
+            DynamicConfig_ = TMasterConnectorDynamicConfig::Default();
+        }
     }
 
     void StartHeartbeats()

@@ -208,7 +208,11 @@ void run_container_grow(run_container_t *run, int32_t min, bool copy) {
         }
         run->runs = (rle16_t *)roaring_malloc(run->capacity * sizeof(rle16_t));
     }
-    // We may have run->runs == NULL.
+    // handle the case where realloc fails
+    if (run->runs == NULL) {
+      fprintf(stderr, "could not allocate memory\n");
+    }
+    assert(run->runs != NULL);
 }
 
 /* copy one container into another */

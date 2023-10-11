@@ -195,8 +195,8 @@ private:
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 
-    const TString LoggingTag_;
     const NLogging::TLogger Logger;
+    const TString LoggingTag_;
 
     const TPromise<void> ReadyPromise_ = NewPromise<void>();
 
@@ -256,6 +256,7 @@ private:
 
     i64 LastRetransmitCount_ = 0;
 
+    bool SupportsHandshakes_ = false;
     bool HandshakeEnqueued_ = false;
     bool HandshakeReceived_ = false;
     bool HandshakeSent_ = false;
@@ -275,7 +276,7 @@ private:
     const EEncryptionMode EncryptionMode_;
     const EVerificationMode VerificationMode_;
 
-    size_t MaxFragmentsPerWrite_ = 256;
+    size_t MaxFragmentsPerWrite = 256;
 
     void Open();
     void Close();

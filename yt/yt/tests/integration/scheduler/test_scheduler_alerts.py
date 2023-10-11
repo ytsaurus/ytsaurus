@@ -119,16 +119,9 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
     NUM_NODES = 1
     USE_PORTO = True
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "exec_node": {
-                "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
-            }
-        }
-    }
-
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            "scheduler_connector": {"heartbeat_period": 200},
             "controller_agent_connector": {"heartbeat_period": 200},
         },
     }
@@ -190,16 +183,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_NODES = 3
     USE_PORTO = True
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "exec_node": {
-                "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
-            }
-        }
-    }
-
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            "scheduler_connector": {"heartbeat_period": 200},
             "controller_agent_connector": {"heartbeat_period": 200},
             "slot_manager": {"job_environment": {"block_io_watchdog_period": 100}},
             "job_controller": {"get_job_specs_timeout": 30000},

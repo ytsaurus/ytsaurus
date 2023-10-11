@@ -15,10 +15,10 @@ class TMultiTablePartitioner
 {
 public:
     TMultiTablePartitioner(
-        IClientPtr client,
-        std::vector<NYPath::TRichYPath> paths,
-        TPartitionTablesOptions options,
-        NLogging::TLogger logger);
+        const IClientPtr& client,
+        const std::vector<NYPath::TRichYPath>& paths,
+        const TPartitionTablesOptions& options,
+        const NLogging::TLogger& logger);
 
     TMultiTablePartitions PartitionTables();
 
@@ -32,7 +32,7 @@ private:
     struct TVersionedSliceFetchState
     {
         std::vector<NTableClient::IChunkSliceFetcherPtr> TableFetchers;
-        std::vector<int> TableIndices;
+        std::vector<size_t> TableIndices;
     };
 
     const IClientPtr Client_;

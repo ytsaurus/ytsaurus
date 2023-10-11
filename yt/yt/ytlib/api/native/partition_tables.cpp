@@ -41,14 +41,14 @@ using namespace NYPath;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMultiTablePartitioner::TMultiTablePartitioner(
-    IClientPtr client,
-    std::vector<TRichYPath> paths,
-    TPartitionTablesOptions options,
-    NLogging::TLogger logger)
-    : Client_(std::move(client))
-    , Paths_(std::move(paths))
-    , Options_(std::move(options))
-    , Logger(std::move(logger))
+    const IClientPtr& client,
+    const std::vector<TRichYPath>& paths,
+    const TPartitionTablesOptions& options,
+    const NLogging::TLogger& logger)
+    : Client_(client)
+    , Paths_(paths)
+    , Options_(options)
+    , Logger(logger)
 { }
 
 TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
@@ -180,8 +180,7 @@ void TMultiTablePartitioner::BuildPartitions()
         }
 
         if (Options_.MaxPartitionCount && std::ssize(Partitions_.Partitions) >= *Options_.MaxPartitionCount) {
-            THROW_ERROR_EXCEPTION("Maximum partition count exceeded")
-                << TErrorAttribute("limit", *Options_.MaxPartitionCount);
+            THROW_ERROR_EXCEPTION("Maximum partition count exceeded: %v", *Options_.MaxPartitionCount);
         }
 
         auto chunkStripeList = ChunkPool_->GetStripeList(cookie);
@@ -274,7 +273,7 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& input
         Options_.ChunkSliceFetcherConfig,
         Client_->GetNativeConnection()->GetNodeDirectory(),
         GetCurrentInvoker(),
-        /*chunkScraper*/ nullptr,
+        IFetcherChunkScraperPtr(),
         Client_,
         rowBuffer,
         Logger);
@@ -285,14 +284,12 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& input
         auto dataSlice = CreateUnversionedInputDataSlice(inputChunkSlice);
         dataSlice->SetInputStreamIndex(tableIndex);
         dataSlice->TransformToNew(rowBuffer, comparator.GetLength());
-        YT_LOG_TRACE("Add data slice for slicing (TableIndex: %v, DataSlice: %v)",
-            tableIndex,
-            dataSlice);
+        YT_LOG_TRACE("Add data slice for slicing (TableIndex: %v, DataSlice: %v)", tableIndex, dataSlice);
         fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true);
     }
 
-    FetchState_.TableFetchers.push_back(std::move(fetcher));
-    FetchState_.TableIndices.push_back(tableIndex);
+    FetchState_.TableFetchers.emplace_back(std::move(fetcher));
+    FetchState_.TableIndices.emplace_back(tableIndex);
 }
 
 void TMultiTablePartitioner::FetchVersionedDataSlices()

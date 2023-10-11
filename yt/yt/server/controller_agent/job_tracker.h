@@ -163,8 +163,6 @@ private:
         TNodeJobs Jobs;
         NConcurrency::TLease Lease;
 
-        TGuid RegistrationId;
-
         TString NodeAddress;
     };
 
@@ -315,14 +313,11 @@ private:
     TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
     TNodeInfo& RegisterNode(TNodeId nodeId, TString nodeAddress);
     TNodeInfo& UpdateOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
-    void UnregisterNode(
-        TNodeId nodeId,
-        const TString& nodeAddress,
-        std::optional<TGuid> maybeRegistrationId = std::nullopt);
+    void UnregisterNode(TNodeId nodeId, const TString& nodeAddress);
 
     TNodeInfo* FindNodeInfo(TNodeId nodeId);
 
-    void OnNodeHeartbeatLeaseExpired(TGuid registrationId, TNodeId nodeId, const TString& nodeAddress);
+    void OnNodeHeartbeatLeaseExpired(TNodeId nodeId, const TString& nodeAddress);
 
     const TString& GetNodeAddressForLogging(TNodeId nodeId);
 

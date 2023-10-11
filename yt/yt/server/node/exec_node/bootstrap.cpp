@@ -81,7 +81,7 @@ public:
 
         MasterConnector_ = CreateMasterConnector(this);
 
-        SchedulerConnector_ = New<TSchedulerConnector>(this);
+        SchedulerConnector_ = New<TSchedulerConnector>(GetConfig()->ExecNode->SchedulerConnector, this);
 
         // We must ensure we know actual status of job proxy binary before Run phase.
         // Otherwise we may erroneously receive some job which we fail to run due to missing
@@ -336,10 +336,7 @@ private:
             }
         }
 
-        GetSchedulerConnector()->OnDynamicConfigChanged(
-            oldConfig->ExecNode->SchedulerConnector,
-            newConfig->ExecNode->SchedulerConnector);
-
+        SchedulerConnector_->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         GetControllerAgentConnectorPool()->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         JobReporter_->OnDynamicConfigChanged(oldConfig->ExecNode->JobReporter, newConfig->ExecNode->JobReporter);
 

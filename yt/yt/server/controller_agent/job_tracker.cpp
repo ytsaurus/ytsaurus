@@ -272,12 +272,7 @@ public:
 
         TYsonString jobYson;
 
-        const auto& [
-            nodeJobs,
-            _,
-            registrationId,
-            nodeAddress
-        ] = nodeInfoIt->second;
+        const auto& [nodeJobs, _, nodeAddress] = nodeInfoIt->second;
 
         if (auto jobIt = nodeJobs.Jobs.find(jobId);
             jobIt != std::end(nodeJobs.Jobs))
@@ -499,11 +494,6 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     auto nodeId = FromProto<TNodeId>(request->node_id());
 
-    if (nodeId == InvalidNodeId) {
-        THROW_ERROR_EXCEPTION(
-            "Invalid node id; node is likely offline");
-    }
-
     if (!incarnationId) {
         WrongIncarnationRequestCount_.Increment();
         THROW_ERROR_EXCEPTION(
@@ -576,11 +566,6 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     auto nodeId = FromProto<TNodeId>(request->node_id());
     auto allocationId = FromProto<TAllocationId>(request->allocation_id());
     auto operationId = FromProto<TOperationId>(request->operation_id());
-
-    if (nodeId == InvalidNodeId) {
-        THROW_ERROR_EXCEPTION(
-            "Invalid node id; node is likely offline");
-    }
 
     THROW_ERROR_EXCEPTION_IF(
         !incarnationId,
@@ -1346,12 +1331,7 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto nodeId = NodeIdFromJobId(jobInfo.JobId);
-    auto& [
-        nodeJobs,
-        _,
-        registrationId,
-        nodeAddress
-    ] = GetOrRegisterNode(nodeId, jobInfo.NodeAddress);
+    auto& [nodeJobs, _, nodeAddress] = GetOrRegisterNode(nodeId, jobInfo.NodeAddress);
 
     YT_LOG_DEBUG(
         "Register job (JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
@@ -1741,13 +1721,10 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAd
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    auto registrationId = TGuid::Create();
-
     YT_LOG_DEBUG(
-        "Register node (NodeId: %v, NodeAddress: %v, RegistrationId: %v)",
+        "Register node (NodeId: %v, NodeAddress: %v)",
         nodeId,
-        nodeAddress,
-        registrationId);
+        nodeAddress);
 
     if (auto nodeIdIt = NodeAddressToNodeId_.find(nodeAddress); nodeIdIt != std::end(NodeAddressToNodeId_)) {
         auto oldNodeId = nodeIdIt->second;
@@ -1764,7 +1741,7 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAd
 
     auto lease = TLeaseManager::CreateLease(
         Config_->NodeDisconnectionTimeout,
-        BIND_NO_PROPAGATE(&TJobTracker::OnNodeHeartbeatLeaseExpired, MakeWeak(this), registrationId, nodeId, nodeAddress)
+        BIND_NO_PROPAGATE(&TJobTracker::OnNodeHeartbeatLeaseExpired, MakeWeak(this), nodeId, nodeAddress)
             .Via(GetCancelableInvoker()));
 
     EmplaceOrCrash(NodeAddressToNodeId_, nodeAddress, nodeId);
@@ -1772,12 +1749,7 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAd
     auto emplaceIt = EmplaceOrCrash(
         RegisteredNodes_,
         nodeId,
-        TNodeInfo{
-            .Jobs = {},
-            .Lease = std::move(lease),
-            .RegistrationId = registrationId,
-            .NodeAddress = std::move(nodeAddress),
-        });
+        TNodeInfo{{}, std::move(lease), std::move(nodeAddress)});
     return emplaceIt->second;
 }
 
@@ -1800,19 +1772,13 @@ TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const 
             return RegisterNode(nodeId, nodeAddress);
         }
 
-        YT_LOG_DEBUG(
-            "Updating node lease (NodeId: %v, NodeAddress: %v, RegistrationId: %v)",
-            nodeId,
-            nodeAddress,
-            nodeInfo.RegistrationId);
-
         TLeaseManager::RenewLease(nodeInfo.Lease, Config_->NodeDisconnectionTimeout);
 
         return nodeIt->second;
     }
 }
 
-void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, std::optional<TGuid> maybeNodeRegistrationId)
+void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1830,30 +1796,13 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, std
 
     const auto& nodeInfo = nodeIt->second;
 
-    if (maybeNodeRegistrationId) {
-        if (*maybeNodeRegistrationId != nodeInfo.RegistrationId) {
-            YT_LOG_DEBUG("Node unregistration skiped because of registration id mismatch "
-                "(NodeId: %v, OldRegistrationId: %v, OldAddress: %v, ActualRegistrationId: %v, ActualAddress: %v)",
-                nodeId,
-                maybeNodeRegistrationId,
-                nodeAddress,
-                nodeInfo.RegistrationId,
-                nodeInfo.NodeAddress);
-
-            return;
-        }
-    }
-
-    TLeaseManager::CloseLease(nodeInfo.Lease);
-
     const auto& nodeJobs = nodeInfo.Jobs;
     YT_VERIFY(nodeAddress == nodeInfo.NodeAddress);
 
     YT_LOG_DEBUG(
-        "Unregistering node (NodeId: %v, NodeAddress: %v, RegistrationId: %v)",
+        "Unregistering node (NodeId: %v, NodeAddress: %v)",
         nodeId,
-        nodeAddress,
-        nodeInfo.RegistrationId);
+        nodeAddress);
 
     {
         TOperationIdToJobIds jobIdsToAbort;
@@ -1921,16 +1870,14 @@ TJobTracker::TNodeInfo* TJobTracker::FindNodeInfo(TNodeId nodeId)
     return nullptr;
 }
 
-// NB(pogorelov): Sometimes nodeId or address may change.
-// So we use registrationId to prevent new node unregistration on old lease expiration (CloseLease is racy).
-void TJobTracker::OnNodeHeartbeatLeaseExpired(TGuid registrationId, TNodeId nodeId, const TString& nodeAddress)
+void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId, const TString& nodeAddress)
 {
     YT_LOG_DEBUG(
         "Node heartbeat lease expired, unregister node (NodeId: %v, NodeAddress: %v)",
         nodeId,
         nodeAddress);
 
-    UnregisterNode(nodeId, nodeAddress, registrationId);
+    UnregisterNode(nodeId, nodeAddress);
 }
 
 const TString& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)

@@ -121,12 +121,12 @@ TTcpConnection::TTcpConnection(
     , UnixDomainSocketPath_(unixDomainSocketPath)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
-    , LoggingTag_(Format("ConnectionId: %v, ConnectionType: %v, RemoteAddress: %v, EncryptionMode: %v",
+    , Logger(BusLogger.WithTag("ConnectionId: %v, ConnectionType: %v, RemoteAddress: %v, EncryptionMode: %v",
         Id_,
         ConnectionType_,
         EndpointDescription_,
         Config_->EncryptionMode))
-    , Logger(BusLogger.WithTag(LoggingTag_.c_str()))
+    , LoggingTag_(Format("ConnectionId: %v", Id_))
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
     , MultiplexingBand_(multiplexingBand)
@@ -134,6 +134,7 @@ TTcpConnection::TTcpConnection(
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
     , Encoder_(packetTranscoderFactory->CreateEncoder(Logger))
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
+    , SupportsHandshakes_(packetTranscoderFactory->SupportsHandshakes())
     , EncryptionMode_(Config_->EncryptionMode)
     , VerificationMode_(Config_->VerificationMode)
 { }
@@ -195,7 +196,7 @@ void TTcpConnection::Close()
 
 void TTcpConnection::Start()
 {
-    YT_LOG_DEBUG("Starting TCP connection");
+    YT_LOG_DEBUG("Starting TCP connection (SupportsHandshakes: %v)", SupportsHandshakes_);
 
     // Offline in PendingControl_ prevents retrying events until end of Open().
     YT_VERIFY(Any(static_cast<EPollControl>(PendingControl_.load()) & EPollControl::Offline));
@@ -226,6 +227,11 @@ void TTcpConnection::Start()
             SetupNetwork(EndpointNetworkAddress_);
             Open();
             guard.Release();
+
+            if (!SupportsHandshakes_) {
+                // Set the connection ready on the server side.
+                ReadyPromise_.TrySet();
+            }
             break;
         }
 
@@ -282,6 +288,10 @@ const TString& TTcpConnection::GetLoggingTag() const
 
 void TTcpConnection::TryEnqueueHandshake()
 {
+    if (!SupportsHandshakes_) {
+        return;
+    }
+
     if (std::exchange(HandshakeEnqueued_, true)) {
         return;
     }
@@ -615,6 +625,11 @@ void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
         }
 
         Open();
+    }
+
+    if (!SupportsHandshakes_) {
+        // Set the connection ready on the client side.
+        ReadyPromise_.TrySet();
     }
 }
 
@@ -1317,7 +1332,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     size_t bytesAvailable = MaxBatchWriteSize;
 
     while (fragmentIt != fragmentEnd &&
-           SendVector_.size() < MaxFragmentsPerWrite_ &&
+           SendVector_.size() < MaxFragmentsPerWrite &&
            bytesAvailable > 0)
     {
         const auto& fragment = *fragmentIt;
@@ -1431,7 +1446,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         coalescedSize += fragment.Size();
     };
 
-    while (EncodedFragments_.size() < MaxFragmentsPerWrite_ &&
+    while (EncodedFragments_.size() < MaxFragmentsPerWrite &&
            encodedSize <= MaxBatchWriteSize &&
            !QueuedPackets_.empty())
     {
@@ -1852,13 +1867,13 @@ bool TTcpConnection::DoSslHandshake()
     switch (SSL_get_error(Ssl_.get(), result)) {
         case SSL_ERROR_NONE:
             YT_LOG_DEBUG("TLS/SSL connection has been established by SSL_do_handshake (VerificationMode %v)", VerificationMode_);
-            MaxFragmentsPerWrite_ = 1;
+            MaxFragmentsPerWrite = 1;
             SslState_ = ESslState::Established;
             ReadyPromise_.TrySet();
             return false;
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
-            MaxFragmentsPerWrite_ = 1;
+            MaxFragmentsPerWrite = 1;
             SslState_ = ESslState::Established;
             // Ssl session establishment will be finished by the following SSL_do_handshake()/SSL_read()/SSL_write() calls.
             // Since SSL handshake is pending, don't set the ReadyPromise_ yet.

@@ -2,7 +2,6 @@
 
 #include "private.h"
 
-#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
@@ -38,13 +37,14 @@ class TSchedulerConnector
 {
 public:
     TSchedulerConnector(
+        TSchedulerConnectorConfigPtr config,
         IBootstrap* bootstrap);
 
     void Start();
 
     void OnDynamicConfigChanged(
-        const TSchedulerConnectorDynamicConfigPtr& oldConfig,
-        const TSchedulerConnectorDynamicConfigPtr& newConfig);
+        const TExecNodeDynamicConfigPtr& oldConfig,
+        const TExecNodeDynamicConfigPtr& newConfig);
 
     void SetMinSpareResources(const NScheduler::TJobResources& minSpareResources);
 
@@ -61,10 +61,13 @@ public:
     using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
 
 private:
-    TAtomicIntrusivePtr<const TSchedulerConnectorDynamicConfig> DynamicConfig_;
+    const TSchedulerConnectorConfigPtr StaticConfig_;
+    TSchedulerConnectorConfigPtr CurrentConfig_;
     IBootstrap* const Bootstrap_;
 
     NScheduler::TJobResources MinSpareResources_{};
+
+    std::atomic<bool> SendHeartbeatOnJobFinished_{true};
 
     const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 

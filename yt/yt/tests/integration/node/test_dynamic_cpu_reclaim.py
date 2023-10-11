@@ -33,9 +33,9 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
     NUM_NODES = 1
 
     USE_PORTO = True
-
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {"heartbeat_period": 100},
         }
     }

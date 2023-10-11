@@ -76,16 +76,9 @@ class TestSchedulerAlertHistoryBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 5
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "exec_node": {
-                "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
-            }
-        }
-    }
-
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            "scheduler_connector": {"heartbeat_period": 200},
             "slot_manager": {"job_environment": {"block_io_watchdog_period": 100}},
             "job_controller": {"get_job_specs_timeout": 30000},
         }

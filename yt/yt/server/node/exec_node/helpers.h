@@ -60,9 +60,12 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetNodeInfoToRequest(
-    NNodeTrackerClient::TNodeId nodeId,
-    const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
-    const auto& request);
+    IBootstrap const* bootstrap,
+    const auto& request)
+{
+    request->set_node_id(NYT::ToProto<ui32>(bootstrap->GetNodeId()));
+    ToProto(request->mutable_node_descriptor(), bootstrap->GetLocalDescriptor());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +76,3 @@ struct THash<NYT::NExecNode::TControllerAgentDescriptor>
 {
     size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
 };
-
-#define HELPERS_INL_H_
-#include "helpers-inl.h"
-#undef HELPERS_INL_H_
