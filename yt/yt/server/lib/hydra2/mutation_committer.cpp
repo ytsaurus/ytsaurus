@@ -910,7 +910,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     YT_VERIFY(Changelog_);
     YT_VERIFY(changelogId == Changelog_->GetId() + 1);
 
-    auto changelogFuture = WaitFor(EpochContext_->ChangelogStore->OpenChangelog(changelogId));
+    auto changelogFuture = WaitFor(EpochContext_->ChangelogStore->OpenChangelog(changelogId, {.CreateWriterEagerly = true}));
     if (!changelogFuture.IsOK()) {
         LoggingFailed_.Fire(TError("Error opening changelog")
             << TErrorAttribute("changelog_id", changelogId)
@@ -1338,7 +1338,7 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
         changelogId,
         EpochContext_->Term);
 
-    auto createFuture = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, {}));
+    auto createFuture = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, /*meta*/ {}, {.CreateWriterEagerly = true}));
     if (!createFuture.IsOK()) {
         LoggingFailed_.Fire(TError("Error creating changelog")
             << TErrorAttribute("changelog_id", changelogId)
