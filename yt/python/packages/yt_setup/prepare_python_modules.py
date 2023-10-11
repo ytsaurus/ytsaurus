@@ -27,17 +27,17 @@ YT_PYTHON_PACKAGE_LIST = [
 CONTRIB_PYTHON_PACKAGE_LIST = [
     ("argcomplete", "argcomplete/py2"),
     ("simplejson", "simplejson/py2"),
-    "cloudpickle",
+    ("cloudpickle", "cloudpickle/py2"),
     ("charset_normalizer", "charset-normalizer"),
     ("decorator", "decorator/py2"),
-    "backports_abc",
+    ("backports_abc", "backports-abc"),
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
     ("tqdm", "tqdm/py2"),
     ("typing_extensions", "typing-extensions/py3"),
     ("idna", "idna/py2"),
     ("six", "six/py2"),
-    ("attrs", "attrs/py2"),
+    ("attr", "attrs/py2"),
     "typing",
 ]
 
@@ -152,7 +152,7 @@ def prepare_python_modules(
                 if files_to_copy:
                     logger.warning("Package %s was not found at default contrib path and was taken from contrib/deprecated", package_name)
                 else:
-                    logger.error("Package %s not found", package_name)
+                    logger.error("Package %s not found (%s)", package_name, package_relative_path)
 
             for path in files_to_copy:
                 cp_r_755(path, packages_dir)
