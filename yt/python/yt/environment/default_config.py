@@ -476,13 +476,6 @@ def get_node_config():
 
         job_prepare_time_limit = 60000;
 
-        scheduler_connector = {
-            failed_heartbeat_backoff_start_time = 50;
-            failed_heartbeat_backoff_max_time = 50;
-            failed_heartbeat_backoff_multiplier = 1.0;
-            heartbeat_period = 100;
-        };
-
         controller_agent_connector = {
             running_job_statistics_sending_backoff = 0;
             heartbeat_period = 100;
@@ -702,6 +695,13 @@ def get_dynamic_node_config():
                 total_confirmation_period = 5000;
                 send_waiting_jobs = %true;
                 use_job_tracker_service_to_settle_jobs = %true;
+            };
+
+            scheduler_connector = {
+                failed_heartbeat_backoff_start_time = 50;
+                failed_heartbeat_backoff_max_time = 50;
+                failed_heartbeat_backoff_multiplier = 1.0;
+                heartbeat_period = 100;
             };
 
             master_connector = {

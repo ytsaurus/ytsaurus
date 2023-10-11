@@ -47,10 +47,8 @@ static const auto& Logger = ExecNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerConnector::TSchedulerConnector(
-    TSchedulerConnectorConfigPtr config,
     IBootstrap* bootstrap)
-    : StaticConfig_(config)
-    , CurrentConfig_(CloneYsonStruct(StaticConfig_))
+    : DynamicConfig_(New<TSchedulerConnectorDynamicConfig>())
     , Bootstrap_(bootstrap)
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
@@ -58,14 +56,14 @@ TSchedulerConnector::TSchedulerConnector(
             &TSchedulerConnector::SendHeartbeat,
             MakeWeak(this)),
             TPeriodicExecutorOptions{
-                .Period = StaticConfig_->HeartbeatPeriod,
-                .Splay = StaticConfig_->HeartbeatSplay
+                .Period = DynamicConfig_.Acquire()->HeartbeatPeriod,
+                .Splay = DynamicConfig_.Acquire()->HeartbeatSplay
             }))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
 {
-    YT_VERIFY(config);
+    YT_VERIFY(DynamicConfig_.Acquire());
     YT_VERIFY(bootstrap);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
@@ -132,7 +130,7 @@ void TSchedulerConnector::OnResourcesReleased(
         return;
     }
 
-    if (SendHeartbeatOnJobFinished_.load(std::memory_order::relaxed)) {
+    if (DynamicConfig_.Acquire()->SendHeartbeatOnJobFinished) {
         SendOutOfBandHeartbeatIfNeeded();
     }
 }
@@ -185,28 +183,17 @@ void TSchedulerConnector::Start()
 }
 
 void TSchedulerConnector::OnDynamicConfigChanged(
-    const TExecNodeDynamicConfigPtr& oldConfig,
-    const TExecNodeDynamicConfigPtr& newConfig)
+    const TSchedulerConnectorDynamicConfigPtr& /*oldConfig*/,
+    const TSchedulerConnectorDynamicConfigPtr& newConfig)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!newConfig->SchedulerConnector && !oldConfig->SchedulerConnector) {
-        return;
-    }
+    DynamicConfig_.Store(newConfig);
 
-    Bootstrap_->GetControlInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
-        if (newConfig->SchedulerConnector) {
-            CurrentConfig_ = StaticConfig_->ApplyDynamic(newConfig->SchedulerConnector);
-            SendHeartbeatOnJobFinished_.store(newConfig->SchedulerConnector->SendHeartbeatOnJobFinished, std::memory_order::relaxed);
-        } else {
-            CurrentConfig_ = StaticConfig_;
-            SendHeartbeatOnJobFinished_.store(true, std::memory_order::relaxed);
-        }
-        YT_LOG_DEBUG(
-            "Set new scheduler heartbeat period (NewPeriod: %v)",
-            CurrentConfig_->HeartbeatPeriod);
-        HeartbeatExecutor_->SetPeriod(CurrentConfig_->HeartbeatPeriod);
-    }));
+    YT_LOG_DEBUG(
+        "Set new scheduler heartbeat period (NewPeriod: %v)",
+        newConfig->HeartbeatPeriod);
+    HeartbeatExecutor_->SetPeriod(newConfig->HeartbeatPeriod);
 }
 
 void TSchedulerConnector::DoSendHeartbeat()
@@ -239,12 +226,19 @@ void TSchedulerConnector::DoSendHeartbeat()
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
+
+        auto dynamicConfig = DynamicConfig_.Acquire();
+
+        auto heartbeatBackoffStartTime = dynamicConfig->FailedHeartbeatBackoffStartTime;
+        auto heartbeatBackoffMaxTime = dynamicConfig->FailedHeartbeatBackoffMaxTime;
+        auto heartbeatBackoffMultiplier = dynamicConfig->FailedHeartbeatBackoffMultiplier;
+
         if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = CurrentConfig_->FailedHeartbeatBackoffStartTime;
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = heartbeatBackoffStartTime;
         } else {
             HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * CurrentConfig_->FailedHeartbeatBackoffMultiplier,
-                CurrentConfig_->FailedHeartbeatBackoffMaxTime);
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * heartbeatBackoffMultiplier,
+                heartbeatBackoffMaxTime);
         }
         YT_LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
             HeartbeatInfo_.FailedHeartbeatBackoffTime);

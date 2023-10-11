@@ -76,7 +76,6 @@ class TestSchedulingSegments(YTEnvSetup):
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
             "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
-            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
     }
@@ -923,7 +922,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
             "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
-            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
     }
@@ -1567,7 +1565,6 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
             "job_controller": {
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
-            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
     }
 
@@ -1729,7 +1726,6 @@ class TestRunningJobStatistics(YTEnvSetup):
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
-            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
     }

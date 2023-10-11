@@ -154,13 +154,6 @@ NODE_CONFIG_PATCHES = [
                 "update_period": 300,
             },
         },
-        "exec_node": {
-            "job_proxy_heartbeat_period": 100,
-            "scheduler_connector": {
-                "heartbeat_period": 100,
-                "heartbeat_splay": 50
-            },
-        },
         "cellar_node": {
             "master_connector": {
                 "heartbeat_period": 300,
@@ -170,6 +163,24 @@ NODE_CONFIG_PATCHES = [
     },
     {
         "cell_directory_synchronizer": None,
+    }
+]
+
+DYNAMIC_NODE_CONFIG_PATCHES = [
+    {
+        "exec_node": {
+            "job_proxy_heartbeat_period": 100,
+            "scheduler_connector": {
+                "heartbeat_period": 100,
+                "heartbeat_splay": 50
+            },
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_splay": 50,
+            },
+        },
+    },
+    {
         "exec_node": {
             "scheduler_connector": {
                 "failed_heartbeat_backoff_start_time": 50,
@@ -178,17 +189,6 @@ NODE_CONFIG_PATCHES = [
             }
         }
     }
-]
-
-DYNAMIC_NODE_CONFIG_PATCHES = [
-    {
-        "exec_node": {
-            "master_connector": {
-                "heartbeat_period": 300,
-                "heartbeat_splay": 50,
-            },
-        },
-    },
 ]
 
 NODE_STORE_LOCATION_PATCHES = [

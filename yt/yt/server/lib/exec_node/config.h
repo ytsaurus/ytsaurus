@@ -319,7 +319,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConnectorDynamicConfig
-    : public TOldHeartbeatReporterDynamicConfigBase
+    : public THeartbeatReporterDynamicConfigBase
 {
 public:
     bool SendHeartbeatOnJobFinished;
@@ -379,22 +379,6 @@ public:
 
     static void Register(TRegistrar registrar);
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchedulerConnectorConfig
-    : public THeartbeatReporterConfigBase
-{
-public:
-    TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig) const;
-    void ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig);
-
-    REGISTER_YSON_STRUCT(TSchedulerConnectorConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -476,7 +460,6 @@ public:
     NJobAgent::TJobControllerConfigPtr JobController;
     TJobReporterConfigPtr JobReporter;
     TControllerAgentConnectorConfigPtr ControllerAgentConnector;
-    TSchedulerConnectorConfigPtr SchedulerConnector;
 
     NLogging::TLogManagerConfigPtr JobProxyLogging;
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
@@ -561,8 +544,6 @@ class TMasterConnectorDynamicConfig
 public:
     //! Timeout of the exec node heartbeat RPC request.
     TDuration HeartbeatTimeout;
-
-    static TIntrusivePtr<const TMasterConnectorDynamicConfig> Default();
 
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
