@@ -1069,6 +1069,10 @@ private:
         spareResources.ReplicationDataSize = InfiniteJobResources().ReplicationDataSize;
         spareResources.RepairDataSize = InfiniteJobResources().RepairDataSize;
         spareResources.MergeDataSize = InfiniteJobResources().MergeDataSize;
+
+        // JRM doesn't track disk resources
+        // TODO(pogorelov): Add disk resources support
+        spareResources.DiskSpaceRequest = InfiniteJobResources().DiskSpaceRequest;
         return Dominates(spareResources, neededResources);
     }
 };
