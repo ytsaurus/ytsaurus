@@ -101,7 +101,8 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
         .SetMandatory(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Area)
         .SetWritable(true)
-        .SetReplicated(true));
+        .SetReplicated(true)
+        .SetMandatory(true));
     descriptors->push_back(EInternedAttributeKey::AreaId);
     descriptors->push_back(EInternedAttributeKey::TabletCellLifeStage);
     descriptors->push_back(EInternedAttributeKey::Status);

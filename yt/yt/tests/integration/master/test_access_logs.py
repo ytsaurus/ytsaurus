@@ -83,7 +83,7 @@ class TestAccessLog(YTEnvSetup):
                            written_logs), "Entry {} is present in access log".format(log)
 
     @classmethod
-    def modify_master_config(cls, config, tag, index):
+    def modify_master_config(cls, config, tag, peer_index, cluster_index):
         config["logging"]["flush_period"] = 100
         config["logging"]["rules"].append(
             {
@@ -95,7 +95,7 @@ class TestAccessLog(YTEnvSetup):
         )
         config["logging"]["writers"]["access"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/master-{}-{}.access.json.log".format(tag, index)),
+            "file_name": os.path.join(cls.path_to_run, "logs/master-{}-{}.access.json.log".format(tag, peer_index)),
             "accepted_message_format": "structured",
         }
 

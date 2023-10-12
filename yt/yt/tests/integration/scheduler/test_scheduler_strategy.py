@@ -1373,7 +1373,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 2
         config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 2
 

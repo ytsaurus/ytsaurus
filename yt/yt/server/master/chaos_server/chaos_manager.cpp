@@ -47,9 +47,9 @@ using namespace NObjectClient;
 using namespace NChaosClient;
 using namespace NTableClient;
 using namespace NCypressClient;
-using namespace NObjectClient;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +87,7 @@ public:
             BIND(&TChaosManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraReplicateAlienClusterRegistry, Unretained(this)));
     }
 
     void Initialize() override
@@ -110,6 +111,15 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareCreateReplicationCard, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, Unretained(this))));
+    }
+
+    void ReplicateAlienClusterRegistryToSecondaryMaster(TCellTag cellTag) const override
+    {
+        NProto::TReqReplicateAlienClusterRegistry req;
+        ToProto(req.mutable_clusters(), AlienClusterRegistry_->GetIndexToName());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(req, cellTag);
     }
 
     const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const override
@@ -349,8 +359,9 @@ private:
 
         auto* cell = cellBase->As<TChaosCell>();
         const auto& chaosOptions = cell->GetChaosOptions();
-        THashSet<int> alienClusterIndexes;
+        YT_VERIFY(chaosOptions);
 
+        THashSet<int> alienClusterIndexes;
         for (int peerId = 0; peerId < std::ssize(chaosOptions->Peers); ++peerId) {
             if (cell->IsAlienPeer(peerId)) {
                 auto alienClusterIndex = AlienClusterRegistry_->GetOrRegisterAlienClusterIndex(*chaosOptions->Peers[peerId]->AlienCluster);
@@ -457,6 +468,15 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
         }
+    }
+
+    void HydraReplicateAlienClusterRegistry(NProto::TReqReplicateAlienClusterRegistry* request)
+    {
+        auto indexToName =FromProto<std::vector<TString>>(request->clusters());
+        AlienClusterRegistry_->Reset(std::move(indexToName));
+
+        YT_LOG_DEBUG("Alien cluster registry is reset (ActualClusters: %v)",
+            AlienClusterRegistry_->GetIndexToName());
     }
 
     void HydraPrepareCreateReplicationCard(

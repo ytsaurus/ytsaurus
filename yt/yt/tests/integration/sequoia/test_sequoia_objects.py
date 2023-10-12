@@ -106,8 +106,8 @@ class TestSequoiaObjectsMulticell(TestSequoiaObjects):
     NUM_SECONDARY_MASTER_CELLS = 3
 
     @classmethod
-    def modify_node_config(cls, config):
-        super(TestSequoiaObjectsMulticell, cls).modify_node_config(config)
+    def modify_node_config(cls, config, cluster_index):
+        super(TestSequoiaObjectsMulticell, cls).modify_node_config(config, cluster_index)
 
     @classmethod
     def setup_class(cls):
@@ -159,7 +159,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         node_flavors = [
             ["data", "exec"],
             ["data", "exec"],
@@ -271,8 +271,8 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
     NUM_SECONDARY_MASTER_CELLS = 3
 
     @classmethod
-    def modify_node_config(cls, config):
-        super(TestSequoiaReplicasMulticell, cls).modify_node_config(config)
+    def modify_node_config(cls, config, cluster_index):
+        super(TestSequoiaReplicasMulticell, cls).modify_node_config(config, cluster_index)
 
     @classmethod
     def setup_class(cls):

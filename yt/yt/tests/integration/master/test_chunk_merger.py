@@ -73,7 +73,7 @@ class TestChunkMerger(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         config["resource_limits"] = {
             "memory_limits": {
                 "system_jobs": {

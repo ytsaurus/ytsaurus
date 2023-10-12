@@ -864,7 +864,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
 class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
 
     @authors("ignat")

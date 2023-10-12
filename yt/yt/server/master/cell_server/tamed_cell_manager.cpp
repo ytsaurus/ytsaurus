@@ -30,6 +30,7 @@
 
 #include <yt/yt/server/master/chaos_server/chaos_cell.h>
 #include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+#include <yt/yt/server/master/chaos_server/chaos_manager.h>
 #include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -2538,6 +2539,9 @@ private:
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        chaosManager->ReplicateAlienClusterRegistryToSecondaryMaster(cellTag);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         auto cellBundles = GetValuesSortedByKey(CellBundleMap_);

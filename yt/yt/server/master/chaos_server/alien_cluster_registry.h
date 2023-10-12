@@ -22,6 +22,9 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    const std::vector<TString>& GetIndexToName() const;
+    void Reset(std::vector<TString> indexToName);
+
 private:
     THashMap<TString, int> NameToIndex_;
     std::vector<TString> IndexToName_;

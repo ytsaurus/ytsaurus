@@ -130,6 +130,7 @@ DEFINE_ENUM(EMasterReign,
     ((KeyPrefixFilter_23_1)                                         (2356))  // akozhikhov
     ((ConcatToSingleCellChunkOwner_23_1)                            (2357))  // shakurov
     ((AccountsProfilingInSecurityManager_23_1)                      (2358))  // vovamelnikov
+    ((ReplicateAlienClusterRegistry_23_1)                           (2359))  // ponasenko-rs
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
@@ -167,6 +168,7 @@ DEFINE_ENUM(EMasterReign,
     ((ConcatToSingleCellChunkOwner)                                 (2433))  // shakurov
     ((ChunkMergerQueuesUsagePerAccount)                             (2434))  // vovamelnikov
     ((EnableChangelogChunkPreallocationByDefault)                   (2435))  // akozhikhov
+    ((ReplicateAlienClusterRegistry)                                (2436))  // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////

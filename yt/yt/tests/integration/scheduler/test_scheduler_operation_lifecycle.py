@@ -1248,7 +1248,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         config["cluster_connection"]["primary_master"]["rpc_timeout"] = 50000
         for connection in config["cluster_connection"]["secondary_masters"]:
             connection["rpc_timeout"] = 50000
@@ -1332,7 +1332,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         super(TestSafeAssertionsMode, cls).teardown_class()
 
     @classmethod
-    def modify_controller_agent_config(cls, config):
+    def modify_controller_agent_config(cls, config, cluster_index):
         cls.core_path = os.path.join(cls.path_to_run, "_cores")
         os.mkdir(cls.core_path)
         os.chmod(cls.core_path, 0o777)

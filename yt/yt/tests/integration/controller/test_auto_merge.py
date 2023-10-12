@@ -65,7 +65,7 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
     }
 
     @classmethod
-    def modify_controller_agent_config(cls, config):
+    def modify_controller_agent_config(cls, config, cluster_index):
         for op_type in ["map", "reduce"]:
             update_inplace(config, {
                 "controller_agent": {

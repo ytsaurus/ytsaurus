@@ -59,7 +59,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         set_account_disk_space_limit("tmp", disk_space_limit, TestIntermediateMediumSwitch.FAST_MEDIUM)
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         assert len(config["data_node"]["store_locations"]) == 2
 
         config["data_node"]["store_locations"][0]["medium_name"] = cls.SLOW_MEDIUM

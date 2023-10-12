@@ -10,5 +10,10 @@ message TReqUpdateAlienCellPeers
     optional bool full_sync = 2 [default = false];
 }
 
+message TReqReplicateAlienClusterRegistry
+{
+    repeated string clusters = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
