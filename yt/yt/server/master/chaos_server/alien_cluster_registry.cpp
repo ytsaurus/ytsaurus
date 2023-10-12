@@ -43,7 +43,19 @@ void TAlienClusterRegistry::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, IndexToName_);
+    auto indexToName = Load<std::vector<TString>>(context);
+
+    Reset(std::move(indexToName));
+}
+
+const std::vector<TString>& TAlienClusterRegistry::GetIndexToName() const
+{
+    return IndexToName_;
+}
+
+void TAlienClusterRegistry::Reset(std::vector<TString> indexToName)
+{
+    IndexToName_ = std::move(indexToName);
 
     for (int alienClusterIndex = 0; alienClusterIndex < std::ssize(IndexToName_); ++alienClusterIndex) {
         YT_VERIFY(NameToIndex_.emplace(IndexToName_[alienClusterIndex], alienClusterIndex).second);

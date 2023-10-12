@@ -38,6 +38,7 @@ from yt.common import get_fqdn
 import logging
 import os
 import copy
+import datetime
 import errno
 import itertools
 import time
@@ -1922,9 +1923,9 @@ class YTInstance(object):
 
     def _wait_for(self, condition, name, max_wait_time=40, sleep_quantum=0.1):
         condition_error = None
-        current_wait_time = 0
+        start_time = datetime.datetime.now()
         logger.info("Waiting for %s...", name)
-        while current_wait_time < max_wait_time:
+        while datetime.datetime.now() - start_time < datetime.timedelta(seconds=max_wait_time):
             result = condition()
             if isinstance(result, tuple):
                 ok, condition_error = result
@@ -1935,7 +1936,6 @@ class YTInstance(object):
                 logger.info("%s ready", name.capitalize())
                 return
             time.sleep(sleep_quantum)
-            current_wait_time += sleep_quantum
 
         self._process_stderrs(name)
 

@@ -1373,7 +1373,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         if not hasattr(cls, "node_counter"):
             cls.node_counter = 0
         cls.node_counter += 1

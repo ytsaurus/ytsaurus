@@ -15,6 +15,8 @@ struct IChaosManager
 {
     virtual void Initialize() = 0;
 
+    virtual void ReplicateAlienClusterRegistryToSecondaryMaster(NObjectClient::TCellTag cellTag) const = 0;
+
     virtual const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const = 0;
     virtual TChaosCell* GetBundleMetadataCell(const TChaosCellBundle* cellBundle) const = 0;
     virtual void SetBundleMetadataCells(

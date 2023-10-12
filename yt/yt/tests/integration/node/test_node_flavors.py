@@ -29,7 +29,7 @@ class TestNodeFlavors(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         node_flavors = [
             ["data"],
             ["exec"],
@@ -195,7 +195,7 @@ class TestDataAndTabletNodesCollocation(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         if not hasattr(cls, "node_counter"):
             cls.node_counter = 0
         if cls.node_counter == 0:

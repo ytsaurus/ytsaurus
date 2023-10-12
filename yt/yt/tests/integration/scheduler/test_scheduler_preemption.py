@@ -1228,7 +1228,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         return "group{}".format(group_index)
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         for resource in ["cpu", "user_slots"]:
             config["exec_node"]["job_controller"]["resource_limits"][resource] = 2
 
@@ -1374,7 +1374,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
         })
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 5
         config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 5
 

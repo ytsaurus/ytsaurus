@@ -303,11 +303,11 @@ class YTEnvSetup(object):
 
     # To be redefined in successors
     @classmethod
-    def modify_master_config(cls, config, tag, index):
+    def modify_master_config(cls, config, tag, peer_index, cluster_index):
         pass
 
     @classmethod
-    def modify_scheduler_config(cls, config):
+    def modify_scheduler_config(cls, config, cluster_index):
         pass
 
     @classmethod
@@ -315,11 +315,15 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_controller_agent_config(cls, config):
+    def modify_controller_agent_config(cls, config, cluster_index):
         pass
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
+        pass
+
+    @classmethod
+    def modify_chaos_node_config(cls, config, cluster_index):
         pass
 
     @classmethod
@@ -353,7 +357,7 @@ class YTEnvSetup(object):
     @classmethod
     def get_param(cls, name, cluster_index):
         value = getattr(cls, name)
-        if cluster_index != 0:
+        if cluster_index == 0:
             return value
 
         param_name = "{0}_REMOTE_{1}".format(name, cluster_index - 1)
@@ -714,10 +718,10 @@ class YTEnvSetup(object):
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
-            for index, config in enumerate(configs["master"][tag]):
+            for peer_index, config in enumerate(configs["master"][tag]):
                 config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
-                configs["master"][tag][index] = cls.update_timestamp_provider_config(cluster_index, config)
-                cls.modify_master_config(configs["master"][tag][index], tag, index)
+                configs["master"][tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
+                cls.modify_master_config(configs["master"][tag][peer_index], tag, peer_index, cluster_index)
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
 
@@ -729,7 +733,7 @@ class YTEnvSetup(object):
                 config["scheduler"].pop("send_full_controller_agent_descriptors_for_jobs")
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_scheduler_config(configs["scheduler"][index])
+            cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
         for index, config in enumerate(configs["queue_agent"]):
             config = update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
             configs["queue_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
@@ -763,7 +767,7 @@ class YTEnvSetup(object):
                 config["controller_agent"]["set_committed_attribute_via_transaction_action"] = False
 
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_controller_agent_config(configs["controller_agent"][index])
+            cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
         for index, config in enumerate(configs["node"]):
             config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             if cls.USE_PORTO:
@@ -775,11 +779,12 @@ class YTEnvSetup(object):
 
             config = cls.update_timestamp_provider_config(cluster_index, config)
             configs["node"][index] = config
-            cls.modify_node_config(configs["node"][index])
+            cls.modify_node_config(configs["node"][index], cluster_index)
 
         for index, config in enumerate(configs["chaos_node"]):
             config = update_inplace(config, cls.get_param("DELTA_CHAOS_NODE_CONFIG", cluster_index))
             configs["chaos_node"][index] = cls.update_timestamp_provider_config(cluster_index, config)
+            cls.modify_chaos_node_config(configs["chaos_node"][index], cluster_index)
 
         for index, config in enumerate(configs["http_proxy"]):
             delta_config = cls.get_param("DELTA_PROXY_CONFIG", cluster_index)

@@ -384,7 +384,7 @@ class TestReregisterNode(YTEnvSetup):
             shutil.copy(path1, path2)
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         if (cls.FIRST_CONFIG is None):
             cls.FIRST_CONFIG = config
         else:
