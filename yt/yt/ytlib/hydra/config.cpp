@@ -71,7 +71,7 @@ void TRemoteChangelogStoreOptions::Register(TRegistrar registrar)
     registrar.Parameter("enable_changelog_multiplexing", &TThis::EnableChangelogMultiplexing)
         .Default(true);
     registrar.Parameter("enable_changelog_chunk_preallocation", &TThis::EnableChangelogChunkPreallocation)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("changelog_replica_lag_limit", &TThis::ChangelogReplicaLagLimit)
         .Default(NJournalClient::DefaultReplicaLagLimit);
     registrar.Parameter("changelog_external_cell_tag", &TThis::ChangelogExternalCellTag)
