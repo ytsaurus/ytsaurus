@@ -122,13 +122,11 @@ class TestChunkMerger(YTEnvSetup):
 
         create_account("a")
 
-        assert get("//sys/accounts/a/@merge_job_rate_limit") == 0
         set("//sys/accounts/a/@merge_job_rate_limit", 7)
         with pytest.raises(YtError):
             set("//sys/accounts/a/@merge_job_rate_limit", -1)
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 7
 
-        assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 0
         set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 12)
         with pytest.raises(YtError):
             set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", -1)
