@@ -1981,7 +1981,7 @@ bool TNodeShard::IsHeartbeatThrottlingWithComplexity(
     node->SetSchedulingHeartbeatComplexity(schedulingHeartbeatComplexity);
 
     if (ConcurrentHeartbeatComplexity_ >= Config_->SchedulingHeartbeatComplexityLimit) {
-        YT_LOG_INFO("Heartbeat complexity limit reached (NodeAddress: %v, TotalHeartbeatComplexity: %v, CurrentComplexity: %v)",
+        YT_LOG_DEBUG("Heartbeat complexity limit reached (NodeAddress: %v, TotalHeartbeatComplexity: %v, CurrentComplexity: %v)",
             node->GetDefaultAddress(),
             ConcurrentHeartbeatComplexity_.load(),
             schedulingHeartbeatComplexity);
