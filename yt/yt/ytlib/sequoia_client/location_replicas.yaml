@@ -1,16 +1,21 @@
 namespace: NYT::NSequoiaClient::NRecords
 
+h_verbatim: |
+  #include <yt/yt/client/node_tracker_client/public.h>
+
+  #include <yt/yt/client/object_client/public.h>
+
 types:
   - type_name: TLocationReplicas
     fields:
       - cpp_name: CellTag
-        cpp_type: ui16
+        cpp_type: NObjectClient::TCellTag
         column_name: cell_tag
         column_type: Uint32
         sort_order: Ascending
 
       - cpp_name: NodeId
-        cpp_type: ui32
+        cpp_type: NNodeTrackerClient::TNodeId
         column_name: node_id
         column_type: Uint32
         sort_order: Ascending

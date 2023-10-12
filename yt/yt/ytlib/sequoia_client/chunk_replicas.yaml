@@ -1,5 +1,8 @@
 namespace: NYT::NSequoiaClient::NRecords
 
+h_verbatim: |
+  #include <yt/yt/client/node_tracker_client/public.h>
+
 types:
   - type_name: TChunkReplicas
     fields:
@@ -28,9 +31,9 @@ types:
         sort_order: Ascending
 
       - cpp_name: NodeId
-        cpp_type: ui32
+        cpp_type: NNodeTrackerClient::TNodeId
         column_name: node_id
         column_type: Uint32
 
     verbatim: |
-        static constexpr auto Table = ESequoiaTable::ChunkReplicas;
+      static constexpr auto Table = ESequoiaTable::ChunkReplicas;
