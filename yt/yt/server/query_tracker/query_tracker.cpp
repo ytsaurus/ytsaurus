@@ -121,7 +121,7 @@ private:
             // TODO(max42): select as little fields as possible; lookup full row in TryAcquireQuery instead.
             // Select queries with expired leases.
             auto selectQuery = Format(
-                "[query_id], [incarnation], [assigned_tracker], [ping_time], [engine], [user], [query], [settings] from [%v] where [ping_time] < %v",
+                "[query_id], [incarnation], [assigned_tracker], [ping_time], [engine], [user], [query], [settings], [files] from [%v] where [ping_time] < %v",
                 StateRoot_ + "/active_queries",
                 (TInstant::Now() - Config_->ActiveQueryLeaseTimeout).MicroSeconds(),
                 SelfAddress_);
@@ -476,11 +476,12 @@ private:
             {
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time table).
-                static_assert(TActiveQueryDescriptor::FieldCount == 17 && TFinishedQueryDescriptor::FieldCount == 12);
+                static_assert(TActiveQueryDescriptor::FieldCount == 18 && TFinishedQueryDescriptor::FieldCount == 13);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
                     .Query = activeQueryRecord->Query,
+                    .Files = activeQueryRecord->Files,
                     .Settings = activeQueryRecord->Settings,
                     .User = activeQueryRecord->User,
                     .StartTime = activeQueryRecord->StartTime,
@@ -501,7 +502,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 17 && TFinishedQueryByStartTimeDescriptor::FieldCount == 6);
+                static_assert(TActiveQueryDescriptor::FieldCount == 18 && TFinishedQueryByStartTimeDescriptor::FieldCount == 6);
                 TFinishedQueryByStartTime newRecord{
                     .Key = TFinishedQueryByStartTimeKey{.StartTime = activeQueryRecord->StartTime, .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,

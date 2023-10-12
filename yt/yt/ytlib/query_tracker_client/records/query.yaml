@@ -27,6 +27,13 @@ types:
         column_type: String
         lock: client
 
+      # YSON list.
+      - cpp_name: Files
+        cpp_type: NYson::TYsonString
+        column_name: files
+        column_type: Any
+        lock: client
+
       # YSON dictionary.
       - cpp_name: Settings
         cpp_type: NYson::TYsonString
@@ -142,6 +149,13 @@ types:
         cpp_type: TString
         column_name: query
         column_type: String
+
+      # YSON list.
+      - cpp_name: Files
+        cpp_type: NYson::TYsonString
+        column_name: files
+        column_type: Any
+        lock: client
 
       # YSON dictionary.
       - cpp_name: Settings

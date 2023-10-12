@@ -29,6 +29,10 @@ public:
 
     NYTree::INodePtr OperationAttributes;
 
+    int MaxFilesSizeMb;
+    int MaxFileCount;
+    int DownloadFileRetryCount;
+
     TString YTTokenPath;
 
     //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.

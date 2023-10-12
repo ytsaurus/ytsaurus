@@ -24,7 +24,6 @@ using namespace NHiveClient;
 using namespace NYqlClient;
 using namespace NYqlClient::NProto;
 using namespace NYson;
-using namespace NApi;
 using namespace NHiveClient;
 using namespace NSecurityClient;
 using namespace NLogging;
@@ -70,6 +69,9 @@ public:
             .Clusters = clusters,
             .DefaultCluster = Config_->DefaultCluster,
             .OperationAttributes = operationAttributes,
+            .MaxFilesSizeMb = Config_->MaxFilesSizeMb,
+            .MaxFileCount = Config_->MaxFileCount,
+            .DownloadFileRetryCount = Config_->DownloadFileRetryCount,
             .YTTokenPath = Config_->YTTokenPath,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
@@ -162,8 +164,19 @@ private:
                 query = "pragma RefSelect; pragma yt.UseNativeYtTypes; " + query;
             }
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
+
+            std::vector<NYqlPlugin::TQueryFile> files;
+            files.reserve(yqlRequest.files_size());
+            for (const auto& file : yqlRequest.files()) {
+                files.push_back(NYqlPlugin::TQueryFile {
+                    .Name = file.name(),
+                    .Content = file.content(),
+                    .Type = static_cast<EQueryFileContentType>(file.type()),
+                });
+            }
+
             // This is a long blocking call.
-            auto result = YqlPlugin_->Run(queryId, impersonationUser, query, settings);
+            auto result = YqlPlugin_->Run(queryId, impersonationUser, query, settings, files);
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
                 THROW_ERROR error;

@@ -1,7 +1,9 @@
 #include "client_impl.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
+#include <yt/yt/ytlib/query_tracker_client/config.h>
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 
 #include <yt/yt/client/table_client/name_table.h>
@@ -40,6 +42,22 @@ using namespace NChunkClient::NProto;
 
 TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
 {
+    auto queryTrackerConfig = Connection_->GetConfig()->QueryTracker;
+    if (ssize(options.Files) > queryTrackerConfig->MaxQueryFileCount) {
+        THROW_ERROR_EXCEPTION("Too many files: limit is %v, actual count is %v",
+            queryTrackerConfig->MaxQueryFileCount, options.Files.size());
+    }
+    for (const auto& file : options.Files) {
+        if (ssize(file->Name) > queryTrackerConfig->MaxQueryFileNameSizeBytes) {
+            THROW_ERROR_EXCEPTION("Too large file %v name: limit is %v, actual size is %v",
+                file->Name, queryTrackerConfig->MaxQueryFileNameSizeBytes, file->Name.size());
+        }
+        if (ssize(file->Content) > queryTrackerConfig->MaxQueryFileContentSizeBytes) {
+            THROW_ERROR_EXCEPTION("Too large file %v content: limit is %v, actual size is %v",
+                file->Name, queryTrackerConfig->MaxQueryFileContentSizeBytes, file->Content.size());
+        }
+    }
+
     auto [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
@@ -59,11 +77,12 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         TString filterFactors;
         auto startTime = TInstant::Now();
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 12);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 13);
             TFinishedQuery newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
                 .Query = query,
+                .Files = ConvertToYsonString(options.Files),
                 .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
                 .User = *Options_.User,
                 .StartTime = startTime,
@@ -97,11 +116,12 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
                 MakeSharedRange(std::move(rows), rowBuffer));
         }
     } else {
-        static_assert(TActiveQueryDescriptor::FieldCount == 17);
+        static_assert(TActiveQueryDescriptor::FieldCount == 18);
         TActiveQueryPartial newRecord{
             .Key = {.QueryId = queryId},
             .Engine = engine,
             .Query = query,
+            .Files = ConvertToYsonString(options.Files),
             .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
             .User = *Options_.User,
             .StartTime = TInstant::Now(),
@@ -354,9 +374,9 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
 
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 13);
-    static_assert(TActiveQueryDescriptor::FieldCount == 17);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 12);
+    static_assert(pfr::tuple_size<TQuery>::value == 14);
+    static_assert(TActiveQueryDescriptor::FieldCount == 18);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 13);
 
     TQuery query;
     // Note that some of the fields are twice optional.
@@ -366,6 +386,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.Id = partialRecord.Key.QueryId;
     query.Engine = partialRecord.Engine;
     query.Query = partialRecord.Query;
+    query.Files = partialRecord.Files.value_or(TYsonString());
     query.StartTime = partialRecord.StartTime;
     query.FinishTime = partialRecord.FinishTime.value_or(std::nullopt);
     query.Settings = partialRecord.Settings.value_or(TYsonString());
