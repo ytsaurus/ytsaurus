@@ -96,6 +96,11 @@ def main():
     parser.set_defaults(enable_tcp_proxy=default_enablers.enable_tcp_proxy)
 
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--enable-history-server', dest='enable_history_server', action='store_true')
+    group.add_argument('--disable-history-server', dest='enable_history_server', action='store_false')
+    parser.set_defaults(enable_history_server=True)
+
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--enable-advanced-event-log',
                        dest='advanced_event_log', action='store_true')
     group.add_argument('--disable-advanced-event-log',
@@ -179,6 +184,7 @@ def main():
                         ssd_limit=args.ssd_limit,
                         ssd_account=args.ssd_account,
                         master_memory_limit=args.master_memory_limit,
+                        enable_history_server=args.enable_history_server,
                         history_server_memory_limit=args.history_server_memory_limit,
                         history_server_memory_overhead=args.history_server_memory_overhead,
                         history_server_cpu_limit=args.history_server_cpu_limit,

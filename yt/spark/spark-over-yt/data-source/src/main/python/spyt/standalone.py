@@ -628,6 +628,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         ssd_limit=SparkDefaultArguments.SPARK_WORKER_SSD_LIMIT,
                         ssd_account=None,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
+                        enable_history_server=True,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
                         history_server_cpu_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_CPU_LIMIT,
                         history_server_memory_overhead=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_OVERHEAD,
@@ -658,6 +659,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param ssd_limit: limit of ssd usage, default None, ssd disabled
     :param ssd_account: account for ssd quota
     :param master_memory_limit: memory limit for master, default 2G
+    :param enable_history_server: enables SHS
     :param history_server_memory_limit: memory limit for history server, default 16G,
     total memory for SHS job is history_server_memory_limit + history_server_memory_overhead
     :param history_server_cpu_limit: cpu limit for history server, default 20
@@ -752,7 +754,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
 
     spark_discovery.create(client)
 
-    job_types = ['master', 'history']
+    job_types = ['master']
+    if enable_history_server:
+        job_types.append('history')
     if enable_livy:
         job_types.append('livy')
     if not enable_multi_operation_mode:
