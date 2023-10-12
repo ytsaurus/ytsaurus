@@ -2,7 +2,6 @@
 
 #include "private.h"
 
-#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
@@ -10,6 +9,8 @@
 #include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NExecNode {
 
@@ -37,8 +38,7 @@ class TSchedulerConnector
     : public TRefCounted
 {
 public:
-    TSchedulerConnector(
-        IBootstrap* bootstrap);
+    explicit TSchedulerConnector(IBootstrap* bootstrap);
 
     void Start();
 
@@ -61,8 +61,9 @@ public:
     using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
 
 private:
-    TAtomicIntrusivePtr<const TSchedulerConnectorDynamicConfig> DynamicConfig_;
     IBootstrap* const Bootstrap_;
+
+    TAtomicIntrusivePtr<const TSchedulerConnectorDynamicConfig> DynamicConfig_;
 
     NScheduler::TJobResources MinSpareResources_{};
 

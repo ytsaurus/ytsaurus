@@ -46,10 +46,9 @@ static const auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerConnector::TSchedulerConnector(
-    IBootstrap* bootstrap)
-    : DynamicConfig_(New<TSchedulerConnectorDynamicConfig>())
-    , Bootstrap_(bootstrap)
+TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+    , DynamicConfig_(New<TSchedulerConnectorDynamicConfig>())
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
         BIND(
