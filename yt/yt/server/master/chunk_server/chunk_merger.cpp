@@ -626,7 +626,8 @@ private:
             JobIndex_++,
             NodeId_,
             ParentChunkListId_,
-            std::move(ChunkIds_));
+            std::move(ChunkIds_),
+            Account_->GetId());
     }
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const
@@ -754,6 +755,10 @@ void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context
 
     while (!JobsAwaitingNodeHeartbeat_.empty() && hasSpareMergeResources()) {
         auto jobInfo = std::move(JobsAwaitingNodeHeartbeat_.front());
+
+        DecrementTracker(
+            &TAccountQueuesUsage::JobsAwaitingNodeHeartbeat,
+            jobInfo.AccountId);
         JobsAwaitingNodeHeartbeat_.pop();
 
         if (!TryScheduleMergeJob(context, jobInfo)) {
@@ -778,12 +783,30 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
         buffer->AddGauge("/chunk_merger_account_queue_size", queue.size());
     }
 
-    buffer->AddGauge("/chunk_merger_nodes_being_merged", NodesBeingMerged_.size());
-    buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", JobsAwaitingChunkCreation_.size());
-    buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", JobsUndergoingChunkCreation_.size());
-    buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
-
     const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+    // buffer->AddGauge("/chunk_merger_nodes_being_merged", NodesBeingMerged_.size());
+
+    for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
+        auto* account = securityManager->FindAccount(accountId);
+        TWithTagGuard tagGuard(buffer, "account_id", ToString(accountId));
+        if (IsObjectAlive(account)) {
+            tagGuard.AddTag("account", account->GetName());
+        }
+        buffer->AddGauge("/chunk_merger_nodes_being_merged", nodesBeingMerged);
+    }
+
+    for (const auto& [accountId, usages] : QueuesUsage_) {
+        auto* account = securityManager->FindAccount(accountId);
+        TWithTagGuard tagGuard(buffer, "account_id", ToString(accountId));
+        if (IsObjectAlive(account)) {
+            tagGuard.AddTag("account", account->GetName());
+        }
+        buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", usages.JobsAwaitingChunkCreation);
+        buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", usages.JobsUndergoingChunkCreation);
+        buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", usages.JobsAwaitingNodeHeartbeat);
+    }
+
     for (const auto& [accountId, statistics] : AccountToChunkMergerStatistics_) {
         auto* account = securityManager->FindAccount(accountId);
         if (!IsObjectAlive(account)) {
@@ -898,7 +921,7 @@ void TChunkMerger::OnLeaderActive()
         config->SessionFinalizationPeriod);
     FinalizeSessionExecutor_->Start();
 
-    for (auto nodeId : NodesBeingMerged_) {
+    for (auto [nodeId, accountId] : NodesBeingMerged_) {
         auto* node = FindChunkOwner(nodeId);
         if (!CanScheduleMerge(node)) {
             SessionsAwaitingFinalization_.push({
@@ -959,6 +982,7 @@ void TChunkMerger::Clear()
 
     TransactionRotator_.Clear();
     NodesBeingMerged_.clear();
+    NodesBeingMergedPerAccount_.clear();
     ConfigVersion_ = 0;
 }
 
@@ -972,6 +996,7 @@ void TChunkMerger::ResetTransientState()
     JobsAwaitingNodeHeartbeat_ = {};
     RunningSessions_ = {};
     SessionsAwaitingFinalization_ = {};
+    QueuesUsage_ = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -1040,7 +1065,8 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
         return;
     }
 
-    YT_VERIFY(NodesBeingMerged_.insert(chunkOwner->GetId()).second);
+    EmplaceOrCrash(NodesBeingMerged_, chunkOwner->GetId(), chunkOwner->Account()->GetId());
+    IncrementPersistentTracker(chunkOwner->Account()->GetId());
 
     if (IsLeader()) {
         RegisterSessionTransient(chunkOwner);
@@ -1172,7 +1198,8 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
     int jobIndex,
     TObjectId nodeId,
     TChunkListId parentChunkListId,
-    std::vector<TChunkId> inputChunkIds)
+    std::vector<TChunkId> inputChunkIds,
+    TAccountId accountId)
 {
     JobsAwaitingChunkCreation_.push({
         .JobId = jobId,
@@ -1181,7 +1208,12 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
         .ParentChunkListId = parentChunkListId,
         .InputChunkIds = std::move(inputChunkIds),
         .MergeMode = mode,
+        .AccountId = accountId
     });
+
+    IncrementTracker(
+        &TAccountQueuesUsage::JobsAwaitingChunkCreation,
+        accountId);
 
     YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, ParentChunkListId: %v)",
         jobId,
@@ -1343,6 +1375,11 @@ void TChunkMerger::CreateChunks()
         const auto& jobInfo = JobsAwaitingChunkCreation_.front();
 
         auto* chunkOwner = FindChunkOwner(jobInfo.NodeId);
+
+        DecrementTracker(
+            &TAccountQueuesUsage::JobsAwaitingChunkCreation,
+            jobInfo.AccountId);
+
         if (!chunkOwner) {
             FinalizeJob(
                 std::move(jobInfo),
@@ -1376,6 +1413,10 @@ void TChunkMerger::CreateChunks()
 
         req->set_vital(chunkOwner->Replication().GetVital());
         ToProto(req->mutable_job_id(), jobInfo.JobId);
+
+        IncrementTracker(
+            &TAccountQueuesUsage::JobsUndergoingChunkCreation,
+            jobInfo.AccountId);
 
         YT_VERIFY(JobsUndergoingChunkCreation_.emplace(jobInfo.JobId, std::move(jobInfo)).second);
         JobsAwaitingChunkCreation_.pop();
@@ -1662,9 +1703,16 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
                 return;
             }
 
+            auto accountId = it->second.AccountId;
+
             FinalizeJob(
                 std::move(it->second),
                 EMergeSessionResult::TransientFailure);
+
+            DecrementTracker(
+                &TAccountQueuesUsage::JobsUndergoingChunkCreation,
+                accountId);
+
             JobsUndergoingChunkCreation_.erase(it);
         };
 
@@ -1723,8 +1771,17 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
                     jobId,
                     chunk->GetId());
                 auto& jobInfo = it->second;
+                auto accountId = jobInfo.AccountId;
                 jobInfo.OutputChunkId = chunk->GetId();
+
+                IncrementTracker(
+                    &TAccountQueuesUsage::JobsAwaitingNodeHeartbeat,
+                    accountId);
                 JobsAwaitingNodeHeartbeat_.push(std::move(jobInfo));
+
+                DecrementTracker(
+                    &TAccountQueuesUsage::JobsUndergoingChunkCreation,
+                    accountId);
                 JobsUndergoingChunkCreation_.erase(it);
             }
         }
@@ -1894,7 +1951,11 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         YT_VERIFY(result != EMergeSessionResult::None);
 
-        YT_VERIFY(NodesBeingMerged_.erase(nodeId) > 0);
+        auto toErase = GetIteratorOrCrash(NodesBeingMerged_, nodeId);
+        auto accountId = toErase->second;
+        NodesBeingMerged_.erase(toErase);
+        DecrementPersistentTracker(accountId);
+
         auto* chunkOwner = FindChunkOwner(nodeId);
         if (!chunkOwner) {
             continue;
@@ -2007,9 +2068,89 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, TransactionRotator_);
-    Load(context, NodesBeingMerged_);
+
+    // COMPAT(vovamelnikov)
+    if (context.GetVersion() >= EMasterReign::ChunkMergerQueuesUsagePerAccount) {
+        Load(context, NodesBeingMerged_);
+    } else {
+        OldNodesBeingMerged_ = std::make_unique<THashSet<TObjectId>>();
+        Load(context, *OldNodesBeingMerged_);
+    }
     Load(context, ConfigVersion_);
 }
+
+void TChunkMerger::OnAfterSnapshotLoaded()
+{
+    if (!OldNodesBeingMerged_) {
+        return;
+    }
+    NodesBeingMerged_.clear();
+    NodesBeingMergedPerAccount_.clear();
+    for (auto nodeId: *OldNodesBeingMerged_) {
+        auto* chunkOwner = FindChunkOwner(nodeId);
+        if (!chunkOwner) {
+            continue;
+        }
+        YT_VERIFY(NodesBeingMerged_.emplace(nodeId, chunkOwner->Account()->GetId()).second);
+        IncrementPersistentTracker(chunkOwner->Account()->GetId());
+    }
+    OldNodesBeingMerged_.reset();
+}
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkMerger::IncrementTracker(
+    int TAccountQueuesUsage::* queue,
+    TAccountId accountId)
+{
+    ++(QueuesUsage_[accountId].*queue);
+}
+
+void TChunkMerger::DecrementTracker(
+    int TAccountQueuesUsage::* queue,
+    TAccountId accountId)
+{
+    auto it = QueuesUsage_.find(accountId);
+
+    if (it == QueuesUsage_.end() || it->second.*queue <= 0) {
+        if (it != QueuesUsage_.end()) {
+            it->second.*queue = 0;
+            if (it->second == TAccountQueuesUsage{}) {
+                QueuesUsage_.erase(it);
+            }
+        }
+        YT_LOG_ALERT("Chunk merger queues usage tracking is tainted, account %Qv seems to appear in queue negative times", accountId);
+        return;
+    }
+
+    --(it->second.*queue);
+    if (it->second == TAccountQueuesUsage{}) {
+        QueuesUsage_.erase(it);
+    }
+}
+
+void TChunkMerger::IncrementPersistentTracker(TAccountId accountId)
+{
+    ++(NodesBeingMergedPerAccount_[accountId]);
+}
+
+void TChunkMerger::DecrementPersistentTracker(TAccountId accountId)
+{
+    auto it = NodesBeingMergedPerAccount_.find(accountId);
+
+    if (it == NodesBeingMergedPerAccount_.end() || it->second <= 0) {
+        if (it != NodesBeingMergedPerAccount_.end()) {
+            NodesBeingMergedPerAccount_.erase(it);
+        }
+        YT_LOG_ALERT("Chunk merger persistent queue usage tracking is tainted, account %Qv seems to appear in queue negative times", accountId);
+        return;
+    }
+
+    --it->second;
+    if (it->second == 0) {
+        NodesBeingMergedPerAccount_.erase(it);
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
