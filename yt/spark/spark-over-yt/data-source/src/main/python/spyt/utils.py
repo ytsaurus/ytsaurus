@@ -11,7 +11,7 @@ require_yt_client()
 from yt.wrapper import YPath
 from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.errors import YtHttpResponseError
-from yt.wrapper.http_helpers import get_proxy_url, get_user_name
+from yt.wrapper.http_helpers import get_user_name
 from yt.wrapper.operation_commands import get_operation_url
 from yt.yson.convert import yson_to_json
 from spyt.conf import is_supported_cluster_minor_version
@@ -229,7 +229,7 @@ def default_token():
 
 
 def base_spark_conf(client, discovery):
-    yt_proxy = get_proxy_url(required=True, client=client)
+    yt_proxy = call_get_proxy_address_url(required=True, client=client)
     yt_user = get_user_name(client=client)
     spark_cluster_version = SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
     spark_cluster_conf = discovery.conf()
@@ -306,3 +306,10 @@ def spark_home():
             raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
     return spark_home
 
+def call_get_proxy_address_url(**kwargs):
+    # COMPAT(atokarew): replace this with get_proxy_address_url when compatibility with python wrapper <= 0.13.4 and spark cluster >= 1.73.0 is not important.
+    import yt.wrapper.http_helpers
+    if hasattr(yt.wrapper.http_helpers, 'get_proxy_address_url'):
+        return yt.wrapper.http_helpers.get_proxy_address_url(**kwargs)
+    else:
+        return yt.wrapper.http_helpers.get_proxy_url(**kwargs)

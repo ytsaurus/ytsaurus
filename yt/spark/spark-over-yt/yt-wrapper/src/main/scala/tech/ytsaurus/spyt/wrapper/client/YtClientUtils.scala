@@ -136,7 +136,7 @@ trait YtClientUtils {
                                         rpcOptions: RpcOptions,
                                         config: YtClientConfiguration): YTsaurusClient = {
     val cluster = new YTsaurusCluster(
-      config.shortProxy,
+      config.fullProxy,
       config.fullProxy,
       config.port,
       new JArrayList(),
@@ -163,7 +163,7 @@ trait YtClientUtils {
                                             config: YtClientConfiguration,
                                             byopDiscoveryEndpoint: HostAndPort): YTsaurusClient = {
     val cluster = new YTsaurusCluster(
-      s"${config.shortProxy}-byop",
+      s"${config.fullProxy}-byop",
       byopDiscoveryEndpoint.host,
       byopDiscoveryEndpoint.port
     )

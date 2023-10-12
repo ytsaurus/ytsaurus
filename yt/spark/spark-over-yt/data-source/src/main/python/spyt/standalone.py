@@ -13,7 +13,7 @@ from yt.wrapper.common import update_inplace, update
 from yt.wrapper.cypress_commands import exists, copy as cypress_copy
 from yt.wrapper.acl_commands import check_permission
 from yt.wrapper.file_commands import upload_file_to_cache
-from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
+from yt.wrapper.http_helpers import get_token, get_user_name
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state, \
     abort_operation, get_operation_state
 from yt.wrapper.run_operation_commands import run_operation
@@ -24,7 +24,7 @@ from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spy
     latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
     worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config
-from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
+from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster, call_get_proxy_address_url
 from .enabler import SpytEnablers
 from .version import __version__
 
@@ -108,7 +108,7 @@ def _create_spark_env(client, spark_home):
     spark_env = os.environ.copy()
     yt_token = get_token(client=client)
     yt_user = get_user_name(client=client)
-    yt_proxy = get_proxy_url(client=client)
+    yt_proxy = call_get_proxy_address_url(client=client)
     spark_env["SPARK_USER"] = yt_user
     spark_env["SPARK_YT_TOKEN"] = yt_token
     spark_env["SPARK_YT_PROXY"] = yt_proxy
@@ -456,7 +456,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     operation_spec['preemption_mode'] = preemption_mode
 
     environment = config["environment"]
-    environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
+    environment["YT_PROXY"] = call_get_proxy_address_url(required=True, client=client)
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
     environment["SPARK_BASE_DISCOVERY_PATH"] = str(spark_discovery.base_discovery_path)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())

@@ -1,12 +1,16 @@
 package tech.ytsaurus.spyt.wrapper.client
 
+import tech.ytsaurus.client.YTsaurusCluster
+
 import java.time.{Duration => JDuration}
 import tech.ytsaurus.spyt.wrapper.Utils
 import tech.ytsaurus.spyt.wrapper.YtJavaConverters.toScalaDuration
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth
 
+import java.net.URL
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Try
 
 @SerialVersionUID(-7486028686763336923L)
 case class YtClientConfiguration(proxy: String,
@@ -17,13 +21,21 @@ case class YtClientConfiguration(proxy: String,
                                  byop: ByopConfiguration,
                                  masterWrapperUrl: Option[String],
                                  extendedFileTimeout: Boolean) {
-  def shortProxy: String = proxy.split("\\.").head.split(":").head
 
-  def fullProxy: String = if (proxy.contains(".") || proxy.contains(":")) {
-    proxy.split(":").head
-  } else shortProxy + ".yt.yandex.net"
+  private def proxyUrl: Try[URL] = Try(new URL(proxy)).orElse {
+    val normalizedProxy = if (proxy.contains(".") || proxy.contains(":")) {
+      proxy
+    } else {
+      s"$proxy.yt.yandex.net"
+    }
+    Try(new URL(s"http://$normalizedProxy"))
+  }
 
-  def port: Int = proxy.split(":").lift(1).map(_.toInt).getOrElse(80)
+  def fullProxy: String = proxyUrl.map(_.getHost).get
+
+  def port: Int = proxyUrl.map { url =>
+    if (url.getPort != -1) url.getPort else if (url.getDefaultPort != -1) url.getDefaultPort else 80
+  }.get
 
   def clientAuth: YTsaurusClientAuth = YTsaurusClientAuth.builder().setUser(user).setToken(token).build()
 }
