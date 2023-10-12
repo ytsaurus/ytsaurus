@@ -710,7 +710,10 @@ bool run_container_validate(const run_container_t *run, const char **reason) {
             *reason = "run start + length overflow";
             return false;
         }
-
+        if (end > (1<<16)) {
+            *reason = "run start + length too large";
+            return false;
+        }
         if (start < last_end) {
             *reason = "run start less than last end";
             return false;
