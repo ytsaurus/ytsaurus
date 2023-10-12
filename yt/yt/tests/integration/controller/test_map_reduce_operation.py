@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create, create_tmpdir,
     ls, get, sorted_dicts,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
-    write_table, map, reduce, map_reduce, sort, alter_table,
+    write_table, map, reduce, map_reduce, sort, alter_table, start_op,
     abandon_job, abort_job, get_operation,
     raises_yt_error,
     ban_node, unban_node)
@@ -364,6 +364,44 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             reducer_command="cat",
             spec={"reducer": {"format": "dsv"}, "ordered": ordered},
         )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("op_type,mapper_tables", [
+        ("map", None),
+        ("reduce", None),
+        ("map_reduce", 0),
+        ("map_reduce", 1),
+        ("map_reduce", 2),
+    ])
+    def test_duplicate_output_tables(self, op_type, mapper_tables):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        kwargs = dict(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out", "//tmp/t_out", "//tmp/t_out"],
+            spec={
+                "mapper": {"format": "json"},
+                "reducer": {"format": "json"},
+            },
+        )
+
+        if mapper_tables:
+            kwargs["spec"]["mapper_output_table_count"] = mapper_tables
+        if op_type in ("map", "reduce"):
+            kwargs["command"] = "cat"
+        if op_type == "map_reduce":
+            kwargs["mapper_command"] = "cat"
+            kwargs["reducer_command"] = "cat"
+            kwargs["sort_by"] = "line"
+            kwargs["reduce_by"] = "line"
+
+        try:
+            start_op(op_type, **kwargs)
+        except YtError as e:
+            assert "Duplicate entries in output_table_paths" in str(e)
+        else:
+            assert False, "operation should've failed"
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])

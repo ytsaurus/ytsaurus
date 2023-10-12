@@ -98,6 +98,15 @@ static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
     }
 }
 
+static void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
+{
+    SortBy(paths, [] (const auto& path) { return path.GetPath(); });
+    if (auto duplicatePath = AdjacentFind(paths); duplicatePath != paths.end()) {
+        THROW_ERROR_EXCEPTION("Duplicate entries in output_table_paths are not allowed")
+            << TErrorAttribute("non_unique_output_table", *duplicatePath);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxAllowedProfilingTagCount = 200;
@@ -1261,6 +1270,8 @@ void TMapOperationSpec::Register(TRegistrar registrar)
         spec->Mapper->TaskTitle = "Mapper";
 
         ValidateNoOutputStreams(spec->Mapper, EOperationType::Map);
+
+        ValidateOutputTablePaths(spec->OutputTablePaths);
     });
 }
 
@@ -1356,6 +1367,8 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
         spec->Reducer->TaskTitle = "Reducer";
 
         ValidateNoOutputStreams(spec->Reducer, EOperationType::Reduce);
+
+        ValidateOutputTablePaths(spec->OutputTablePaths);
     });
 }
 
@@ -1736,6 +1749,8 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             }
             THROW_ERROR error;
         }
+
+        ValidateOutputTablePaths(spec->OutputTablePaths);
     });
 }
 
@@ -1840,6 +1855,8 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             taskSpec->TaskTitle = taskName;
 
             ValidateNoOutputStreams(taskSpec, EOperationType::Vanilla);
+
+            ValidateOutputTablePaths(taskSpec->OutputTablePaths);
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {

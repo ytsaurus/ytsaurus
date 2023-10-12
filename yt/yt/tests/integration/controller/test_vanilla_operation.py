@@ -569,6 +569,31 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert aborted_job_events[other_job_id]["reason"] == "operation_failed"
         assert now - date_string_to_datetime(aborted_job_events[other_job_id]["finish_time"]) < datetime.timedelta(minutes=1)
 
+    @authors("coteeq")
+    def test_duplicate_output_tables(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        try:
+            vanilla(
+                spec={
+                    "tasks": {
+                        "echo": {
+                            "job_count": 1,
+                            "command": "echo a=b",
+                            "output_table_paths": [
+                                "//tmp/out",
+                                "//tmp/out",
+                            ]
+                        }
+                    },
+                }
+            )
+        except YtError as e:
+            assert "Duplicate entries in output_table_paths" in str(e)
+        else:
+            assert False, "operation should've failed"
+
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
