@@ -641,7 +641,6 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
 
-        set("//tmp/t/@mount_config/enable_narrow_chunk_view_compaction", True)
         sync_mount_table("//tmp/t")
 
         def is_chunk_view(store_id):
