@@ -65,7 +65,7 @@ private:
         // NB(dtorilov): WebAssembly instances are NOT thread-safe.
         mutable TCGExpressionInstance EvaluatorInstance;
         TCGExpressionImage EvaluatorImage;
-        // TODO(dtorilov): Variables destruction is undefined.
+        // TODO(dtorilov): Variables destruction order is undefined.
         TCGVariables Variables;
         std::vector<int> ReferenceIds;
         TConstExpressionPtr Expression;
