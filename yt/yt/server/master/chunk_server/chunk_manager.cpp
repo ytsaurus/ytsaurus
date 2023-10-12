@@ -996,7 +996,7 @@ public:
                 THROW_ERROR_EXCEPTION(
                     NYTree::EErrorCode::ResolveError,
                     "No such schema %v",
-                    id);
+                    schemaId);
             }
 
             tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
