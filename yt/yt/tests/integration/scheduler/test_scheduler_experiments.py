@@ -86,7 +86,7 @@ class TestSchedulerExperiments(YTEnvSetup):
     controller_agent_counter = 0
 
     @classmethod
-    def modify_controller_agent_config(cls, config):
+    def modify_controller_agent_config(cls, config, cluster_index):
         if cls.controller_agent_counter == 2:
             cls.controller_agent_counter = 0
 
@@ -438,6 +438,7 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
 
     NUM_MASTERS_REMOTE_0 = 1
     NUM_SCHEDULERS_REMOTE_0 = 0
+    NUM_CONTROLLER_AGENTS_REMOTE_0 = 0
 
     REMOTE_CLUSTER_NAME = "remote_0"
 

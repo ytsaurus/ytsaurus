@@ -58,7 +58,7 @@ class TestDiskUsagePorto(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         os.makedirs(cls.fake_default_disk_path)
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.fake_default_disk_path
 
@@ -259,7 +259,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
     USE_PORTO = True
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
@@ -487,7 +487,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
     USE_PORTO = True
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
@@ -593,7 +593,7 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
     USE_PORTO = True
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
@@ -686,7 +686,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
     USE_PORTO = True
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
@@ -824,7 +824,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
     USE_PORTO = True
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
@@ -926,7 +926,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
     USE_PORTO = True
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)

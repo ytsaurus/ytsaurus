@@ -466,7 +466,7 @@ class TestControllerAgentTags(YTEnvSetup):
     NUM_CONTROLLER_AGENTS = 3
 
     @classmethod
-    def modify_controller_agent_config(cls, config):
+    def modify_controller_agent_config(cls, config, cluster_index):
         if not hasattr(cls, "controller_agent_counter"):
             cls.controller_agent_counter = 0
         controller_agent_tag = None

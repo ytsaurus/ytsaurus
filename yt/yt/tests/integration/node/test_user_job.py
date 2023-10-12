@@ -64,7 +64,7 @@ class TestSandboxTmpfs(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         if not os.path.exists(cls.default_disk_path):
             os.makedirs(cls.default_disk_path)
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
@@ -2980,7 +2980,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         )
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         if not os.path.exists(cls.default_disk_path):
             os.makedirs(cls.default_disk_path)
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path

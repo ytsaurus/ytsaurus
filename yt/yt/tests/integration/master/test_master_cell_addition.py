@@ -5,6 +5,7 @@ from yt_env_setup import (
     CONTROLLER_AGENTS_SERVICE,
     NODES_SERVICE,
     MASTERS_SERVICE,
+    CHAOS_NODES_SERVICE
 )
 
 from yt_commands import (
@@ -19,7 +20,8 @@ from yt_commands import (
     build_snapshot, get_driver,
     create_user, make_ace,
     create_access_control_object_namespace, create_access_control_object,
-    print_debug, decommission_node)
+    print_debug, decommission_node,
+    sync_create_chaos_cell, generate_chaos_cell_id, align_chaos_cell_tag)
 
 from yt.test_helpers import assert_items_equal
 
@@ -32,48 +34,64 @@ import inspect
 ################################################################################
 
 
-class TestMasterCellAddition(YTEnvSetup):
-    NUM_SECONDARY_MASTER_CELLS = 3
+class TestMasterCellAdditionBase(YTEnvSetup):
     DEFER_SECONDARY_CELL_START = True
-
-    DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 1000
-        }
-    }
-
-    DELTA_DRIVER_CONFIG = {
-        "cell_directory_synchronizer": {
-            "sync_cells_with_secondary_masters": False,
-        },
-    }
-
-    NUM_NODES = 3
     DEFER_NODE_START = True
-
-    NUM_SCHEDULERS = 1
     DEFER_SCHEDULER_START = True
-
     DEFER_CONTROLLER_AGENT_START = True
-    NUM_CONTROLLER_AGENTS = 1
+    DEFER_CHAOS_NODE_START = True
 
-    PATCHED_CONFIGS = []
-    STASHED_CELL_CONFIGS = []
-    CELL_IDS = builtins.set()
+    PRIMARY_CLUSTER_INDEX = 0
 
     @classmethod
     def setup_class(cls):
-        super(TestMasterCellAddition, cls).setup_class()
-        # NB: the last secondary cell is not started here.
-        for cell_index in range(1, cls.NUM_SECONDARY_MASTER_CELLS):
-            cls.Env.start_master_cell(cell_index)
+        super(TestMasterCellAdditionBase, cls).setup_class()
 
-        cls.Env.start_nodes()
-        cls.Env.start_schedulers()
-        cls.Env.start_controller_agents()
+        for cluster_index, env in enumerate([cls.Env] + cls.remote_envs):
+            secondary_master_cells_to_start = cls.get_param("NUM_SECONDARY_MASTER_CELLS", cluster_index)
+            if cluster_index == cls.PRIMARY_CLUSTER_INDEX:
+                secondary_master_cells_to_start -= 1
+
+            assert secondary_master_cells_to_start >= 0
+
+            # NB: the last secondary cell on primary is not started here.
+            for cell_index in range(secondary_master_cells_to_start):
+                env.start_master_cell(cell_index + 1)
+
+            if cls.get_param("NUM_NODES", cluster_index) != 0:
+                env.start_nodes()
+            if cls.get_param("NUM_SCHEDULERS", cluster_index) != 0:
+                env.start_schedulers()
+            if cls.get_param("NUM_CONTROLLER_AGENTS", cluster_index) != 0:
+                env.start_controller_agents()
+            if cls.get_param("NUM_CHAOS_NODES", cluster_index) != 0:
+                env.start_chaos_nodes()
 
     @classmethod
-    def _disable_last_cell_and_stash_config(cls, config):
+    def modify_master_config(cls, config, tag, peer_index, cluster_index):
+        cls._disable_last_cell_and_stash_config(config, cluster_index)
+
+    @classmethod
+    def modify_scheduler_config(cls, config, cluster_index):
+        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+
+    @classmethod
+    def modify_controller_agent_config(cls, config, cluster_index):
+        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+
+    @classmethod
+    def modify_chaos_node_config(cls, config, cluster_index):
+        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+
+    @classmethod
+    def _disable_last_cell_and_stash_config(cls, config, cluster_index):
+        if cluster_index != cls.PRIMARY_CLUSTER_INDEX:
+            return
+
         # Stash the last cell's config and remove it for the time being.
         cls.STASHED_CELL_CONFIGS.append(deepcopy(config["secondary_masters"][2]))
         del config["secondary_masters"][2]
@@ -89,7 +107,15 @@ class TestMasterCellAddition(YTEnvSetup):
     def _enable_last_cell(cls):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
-        with Restarter(cls.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
+        optional_services = [
+            SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
+            CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
+            CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
+            NODES_SERVICE if cls.NUM_NODES != 0 else None,
+        ]
+        services = [service for service in optional_services if service is not None]
+
+        with Restarter(cls.Env, services):
             for cell_id in cls.CELL_IDS:
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
@@ -102,6 +128,7 @@ class TestMasterCellAddition(YTEnvSetup):
             cls.Env.rewrite_node_configs()
             cls.Env.rewrite_scheduler_configs()
             cls.Env.rewrite_controller_agent_configs()
+            cls.Env.rewrite_chaos_node_configs()
 
         for tx in ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
@@ -109,24 +136,48 @@ class TestMasterCellAddition(YTEnvSetup):
             if "World initialization" in title:
                 abort_transaction(id)
 
-    @classmethod
-    def modify_master_config(cls, config, tag, index):
-        cls._disable_last_cell_and_stash_config(config)
-
-    @classmethod
-    def modify_scheduler_config(cls, config):
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"])
-
-    @classmethod
-    def modify_controller_agent_config(cls, config):
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"])
-
-    @classmethod
-    def modify_node_config(cls, config):
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"])
-
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))
+
+    def _execute_checks_with_cell_addition(self):
+        checker_names = [attr for attr in dir(self) if attr.startswith('check_') and inspect.ismethod(getattr(self, attr))]
+
+        print_debug("Checkers: ", checker_names)
+
+        checkers = [getattr(self, attr) for attr in checker_names]
+        checker_state_list = [iter(c()) for c in checkers]
+        for s in checker_state_list:
+            next(s)
+
+        type(self)._enable_last_cell()
+
+        for s in checker_state_list:
+            with pytest.raises(StopIteration):
+                next(s)
+
+
+class TestMasterCellAddition(TestMasterCellAdditionBase):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 1000
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "cell_directory_synchronizer": {
+            "sync_cells_with_secondary_masters": False,
+        },
+    }
+
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
 
     def check_media(self):
         create_medium("ssd")
@@ -369,17 +420,140 @@ class TestMasterCellAddition(YTEnvSetup):
 
     @authors("shakurov")
     def test_add_new_cell(self):
-        checker_names = [attr for attr in dir(self) if attr.startswith('check_') and inspect.ismethod(getattr(self, attr))]
+        self._execute_checks_with_cell_addition()
 
-        print_debug("Checkers: ", checker_names)
 
-        checkers = [getattr(self, attr) for attr in checker_names]
-        checker_state_list = [iter(c()) for c in checkers]
-        for s in checker_state_list:
-            next(s)
+class TestMasterCellAdditionChaosMultiCluster(TestMasterCellAdditionBase):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
 
-        TestMasterCellAddition._enable_last_cell()
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 3
+    NUM_CHAOS_NODES = 1
 
-        for s in checker_state_list:
-            with pytest.raises(StopIteration):
-                next(s)
+    NUM_REMOTE_CLUSTERS = 2
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 0
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_1 = 0
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 1000
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "cell_directory_synchronizer": {
+            "sync_cells_with_secondary_masters": False,
+        },
+    }
+
+    # Creates bundle in production-like configuration.
+    # Cf. YT-20134
+    def _create_chaos_bundle(self, chaos_bundle_name):
+        metadata_clusters = ["remote_1", "primary"]
+        peers = ["remote_0"]
+        areas = {
+            "beta": {
+                "metadata_clusters": ["remote_0", "primary"],
+                "peers": ["remote_1"]
+            }
+        }
+
+        options = {
+            "changelog_account": "sys",
+            "snapshot_account": "sys",
+            "clock_cluster_tag": get("//sys/@primary_cell_tag"),
+            "independent_peers": False,
+            "peer_count": len(peers)
+        }
+
+        clusters = builtins.set(metadata_clusters) | builtins.set(peers)
+        assert clusters == {"primary", "remote_0", "remote_1"}
+
+        for cluster in clusters:
+            attributes = {
+                "name": chaos_bundle_name,
+                "options": options,
+                "chaos_options": {
+                    "peers": [{} if peer == cluster else {"alien_cluster": peer} for peer in peers],
+                }
+            }
+
+            bundle_path = f"//sys/chaos_cell_bundles/{chaos_bundle_name}"
+            driver = get_driver(cluster=cluster)
+
+            assert not exists(bundle_path, driver=driver)
+            create("chaos_cell_bundle", path="", attributes=attributes, driver=driver)
+
+            cell_bundle_id = get(f"{bundle_path}/@id", driver=driver)
+            for area in areas:
+                area_info = areas[area]
+                attributes = {
+                    "name": area,
+                    "cell_bundle_id": cell_bundle_id,
+                    "chaos_options": {
+                        "peers": [{} if peer == cluster else {"alien_cluster": peer} for peer in area_info["peers"]],
+                    }
+                }
+                create("area", path="", attributes=attributes, driver=driver)
+
+        align_chaos_cell_tag()
+        cell_id = generate_chaos_cell_id()
+        beta_cell_id = generate_chaos_cell_id()
+
+        sync_create_chaos_cell(
+            chaos_bundle_name,
+            cell_id,
+            ["remote_0"],
+            meta_cluster_names=["primary", "remote_1"],
+            area="default",
+        )
+        sync_create_chaos_cell(
+            chaos_bundle_name,
+            beta_cell_id,
+            ["remote_1"],
+            meta_cluster_names=["primary", "remote_0"],
+            area="beta",
+        )
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_ids", [cell_id, beta_cell_id])
+
+        return cell_id, beta_cell_id
+
+    def check_chaos_cells(self):
+        chaos_bundle_name = "chaos_bundle"
+        cell_id, beta_cell_id = self._create_chaos_bundle(chaos_bundle_name)
+        bundle_path = f"//sys/chaos_cell_bundles/{chaos_bundle_name}"
+
+        area_id = get(f"//sys/chaos_cells/{cell_id}/@area_id")
+        beta_area_id = get(f"//sys/chaos_cells/{beta_cell_id}/@area_id")
+
+        bundle_chaos_options = {"peers": [{"alien_cluster": "remote_0"}]}
+        beta_chaos_options = {"peers": [{"alien_cluster": "remote_1"}]}
+
+        def _check(driver=None):
+            assert get(bundle_path + "/@chaos_options", driver=driver) == bundle_chaos_options
+            assert not exists(f"#{area_id}" + "/@chaos_options", driver=driver)
+            assert get(f"#{beta_area_id}" + "/@chaos_options", driver=driver) == beta_chaos_options
+            assert get(f"#{cell_id}/@area_id", driver=driver) == area_id
+            assert get(f"#{cell_id}/@area", driver=driver) == "default"
+            assert get(f"#{beta_cell_id}/@area_id", driver=driver) == beta_area_id
+            assert get(f"#{beta_cell_id}/@area", driver=driver) == "beta"
+            return True
+
+        _check()
+
+        yield
+
+        assert_true_for_all_cells(self.Env, _check)
+
+    @authors("ponasenko-rs")
+    @pytest.mark.timeout(300)
+    def test_add_new_cell(self):
+        set("//sys/@config/chaos_manager/alien_cell_synchronizer", {
+            "enable": True,
+            "sync_period": 100,
+            "full_sync_period": 200,
+        })
+
+        self._execute_checks_with_cell_addition()

@@ -2228,7 +2228,7 @@ class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
 
 class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
     NUM_NODES = 6
-    NUM_NODES_0 = 6
+    NUM_NODES_REMOTE_0 = 6
 
     TABLE_DATA = [
         {"id": 1, "name": "cat"},
@@ -2240,7 +2240,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
     def _write_remote_erasure_table(self, path):
         from_barriers = [
             self.write_log_barrier(self.get_node_address(node_id, cluster_index=1), cluster_index=1)
-            for node_id in range(self.NUM_NODES_0)]
+            for node_id in range(self.NUM_NODES_REMOTE_0)]
         create("table", path, attributes={"erasure_codec": "reed_solomon_3_3"},
                driver=self.remote_driver)
         write_table(path, self.TABLE_DATA, driver=self.remote_driver)
@@ -2256,7 +2256,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         from_barriers_remote = [
             self.write_log_barrier(self.get_node_address(node_id, cluster_index=1), cluster_index=1)
-            for node_id in range(self.NUM_NODES_0)]
+            for node_id in range(self.NUM_NODES_REMOTE_0)]
 
         create("table", "//tmp/table_out", attributes={"erasure_codec": "reed_solomon_3_3"})
         op = remote_copy(
@@ -2274,7 +2274,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
             assert raw_events[0]["object_path"] == "//tmp/table_out"
 
         was_data_read = True
-        for node_id in range(self.NUM_NODES_0):
+        for node_id in range(self.NUM_NODES_REMOTE_0):
             raw_events = self.read_raw_events(node_id=node_id, cluster_index=1, from_barrier=from_barriers_remote[node_id])
             if not raw_events:
                 continue

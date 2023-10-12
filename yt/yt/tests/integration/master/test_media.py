@@ -35,7 +35,7 @@ class TestMedia(YTEnvSetup):
         set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM)
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         assert len(config["data_node"]["store_locations"]) == 3
 
         config["data_node"]["store_locations"][0]["medium_name"] = "default"
@@ -675,7 +675,7 @@ class TestDynamicMedia(YTEnvSetup):
         wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
 
     @classmethod
-    def modify_node_config(cls, config):
+    def modify_node_config(cls, config, cluster_index):
         assert len(config["data_node"]["store_locations"]) == 2
 
         config["data_node"]["store_locations"][0]["medium_name"] = "default"

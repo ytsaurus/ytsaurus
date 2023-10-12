@@ -17,7 +17,7 @@ class TestNodeTrackerLog(YTEnvSetup):
     LOG_WRITE_WAIT_TIME = 0.2
 
     @classmethod
-    def modify_master_config(cls, config, tag, index):
+    def modify_master_config(cls, config, tag, peer_index, cluster_index):
         config["logging"]["flush_period"] = 50
         config["logging"]["rules"].append(
             {
@@ -29,7 +29,7 @@ class TestNodeTrackerLog(YTEnvSetup):
         )
         config["logging"]["writers"]["node_tracker"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/master-{}-{}.node_tracker.json.log".format(tag, index)),
+            "file_name": os.path.join(cls.path_to_run, "logs/master-{}-{}.node_tracker.json.log".format(tag, peer_index)),
             "accepted_message_format": "structured",
         }
 
