@@ -48,6 +48,8 @@
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
+#include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
+
 #include <yt/yt/client/hive/timestamp_map.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -1210,7 +1212,7 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
-    void StartCypressTransaction(TCtxStartCypressTransactionPtr context) override
+    void StartCypressTransaction(const TCtxStartCypressTransactionPtr& context) override
     {
         auto& request = context->Request();
         NTransactionServer::NProto::TReqStartCypressTransaction hydraRequest;
@@ -1232,7 +1234,7 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
-    void CommitCypressTransaction(TCtxCommitCypressTransactionPtr context) override
+    void CommitCypressTransaction(const TCtxCommitCypressTransactionPtr& context) override
     {
         const auto& request = context->Request();
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
@@ -1274,7 +1276,7 @@ public:
         context->ReplyFrom(responseFuture);
     }
 
-    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
+    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
     bool CommitTransaction(TCtxCommitTransactionPtr context) override
     {
         if (GetDynamicConfig()->IgnoreCypressTransactions) {
@@ -1389,7 +1391,7 @@ public:
         }));
     }
 
-    void AbortCypressTransaction(TCtxAbortCypressTransactionPtr context) override
+    void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) override
     {
         const auto& request = context->Request();
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
@@ -1407,7 +1409,7 @@ public:
         mutation->CommitAndReply(context);
     }
 
-    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
+    // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
     bool AbortTransaction(TCtxAbortTransactionPtr context) override
     {
         if (GetDynamicConfig()->IgnoreCypressTransactions) {

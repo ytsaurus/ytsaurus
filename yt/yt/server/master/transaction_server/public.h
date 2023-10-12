@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/transaction_server/public.h>
 
-#include <yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
+#include <yt/yt/ytlib/cypress_transaction_client/public.h>
 
 namespace NYT::NTransactionServer {
 

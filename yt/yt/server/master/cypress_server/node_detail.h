@@ -126,7 +126,7 @@ class TCypressNodeTypeHandlerBase
 {
 public:
     TCypressNodeTypeHandlerBase()
-        : TNontemplateCypressNodeTypeHandlerBase(/* bootstrap */ nullptr)
+        : TNontemplateCypressNodeTypeHandlerBase(/*bootstrap*/ nullptr)
     { }
 
     explicit TCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)

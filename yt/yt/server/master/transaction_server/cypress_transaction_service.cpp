@@ -9,6 +9,7 @@
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
+#include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 

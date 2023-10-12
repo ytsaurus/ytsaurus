@@ -14,8 +14,6 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
-
 #include <yt/yt/client/election/public.h>
 
 #include <yt/yt/client/api/public.h>
@@ -170,19 +168,19 @@ struct ITransactionManager
 
     virtual const TTransactionPresenceCachePtr& GetTransactionPresenceCache() = 0;
 
-    virtual void StartCypressTransaction(TCtxStartCypressTransactionPtr context) = 0;
+    virtual void StartCypressTransaction(const TCtxStartCypressTransactionPtr& context) = 0;
 
     using TCtxCommitCypressTransaction = NRpc::TTypedServiceContext<
         NCypressTransactionClient::NProto::TReqCommitTransaction,
         NCypressTransactionClient::NProto::TRspCommitTransaction>;
     using TCtxCommitCypressTransactionPtr = TIntrusivePtr<TCtxCommitCypressTransaction>;
-    virtual void CommitCypressTransaction(TCtxCommitCypressTransactionPtr context) = 0;
+    virtual void CommitCypressTransaction(const TCtxCommitCypressTransactionPtr& context) = 0;
 
     using TCtxAbortCypressTransaction = NRpc::TTypedServiceContext<
         NCypressTransactionClient::NProto::TReqAbortTransaction,
         NCypressTransactionClient::NProto::TRspAbortTransaction>;
     using TCtxAbortCypressTransactionPtr = TIntrusivePtr<TCtxAbortCypressTransaction>;
-    virtual void AbortCypressTransaction(TCtxAbortCypressTransactionPtr context) = 0;
+    virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

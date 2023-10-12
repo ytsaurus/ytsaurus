@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
-#include <yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
+#include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/core/ytree/public.h>
 
