@@ -214,7 +214,10 @@ void TParameterizedReassignSolver::Initialize()
                 THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
                     << TErrorAttribute("tablet_metric_value", tabletMetric)
                     << TErrorAttribute("tablet_id", tabletId)
-                    << TErrorAttribute("metric_formula", Config_.Metric);
+                    << TErrorAttribute("table_id", tablet->Table->Id)
+                    << TErrorAttribute("metric_formula", Config_.Metric)
+                    << TErrorAttribute("group", GroupName_)
+                    << TErrorAttribute("bundle", Bundle_->Name);
             } else if (tabletMetric == 0.0) {
                 YT_LOG_DEBUG_IF(
                     Bundle_->Config->EnableVerboseLogging,
@@ -288,6 +291,7 @@ void TParameterizedReassignSolver::CalculateMemory()
         i64 actualUsage = GetOrCrash(actualMemoryUsage, address);
         i64 free = statistics.MemoryLimit - statistics.MemoryUsed;
         i64 unaccountedUsage = 0;
+        auto count = GetOrCrash(cellCount, address);
 
         if (actualUsage > statistics.MemoryUsed) {
             YT_LOG_DEBUG("Using total cell memory as node memory usage (Node: %v, Used: %v, Sum: %v, Limit: %v)",
@@ -295,15 +299,23 @@ void TParameterizedReassignSolver::CalculateMemory()
                 statistics.MemoryUsed,
                 actualUsage,
                 statistics.MemoryLimit);
-            THROW_ERROR_EXCEPTION_IF(
-                statistics.MemoryLimit < actualUsage,
-                "Node memory size limit is less than the actual cell memory size");
+            if (statistics.MemoryLimit < actualUsage) {
+                THROW_ERROR_EXCEPTION(
+                    "Node memory usage exceeds memory limit")
+                    << TErrorAttribute("memory_limit", statistics.MemoryLimit)
+                    << TErrorAttribute("memory_usage", statistics.MemoryUsed)
+                    << TErrorAttribute("actual_memory_usage", actualUsage)
+                    << TErrorAttribute("node", address)
+                    << TErrorAttribute("cell_count", count)
+                    << TErrorAttribute("tablet_slot_count", statistics.TabletSlotCount)
+                    << TErrorAttribute("group", GroupName_)
+                    << TErrorAttribute("bundle", Bundle_->Name);
+            }
             free = statistics.MemoryLimit - actualUsage;
         } else {
             unaccountedUsage = statistics.MemoryUsed - actualUsage;
         }
 
-        auto count = GetOrCrash(cellCount, address);
         auto tabletSlotCount = std::max(statistics.TabletSlotCount, count);
         auto cellLimit = (statistics.MemoryLimit - unaccountedUsage) / tabletSlotCount;
 

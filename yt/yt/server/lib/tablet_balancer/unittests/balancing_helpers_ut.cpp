@@ -790,7 +790,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=70; node_address=home};"
                    "{cell_index=2; memory_size=50; node_address=home}];"
             "nodes=[{node_address=home; memory_used=0; memory_limit=100}]}",
-            /*errorText*/ "Node memory size limit is less than the actual cell memory size")));
+            /*errorText*/ "Node memory usage exceeds memory limit")));
 
 ////////////////////////////////////////////////////////////////////////////////
 

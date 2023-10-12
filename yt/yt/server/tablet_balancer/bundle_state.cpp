@@ -525,9 +525,13 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
         }
     }
 
-    THROW_ERROR_EXCEPTION_IF(std::ssize(nodeStatistics) != std::ssize(addresses),
-        "Not all nodes fetched for bundle %v",
-        Bundle_->Name);
+    if (std::ssize(nodeStatistics) != std::ssize(addresses)) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to fetch statistics for some nodes of bundle %Qv",
+            Bundle_->Name)
+            << TErrorAttribute("fetched_count", std::ssize(nodeStatistics))
+            << TErrorAttribute("expected_count", std::ssize(addresses));
+    }
 
     return nodeStatistics;
 }
