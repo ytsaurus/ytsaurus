@@ -412,7 +412,9 @@ public:
 
         YT_LOG_ERROR(error, "Volume manager disabled; terminating");
 
-        TProgram::Abort(1);
+        if (DynamicConfig_->GetConfig()->DataNode->AbortOnLocationDisabled) {
+            TProgram::Abort(EProgramExitCode::ProgramError);
+        }
     }
 
     TLayerLocationPerformanceCounters& GetPerformanceCounters()
@@ -887,7 +889,12 @@ private:
             }
 
             Disable(error);
-            YT_ABORT();
+
+            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
+                YT_ABORT();
+            } else {
+                THROW_ERROR(error);
+            }
         }
     }
 
@@ -941,7 +948,12 @@ private:
                 layerId)
                 << ex;
             Disable(error);
-            YT_ABORT();
+
+            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
+                YT_ABORT();
+            } else {
+                THROW_ERROR(error);
+            }
         }
     }
 
@@ -1025,7 +1037,12 @@ private:
                 FromProto(volumeMeta.type()),
                 volumeId) << ex;
             Disable(error);
-            YT_ABORT();
+
+            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
+                YT_ABORT();
+            } else {
+                THROW_ERROR(error);
+            }
         }
     }
 
@@ -1174,7 +1191,12 @@ private:
             auto error = TError("Failed to remove volume %v", volumeId)
                 << ex;
             Disable(error);
-            YT_ABORT();
+
+            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
+                YT_ABORT();
+            } else {
+                THROW_ERROR(error);
+            }
         }
     }
 };

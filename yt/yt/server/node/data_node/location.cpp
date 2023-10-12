@@ -1346,7 +1346,6 @@ void TChunkLocation::CreateDisableLockFile(const TError& reason)
     } catch (const std::exception& ex) {
         if (dynamicConfig->AbortOnLocationDisabled) {
             YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
-            TProgram::Abort(EProgramExitCode::ProgramError);
         } else {
             THROW_ERROR_EXCEPTION("Error creating location lock file; aborting")
                 << ex;
@@ -1886,7 +1885,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         try {
             CreateDisableLockFile(reason);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Creating disable lock file failed");
+            YT_LOG_ERROR(ex, "Creating disable lock file failed");
         }
 
         try {
