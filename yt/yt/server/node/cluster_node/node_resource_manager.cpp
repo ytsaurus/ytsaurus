@@ -173,6 +173,7 @@ TJobResources GetZeroJobResources()
     #define XX(name, Name) result.Name = 0;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -188,6 +189,7 @@ TJobResources GetInfiniteJobResources()
     #define XX(name, Name) result.Name = (std::numeric_limits<decltype(result.Name)>::max() / 4);
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -201,7 +203,7 @@ NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& 
 {
     TNodeResources result;
     #define XX(name, Name) result.set_##name(jobResources.Name);
-    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    ITERATE_JOB_RESOURCE_PROTO_FIELDS(XX)
     #undef XX
     return result;
 }
@@ -210,7 +212,7 @@ TJobResources FromNodeResources(const NNodeTrackerClient::NProto::TNodeResources
 {
     TJobResources result;
     #define XX(name, Name) result.Name = jobResources.name();
-    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    ITERATE_JOB_RESOURCE_PROTO_FIELDS(XX)
     #undef XX
     return result;
 }
@@ -221,6 +223,7 @@ TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
     #define XX(name, Name) result.Name = lhs.Name + rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -229,6 +232,7 @@ TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
     #define XX(name, Name) lhs.Name = lhs.Name + rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return lhs;
 }
 
@@ -238,6 +242,7 @@ TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
     #define XX(name, Name) result.Name = lhs.Name - rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -246,6 +251,7 @@ TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
     #define XX(name, Name) lhs.Name = lhs.Name - rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return lhs;
 }
 
@@ -255,6 +261,7 @@ TJobResources operator * (const TJobResources& lhs, i64 rhs)
     #define XX(name, Name) result.Name = lhs.Name * rhs;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -264,6 +271,7 @@ TJobResources operator * (const TJobResources& lhs, double rhs)
     #define XX(name, Name) result.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + 0.5);
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -272,6 +280,7 @@ TJobResources& operator *= (TJobResources& lhs, i64 rhs)
     #define XX(name, Name) lhs.Name = lhs.Name * rhs;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return lhs;
 }
 
@@ -280,6 +289,7 @@ TJobResources& operator *= (TJobResources& lhs, double rhs)
     #define XX(name, Name) lhs.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + 0.5);
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return lhs;
 }
 
@@ -289,6 +299,7 @@ TJobResources  operator - (const TJobResources& resources)
     #define XX(name, Name) result.Name = -resources.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -312,6 +323,7 @@ TJobResources MakeNonnegative(const TJobResources& resources)
     #define XX(name, Name) result.Name = std::max(resources.Name, static_cast<decltype(resources.Name)>(0));
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -330,6 +342,7 @@ TJobResources Max(const TJobResources& a, const TJobResources& b)
     #define XX(name, Name) result.Name = std::max(a.Name, b.Name);
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 
@@ -339,6 +352,7 @@ TJobResources Min(const TJobResources& a, const TJobResources& b)
     #define XX(name, Name) result.Name = std::min(a.Name, b.Name);
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
+
     return result;
 }
 

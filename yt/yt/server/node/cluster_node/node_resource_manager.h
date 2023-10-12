@@ -28,24 +28,30 @@ DEFINE_REFCOUNTED_TYPE(ISlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ITERATE_JOB_RESOURCE_FIELDS(XX) \
-    XX(user_slots,            UserSlots) \
+#define ITERATE_JOB_RESOURCE_PROTO_FIELDS(XX) \
     XX(cpu,                   Cpu) \
-    XX(gpu,                   Gpu) \
     XX(vcpu,                  VCpu) \
-    XX(user_memory,           UserMemory) \
-    XX(system_memory,         SystemMemory) \
+    XX(gpu,                   Gpu) \
     XX(network,               Network) \
-    XX(replication_data_size, ReplicationDataSize) \
-    XX(merge_data_size,       MergeDataSize) \
-    XX(repair_data_size,      RepairDataSize) \
+    XX(system_memory,         SystemMemory) \
+    XX(user_memory,           UserMemory) \
+    XX(user_slots,            UserSlots) \
     XX(replication_slots,     ReplicationSlots) \
     XX(removal_slots,         RemovalSlots) \
     XX(repair_slots,          RepairSlots) \
     XX(seal_slots,            SealSlots) \
     XX(merge_slots,           MergeSlots) \
     XX(autotomy_slots,        AutotomySlots) \
-    XX(reincarnation_slots,   ReincarnationSlots)
+    XX(reincarnation_slots,   ReincarnationSlots) \
+    XX(replication_data_size, ReplicationDataSize) \
+    XX(repair_data_size,      RepairDataSize) \
+    XX(merge_data_size,       MergeDataSize)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define ITERATE_JOB_RESOURCE_FIELDS(XX) \
+    ITERATE_JOB_RESOURCE_PROTO_FIELDS(XX) \
+    XX(disk_space_request,    DiskSpaceRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
