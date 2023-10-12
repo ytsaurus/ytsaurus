@@ -1352,15 +1352,15 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
         version,
         EpochContext_->Term);
 
-    auto openFuture = WaitFor(EpochContext_->ChangelogStore->TryOpenChangelog(changelogId));
-    if (!openFuture.IsOK()) {
+    auto openResult = WaitFor(EpochContext_->ChangelogStore->TryOpenChangelog(changelogId));
+    if (!openResult.IsOK()) {
         LoggingFailed_.Fire(TError("Error opening changelog")
             << TErrorAttribute("changelog_id", changelogId)
-            << openFuture);
-        openFuture.ThrowOnError();
+            << openResult);
+        openResult.ThrowOnError();
     }
 
-    if (auto changelog = openFuture.Value()) {
+    if (auto changelog = openResult.Value()) {
         if (Changelog_) {
             YT_LOG_INFO("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
                 Changelog_->GetId(),
@@ -1376,15 +1376,15 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
         changelogId,
         EpochContext_->Term);
 
-    auto createFuture = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, /*meta*/ {}, {.CreateWriterEagerly = true}));
-    if (!createFuture.IsOK()) {
+    auto createResult = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, /*meta*/ {}, {.CreateWriterEagerly = true}));
+    if (!createResult.IsOK()) {
         LoggingFailed_.Fire(TError("Error creating changelog")
             << TErrorAttribute("changelog_id", changelogId)
-            << createFuture);
-        createFuture.ThrowOnError();
+            << createResult);
+        createResult.ThrowOnError();
     }
 
-    return createFuture.Value();
+    return createResult.Value();
 }
 
 void TFollowerCommitter::PrepareNextChangelog(TVersion version)
