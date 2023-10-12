@@ -21,7 +21,7 @@ message TReqStartTransaction
     required int64 timeout = 3;
     optional uint64 deadline = 8;
 
-    // COMPAT(h0pless): Remove this when clients will use cypress transaction service on master.
+    // COMPAT(h0pless): Remove this when clients will use Cypress transaction service on master.
     optional bool is_cypress_transaction = 10 [default = true];
 
     reserved 9;

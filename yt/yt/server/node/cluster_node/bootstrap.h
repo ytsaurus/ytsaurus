@@ -30,7 +30,7 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/library/profiling/solomon/public.h>
 

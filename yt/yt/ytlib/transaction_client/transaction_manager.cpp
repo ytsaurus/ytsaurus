@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
+#include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_tracker.h>
@@ -739,7 +740,7 @@ private:
 
     template<class TReqStartTransactionPtr>
     void FillStartTransactionReq(
-        TReqStartTransactionPtr request,
+        const TReqStartTransactionPtr& request,
         const TTransactionStartOptions& options)
     {
         request->Header().add_required_server_feature_ids(FeatureIdToInt(EMasterFeature::PortalExitSynchronization));
@@ -799,7 +800,7 @@ private:
                 MakeStrong(this)));
     }
 
-    template<class TErrorOrRsp>
+    template <class TErrorOrRsp>
     TError OnMasterTransactionStarted(const TErrorOrRsp& rspOrError)
     {
         if (!rspOrError.IsOK()) {
@@ -930,7 +931,7 @@ private:
 
     TFuture<TTransactionCommitResult> DoCommitCypressTransaction(const TTransactionCommitOptions& options)
     {
-        YT_LOG_DEBUG("Committing cypress transaction (TransactionId: %v, CoordinatorCellId: %v)",
+        YT_LOG_DEBUG("Committing Cypress transaction (TransactionId: %v, CoordinatorCellId: %v)",
             Id_,
             CoordinatorCellId_);
 
@@ -1085,7 +1086,7 @@ private:
             }));
     }
 
-    template<class TErrorOrRsp>
+    template <class TErrorOrRsp>
     TErrorOr<TTransactionCommitResult> OnAtomicTransactionCommitted(
         TCellId cellId,
         const TErrorOrRsp& rspOrError)
@@ -1128,7 +1129,7 @@ private:
 
     TFuture<void> DoPingCypressTransaction(TCellId cellId, const TTransactionPingOptions& options)
     {
-        YT_LOG_DEBUG("Pinging cypress transaction (TransactionId: %v, MasterCellId: %v)",
+        YT_LOG_DEBUG("Pinging Cypress transaction (TransactionId: %v, MasterCellId: %v)",
             Id_,
             cellId);
 
@@ -1196,7 +1197,7 @@ private:
         return AllSucceeded(asyncResults);
     }
 
-    template<class TErrorOrRsp>
+    template <class TErrorOrRsp>
     TError OnTransactionPinged(
         TCellId cellId,
         const TErrorOrRsp& rspOrError)
@@ -1308,7 +1309,7 @@ private:
 
     TFuture<void> DoAbortCypressTransaction(TCellId cellId, const TTransactionAbortOptions& options)
     {
-        YT_LOG_DEBUG("Aborting cypress transaction (TransactionId: %v, MasterCellId: %v)",
+        YT_LOG_DEBUG("Aborting Cypress transaction (TransactionId: %v, MasterCellId: %v)",
             Id_,
             cellId);
 

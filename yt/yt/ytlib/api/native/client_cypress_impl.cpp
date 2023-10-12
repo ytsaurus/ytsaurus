@@ -692,9 +692,9 @@ private:
         options.PreserveCreationTime = true;
         options.PreserveModificationTime = true;
         options.PreserveExpirationTime = true;
-        options.PreserveOwner = true;
+        options.PreserveOwner = false;
         options.Force = true;
-        options.PreserveAcl = true;
+        options.PreserveAcl = false;
         return options;
     }
 

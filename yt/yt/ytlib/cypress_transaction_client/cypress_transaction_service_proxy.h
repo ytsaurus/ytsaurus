@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
-
 #include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NCypressTransactionClient {

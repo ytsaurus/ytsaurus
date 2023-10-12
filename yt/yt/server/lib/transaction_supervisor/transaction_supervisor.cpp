@@ -765,7 +765,7 @@ private:
                 prerequisiteTransactionIds,
                 maxAllowedCommitTimestamp);
 
-            // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
+            // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
             if (owner->TransactionManager_->CommitTransaction(context)) {
                 return;
             }
@@ -836,7 +836,7 @@ private:
 
             auto owner = GetOwnerOrThrow();
 
-            // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate cypress transactions.
+            // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
             if (owner->TransactionManager_->AbortTransaction(context)) {
                 return;
             }

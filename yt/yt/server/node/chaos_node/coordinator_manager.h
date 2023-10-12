@@ -5,7 +5,7 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
-#include <yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
+#include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
 
 namespace NYT::NChaosNode {
 
