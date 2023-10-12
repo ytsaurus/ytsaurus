@@ -150,7 +150,7 @@ def prepare_yt_binaries(destination,
         insert_sudo_wrapper(destination, binary_root=binary_root)
 
 
-def copy_binary(destination, binary_name, binary_root, *source_paths):
+def copy_binary(destination, binary_name, binary_root, source_paths, ignore_missing=False):
     for source_path in source_paths:
         try:
             binary_path = search_binary_path(binary_name, binary_root=binary_root, build_path_dir=source_path)
@@ -158,16 +158,26 @@ def copy_binary(destination, binary_name, binary_root, *source_paths):
             return
         except Exception:
             continue
-    raise RuntimeError("binary {} is not found in {} by paths {}".format(binary_name, binary_root, source_paths))
+    if not ignore_missing:
+        raise RuntimeError("binary {} is not found in {} by paths {}".format(binary_name, binary_root, source_paths))
 
 
 def copy_misc_binaries(destination, binary_root=None):
     if yatest_common is None:
         python_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-        copy_binary(destination, "yt_env_watcher", python_root, "yt/environment")
+        copy_binary(destination, "yt_env_watcher", python_root, ["yt/environment"])
     else:
-        copy_binary(destination, "yt_env_watcher", binary_root, "yt/python/yt/environment", "yt/packages/latest/yt/python/yt/environment")
-        copy_binary(destination, "logrotate", binary_root, "contrib/tools/logrotate", "yt/packages/latest/contrib/tools/logrotate")
+        copy_binary(
+            destination,
+            "yt_env_watcher",
+            binary_root,
+            ["yt/python/yt/environment", "yt/packages/latest/yt/python/yt/environment"])
+        copy_binary(
+            destination,
+            "logrotate",
+            binary_root,
+            ["contrib/tools/logrotate", "yt/packages/latest/contrib/tools/logrotate"],
+            ignore_missing=True)
 
 
 # Supposed to be used in core YT components only.
