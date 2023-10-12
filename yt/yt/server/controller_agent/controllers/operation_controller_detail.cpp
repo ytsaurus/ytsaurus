@@ -322,14 +322,8 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TThis::UpdateAccountResourceUsageLeases, MakeWeak(this)),
         Config->UpdateAccountResourceUsageLeasesPeriod))
     , TotalJobCounter_(New<TProgressCounter>())
-    , TestingAllocationSize_(
-        Spec_->TestingOperationOptions
-        ? Spec_->TestingOperationOptions->AllocationSize.value_or(0)
-        : 0)
-    , KeepAllocationDelay_(
-        Spec_->TestingOperationOptions
-        ? Spec_->TestingOperationOptions->KeepAllocationDelay
-        : std::nullopt)
+    , TestingAllocationSize_(Spec_->TestingOperationOptions->AllocationSize.value_or(0))
+    , KeepAllocationDelay_(Spec_->TestingOperationOptions->KeepAllocationDelay)
     , FastIntermediateMediumLimit_(std::min(
         Spec_->FastIntermediateMediumLimit,
         Config->FastIntermediateMediumLimit))
@@ -427,8 +421,8 @@ void TOperationControllerBase::SleepInInitialize()
 
 std::vector<TTestAllocGuard> TOperationControllerBase::TestHeap() const
 {
-    if (Spec_->TestingOperationOptions) {
-        auto Logger = ControllerLogger.WithTag("TestHeap");
+    if (Spec_->TestingOperationOptions->AllocationSize.value_or(0) > 0) {
+        auto Logger = ControllerLogger;
 
         constexpr i64 allocationPartSize = 1_MB;
 
@@ -440,8 +434,7 @@ std::vector<TTestAllocGuard> TOperationControllerBase::TestHeap() const
                 this_ = MakeStrong(this)
             ] () mutable {
             auto size = this_->TestingAllocationSize_.fetch_add(allocationPartSize);
-            YT_LOG_DEBUG("TestingAllocationSize was incremented (OperationId: %v, TestingAllocationSize: %v)",
-                operationId,
+            YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
                 size + allocationPartSize);
         };
 
@@ -450,8 +443,7 @@ std::vector<TTestAllocGuard> TOperationControllerBase::TestHeap() const
             Logger = Logger,
             this_ = MakeStrong(this)] () mutable {
             auto size = this_->TestingAllocationSize_.fetch_sub(allocationPartSize);
-            YT_LOG_DEBUG("TestingAllocationSize was decremented (OperationId: %v, TestingAllocationSize: %v)",
-                OperationId,
+            YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
                 size - allocationPartSize);
         };
 
@@ -464,8 +456,7 @@ std::vector<TTestAllocGuard> TOperationControllerBase::TestHeap() const
                 GetInvoker());
         }
 
-        YT_LOG_DEBUG("TestHeap allocation is finished (OperationId: %v, MemoryUsage: %v)",
-            OperationId,
+        YT_LOG_DEBUG("Test heap allocation is finished (MemoryUsage: %v)",
             GetMemoryUsage());
         return testHeap;
     }
@@ -1080,7 +1071,6 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption &&
-        Spec_->TestingOperationOptions &&
         Spec_->TestingOperationOptions->ControllerFailure)
     {
         YT_VERIFY(*Spec_->TestingOperationOptions->ControllerFailure !=
@@ -3061,7 +3051,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         joblet->JobInterruptible);
 
     // Testing purpose code.
-    if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
+    if (Config->EnableControllerFailureSpecOption &&
         Spec_->TestingOperationOptions->ControllerFailure &&
         *Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
@@ -3507,7 +3497,7 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
         jobId,
         static_cast<bool>(jobSummary->Statistics));
 
-    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CrashControllerAgent) {
+    if (Spec_->TestingOperationOptions->CrashControllerAgent) {
         bool canCrashControllerAgent = false;
         {
             const auto& client = Host->GetClient();
@@ -10517,7 +10507,7 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
 
 void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
 {
-    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CancelationStage &&
+    if (Spec_->TestingOperationOptions->CancelationStage &&
         cancelationStage == *Spec_->TestingOperationOptions->CancelationStage)
     {
         YT_LOG_INFO("Making test operation failure (CancelationStage: %v)", cancelationStage);
