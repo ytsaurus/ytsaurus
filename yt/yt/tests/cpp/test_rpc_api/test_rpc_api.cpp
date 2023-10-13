@@ -1220,6 +1220,74 @@ TEST_F(TArrowTestBase, TestArrowReadingWithoutSystemColumns)
     }
 }
 
+TEST_F(TArrowTestBase, TestArrowNullColumns)
+{
+    TRichYPath tablePath("//tmp/test_arrow_reading_null_columns");
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"NullColumn", ESimpleLogicalValueType::Null}, {"VoidColumn", ESimpleLogicalValueType::Void}}));
+    options.Attributes->Set("optimize_for", "scan");
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+        .ThrowOnError();
+
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+        auto nullColumnId = writer->GetNameTable()->GetIdOrRegisterName("NullColumn");
+        auto nullValue = MakeUnversionedNullValue(nullColumnId);
+
+        auto voidColumnId = writer->GetNameTable()->GetIdOrRegisterName("VoidColumn");
+        auto voidValue = MakeUnversionedNullValue(voidColumnId);
+
+        TUnversionedRowBuilder rowBuilder;
+        rowBuilder.AddValue(nullValue);
+        rowBuilder.AddValue(voidValue);
+
+        YT_VERIFY(writer->Write({rowBuilder.GetRow()}));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    auto apiServiceProxy = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(Client_.Get())->CreateApiServiceProxy();
+    auto req = apiServiceProxy.ReadTable();
+
+    req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_ARROW);
+    req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
+    req->set_format("<format=text>yson");
+
+    ToProto(req->mutable_path(), tablePath);
+    auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
+        .ValueOrThrow();
+
+    auto metaRef = WaitFor(stream->Read())
+            .ValueOrThrow();
+
+    NRpcProxy::NProto::TRspReadTableMeta meta;
+    if (!TryDeserializeProto(&meta, metaRef)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
+    }
+
+    while (auto block = WaitFor(stream->Read()).ValueOrThrow()) {
+
+        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+        NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+        auto payloadRef = NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
+
+        if (descriptor.rowset_format() == NApi::NRpcProxy::NProto::RF_ARROW) {
+            auto batch = MakeBatch(payloadRef.ToStringBuf());
+            EXPECT_EQ(batch->num_columns(), 2);
+            EXPECT_EQ(batch->column_name(0),"NullColumn");
+            EXPECT_TRUE(std::dynamic_pointer_cast<arrow::NullArray>(batch->column(0)));
+
+            EXPECT_EQ(batch->column_name(1),"VoidColumn");
+            EXPECT_TRUE(std::dynamic_pointer_cast<arrow::NullArray>(batch->column(1)));
+
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

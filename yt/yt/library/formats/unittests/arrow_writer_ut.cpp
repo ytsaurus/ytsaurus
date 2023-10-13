@@ -516,16 +516,16 @@ TEST(Simple, RowBatch)
 TEST(Simple, Null)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
-    std::vector<std::string> columnNames = {"integer"};
+    std::vector<std::string> columnNames = {"integer", "null"};
     tableSchemas.push_back(New<TTableSchema>(std::vector{
                 TColumnSchema(TString(columnNames[0]), EValueType::Int64),
-                TColumnSchema(TString("null"), EValueType::Null),
+                TColumnSchema(TString(columnNames[1]), EValueType::Null),
     }));
 
     TStringStream outputStream;
     auto nameTable = New<TNameTable>();
     auto columnId = nameTable->RegisterName(columnNames[0]);
-    auto nullColumnId = nameTable->RegisterName("null");
+    auto nullColumnId = nameTable->RegisterName(columnNames[1]);
 
     TUnversionedRowBuilder row1, row2;
     row1.AddValue(MakeUnversionedNullValue(columnId));
