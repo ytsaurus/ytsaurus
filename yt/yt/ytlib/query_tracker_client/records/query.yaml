@@ -29,7 +29,7 @@ types:
 
       # YSON list.
       - cpp_name: Files
-        cpp_type: NYson::TYsonString
+        cpp_type: std::optional<NYson::TYsonString>
         column_name: files
         column_type: Any
         lock: client
@@ -152,7 +152,7 @@ types:
 
       # YSON list.
       - cpp_name: Files
-        cpp_type: NYson::TYsonString
+        cpp_type: std::optional<NYson::TYsonString>
         column_name: files
         column_type: Any
         lock: client
