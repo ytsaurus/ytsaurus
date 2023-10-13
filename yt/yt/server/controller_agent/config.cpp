@@ -863,6 +863,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(1'000)
         .GreaterThan(0);
 
+    registrar.Parameter("job_settlement_timeout", &TThis::JobSettlementTimeout)
+        .Default(TDuration::Seconds(120));
+
     //! By default we disable job size adjustment for partition maps,
     //! since it may lead to partition data skew between nodes.
     registrar.Parameter("enable_partition_map_job_size_adjustment", &TThis::EnablePartitionMapJobSizeAdjustment)
