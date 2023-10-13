@@ -986,19 +986,9 @@ public:
 
         if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
             const auto& tableManager = Bootstrap_->GetTableManager();
-            auto* temporarySchema = tableManager->FindMasterTableSchema(schemaId);
-            if (!IsObjectAlive(temporarySchema)) {
-                YT_LOG_ALERT("Chunk schema was not found despite being specified (ChunkId: %v, SchemaId: %v)",
-                    id,
-                    schemaId);
-
-                // TODO(h0pless): Maybe think of a better exception here.
-                THROW_ERROR_EXCEPTION(
-                    NYTree::EErrorCode::ResolveError,
-                    "No such schema %v",
-                    schemaId);
-            }
-
+            // NB: Sometimes chunk confirmation can be recieved after the table has been destroyed.
+            // TODO(h0pless): Maybe think of a better exception here.
+            auto* temporarySchema = tableManager->GetMasterTableSchemaOrThrow(schemaId);
             tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
         }
 
