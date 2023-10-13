@@ -16,6 +16,7 @@ struct TReshardDescriptor
     std::vector<TTabletId> Tablets;
     int TabletCount;
     i64 DataSize;
+    TGuid CorrelationId;
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
 };
 
@@ -23,6 +24,7 @@ struct TMoveDescriptor
 {
     TTabletId TabletId;
     TTabletCellId TabletCellId;
+    TGuid CorrelationId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

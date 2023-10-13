@@ -280,24 +280,31 @@ void TActionManager::Poll()
                 auto state = attributes->Get<ETabletActionState>("state");
                 action->SetState(state);
 
-                YT_LOG_DEBUG("Tablet action state fetched (TabletActionId: %v, State: %v)",
+                YT_LOG_DEBUG("Tablet action state fetched (TabletActionId: %v, State: %v, CorrelationId: %v)",
                     action->GetId(),
-                    state);
+                    state,
+                    action->GetCorrelationId());
                 if (attributes->Contains("error")) {
                     auto error = attributes->Get<TError>("error");
                     action->Error() = error;
-                    YT_LOG_WARNING(error, "Tablet action failed (TabletActionId: %v)", action->GetId());
+                    YT_LOG_WARNING(error,
+                        "Tablet action failed (TabletActionId: %v, CorrelationId: %v)",
+                        action->GetId(),
+                        action->GetCorrelationId());
                 }
             } else if (!actionIds.contains(action->GetId())) {
-                YT_LOG_DEBUG("Tablet action status is unknown (TabletActionId: %v, Kind: %v, State: %v)",
+                YT_LOG_DEBUG("Tablet action status is unknown "
+                    "(TabletActionId: %v, Kind: %v, State: %v, CorrelationId: %v)",
                     action->GetId(),
                     action->GetKind(),
-                    action->GetState());
+                    action->GetState(),
+                    action->GetCorrelationId());
             } else {
                 action->SetLost(true);
-                YT_LOG_DEBUG("Tablet action is lost (TabletActionId: %v, Kind: %v)",
+                YT_LOG_DEBUG("Tablet action is lost (TabletActionId: %v, Kind: %v, CorrelationId: %v)",
                     action->GetId(),
-                    action->GetKind());
+                    action->GetKind(),
+                    action->GetCorrelationId());
             }
         }
     }
@@ -365,10 +372,12 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
             attributes->Set("kind", "move");
             attributes->Set("tablet_ids", std::vector<TTabletId>{descriptor.TabletId});
             attributes->Set("cell_ids", std::vector<TTabletCellId>{descriptor.TabletCellId});
+            attributes->Set("correlation_id", descriptor.CorrelationId);
         },
         [&] (const TReshardDescriptor& descriptor) {
             attributes->Set("kind", "reshard");
             attributes->Set("tablet_ids", descriptor.Tablets);
+            attributes->Set("correlation_id", descriptor.CorrelationId);
 
             if (!descriptor.PivotKeys.empty()) {
                 attributes->Set("pivot_keys", descriptor.PivotKeys);
