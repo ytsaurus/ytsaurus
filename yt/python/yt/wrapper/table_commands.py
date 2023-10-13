@@ -24,6 +24,8 @@ import yt.json_wrapper as json
 import yt.yson as yson
 import yt.logger as logger
 
+import yt_yson_bindings
+
 try:
     from yt.packages.six import PY3
     from yt.packages.six.moves import map as imap, filter as ifilter, xrange
@@ -1052,3 +1054,15 @@ def get_table_columnar_statistics(paths, client=None):
     """
     paths = list(imap(lambda path: TablePath(path, client=client), flatten(paths)))
     return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
+
+
+def dump_parquete(table, output_file):
+    """Dump parquete
+
+    :param table: path to tables
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param output_file: path to output file
+    :type path: str
+    """
+    stream = read_table(table, raw=True, format="arrow")
+    yt_yson_bindings.dump_parquete(output_file, stream)

@@ -628,6 +628,22 @@ class YtClient(ClientState):
             job_id, path,
             client=self)
 
+    def dump_parquete(
+            self,
+            table, output_file):
+        """
+        Dump parquete
+
+        :param table: path to tables
+        :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param output_file: path to output file
+        :type path: str
+
+        """
+        return client_api.dump_parquete(
+            table, output_file,
+            client=self)
+
     def execute_batch(
             self,
             requests,
