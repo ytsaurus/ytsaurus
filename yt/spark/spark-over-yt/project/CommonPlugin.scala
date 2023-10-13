@@ -1,13 +1,17 @@
 import Dependencies._
+import com.eed3si9n.jarjarabrams.ShadeRule
 import com.jsuereth.sbtpgp.PgpKeys.pgpPassphrase
 import sbt.Keys._
 import sbt._
 import sbt.plugins.JvmPlugin
+import sbtassembly.Assembly.{Library, Project}
 import sbtassembly.AssemblyPlugin.autoImport._
-import sbtassembly.ShadeRule
+import sbtassembly.MergeStrategy
 import spyt.SparkForkVersion.sparkForkVersion
 import spyt.SpytPlugin.autoImport._
 import spyt.YtPublishPlugin
+
+import java.nio.file.Paths
 
 object CommonPlugin extends AutoPlugin {
   override def trigger = AllRequirements
@@ -22,11 +26,11 @@ object CommonPlugin extends AutoPlugin {
         "NettyArrowBuf", "PooledByteBufAllocatorL", "UnsafeDirectLittleEndian")
       val arrowRules = arrowBuffers.map(s"io.netty.buffer." + _).map(n => ShadeRule.rename(n -> n).inAll)
       arrowRules ++ Seq(
-        ShadeRule.rename("javax.annotation.**" -> "shaded_spyt.javax.annotation.@1")
+        ShadeRule.rename("javax.annotation.**" -> "shadedspyt.javax.annotation.@1")
           .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
         ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
           .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
-        ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
+        ShadeRule.rename("io.netty.**" -> "shadedspyt.io.netty.@1")
           .inAll
       )
     }
@@ -38,7 +42,6 @@ object CommonPlugin extends AutoPlugin {
       "tech.ytsaurus.spyt.fs.YtFileSystem" -> "tech.ytsaurus.spyt.fs.YtFileSystem",
       "tech.ytsaurus.spyt.fs.eventlog.YtEventLogFileSystem" -> "tech.ytsaurus.spyt.fs.eventlog.YtEventLogFileSystem",
       "tech.ytsaurus.misc.log.**" -> "tech.ytsaurus.misc.log.@1",
-      "tech.ytsaurus.**" -> "shadedyandex.tech.ytsaurus.@1",
       "tech.ytsaurus.**" -> "shadedyandex.tech.ytsaurus.@1",
       "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1",
       "org.objenesis.**" -> "shadedyandex.org.objenesis.@1",
@@ -53,6 +56,13 @@ object CommonPlugin extends AutoPlugin {
       "com.google.protobuf.**" -> "shadeddatasource.com.google.protobuf.@1",
       "NYT.**" -> "shadeddatasource.NYT.@1"
     ).inAll)
+
+    def libraryRenamingShadingRule(source: String, targetName: String): MergeStrategy = {
+      CustomMergeStrategy.rename {
+        case dependency@(_: Project) => dependency.target
+        case dependency@(_: Library) => Paths.get(source).getParent.resolve(targetName).toString
+      }
+    }
 
     lazy val printTestClasspath = taskKey[Unit]("")
     lazy val commonDependencies = settingKey[Seq[ModuleID]]("")
@@ -95,7 +105,7 @@ object CommonPlugin extends AutoPlugin {
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
-    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
     assembly / test := {},
     publishTo := {
       if (isSnapshot.value)

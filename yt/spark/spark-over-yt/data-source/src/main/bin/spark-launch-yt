@@ -108,6 +108,11 @@ def main():
     parser.set_defaults(advanced_event_log=False)
 
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--enable-rpc-job-proxy',
+                       dest='rpc_job_proxy', action='store_true')
+    parser.set_defaults(rpc_job_proxy=False)
+
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--enable-worker-log-transfer',
                        dest='worker_log_transfer', action='store_true')
     group.add_argument('--disable-worker-log-transfer',
@@ -225,7 +230,8 @@ def main():
                         enable_livy=args.enable_livy,
                         livy_driver_cores=args.livy_driver_cores,
                         livy_driver_memory=args.livy_driver_memory,
-                        livy_max_sessions=args.livy_max_sessions)
+                        livy_max_sessions=args.livy_max_sessions,
+                        rpc_job_proxy=args.rpc_job_proxy)
 
 
 if __name__ == '__main__':

@@ -1,39 +1,52 @@
 package tech.ytsaurus.spyt.wrapper.client
 
+import io.netty.channel.MultithreadEventLoopGroup
+import io.netty.channel.epoll.EpollEventLoopGroup
 import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.unix.DomainSocketAddress
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.HostAndPort
 import tech.ytsaurus.spyt.wrapper.YtJavaConverters._
 import tech.ytsaurus.spyt.wrapper.system.SystemUtils
-import tech.ytsaurus.client.{CompoundClient, DiscoveryMethod, YTsaurusClient, YTsaurusCluster}
+import tech.ytsaurus.client.{CompoundClient, DirectYTsaurusClient, DiscoveryMethod, YTsaurusClient, YTsaurusClientConfig, YTsaurusCluster}
 import tech.ytsaurus.client.bus.DefaultBusConnector
 import tech.ytsaurus.client.rpc.{RpcOptions, YTsaurusClientAuth}
 
+import java.net.SocketAddress
 import java.util.concurrent.ThreadFactory
 import java.util.{ArrayList => JArrayList}
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.{Duration, DurationInt}
 import scala.util.{Failure, Success}
 
 trait YtClientUtils {
   private val log = LoggerFactory.getLogger(getClass)
 
+  private val daemonThreadFactory = new ThreadFactory {
+    override def newThread(r: Runnable): Thread = {
+      val thread = new Thread(r)
+      thread.setDaemon(true)
+      thread
+    }
+  }
+
   def createRpcClient(id: String, config: YtClientConfiguration): YtRpcClient = {
     log.info(s"Create RPC YT Client, id $id, configuration ${config.copy(token = "*****")}")
 
-    createYtClient(id, config.timeout) { case (connector, options) => createYtClient(config, connector, options) }
+    jobProxyEndpoint match {
+      case Some(jobProxy) =>
+        log.info(s"Create job proxy client with config $jobProxy")
+        createYtClientWrapper(id, config.timeout, new EpollEventLoopGroup(1, daemonThreadFactory)) {
+          case (connector, options) => createJobProxyClient(config, connector, options, jobProxy)
+        }
+      case None =>
+        createYtClientWrapper(id, config.timeout, new NioEventLoopGroup(1, daemonThreadFactory)) {
+          case (connector, options) => createYtClient(config, connector, options)
+        }
+    }
   }
 
-  private def createYtClient(id: String, timeout: Duration)
+  private def createYtClientWrapper(id: String, timeout: Duration, group: MultithreadEventLoopGroup)
                             (client: (DefaultBusConnector, RpcOptions) => CompoundClient): YtRpcClient = {
-    val daemonThreadFactory = new ThreadFactory {
-      override def newThread(r: Runnable): Thread = {
-        val thread = new Thread(r)
-        thread.setDaemon(true)
-        thread
-      }
-    }
-
-    val group = new NioEventLoopGroup(1, daemonThreadFactory)
     val connector = new DefaultBusConnector(group, true)
       .setReadTimeout(toJavaDuration(timeout))
       .setWriteTimeout(toJavaDuration(timeout))
@@ -78,6 +91,17 @@ trait YtClientUtils {
         port <- SystemUtils.envGet("byop_port").map(_.toInt)
       } yield HostAndPort(host, port)
     } else None
+  }
+
+  private def jobProxyEndpoint: Option[SocketAddress] = {
+    if (SystemUtils.isEnabled("rpc_job_proxy")) {
+      for {
+        socketFile <- sys.env.get("YT_JOB_PROXY_SOCKET_PATH")
+      } yield new DomainSocketAddress(socketFile)
+    } else {
+      log.info("RPC Job proxy disabled by env variable")
+      None
+    }
   }
 
   private def byopRemoteEndpoint(config: YtClientConfiguration): Option[HostAndPort] = {
@@ -129,6 +153,18 @@ trait YtClientUtils {
       .setClusters(java.util.List.of[YTsaurusCluster](cluster))
       .setAuth(clientAuth)
       .setRpcOptions(rpcOptions)
+      .build()
+  }
+
+  private def createJobProxyClient(config: YtClientConfiguration,
+                                   connector: DefaultBusConnector,
+                                   rpcOptions: RpcOptions,
+                                   address: SocketAddress): DirectYTsaurusClient = {
+    DirectYTsaurusClient.builder()
+      .setSharedBusConnector(connector)
+      .setAddress(address)
+      .setAuth(config.clientAuth)
+      .setConfig(YTsaurusClientConfig.builder().setRpcOptions(rpcOptions).build())
       .build()
   }
 

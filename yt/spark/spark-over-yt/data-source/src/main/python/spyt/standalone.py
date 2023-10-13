@@ -345,7 +345,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_log_update_interval, worker_log_table_ttl,
                                pool, enablers, client, livy_driver_cores, livy_driver_memory, livy_max_sessions,
                                preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None,
-                               extra_metrics_enabled=True, autoscaler_enabled=False):
+                               extra_metrics_enabled=True, autoscaler_enabled=False, rpc_job_proxy=False):
     if job_types == [] or job_types == None:
         job_types = ['master', 'history', 'worker']
 
@@ -475,7 +475,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     tvm_enabled = enablers.enable_mtn and bool(tvm_id) and bool(tvm_secret)
     worker_environment = {
-        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop)
+        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
+        "SPARK_YT_RPC_JOB_PROXY_ENABLED": str(rpc_job_proxy),
     }
     worker_environment = update(environment, worker_environment)
     livy_environment = {
@@ -530,6 +531,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     worker_task_spec = copy.deepcopy(common_task_spec)
     worker_task_spec["environment"] = worker_environment
+    worker_task_spec["enable_rpc_proxy_in_job_proxy"] = rpc_job_proxy
     if ssd_limit:
         worker_task_spec["disk_request"] = {
             "disk_space": _parse_memory(ssd_limit),
@@ -644,7 +646,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         autoscaler_max_free_workers=None, autoscaler_slot_increment_step=None,
                         enable_livy=False, livy_driver_cores=SparkDefaultArguments.LIVY_DRIVER_CORES,
                         livy_driver_memory=SparkDefaultArguments.LIVY_DRIVER_MEMORY,
-                        livy_max_sessions=SparkDefaultArguments.LIVY_MAX_SESSIONS):
+                        livy_max_sessions=SparkDefaultArguments.LIVY_MAX_SESSIONS, rpc_job_proxy=False):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -696,6 +698,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param livy_driver_cores: core limit for livy drivers
     :param livy_driver_memory: memory limit for livy drivers
     :param livy_max_sessions: session count limit for livy server
+    :param rpc_job_proxy: using RPC proxy in job proxy
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
@@ -791,7 +794,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'job_types': job_types,
         'livy_driver_cores': livy_driver_cores,
         'livy_driver_memory': livy_driver_memory,
-        'livy_max_sessions': livy_max_sessions
+        'livy_max_sessions': livy_max_sessions,
+        'rpc_job_proxy': rpc_job_proxy,
     }
 
     master_args = args.copy()

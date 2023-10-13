@@ -1,5 +1,6 @@
 import CommonPlugin.autoImport._
 import Dependencies._
+import sbtassembly.Assembly.{Library, Project}
 import com.jsuereth.sbtpgp.PgpKeys.publishSigned
 import sbtassembly.AssemblyKeys.assembly
 import spyt.PythonPlugin.autoImport._
@@ -9,6 +10,8 @@ import spyt.SpytPlugin.autoImport._
 import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
 import spyt.ZipPlugin.autoImport._
+
+import java.nio.file.Paths
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
@@ -71,7 +74,7 @@ lazy val `cluster` = (project in file("spark-cluster"))
     libraryDependencies ++= scalatraTestDeps,
     libraryDependencies ++= spark,
     assembly / assemblyJarName := s"spark-yt-launcher.jar",
-    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = true),
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(true),
     assembly / test := {}
   )
   .settings(
@@ -131,7 +134,7 @@ lazy val `spark-submit` = (project in file("spark-submit"))
       circe.map(_ % Provided) ++ logging.map(_ % Provided),
     assembly / assemblyJarName := s"spark-yt-submit.jar",
     assembly / assemblyShadeRules ++= clusterShadeRules,
-    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false)
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false)
   )
 
 lazy val `submit-client` = (project in file("submit-client"))
@@ -174,7 +177,7 @@ lazy val `data-source` = (project in file("data-source"))
     },
     assembly / assemblyShadeRules ++= clientShadeRules,
     assembly / test := {},
-    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
     pythonDeps := {
       val binBasePath = sourceDirectory.value / "main" / "bin"
       ("jars" -> (`spark-submit` / assembly).value) +: binBasePath.listFiles().map(f => "bin" -> f)
@@ -194,15 +197,17 @@ lazy val `file-system` = (project in file("file-system"))
       case x if x endsWith "io.netty.versions.properties" => MergeStrategy.first
       case x if x endsWith "Log4j2Plugins.dat" => MergeStrategy.last
       case x if x endsWith "git.properties" => MergeStrategy.last
-      case x if x endsWith "libnetty_transport_native_epoll_x86_64.so" => MergeStrategy.last
-      case x if x endsWith "libnetty_transport_native_kqueue_x86_64.jnilib" => MergeStrategy.last
+      case x if x endsWith "libnetty_transport_native_epoll_x86_64.so" =>
+        libraryRenamingShadingRule(x, "libshadedspyt_netty_transport_native_epoll_x86_64.so")
+      case x if x endsWith "libnetty_transport_native_kqueue_x86_64.jnilib" =>
+        libraryRenamingShadingRule(x, "libshadedspyt_netty_transport_native_kqueue_x86_64.jnilib")
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
     assembly / assemblyShadeRules ++= clusterShadeRules,
     assembly / test := {},
-    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false)
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false)
   )
 
 lazy val `e2e-checker` = (project in file("e2e-checker"))
@@ -210,7 +215,7 @@ lazy val `e2e-checker` = (project in file("e2e-checker"))
   .settings(
     libraryDependencies ++= commonDependencies.value.map(d => if (d.configurations.isEmpty) d % Provided else d),
     libraryDependencies ++= scaldingArgs,
-    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false)
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false)
   )
 
 lazy val `e2e-test` = (project in file("e2e-test"))

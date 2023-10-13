@@ -11,6 +11,7 @@ object Dependencies {
   lazy val scalatraVersion = "2.7.0"
   lazy val mockitoVersion = "1.14.4"
   lazy val arrowVersion = "0.17.1"
+  lazy val nettyVersion = "4.1.68.Final"
 
   lazy val circe = ("io.circe" %% "circe-yaml" % circeYamlVersion) +: Seq(
     "io.circe" %% "circe-core",
@@ -65,7 +66,12 @@ object Dependencies {
 
   lazy val ytsaurusClient = Seq(
     "tech.ytsaurus" % "ytsaurus-client" % ytsaurusClientVersion excludeAll ExclusionRule(organization = "io.netty"),
-    "io.netty" % "netty-all" % "4.1.68.Final"
+    "io.netty" % "netty-buffer" % nettyVersion,
+    "io.netty" % "netty-codec" % nettyVersion,
+    "io.netty" % "netty-common" % nettyVersion,
+    "io.netty" % "netty-handler" % nettyVersion,
+    "io.netty" % "netty-transport" % nettyVersion,
+    "io.netty" % "netty-transport-native-epoll" % nettyVersion classifier "linux-x86_64",
   ).map(_ excludeAll(
     ExclusionRule(organization = "com.fasterxml.jackson.core"),
     ExclusionRule(organization = "org.apache.commons"),

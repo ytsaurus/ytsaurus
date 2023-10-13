@@ -102,6 +102,8 @@ object E2ETestPlugin extends AutoPlugin {
         "--spark-cluster-version", (ThisBuild / spytClusterVersion).value,
         "--enable-advanced-event-log",
         "--enable-livy",
+        "--disable-byop",
+        "--enable-rpc-job-proxy"
       )
       runProcess(
         sparkLaunchYtCommand.mkString(" "),
