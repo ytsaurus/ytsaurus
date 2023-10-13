@@ -128,8 +128,13 @@ TTabletSizeConfig GetTabletSizeConfig(
         auto tabletSizeLimit = DivCeil(tableSize, maxTabletCount);
         if (desiredTabletSize < tabletSizeLimit) {
             desiredTabletSize = tabletSizeLimit;
-            minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
             maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
+
+            if (maxTabletCount == MaxTabletCount) {
+                // In order not to enlarge existing tablets after moving table to a smaller bundle.
+                // However, you must always consider max tablet count in one table.
+                minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
+            }
 
             YT_LOG_DEBUG_IF(enableVerboseLogging,
                 "Tablet size config overridden by tablet to cell ratio"
