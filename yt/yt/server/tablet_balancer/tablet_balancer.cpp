@@ -22,6 +22,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/core/misc/random.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NTabletBalancer {
@@ -652,9 +654,10 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
             }
 
             ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, CorrelationId: %v)",
                 descriptor.TabletId,
-                descriptor.TabletCellId);
+                descriptor.TabletCellId,
+                descriptor.CorrelationId);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
@@ -706,9 +709,10 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
             }
 
             ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, CorrelationId: %v)",
                 descriptor.TabletId,
-                descriptor.TabletCellId);
+                descriptor.TabletCellId,
+                descriptor.CorrelationId);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
@@ -773,9 +777,10 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             }
 
             ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, TabletCellId: %v)",
+            YT_LOG_DEBUG("Move action created (TabletId: %v, TabletCellId: %v, CorrelationId: %v)",
                 descriptor.TabletId,
-                descriptor.TabletCellId);
+                descriptor.TabletCellId,
+                descriptor.CorrelationId);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
@@ -911,13 +916,16 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex,
                         "Failed to pick pivot keys for reshard action "
-                        "(TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v, TabletIndexes: %v-%v)",
+                        "(TabletIds: %v, TabletCount: %v, DataSize: %v, "
+                        "TableId: %v, TabletIndexes: %v-%v, CorrelationId: %v)",
                         descriptor.Tablets,
                         descriptor.TabletCount,
                         descriptor.DataSize,
                         table->Id,
                         firstTabletIndex,
-                        lastTabletIndex);
+                        lastTabletIndex,
+                        descriptor.CorrelationId);
+
                     PickPivotFailures.Increment(1);
                 }
             }
@@ -929,19 +937,28 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                     "Failed to schedule reshard action",
                     groupTag.second)
                     << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
+
                 actionLimitExceeded = true;
+                YT_LOG_DEBUG("Group has exceeded the limit for creating actions. "
+                    "Will not schedule reshard actions anymore "
+                    "(Group: %v, Limit: %v, CorrelationId: %v, BundleName: %v)",
+                    groupTag.second,
+                    ActionCountLimiter_.GroupLimit,
+                    descriptor.CorrelationId,
+                    bundleState->GetBundle()->Name);
                 break;
             }
 
             ++actionCount;
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, "
-                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v)",
+                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, CorrelationId: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize,
                 table->Id,
                 firstTabletIndex,
-                lastTabletIndex);
+                lastTabletIndex,
+                descriptor.CorrelationId);
 
             scheduledDescriptors.emplace_back(std::move(descriptor));
         }
@@ -1008,8 +1025,12 @@ void TTabletBalancer::PickReshardPivotKeysIfNeeded(
     std::optional<double> slicingAccuracy,
     bool enableVerboseLogging) const
 {
+    enableVerboseLogging |= table->TableConfig->EnableVerboseLogging;
     if (descriptor->TabletCount == 1) {
         // Do not pick pivot keys for merge actions.
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "Skip picking pivot keys because this is a merge action (CorrelationId: %v)",
+            descriptor->CorrelationId);
         return;
     }
 
@@ -1029,6 +1050,12 @@ void TTabletBalancer::PickReshardPivotKeysIfNeeded(
     if (partitionCount >= 2 * descriptor->TabletCount) {
         // Do not pick pivot keys if there are enough partitions
         // for the master to perform reshard itself.
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "Skip picking pivot keys because there are enough partitions "
+            "(PartitionCount: %v, TabletCount: %v, CorrelationId: %v)",
+            partitionCount,
+            descriptor->TabletCount,
+            descriptor->CorrelationId);
         return;
     }
 

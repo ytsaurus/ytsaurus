@@ -18,11 +18,13 @@ TTabletAction::TTabletAction(
             Kind_ = ETabletActionKind::Move;
             TabletIds_.emplace_back(descriptor.TabletId);
             CellIds_.emplace_back(descriptor.TabletCellId);
+            CorrelationId_ = descriptor.CorrelationId;
         },
         [&] (const TReshardDescriptor& descriptor) {
             Kind_ = ETabletActionKind::Reshard;
             TabletIds_ = std::move(descriptor.Tablets);
             TabletCount_ = descriptor.TabletCount;
+            CorrelationId_ = descriptor.CorrelationId;
         });
 }
 

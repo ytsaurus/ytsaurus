@@ -356,17 +356,24 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         }
     }
 
+    auto correlationId = TGuid::Create();
     YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Planning to create reshard action (Tablets: %v, TabletSizes: %v, "
-        "TabletCount: %v, TotalSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
+        "Planning to create reshard action (Tablets: %v, TabletSizes: %v, TabletCount: %v, "
+        "TotalSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v, CorrelationId: %v)",
         tablets,
         sizes,
         newTabletCount,
         size,
         startIndex,
-        endIndex);
+        endIndex,
+        correlationId);
 
-    return {TReshardDescriptor{.Tablets = std::move(tablets), .TabletCount = newTabletCount, .DataSize = size}};
+    return {TReshardDescriptor{
+        .Tablets = std::move(tablets),
+        .TabletCount = newTabletCount,
+        .DataSize = size,
+        .CorrelationId = correlationId,
+    }};
 }
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
@@ -566,7 +573,11 @@ std::vector<TMoveDescriptor> ReassignInMemoryTablets(
                     queue.push(top);
                 }
 
-                moveDescriptors.push_back({tablet->Id, top.TabletCell->Id});
+                moveDescriptors.push_back(TMoveDescriptor{
+                    .TabletId = tablet->Id,
+                    .TabletCellId = top.TabletCell->Id,
+                    .CorrelationId = TGuid::Create()
+                });
             }
         }
     }
@@ -841,7 +852,8 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
         if (!cell || cell->Id != cellId) {
             descriptors.emplace_back(TMoveDescriptor{
                 .TabletId = tablet->Id,
-                .TabletCellId = cellId
+                .TabletCellId = cellId,
+                .CorrelationId = TGuid::Create()
             });
         }
     }

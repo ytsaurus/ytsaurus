@@ -17,6 +17,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(ETabletActionKind, Kind);
     DEFINE_BYVAL_RO_PROPERTY(TTabletActionId, Id);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TTabletId>, TabletIds);
+    DEFINE_BYVAL_RO_PROPERTY(TGuid, CorrelationId);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TTabletCellId>, CellIds);
     DEFINE_BYREF_RO_PROPERTY(int, TabletCount);

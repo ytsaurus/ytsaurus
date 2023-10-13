@@ -775,7 +775,8 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
         if (sourceCellId != destinationCellId) {
             descriptors.emplace_back(TMoveDescriptor{
                 .TabletId = tablet.Tablet->Id,
-                .TabletCellId = destinationCellId
+                .TabletCellId = destinationCellId,
+                .CorrelationId = TGuid::Create()
             });
         }
     }
