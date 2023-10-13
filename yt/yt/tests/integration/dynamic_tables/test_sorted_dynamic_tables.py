@@ -1328,6 +1328,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             return
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
+        set("//tmp/t/@mount_config/enable_narrow_chunk_view_compaction", False)
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 1}, {"key": 2}])
         sync_unmount_table("//tmp/t")
@@ -2153,6 +2154,7 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
             replication_factor=1,
             enable_dynamic_store_read=False)
 
+        set("//tmp/t/@mount_config/enable_narrow_chunk_view_compaction", False)
         sync_mount_table("//tmp/t", cell_id=cells[0])
         rows = [{"key": 1, "value": "foo"}]
         insert_rows("//tmp/t", rows)

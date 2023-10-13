@@ -337,7 +337,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(5);
 
     registrar.Parameter("enable_narrow_chunk_view_compaction", &TThis::EnableNarrowChunkViewCompaction)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("max_chunk_view_size_ratio", &TThis::MaxChunkViewSizeRatio)
         .InRange(0.0, 1.0)
         .Default(0.5);
