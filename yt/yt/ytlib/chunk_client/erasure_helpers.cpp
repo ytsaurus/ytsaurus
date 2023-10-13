@@ -457,10 +457,7 @@ private:
         auto initialize = [&] () {
             if (!result) {
                 struct TErasureWriterSliceTag { };
-                auto ref = TrackMemory(
-                    ReadBlockOptions_.ClientOptions.MemoryReferenceTracker,
-                    TSharedMutableRef::Allocate<TErasureWriterSliceTag>(range.Size()));
-                result = TSharedMutableRef(const_cast<char*>(ref.Begin()), ref.Size(), ref.GetHolder());
+                result = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(range.Size());
             }
         };
 
@@ -491,7 +488,7 @@ private:
 
         initialize();
 
-        LastResult_ = result;
+        LastResult_ = TrackMemory(ReadBlockOptions_.ClientOptions.MemoryReferenceTracker, result);
         return LastResult_;
     }
 };
