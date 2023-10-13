@@ -418,7 +418,7 @@ void MultiJoinOpHelper(
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
-            auto foreignExecutorCopy = CopyAndConvertFromPI(foreignExecutorRowBuffer.Get(), orderedKeys, false);
+            auto foreignExecutorCopy = CopyAndConvertFromPI(foreignExecutorRowBuffer.Get(), orderedKeys);
             auto reader = parameters->Items[joinId].ExecuteForeign(foreignExecutorCopy, foreignExecutorRowBuffer);
             readers.push_back(reader);
 
