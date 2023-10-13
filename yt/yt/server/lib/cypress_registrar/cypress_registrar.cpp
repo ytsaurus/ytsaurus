@@ -182,7 +182,7 @@ private:
         } else if (Options_.NodeType == EObjectType::ClusterProxyNode) {
             // COMPAT(kvk1920): Remove after all masters are updated to 23.2.
             TGetNodeOptions getOptions;
-            getOptions.Attributes = {"type", "banned"};
+            getOptions.Attributes = {"type", "user_attributes"};
             auto result = ConvertToNode(WaitFor(Client_->GetNode(RootPath_ + "/@", getOptions))
                 .ValueOrThrow())->AsMap();
             auto type = result->FindChildValue<TString>("type");
@@ -191,16 +191,15 @@ private:
             if (type == "map_node") {
                 YT_LOG_INFO("Trying to recreate root node as %Qlv",
                     Options_.NodeType);
-                auto banned = result->FindChildValue<bool>("banned");
 
-                TCreateNodeOptions options;
-                SetRequestOptions(options);
-                options.Recursive = true;
-                options.Attributes = Options_.AttributesOnCreation->Clone();
-                options.Attributes->Set("banned", banned.value_or(false));
-                options.Force = true;
+                TCreateNodeOptions createNodeOptions;
+                SetRequestOptions(createNodeOptions);
+                createNodeOptions.Recursive = true;
+                createNodeOptions.Attributes = Options_.AttributesOnCreation->Clone();
+                createNodeOptions.Attributes->MergeFrom(result->FindChild("user_attributes")->AsMap());
+                createNodeOptions.Force = true;
 
-                auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, options));
+                auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, createNodeOptions));
 
                 if (errorOrId.IsOK()) {
                     YT_LOG_INFO("Root node recreated");
