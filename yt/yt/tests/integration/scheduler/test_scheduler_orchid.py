@@ -111,6 +111,10 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         create_pool("pool4", parent_name="pool1")
         create_pool("pool5", parent_name="pool2")
 
+        run_sleeping_vanilla(spec={"pool": "pool2"})
+        run_sleeping_vanilla(spec={"pool": "pool3"})
+        run_sleeping_vanilla(spec={"pool": "pool5"})
+
         client = create_client_with_command_params(
             YtClient(config={
                 "enable_token": False,
