@@ -131,7 +131,7 @@ void TActionManager::CreateActions(const TString& bundleName)
     for (const auto& descriptor : descriptors) {
         auto attributes = MakeActionAttributes(descriptor);
         YT_LOG_DEBUG("Creating tablet action (Attributes: %v, BundleName: %v)",
-            attributes->ListPairs(),
+            ConvertToYsonString(attributes, EYsonFormat::Text),
             bundleName);
         TCreateObjectOptions options;
         options.Attributes = std::move(attributes);
@@ -146,15 +146,20 @@ void TActionManager::CreateActions(const TString& bundleName)
     for (int index = 0; index < std::ssize(descriptors); ++index) {
         auto rspOrError = responses[index];
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to create tablet action (BundleName: %v)", bundleName);
+            YT_LOG_WARNING(
+                rspOrError,
+                "Failed to create tablet action (BundleName: %v, ActionDescriptor: %v)",
+                bundleName,
+                descriptors[index]);
             continue;
         }
 
         auto actionId = ConvertTo<TTabletActionId>(rspOrError.Value());
 
-        YT_LOG_DEBUG("Created tablet action (TabletActionId: %v, BundleName: %v)",
+        YT_LOG_DEBUG("Created tablet action (TabletActionId: %v, BundleName: %v, ActionDescriptor: %v)",
             actionId,
-            bundleName);
+            bundleName,
+            descriptors[index]);
         EmplaceOrCrash(runningActions, New<TTabletAction>(actionId, descriptors[index]));
     }
 
