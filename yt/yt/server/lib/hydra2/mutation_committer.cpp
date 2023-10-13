@@ -754,7 +754,7 @@ void TLeaderCommitter::MaybeCheckpoint()
         YT_LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
             Changelog_->GetDataSize(),
             config->MaxChangelogDataSize);
-    } else if (TInstant::Now() > SnapshotBuildDeadline_) {
+    } else if (!EpochContext_->ReadOnly && TInstant::Now() > SnapshotBuildDeadline_) {
         YT_LOG_INFO("Requesting periodic snapshot (SnapshotBuildPeriod: %v, SnapshotBuildSplay: %v)",
             config->SnapshotBuildPeriod,
             config->SnapshotBuildSplay);
@@ -950,7 +950,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     if (!LastSnapshotInfo_) {
         LastSnapshotInfo_ = TShapshotInfo{
             .SnapshotId = changelogId,
-            .ReadOnly = false
+            .ReadOnly = EpochContext_->ReadOnly
         };
     } else {
         YT_VERIFY(LastSnapshotInfo_->SequenceNumber == -1);
