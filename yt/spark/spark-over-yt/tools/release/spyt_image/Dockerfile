@@ -20,7 +20,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   python3-pip \
   python3.7-distutils
 
-RUN python3.7 -m pip install ytsaurus-client==0.13.4
+RUN python3.7 -m pip install ytsaurus-client==0.13.7
 
 ARG BUILD_OUTPUT_PATH
 ARG PUBLISH_SCRIPTS_PATH
