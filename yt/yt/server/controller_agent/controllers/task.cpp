@@ -780,6 +780,18 @@ void TTask::ScheduleJob(
         .AsyncVia(TaskHost_->GetJobSpecBuildInvoker())
         .Run();
 
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([weakTaskHost = MakeWeak(TaskHost_), weakJoblet = MakeWeak(joblet)] {
+            if (auto taskHost = weakTaskHost.Lock()) {
+                if (auto joblet = weakJoblet.Lock()) {
+                    if (joblet->JobSpecProtoFuture) {
+                        taskHost->AsyncAbortJob(joblet->JobId, EAbortReason::JobSettlementTimedOut);
+                    }
+                }
+            }
+        }),
+        TaskHost_->GetConfig()->JobSettlementTimeout);
+
     if (!StartTime_) {
         StartTime_ = TInstant::Now();
         // Start timers explicitly, because when the first job starts, StartTime_ is not set.

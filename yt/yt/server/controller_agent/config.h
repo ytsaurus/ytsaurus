@@ -1016,6 +1016,9 @@ public:
     //! not exceeding this threshold no throttling is done.
     int HeavyJobSpecSliceCountThreshold;
 
+    //! If job is not settled after this timeout it would be considered as aborted.
+    TDuration JobSettlementTimeout;
+
     //! We use the same config for input chunk scraper and intermediate chunk scraper.
     TIntermediateChunkScraperConfigPtr ChunkScraper;
 
