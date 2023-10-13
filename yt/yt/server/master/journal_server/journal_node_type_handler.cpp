@@ -231,10 +231,15 @@ protected:
         TJournalNode* node,
         TBeginCopyContext* context) override
     {
-        TBase::DoBeginCopy(node, context);
+        if (!node->GetSealed()) {
+            THROW_ERROR_EXCEPTION("Journal is not sealed");
+        }
 
-        // TODO(babenko): support journals cross-cell copying
-        THROW_ERROR_EXCEPTION("Cross-cell copying of journal is not supported");
+        using NYT::Save;
+        Save(*context, node->GetReadQuorum());
+        Save(*context, node->GetWriteQuorum());
+
+        TBase::DoBeginCopy(node, context);
     }
 
     void DoEndCopy(
@@ -242,10 +247,11 @@ protected:
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override
     {
-        TBase::DoEndCopy(node, context, factory);
+        using NYT::Load;
+        node->SetReadQuorum(Load<int>(*context));
+        node->SetWriteQuorum(Load<int>(*context));
 
-        // TODO(babenko): support journals cross-cell copying
-        THROW_ERROR_EXCEPTION("Cross-cell copying of journal is not supported");
+        TBase::DoEndCopy(node, context, factory);
     }
 
     void HandleTransactionFinished(TJournalNode* branchedNode)

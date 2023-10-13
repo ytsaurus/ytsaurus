@@ -7,7 +7,7 @@ from yt_commands import (
     read_journal, write_journal, truncate_journal, wait_until_sealed, get_singular_chunk_id,
     set_node_banned, set_banned_flag, start_transaction,
     get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space,
-    ban_node)
+    ban_node, externalize)
 
 from yt_helpers import (
     get_chunk_owner_master_cell_counters, get_chunk_owner_master_cell_gauges,
@@ -139,6 +139,16 @@ class TestJournalsBase(YTEnvSetup):
             if orchid["flushed_row_count"] == length:
                 result.append(replica)
         return result
+
+    def _check_journal_copy_attribute_correct(self, source_path, copy_path):
+        attributes = [
+            "erasure_codec",
+            "replication_factor",
+            "read_quorum",
+            "write_quorum",
+        ]
+        for attr in attributes:
+            assert get(f"{source_path}/@{attr}") == get(f"{copy_path}/@{attr}")
 
 
 ##################################################################
@@ -652,6 +662,7 @@ class TestJournals(TestJournalsBase):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
         copy("//tmp/j", "//tmp/j2")
+        self._check_journal_copy_attribute_correct("//tmp/j", "//tmp/j2")
         assert read_journal("//tmp/j2") == PAYLOAD
 
     @authors("gritukan")
@@ -688,15 +699,20 @@ class TestJournalsPortal(TestJournalsMulticell):
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    @authors("gritukan")
-    def test_journal_cross_shard_copy_forbidden(self):
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
+    @authors("gritukan", "danilalexeev")
+    def test_copy_sealed_journal_cross_shard(self):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
-
-        with pytest.raises(YtError, match="Cross-cell copying of journal is not supported"):
-            copy("//tmp/j", "//portals/p/j")
+        copy("//tmp/j", "//portals/j")
+        self._check_journal_copy_attribute_correct("//tmp/j", "//portals/j")
+        assert read_journal("//portals/j") == PAYLOAD
+        externalize("//portals", 11)
+        assert read_journal("//portals/j") == PAYLOAD
 
 
 class TestJournalsRpcProxy(TestJournals):
