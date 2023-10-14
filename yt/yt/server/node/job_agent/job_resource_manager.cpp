@@ -332,8 +332,13 @@ public:
 
         auto memoryToRelease = UserMemoryUsageTracker_->GetUsed() - usedResources.user_memory();
         releaseMemoryIfNeeded(memoryToRelease, UserMemoryUsageTracker_.Get());
-        memoryToRelease = SystemMemoryUsageTracker_->GetUsed() - usedResources.system_memory();
-        releaseMemoryIfNeeded(memoryToRelease, SystemMemoryUsageTracker_.Get());
+
+        if (auto config = DynamicConfig_.Load();
+            config->AccountMasterMemoryRequest)
+        {
+            memoryToRelease = SystemMemoryUsageTracker_->GetUsed() - usedResources.system_memory();
+            releaseMemoryIfNeeded(memoryToRelease, SystemMemoryUsageTracker_.Get());
+        }
     }
 
     void OnResourceAcquiringFinished()

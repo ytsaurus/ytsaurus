@@ -488,6 +488,12 @@ void TNodeMemoryTracker::DoAcquire(ECategory category, i64 size, TPool* pool)
     TotalFree_ -= size;
     Categories_[category].Used += size;
 
+    YT_LOG_ERROR_IF(Categories_[category].Used < 0,
+        "Category used size cannot be negative (Category: %v, Used: %v, Delta: %v)",
+        FormatEnum(category),
+        Categories_[category].Used.load(),
+        size);
+
     if (pool) {
         pool->Used[category] += size;
     }
@@ -501,6 +507,12 @@ void TNodeMemoryTracker::DoRelease(ECategory category, i64 size, TPool* pool)
     TotalUsed_ -= size;
     TotalFree_ += size;
     Categories_[category].Used -= size;
+
+    YT_LOG_ERROR_IF(Categories_[category].Used < 0,
+        "Category used size cannot be negative (Category: %v, Used: %v, Delta: %v)",
+        FormatEnum(category),
+        Categories_[category].Used.load(),
+        size);
 
     if (pool) {
         pool->Used[category] -= size;
