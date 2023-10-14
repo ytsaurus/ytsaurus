@@ -991,6 +991,8 @@ public:
 
     bool TrackMemoryAfterSessionCompletion;
 
+    bool TrackSystemJobsMemory;
+
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;
 
