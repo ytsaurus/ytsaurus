@@ -363,7 +363,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         with Clique(1, config_patch=patch, alias="*ch_alias") as clique:
             # TODO(gudqeit): this attribute should become unused and must be removed after we stop supporting discovery v1 in HTTP proxy.
             create("map_node",
-                   "//sys/clickhouse/strawberry/ch_alias",
+                   "//sys/strawberry/chyt/ch_alias",
                    recursive=True,
                    attributes={
                        "strawberry_persistent_state": {
