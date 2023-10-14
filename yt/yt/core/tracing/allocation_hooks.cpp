@@ -42,22 +42,24 @@ void DestroyAllocationTagsData(void* userData)
     FreeList->ScheduleFree(allocationTagsPtr);
 }
 
-const TAllocationTags::TTags& ReadAllocationTagsData(void* userData)
+const TAllocationTags::TTags* ReadAllocationTagsData(void* userData)
 {
-    auto* allocationTagsPtr = static_cast<TAllocationTags*>(userData);
-    if (!allocationTagsPtr) {
-        static TAllocationTags::TTags emptyTags;
-        return emptyTags;
+    if (!userData) {
+        return nullptr;
     }
-    return allocationTagsPtr->GetTags();
+
+    const auto* allocationTagsPtr = static_cast<TAllocationTags*>(userData);
+    return allocationTagsPtr->GetTagsPtr();
 }
 
 size_t ComputeAllocationTagsDataHash(void* userData)
 {
     size_t hash = 0;
 
-    for (const auto& pair : ReadAllocationTagsData(userData)) {
-        NYT::HashCombine(hash, pair);
+    if (const auto *data = ReadAllocationTagsData(userData)) {
+        for (const auto& pair : *data) {
+            NYT::HashCombine(hash, pair);
+        }
     }
 
     return hash;
