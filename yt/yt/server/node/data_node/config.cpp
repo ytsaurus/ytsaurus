@@ -916,6 +916,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("track_memory_after_session_completion", &TThis::TrackMemoryAfterSessionCompletion)
         .Default(false);
 
+    registrar.Parameter("track_system_jobs_memory", &TThis::TrackSystemJobsMemory)
+        .Default(false);
+
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
         .Default();
 
