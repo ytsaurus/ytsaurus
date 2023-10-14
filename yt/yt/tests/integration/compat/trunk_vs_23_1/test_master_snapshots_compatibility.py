@@ -169,6 +169,8 @@ def check_replication_queue_list():
 def do_check_proxy_maintenance_requests():
     http = ls("//sys/http_proxies")[0]
     set(f"//sys/http_proxies/{http}/@banned", True)
+    set(f"//sys/http_proxies/{http}/@role", "ld")
+    set(f"//sys/http_proxies/{http}/@myattr", 123123)
 
     rpc = ls("//sys/rpc_proxies")[0]
     set(f"//sys/rpc_proxies/{rpc}/@banned", True)
@@ -180,6 +182,8 @@ def do_check_proxy_maintenance_requests():
     assert len(maintenance_requests) == 1
     assert maintenance_requests[0]["type"] == "ban"
     assert get(f"//sys/http_proxies/{http}/@banned")
+    assert get(f"//sys/http_proxies/{http}/@role") == "ld"
+    assert get(f"//sys/http_proxies/{http}/@myattr") == 123123
 
     # NB: RPC proxies don't register themselves.
     for rpc in ls("//sys/rpc_proxies"):
