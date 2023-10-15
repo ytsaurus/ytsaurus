@@ -508,6 +508,11 @@ public:
         return ReadBlockMemoryReferenceTracker_;
     }
 
+    const IMemoryReferenceTrackerPtr& GetSystemJobsMemoryReferenceTracker() const override
+    {
+        return SystemJobsMemoryReferenceTracker_;
+    }
+
     const IChunkMetaManagerPtr& GetChunkMetaManager() const override
     {
         return ChunkMetaManager_;
@@ -707,6 +712,7 @@ private:
 
     INodeMemoryReferenceTrackerPtr NodeMemoryReferenceTracker_;
     IMemoryReferenceTrackerPtr ReadBlockMemoryReferenceTracker_;
+    IMemoryReferenceTrackerPtr SystemJobsMemoryReferenceTracker_;
 
     IBlockCachePtr BlockCache_;
     IClientBlockCachePtr ClientBlockCache_;
@@ -848,6 +854,7 @@ private:
 
         NodeMemoryReferenceTracker_ = CreateNodeMemoryReferenceTracker(MemoryUsageTracker_);
         ReadBlockMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::PendingDiskRead);
+        SystemJobsMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::SystemJobs);
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
@@ -1611,6 +1618,11 @@ const INodeMemoryReferenceTrackerPtr& TBootstrapBase::GetNodeMemoryReferenceTrac
 const IMemoryReferenceTrackerPtr& TBootstrapBase::GetReadBlockMemoryReferenceTracker() const
 {
     return Bootstrap_->GetReadBlockMemoryReferenceTracker();
+}
+
+const IMemoryReferenceTrackerPtr& TBootstrapBase::GetSystemJobsMemoryReferenceTracker() const
+{
+    return Bootstrap_->GetSystemJobsMemoryReferenceTracker();
 }
 
 const IChunkMetaManagerPtr& TBootstrapBase::GetChunkMetaManager() const

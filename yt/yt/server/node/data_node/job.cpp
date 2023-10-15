@@ -536,9 +536,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_
-            ->GetNodeMemoryReferenceTracker()
-            ->WithCategory(EMemoryCategory::SystemJobs);
+        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
 
         TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
@@ -916,9 +914,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_
-            ->GetNodeMemoryReferenceTracker()
-            ->WithCategory(EMemoryCategory::SystemJobs);
+        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
 
         // TODO(savrus): profile chunk reader statistics.
         IChunkReader::TReadBlocksOptions readBlocksOptions{
@@ -1108,9 +1104,7 @@ private:
                 ->GetConfig()
                 ->DataNode
                 ->TrackSystemJobsMemory;
-            auto tracker = Bootstrap_
-                ->GetNodeMemoryReferenceTracker()
-                ->WithCategory(EMemoryCategory::SystemJobs);
+            auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
 
             // TODO(savrus): profile chunk reader statistics.
             IChunkReader::TReadBlocksOptions readBlocksOptions{
@@ -2085,9 +2079,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_
-            ->GetNodeMemoryReferenceTracker()
-            ->WithCategory(EMemoryCategory::SystemJobs);
+        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
 
         TClientChunkReadOptions readerOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(
@@ -2579,9 +2571,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_
-            ->GetNodeMemoryReferenceTracker()
-            ->WithCategory(EMemoryCategory::SystemJobs);
+        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
 
         IChunkReader::TReadBlocksOptions readBlocksOptions;
         readBlocksOptions.ClientOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
