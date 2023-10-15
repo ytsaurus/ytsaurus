@@ -254,7 +254,6 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-timestamp_server
   server-lib-transaction_supervisor
   server-lib-zookeeper_master
-  yt-library-s3
   cpp-yt-phdr_cache
   server-lib-scheduler
   server-lib-controller_agent
