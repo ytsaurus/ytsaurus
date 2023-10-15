@@ -34,7 +34,7 @@ struct TMetaBase
     ui32 RowCount;
     ui32 ChunkRowCount;
 
-    void Init(const NProto::TSegmentMeta& meta);
+    void InitFromProto(const NProto::TSegmentMeta& meta);
 };
 
 struct TTimestampMeta
@@ -56,7 +56,7 @@ struct TTimestampMeta
     ui8 WriteOffsetDiffsWidth = 0;
     ui8 DeleteOffsetDiffsWidth = 0;
 
-    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+    void InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TIntegerMeta
@@ -70,7 +70,7 @@ struct TIntegerMeta
 
     bool Direct;
 
-    const ui64* Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+    const ui64* InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TBlobMeta
@@ -84,7 +84,7 @@ struct TBlobMeta
 
     bool Direct;
 
-    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+    void InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TEmptyMeta
@@ -107,14 +107,14 @@ template <>
 struct TDataMeta<EValueType::Boolean>
     : public TEmptyMeta
 {
-    const ui64* Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr);
+    static const ui64* InitFromProto(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr);
 };
 
 template <>
 struct TDataMeta<EValueType::Double>
     : public TEmptyMeta
 {
-    const ui64* Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr);
+    static const ui64* InitFromProto(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr);
 };
 
 template <>
@@ -143,7 +143,7 @@ struct TMultiValueIndexMeta
     ui8 OffsetsWidth = 0;
     ui8 WriteTimestampIdsWidth = 0;
 
-    const ui64* Init(const NProto::TSegmentMeta& meta, const ui64* ptr, bool aggregate);
+    const ui64* InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr, bool aggregate);
 
     Y_FORCE_INLINE bool IsDense() const;
 };
@@ -153,14 +153,14 @@ struct TValueMeta
     : public TMultiValueIndexMeta
     , public TDataMeta<Type>
 {
-    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+    void InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 template <EValueType Type>
 struct TAggregateValueMeta
     : public TValueMeta<Type>
 {
-    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+    void InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TKeyIndexMeta
@@ -171,7 +171,7 @@ struct TKeyIndexMeta
 
     bool Dense;
 
-    const ui64* Init(const NProto::TSegmentMeta& meta, EValueType type, const ui64* ptr);
+    const ui64* InitFromProto(const NProto::TSegmentMeta& meta, EValueType type, const ui64* ptr);
 };
 
 template <EValueType Type>
@@ -179,7 +179,7 @@ struct TKeyMeta
     : public TKeyIndexMeta
     , public TDataMeta<Type>
 {
-    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+    void InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TColumnGroupInfo

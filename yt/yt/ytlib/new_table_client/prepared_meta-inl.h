@@ -15,28 +15,28 @@ bool TMultiValueIndexMeta::IsDense() const
 }
 
 template <EValueType Type>
-void TValueMeta<Type>::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+void TValueMeta<Type>::InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
-    ptr = TMultiValueIndexMeta::Init(meta, ptr, false);
-    TDataMeta<Type>::Init(meta, ptr);
+    ptr = TMultiValueIndexMeta::InitFromProto(meta, ptr, false);
+    TDataMeta<Type>::InitFromProto(meta, ptr);
 }
 
 template <EValueType Type>
-void TAggregateValueMeta<Type>::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+void TAggregateValueMeta<Type>::InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
-    ptr = TMultiValueIndexMeta::Init(meta, ptr, true);
-    TDataMeta<Type>::Init(meta, ptr);
+    ptr = TMultiValueIndexMeta::InitFromProto(meta, ptr, true);
+    TDataMeta<Type>::InitFromProto(meta, ptr);
 }
 
 template <EValueType Type>
-void TKeyMeta<Type>::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+void TKeyMeta<Type>::InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
     if constexpr (IsStringLikeType(Type)) {
-        ptr = TKeyIndexMeta::Init(meta, Type, ptr);
-        TDataMeta<Type>::Init(meta, ptr);
+        ptr = TKeyIndexMeta::InitFromProto(meta, Type, ptr);
+        TDataMeta<Type>::InitFromProto(meta, ptr);
     } else {
-        ptr = TDataMeta<Type>::Init(meta, ptr);
-        TKeyIndexMeta::Init(meta, Type, ptr);
+        ptr = TDataMeta<Type>::InitFromProto(meta, ptr);
+        TKeyIndexMeta::InitFromProto(meta, Type, ptr);
     }
 }
 
