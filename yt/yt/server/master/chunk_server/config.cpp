@@ -145,6 +145,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("respect_account_specific_toggle", &TThis::RespectAccountSpecificToggle)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
         .Default(1'000'000)
         .DontSerializeDefault();

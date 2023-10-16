@@ -736,13 +736,15 @@ class TestChunkMerger(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_ban_from_using_chunk_merger(self):
+        set("//sys/@config/chunk_manager/chunk_merger/respect_account_specific_toggle", True)
+
         create("table", "//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
-        set("//sys/accounts/tmp/@allow_using_chunk_merger", True)
+        set("//sys/accounts/tmp/@allow_using_chunk_merger", False)
 
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
         set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
@@ -751,7 +753,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: not get("//tmp/t/@is_being_merged"))
         assert (get("//tmp/t/@chunk_count") == 3)
 
-        set("//sys/accounts/tmp/@allow_using_chunk_merger", False)
+        set("//sys/accounts/tmp/@allow_using_chunk_merger", True)
         # Trigger merge again.
         set("//tmp/t/@chunk_merger_mode", "deep")
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
