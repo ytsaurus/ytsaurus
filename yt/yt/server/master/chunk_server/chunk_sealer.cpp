@@ -244,7 +244,7 @@ public:
         };
 
         TCompactVector<
-            std::pair<TChunkLocation*, TChunkLocation::TChunkSealQueue::iterator>,
+            std::pair<TChunkLocation*, TChunkLocation::TChunkQueue::iterator>,
             TypicalChunkLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             auto& queue = location->ChunkSealQueue();
@@ -254,6 +254,7 @@ public:
         }
         int activeLocationCount = std::ssize(locations);
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         while (activeLocationCount > 0 && hasSpareSealResources()) {
             for (auto& [location, replicaIterator] : locations) {
                 if (!hasSpareSealResources()) {
@@ -265,24 +266,31 @@ public:
                     continue;
                 }
 
-                auto replica = replicaIterator;
+                auto chunkIdWithIndex = replicaIterator;
                 if (++replicaIterator == queue.end()) {
                     --activeLocationCount;
                 }
 
-                auto* chunk = replica->GetPtr();
+                auto chunkId = chunkIdWithIndex->Id;
+                auto* chunk = chunkManager->FindChunk(chunkId);
+                if (!IsObjectAlive(chunk)) {
+                    queue.erase(chunkIdWithIndex);
+                    ++misscheduledSealJobs;
+                    continue;
+                }
+
                 if (!chunk->IsRefreshActual()) {
-                    queue.erase(replica);
+                    queue.erase(chunkIdWithIndex);
                     ++misscheduledSealJobs;
                     continue;
                 }
 
                 TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes(
                     chunk,
-                    replica->GetReplicaIndex(),
+                    chunkIdWithIndex->ReplicaIndex,
                     location->GetEffectiveMediumIndex());
                 if (TryScheduleSealJob(context, chunkWithIndexes)) {
-                    queue.erase(replica);
+                    queue.erase(chunkIdWithIndex);
                 } else {
                     ++misscheduledSealJobs;
                 }

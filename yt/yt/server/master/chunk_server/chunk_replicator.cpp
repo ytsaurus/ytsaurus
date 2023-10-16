@@ -1360,7 +1360,7 @@ void TChunkReplicator::OnReplicaRemoved(
         location->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
     }
     if (chunk->IsJournal()) {
-        location->RemoveFromChunkSealQueue(replica);
+        location->RemoveFromChunkSealQueue(chunkIdWithIndex);
     }
 }
 
@@ -2019,7 +2019,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
 
     {
         TCompactVector<
-            std::pair<TChunkLocation*, TChunkLocation::TChunkRemovalQueue::iterator>,
+            std::pair<TChunkLocation*, TChunkLocation::TChunkQueue::iterator>,
             TypicalChunkLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             auto& queue = location->ChunkRemovalQueue();
@@ -2361,7 +2361,7 @@ void TChunkReplicator::RefreshChunk(
                 continue;
             }
 
-            location->AddToChunkSealQueue({chunk, replica.GetReplicaIndex()});
+            location->AddToChunkSealQueue({chunk->GetId(), replica.GetReplicaIndex()});
         }
     }
 

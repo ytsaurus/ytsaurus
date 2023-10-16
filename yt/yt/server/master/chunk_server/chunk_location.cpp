@@ -211,14 +211,14 @@ void TChunkLocation::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replic
     ChunkRemovalQueue_.erase(replica);
 }
 
-void TChunkLocation::AddToChunkSealQueue(TChunkPtrWithReplicaIndex replica)
+void TChunkLocation::AddToChunkSealQueue(const TChunkIdWithIndex& replica)
 {
     YT_ASSERT(Node_);
     YT_ASSERT(Node_->ReportedDataNodeHeartbeat());
     ChunkSealQueue_.insert(replica);
 }
 
-void TChunkLocation::RemoveFromChunkSealQueue(TChunkPtrWithReplicaIndex replica)
+void TChunkLocation::RemoveFromChunkSealQueue(const TChunkIdWithIndex& replica)
 {
     ChunkSealQueue_.erase(replica);
 }
