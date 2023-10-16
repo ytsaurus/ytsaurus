@@ -151,16 +151,16 @@ class StdStringPrinter:
             type = type.target()
 
         ss = destructure_compressed_pair(self.val['__r_'])[0]['__s']
-        __short_mask = 0x1
-        if ((ss['__size_'] & __short_mask) == 0):
-            len = (ss['__size_'] >> 1)
-            ptr = ss['__data_']
-        else:
+        is_long = ss['__is_long_']
+        if is_long:
             sl = destructure_compressed_pair(self.val['__r_'])[0]['__l']
-            len = sl['__size_']
             ptr = sl['__data_']
+            size = sl['__size_']
+        else:
+            ptr = ss['__data_']
+            size = ss['__size_']
 
-        return ptr.string(length = len)
+        return ptr.string(length = size)
 
     def display_hint (self):
         return 'string'
