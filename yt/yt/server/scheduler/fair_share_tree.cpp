@@ -2981,15 +2981,17 @@ private:
         TFluentMap fluent)
     {
         fluent
-            .DoFor(parentPool->EnabledChildren(), [&] (TFluentMap fluent, const TSchedulerElementPtr& pool) {
-                fluent.Item(pool->GetId())
-                    .BeginMap()
-                        .Do(std::bind(&TFairShareTree::BuildPoolInfo,
+            .DoFor(parentPool->EnabledChildren(), [&] (TFluentMap fluent, const TSchedulerElementPtr& child) {
+                if (!child->IsOperation()) {
+                    fluent.Item(child->GetId())
+                        .BeginMap().Do(
+                            std::bind(&TFairShareTree::BuildPoolInfo,
                             std::cref(treeSnapshot),
-                            static_cast<TSchedulerPoolElement*>(pool.Get()),
+                            static_cast<TSchedulerPoolElement*>(child.Get()),
                             std::cref(filter),
                             std::placeholders::_1))
-                    .EndMap();
+                        .EndMap();
+                }
             });
     }
 
