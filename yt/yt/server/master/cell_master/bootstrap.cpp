@@ -18,16 +18,12 @@
 #include <yt/yt/server/master/chunk_server/chunk_service.h>
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 #include <yt/yt/server/master/chunk_server/data_node_tracker_service.h>
-#include <yt/yt/server/master/chunk_server/cypress_integration.h>
 #include <yt/yt/server/master/chunk_server/job_tracker_service.h>
 
-#include <yt/yt/server/master/cypress_server/cypress_integration.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/grafting_manager.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
 #include <yt/yt/server/master/cypress_server/sequoia_actions_executor.h>
-
-#include <yt/yt/server/master/file_server/file_node_type_handler.h>
 
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_service.h>
@@ -35,7 +31,6 @@
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
 
 #include <yt/yt/server/master/zookeeper_server/bootstrap_proxy.h>
-#include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
 #include <yt/yt/server/master/zookeeper_server/zookeeper_manager.h>
 
 #include <yt/yt/server/lib/hive/avenue_directory.h>
@@ -67,58 +62,42 @@
 
 #include <yt/yt/server/master/journal_server/journal_manager.h>
 #include <yt/yt/server/master/journal_server/journal_node.h>
-#include <yt/yt/server/master/journal_server/journal_node_type_handler.h>
 
 #include <yt/yt/server/master/cell_server/cell_tracker_service.h>
 #include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
 #include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
-#include <yt/yt/server/master/cell_server/cell_map_type_handler.h>
 #include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
 #include <yt/yt/server/master/cell_server/cellar_node_tracker_service.h>
-#include <yt/yt/server/master/cell_server/cypress_integration.h>
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
-#include <yt/yt/server/master/node_tracker_server/cypress_integration.h>
 #include <yt/yt/server/master/node_tracker_server/exec_node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/exec_node_tracker_service.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker_service.h>
 
-#include <yt/yt/server/master/object_server/cypress_integration.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/object_service.h>
 #include <yt/yt/server/master/object_server/request_profiling_manager.h>
-#include <yt/yt/server/master/object_server/sys_node_type_handler.h>
 #include <yt/yt/server/master/object_server/yson_intern_registry.h>
 
-#include <yt/yt/server/master/scheduler_pool_server/cypress_integration.h>
 #include <yt/yt/server/master/scheduler_pool_server/scheduler_pool.h>
 #include <yt/yt/server/master/scheduler_pool_server/scheduler_pool_manager.h>
 
-#include <yt/yt/server/master/orchid_server/cypress_integration.h>
-
 #include <yt/yt/server/master/security_server/config.h>
-#include <yt/yt/server/master/security_server/cypress_integration.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_transaction_service.h>
 
-#include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
-#include <yt/yt/server/master/table_server/table_node_type_handler.h>
-#include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
-#include <yt/yt/server/master/tablet_server/cypress_integration.h>
-#include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 #include <yt/yt/server/master/tablet_server/replicated_table_tracker.h>
 #include <yt/yt/server/master/tablet_server/tablet_hydra_service.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker_service.h>
 
-#include <yt/yt/server/master/transaction_server/cypress_integration.h>
 #include <yt/yt/server/master/transaction_server/cypress_transaction_service.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 #include <yt/yt/server/master/transaction_server/transaction_service.h>
@@ -207,17 +186,18 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
 using namespace NCellarClient;
+using namespace NCellServer;
 using namespace NChaosServer;
 using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressServer;
+using namespace NDiscoveryServer;
+using namespace NDistributedThrottler;
 using namespace NElection;
-using namespace NFileServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NIncumbentServer;
-using namespace NJournalServer;
 using namespace NJournalServer;
 using namespace NMaintenanceTrackerServer;
 using namespace NMonitoring;
@@ -226,13 +206,12 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NSchedulerPoolServer;
-using namespace NOrchidServer;
-using namespace NSequoiaServer;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
+using namespace NSchedulerPoolServer;
 using namespace NSecurityServer;
+using namespace NSequoiaServer;
 using namespace NTableServer;
 using namespace NTabletServer;
 using namespace NTimestampServer;
@@ -240,9 +219,6 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYTree;
-using namespace NCellServer;
-using namespace NDiscoveryServer;
-using namespace NDistributedThrottler;
 using namespace NZookeeperMaster;
 using namespace NZookeeperServer;
 
@@ -1046,82 +1022,6 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateSequoiaTransactionService(this));
     RpcServer_->RegisterService(CreateIncumbentService(this));
     RpcServer_->RegisterService(CreateTabletHydraService(this));
-
-    CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateChunkLocationMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostVitalChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::PrecariousChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::PrecariousVitalChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnderreplicatedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::OverreplicatedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::DataMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ParityMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::OldestPartMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnsafelyPlacedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::InconsistentlyPlacedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnexpectedOverreplicatedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ReplicaTemporarilyUnavailableChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ForeignChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalLostChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalLostVitalChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalPrecariousChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalPrecariousVitalChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalUnderreplicatedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalOverreplicatedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalDataMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalParityMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalOldestPartMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalQuorumMissingChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalUnsafelyPlacedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalInconsistentlyPlacedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalUnexpectedOverreplicatedChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalReplicaTemporarilyUnavailableChunkMap));
-    CypressManager_->RegisterHandler(CreateChunkViewMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateChunkListMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateMediumMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateTransactionMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateLockMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateOrchidTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateClusterNodeNodeTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateLegacyClusterNodeMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateHostMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateClusterNodeMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::DataNodeMap));
-    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::ExecNodeMap));
-    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::TabletNodeMap));
-    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::ChaosNodeMap));
-    CypressManager_->RegisterHandler(CreateDataCenterMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateFileTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateMasterTableSchemaMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateTableTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateReplicatedTableTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateReplicationLogTableTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateJournalTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateAccountMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateAccountResourceUsageLeaseMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateNetworkProjectMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateProxyRoleMapTypeHandler(this, EObjectType::HttpProxyRoleMap));
-    CypressManager_->RegisterHandler(CreateProxyRoleMapTypeHandler(this, EObjectType::RpcProxyRoleMap));
-    CypressManager_->RegisterHandler(CreatePoolTreeMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateCellNodeTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateCellBundleMapTypeHandler(this, ECellarType::Chaos, EObjectType::ChaosCellBundleMap));
-    CypressManager_->RegisterHandler(CreateCellMapTypeHandler(this, ECellarType::Chaos, EObjectType::ChaosCellMap));
-    CypressManager_->RegisterHandler(CreateCellBundleMapTypeHandler(this, ECellarType::Tablet, EObjectType::TabletCellBundleMap));
-    CypressManager_->RegisterHandler(CreateCellMapTypeHandler(this, ECellarType::Tablet, EObjectType::TabletCellMap));
-    CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateAreaMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateHunkStorageTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateZookeeperShardMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
 

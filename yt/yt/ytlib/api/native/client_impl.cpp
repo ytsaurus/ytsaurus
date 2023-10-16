@@ -13,7 +13,6 @@
 #include "table_collocation_type_handler.h"
 #include "tablet_action_type_handler.h"
 #include "chaos_replicated_table_type_handler.h"
-#include "rootstock_type_handler.h"
 
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -146,7 +145,6 @@ TClient::TClient(
         CreateChaosTableReplicaTypeHandler(this),
         CreateTableCollocationTypeHandler(this),
         CreateTabletActionTypeHandler(this),
-        CreateRootstockTypeHandler(this),
         CreateDefaultTypeHandler(this)
     }
     , FunctionImplCache_(BIND(CreateFunctionImplCache,

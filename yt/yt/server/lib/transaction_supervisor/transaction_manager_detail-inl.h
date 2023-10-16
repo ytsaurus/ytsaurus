@@ -40,6 +40,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransaction* transaction,
     const TTransactionPrepareOptions& options)
 {
+    TTransactionActionGuard transactionActionGuard;
     for (const auto& action : transaction->Actions()) {
         try {
             auto it = PrepareActionHandlerMap_.find(action.Type);
@@ -62,6 +63,7 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
     TTransaction* transaction,
     const TTransactionCommitOptions& options)
 {
+    TTransactionActionGuard transactionActionGuard;
     for (const auto& action : transaction->Actions()) {
         try {
             auto it = CommitActionHandlerMap_.find(action.Type);
@@ -83,6 +85,7 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
     TTransaction* transaction,
     const TTransactionAbortOptions& options)
 {
+    TTransactionActionGuard transactionActionGuard;
     for (const auto& action : transaction->Actions()) {
         try {
             auto it = AbortActionHandlerMap_.find(action.Type);

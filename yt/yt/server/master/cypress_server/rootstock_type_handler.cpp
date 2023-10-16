@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/cypress_server/shard.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -13,6 +15,10 @@ using namespace NObjectClient;
 using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +57,15 @@ private:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
+        if (!NTransactionSupervisor::IsInTransactionAction()) {
+            // COMPAT(h0pless): Remove once all issues with rootstock creation will be ironed out.
+            YT_LOG_ALERT("An attempt to create a rootstock was made outside of transaction action, request was redirected to sequoia (RootstockId: %v)",
+                id);
+
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
+                "Cannot create rootstock outside of transaction action");
+        }
+
         const auto& cypressManager = GetBootstrap()->GetCypressManager();
         if (context.Shard != cypressManager->GetRootCypressShard()) {
             THROW_ERROR_EXCEPTION("Grafting can be performed only in root Cypress shard");

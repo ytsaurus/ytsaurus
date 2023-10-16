@@ -11,6 +11,19 @@ namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns |true| if the current thread is executing a transaction action.
+bool IsInTransactionAction();
+
+class TTransactionActionGuard
+    : private TNonCopyable
+{
+public:
+    TTransactionActionGuard();
+    ~TTransactionActionGuard();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TTransaction>
 class TTransactionManagerBase
     : public virtual NLogging::TLoggerOwner
