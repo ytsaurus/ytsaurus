@@ -1,15 +1,15 @@
 #include "column_block_manager.h"
-#include "memory_helpers.h"
 #include "dispatch_by_type.h"
+#include "memory_helpers.h"
 #include "prepared_meta.h"
 #include "read_span.h"
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>
-#include <yt/yt/ytlib/chunk_client/block_id.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/block_id.h>
 
 #include <yt/yt/client/table_client/config.h>
 
@@ -63,7 +63,7 @@ bool TGroupBlockHolder::NeedUpdateBlock(ui32 rowIndex) const
     return rowIndex >= BlockRowLimit_ && BlockIdIndex_ < BlockIds_.size();
 }
 
-TSharedRef TGroupBlockHolder::SetBlock(TSharedRef data)
+TSharedRef TGroupBlockHolder::SwitchBlock(TSharedRef data)
 {
     YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
 
@@ -127,9 +127,8 @@ TCompactVector<ui16, 32> GetGroupsIds(
         *groupIdsData++ = preparedChunkMeta.ColumnGroupInfos[chunkSchemaIndex].GroupId;
     }
 
-    // TODO(lukyan): Or use first group for timestamp?
-    auto timestampGroupIndex = preparedChunkMeta.ColumnGroups.size() - 1;
-    *groupIdsData++ = timestampGroupIndex;
+    auto timestampColumnIndex = preparedChunkMeta.ColumnGroups.size() - 1;
+    *groupIdsData++ = preparedChunkMeta.ColumnGroupInfos[timestampColumnIndex].GroupId;
 
     std::sort(groupIds.begin(), groupIds.end());
     groupIds.erase(std::unique(groupIds.begin(), groupIds.end()), groupIds.end());
@@ -238,7 +237,7 @@ public:
                 if (auto blockId = blockHolder.SkipToBlock(rowIndex)) {
                     ++readerStatistics->SetBlockCallCount;
                     YT_VERIFY(index < loadedBlocks.size());
-                    blockHolder.SetBlock(std::move(loadedBlocks[index++].Data));
+                    blockHolder.SwitchBlock(std::move(loadedBlocks[index++].Data));
                 }
             }
             YT_VERIFY(index == loadedBlocks.size());
@@ -411,7 +410,7 @@ public:
         for (auto& blockHolder : BlockHolders_) {
             if (auto blockId = blockHolder.SkipToBlock(rowIndex)) {
                 ++readerStatistics->SetBlockCallCount;
-                UsedBlocks_.push_back(blockHolder.SetBlock(GetBlock(*blockId)));
+                UsedBlocks_.push_back(blockHolder.SwitchBlock(GetBlock(*blockId)));
             }
         }
 
