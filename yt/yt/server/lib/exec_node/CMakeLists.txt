@@ -30,6 +30,7 @@ target_link_libraries(server-lib-exec_node PUBLIC
   yt-yt-ytlib
   server-lib-job_agent
   server-lib-job_proxy
+  server-lib-nbd
   yt-library-containers
   server-lib-misc
   contrib-libs-protobuf

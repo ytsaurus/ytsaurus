@@ -66,6 +66,8 @@
 
 #include <util/system/fs.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 namespace NYT::NExecNode {
 
 using namespace NApi;
@@ -174,16 +176,6 @@ struct TVolumeMeta
     TVolumeId Id;
     TString MountPath;
 };
-
-EVolumeType FromProto(int volumeType)
-{
-    return static_cast<EVolumeType>(volumeType);
-}
-
-int ToProto(EVolumeType volumeType)
-{
-    return static_cast<int>(volumeType);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -972,7 +964,7 @@ private:
         try {
             YT_LOG_DEBUG("Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
-                FromProto(volumeMeta.type()),
+                FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId);
 
             NFS::MakeDirRecursive(mountPath, 0755);
@@ -984,7 +976,7 @@ private:
 
             YT_LOG_INFO("Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
                 tag,
-                FromProto(volumeMeta.type()),
+                FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId,
                 mountPath);
 
@@ -1013,7 +1005,7 @@ private:
 
             YT_LOG_INFO("Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
                 tag,
-                FromProto(volumeMeta.type()),
+                FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId,
                 volumeMetaFileName);
 
@@ -1030,11 +1022,11 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
-                FromProto(volumeMeta.type()),
+                FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId);
 
             auto error = TError("Failed to create %v volume %v",
-                FromProto(volumeMeta.type()),
+                FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId) << ex;
             Disable(error);
 
@@ -1064,24 +1056,24 @@ private:
         TStringBuilder builder;
         if (false /* options.NbdConfig */) {
             if (false /* nbd server host + port in NbdConfig */) {
-                builder.AppendString("tcp://localhost:port/?");
+                builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), 10809);
             } else {
-                builder.AppendString("unix+tcp://path/to/nbd_socket/?");
+                builder.AppendFormat("unix+tcp://%v/?", "/socket/path");
             }
             auto timeout = 5; // take timeout from NbdConfig
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         } else {
-            builder.AppendString("tcp://man0-1092.search.yandex.net:9011/?");
-            builder.AppendString("&timeout=5");
+            builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), 10809);
+            builder.AppendFormat("&timeout=%v", 5);
         }
         builder.AppendFormat("&export=%v", artifactKey.nbd_export_id());
         builder.AppendFormat("&fs-type=%v", artifactKey.filesystem());
         volumeProperties["storage"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
-        volumeMeta.set_type(ToProto(EVolumeType::Nbd));
+        volumeMeta.set_type(ToProto<int>(EVolumeType::Nbd));
         volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
-        volumeMeta.add_layer_paths("nbd:" + artifactKey.file_name());
+        volumeMeta.add_layer_paths("nbd:" + artifactKey.file_path());
 
         return DoCreateVolume(
             tag,
@@ -1128,7 +1120,7 @@ private:
         volumeProperties["layers"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
-        volumeMeta.set_type(ToProto(EVolumeType::Overlay));
+        volumeMeta.set_type(ToProto<int>(EVolumeType::Overlay));
 
         for (const auto& volumeOrLayer : overlayDataArray) {
             YT_ASSERT(!volumeOrLayer.GetPath().empty());

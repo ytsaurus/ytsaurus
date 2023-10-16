@@ -36,6 +36,10 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
+#include <yt/yt/server/lib/nbd/config.h>
+#include <yt/yt/server/lib/nbd/cypress_file_block_device.h>
+#include <yt/yt/server/lib/nbd/server.h>
+
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
@@ -126,6 +130,57 @@ using NCypressClient::EObjectType;
 static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
 static const TString SlotIndexPattern("\%slot_index\%");
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
+    const NDataNode::TArtifactKey& artifactKey,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker,
+    const NLogging::TLogger& Logger)
+{
+    YT_LOG_INFO("Creating Nbd cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+        artifactKey.file_path(),
+        artifactKey.filesystem(),
+        artifactKey.nbd_export_id());
+
+    YT_VERIFY(artifactKey.has_filesystem());
+    YT_VERIFY(artifactKey.has_nbd_export_id());
+    auto config = New<NNbd::TCypressFileBlockDeviceConfig>();
+    config->Path = artifactKey.file_path();
+    if (config->Path.empty()) {
+        THROW_ERROR_EXCEPTION("No file path for filesystem image")
+            << TErrorAttribute("type_name", artifactKey.GetTypeName())
+            << TErrorAttribute("filesystem", artifactKey.filesystem())
+            << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
+    }
+
+    auto device = CreateCypressFileBlockDevice(
+        artifactKey.nbd_export_id(),
+        std::move(config),
+        std::move(client),
+        std::move(invoker),
+        Logger
+    );
+
+    YT_LOG_INFO("Created Nbd cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+        artifactKey.file_path(),
+        artifactKey.filesystem(),
+        artifactKey.nbd_export_id());
+
+    return device;
+}
+
+TGuid CreateNbdExportId(TJobId jobId, int nbdExportIndex)
+{
+    auto nbdExportId = jobId;
+    nbdExportId.Parts32[0] = nbdExportIndex;
+    return nbdExportId;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,6 +318,31 @@ void TJob::DoStart()
             }
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
+
+            // TODO(yuryalekseev): What's the right place for it?
+            if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+                // Register nbd layers with nbd server. It must be done prior to creating nbd porto volumes.
+                auto nbdExportCount = 0;
+                for (auto& layer : LayerArtifactKeys_) {
+                    if (layer.has_filesystem()) {
+                        auto nbdExportId = CreateNbdExportId(Id_, nbdExportCount);
+                        layer.set_nbd_export_id(ToString(nbdExportId));
+                        ++nbdExportCount;
+
+                        auto device = CreateCypressFileBlockDevice(
+                            layer,
+                            nbdServer->GetClient(),
+                            nbdServer->GetInvoker(),
+                            nbdServer->GetLogger());
+
+                        auto future = device->Initialize();
+
+                        nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
+
+                        ArtifactPrepareFutures_.push_back(std::move(future));
+                    }
+                }
+            }
 
             // This is a heavy part of preparation, offload it to compression invoker.
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
@@ -498,6 +578,16 @@ void TJob::Terminate(EJobState finalState, TError error)
 
         if (const auto& slot = GetUserSlot()) {
             slot->CancelPreparation();
+        }
+
+        // TODO(yuryalekseev): What's the right place for it?
+        if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+            // Unregister nbd layers with nbd server.
+            for (auto& layer : LayerArtifactKeys_) {
+                if (layer.has_nbd_export_id()) {
+                    nbdServer->TryUnregisterDevice(layer.nbd_export_id());
+                }
+            }
         }
     };
 

@@ -7084,6 +7084,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 switch (file.Type) {
                     case EObjectType::File:
                         attributeKeys.push_back("executable");
+                        attributeKeys.push_back("filesystem");
                         break;
 
                     case EObjectType::Table:
@@ -7169,6 +7170,11 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         case EObjectType::File:
                             file.Executable = attributes.Get<bool>("executable", false);
                             file.Executable = file.Path.GetExecutable().value_or(file.Executable);
+
+                            if (file.Layer) {
+                                // Get filesystem attribute only for layers.
+                                file.Filesystem = attributes.Find<TString>("filesystem");
+                            }
                             break;
 
                         case EObjectType::Table:

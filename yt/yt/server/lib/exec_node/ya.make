@@ -15,6 +15,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/server/lib/job_agent
     yt/yt/server/lib/job_proxy
+    yt/yt/server/lib/nbd
     yt/yt/library/containers
     yt/yt/server/lib/misc
 )

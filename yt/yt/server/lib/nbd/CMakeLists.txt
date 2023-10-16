@@ -15,9 +15,14 @@ target_link_libraries(server-lib-nbd PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  yt-yt-client
   yt-yt-core
+  yt-yt-ytlib
+  yt_proto-yt-client
 )
 target_sources(server-lib-nbd PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/cypress_file_block_device.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/memory_block_device.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/server.cpp
 )

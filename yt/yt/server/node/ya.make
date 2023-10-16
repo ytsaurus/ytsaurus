@@ -194,6 +194,7 @@ PEERDIR(
     yt/yt/server/lib/hydra
     yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/lsm
+    yt/yt/server/lib/nbd
     yt/yt/server/lib/rpc
 
     # TODO(max42): Eliminate.

@@ -25,8 +25,17 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
+#include <yt/yt/server/lib/nbd/config.h>
+#include <yt/yt/server/lib/nbd/server.h>
+
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
+
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
 
@@ -34,6 +43,8 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 namespace NYT::NExecNode {
 
@@ -101,6 +112,32 @@ public:
         JobProxySolomonExporter_ = New<TSolomonExporter>(
             GetConfig()->ExecNode->JobProxySolomonExporter,
             New<TSolomonRegistry>());
+
+        if (GetConfig()->ExecNode->NbdServerConfig) {
+            NbdQueue_ = New<TActionQueue>("Nbd");
+
+            NApi::NNative::TConnectionOptions connectionOptions;
+            auto blockCacheConfig = New<NChunkClient::TBlockCacheConfig>();
+            // TODO(yuryalekseev): Move capacity to some config
+            blockCacheConfig->CompressedData->Capacity = 512_MB;
+            connectionOptions.BlockCache = CreateClientBlockCache(
+                std::move(blockCacheConfig),
+                NChunkClient::EBlockType::CompressedData);
+            connectionOptions.ConnectionInvoker = NbdQueue_->GetInvoker();
+            auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
+            connection->GetNodeDirectorySynchronizer()->Start();
+            connection->GetClusterDirectorySynchronizer()->Start();
+
+            // TODO(yuryalekseev): See to user name
+            auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+            auto client = connection->CreateNativeClient(clientOptions);
+
+            NbdServer_ = CreateNbdServer(
+                GetConfig()->ExecNode->NbdServerConfig,
+                std::move(client),
+                NBus::TTcpDispatcher::Get()->GetXferPoller(),
+                NbdQueue_->GetInvoker());
+        }
 
         if (GetConfig()->EnableFairThrottler) {
             Throttlers_[EExecNodeThrottlerKind::JobIn] = ClusterNodeBootstrap_->GetInThrottler("job_in");
@@ -235,6 +272,11 @@ public:
         return DynamicConfig_;
     }
 
+    const NYT::NNbd::INbdServerPtr& GetNbdServer() const override
+    {
+        return NbdServer_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -264,6 +306,9 @@ private:
     TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
 
     TClusterNodeDynamicConfigPtr DynamicConfig_;
+
+    TActionQueuePtr NbdQueue_;
+    NYT::NNbd::INbdServerPtr NbdServer_;
 
     void BuildJobProxyConfigTemplate()
     {

@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/nbd/config.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/core/ytree/node.h>
@@ -528,6 +530,8 @@ public:
 
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
+
+    NNbd::TNbdServerConfigPtr NbdServerConfig;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 

@@ -13,7 +13,8 @@ message TArtifactKey
     optional bool is_squashfs_image = 8 [default = false];
     optional string filesystem = 9;
     optional string file_name = 10;
-    optional string nbd_export_id = 11;
+    optional string file_path = 11;
+    optional string nbd_export_id = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

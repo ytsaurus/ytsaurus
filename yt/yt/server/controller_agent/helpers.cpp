@@ -130,6 +130,7 @@ void TUserFile::Persist(const TPersistenceContext& context)
     Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
     Persist(context, Dynamic);
     Persist(context, Layer);
+    Persist(context, Filesystem);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,9 +183,21 @@ void BuildFileSpec(
         switch (file.Type) {
             case EObjectType::File:
                 descriptor->set_executable(file.Executable);
+                descriptor->set_file_name(file.FileName);
                 break;
             case EObjectType::Table:
                 descriptor->set_format(file.Format.ToString());
+                break;
+            default:
+                YT_ABORT();
+        }
+    }
+
+    if (file.Filesystem) {
+        switch (file.Type) {
+            case EObjectType::File:
+                descriptor->set_filesystem(*file.Filesystem);
+                descriptor->set_file_path(ToString(file.Path));
                 break;
             default:
                 YT_ABORT();
