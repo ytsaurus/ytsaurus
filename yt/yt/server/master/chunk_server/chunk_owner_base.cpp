@@ -66,6 +66,7 @@ TChunkOwnerBase::TChunkOwnerBase(TVersionedNodeId id)
         SetErasureCodec(NErasure::ECodec::None);
         SetEnableStripedErasure(false);
         SetEnableSkynetSharing(false);
+        SetChunkMergerMode(NChunkClient::EChunkMergerMode::None);
     }
 }
 
@@ -108,7 +109,15 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, EnableStripedErasure_);
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
-    Load(context, ChunkMergerMode_);
+
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::ChunkMergerModeUnderTransaction) {
+        Load(context, ChunkMergerMode_);
+    } else {
+        NChunkClient::EChunkMergerMode chunkMergerMode;
+        Load(context, chunkMergerMode);
+        SetChunkMergerMode(chunkMergerMode);
+    }
     Load(context, EnableSkynetSharing_);
     Load(context, UpdatedSinceLastMerge_);
     Load(context, ChunkMergerTraversalInfo_);

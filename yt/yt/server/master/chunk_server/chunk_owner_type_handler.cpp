@@ -103,6 +103,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
         branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec() ||
         branchedNode->GetEnableStripedErasure() != originatingNode->GetEnableStripedErasure() ||
+        branchedNode->GetChunkMergerMode() != originatingNode->GetChunkMergerMode() ||
         branchedNode->GetEnableSkynetSharing() != originatingNode->GetEnableSkynetSharing() ||
         !branchedNode->DeltaSecurityTags()->IsEmpty() ||
         !TInternedSecurityTags::RefEqual(branchedNode->SnapshotSecurityTags(), originatingNode->SnapshotSecurityTags());
@@ -252,6 +253,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     originatingNode->MergeCompressionCodec(branchedNode);
     originatingNode->MergeErasureCodec(branchedNode);
     originatingNode->MergeEnableStripedErasure(branchedNode);
+    originatingNode->MergeChunkMergerMode(branchedNode);
     originatingNode->MergeEnableSkynetSharing(branchedNode);
 
     bool isExternal = originatingNode->IsExternal();
@@ -276,17 +278,23 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
     }
 
-    // Check if we have anything to do at all.
-    if (branchedMode == NChunkClient::EUpdateMode::None) {
-        return;
-    }
-
     bool topmostCommit = !originatingNode->GetTransaction();
     auto newOriginatingMode = topmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
         ? NChunkClient::EUpdateMode::None
         : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append;
+
+    // Check if we have anything to do at all.
+    if (branchedMode == NChunkClient::EUpdateMode::None) {
+        // If ChunkMergerMode was changed need to reschedule chunk merge.
+        if (topmostCommit && !isExternal && originatingChunkList->GetKind() == EChunkListKind::Static) {
+            if (originatingNode->GetChunkMergerMode() != EChunkMergerMode::None) {
+                chunkManager->ScheduleChunkMerge(originatingNode);
+            }
+        }
+        return;
+    }
 
     // For new chunks, there're two reasons to update chunk requisition.
     //

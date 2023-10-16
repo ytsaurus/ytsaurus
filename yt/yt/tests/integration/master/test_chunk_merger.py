@@ -96,6 +96,12 @@ class TestChunkMerger(YTEnvSetup):
         for tx in txs:
             abort_transaction(tx)
 
+    def _remove_merge_quotas(self, table_path):
+        account = get("{}/@account".format(table_path))
+
+        set("//sys/accounts/{}/@merge_job_rate_limit".format(account), 0)
+        set("//sys/accounts/{}/@chunk_merger_node_traversal_concurrency".format(account), 0)
+
     def _wait_for_merge(self, table_path, merge_mode, max_merged_chunks=1, schema=None):
         assert get("{}/@chunk_count".format(table_path)) > 1
 
@@ -108,7 +114,8 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//sys/accounts/{}/@merge_job_rate_limit".format(account), 10)
         set("//sys/accounts/{}/@chunk_merger_node_traversal_concurrency".format(account), 1)
-        set("{}/@chunk_merger_mode".format(table_path), merge_mode)
+        if merge_mode is not None:
+            set("{}/@chunk_merger_mode".format(table_path), merge_mode)
 
         wait(lambda: get("{}/@chunk_ids".format(table_path)) != chunk_ids)
         wait(lambda: not get("{}/@is_being_merged".format(table_path)))
@@ -170,23 +177,40 @@ class TestChunkMerger(YTEnvSetup):
         remove("//sys/accounts/d/@chunk_merger_criteria")
         assert not exists("//sys/accounts/d/@chunk_merger_criteria")
 
-    @authors("aleksandra-zh")
+    @authors("aleksandra-zh", "cherepashka")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
-    def test_merge1(self, merge_mode):
+    @pytest.mark.parametrize("transactional", [False, True])
+    def test_merge1(self, merge_mode, transactional):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
         write_table("<append=true>//tmp/t", {"a": "e"})
 
-        self._wait_for_merge("//tmp/t", merge_mode)
+        if transactional:
+            tx = start_transaction()
+            set("//tmp/t/@chunk_merger_mode", merge_mode, tx=tx)
+            assert get("//tmp/t/@chunk_merger_mode", tx=tx) == merge_mode
+            assert get("//tmp/t/@chunk_merger_mode") == "none"
+
+            commit_transaction(tx)
+            assert get("//tmp/t/@chunk_merger_mode") == merge_mode
+        else:
+            set("//tmp/t/@chunk_merger_mode", merge_mode)
+
+        self._wait_for_merge("//tmp/t", None)
 
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#{}/@data_weight".format(chunk_id)) > 0
 
-    @authors("aleksandra-zh")
-    def test_merge2(self):
+    @authors("aleksandra-zh", "cherepashka")
+    @pytest.mark.parametrize("transactional", [False, True])
+    def test_merge2(self, transactional):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("//tmp/t", [
             {"a": 10},
             {"b": 50}
@@ -195,11 +219,25 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
-        self._wait_for_merge("//tmp/t", "deep")
+        if transactional:
+            tx = start_transaction()
+            set("//tmp/t/@chunk_merger_mode", "deep", tx=tx)
+            assert get("//tmp/t/@chunk_merger_mode", tx=tx) == "deep"
+            assert get("//tmp/t/@chunk_merger_mode") == "none"
 
-    @authors("aleksandra-zh")
-    def test_auto_merge1(self):
+            commit_transaction(tx)
+            assert get("//tmp/t/@chunk_merger_mode") == "deep"
+        else:
+            set("//tmp/t/@chunk_merger_mode", "deep")
+
+        self._wait_for_merge("//tmp/t", None)
+
+    @authors("aleksandra-zh", "cherepashka")
+    @pytest.mark.parametrize("transactional", [False, True])
+    def test_auto_merge1(self, transactional):
         create("table", "//tmp/t", attributes={"compression_codec": "lz4"})
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
@@ -207,11 +245,25 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@compression_codec", "zstd_17")
         write_table("<append=true>//tmp/t", {"q": "e"})
 
-        self._wait_for_merge("//tmp/t", "auto")
+        if transactional:
+            tx = start_transaction()
+            set("//tmp/t/@chunk_merger_mode", "auto", tx=tx)
+            assert get("//tmp/t/@chunk_merger_mode", tx=tx) == "auto"
+            assert get("//tmp/t/@chunk_merger_mode") == "none"
 
-    @authors("aleksandra-zh")
-    def test_auto_merge2(self):
+            commit_transaction(tx)
+            assert get("//tmp/t/@chunk_merger_mode") == "auto"
+        else:
+            set("//tmp/t/@chunk_merger_mode", "auto")
+
+        self._wait_for_merge("//tmp/t", None)
+
+    @authors("aleksandra-zh", "cherepashka")
+    @pytest.mark.parametrize("transactional", [False, True])
+    def test_auto_merge2(self, transactional):
         create("table", "//tmp/t", attributes={"compression_codec": "lz4"})
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
@@ -222,7 +274,18 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/@config/chunk_manager/chunk_merger/min_shallow_merge_chunk_count", 3)
         wait_for_sys_config_sync()
 
-        self._wait_for_merge("//tmp/t", "auto", max_merged_chunks=2)
+        if transactional:
+            tx = start_transaction()
+            set("//tmp/t/@chunk_merger_mode", "auto", tx=tx)
+            assert get("//tmp/t/@chunk_merger_mode", tx=tx) == "auto"
+            assert get("//tmp/t/@chunk_merger_mode") == "none"
+
+            commit_transaction(tx)
+            assert get("//tmp/t/@chunk_merger_mode") == "auto"
+        else:
+            set("//tmp/t/@chunk_merger_mode", "auto")
+
+        self._wait_for_merge("//tmp/t", None, max_merged_chunks=2)
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
@@ -237,6 +300,7 @@ class TestChunkMerger(YTEnvSetup):
             unique_keys=True
         )
         create("table", "//tmp/t", attributes={"schema": schema})
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"key": 1, "value": "a"})
         write_table("<append=true>//tmp/t", {"key": 2, "value": "b"})
@@ -258,6 +322,8 @@ class TestChunkMerger(YTEnvSetup):
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_merge_remove(self, merge_mode):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
@@ -275,6 +341,8 @@ class TestChunkMerger(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_merge_does_not_conflict_with_tx_append(self):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
@@ -287,28 +355,32 @@ class TestChunkMerger(YTEnvSetup):
         commit_transaction(tx)
 
         assert get("//tmp/t/@chunk_count") == 2
-        read_table("//tmp/t") == rows
+        assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
     def test_merge_does_not_conflict_with_tx_overwrite(self):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
         tx = start_transaction()
+        set("//tmp/t/@chunk_merger_mode", "deep")
         write_table("//tmp/t", {"d": "e"}, tx=tx)
         rows = read_table("//tmp/t", tx=tx)
 
-        self._wait_for_merge("//tmp/t", "deep")
+        self._wait_for_merge("//tmp/t", None)
         commit_transaction(tx)
 
         assert get("//tmp/t/@chunk_count") == 1
-        read_table("//tmp/t") == rows
+        assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
     def test_is_being_merged(self):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
@@ -346,6 +418,7 @@ class TestChunkMerger(YTEnvSetup):
     def test_merge_job_accounting1(self):
         create_account("a")
         create("table", "//tmp/t1", attributes={"account": "a"})
+        self._remove_merge_quotas("//tmp/t1")
 
         write_table("<append=true>//tmp/t1", {"a": "b"})
         write_table("<append=true>//tmp/t1", {"b": "c"})
@@ -365,6 +438,7 @@ class TestChunkMerger(YTEnvSetup):
     def test_merge_job_accounting2(self):
         create_account("a")
         create("table", "//tmp/t1", attributes={"account": "a"})
+        self._remove_merge_quotas("//tmp/t1")
 
         write_table("<append=true>//tmp/t1", {"a": "b"})
         write_table("<append=true>//tmp/t1", {"b": "c"})
@@ -391,6 +465,8 @@ class TestChunkMerger(YTEnvSetup):
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_copy_merge(self, merge_mode):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
 
@@ -418,6 +494,8 @@ class TestChunkMerger(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_schedule_again(self):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
@@ -573,6 +651,7 @@ class TestChunkMerger(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_remove(self):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
@@ -625,6 +704,7 @@ class TestChunkMerger(YTEnvSetup):
                 ),
             },
         )
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"key": 1, "value": "a"})
         write_table("<append=true>//tmp/t", {"key": 2, "value": "b"})
@@ -647,6 +727,7 @@ class TestChunkMerger(YTEnvSetup):
                 ),
             },
         )
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"key": 1, "value": "a"})
         write_table("<append=true>//tmp/t", {"key": 2, "value": "b"})
@@ -657,6 +738,7 @@ class TestChunkMerger(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_merge_merge(self):
         create("table", "//tmp/t1")
+
         write_table("<append=true>//tmp/t1", {"a": "b"})
         write_table("<append=true>//tmp/t1", {"b": "c"})
 
@@ -665,6 +747,8 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t2", {"key": 2, "value": "b"})
 
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
         merge(mode="unordered", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t")
 
         self._wait_for_merge("//tmp/t", "deep")
@@ -673,6 +757,7 @@ class TestChunkMerger(YTEnvSetup):
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_merge_chunks_exceed_max_chunk_to_merge_limit(self, merge_mode):
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
         for i in range(10):
             write_table("<append=true>//tmp/t", {"a": "b"})
 
@@ -808,6 +893,7 @@ class TestChunkMerger(YTEnvSetup):
     def test_compression_codec(self, merge_mode):
         codec = "lz4"
         create("table", "//tmp/t", attributes={"compression_codec": codec})
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b", "b": "c"})
         write_table("<append=true>//tmp/t", {"a": "d", "b": "e"})
@@ -825,6 +911,7 @@ class TestChunkMerger(YTEnvSetup):
         codec1 = "lz4"
         codec2 = "zstd_17"
         create("table", "//tmp/t", attributes={"compression_codec": codec1})
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
@@ -845,6 +932,7 @@ class TestChunkMerger(YTEnvSetup):
     def test_erasure1(self, merge_mode):
         codec = "lrc_12_2_2"
         create("table", "//tmp/t", attributes={"erasure_codec": codec})
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
@@ -861,6 +949,7 @@ class TestChunkMerger(YTEnvSetup):
         codec = "lrc_12_2_2"
         none_codec = "none"
         create("table", "//tmp/t", attributes={"erasure_codec": codec})
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
@@ -879,6 +968,7 @@ class TestChunkMerger(YTEnvSetup):
         codec = "lrc_12_2_2"
         none_codec = "none"
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         set("//tmp/t/@erasure_codec", codec)
@@ -900,6 +990,7 @@ class TestChunkMerger(YTEnvSetup):
     )
     def test_optimize_for(self, optimize_for, merge_mode):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
@@ -918,6 +1009,7 @@ class TestChunkMerger(YTEnvSetup):
     )
     def test_read_rows(self, optimize_for, merge_mode):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+        self._remove_merge_quotas("//tmp/t")
         set("//tmp/t/@chunk_writer", {"block_size": 1})
 
         write_table("<append=true>//tmp/t", [{"a": "z"}, {"b": "a"}, {"c": "q"}])
@@ -939,6 +1031,7 @@ class TestChunkMerger(YTEnvSetup):
     )
     def test_row_key_selector(self, optimize_for, merge_mode):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+        self._remove_merge_quotas("//tmp/t")
         set("//tmp/t/@chunk_writer", {"block_size": 1})
 
         v1 = {"s": "a", "i": 0, "d": 15.5}
@@ -978,6 +1071,7 @@ class TestChunkMerger(YTEnvSetup):
     )
     def test_column_selector(self, optimize_for, merge_mode):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": 1, "aa": 2, "b": 3, "bb": 4, "c": 5})
         write_table("<append=true>//tmp/t", {"a": 11, "aa": 22, "b": 33, "bb": 44, "c": 55})
@@ -1017,6 +1111,7 @@ class TestChunkMerger(YTEnvSetup):
             strict=False
         )
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for, "schema": schema})
+        self._remove_merge_quotas("//tmp/t")
 
         rows1 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "x": "x" + str(i)} for i in range(0, 10)]
         write_table("<append=true>//tmp/t", rows1)
@@ -1058,6 +1153,8 @@ class TestChunkMerger(YTEnvSetup):
         )
 
         create("table", "//tmp/t", attributes={"schema": schema1, "optimize_for": optimize_for})
+        self._remove_merge_quotas("//tmp/t")
+
         write_table("<append=true>//tmp/t", {"key": 1, "value": "a"})
         alter_table("//tmp/t", schema=schema2)
         write_table("<append=true>//tmp/t", {"key": 2, "another_value": "z", "value": "b"})
@@ -1139,11 +1236,15 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t1", {"key": 2, "value": "b"})
 
         create("table", "//tmp/t2", attributes={"schema": schema1})
+        self._remove_merge_quotas("//tmp/t2")
+
         concatenate(["//tmp/t1"], "//tmp/t2")
 
         self._wait_for_merge("//tmp/t2", "auto", 1, schema1)
 
         create("table", "//tmp/t3", attributes={"schema": schema1})
+        self._remove_merge_quotas("//tmp/t3")
+
         write_table("<append=true>//tmp/t3", {"key": 1, "value": "a"})
         write_table("<append=true>//tmp/t3", {"key": 2, "value": "b"})
         alter_table("//tmp/t3", schema=schema3)
@@ -1246,6 +1347,8 @@ class TestChunkMergerMulticell(TestChunkMerger):
         write_table("<append=true>//tmp/t2", {"a": "e"})
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
+        self._remove_merge_quotas("//tmp/t")
+
         concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/t")
 
         assert get("//tmp/t1/@external_cell_tag") == 12

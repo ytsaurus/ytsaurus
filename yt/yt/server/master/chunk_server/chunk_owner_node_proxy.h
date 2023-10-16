@@ -125,7 +125,7 @@ private:
     void SetVital(bool vital);
     void SetReplication(const TChunkReplication& replication);
     void SetPrimaryMedium(TMedium* medium);
-    void SetChunkMergerMode(NChunkClient::EChunkMergerMode mode);
+    void MaybeScheduleChunkMerge();
 
     void ScheduleRequisitionUpdate();
 };
