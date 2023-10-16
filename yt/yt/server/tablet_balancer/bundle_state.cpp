@@ -404,15 +404,15 @@ void TBundleState::DoFetchStatistics(const IListNodePtr& nodeStatistics)
         if (!nodeStatistics) {
             THROW_ERROR_EXCEPTION(
                 "Failed to get node statistics because node fetch "
-                "failed earlier during the current iteration (BundleName: %v)",
-                Bundle_->Name);
+                "failed earlier during the current iteration");
         }
+
+        THROW_ERROR_EXCEPTION_UNLESS(Bundle_->AreAllCellsAssignedToPeers(),
+            "Not all cells are assigned to nodes");
 
         THashSet<TNodeAddress> addresses;
         for (const auto& [id, cell] : Bundle_->TabletCells) {
-            if (cell->NodeAddress) {
-                addresses.insert(*cell->NodeAddress);
-            }
+            addresses.insert(*cell->NodeAddress);
         }
 
         Bundle_->NodeStatistics = GetNodeStatistics(nodeStatistics, addresses);
@@ -520,7 +520,7 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 
             EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to get \"statistics\" or \"tablet_slots\" attribute attribute for node %v",
+            YT_LOG_ERROR(ex, "Failed to get \"statistics\" or \"tablet_slots\" attribute for node %Qv",
                 address);
         }
     }
