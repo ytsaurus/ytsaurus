@@ -88,6 +88,7 @@ namespace NTesting {
         MOCK_METHOD(TAuthorizationInfo, WhoAmI, (), (override));
 
         MOCK_METHOD(TOperationAttributes, GetOperation, (const TOperationId&, const TGetOperationOptions&), (override));
+        MOCK_METHOD(TOperationAttributes, GetOperation, (const TString&, const TGetOperationOptions&), (override));
         MOCK_METHOD(TListOperationsResult, ListOperations, (const TListOperationsOptions&), (override));
         MOCK_METHOD(void, UpdateOperationParameters, (const TOperationId&, const TUpdateOperationParametersOptions&), (override));
         MOCK_METHOD(TJobAttributes, GetJob, (const TOperationId&, const TJobId&, const TGetJobOptions&), (override));
