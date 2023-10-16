@@ -63,7 +63,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    TAtomicIntrusivePtr<const TSchedulerConnectorDynamicConfig> DynamicConfig_;
+    TAtomicIntrusivePtr<TSchedulerConnectorDynamicConfig> DynamicConfig_;
 
     NScheduler::TJobResources MinSpareResources_{};
 

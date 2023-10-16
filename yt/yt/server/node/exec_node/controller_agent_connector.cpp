@@ -48,13 +48,11 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
         BIND_NO_PROPAGATE(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
         TPeriodicExecutorOptions{
-            .Period = GetCurrentConfig()->HeartbeatPeriod,
-            .Splay = GetCurrentConfig()->HeartbeatSplay
+            .Period = GetConfig()->HeartbeatPeriod,
+            .Splay = GetConfig()->HeartbeatSplay
         }))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
-        GetCurrentConfig()->StatisticsThrottler))
-    , RunningJobStatisticsSendingBackoff_(
-        GetCurrentConfig()->RunningJobStatisticsSendingBackoff)
+        GetConfig()->StatisticsThrottler))
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -109,7 +107,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobSpecSe
 
     TJobSpecServiceProxy jobSpecServiceProxy(Channel_);
 
-    auto settleJobsTimeout = ControllerAgentConnectorPool_->SettleJobsTimeout_;
+    auto settleJobsTimeout = GetConfig()->GetJobSpecsTimeout;
 
     jobSpecServiceProxy.SetDefaultTimeout(settleJobsTimeout);
     auto settleJobRequest = jobSpecServiceProxy.GetJobSpecs();
@@ -205,7 +203,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobTracke
 
     TJobTrackerServiceProxy jobTrackerServiceProxy(Channel_);
 
-    auto settleJobsTimeout = ControllerAgentConnectorPool_->SettleJobsTimeout_;
+    auto settleJobsTimeout = GetConfig()->GetJobSpecsTimeout;
 
     jobTrackerServiceProxy.SetDefaultTimeout(settleJobsTimeout);
 
@@ -307,16 +305,16 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobTracke
     return result;
 }
 
-void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
+    const TControllerAgentConnectorDynamicConfigPtr& newConfig)
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    const auto& currentConfig = *GetCurrentConfig();
+    YT_LOG_DEBUG("Set new controller agent heartbeat period (NewPeriod: %v)",
+        newConfig->HeartbeatPeriod);
 
-    YT_LOG_DEBUG("Set new controller agent heartbeat period (NewPeriod: %v)", currentConfig.HeartbeatPeriod);
-    HeartbeatExecutor_->SetPeriod(currentConfig.HeartbeatPeriod);
-    RunningJobStatisticsSendingBackoff_ = currentConfig.RunningJobStatisticsSendingBackoff;
-    StatisticsThrottler_->Reconfigure(currentConfig.StatisticsThrottler);
+    HeartbeatExecutor_->SetPeriod(newConfig->HeartbeatPeriod);
+    StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
@@ -328,10 +326,10 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
 
-const TControllerAgentConnectorConfigPtr&
-TControllerAgentConnectorPool::TControllerAgentConnector::GetCurrentConfig() const noexcept
+TControllerAgentConnectorDynamicConfigPtr
+TControllerAgentConnectorPool::TControllerAgentConnector::GetConfig() const noexcept
 {
-    return ControllerAgentConnectorPool_->CurrentConfig_;
+    return ControllerAgentConnectorPool_->DynamicConfig_.Acquire();
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
@@ -359,9 +357,10 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
     auto request = proxy.Heartbeat();
 
     auto context = New<TAgentHeartbeatContext>();
+    auto currentConfig = GetConfig();
 
-    if (ControllerAgentConnectorPool_->TestHeartbeatDelay_) {
-        TDelayedExecutor::WaitForDuration(ControllerAgentConnectorPool_->TestHeartbeatDelay_);
+    if (currentConfig->TestHeartbeatDelay) {
+        TDelayedExecutor::WaitForDuration(currentConfig->TestHeartbeatDelay);
     }
 
     PrepareHeartbeatRequest(nodeId, nodeDescriptor, request, context);
@@ -377,12 +376,17 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
     auto responseOrError = WaitFor(std::move(requestFuture));
     if (!responseOrError.IsOK()) {
         HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
+
+        auto heartbeatBackoffStartTime = currentConfig->FailedHeartbeatBackoffStartTime;
+        auto heartbeatBackoffMaxTime = currentConfig->FailedHeartbeatBackoffMaxTime;
+        auto heartbeatBackoffMultiplier = currentConfig->FailedHeartbeatBackoffMultiplier;
+
         if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = GetCurrentConfig()->FailedHeartbeatBackoffStartTime;
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = heartbeatBackoffStartTime;
         } else {
             HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * GetCurrentConfig()->FailedHeartbeatBackoffMultiplier,
-                GetCurrentConfig()->FailedHeartbeatBackoffMaxTime);
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * heartbeatBackoffMultiplier,
+                heartbeatBackoffMaxTime);
         }
         YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
             ControllerAgentDescriptor_.Address,
@@ -472,7 +476,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
 
     context->ControllerAgentConnector = MakeStrong(this);
     context->StatisticsThrottler = StatisticsThrottler_;
-    context->RunningJobStatisticsSendingBackoff = RunningJobStatisticsSendingBackoff_;
+    context->RunningJobStatisticsSendingBackoff = GetConfig()->RunningJobStatisticsSendingBackoff;
     context->NeedTotalConfirmation = IsTotalConfirmationNeeded();
 
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
@@ -541,7 +545,7 @@ bool TControllerAgentConnectorPool::TControllerAgentConnector::IsTotalConfirmati
 {
     auto now = TInstant::Now();
 
-    if (now >= LastTotalConfirmationTime_ + TotalConfirmationPeriodMultiplicator_ * ControllerAgentConnectorPool_->TotalConfirmationPeriod_) {
+    if (now >= LastTotalConfirmationTime_ + TotalConfirmationPeriodMultiplicator_ * GetConfig()->TotalConfirmationPeriod) {
         LastTotalConfirmationTime_ = now;
         TotalConfirmationPeriodMultiplicator_ = GenerateTotalConfirmationPeriodMultiplicator();
 
@@ -559,12 +563,9 @@ float TControllerAgentConnectorPool::TControllerAgentConnector::GenerateTotalCon
 ////////////////////////////////////////////////////////////////////////////////
 
 TControllerAgentConnectorPool::TControllerAgentConnectorPool(
-    TExecNodeConfigPtr config,
     IBootstrap* const bootstrap)
-    : StaticConfig_(config->ControllerAgentConnector)
-    , CurrentConfig_(CloneYsonStruct(StaticConfig_))
+    : DynamicConfig_(New<TControllerAgentConnectorDynamicConfig>())
     , Bootstrap_(bootstrap)
-    , SettleJobsTimeout_(config->JobController->GetJobSpecsTimeout)
 { }
 
 void TControllerAgentConnectorPool::Start()
@@ -623,41 +624,18 @@ TControllerAgentConnectorPool::GetControllerAgentConnector(
 }
 
 void TControllerAgentConnectorPool::OnDynamicConfigChanged(
-    const TExecNodeDynamicConfigPtr& oldConfig,
-    const TExecNodeDynamicConfigPtr& newConfig)
+    const TControllerAgentConnectorDynamicConfigPtr& /*oldConfig*/,
+    const TControllerAgentConnectorDynamicConfigPtr& newConfig)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!newConfig->ControllerAgentConnector && !oldConfig->ControllerAgentConnector) {
-        return;
-    }
+    Bootstrap_->GetJobInvoker()->Invoke(BIND([
+        this,
+        this_ = MakeStrong(this),
+        newConfig = std::move(newConfig)] {
+            DynamicConfig_.Store(newConfig);
 
-    // TODO(pogorelov): Make controller agent connector config dynamic only and refactor this.
-    TControllerAgentConnectorConfigPtr newCurrentConfig;
-    if (newConfig->ControllerAgentConnector) {
-        newCurrentConfig = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
-    }
-
-    Bootstrap_->GetJobInvoker()->Invoke(
-        BIND([
-            this,
-            this_ = MakeStrong(this),
-            newConfig = std::move(newConfig),
-            newCurrentConfig{std::move(newCurrentConfig)}]
-        {
-            if (newConfig->ControllerAgentConnector) {
-                TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
-                UseJobTrackerServiceToSettleJobs_ = newConfig->ControllerAgentConnector->UseJobTrackerServiceToSettleJobs;
-                TotalConfirmationPeriod_ = newConfig->ControllerAgentConnector->TotalConfirmationPeriod;
-            } else {
-                TestHeartbeatDelay_ = TDuration::Zero();
-                UseJobTrackerServiceToSettleJobs_ = false;
-                TotalConfirmationPeriod_ = TDuration::Minutes(10);
-            }
-            CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
-
-            SettleJobsTimeout_ = newConfig->JobController->GetJobSpecsTimeout.value_or(SettleJobsTimeout_);
-            OnConfigUpdated();
+            OnConfigUpdated(newConfig);
         }));
 }
 
@@ -724,7 +702,7 @@ TControllerAgentConnectorPool::SettleJobs(
 
     auto controllerAgentConnector = GetControllerAgentConnector(agentDescriptor);
 
-    if (UseJobTrackerServiceToSettleJobs_) {
+    if (DynamicConfig_.Acquire()->UseJobTrackerServiceToSettleJobs) {
         return controllerAgentConnector->SettleJobsViaJobTrackerService(allocationInfos);
     } else {
         return controllerAgentConnector->SettleJobsViaJobSpecService(allocationInfos);
@@ -766,12 +744,13 @@ IChannelPtr TControllerAgentConnectorPool::GetOrCreateChannel(
     return CreateChannel(agentDescriptor);
 }
 
-void TControllerAgentConnectorPool::OnConfigUpdated()
+void TControllerAgentConnectorPool::OnConfigUpdated(
+    const TControllerAgentConnectorDynamicConfigPtr& newConfig)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
     for (const auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
-        controllerAgentConnector->OnConfigUpdated();
+        controllerAgentConnector->OnConfigUpdated(newConfig);
     }
 }
 

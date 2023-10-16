@@ -34,12 +34,6 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
 
     USE_PORTO = True
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},
-        }
-    }
-
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "running_jobs_update_period": 10,

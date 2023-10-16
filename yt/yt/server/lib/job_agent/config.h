@@ -195,7 +195,6 @@ class TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> GetJobSpecsTimeout;
     std::optional<TDuration> CpuOverdraftTimeout;
     std::optional<double> CpuToVCpuFactor;
     bool EnableCpuToVCpuFactor;
@@ -242,7 +241,6 @@ class TJobControllerConfig
 public:
     TResourceLimitsConfigPtr ResourceLimits;
     TDuration WaitingJobsTimeout;
-    TDuration GetJobSpecsTimeout;
 
     TDuration CpuOverdraftTimeout;
     TDuration MemoryOverdraftTimeout;

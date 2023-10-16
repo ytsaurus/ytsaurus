@@ -121,9 +121,6 @@ NODE_CONFIG_PATCHES = [
                 "job_heartbeat_period_splay": 50,
             },
         },
-        "exec_node": {
-            "scheduler_connector": None
-        },
         "tablet_node": None
     },
     {

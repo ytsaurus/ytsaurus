@@ -682,7 +682,6 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},
             "job_controller": {
                 "resource_limits": {
                     "cpu": 10,
@@ -889,10 +888,6 @@ class TestPreemptionPriorityScope(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "controller_agent_connector": {
-                "heartbeat_period": 100,
-                "running_job_statistics_sending_backoff": 0,
-            },
             "job_controller": {
                 "resource_limits": {
                     "cpu": 10,
@@ -1574,7 +1569,6 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },

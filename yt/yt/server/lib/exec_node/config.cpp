@@ -142,7 +142,7 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("detached_tmpfs_umount", &TThis::DetachedTmpfsUmount)
         .Default(true);
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
-        .DefaultCtor([] () { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
+        .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
@@ -192,23 +192,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOldHeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
-{
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default();
-    registrar.Parameter("heartbeat_splay", &TThis::HeartbeatSplay)
-        .Default();
-    registrar.Parameter("failed_heartbeat_backoff_start_time", &TThis::FailedHeartbeatBackoffStartTime)
-        .Default();
-    registrar.Parameter("failed_heartbeat_backoff_max_time", &TThis::FailedHeartbeatBackoffMaxTime)
-        .Default();
-    registrar.Parameter("failed_heartbeat_backoff_multiplier", &TThis::FailedHeartbeatBackoffMultiplier)
-        .GreaterThanOrEqual(1.0)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
@@ -240,80 +223,20 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 
 void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("get_job_specs_timeout", &TThis::GetJobSpecsTimeout)
+        .Default(TDuration::Seconds(5));
+
     registrar.Parameter("test_heartbeat_delay", &TThis::TestHeartbeatDelay)
         .Default();
+
     registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
-        .Default();
+        .DefaultCtor([] { return NConcurrency::TThroughputThrottlerConfig::Create(1_MB); });
     registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
-        .Default();
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
         .Default(false);
     registrar.Parameter("total_confirmation_period", &TThis::TotalConfirmationPeriod)
         .Default(TDuration::Minutes(10));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void THeartbeatReporterConfigBase::Register(TRegistrar registrar)
-{
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("heartbeat_splay", &TThis::HeartbeatSplay)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("failed_heartbeat_backoff_start_time", &TThis::FailedHeartbeatBackoffStartTime)
-        .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("failed_heartbeat_backoff_max_time", &TThis::FailedHeartbeatBackoffMaxTime)
-        .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Seconds(60));
-    registrar.Parameter("failed_heartbeat_backoff_multiplier", &TThis::FailedHeartbeatBackoffMultiplier)
-        .GreaterThanOrEqual(1.0)
-        .Default(2.0);
-}
-
-void THeartbeatReporterConfigBase::ApplyDynamicInplace(const TOldHeartbeatReporterDynamicConfigBase& dynamicConfig)
-{
-    HeartbeatPeriod = dynamicConfig.HeartbeatPeriod.value_or(HeartbeatPeriod);
-    HeartbeatSplay = dynamicConfig.HeartbeatSplay.value_or(HeartbeatSplay);
-    FailedHeartbeatBackoffStartTime = dynamicConfig.FailedHeartbeatBackoffStartTime.value_or(
-        FailedHeartbeatBackoffStartTime);
-    FailedHeartbeatBackoffMaxTime = dynamicConfig.FailedHeartbeatBackoffMaxTime.value_or(
-        FailedHeartbeatBackoffMaxTime);
-    FailedHeartbeatBackoffMultiplier = dynamicConfig.FailedHeartbeatBackoffMultiplier.value_or(
-        FailedHeartbeatBackoffMultiplier);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TControllerAgentConnectorConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
-        .DefaultCtor([] () { return NConcurrency::TThroughputThrottlerConfig::Create(1_MB); });
-    registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
-        .Default(TDuration::Seconds(30));
-}
-
-TControllerAgentConnectorConfigPtr TControllerAgentConnectorConfig::ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig) const
-{
-    YT_VERIFY(dynamicConfig);
-
-    auto newConfig = CloneYsonStruct(MakeStrong(this));
-    newConfig->ApplyDynamicInplace(*dynamicConfig);
-
-    return newConfig;
-}
-
-void TControllerAgentConnectorConfig::ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig)
-{
-    THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
-    if (dynamicConfig.StatisticsThrottler) {
-        StatisticsThrottler->Limit = dynamicConfig.StatisticsThrottler->Limit;
-        StatisticsThrottler->Period = dynamicConfig.StatisticsThrottler->Period;
-    }
-    RunningJobStatisticsSendingBackoff = dynamicConfig.RunningJobStatisticsSendingBackoff.value_or(
-        RunningJobStatisticsSendingBackoff);
-
-    Postprocess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -503,9 +426,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .Alias("statistics_reporter")
         .DefaultNew();
 
-    registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
-        .DefaultNew();
-
     registrar.Parameter("job_proxy_logging", &TThis::JobProxyLogging)
         .DefaultNew();
     registrar.Parameter("job_proxy_jaeger", &TThis::JobProxyJaeger)
@@ -669,7 +589,7 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("job_proxy_preparation_timeout", &TThis::JobProxyPreparationTimeout)
         .Default(TDuration::Minutes(3));

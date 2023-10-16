@@ -123,14 +123,9 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
+                "controller_agent_connector": {"heartbeat_period": 200},  # 200 msec
             }
         }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 200},
-        },
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -194,15 +189,18 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
-            }
-        }
+                "controller_agent_connector": {
+                    "heartbeat_period": 200,  # 200 msec
+                    "get_job_specs_timeout": 30000,  # 30 sec
+                },
+            },
+        },
     }
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 200},
             "slot_manager": {"job_environment": {"block_io_watchdog_period": 100}},
-            "job_controller": {"get_job_specs_timeout": 30000},
+            "job_controller": {},
         }
     }
 

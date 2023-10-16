@@ -1439,12 +1439,6 @@ class TestSchedulerJobStatistics(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
-        },
-    }
-
     def _create_table(self, table):
         create("table", table)
         set(table + "/@replication_factor", 1)
@@ -1739,13 +1733,13 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
-            }
-        }
+                "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
+            },
+        },
     }
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 5,
@@ -1796,14 +1790,9 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
+                "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
             }
         }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
-        },
     }
 
     @authors("ignat")
@@ -1839,7 +1828,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
+    DELTA_DYNAMIC_NODE_CONFIG = {
         "exec_node": {
             "controller_agent_connector": {"heartbeat_period": 10},
         },

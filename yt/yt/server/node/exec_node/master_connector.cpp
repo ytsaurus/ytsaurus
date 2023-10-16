@@ -97,7 +97,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    TIntrusivePtr<const TMasterConnectorDynamicConfig> DynamicConfig_;
+    TMasterConnectorDynamicConfigPtr DynamicConfig_;
 
     IInvokerPtr HeartbeatInvoker_;
 

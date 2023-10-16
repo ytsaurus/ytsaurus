@@ -268,32 +268,6 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOldHeartbeatReporterDynamicConfigBase
-    : public NYTree::TYsonStruct
-{
-public:
-    //! Period between consequent heartbeats.
-    std::optional<TDuration> HeartbeatPeriod;
-
-    //! Random delay before first heartbeat.
-    std::optional<TDuration> HeartbeatSplay;
-
-    //! Start backoff for sending the next heartbeat after a failure.
-    std::optional<TDuration> FailedHeartbeatBackoffStartTime;
-
-    //! Maximum backoff for sending the next heartbeat after a failure.
-    std::optional<TDuration> FailedHeartbeatBackoffMaxTime;
-
-    //! Backoff multiplier for sending the next heartbeat after a failure.
-    std::optional<double> FailedHeartbeatBackoffMultiplier;
-
-    REGISTER_YSON_STRUCT(TOldHeartbeatReporterDynamicConfigBase);
-
-    static void Register(TRegistrar registrar);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class THeartbeatReporterDynamicConfigBase
     : public NYTree::TYsonStruct
 {
@@ -336,12 +310,15 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConnectorDynamicConfig
-    : public TOldHeartbeatReporterDynamicConfigBase
+    : public THeartbeatReporterDynamicConfigBase
 {
 public:
+    TDuration GetJobSpecsTimeout;
+
     TDuration TestHeartbeatDelay;
+
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
-    std::optional<TDuration> RunningJobStatisticsSendingBackoff;
+    TDuration RunningJobStatisticsSendingBackoff;
 
     TDuration TotalConfirmationPeriod;
 
@@ -353,53 +330,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class THeartbeatReporterConfigBase
-    : public NYTree::TYsonStruct
-{
-public:
-    //! Period between consequent heartbeats.
-    TDuration HeartbeatPeriod;
-
-    //! Random delay before first heartbeat.
-    TDuration HeartbeatSplay;
-
-    //! Start backoff for sending the next heartbeat after a failure.
-    TDuration FailedHeartbeatBackoffStartTime;
-
-    //! Maximum backoff for sending the next heartbeat after a failure.
-    TDuration FailedHeartbeatBackoffMaxTime;
-
-    //! Backoff multiplier for sending the next heartbeat after a failure.
-    double FailedHeartbeatBackoffMultiplier;
-
-    void ApplyDynamicInplace(const TOldHeartbeatReporterDynamicConfigBase& dynamicConfig);
-
-    REGISTER_YSON_STRUCT(THeartbeatReporterConfigBase);
-
-    static void Register(TRegistrar registrar);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TControllerAgentConnectorConfig
-    : public THeartbeatReporterConfigBase
-{
-public:
-    NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
-    TDuration RunningJobStatisticsSendingBackoff;
-
-    TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig) const;
-    void ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig);
-
-    REGISTER_YSON_STRUCT(TControllerAgentConnectorConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -461,7 +391,6 @@ public:
     TSlotManagerConfigPtr SlotManager;
     NJobAgent::TJobControllerConfigPtr JobController;
     TJobReporterConfigPtr JobReporter;
-    TControllerAgentConnectorConfigPtr ControllerAgentConnector;
 
     NLogging::TLogManagerConfigPtr JobProxyLogging;
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;

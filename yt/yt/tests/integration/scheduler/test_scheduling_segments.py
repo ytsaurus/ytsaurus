@@ -66,6 +66,14 @@ class TestSchedulingSegments(YTEnvSetup):
         }
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
+            },
+        },
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
@@ -75,7 +83,7 @@ class TestSchedulingSegments(YTEnvSetup):
                 },
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
-            "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
+
         },
         "job_proxy_heartbeat_period": 100,
     }
@@ -912,6 +920,14 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         },
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
+            },
+        },
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
@@ -921,7 +937,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 },
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
-            "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
         },
         "job_proxy_heartbeat_period": 100,
     }
@@ -1725,7 +1740,6 @@ class TestRunningJobStatistics(YTEnvSetup):
                 },
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
     }

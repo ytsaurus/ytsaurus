@@ -476,11 +476,6 @@ def get_node_config():
 
         job_prepare_time_limit = 60000;
 
-        controller_agent_connector = {
-            running_job_statistics_sending_backoff = 0;
-            heartbeat_period = 100;
-        };
-
         job_proxy_heartbeat_period = 200;
 
         job_controller = {
@@ -692,7 +687,9 @@ def get_dynamic_node_config():
             };
 
             controller_agent_connector = {
+                heartbeat_period = 100;
                 total_confirmation_period = 5000;
+                running_job_statistics_sending_backoff = 0;
                 send_waiting_jobs = %true;
                 use_job_tracker_service_to_settle_jobs = %true;
             };

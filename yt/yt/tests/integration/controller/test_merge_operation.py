@@ -68,12 +68,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
-        },
-    }
-
     def skip_if_legacy_sorted_pool(self):
         if not isinstance(self, TestSchedulerMergeCommandsNewSortedPool):
             pytest.skip("This test requires new sorted pool")
@@ -2301,12 +2295,6 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
                 "min_slice_data_weight": 1,
             },
         }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
-        },
     }
 
     @authors("gritukan")

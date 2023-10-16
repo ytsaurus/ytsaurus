@@ -101,7 +101,7 @@ public:
         // via signal.
         JobController_ = CreateJobController(this);
 
-        ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(GetConfig()->ExecNode, this);
+        ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(this);
 
         BuildJobProxyConfigTemplate();
 
@@ -384,8 +384,10 @@ private:
         GetSchedulerConnector()->OnDynamicConfigChanged(
             oldConfig->ExecNode->SchedulerConnector,
             newConfig->ExecNode->SchedulerConnector);
+        GetControllerAgentConnectorPool()->OnDynamicConfigChanged(
+            oldConfig->ExecNode->ControllerAgentConnector,
+            newConfig->ExecNode->ControllerAgentConnector);
 
-        GetControllerAgentConnectorPool()->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         JobReporter_->OnDynamicConfigChanged(oldConfig->ExecNode->JobReporter, newConfig->ExecNode->JobReporter);
 
         GetMasterConnector()->OnDynamicConfigChanged(

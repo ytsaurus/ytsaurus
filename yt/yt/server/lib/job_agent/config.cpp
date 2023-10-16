@@ -192,9 +192,6 @@ void TMemoryPressureDetectorConfig::Register(TRegistrar registrar)
 
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("get_job_specs_timeout", &TThis::GetJobSpecsTimeout)
-        .Default();
-
     registrar.Parameter("cpu_overdraft_timeout", &TThis::CpuOverdraftTimeout)
         .Default();
 
@@ -277,9 +274,6 @@ void TJobControllerConfig::Register(TRegistrar registrar)
     // Make it greater than interrupt preemption timeout.
     registrar.Parameter("waiting_jobs_timeout", &TThis::WaitingJobsTimeout)
         .Default(TDuration::Seconds(30));
-
-    registrar.Parameter("get_job_specs_timeout", &TThis::GetJobSpecsTimeout)
-        .Default(TDuration::Seconds(5));
 
     registrar.Parameter("memory_overdraft_timeout", &TThis::MemoryOverdraftTimeout)
         .Default(TDuration::Minutes(5));

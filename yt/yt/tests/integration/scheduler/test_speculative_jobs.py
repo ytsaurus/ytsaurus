@@ -266,12 +266,6 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
-        },
-    }
-
     ROW_COUNT_TO_FILL_PIPE = 1000000
 
     @authors("renadeen")
@@ -381,7 +375,6 @@ class TestListSpeculativeJobs(YTEnvSetup):
                 "max_repeat_delay": 10,
             },
             "job_controller": {"resource_limits": {"user_slots": 4, "cpu": 4.0}},
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
     }
@@ -568,7 +561,6 @@ class TestSpeculativeJobsOther(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
             "job_controller": {"resource_limits": {"cpu": 3, "user_slots": 3}},
         }
     }

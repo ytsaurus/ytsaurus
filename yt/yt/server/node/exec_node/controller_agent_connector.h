@@ -33,7 +33,7 @@ public:
         void SendOutOfBandHeartbeatIfNeeded();
         void EnqueueFinishedJob(const TJobPtr& job);
 
-        void OnConfigUpdated();
+        void OnConfigUpdated(const TControllerAgentConnectorDynamicConfigPtr& newConfig);
 
         const TControllerAgentDescriptor& GetDescriptor() const;
 
@@ -81,8 +81,6 @@ public:
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
-        TDuration RunningJobStatisticsSendingBackoff_;
-
         TInstant LastTotalConfirmationTime_ = TInstant::Now();
         float TotalConfirmationPeriodMultiplicator_ = GenerateTotalConfirmationPeriodMultiplicator();
 
@@ -94,7 +92,7 @@ public:
 
         THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec_;
 
-        const TControllerAgentConnectorConfigPtr& GetCurrentConfig() const noexcept;
+        TControllerAgentConnectorDynamicConfigPtr GetConfig() const noexcept;
 
         void SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
@@ -134,7 +132,7 @@ public:
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
 
-    TControllerAgentConnectorPool(TExecNodeConfigPtr config, IBootstrap* bootstrap);
+    TControllerAgentConnectorPool(IBootstrap* bootstrap);
 
     void Start();
 
@@ -143,8 +141,8 @@ public:
     TWeakPtr<TControllerAgentConnector> GetControllerAgentConnector(const TJob* job);
 
     void OnDynamicConfigChanged(
-        const TExecNodeDynamicConfigPtr& oldConfig,
-        const TExecNodeDynamicConfigPtr& newConfig);
+        const TControllerAgentConnectorDynamicConfigPtr& oldConfig,
+        const TControllerAgentConnectorDynamicConfigPtr& newConfig);
 
     void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
 
@@ -162,18 +160,9 @@ public:
 private:
     THashMap<TControllerAgentDescriptor, TControllerAgentConnectorPtr> ControllerAgentConnectors_;
 
-    const TControllerAgentConnectorConfigPtr StaticConfig_;
-    TControllerAgentConnectorConfigPtr CurrentConfig_;
+    TAtomicIntrusivePtr<TControllerAgentConnectorDynamicConfig> DynamicConfig_;
 
     IBootstrap* const Bootstrap_;
-
-    TDuration TestHeartbeatDelay_;
-    TDuration SettleJobsTimeout_;
-
-    TDuration TotalConfirmationPeriod_ = TDuration::Minutes(10);
-
-    // COMPAT(pogorelov)
-    bool UseJobTrackerServiceToSettleJobs_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -187,7 +176,7 @@ private:
 
     NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
-    void OnConfigUpdated();
+    void OnConfigUpdated(const TControllerAgentConnectorDynamicConfigPtr& newConfig);
 
     void OnJobFinished(const TJobPtr& job);
 
