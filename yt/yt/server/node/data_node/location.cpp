@@ -1328,7 +1328,7 @@ TFuture<void> TChunkLocation::SynchronizeActions()
 
 void TChunkLocation::CreateDisableLockFile(const TError& reason)
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_THREAD_AFFINITY_ANY();
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
