@@ -1061,7 +1061,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_collocation_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/rootstock_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/rpc_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/skynet.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/sync_replica_cache.cpp

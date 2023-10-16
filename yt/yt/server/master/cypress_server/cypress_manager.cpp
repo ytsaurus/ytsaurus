@@ -1,10 +1,10 @@
 #include "cypress_manager.h"
 
-#include "private.h"
 #include "access_control_object_namespace_type_handler.h"
 #include "access_control_object_type_handler.h"
 #include "access_tracker.h"
 #include "config.h"
+#include "cypress_integration.h"
 #include "cypress_traverser.h"
 #include "document_node_type_handler.h"
 #include "expiration_tracker.h"
@@ -15,19 +15,18 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 #include "portal_entrance_node.h"
-#include "portal_exit_node.h"
-#include "scion_node.h"
-#include "shard.h"
 #include "portal_entrance_type_handler.h"
 #include "portal_exit_node.h"
 #include "portal_exit_type_handler.h"
 #include "portal_manager.h"
 #include "portal_node_map_type_handler.h"
+#include "private.h"
 #include "resolve_cache.h"
 #include "rootstock_map_type_handler.h"
 #include "rootstock_node.h"
 #include "rootstock_type_handler.h"
 #include "scion_map_type_handler.h"
+#include "scion_node.h"
 #include "scion_type_handler.h"
 #include "shard_map_type_handler.h"
 #include "shard_type_handler.h"
@@ -47,23 +46,51 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_server/cypress_integration.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/server/master/cell_server/cell_map_type_handler.h>
+
+#include <yt/yt/server/master/chunk_server/cypress_integration.h>
+
+#include <yt/yt/server/master/file_server/file_node_type_handler.h>
+
+#include <yt/yt/server/master/journal_server/journal_node_type_handler.h>
+
 #include <yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node_type_handler.h>
 
+#include <yt/yt/server/master/node_tracker_server/cypress_integration.h>
+
+#include <yt/yt/server/master/object_server/cypress_integration.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/sys_node_type_handler.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
+
+#include <yt/yt/server/master/orchid_server/cypress_integration.h>
+
+#include <yt/yt/server/master/scheduler_pool_server/cypress_integration.h>
 
 #include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/cypress_integration.h>
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/table_node_type_handler.h>
+
+#include <yt/yt/server/master/tablet_server/cypress_integration.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
+
+#include <yt/yt/server/master/transaction_server/cypress_integration.h>
+
+#include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
 
 #include <yt/yt/server/lib/hydra_common/hydra_context.h>
 
@@ -99,14 +126,20 @@
 namespace NYT::NCypressServer {
 
 using namespace NBus;
+using namespace NCellarClient;
 using namespace NCellMaster;
+using namespace NCellServer;
 using namespace NChunkServer;
 using namespace NCypressClient::NProto;
+using namespace NFileServer;
 using namespace NHydra;
+using namespace NJournalServer;
 using namespace NMaintenanceTrackerServer;
+using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
+using namespace NOrchidServer;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
@@ -114,11 +147,14 @@ using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTableClient;
 using namespace NTableServer;
+using namespace NSchedulerPoolServer;
+using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NZookeeperServer;
 
 // COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters
 using namespace NLogging;
@@ -1057,6 +1093,82 @@ public:
         RegisterHandler(CreateScionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateClusterProxyNodeTypeHandler(Bootstrap_));
         RegisterHandler(New<TSequoiaMapNodeTypeHandler>(Bootstrap_));
+
+        RegisterHandler(CreateSysNodeTypeHandler(Bootstrap_));
+        RegisterHandler(CreateChunkLocationMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostVitalChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::PrecariousChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::PrecariousVitalChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::UnderreplicatedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::OverreplicatedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::DataMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ParityMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::OldestPartMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::QuorumMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::UnsafelyPlacedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::InconsistentlyPlacedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::UnexpectedOverreplicatedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ReplicaTemporarilyUnavailableChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ForeignChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalLostChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalLostVitalChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalPrecariousChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalPrecariousVitalChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalUnderreplicatedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalOverreplicatedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalDataMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalParityMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalOldestPartMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalQuorumMissingChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalUnsafelyPlacedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalInconsistentlyPlacedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalUnexpectedOverreplicatedChunkMap));
+        RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LocalReplicaTemporarilyUnavailableChunkMap));
+        RegisterHandler(CreateChunkViewMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateChunkListMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateMediumMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateTransactionMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateTopmostTransactionMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateLockMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateOrchidTypeHandler(Bootstrap_));
+        RegisterHandler(CreateClusterNodeNodeTypeHandler(Bootstrap_));
+        RegisterHandler(CreateLegacyClusterNodeMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateHostMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateRackMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateClusterNodeMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateFlavoredNodeMapTypeHandler(Bootstrap_, EObjectType::DataNodeMap));
+        RegisterHandler(CreateFlavoredNodeMapTypeHandler(Bootstrap_, EObjectType::ExecNodeMap));
+        RegisterHandler(CreateFlavoredNodeMapTypeHandler(Bootstrap_, EObjectType::TabletNodeMap));
+        RegisterHandler(CreateFlavoredNodeMapTypeHandler(Bootstrap_, EObjectType::ChaosNodeMap));
+        RegisterHandler(CreateDataCenterMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateFileTypeHandler(Bootstrap_));
+        RegisterHandler(CreateMasterTableSchemaMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateTableTypeHandler(Bootstrap_));
+        RegisterHandler(CreateReplicatedTableTypeHandler(Bootstrap_));
+        RegisterHandler(CreateReplicationLogTableTypeHandler(Bootstrap_));
+        RegisterHandler(CreateJournalTypeHandler(Bootstrap_));
+        RegisterHandler(CreateAccountMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateAccountResourceUsageLeaseMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateUserMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateGroupMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateNetworkProjectMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, EObjectType::HttpProxyRoleMap));
+        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, EObjectType::RpcProxyRoleMap));
+        RegisterHandler(CreatePoolTreeMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateCellNodeTypeHandler(Bootstrap_));
+        RegisterHandler(CreateCellBundleMapTypeHandler(Bootstrap_, ECellarType::Chaos, EObjectType::ChaosCellBundleMap));
+        RegisterHandler(CreateCellMapTypeHandler(Bootstrap_, ECellarType::Chaos, EObjectType::ChaosCellMap));
+        RegisterHandler(CreateCellBundleMapTypeHandler(Bootstrap_, ECellarType::Tablet, EObjectType::TabletCellBundleMap));
+        RegisterHandler(CreateCellMapTypeHandler(Bootstrap_, ECellarType::Tablet, EObjectType::TabletCellMap));
+        RegisterHandler(CreateTabletMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateTabletActionMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateAreaMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateHunkStorageTypeHandler(Bootstrap_));
+        RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateZookeeperShardMapTypeHandler(Bootstrap_));
 
         RegisterLoader(
             "CypressManager.Keys",

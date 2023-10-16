@@ -4,6 +4,9 @@
 #include "node_proxy.h"
 #include "path_resolver.h"
 #include "private.h"
+#include "rootstock_proxy.h"
+
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -14,6 +17,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
@@ -22,7 +26,9 @@
 namespace NYT::NCypressProxy {
 
 using namespace NConcurrency;
+using namespace NCypressClient::NProto;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYTree;
 
@@ -32,7 +38,7 @@ class TSequoiaService
     : public TYPathServiceBase
 {
 public:
-    TSequoiaService(IBootstrap* bootstrap)
+    explicit TSequoiaService(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -46,6 +52,21 @@ public:
 
         auto resolveResult = ResolvePath(transaction, path);
         if (std::holds_alternative<TCypressResolveResult>(resolveResult)) {
+            if (context->GetMethod() == "Create") {
+                auto options = THandlerInvocationOptions();
+                auto typedContext = DeserializeAsTypedOrThrow<TReqCreate, TRspCreate>(context, options);
+
+                if (FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock) {
+                    return TResolveResultThere{
+                        CreateRootstockProxy(
+                            Bootstrap_,
+                            std::move(transaction),
+                            path),
+                        path
+                    };
+                }
+            }
+
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::RequestInvolvesCypress,
                 "Cypress request has been passed to Sequoia");

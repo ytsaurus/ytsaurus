@@ -32,5 +32,6 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/path_resolver.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/program.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/rootstock_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service.cpp
 )

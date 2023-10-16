@@ -1,6 +1,27 @@
 #include "transaction_manager_detail.h"
 
+#include <yt/yt/core/concurrency/fls.h>
+
 namespace NYT::NTransactionSupervisor {
+
+thread_local bool InTransactionAction;
+
+bool IsInTransactionAction()
+{
+    return InTransactionAction;
+}
+
+TTransactionActionGuard::TTransactionActionGuard()
+{
+    YT_ASSERT(!InTransactionAction);
+    InTransactionAction = true;
+}
+
+TTransactionActionGuard::~TTransactionActionGuard()
+{
+    YT_ASSERT(InTransactionAction);
+    InTransactionAction = false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

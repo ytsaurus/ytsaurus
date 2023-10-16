@@ -8,14 +8,19 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NCypressProxy {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCypressClient::NProto;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NYTree;
@@ -147,12 +152,27 @@ private:
         }
     }
 
+    bool PredictSequoiaForSubrequest(const TSubrequest& subrequest)
+    {
+        // If this is a rootstock creation request - don't bother master with it.
+        auto context = CreateYPathContext(subrequest.RequestMessage);
+        if (context->GetMethod() == "Create") {
+            auto options = THandlerInvocationOptions();
+            auto typedContext = DeserializeAsTypedOrThrow<TReqCreate, TRspCreate>(context, options);
+
+            if (FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock) {
+                return true;
+            }
+        }
+
+        // TODO: Do something more smart when resolve cache will be implemented.
+        return false;
+    }
+
     void PredictSequoia()
     {
         for (auto& subrequest : Subrequests_) {
-            // TODO: Do something more smart when resolve cache
-            // will be implemented.
-            subrequest.PredictedSequoia = false;
+            subrequest.PredictedSequoia = PredictSequoiaForSubrequest(subrequest);
         }
     }
 
