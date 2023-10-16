@@ -60,6 +60,8 @@ public:
 
     TDuration OperationIdUpdatePeriod;
 
+    NYPath::TYPath ChytStrawberryPath;
+
     REGISTER_YSON_STRUCT(TStaticClickHouseConfig);
 
     static void Register(TRegistrar registrar);

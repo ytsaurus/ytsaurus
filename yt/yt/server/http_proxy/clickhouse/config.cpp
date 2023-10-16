@@ -42,6 +42,9 @@ void TStaticClickHouseConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_id_update_period", &TThis::OperationIdUpdatePeriod)
         .Default(TDuration::Seconds(5));
 
+    registrar.Parameter("chyt_strawberry_path", &TThis::ChytStrawberryPath)
+        .Default("//sys/strawberry/chyt");
+
     registrar.Preprocessor([] (TThis* config) {
         config->OperationCache->RefreshTime = TDuration::Minutes(1);
         config->OperationCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
