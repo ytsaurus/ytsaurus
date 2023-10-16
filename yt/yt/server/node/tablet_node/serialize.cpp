@@ -1,10 +1,16 @@
 #include "serialize.h"
 
+#include <yt/yt/server/lib/tablet_node/private.h>
+
 #include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
 
 using namespace NHydra;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,11 +45,12 @@ bool ValidateSnapshotReign(TReign reign)
 
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
-    YT_VERIFY(reign <= GetCurrentReign());
-
-    if (!IsReignChangeAllowed()) {
-        YT_VERIFY(reign == GetCurrentReign());
-    }
+    YT_LOG_FATAL_UNLESS(reign == GetCurrentReign() || (IsReignChangeAllowed() && reign <= GetCurrentReign()),
+        "Attempted to recover tablet cell from invalid reign "
+        "(RecoverReign: %v, CurrentReign: %v, IsReignChangeAllowed: %v)",
+        reign,
+        GetCurrentReign(),
+        IsReignChangeAllowed());
 
     if (reign < GetCurrentReign()) {
         return EFinalRecoveryAction::BuildSnapshotAndRestart;
