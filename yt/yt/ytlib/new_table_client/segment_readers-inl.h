@@ -39,39 +39,55 @@ ui32 GetOffset(const TDiffs& diffs, ui32 expected, ui32 position)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType Type, class TExtractor>
+template <class TExtractor, EValueType Type>
 void DoInitRangesKeySegment(
     TExtractor* extractor,
     const TKeyMeta<Type>* meta,
     const ui64* ptr,
-    TTmpBuffers* tmpBuffers)
+    TTmpBuffers* tmpBuffers,
+    bool newMeta)
 {
     if constexpr (IsStringLikeType(Type)) {
-        ptr = extractor->InitIndex(meta, ptr);
-        extractor->InitData(meta, ptr, tmpBuffers);
+        ptr = extractor->InitIndex(meta, ptr, newMeta);
+        extractor->InitData(meta, ptr, tmpBuffers, newMeta);
     } else {
-        ptr = extractor->InitData(meta, ptr, tmpBuffers);
-        extractor->InitIndex(meta, ptr);
+        ptr = extractor->InitData(meta, ptr, tmpBuffers, newMeta);
+        extractor->InitIndex(meta, ptr, newMeta);
     }
 }
 
-template <EValueType Type, class TExtractor>
+template <class TExtractor, EValueType Type>
 void DoInitRangesKeySegment(
     TExtractor* extractor,
     const TKeyMeta<Type>* meta,
     const ui64* ptr,
     ui32 rowOffset,
     TMutableRange<TReadSpan> spans,
-    TTmpBuffers* tmpBuffers)
+    TTmpBuffers* tmpBuffers,
+    bool newMeta)
 {
     if constexpr (IsStringLikeType(Type)) {
-        ptr = extractor->InitIndex(meta, ptr, rowOffset, spans, tmpBuffers);
-        extractor->InitData(meta, ptr, tmpBuffers->DataSpans, extractor->GetCount(), tmpBuffers, meta->ChunkRowCount);
+        ptr = extractor->InitIndex(meta, ptr, rowOffset, spans, tmpBuffers, newMeta);
+        extractor->InitData(
+            meta,
+            ptr,
+            tmpBuffers->DataSpans,
+            extractor->GetCount(),
+            tmpBuffers,
+            meta->ChunkRowCount,
+            newMeta);
     } else {
         // For partial unpacking index must be always initialized before data.
-        auto indexDataPtr = extractor->GetEndPtr(meta, ptr);
-        extractor->InitIndex(meta, indexDataPtr, rowOffset, spans, tmpBuffers);
-        ptr = extractor->InitData(meta, ptr, tmpBuffers->DataSpans, extractor->GetCount(), tmpBuffers, meta->ChunkRowCount);
+        auto indexDataPtr = extractor->GetEndPtr(meta, ptr, newMeta);
+        extractor->InitIndex(meta, indexDataPtr, rowOffset, spans, tmpBuffers, newMeta);
+        ptr = extractor->InitData(
+            meta,
+            ptr,
+            tmpBuffers->DataSpans,
+            extractor->GetCount(),
+            tmpBuffers,
+            meta->ChunkRowCount,
+            newMeta);
     }
 }
 
@@ -247,14 +263,16 @@ ui32 TScanKeyIndexExtractor::UpperRowBound(ui32 position) const
     return RowIndexes_[position + 1];
 }
 
-ui32 TScanVersionExtractorBase::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
+template <bool Aggregate>
+ui32 TScanVersionExtractor<Aggregate>::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
 {
     return LinearSearch(valueIdx, valueIdxEnd, [&] (auto position) {
         return WriteTimestampIds_[position] < timestampId;
     });
 }
 
-ui32 TScanVersionExtractorBase::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
+template <bool Aggregate>
+ui32 TScanVersionExtractor<Aggregate>::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
 {
     YT_ASSERT(valueIdx != valueIdxEnd);
     while (WriteTimestampIds_[valueIdx] < timestampId && ++valueIdx != valueIdxEnd)
@@ -263,16 +281,15 @@ ui32 TScanVersionExtractorBase::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd
     return valueIdx;
 }
 
-void TScanVersionExtractor<true>::ExtractVersion(TVersionedValue* value, const TTimestamp* timestamps, ui32 position) const
+template <bool Aggregate>
+void TScanVersionExtractor<Aggregate>::ExtractVersion(TVersionedValue* value, const TTimestamp* timestamps, ui32 position) const
 {
-    if (AggregateBits_[position]) {
-        value->Flags |= NTableClient::EValueFlags::Aggregate;
+    if constexpr (Aggregate) {
+        if (this->AggregateBits_[position]) {
+            value->Flags |= NTableClient::EValueFlags::Aggregate;
+        }
     }
-    value->Timestamp = timestamps[WriteTimestampIds_[position]];
-}
 
-void TScanVersionExtractor<false>::ExtractVersion(TVersionedValue* value, const TTimestamp* timestamps, ui32 position) const
-{
     value->Timestamp = timestamps[WriteTimestampIds_[position]];
 }
 
@@ -818,7 +835,7 @@ const ui64* TLookupVersionExtractor<Aggregate>::InitVersion(const TMultiValueInd
     ptr += WriteTimestampIds_.GetSizeInWords();
 
     if constexpr (Aggregate) {
-        AggregateBits_ = TBitmap(ptr);
+        this->AggregateBits_ = TBitmap(ptr);
         auto timestampCount = WriteTimestampIds_.GetSize();
         ptr += GetBitmapSize(timestampCount);
     }
@@ -833,7 +850,7 @@ void TLookupVersionExtractor<Aggregate>::ExtractVersion(
     ui32 position) const
 {
     if constexpr (Aggregate) {
-        if (AggregateBits_[position]) {
+        if (this->AggregateBits_[position]) {
             value->Flags |= NTableClient::EValueFlags::Aggregate;
         }
     }

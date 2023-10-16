@@ -35,16 +35,16 @@ const ui64* InitCompressedVectorHeader(const ui64* ptr, ui32* size, ui8* width)
     return ptr;
 }
 
-void TMetaBase::Init(const NProto::TSegmentMeta& meta)
+void TMetaBase::InitFromProto(const NProto::TSegmentMeta& meta)
 {
     DataOffset = meta.offset();
     RowCount = meta.row_count();
     ChunkRowCount = meta.chunk_row_count();
 }
 
-void TTimestampMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+void TTimestampMeta::InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
-    TMetaBase::Init(meta);
+    TMetaBase::InitFromProto(meta);
 
     const auto& timestampMeta = meta.GetExtension(NProto::TTimestampSegmentMeta::timestamp_segment_meta);
     BaseTimestamp = timestampMeta.min_timestamp();
@@ -63,7 +63,7 @@ void TTimestampMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
     }
 }
 
-const ui64* TIntegerMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+const ui64* TIntegerMeta::InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
     const auto& integerMeta = meta.GetExtension(NProto::TIntegerSegmentMeta::integer_segment_meta);
     BaseValue = integerMeta.min_value();
@@ -81,7 +81,7 @@ const ui64* TIntegerMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr
     return ptr;
 }
 
-void TBlobMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+void TBlobMeta::InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
     const auto& stringMeta = meta.GetExtension(NProto::TStringSegmentMeta::string_segment_meta);
     ExpectedLength = stringMeta.expected_length();
@@ -99,7 +99,7 @@ void TBlobMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
     }
 }
 
-const ui64* TDataMeta<EValueType::Boolean>::Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr)
+const ui64* TDataMeta<EValueType::Boolean>::InitFromProto(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr)
 {
     if (ptr) {
         ui64 count = *ptr++;
@@ -110,7 +110,7 @@ const ui64* TDataMeta<EValueType::Boolean>::Init(const NProto::TSegmentMeta& /*m
     return ptr;
 }
 
-const ui64* TDataMeta<EValueType::Double>::Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr)
+const ui64* TDataMeta<EValueType::Double>::InitFromProto(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr)
 {
     if (ptr) {
         ui64 count = *ptr++;
@@ -121,9 +121,9 @@ const ui64* TDataMeta<EValueType::Double>::Init(const NProto::TSegmentMeta& /*me
     return ptr;
 }
 
-const ui64* TMultiValueIndexMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr, bool aggregate)
+const ui64* TMultiValueIndexMeta::InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr, bool aggregate)
 {
-    TMetaBase::Init(meta);
+    TMetaBase::InitFromProto(meta);
 
     bool dense = meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
     if (dense) {
@@ -144,9 +144,9 @@ const ui64* TMultiValueIndexMeta::Init(const NProto::TSegmentMeta& meta, const u
     return ptr;
 }
 
-const ui64* TKeyIndexMeta::Init(const NProto::TSegmentMeta& meta, EValueType type, const ui64* ptr)
+const ui64* TKeyIndexMeta::InitFromProto(const NProto::TSegmentMeta& meta, EValueType type, const ui64* ptr)
 {
-    TMetaBase::Init(meta);
+    TMetaBase::InitFromProto(meta);
     Dense = type == EValueType::Double || type == EValueType::Boolean || IsDense(meta.type());
 
     if (ptr) {
@@ -171,6 +171,8 @@ template <class TMeta>
 static TPrepareResult DoPrepare(TSegmentMetas metas, IBlockDataProvider* blockProvider)
 {
     auto preparedMeta = TSharedMutableRef::Allocate(sizeof(TMeta) * metas.size());
+    // Fill with invalid values to crash early when reading uninitialized data.
+    memset(preparedMeta.Begin(), 0xfe, sizeof(TMeta) * metas.size());
     auto* preparedMetas = reinterpret_cast<TMeta*>(preparedMeta.begin());
 
     std::vector<ui32> blockIds;
@@ -192,7 +194,7 @@ static TPrepareResult DoPrepare(TSegmentMetas metas, IBlockDataProvider* blockPr
             ptr = reinterpret_cast<const ui64*>(blockProvider->GetBlock(metas[index]->block_index()) + metas[index]->offset());
         }
 
-        preparedMetas[index].Init(*metas[index], ptr);
+        preparedMetas[index].InitFromProto(*metas[index], ptr);
     }
 
     segmentPivots.push_back(metas.size());
@@ -332,7 +334,7 @@ size_t TPreparedChunkMeta::Prepare(
             for (auto columnId : blockGroup.ColumnIds) {
                 auto& [segmentPivots, meta] = preparedColumns[columnId];
 
-                YT_VERIFY(segmentPivots.size() > 0);
+                YT_VERIFY(!segmentPivots.empty());
                 auto segmentCount = segmentPivots.back();
                 auto segmentSize = meta.Size() / segmentCount;
 

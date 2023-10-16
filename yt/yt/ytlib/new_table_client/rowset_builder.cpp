@@ -101,9 +101,9 @@ public:
     virtual ~TKeyColumnBase() = default;
 
 #ifdef FULL_UNPACK
-    virtual ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) = 0;
+    virtual ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers, bool newMeta) = 0;
 #endif
-    virtual ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers) = 0;
+    virtual ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers, bool newMeta) = 0;
 
     virtual ui32 ReadKeys(
         TUnversionedValue** keys,
@@ -132,25 +132,25 @@ public:
     }
 
 #ifdef FULL_UNPACK
-    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) override
+    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers, bool newMeta) override
     {
         auto meta = SkipToSegment<TKeyMeta<Type>>(rowIndex);
         if (meta) {
             auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
-            DoInitRangesKeySegment<Type>(this, meta, ptr, tmpBuffers);
+            DoInitRangesKeySegment(this, meta, ptr, tmpBuffers, newMeta);
         }
         return GetSegmentRowLimit();
     }
 #endif
 
-    ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers) override
+    ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers, bool newMeta) override
     {
         auto startRowIndex = spans.Front().Lower;
 
         auto meta = SkipToSegment<TKeyMeta<Type>>(startRowIndex);
         if (meta) {
             auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
-            DoInitRangesKeySegment<Type>(this, meta, ptr, rowOffset, spans, tmpBuffers);
+            DoInitRangesKeySegment(this, meta, ptr, rowOffset, spans, tmpBuffers, newMeta);
         }
         return GetSegmentRowLimit();
     }
@@ -376,10 +376,10 @@ public:
         : ColumnId_(columnId)
     { }
 
-    void Init(const TValueMeta<Type>* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
+    void Init(const TValueMeta<Type>* meta, const ui64* ptr, TTmpBuffers* tmpBuffers, bool newMeta)
     {
-        ptr = TScanVersionExtractor<Aggregate>::InitVersion(ptr);
-        TScanDataExtractor<Type>::InitData(meta, ptr, tmpBuffers);
+        ptr = TScanVersionExtractor<Aggregate>::InitVersion(meta, ptr, newMeta);
+        TScanDataExtractor<Type>::InitData(meta, ptr, tmpBuffers, newMeta);
     }
 
     void Init(
@@ -387,10 +387,11 @@ public:
         const ui64* ptr,
         TRange<TReadSpan> spans,
         ui32 batchSize,
-        TTmpBuffers* tmpBuffers)
+        TTmpBuffers* tmpBuffers,
+        bool newMeta)
     {
-        ptr = TScanVersionExtractor<Aggregate>::InitVersion(ptr, spans, batchSize);
-        TScanDataExtractor<Type>::InitData(meta, ptr, spans, batchSize, tmpBuffers, meta->ChunkRowCount);
+        ptr = TScanVersionExtractor<Aggregate>::InitVersion(meta, ptr, spans, batchSize, newMeta);
+        TScanDataExtractor<Type>::InitData(meta, ptr, spans, batchSize, tmpBuffers, meta->ChunkRowCount, newMeta);
     }
 
 protected:
@@ -783,9 +784,9 @@ public:
     virtual ~TValueColumnBase() = default;
 
 #ifdef FULL_UNPACK
-    virtual ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) = 0;
+    virtual ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers, bool newMeta) = 0;
 #endif
-    virtual ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers) = 0;
+    virtual ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers, bool newMeta) = 0;
 
     ui32 CollectCounts(ui32* counts, TRange<TReadSpan> spans, ui32 position) const
     {
@@ -866,20 +867,20 @@ public:
     { }
 
 #ifdef FULL_UNPACK
-    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) override
+    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers, bool newMeta) override
     {
         auto meta = SkipToSegment<TValueMeta<Type>>(rowIndex);
         if (meta) {
             auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
-            ptr = TValueColumnBase<TReadSpan>::InitIndex(meta, ptr, tmpBuffers);
-            TVersionedValueBase::Init(meta, ptr, tmpBuffers);
+            ptr = TValueColumnBase<TReadSpan>::InitIndex(meta, ptr, tmpBuffers, newMeta);
+            TVersionedValueBase::Init(meta, ptr, tmpBuffers, newMeta);
         }
 
         return GetSegmentRowLimit();
     }
 #endif
 
-    ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers) override
+    ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers, bool newMeta) override
     {
         auto startRowIndex = spans.Front().Lower;
 
@@ -887,9 +888,9 @@ public:
         if (meta) {
             auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
 
-            ptr = TValueColumnBase<TReadSpan>::InitIndex(meta, ptr, rowOffset, spans, tmpBuffers);
+            ptr = TValueColumnBase<TReadSpan>::InitIndex(meta, ptr, rowOffset, spans, tmpBuffers, newMeta);
             ui32 valueCount = TValueColumnBase<TReadSpan>::GetValueCount();
-            TVersionedValueBase::Init(meta, ptr, tmpBuffers->DataSpans, valueCount, tmpBuffers);
+            TVersionedValueBase::Init(meta, ptr, tmpBuffers->DataSpans, valueCount, tmpBuffers, newMeta);
         }
 
         return GetSegmentRowLimit();
@@ -962,24 +963,24 @@ struct TTimestampExtractor<TReadSpan>
 {
     using TColumnBase::TColumnBase;
 
-    ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers)
+    ui32 UpdateSegment(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers, bool newMeta)
     {
         auto startRowIndex = spans.Front().Lower;
 
         auto meta = SkipToSegment<TTimestampMeta>(startRowIndex);
         if (meta) {
             auto data = GetBlock().begin() + meta->DataOffset;
-            InitSegment(meta, data, rowOffset, spans, tmpBuffers);
+            InitSegment(meta, data, rowOffset, spans, tmpBuffers, newMeta);
         }
         return GetSegmentRowLimit();
     }
 
-    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers)
+    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers, bool newMeta)
     {
         auto meta = SkipToSegment<TTimestampMeta>(rowIndex);
         if (meta) {
             auto data = GetBlock().begin() + meta->DataOffset;
-            InitSegment(meta, data, tmpBuffers);
+            InitSegment(meta, data, tmpBuffers, newMeta);
         }
         return GetSegmentRowLimit();
     }
@@ -1424,7 +1425,7 @@ public:
             TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DecodeTimestampSegmentTime);
 
             ++readerStatistics->UpdateSegmentCallCount;
-            segmentRowLimit = TBase::UpdateSegment(rowIndex, &TmpBuffers_);
+            segmentRowLimit = TBase::UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
         }
 
         {
@@ -1433,7 +1434,7 @@ public:
                 auto currentLimit = column->GetSegmentRowLimit();
                 if (rowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
-                    currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_);
+                    currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
                     Positions_[&column - KeyColumns_.begin()] = 0;
                 }
 
@@ -1447,7 +1448,7 @@ public:
                 auto currentLimit = column->GetSegmentRowLimit();
                 if (rowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
-                    currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_);
+                    currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
                     Positions_[GetKeyColumnCount() + &column - ValueColumns_.begin()] = 0;
                 }
 
@@ -1470,7 +1471,7 @@ public:
             TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DecodeTimestampSegmentTime);
 
             ++readerStatistics->UpdateSegmentCallCount;
-            segmentRowLimit = TBase::UpdateSegment(resultRowOffset, spans, &TmpBuffers_);
+            segmentRowLimit = TBase::UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
         }
 
         {
@@ -1479,7 +1480,7 @@ public:
                 auto currentLimit = column->GetSegmentRowLimit();
                 if (startRowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
-                    currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_);
+                    currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
                     Positions_[&column - KeyColumns_.begin()] = 0;
                 }
 
@@ -1493,7 +1494,7 @@ public:
                 auto currentLimit = column->GetSegmentRowLimit();
                 if (startRowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
-                    currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_);
+                    currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
                     Positions_[GetKeyColumnCount() + &column - ValueColumns_.begin()] = 0;
                 }
 
@@ -1569,7 +1570,7 @@ public:
 
         if (row.GetDeleteTimestampCount() == 0 && row.GetWriteTimestampCount() == 0) {
             // Key is present in chunk but no values corresponding to requested timestamp.
-            return TMutableVersionedRow();
+            return {};
         }
 
         {
