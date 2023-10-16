@@ -43,6 +43,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   telnet \
   tini \
   zstd \
+  netcat \
+  net-tools \
+  mtr \
   dnsutils \
   iputils-ping \
   lsb-release \
