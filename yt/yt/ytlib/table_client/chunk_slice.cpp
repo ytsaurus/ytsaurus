@@ -414,7 +414,7 @@ i64 GetChunkSliceDataWeight(
     auto chunkId = FromProto<TChunkId>(weightedChunkRequest.chunk_id());
 
     i64 chunkDataWeight = miscExt.data_weight();
-    i64 chunkRowCount = miscExt.row_count();
+    i64 chunkUncompressedSize = miscExt.uncompressed_data_size();
 
     auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
     switch (chunkFormat) {
@@ -463,8 +463,7 @@ i64 GetChunkSliceDataWeight(
     sliceLowerBound = ShortenKeyBound(sliceLowerBound, chunkComparator.GetLength());
     sliceUpperBound = ShortenKeyBound(sliceUpperBound, chunkComparator.GetLength());
 
-    i64 lowerBlockChunkRowCount = 0;
-    std::optional<i64> upperBlockChunkRowCount;
+    i64 sliceUncompressedSize = 0;
 
     auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions());
     auto blockCount = blockMetaExt.data_blocks_size();
@@ -475,23 +474,21 @@ i64 GetChunkSliceDataWeight(
         auto blockLastKeyRow = FromProto<TUnversionedOwningRow>(block.last_key());
         auto blockLastKey = TKey::FromRowUnchecked(blockLastKeyRow);
 
+        // Block is completely to the left of the slice.
         if (!chunkComparator.TestKey(blockLastKey, sliceLowerBound)) {
-            lowerBlockChunkRowCount = block.chunk_row_count();
             continue;
         }
 
+        // Block is partially to the right of the slice.
         if (!chunkComparator.TestKey(blockLastKey, sliceUpperBound)) {
             break;
         }
 
-        upperBlockChunkRowCount = block.chunk_row_count();
+        sliceUncompressedSize += block.uncompressed_size();
     }
 
-    auto rowCount = upperBlockChunkRowCount
-        ? upperBlockChunkRowCount.value() - lowerBlockChunkRowCount
-        : 0;
-
-    return chunkDataWeight * rowCount / chunkRowCount;
+    auto sliceDataWeight = static_cast<double>(chunkDataWeight) * sliceUncompressedSize / chunkUncompressedSize;
+    return static_cast<i64>(sliceDataWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
