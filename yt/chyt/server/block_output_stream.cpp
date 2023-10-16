@@ -117,9 +117,17 @@ public:
         if (writeTransactionId) {
             transaction = client->AttachTransaction(writeTransactionId);
         }
+
+        // TODO(dakovalkov): value statistics and row count are disabled because
+        // they are handled inappropriately in 23.1 version.
+        // Remove it when all clusters are 23.2+.
+        auto options = New<NTableClient::TTableWriterOptions>();
+        options->EnableColumnarValueStatistics = false;
+        options->EnableRowCountInColumnarStatistics = false;
+
         Writer_ = WaitFor(CreateSchemalessTableWriter(
             std::move(config),
-            New<NTableClient::TTableWriterOptions>(),
+            std::move(options),
             std::move(path),
             NameTable_,
             std::move(client),
