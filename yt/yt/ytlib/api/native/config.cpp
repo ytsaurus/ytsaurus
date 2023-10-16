@@ -267,6 +267,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_register_transaction_actions_timeout", &TThis::DefaultRegisterTransactionActionsTimeout)
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("cypress_write_yson_nesting_level_limit", &TThis::CypressWriteYsonNestingLevelLimit)
         .Default(NYson::OriginalNestingLevelLimit)
