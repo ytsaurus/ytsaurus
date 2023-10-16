@@ -220,7 +220,6 @@ protected:
             THROW_ERROR_EXCEPTION("Journal is not sealed");
         }
 
-        clonedTrunkNode->SetErasureCodec(sourceNode->GetErasureCodec());
         clonedTrunkNode->SetReadQuorum(sourceNode->GetReadQuorum());
         clonedTrunkNode->SetWriteQuorum(sourceNode->GetWriteQuorum());
 
