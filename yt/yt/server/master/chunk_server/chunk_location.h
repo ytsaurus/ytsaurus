@@ -38,17 +38,16 @@ public:
     using TDestroyedReplicaShardedSet = std::array<TDestroyedReplicaSet, ChunkShardCount>;
     DEFINE_BYREF_RO_PROPERTY(TDestroyedReplicaShardedSet, DestroyedReplicas);
 
+    using TChunkQueue = THashSet<NChunkClient::TChunkIdWithIndex>;
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
     //! Value:
     //!   Indicates medium where removal of this chunk is scheduled.
-    using TChunkRemovalQueue = THashSet<NChunkClient::TChunkIdWithIndex>;
-    DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
+    DEFINE_BYREF_RW_PROPERTY(TChunkQueue, ChunkRemovalQueue);
 
     //! Key:
     //!   Indicates an unsealed chunk.
-    using TChunkSealQueue = THashSet<TChunkPtrWithReplicaIndex>;
-    DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
+    DEFINE_BYREF_RW_PROPERTY(TChunkQueue, ChunkSealQueue);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, BeingDisposed);
     DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
@@ -96,8 +95,8 @@ public:
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
 
-    void AddToChunkSealQueue(TChunkPtrWithReplicaIndex chunkWithIndexes);
-    void RemoveFromChunkSealQueue(TChunkPtrWithReplicaIndex);
+    void AddToChunkSealQueue(const NChunkClient::TChunkIdWithIndex& replica);
+    void RemoveFromChunkSealQueue(const NChunkClient::TChunkIdWithIndex& replica);
 
     void ShrinkHashTables();
     void Reset();
