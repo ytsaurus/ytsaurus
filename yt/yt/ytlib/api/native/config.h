@@ -252,6 +252,7 @@ public:
     TDuration DefaultSyncAlienCellsTimeout;
     TDuration DefaultChaosNodeServiceTimeout;
     TDuration DefaultFetchTableRowsTimeout;
+    TDuration DefaultRegisterTransactionActionsTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
