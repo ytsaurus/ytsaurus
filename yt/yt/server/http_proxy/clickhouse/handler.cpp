@@ -1150,7 +1150,7 @@ void TClickHouseHandler::UpdateOperationIds()
         TListNodeOptions options;
         options.ReadFrom = EMasterChannelKind::MasterCache;
         options.Attributes = {"strawberry_persistent_state"};
-        auto listResult = WaitFor(Client_->ListNode("//sys/clickhouse/strawberry", options))
+        auto listResult = WaitFor(Client_->ListNode(Config_->ChytStrawberryPath, options))
             .ValueOrThrow();
         auto strawberryNodes = ConvertTo<std::vector<IStringNodePtr>>(listResult);
         for (const auto& node : strawberryNodes) {
