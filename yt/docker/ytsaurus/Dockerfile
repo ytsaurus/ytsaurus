@@ -44,6 +44,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   tini \
   zstd \
   unzip \
+  netcat \
+  net-tools \
+  mtr \
   dnsutils \
   iputils-ping \
   lsb-release \
