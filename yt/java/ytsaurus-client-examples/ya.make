@@ -1,0 +1,12 @@
+RECURSE(
+  cypress-operations-example
+  map-entity-example
+  map-reduce-ytree-example
+  read-write-ytree-example
+  reduce-ytree-example
+  dynamic-table-example
+  map-reduce-entity-example
+  map-ytree-example
+  read-write-entity-example
+  reduce-entity-example
+)

@@ -1,0 +1,4 @@
+RECURSE(
+    mapreduce
+    roren
+)

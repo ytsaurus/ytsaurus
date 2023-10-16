@@ -1,0 +1,43 @@
+PY3_LIBRARY()
+
+TEST_SRCS(
+    test_event_log.py
+    test_get_job.py
+    test_get_job_artifacts.py
+    test_get_operation.py
+    test_list_jobs.py
+    test_list_operations.py
+    test_new_live_preview.py
+    test_scheduler_acls.py
+    test_scheduler_alerts.py
+    test_scheduler_alert_history.py
+    test_scheduler_brief_spec.py
+    test_scheduler_config.py
+    test_scheduler_common.py
+    test_scheduler_experiments.py
+    test_scheduler_job_commands.py
+    test_scheduler_job_tables.py
+    test_scheduler_node_interaction.py
+    test_scheduler_operation_lifecycle.py
+    test_scheduler_operations_cleaner.py
+    test_scheduler_orchid.py
+    test_scheduler_pool_metrics.py
+    test_scheduler_pool_trees.py
+    test_scheduler_pools.py
+    test_scheduler_preemption.py
+    test_scheduler_resource_limits.py
+    test_scheduler_revive.py
+    test_scheduler_runtime_parameters.py
+    test_scheduler_strategy.py
+    test_scheduler_user_statistics.py
+    test_scheduling_segments.py
+    test_speculative_jobs.py
+    test_probing_jobs.py
+    test_resource_metering.py
+)
+
+END()
+
+RECURSE_FOR_TESTS(
+    bin
+)

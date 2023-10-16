@@ -1,0 +1,24 @@
+RECURSE(
+    batch_request
+    dyntable_get_insert
+    job_statistics
+    join_reduce_tnode
+    map_tnode_with_file
+    mapreduce_lambda
+    mapreduce_protobuf
+    multiple_input_multiple_output_reduce_protobuf
+    multiple_input_multiple_output_reduce_tnode
+    multiple_input_reduce_tnode
+    operation_tracker
+    prepare_operation
+    profile_cpu
+    profile_memory
+    protobuf_complex_types
+    pass_table_as_file
+    simple_map_lambda
+    simple_map_protobuf
+    simple_map_tnode
+    simple_reduce_tnode
+    stateful_map_tnode
+    table_read_write_tnode
+)

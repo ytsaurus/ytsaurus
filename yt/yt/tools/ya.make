@@ -1,0 +1,13 @@
+RECURSE(
+    cuda_core_dump_injection
+    dump_chunk_meta
+    dynamic_tables
+    prepare_scheduling_usage
+    record_codegen
+    recode_table_chunk
+    run_codec
+    scheduler_simulator
+    unpack_local_changelog
+    unpack_local_snapshot
+    yt_sudo_fixup
+)

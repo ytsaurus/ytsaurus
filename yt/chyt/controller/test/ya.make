@@ -1,0 +1,5 @@
+RECURSE(
+    cli
+    helpers
+    integration
+)

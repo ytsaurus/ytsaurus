@@ -1,12 +1,5 @@
 DOCS()
 
-OWNER(
-    andozer
-    arivkin
-    belokonnasty
-    ogorbacheva
-)
-
 DOCS_VARS(
     version=0
     audience=public

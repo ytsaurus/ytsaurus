@@ -1,5 +1,3 @@
-OWNER(g:data-ui)
-
 DOCS()
 
 DOCS_DIR(yt/docs)

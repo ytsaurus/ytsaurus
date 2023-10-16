@@ -1,0 +1,12 @@
+JAVA_CONTRIB()
+
+LICENSE(MIT)
+
+PEERDIR(
+    contrib/java/org/jetbrains/annotations/17.0.0
+)
+
+JAR_RESOURCE(1368546230)
+SRC_RESOURCE(1368547975)
+
+END()

@@ -1,0 +1,5 @@
+RECURSE(
+    balancer
+    plotter
+    simulator
+)

@@ -1,0 +1,10 @@
+RECURSE(
+    mapreduce-yt_make
+    yt_make
+    yt_make_with_rpc
+    yt_make_with_driver
+    yt-admin_make
+    yt-fuse_make
+    yt_cli_all_make
+    generate_client_impl
+)
