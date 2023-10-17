@@ -13,7 +13,7 @@ class TDummyExecutor
 public:
     void Run(const TPipeline&) override
     {
-        Y_FAIL("TDummyExecutor is not meant to execute pipelines");
+        Y_ABORT("TDummyExecutor is not meant to execute pipelines");
     }
 };
 

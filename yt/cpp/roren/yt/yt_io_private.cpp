@@ -181,7 +181,7 @@ public:
     {
         // This input is not expected to be read for now.
         // The only use of it is to create job input.
-        Y_FAIL("Not implemented");
+        Y_ABORT("Not implemented");
     }
 
     IYtJobInputPtr CreateJobInput() const override

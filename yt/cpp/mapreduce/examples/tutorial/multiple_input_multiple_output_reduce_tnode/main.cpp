@@ -21,7 +21,7 @@ public:
             } else if (tableIndex == 1) {
                 isRobot = curRow["is_robot"].AsBool();
             } else {
-                Y_FAIL();
+                Y_ABORT();
             }
         }
 

@@ -163,12 +163,12 @@ public:
 
     void AddRaw(const void*, ssize_t) override
     {
-        Y_FAIL("not implemented");
+        Y_ABORT("not implemented");
     }
 
     void Close() override
     {
-        Y_FAIL("not implemented");
+        Y_ABORT("not implemented");
     }
 
 private:

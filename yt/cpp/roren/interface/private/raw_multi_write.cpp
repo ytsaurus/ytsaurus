@@ -25,7 +25,7 @@ TRawMultiWrite::TRawMultiWrite(std::vector<IRawWritePtr> writes)
     for (int i = 0; i < std::ssize(Writes_); ++i) {
         auto currentVtable = getRowVtable(1);
         if (currentVtable.TypeName != rowVtable.TypeName) {
-            Y_FAIL("Types for #0 and #%d transforms differ", i);
+            Y_ABORT("Types for #0 and #%d transforms differ", i);
         }
     }
 }

@@ -40,13 +40,13 @@ public:
     {
         Y_UNUSED(timer);
         Y_UNUSED(policy);
-        Y_FAIL("not implemented");
+        Y_ABORT("not implemented");
     }
 
     void DeleteTimer(const TTimer::TKey& key) override
     {
         Y_UNUSED(key);
-        Y_FAIL("not implemented");
+        Y_ABORT("not implemented");
     }
 };
 
@@ -77,7 +77,7 @@ public:
 
     void Do(const TRawJobContext& /*jobContext*/) override
     {
-        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_FAIL("FAIL");});
+        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_ABORT("FAIL");});
 
         try {
             auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
@@ -413,7 +413,7 @@ public:
 
     void Do(const TRawJobContext& /*jobContext*/) override
     {
-        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_FAIL("FAIL");});
+        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_ABORT("FAIL");});
         try {
             auto output = SerializableFromNode<IYtJobOutput>(State_.At(OutputKey_));
 
@@ -490,7 +490,7 @@ public:
 
     void Do(const TRawJobContext& /*jobContext*/) override
     {
-        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_FAIL("FAIL");});
+        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_ABORT("FAIL");});
 
         try {
             const auto inRowVtables = LoadVtablesFromNode(State_.At(InVtablesKey_));

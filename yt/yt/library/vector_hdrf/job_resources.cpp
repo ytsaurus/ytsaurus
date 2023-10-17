@@ -66,7 +66,7 @@ double GetResource(const TJobResources& resources, EJobResourceType type)
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
-            Y_FAIL();
+            Y_ABORT();
     }
 }
 
@@ -80,7 +80,7 @@ void SetResource(TJobResources& resources, EJobResourceType type, double value)
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
-            Y_FAIL();
+            Y_ABORT();
     }
 }
 

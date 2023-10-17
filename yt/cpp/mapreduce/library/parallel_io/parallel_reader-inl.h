@@ -539,7 +539,7 @@ public:
 
     void OnBufferDrained(TReaderBufferPtr<TRow> /* buffer */) override
     {
-        Y_FAIL();
+        Y_ABORT();
     }
 
 private:
@@ -551,7 +551,7 @@ private:
 
     TReaderBufferPtr<TRow> DoGetNextFilledBuffer() override
     {
-        Y_FAIL();
+        Y_ABORT();
     }
 
     void DoStop() override
@@ -729,7 +729,7 @@ public:
 
     ui32 GetRangeIndex() const override
     {
-        Y_FAIL("Not implemented");
+        Y_ABORT("Not implemented");
     }
 
     ui64 GetRowIndex() const override
@@ -740,7 +740,7 @@ public:
 
     void NextKey() override
     {
-        Y_FAIL("Not implemented");
+        Y_ABORT("Not implemented");
     }
 
     ~TParallelTableReaderBase()

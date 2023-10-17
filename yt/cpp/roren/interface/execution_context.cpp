@@ -22,13 +22,13 @@ public:
     {
         Y_UNUSED(timer);
         Y_UNUSED(policy);
-        Y_FAIL("not implemented");
+        Y_ABORT("not implemented");
     }
 
     void DeleteTimer(const TTimer::TKey& key) override
     {
         Y_UNUSED(key);
-        Y_FAIL("not implemented");
+        Y_ABORT("not implemented");
     }
 };
 

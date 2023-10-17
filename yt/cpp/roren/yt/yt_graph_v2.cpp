@@ -377,7 +377,7 @@ public:
 
     IRawParDoPtr CreateTNodeEncodingParDo() const override
     {
-        Y_FAIL("TInputTableNode is not expected to be written into");
+        Y_ABORT("TInputTableNode is not expected to be written into");
     }
 
 private:
@@ -1125,7 +1125,7 @@ private:
                     return;
                 }
             }
-            Y_FAIL("unknown operation type");
+            Y_ABORT("unknown operation type");
         }
 
         TYtGraphV2::TPlainGraph ExtractOutput()
@@ -1223,7 +1223,7 @@ public:
                         rawYtWrite
                     );
                 } else {
-                    Y_FAIL("YT executor doesn't support writes except YtWrite");
+                    Y_ABORT("YT executor doesn't support writes except YtWrite");
                 }
                 break;
             case ERawTransformType::ParDo: {
@@ -1371,7 +1371,7 @@ public:
             case ERawTransformType::Flatten:
 
             case ERawTransformType::StatefulParDo:
-                Y_FAIL("Not implemented yet");
+                Y_ABORT("Not implemented yet");
         }
     }
 
@@ -1648,13 +1648,13 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
 TString TYtGraphV2::DumpDOTSubGraph(const TString&) const
 {
-    Y_FAIL("Not implemented yet");
+    Y_ABORT("Not implemented yet");
     return TString{};
 }
 
 TString TYtGraphV2::DumpDOT(const TString&) const
 {
-    Y_FAIL("Not implemented yet");
+    Y_ABORT("Not implemented yet");
     return TString{};
 }
 
@@ -1699,7 +1699,7 @@ std::set<TString> TYtGraphV2::GetEdgeDebugStringSet() const
                     break;
                 }
                 case ETableType::Input:
-                    Y_FAIL("Unexpected");
+                    Y_ABORT("Unexpected");
             }
         }
 

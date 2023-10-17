@@ -66,7 +66,7 @@ public:
         TKey key = TDynamicTypeTag(tag).GetKey();
         auto it = OutputMap_.find(key);
         if (it == OutputMap_.end()) {
-            Y_FAIL("Unknown tag: %s", tag.GetDescription().c_str());
+            Y_ABORT("Unknown tag: %s", tag.GetDescription().c_str());
         }
         return *it->second->template Upcast<TRow>();
     }

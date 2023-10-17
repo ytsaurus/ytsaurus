@@ -8,12 +8,12 @@ namespace NRoren::NPrivate {
 
 IRawCoderPtr CrashingCoderFactory()
 {
-    Y_FAIL("Internal error: CrashingCoderFactory is called");
+    Y_ABORT("Internal error: CrashingCoderFactory is called");
 }
 
 TRowVtable CrashingGetVtableFactory()
 {
-    Y_FAIL("Internal error: CrashingGetVtableFactory is called");
+    Y_ABORT("Internal error: CrashingGetVtableFactory is called");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,7 +29,7 @@ public:
                 const auto& isRobotRecord = cursor.GetRow<TIsRobotRecord>();
                 isRobot = isRobotRecord.GetIsRobot();
             } else {
-                Y_FAIL();
+                Y_ABORT();
             }
         }
 

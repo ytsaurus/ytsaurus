@@ -451,7 +451,7 @@ INodePtr CreateAllFieldsConfig(EProtoFormatType protoFormatType)
                 .EndAttributes()
                 .Value("protobuf");
     }
-    Y_FAIL();
+    Y_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

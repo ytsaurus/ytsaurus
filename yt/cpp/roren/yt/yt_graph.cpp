@@ -145,7 +145,7 @@ public:
                 OptimizeInput();
                 return;
             default:
-                Y_FAIL();
+                Y_ABORT();
         }
     }
 
@@ -273,7 +273,7 @@ private:
                 break;
             }
             default:
-                Y_FAIL();
+                Y_ABORT();
         }
     }
 
@@ -554,7 +554,7 @@ private:
                 break;
             }
             default:
-                Y_FAIL();
+                Y_ABORT();
         }
         std::vector<IYtJobOutputPtr> jobOutputs;
         for (size_t outputIndex = 0; outputIndex < outputVtables.size(); ++outputIndex) {
@@ -590,7 +590,7 @@ private:
             case ERawTransformType::CombinePerKey:
                 return CreateCombineReducer(RawTransform_->AsRawCombine(), outputVtables[0], jobOutputs[0]);
             default:
-                Y_FAIL();
+                Y_ABORT();
         }
     }
 
@@ -961,7 +961,7 @@ public:
                 break;
             }
             default:
-                Y_FAIL();
+                Y_ABORT();
         }
     }
 

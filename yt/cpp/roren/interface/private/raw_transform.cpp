@@ -115,7 +115,7 @@ const IRawFlatten& IRawTransform::AsRawFlattenRef() const {
 
 const void* TRawDummyRead::NextRaw()
 {
-    Y_FAIL("unimplemented method of TRawDummyRead");
+    Y_ABORT("unimplemented method of TRawDummyRead");
 }
 
 ISerializable<IRawRead>::TDefaultFactoryFunc TRawDummyRead::GetDefaultFactory() const
@@ -145,12 +145,12 @@ std::vector<TDynamicTypeTag> TRawDummyRead::GetOutputTags() const
 
 void TRawDummyWriter::AddRaw(const void*, ssize_t)
 {
-    Y_FAIL("not implemented");
+    Y_ABORT("not implemented");
 }
 
 void TRawDummyWriter::Close()
 {
-    Y_FAIL("not implemented");
+    Y_ABORT("not implemented");
 }
 
 std::vector<TDynamicTypeTag> TRawDummyWriter::GetInputTags() const

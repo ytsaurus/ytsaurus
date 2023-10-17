@@ -240,7 +240,7 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverterImpl(
         CASE(EPythonType::Bool, EWireType::Boolean)
 #undef CASE
     }
-    Y_FAIL();
+    Y_ABORT();
 }
 
 TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter converter, Py::Callable middlewareConverter)
@@ -665,7 +665,7 @@ TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Ob
     } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
         return CreateDictSkiffToPythonConverter(description, pySchema, false, validateOptionalOnRuntime);
     } else {
-        Y_FAIL();
+        Y_ABORT();
     }
 }
 

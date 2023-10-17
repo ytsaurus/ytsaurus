@@ -362,7 +362,7 @@ void TParDoTreeBuilder::CheckPCollectionType(int nodeId, TStringBuf expectedDesc
             << "Node " << nodeId << " type: " << pCollectionRowVtable.TypeName
             << " " << expectedDescription
             << " type: " << expectedRowVtable.TypeName;
-        Y_FAIL("%s", error.Str().c_str());
+        Y_ABORT("%s", error.Str().c_str());
     }
 }
 
