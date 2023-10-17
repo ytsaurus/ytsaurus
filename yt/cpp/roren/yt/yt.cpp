@@ -62,11 +62,14 @@ public:
 
             YT_LOG_DEBUG("Starting execution of YT graph");
 
+            TStartOperationContext context;
+            context.Config = std::make_shared<TYtPipelineConfig>(Config_);
+
             for (const auto& level : ytGraph->GetOperationLevels()) {
                 std::vector<IOperationPtr> operations;
                 operations.reserve(level.size());
                 for (auto operationNodeId : level) {
-                    auto operation = ytGraph->StartOperation(tx, operationNodeId);
+                    auto operation = ytGraph->StartOperation(tx, operationNodeId, context);
                     YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
                     operations.emplace_back(std::move(operation));
                 }

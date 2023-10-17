@@ -35,8 +35,10 @@ public:
     std::vector<std::vector<TOperationNodeId>>
     GetOperationLevels() const override;
 
-    NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr &client,
-                                      TOperationNodeId id) const override;
+    NYT::IOperationPtr StartOperation(
+        const NYT::IClientBasePtr &client,
+        TOperationNodeId id,
+        const TStartOperationContext& context) const override;
 
     TString DumpDOTSubGraph(const TString &name) const override;
 

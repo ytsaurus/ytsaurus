@@ -719,7 +719,7 @@ void TYtGraph::RemoveOperation(TOperationNodeId operationId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::IOperationPtr TYtGraph::StartOperation(const IClientBasePtr& client, TOperationNodeId id) const
+NYT::IOperationPtr TYtGraph::StartOperation(const IClientBasePtr& client, TOperationNodeId id, const TStartOperationContext& /*context*/) const
 {
     Y_ABORT_UNLESS(0 <= id && id < std::ssize(OperationNodes_));
     return OperationNodes_[id]->Start(client);

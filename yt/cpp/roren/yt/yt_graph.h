@@ -16,6 +16,11 @@ class TYtPipelineConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStartOperationContext
+{
+    std::shared_ptr<const TYtPipelineConfig> Config;
+};
+
 class IYtGraph
 {
 public:
@@ -28,7 +33,7 @@ public:
     virtual void Optimize() = 0;
 
     virtual std::vector<std::vector<TOperationNodeId>> GetOperationLevels() const = 0;
-    virtual NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId id) const = 0;
+    virtual NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId id, const TStartOperationContext& context) const = 0;
 
     virtual TString DumpDOTSubGraph(const TString& name) const = 0;
     virtual TString DumpDOT(const TString& prefix) const = 0;  // dump graph in DOT format
@@ -50,7 +55,7 @@ public:
     void Optimize() override;
 
     std::vector<std::vector<TYtGraph::TOperationNodeId>> GetOperationLevels() const override;
-    NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId id) const override;
+    NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId id, const TStartOperationContext& context) const override;
 
     TString DumpDOTSubGraph(const TString& name) const override;
     TString DumpDOT(const TString& prefix) const override;  // dump graph in DOT format
