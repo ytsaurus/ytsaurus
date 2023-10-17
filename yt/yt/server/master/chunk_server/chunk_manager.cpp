@@ -501,25 +501,18 @@ public:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareCreateChunk, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqCreateChunk, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqCreateChunk, const NTransactionSupervisor::TTransactionAbortOptions&>()));
-
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmChunk, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqConfirmChunk, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqConfirmChunk, const NTransactionSupervisor::TTransactionAbortOptions&>()));
-
-        transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareModifyReplicas, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, TReqModifyReplicas, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, TReqModifyReplicas, const NTransactionSupervisor::TTransactionAbortOptions&>()));
+
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareAddConfirmReplicas, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(
+                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAddConfirmReplicas, const NTransactionSupervisor::TTransactionCommitOptions&>()),
+            MakeTransactionActionHandlerDescriptor(
+                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAddConfirmReplicas, const NTransactionSupervisor::TTransactionAbortOptions&>()));
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
@@ -718,54 +711,6 @@ public:
             this);
     }
 
-    bool IsSequoiaCreateChunkRequest(const TReqCreateChunk& request) override
-    {
-        auto account = FromProto<TString>(request.account());
-        if (account == NSecurityClient::SequoiaAccountName) {
-            return false;
-        }
-
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        if (!config->SequoiaManager->Enable) {
-            return false;
-        }
-
-        auto type = CheckedEnumCast<EObjectType>(request.type());
-        if (IsJournalChunkType(type)) {
-            return false;
-        }
-
-        auto probability = config->ChunkManager->SequoiaChunkProbability;
-        return static_cast<int>(RandomNumber<ui32>() % 100) < probability;
-    }
-
-    bool IsSequoiaConfirmChunkRequest(const TReqConfirmChunk& request) override
-    {
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        if (!config->SequoiaManager->Enable) {
-            return false;
-        }
-
-        auto chunkId = FromProto<TChunkId>(request.chunk_id());
-
-        if (IsJournalChunkId(chunkId)) {
-            return false;
-        }
-
-        if (IsSequoiaId(chunkId)) {
-            return true;
-        }
-
-        for (const auto& replica : request.replicas()) {
-            auto locationUuid = FromProto<TChunkLocationUuid>(replica.location_uuid());
-            if (IsSequoiaChunkReplica(chunkId, locationUuid)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     bool CanHaveSequoiaReplicas(TChunkId chunkId) const override
     {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
@@ -805,122 +750,6 @@ public:
         }
 
         return true;
-    }
-
-    TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(const TReqExecuteBatch& request) override
-    {
-        auto preparedRequest = New<TPreparedExecuteBatchRequest>();
-        preparedRequest->MutationRequest = request;
-
-        auto splitSubrequests = [&]<class TSubrequest>(
-            const ::google::protobuf::RepeatedPtrField<TSubrequest>& subrequests,
-            ::google::protobuf::RepeatedPtrField<TSubrequest>* mutationSubrequests,
-            std::vector<TSubrequest>* sequoiaSubrequests,
-            std::vector<bool>* isSubrequestSequoia,
-            auto sequoiaFilter)
-        {
-            mutationSubrequests->Clear();
-            isSubrequestSequoia->reserve(subrequests.size());
-
-            for (const auto& subrequest : subrequests) {
-                auto isSequoia = (this->*sequoiaFilter)(subrequest);
-                isSubrequestSequoia->push_back(isSequoia);
-
-                if (isSequoia) {
-                    sequoiaSubrequests->push_back(subrequest);
-                } else {
-                    *mutationSubrequests->Add() = subrequest;
-                }
-            }
-        };
-
-        splitSubrequests(
-            request.create_chunk_subrequests(),
-            preparedRequest->MutationRequest.mutable_create_chunk_subrequests(),
-            &preparedRequest->SequoiaRequest.CreateChunkSubrequests,
-            &preparedRequest->IsCreateChunkSubrequestSequoia,
-            &TChunkManager::IsSequoiaCreateChunkRequest);
-        splitSubrequests(
-            request.confirm_chunk_subrequests(),
-            preparedRequest->MutationRequest.mutable_confirm_chunk_subrequests(),
-            &preparedRequest->SequoiaRequest.ConfirmChunkSubrequests,
-            &preparedRequest->IsConfirmChunkSubrequestSequoia,
-            &TChunkManager::IsSequoiaConfirmChunkRequest);
-        return preparedRequest;
-    }
-
-    void PrepareExecuteBatchResponse(
-        TPreparedExecuteBatchRequestPtr request,
-        TRspExecuteBatch* response) override
-    {
-        *response = request->MutationResponse;
-
-        auto mergeSubresponses = [&]<class TSubresponse>(
-            const ::google::protobuf::RepeatedPtrField<TSubresponse>& mutationSubresponses,
-            const std::vector<TSubresponse>& sequoiaSubresponses,
-            ::google::protobuf::RepeatedPtrField<TSubresponse>* subresponses,
-            const std::vector<bool>& isSubrequestSequoia)
-        {
-            subresponses->Clear();
-
-            int mutationIndex = 0;
-            int sequoiaIndex = 0;
-
-            for (auto isSequoia : isSubrequestSequoia) {
-                auto* subresponse = subresponses->Add();
-
-                if (isSequoia) {
-                    *subresponse = sequoiaSubresponses[sequoiaIndex++];
-                } else {
-                    *subresponse = mutationSubresponses[mutationIndex++];
-                }
-            }
-        };
-        mergeSubresponses(
-            request->MutationResponse.create_chunk_subresponses(),
-            request->SequoiaResponse.CreateChunkSubresponses,
-            response->mutable_create_chunk_subresponses(),
-            request->IsCreateChunkSubrequestSequoia);
-        mergeSubresponses(
-            request->MutationResponse.confirm_chunk_subresponses(),
-            request->SequoiaResponse.ConfirmChunkSubresponses,
-            response->mutable_confirm_chunk_subresponses(),
-            request->IsConfirmChunkSubrequestSequoia);
-    }
-
-    // COMPAT(aleksandra-zh)
-    TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) override
-    {
-        int createChunkSubrequestCount = request->SequoiaRequest.CreateChunkSubrequests.size();
-        int confirmChunkSubrequestCount = request->SequoiaRequest.ConfirmChunkSubrequests.size();
-
-        std::vector<TFuture<void>> futures;
-        futures.reserve(createChunkSubrequestCount + confirmChunkSubrequestCount);
-        request->SequoiaResponse.CreateChunkSubresponses.resize(createChunkSubrequestCount);
-        for (int index = 0; index < createChunkSubrequestCount; ++index) {
-            const auto& subrequest = request->SequoiaRequest.CreateChunkSubrequests[index];
-            auto* subresponse = &request->SequoiaResponse.CreateChunkSubresponses[index];
-
-            auto future = CreateChunk(subrequest)
-                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TRspCreateChunk& response) {
-                    *subresponse = response;
-                }));
-            futures.push_back(future);
-        }
-
-        request->SequoiaResponse.ConfirmChunkSubresponses.resize(confirmChunkSubrequestCount);
-        for (int index = 0; index < confirmChunkSubrequestCount; ++index) {
-            const auto& subrequest = request->SequoiaRequest.ConfirmChunkSubrequests[index];
-            auto* subresponse = &request->SequoiaResponse.ConfirmChunkSubresponses[index];
-
-            auto future = ConfirmChunk(subrequest)
-                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TRspConfirmChunk& response) {
-                    *subresponse = response;
-                }));
-            futures.push_back(future);
-        }
-
-        return AllSet(std::move(futures)).AsVoid();
     }
 
     TNodeList AllocateWriteTargets(
@@ -969,55 +798,11 @@ public:
             ESessionType::User);
     }
 
-    void ConfirmChunk(
+    void AddConfirmReplicas(
         TChunk* chunk,
-        const TChunkReplicaWithLocationList& replicas,
-        const TChunkInfo& chunkInfo,
-        const TChunkMeta& chunkMeta,
-        TMasterTableSchemaId schemaId)
+        const TChunkReplicaWithLocationList& replicas)
     {
-        auto id = chunk->GetId();
-
-        if (chunk->IsConfirmed()) {
-            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
-                id);
-            return;
-        }
-
-        if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            // NB: Sometimes chunk confirmation can be recieved after the table has been destroyed.
-            // TODO(h0pless): Maybe think of a better exception here.
-            auto* temporarySchema = tableManager->GetMasterTableSchemaOrThrow(schemaId);
-            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
-        }
-
-        // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
-        // the chunk and storing its meta. Otherwise, in DestroyChunk one may end up having
-        // dangling references to hunk chunks.
-        std::vector<TChunk*> referencedHunkChunks;
-        if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
-            referencedHunkChunks.reserve(hunkChunkRefsExt->refs_size());
-            for (const auto& protoRef : hunkChunkRefsExt->refs()) {
-                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
-                auto* hunkChunk = FindChunk(hunkChunkId);
-                if (!IsObjectAlive(hunkChunk)) {
-                    THROW_ERROR_EXCEPTION("Cannot confirm chunk %v since it references an unknown hunk chunk %v",
-                        id,
-                        hunkChunkId);
-                }
-                referencedHunkChunks.push_back(hunkChunk);
-            }
-        }
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* hunkChunk : referencedHunkChunks) {
-            objectManager->RefObject(hunkChunk);
-        }
-
-        chunk->Confirm(chunkInfo, chunkMeta);
-
-        UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
+        YT_VERIFY(HasMutationContext());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -1029,7 +814,7 @@ public:
             auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 YT_LOG_DEBUG("Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
-                    id,
+                    chunk->GetId(),
                     replica.GetNodeId());
                 continue;
             }
@@ -1043,7 +828,7 @@ public:
             if (!node->ReportedDataNodeHeartbeat()) {
                 YT_LOG_DEBUG("Tried to confirm chunk at node that did not report data node heartbeat yet "
                     "(ChunkId: %v, Address: %v, State: %v)",
-                    id,
+                    chunk->GetId(),
                     node->GetDefaultAddress(),
                     node->GetLocalState());
                 continue;
@@ -1078,6 +863,58 @@ public:
                 location->AddUnapprovedReplica(chunkWithReplicaIndex, mutationTimestamp);
             }
         }
+    }
+
+    void ConfirmChunk(
+        TChunk* chunk,
+        const TChunkReplicaWithLocationList& replicas,
+        const TChunkInfo& chunkInfo,
+        const TChunkMeta& chunkMeta,
+        TMasterTableSchemaId schemaId)
+    {
+        auto id = chunk->GetId();
+
+        if (chunk->IsConfirmed()) {
+            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
+                id);
+            return;
+        }
+
+        if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            // TODO(h0pless): Maybe think of a better exception here.
+            auto* temporarySchema = tableManager->GetMasterTableSchemaOrThrow(schemaId);
+            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
+        }
+
+        // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
+        // the chunk and storing its meta. Otherwise, in DestroyChunk one may end up having
+        // dangling references to hunk chunks.
+        std::vector<TChunk*> referencedHunkChunks;
+        if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
+            referencedHunkChunks.reserve(hunkChunkRefsExt->refs_size());
+            for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                auto* hunkChunk = FindChunk(hunkChunkId);
+                if (!IsObjectAlive(hunkChunk)) {
+                    THROW_ERROR_EXCEPTION("Cannot confirm chunk %v since it references an unknown hunk chunk %v",
+                        id,
+                        hunkChunkId);
+                }
+                referencedHunkChunks.push_back(hunkChunk);
+            }
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto* hunkChunk : referencedHunkChunks) {
+            objectManager->RefObject(hunkChunk);
+        }
+
+        chunk->Confirm(chunkInfo, chunkMeta);
+
+        UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
+
+        AddConfirmReplicas(chunk, replicas);
 
         // NB: This is true for non-journal chunks.
         if (chunk->IsSealed()) {
@@ -1294,20 +1131,6 @@ public:
         return chunk;
     }
 
-    TFuture<TRspConfirmChunk> ConfirmChunk(const TReqConfirmChunk& request) override
-    {
-        return SequoiaConfirmChunk(request)
-            .Apply(BIND([] (const TErrorOr<TRspConfirmChunk>& responseOrError) {
-                if (responseOrError.IsOK()) {
-                    return responseOrError.Value();
-                } else {
-                    TRspConfirmChunk response;
-                    ToProto(response.mutable_error(), TError(responseOrError));
-                    return response;
-                }
-            }));
-    }
-
     TChunkTreeStatistics ConstructChunkStatistics(
         TChunkId chunkId,
         const TMiscExt& miscExt,
@@ -1329,136 +1152,6 @@ public:
         statistics.LogicalChunkCount = 1;
         statistics.Rank = 0;
         return statistics;
-    }
-
-    TFuture<TRspConfirmChunk> SequoiaConfirmChunk(const TReqConfirmChunk& request) override
-    {
-        auto chunkId = FromProto<TChunkId>(request.chunk_id());
-        YT_VERIFY(!IsJournalChunkId(chunkId));
-
-        return Bootstrap_
-            ->GetSequoiaClient()
-            ->StartTransaction()
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
-                const auto& chunkMeta = request.chunk_meta();
-                if (IsSequoiaId(chunkId)) {
-                    NRecords::TChunkMetaExtensions chunkMetaExtensions{
-                        .Key = GetChunkMetaExtensionsKey(chunkId),
-                    };
-                    FromProto(&chunkMetaExtensions, chunkMeta.extensions());
-                    transaction->WriteRow(chunkMetaExtensions);
-                }
-
-                auto replicas = FromProto<TChunkReplicaWithLocationList>(request.replicas());
-                for (const auto& replica : replicas) {
-                    auto locationUuid = replica.GetChunkLocationUuid();
-                    NRecords::TChunkReplicas chunkReplica{
-                        .Key = {
-                            .IdHash = chunkId.Parts32[0],
-                            .ChunkId = chunkId,
-                            .LocationUuid = locationUuid,
-                            .ReplicaIndex = replica.GetReplicaIndex(),
-                        },
-                        .NodeId = replica.GetNodeId(),
-                    };
-                    transaction->WriteRow(chunkReplica);
-
-                    NRecords::TLocationReplicas locationReplica{
-                        .Key = {
-                            .CellTag = Bootstrap_->GetCellTag(),
-                            .NodeId = replica.GetNodeId(),
-                            .IdHash = locationUuid.Parts32[0],
-                            .LocationUuid = locationUuid,
-                            .ChunkId = chunkId,
-                        },
-                        .ReplicaIndex = replica.GetReplicaIndex(),
-                    };
-                    transaction->WriteRow(locationReplica);
-                }
-
-                transaction->AddTransactionAction(
-                    Bootstrap_->GetCellTag(),
-                    NTransactionClient::MakeTransactionActionData(request));
-
-                auto result = WaitFor(transaction->Commit({
-                    .CoordinatorCellId = Bootstrap_->GetCellId(),
-                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                }));
-                if (!result.IsOK()) {
-                    result.SetCode(NRpc::EErrorCode::TransientFailure);
-                }
-                result.ThrowOnError();
-
-                TRspConfirmChunk response;
-                if (request.request_statistics()) {
-                    const auto& chunkInfo = request.chunk_info();
-                    const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-                    auto statistics = ConstructChunkStatistics(chunkId, miscExt, chunkInfo);
-                    *response.mutable_statistics() = statistics.ToDataStatistics();
-                }
-                return response;
-            }));
-    }
-
-    TFuture<TRspCreateChunk> CreateChunk(const TReqCreateChunk& request) override
-    {
-        return SequoiaCreateChunk(request)
-            .Apply(BIND([] (const TErrorOr<TRspCreateChunk>& responseOrError) {
-                if (responseOrError.IsOK()) {
-                    return responseOrError.Value();
-                } else {
-                    TRspCreateChunk response;
-                    ToProto(response.mutable_error(), TError(responseOrError));
-                    return response;
-                }
-            }));
-    }
-
-    TFuture<TRspCreateChunk> SequoiaCreateChunk(const TReqCreateChunk& request) override
-    {
-        auto errorOrMedium = GetMediumByName(request.medium_name());
-        if (!errorOrMedium.IsOK()) {
-            return MakeFuture<TRspCreateChunk>(TError(errorOrMedium));
-        }
-
-        int mediumIndex = errorOrMedium.Value()->GetIndex();
-
-        return
-            Bootstrap_
-            ->GetSequoiaClient()
-            ->StartTransaction()
-            .Apply(BIND([=, request = request, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) mutable {
-                auto chunkType = CheckedEnumCast<EObjectType>(request.type());
-                auto chunkId = transaction->GenerateObjectId(chunkType, Bootstrap_->GetCellTag());
-
-                NRecords::TChunkMetaExtensions chunkMetaExtensions{
-                    .Key = GetChunkMetaExtensionsKey(chunkId),
-                    .MiscExt = "tilted",
-                };
-                transaction->WriteRow(chunkMetaExtensions);
-
-                ToProto(request.mutable_chunk_id(), chunkId);
-
-                transaction->AddTransactionAction(
-                    Bootstrap_->GetCellTag(),
-                    NTransactionClient::MakeTransactionActionData(request));
-
-                NApi::TTransactionCommitOptions commitOptions{
-                    .CoordinatorCellId = Bootstrap_->GetCellId(),
-                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                };
-
-                auto result = WaitFor(transaction->Commit(commitOptions));
-                if (!result.IsOK()) {
-                    result.SetCode(NRpc::EErrorCode::TransientFailure);
-                }
-                result.ThrowOnError();
-
-                TRspCreateChunk response;
-                auto sessionId = TSessionId(chunkId, mediumIndex);
-                ToProto(response.mutable_session_id(), sessionId);
-                return response;
-            }));
     }
 
     void HydraPrepareCreateChunk(
@@ -1571,10 +1264,6 @@ public:
         }
 
         ++ChunksDestroyed_;
-
-        if (chunk->IsSequoia()) {
-            --SequoiaChunkCount_;
-        }
 
         if (chunk->HasConsistentReplicaPlacementHash()) {
             --CrpChunkCount_;
@@ -2788,7 +2477,6 @@ private:
     i64 ChunkListsCreated_ = 0;
     i64 ChunkListsDestroyed_ = 0;
 
-    i64 SequoiaChunkCount_ = 0;
     i64 CrpChunkCount_ = 0;
 
     i64 ImmediateAllyReplicasAnnounced_ = 0;
@@ -2987,10 +2675,6 @@ private:
         RegisterChunk(chunk);
         chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
         ++ChunksCreated_;
-
-        if (chunk->IsSequoia()) {
-            ++SequoiaChunkCount_;
-        }
 
         MasterCellChunkStatisticsCollector_->OnChunkCreated(chunk);
 
@@ -3736,6 +3420,22 @@ private:
         --EndorsementCount_;
     }
 
+    void HydraPrepareAddConfirmReplicas(
+        TTransaction* /*transaction*/,
+        NProto::TReqAddConfirmReplicas* request,
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.Persistent);
+        YT_VERIFY(options.LatePrepare);
+
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto* chunk = GetChunkOrThrow(chunkId);
+
+        auto replicas = FromProto<TChunkReplicaWithLocationList>(request->replicas());
+
+        AddConfirmReplicas(chunk, replicas);
+    }
+
     void HydraPrepareModifyReplicas(
         TTransaction* /*transaction*/,
         TReqModifyReplicas* request,
@@ -3757,6 +3457,61 @@ private:
 
         ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
         ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+    }
+
+    virtual TFuture<void> AddSequoiaConfirmReplicas(const NProto::TReqAddConfirmReplicas& request) override
+    {
+        YT_VERIFY(request.replicas_size() > 0);
+
+        return Bootstrap_
+            ->GetSequoiaClient()
+            ->StartTransaction()
+            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
+                auto chunkId = FromProto<TChunkId>(request.chunk_id());
+                for (const auto& protoReplica : request.replicas()) {
+                    auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
+                    const auto& locationUuid = replica.GetChunkLocationUuid();
+                    NRecords::TChunkReplicas chunkReplica{
+                        .Key = {
+                            .IdHash = chunkId.Parts32[0],
+                            .ChunkId = chunkId,
+                            .LocationUuid = locationUuid,
+                            .ReplicaIndex = replica.GetReplicaIndex(),
+                        },
+                        .NodeId = replica.GetNodeId(),
+
+                    };
+                    transaction->WriteRow(chunkReplica);
+
+                    NRecords::TLocationReplicas locationReplica{
+                        .Key = {
+                            .CellTag = Bootstrap_->GetCellTag(),
+                            .NodeId = replica.GetNodeId(),
+                            .IdHash = locationUuid.Parts32[0],
+                            .LocationUuid = locationUuid,
+                            .ChunkId = chunkId,
+                        },
+                        .ReplicaIndex = replica.GetReplicaIndex(),
+                    };
+                    transaction->WriteRow(locationReplica);
+                }
+
+                transaction->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(request));
+
+                NApi::TTransactionCommitOptions commitOptions{
+                    .CoordinatorCellId = Bootstrap_->GetCellId(),
+                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                };
+
+                // TODO(aleksandra-zh): whitelist retriable errors.
+                auto result = WaitFor(transaction->Commit(commitOptions));
+                if (!result.IsOK()) {
+                    result.SetCode(NRpc::EErrorCode::TransientFailure);
+                }
+                result.ThrowOnError();
+            }));
     }
 
     TFuture<TRspModifyReplicas> ModifySequoiaReplicas(const TReqModifyReplicas& request) override
@@ -4786,8 +4541,6 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
-        YT_VERIFY(!subrequest->replicas().empty() || !subrequest->legacy_replicas().empty());
-
         const auto& config = GetDynamicConfig();
 
         // COMPAT(kvk1920)
@@ -4806,7 +4559,7 @@ private:
                 THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
             }
 
-            if (subrequest->replicas().empty()) {
+            if (subrequest->replicas().empty() && !subrequest->legacy_replicas().empty()) {
                 THROW_ERROR_EXCEPTION("Attempted to confirm chunk with only legacy replicas");
             }
         } else {
@@ -5128,10 +4881,6 @@ private:
                 YT_VERIFY(ForeignChunks_.insert(chunk).second);
             }
 
-            if (chunk->IsSequoia()) {
-                ++SequoiaChunkCount_;
-            }
-
             if (chunk->HasConsistentReplicaPlacementHash()) {
                 ++CrpChunkCount_;
             }
@@ -5216,7 +4965,6 @@ private:
         ChunkListsCreated_ = 0;
         ChunkListsDestroyed_ = 0;
 
-        SequoiaChunkCount_ = 0;
         CrpChunkCount_ = 0;
 
         ImmediateAllyReplicasAnnounced_ = 0;
@@ -6146,7 +5894,6 @@ private:
             ChunkAutotomizer_->OnProfiling(&buffer);
 
             buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
-            buffer.AddGauge("/sequoia_chunk_count", SequoiaChunkCount_);
             buffer.AddGauge("/consistent_placement_enabled_chunk_count", CrpChunkCount_);
             buffer.AddCounter("/chunks_created", ChunksCreated_);
             buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);

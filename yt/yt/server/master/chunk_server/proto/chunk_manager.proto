@@ -1,6 +1,7 @@
 package NYT.NChunkServer.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,5 +73,13 @@ message TReqRegisterChunkEndorsements
 
 message TReqRedistributeConsistentReplicaPlacementTokens
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddConfirmReplicas
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated NYT.NChunkClient.NProto.TConfirmChunkReplicaInfo replicas = 2;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
