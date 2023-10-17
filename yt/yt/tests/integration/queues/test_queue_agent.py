@@ -2294,6 +2294,7 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         self._wait_for_replicated_queue_row_count(queue_replicas, 4)
 
         queue_orchid.wait_fresh_pass()
+        consumer_orchid.wait_fresh_pass()
 
         queue_partitions = queue_orchid.get_partitions()
         self._assert_queue_partition(queue_partitions[0], 1, 5)
