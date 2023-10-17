@@ -131,7 +131,8 @@ void TExecutionSettings::Register(TRegistrar registrar)
         .Default(ETableReadLockMode::BestEffort);
 
     registrar.Parameter("enable_min_max_filtering", &TThis::EnableMinMaxFiltering)
-        .Default(true);
+        // TODO(dakovalkov): enable by default when all clusters are 23.2+.
+        .Default(false);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
