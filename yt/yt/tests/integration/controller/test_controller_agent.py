@@ -237,7 +237,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 100, "cpu": 100}}}}
 
     @classmethod
-    def modify_controller_agent_config(cls, config):
+    def modify_controller_agent_config(cls, config, cluster_index):
         if not hasattr(cls, "controller_agent_counter"):
             cls.controller_agent_counter = 0
         cls.controller_agent_counter += 1
