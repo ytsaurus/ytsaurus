@@ -104,7 +104,7 @@ public:
 
     void OnResultReceived(NControllerAgent::NProto::TJobResult jobResult);
 
-    TJobId GetId() const;
+    TJobId GetId() const noexcept override;
     NScheduler::TAllocationId GetAllocationId() const;
 
     TOperationId GetOperationId() const;

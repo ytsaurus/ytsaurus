@@ -28,7 +28,10 @@ private:
     TInstant JobStartTime_;
     TDuration JobDuration_;
 
-    NClusterNode::TJobResources JobResourceUsage_;
+    NClusterNode::TJobResources BaseResourceUsage_;
+    NClusterNode::TJobResources AdditionalResourceUsage_;
+
+    std::vector<int> JobPorts_;
 
     friend class TMasterJobBase;
 
@@ -39,7 +42,9 @@ private:
         TString jobTrackerAddress,
         TInstant jobStartTime,
         TDuration jobDuration,
-        const NClusterNode::TJobResources& jobResourceUsage);
+        const NClusterNode::TJobResources& baseResourceUsage,
+        const NClusterNode::TJobResources& additionalResourceUsage,
+        const std::vector<int>& jobPorts);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,6 +9,7 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 #include "master_connector.h"
+#include "yt/yt/core/actions/new_with_offloaded_dtor.h"
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
@@ -212,7 +213,7 @@ void TMasterJobBase::Abort(const TError& error)
     }
 }
 
-TJobId TMasterJobBase::GetId() const
+TJobId TMasterJobBase::GetId() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -273,6 +274,11 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto [
+        baseResourceUsage,
+        additionalResourceUsage
+    ] = TResourceHolder::GetDetailedResourceUsage();
+
     return TBriefJobInfo(
         JobId_,
         JobState_,
@@ -280,7 +286,9 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
         GetJobTrackerAddress(),
         GetStartTime(),
         /*jobDuration=*/ TInstant::Now() - GetStartTime(),
-        GetResourceUsage());
+        baseResourceUsage,
+        additionalResourceUsage,
+        TResourceHolder::GetPorts());
 }
 
 void TMasterJobBase::GuardedRun()
@@ -1212,7 +1220,7 @@ public:
     {
         TJobResources resources;
         resources.SystemMemory = size;
-        return ResourceHolder_.Lock()->ChangeCumulativeResourceUsage(resources);
+        return ResourceHolder_.Lock()->UpdateAdditionalResourceUsage(resources);
     }
 
     TError TryAcquire(i64 /*size*/) override
@@ -1230,7 +1238,7 @@ public:
     {
         TJobResources resources;
         resources.SystemMemory = -size;
-        ResourceHolder_.Lock()->ChangeCumulativeResourceUsage(resources);
+        ResourceHolder_.Lock()->UpdateAdditionalResourceUsage(resources);
     }
 
     i64 GetFree() const override
@@ -2920,7 +2928,8 @@ TMasterJobBasePtr CreateJob(
     auto type = CheckedEnumCast<EJobType>(jobSpec.type());
     switch (type) {
         case EJobType::ReplicateChunk:
-            return New<TChunkReplicationJob>(
+            return NewWithOffloadedDtor<TChunkReplicationJob>(
+                bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
@@ -2929,7 +2938,8 @@ TMasterJobBasePtr CreateJob(
                 bootstrap);
 
         case EJobType::RemoveChunk:
-            return New<TChunkRemovalJob>(
+            return NewWithOffloadedDtor<TChunkRemovalJob>(
+                bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
@@ -2938,7 +2948,8 @@ TMasterJobBasePtr CreateJob(
                 bootstrap);
 
         case EJobType::RepairChunk:
-            return New<TChunkRepairJob>(
+            return NewWithOffloadedDtor<TChunkRepairJob>(
+                bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
@@ -2948,7 +2959,8 @@ TMasterJobBasePtr CreateJob(
                 sensors);
 
         case EJobType::SealChunk:
-            return New<TSealChunkJob>(
+            return NewWithOffloadedDtor<TSealChunkJob>(
+                bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
@@ -2969,7 +2981,8 @@ TMasterJobBasePtr CreateJob(
                 .MergeSlots;
             auto readMemoryLimit = totalMergeJobMemoryLimit / mergeSlots;
 
-            return New<TChunkMergeJob>(
+            return NewWithOffloadedDtor<TChunkMergeJob>(
+                bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
@@ -2980,7 +2993,8 @@ TMasterJobBasePtr CreateJob(
         }
 
         case EJobType::AutotomizeChunk:
-            return New<TAutotomizeChunkJob>(
+            return NewWithOffloadedDtor<TAutotomizeChunkJob>(
+                bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
@@ -2989,7 +3003,8 @@ TMasterJobBasePtr CreateJob(
                 bootstrap);
 
         case EJobType::ReincarnateChunk:
-            return New<TChunkReincarnationJob>(
+            return NewWithOffloadedDtor<TChunkReincarnationJob>(
+                bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),

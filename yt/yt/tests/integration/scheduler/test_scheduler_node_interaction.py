@@ -190,9 +190,10 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
         for job_id in job_ids:
-            resource_usage = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/resource_usage")
-            assert resource_usage['cpu'] == 19.01
-            assert resource_usage['vcpu'] == 23.0
+            base_resource_usage = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/base_resource_usage")
+            additional_resource_usage = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/additional_resource_usage")
+            assert base_resource_usage['cpu'] + additional_resource_usage['cpu'] == 19.01
+            assert base_resource_usage['vcpu'] + additional_resource_usage['vcpu'] == 23.0
 
         release_breakpoint()
         op.track()

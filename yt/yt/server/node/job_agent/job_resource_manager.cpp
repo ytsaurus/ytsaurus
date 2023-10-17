@@ -836,6 +836,22 @@ public:
             MakeStrong(this)));
     }
 
+    void RegisterResourceHolder(const TLogger& Logger, const TResourceHolder* resourceHolder)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        OnResourceHolderCreated(Logger, resourceHolder->BaseResourceUsage_);
+
+        EmplaceOrCrash(ResourceHolders_, resourceHolder);
+    }
+
+    void RemoveResourceHolder(TResourceHolder* resourceHolder)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        EraseOrCrash(ResourceHolders_, resourceHolder);
+    }
+
 private:
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     IBootstrapBase* const Bootstrap_;
@@ -895,9 +911,11 @@ private:
         THashSet<int> FreePorts;
     };
 
+    THashSet<const TResourceHolder*> ResourceHolders_;
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    TJobResourceManagerInfo DoGetStateSnapshot() const
+    TJobResourceManagerInfo BuildResourceManagerInfo() const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -923,6 +941,30 @@ private:
         };
     }
 
+    auto BuildResourceHoldersInfo() const
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        THashMap<TGuid, TResourceHolder::TResourceHolderInfo> result;
+
+        for (auto resourceHolder : ResourceHolders_) {
+            result.emplace(
+                resourceHolder->GetId(),
+                resourceHolder->BuildResourceHolderInfo());
+        }
+
+        return result;
+    }
+
+    auto DoGetStateSnapshot() const
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return std::make_tuple(
+            BuildResourceManagerInfo(),
+            BuildResourceHoldersInfo());
+    }
+
     auto GetStateSnapshot() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -945,7 +987,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto jobResourceManagerInfo = GetStateSnapshot();
+        auto [
+            jobResourceManagerInfo,
+            resourceHoldersInfo
+        ] = GetStateSnapshot();
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("resource_limits").Value(jobResourceManagerInfo.ResourceLimits)
@@ -956,6 +1001,20 @@ private:
             .Item("free_memory_multiplier").Value(jobResourceManagerInfo.FreeMemoryWatermarkMultiplier)
             .Item("cpu_to_vcpu_factor").Value(jobResourceManagerInfo.CpuToVCpuFactor)
             .Item("free_ports").Value(jobResourceManagerInfo.FreePorts)
+            .Item("resource_holders").DoMapFor(
+                resourceHoldersInfo,
+                [] (auto fluent, const auto& guidAndInfo) {
+                    auto [
+                        guid,
+                        resourceHolderInfo
+                    ] = guidAndInfo;
+
+                    fluent.Item(ToString(guid)).BeginMap()
+                        .Item("resources_counsumer_type").Value(resourceHolderInfo.ResourcesConsumerType)
+                        .Item("base_resource_usage").Value(resourceHolderInfo.BaseResourceUsage)
+                        .Item("additional_resource_usage").Value(resourceHolderInfo.AdditionalResourceUsage)
+                    .EndMap();
+                })
         .EndMap();
     }
 
@@ -1124,15 +1183,18 @@ TResourceHolder::TResourceHolder(
     : Logger(std::move(logger))
     , ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(jobResourceManager))
     , PortCount_(portCount)
-    , Resources_(resources)
+    , BaseResourceUsage_(resources)
+    , AdditionalResourceUsage_(ZeroJobResources())
     , ResourceAttributes_(resourceAttributes)
     , ResourcesConsumerType_(resourceConsumerType)
 {
-    ResourceManagerImpl_->OnResourceHolderCreated(Logger, Resources_);
+    ResourceManagerImpl_->RegisterResourceHolder(Logger, this);
 }
 
 TResourceHolder::~TResourceHolder()
 {
+    ResourceManagerImpl_->RemoveResourceHolder(this);
+
     YT_LOG_DEBUG_IF(
         State_ != EResourcesState::Released,
         "Destruct unreleased resource holder (State: %v, Resources: %v)",
@@ -1169,7 +1231,17 @@ void TResourceHolder::ReleaseCumulativeResources()
     usedSlotResources.UserSlots = resources.UserSlots;
     usedSlotResources.Gpu = resources.Gpu;
 
-    SetResourceUsage(usedSlotResources);
+    DoSetResourceUsage(
+        usedSlotResources,
+        "NewResourceUsage",
+        [this] (const TJobResources& newResourceUsage) {
+            auto resourcesDelta = newResourceUsage - CumulativeResourceUsage();
+
+            AdditionalResourceUsage_ = ZeroJobResources();
+            BaseResourceUsage_ = newResourceUsage;
+
+            return resourcesDelta;
+        });
 }
 
 void TResourceHolder::ReleaseResources()
@@ -1178,7 +1250,7 @@ void TResourceHolder::ReleaseResources()
     {
         auto guard = ReaderGuard(ResourcesLock_);
         YT_VERIFY(State_ != EResourcesState::Released);
-        resources = Resources_;
+        resources = CumulativeResourceUsage();
     }
 
     YT_LOG_FATAL_IF(UserSlot_ && UserSlot_->GetRefCount() > 1,
@@ -1202,11 +1274,13 @@ void TResourceHolder::ReleaseResources()
     ResourceManagerImpl_->OnResourcesReleased(
         ResourcesConsumerType_,
         Logger,
-        Resources_,
+        CumulativeResourceUsage(),
         GetPorts(),
         /*resourceHolderStarted*/ State_ == EResourcesState::Acquired);
     State_ = EResourcesState::Released;
-    Resources_ = ZeroJobResources();
+
+    BaseResourceUsage_ = ZeroJobResources();
+    AdditionalResourceUsage_ = ZeroJobResources();
 }
 
 const std::vector<int>& TResourceHolder::GetPorts() const noexcept
@@ -1214,46 +1288,29 @@ const std::vector<int>& TResourceHolder::GetPorts() const noexcept
     return Ports_;
 }
 
-bool TResourceHolder::SetResourceUsage(TJobResources newResourceUsage)
+bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
 {
-    auto guard = WriterGuard(ResourcesLock_);
+    return DoSetResourceUsage(
+        newResourceUsage,
+        "NewResourceUsage",
+        [this] (const TJobResources& newResourceUsage) {
+            auto resourceDelta = newResourceUsage - BaseResourceUsage_;
+            BaseResourceUsage_ = newResourceUsage;
 
-    YT_LOG_FATAL_IF(
-        State_ != EResourcesState::Acquired,
-        "Resources should be setted only while resource is acquired (CurrentState: %v, NewResourceUsage: %v)",
-        State_,
-        FormatResources(newResourceUsage));
-
-    auto resourceDelta = newResourceUsage - Resources_;
-    bool overdrafted = ResourceManagerImpl_->OnResourcesUpdated(
-        this,
-        ResourcesConsumerType_,
-        GetLogger(),
-        resourceDelta);
-
-    Resources_ = newResourceUsage;
-
-    return !overdrafted;
+            return resourceDelta;
+        });
 }
 
-bool TResourceHolder::ChangeCumulativeResourceUsage(TJobResources resourceUsageDelta)
+bool TResourceHolder::UpdateAdditionalResourceUsage(TJobResources additionalResourceUsageDelta)
 {
-    auto guard = WriterGuard(ResourcesLock_);
+    return DoSetResourceUsage(
+        additionalResourceUsageDelta,
+        "ResourceUsageDelta",
+        [this] (const TJobResources& resourceUsageDelta) {
+            AdditionalResourceUsage_ += resourceUsageDelta;
 
-    YT_LOG_FATAL_IF(
-        State_ != EResourcesState::Acquired,
-        "Resources should be changed only while resource is acquired (CurrentState: %v, ResourceUsageDelta: %v)",
-        State_,
-        FormatResources(resourceUsageDelta));
-
-    bool overdrafted = ResourceManagerImpl_->OnResourcesUpdated(
-        this,
-        ResourcesConsumerType_,
-        GetLogger(),
-        resourceUsageDelta);
-    Resources_ += resourceUsageDelta;
-
-    return !overdrafted;
+            return resourceUsageDelta;
+        });
 }
 
 TJobResources TResourceHolder::GetResourceLimits() const noexcept
@@ -1264,7 +1321,14 @@ TJobResources TResourceHolder::GetResourceLimits() const noexcept
 TJobResources TResourceHolder::GetResourceUsage() const noexcept
 {
     auto guard = ReaderGuard(ResourcesLock_);
-    return Resources_;
+    return CumulativeResourceUsage();
+}
+
+std::pair<TJobResources, TJobResources> TResourceHolder::GetDetailedResourceUsage() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return std::make_pair(BaseResourceUsage_, AdditionalResourceUsage_);
 }
 
 const TJobResourceAttributes& TResourceHolder::GetResourceAttributes() const noexcept
@@ -1275,6 +1339,58 @@ const TJobResourceAttributes& TResourceHolder::GetResourceAttributes() const noe
 const NLogging::TLogger& TResourceHolder::GetLogger() const noexcept
 {
     return Logger;
+}
+
+TJobResources TResourceHolder::CumulativeResourceUsage() const noexcept
+{
+    VERIFY_SPINLOCK_AFFINITY(ResourcesLock_);
+    return BaseResourceUsage_ + AdditionalResourceUsage_;
+}
+
+TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto [
+        baseResourceUsage,
+        additionalResourceUsage
+    ] = GetDetailedResourceUsage();
+
+    return {
+        .BaseResourceUsage = baseResourceUsage,
+        .AdditionalResourceUsage = additionalResourceUsage,
+        .ResourcesConsumerType = ResourcesConsumerType_,
+    };
+}
+
+template <class TResourceUsageUpdater>
+    requires std::is_invocable_r_v<
+        TJobResources,
+        TResourceUsageUpdater,
+        const TJobResources&>
+bool TResourceHolder::DoSetResourceUsage(
+    const NClusterNode::TJobResources& newResourceUsage,
+    TStringBuf argumentName,
+    TResourceUsageUpdater resourceUsageUpdater)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    YT_LOG_FATAL_IF(
+        State_ != EResourcesState::Acquired,
+        "Resources should be setted only while resource is acquired (CurrentState: %v, %s: %v)",
+        State_,
+        argumentName,
+        FormatResources(newResourceUsage));
+
+    auto resourceUsageDelta = std::invoke(resourceUsageUpdater, newResourceUsage);
+
+    auto overdrafted = ResourceManagerImpl_->OnResourcesUpdated(
+        this,
+        ResourcesConsumerType_,
+        GetLogger(),
+        resourceUsageDelta);
+
+    return !overdrafted;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -793,7 +793,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
         });
 }
 
-TJobId TJob::GetId() const
+TJobId TJob::GetId() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1030,7 +1030,7 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::Running) {
-        TResourceHolder::SetResourceUsage(newUsage);
+        TResourceHolder::SetBaseResourceUsage(newUsage);
     }
 }
 
@@ -1186,6 +1186,11 @@ TBriefJobInfo TJob::GetBriefInfo() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto [
+        baseResourceUsage,
+        additionalResourceUsage
+    ] = TResourceHolder::GetDetailedResourceUsage();
+
     return TBriefJobInfo(
         GetId(),
         GetState(),
@@ -1198,7 +1203,9 @@ TBriefJobInfo TJob::GetBriefInfo() const
         /*jobDuration=*/ TInstant::Now() - GetStartTime(),
         GetStatistics(),
         GetOperationId(),
-        GetResourceUsage(),
+        baseResourceUsage,
+        additionalResourceUsage,
+        GetPorts(),
         JobEvents_,
         CoreInfos_,
         ExecAttributes_);
