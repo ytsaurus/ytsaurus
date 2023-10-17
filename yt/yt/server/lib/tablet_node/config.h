@@ -240,6 +240,7 @@ public:
     bool EnableNewScanReaderForSelect;
 
     bool SingleColumnGroupByDefault;
+    bool EnableSegmentMetaInBlocks;
 
     bool EnableHunkColumnarProfiling;
 

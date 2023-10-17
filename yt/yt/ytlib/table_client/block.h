@@ -15,6 +15,7 @@ struct TBlock
     std::vector<TSharedRef> Data;
     NProto::TDataBlockMeta Meta;
     std::optional<int> GroupIndex;
+    std::optional<ui32> SegmentMetaOffset;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

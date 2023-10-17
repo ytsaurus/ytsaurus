@@ -1,4 +1,5 @@
 #include "floating_point_column_writer.h"
+#include "data_block_writer.h"
 #include "column_writer_detail.h"
 #include "helpers.h"
 
@@ -99,12 +100,21 @@ private:
         segmentInfo.SegmentMeta.set_type(0);
         segmentInfo.SegmentMeta.set_version(0);
 
-        DumpVersionedData(&segmentInfo);
+        NNewTableClient::TValueMeta<EValueType::Double> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.ChunkRowCount = RowCount_;
+
+        DumpVersionedData(&segmentInfo, &rawMeta);
 
         segmentInfo.Data.push_back(SerializeFloatingPointVector(Values_));
         segmentInfo.Data.push_back(NullBitmap_.Flush<TSegmentWriterTag>());
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawVersionedSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta, Aggregate_);
+        }
     }
 };
 
@@ -191,7 +201,18 @@ private:
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
         segmentInfo.SegmentMeta.set_chunk_row_count(RowCount_);
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        NNewTableClient::TKeyMeta<EValueType::Double> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.ChunkRowCount = RowCount_;
+        rawMeta.RowCount = Values_.size();
+        rawMeta.Dense = true;
+
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta);
+        }
     }
 
     template <class TRow>

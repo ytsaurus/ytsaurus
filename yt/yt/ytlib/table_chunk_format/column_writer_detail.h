@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/ytlib/new_table_client/prepared_meta.h>
+
 #include <yt/yt/core/misc/bitmap.h>
 
 #include <library/cpp/yt/memory/ref.h>
@@ -19,7 +21,7 @@ class TColumnWriterBase
 public:
     explicit TColumnWriterBase(TDataBlockWriter* blockWriter);
 
-    void FinishBlock(int blockIndex) override;
+    TSharedRef FinishBlock(int blockIndex) override;
 
     const NProto::TColumnMeta& ColumnMeta() const override;
     i64 GetMetaSize() const override;
@@ -32,8 +34,12 @@ protected:
     i64 MetaSize_ = 0;
     NProto::TColumnMeta ColumnMeta_;
     std::vector<NProto::TSegmentMeta> CurrentBlockSegments_;
+    // Segment metas are stored in block in new columnar format.
+    std::vector<TSharedRef> CurrentBlockSegmentMetas_;
 
-    void DumpSegment(TSegmentInfo* segmentInfo);
+    void DumpSegment(TSegmentInfo* segmentInfo, TSharedRef inBlockMeta);
+
+    i64 GetOffset() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +79,7 @@ protected:
         TRange<NTableClient::TVersionedRow> rows,
         std::function<bool (const NTableClient::TVersionedValue& value)> onValue);
 
-    void DumpVersionedData(TSegmentInfo* segmentInfo);
+    void DumpVersionedData(TSegmentInfo* segmentInfo, NNewTableClient::TMultiValueIndexMeta* rawIndexMeta);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

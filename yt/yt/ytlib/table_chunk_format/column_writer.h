@@ -17,7 +17,8 @@ struct IColumnWriterBase
 {
     virtual ~IColumnWriterBase() = default;
 
-    virtual void FinishBlock(int blockIndex) = 0;
+    // Returns segment block meta.
+    virtual TSharedRef FinishBlock(int blockIndex) = 0;
 
     //! For testing purposes.
     virtual void FinishCurrentSegment() = 0;

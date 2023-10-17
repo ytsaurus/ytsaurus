@@ -123,6 +123,7 @@ TTableSettings GetTableSettings(
         result.Provided.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
         result.Provided.StoreWriterOptions->ChunkFormat = table->TryGetChunkFormat();
         result.Provided.StoreWriterOptions->SingleColumnGroupByDefault = result.EffectiveMountConfig->SingleColumnGroupByDefault;
+        result.Provided.StoreWriterOptions->EnableSegmentMetaInBlocks = result.EffectiveMountConfig->EnableSegmentMetaInBlocks;
         if (result.Provided.StoreWriterOptions->ChunkFormat) {
             ValidateTableChunkFormatVersioned(*result.Provided.StoreWriterOptions->ChunkFormat, /*versioned*/ true);
         }

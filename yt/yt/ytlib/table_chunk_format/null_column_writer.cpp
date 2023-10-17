@@ -41,7 +41,7 @@ public:
             segmentInfo.SegmentMeta.set_version(0);
             segmentInfo.SegmentMeta.set_row_count(RowCount_ - PrevRowCount_);
             segmentInfo.Data.push_back(TSharedRef::MakeCopy<TSegmentWriterTag>(TRef::FromPod('\0')));
-            TColumnWriterBase::DumpSegment(&segmentInfo);
+            TColumnWriterBase::DumpSegment(&segmentInfo, {});
             PrevRowCount_ = RowCount_;
         }
     }

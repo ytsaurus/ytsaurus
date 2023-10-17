@@ -1,5 +1,5 @@
 #include "boolean_column_writer.h"
-
+#include "data_block_writer.h"
 #include "column_writer_detail.h"
 #include "helpers.h"
 
@@ -91,9 +91,18 @@ private:
         segmentInfo.SegmentMeta.set_type(0);
         segmentInfo.SegmentMeta.set_version(0);
 
-        DumpVersionedData(&segmentInfo);
+        NNewTableClient::TValueMeta<EValueType::Boolean> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.ChunkRowCount = RowCount_;
+
+        DumpVersionedData(&segmentInfo, &rawMeta);
         DumpBooleanValues(&segmentInfo, Values_, NullBitmap_);
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawVersionedSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta, Aggregate_);
+        }
     }
 };
 
@@ -171,7 +180,18 @@ private:
 
         DumpBooleanValues(&segmentInfo, Values_, NullBitmap_);
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        NNewTableClient::TKeyMeta<EValueType::Boolean> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.ChunkRowCount = RowCount_;
+        rawMeta.RowCount = Values_.GetBitSize();
+        rawMeta.Dense = true;
+
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta);
+        }
     }
 
     template <class TRow>

@@ -102,7 +102,7 @@ private:
         auto* schemalessSegmentMeta = segmentInfo.SegmentMeta.MutableExtension(TSchemalessSegmentMeta::schemaless_segment_meta);
         schemalessSegmentMeta->set_expected_bytes_per_row(expectedBytesPerRow);
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        TColumnWriterBase::DumpSegment(&segmentInfo, {});
     }
 
     void AddValues(TRange<TUnversionedRow> rows)

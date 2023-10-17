@@ -1,5 +1,6 @@
 #include "integer_column_writer.h"
 #include "helpers.h"
+#include "data_block_writer.h"
 #include "column_writer_detail.h"
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
@@ -58,7 +59,7 @@ protected:
         DistinctValues_.emplace(value, DistinctValues_.size() + 1);
     }
 
-    void DumpDirectValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap)
+    void DumpDirectValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap, NNewTableClient::TIntegerMeta* rawMeta)
     {
         for (i64 index = 0; index < std::ssize(Values_); ++index) {
             if (!nullBitmap[index]) {
@@ -66,14 +67,17 @@ protected:
             }
         }
 
+        rawMeta->BaseValue = MinValue_;
+        rawMeta->Direct = true;
+
         // 1. Direct values.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Null bitmap.
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
     }
 
-    void DumpDictionaryValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap)
+    void DumpDictionaryValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap, NNewTableClient::TIntegerMeta* rawMeta)
     {
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
@@ -93,11 +97,14 @@ protected:
             }
         }
 
+        rawMeta->BaseValue = MinValue_;
+        rawMeta->Direct = false;
+
         // 1. Dictionary - compressed vector of values.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(dictionary), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(dictionary), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Compressed vector of value ids.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), dictionary.size() + 1));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), dictionary.size() + 1, &rawMeta->IdsSize, &rawMeta->IdsWidth));
     }
 };
 
@@ -195,27 +202,38 @@ private:
         auto* meta = segmentInfo.SegmentMeta.MutableExtension(TIntegerSegmentMeta::integer_segment_meta);
         meta->set_min_value(MinValue_);
 
-        DumpVersionedData(&segmentInfo);
+        constexpr EValueType ValueType = std::is_same_v<ui64, TValue> ? EValueType::Uint64 : EValueType::Int64;
+
+        NNewTableClient::TValueMeta<ValueType> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.ChunkRowCount = RowCount_;
+
+        DumpVersionedData(&segmentInfo, &rawMeta);
 
         ui64 dictionarySize = GetDictionarySize();
         ui64 directSize = GetDirectSize();
 
         if (dictionarySize < directSize) {
-            DumpDictionaryValues(&segmentInfo, NullBitmap_);
+            DumpDictionaryValues(&segmentInfo, NullBitmap_, &rawMeta);
 
             segmentInfo.SegmentMeta.set_type(static_cast<int>(segmentInfo.Dense
                 ? EVersionedIntegerSegmentType::DictionaryDense
                 : EVersionedIntegerSegmentType::DictionarySparse));
 
         } else {
-            DumpDirectValues(&segmentInfo, NullBitmap_);
+            DumpDirectValues(&segmentInfo, NullBitmap_, &rawMeta);
 
             segmentInfo.SegmentMeta.set_type(static_cast<int>(segmentInfo.Dense
                 ? EVersionedIntegerSegmentType::DirectDense
                 : EVersionedIntegerSegmentType::DirectSparse));
         }
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawVersionedSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta, Aggregate_);
+        }
     }
 };
 
@@ -348,7 +366,8 @@ private:
         return sizes;
     }
 
-    void DumpDirectRleValues(TSegmentInfo* segmentInfo)
+    // TODO(lukyan): Rewrite this routines via DumpDirectValues and DumpDictionaryValues
+    void DumpDirectRleValues(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TIntegerMeta* rawMeta)
     {
         TBitmapOutput rleNullBitmap(RunCount_);
         std::vector<ui64> rowIndexes;
@@ -378,17 +397,20 @@ private:
         YT_VERIFY(static_cast<i64>(runIndex) == RunCount_);
         Values_.resize(RunCount_);
 
+        rawMeta->BaseValue = MinValue_;
+        rawMeta->Direct = true;
+
         // 1. Compressed vector of values.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Null bitmap of values.
         segmentInfo->Data.push_back(rleNullBitmap.Flush<TSegmentWriterTag>());
 
         // 3. Compressed vector of row indexes.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(rowIndexes), rowIndexes.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
     }
 
-    void DumpDictionaryRleValues(TSegmentInfo* segmentInfo)
+    void DumpDictionaryRleValues(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TIntegerMeta* rawMeta)
     {
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
@@ -429,14 +451,17 @@ private:
         YT_VERIFY(static_cast<i64>(runIndex) == RunCount_);
         Values_.resize(RunCount_);
 
+        rawMeta->BaseValue = MinValue_;
+        rawMeta->Direct = false;
+
         // 1. Dictionary - compressed vector of values.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(dictionary), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(dictionary), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Compressed vector of value ids.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), dictionary.size() + 1));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), dictionary.size() + 1, &rawMeta->IdsSize, &rawMeta->IdsWidth));
 
         // 3. Compressed vector of row indexes.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(rowIndexes), rowIndexes.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
     }
 
     void DumpSegment()
@@ -454,6 +479,12 @@ private:
         auto minElement = std::min_element(sizes.begin(), sizes.end());
         auto type = EUnversionedIntegerSegmentType(std::distance(sizes.begin(), minElement));
 
+        NNewTableClient::TKeyMeta<EValueType::Int64> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.RowCount = Values_.size();
+        rawMeta.ChunkRowCount = RowCount_;
+
         TSegmentInfo segmentInfo;
         segmentInfo.SegmentMeta.set_type(static_cast<int>(type));
         segmentInfo.SegmentMeta.set_version(0);
@@ -464,26 +495,34 @@ private:
 
         switch (type) {
             case EUnversionedIntegerSegmentType::DirectRle:
-                DumpDirectRleValues(&segmentInfo);
+                rawMeta.Dense = false;
+                DumpDirectRleValues(&segmentInfo, &rawMeta, &rawMeta);
                 break;
 
             case EUnversionedIntegerSegmentType::DictionaryRle:
-                DumpDictionaryRleValues(&segmentInfo);
+                rawMeta.Dense = false;
+                DumpDictionaryRleValues(&segmentInfo, &rawMeta, &rawMeta);
                 break;
 
             case EUnversionedIntegerSegmentType::DirectDense:
-                DumpDirectValues(&segmentInfo, NullBitmap_);
+                rawMeta.Dense = true;
+                DumpDirectValues(&segmentInfo, NullBitmap_, &rawMeta);
                 break;
 
             case EUnversionedIntegerSegmentType::DictionaryDense:
-                DumpDictionaryValues(&segmentInfo, NullBitmap_);
+                rawMeta.Dense = true;
+                DumpDictionaryValues(&segmentInfo, NullBitmap_, &rawMeta);
                 break;
 
             default:
                 YT_ABORT();
         }
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta);
+        }
     }
 
     template <class TRow>
