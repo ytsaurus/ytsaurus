@@ -1132,6 +1132,8 @@ void TBootstrap::DoLoadSnapshot(
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
 
+    dryRunHydraManager->Initialize();
+
     const auto& automaton = HydraFacade_->GetAutomaton();
     automaton->SetSnapshotValidationOptions({dump, enableTotalWriteCountReport, dumpConfig});
 
@@ -1142,6 +1144,8 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
 {
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+
+    dryRunHydraManager->Initialize();
 
     auto changelogsConfig = Config_->Changelogs;
 
@@ -1173,6 +1177,7 @@ void TBootstrap::DoBuildSnapshot()
 {
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+    dryRunHydraManager->Initialize();
     dryRunHydraManager->DryRunBuildSnapshot();
 }
 

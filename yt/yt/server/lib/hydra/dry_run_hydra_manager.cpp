@@ -302,7 +302,13 @@ public:
     // Stuff from IHydraManager
     void Initialize() override
     {
-        // Just do nothing. Only tablet cells call Initialize().
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        if (Initialized_) {
+            return;
+        }
+
+        DecoratedAutomaton_->Initialize();
+        Initialized_ = true;
     }
 
     TFuture<void> Finalize() override
@@ -402,6 +408,7 @@ private:
     std::atomic<bool> FollowerRecovered_ = false;
 
     bool StartedLeading_ = false;
+    bool Initialized_ = false;
 
     // NB: This is needed to be called before any meaningful action.
     // However, it can't be called during construction, because necessary callbacks won't be populated yet.
