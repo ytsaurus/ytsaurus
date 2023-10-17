@@ -814,7 +814,10 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
 
         SaveBundleError(bundle->Name, TError(
             EErrorCode::ParameterizedBalancingFailed,
-            "Parameterized balancing failed")
+            "Parameterized balancing failed (Group: %v, GroupType: %lv, GroupMetric: %v)",
+            groupName,
+            groupConfig->Type,
+            groupConfig->Parameterized->Metric)
             << ex);
     }
 }
