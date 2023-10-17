@@ -16,6 +16,7 @@
   ".github/workflows/spyt_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/spyt_release.yaml",
   ".github/workflows/strawberry_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/strawberry_release.yaml",
   ".github/workflows/systest.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/systest.yaml",
+  ".github/workflows/ya_make.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/ya_make.yaml",
   ".github/workflows/ytsaurus_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/ytsaurus_release.yaml",
   ".gitignore":"yt/opensource/repos/ytsaurus/github_toplevel/.gitignore",
   "AUTHORS":"yt/opensource/repos/ytsaurus/github_toplevel/AUTHORS",
