@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--worker-log-table-ttl", required=False, default="7d")
     parser.add_argument("--shs-location", required=False)
     parser.add_argument("--preemption_mode", required=False, default="normal")
+    parser.add_argument("--cluster-log-level", required=False, default="INFO")
 
     parser.add_argument('--enable-multi-operation-mode',
                         dest='enable_multi_operation_mode', action='store_true')
@@ -215,6 +216,7 @@ def main():
                         ),
                         client=yt_client,
                         preemption_mode=args.preemption_mode,
+                        cluster_log_level=args.cluster_log_level,
                         enable_multi_operation_mode=args.enable_multi_operation_mode,
                         dedicated_operation_mode=args.dedicated_operation_mode,
                         driver_cores=args.driver_cores,

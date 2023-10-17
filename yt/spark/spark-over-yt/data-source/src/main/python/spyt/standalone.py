@@ -342,9 +342,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
-                               worker_log_update_interval, worker_log_table_ttl,
-                               pool, enablers, client, livy_driver_cores, livy_driver_memory, livy_max_sessions,
-                               preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None,
+                               worker_log_update_interval, worker_log_table_ttl, pool, enablers, client,
+                               livy_driver_cores, livy_driver_memory, livy_max_sessions, preemption_mode,
+                               cluster_log_level, job_types, driver_op_resources=None, driver_op_discovery_script=None,
                                extra_metrics_enabled=True, autoscaler_enabled=False, rpc_job_proxy=False):
     if job_types == [] or job_types == None:
         job_types = ['master', 'history', 'worker']
@@ -374,6 +374,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         return " && ".join(commands)
 
     extra_java_opts = []
+    extra_java_opts.append("-Dlog4j.loglevel={}".format(cluster_log_level))
     if enablers.enable_preference_ipv6:
         extra_java_opts.append("-Djava.net.preferIPv6Addresses=true")
 
@@ -639,7 +640,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         worker_log_update_interval=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL,
                         worker_log_table_ttl=SparkDefaultArguments.SPARK_WORKER_LOG_TABLE_TTL,
                         params=None, shs_location=None, spark_cluster_version=None, enablers=None, client=None,
-                        preemption_mode="normal", enable_multi_operation_mode=False,
+                        preemption_mode="normal", cluster_log_level="INFO", enable_multi_operation_mode=False,
                         dedicated_operation_mode=False, driver_cores=None, driver_memory=None, driver_num=None,
                         driver_cores_overhead=None, driver_timeout=None, autoscaler_period=None,
                         autoscaler_metrics_port=None, autoscaler_sliding_window=None,
@@ -682,6 +683,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param enablers: ...
     :param client: YtClient
     :param preemption_mode: 'normal' or 'graceful' for graceful preemption
+    :param cluster_log_level: level for cluster logs
     :param enable_multi_operation_mode: use several vanilla operations for one cluster
     :param dedicated_operation_mode: use dedicated operation for drivers
     :param driver_cores: number of cores that will be available on driver worker
@@ -790,6 +792,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'enablers': enablers,
         'client': client,
         'preemption_mode': preemption_mode,
+        'cluster_log_level': cluster_log_level,
         'autoscaler_enabled': autoscaler_period is not None,
         'job_types': job_types,
         'livy_driver_cores': livy_driver_cores,
