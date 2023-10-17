@@ -33,7 +33,7 @@ void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLog
             segment.LeftValue(),
             segment.RightValue());
 
-        Y_VERIFY_DEBUG(false);
+        Y_DEBUG_ABORT_UNLESS(false);
     }
 }
 

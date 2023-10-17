@@ -169,28 +169,28 @@ public:
 
     void* GetKeyOfKV()
     {
-        Y_VERIFY_DEBUG(RowVtable_.KeyOffset >= 0,
+        Y_DEBUG_ABORT_UNLESS(RowVtable_.KeyOffset >= 0,
             "Trying to get key of not TKV type: %s", RowVtable_.TypeName.c_str());
         return Data_.data() + RowVtable_.KeyOffset;
     }
 
     const void* GetKeyOfKV() const
     {
-        Y_VERIFY_DEBUG(RowVtable_.KeyOffset >= 0,
+        Y_DEBUG_ABORT_UNLESS(RowVtable_.KeyOffset >= 0,
             "Trying to get key of not TKV type: %s", RowVtable_.TypeName.c_str());
         return Data_.data() + RowVtable_.KeyOffset;
     }
 
     void* GetValueOfKV()
     {
-        Y_VERIFY_DEBUG(RowVtable_.ValueOffset >= 0,
+        Y_DEBUG_ABORT_UNLESS(RowVtable_.ValueOffset >= 0,
             "Trying to get key of not TKV type: %s", RowVtable_.TypeName.c_str());
         return Data_.data() + RowVtable_.ValueOffset;
     }
 
     const void* GetValueOfKV() const
     {
-        Y_VERIFY_DEBUG(RowVtable_.ValueOffset >= 0,
+        Y_DEBUG_ABORT_UNLESS(RowVtable_.ValueOffset >= 0,
             "Trying to get key of not TKV type: %s", RowVtable_.TypeName.c_str());
         return Data_.data() + RowVtable_.ValueOffset;
     }
