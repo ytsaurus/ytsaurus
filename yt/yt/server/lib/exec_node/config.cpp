@@ -40,6 +40,11 @@ void TJobEnvironmentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSimpleJobEnvironmentConfig::Register(TRegistrar)
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTestingJobEnvironmentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("testing_job_environment_scenario", &TThis::TestingJobEnvironmentScenario)
@@ -188,55 +193,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
             numaNodeIds.insert(numaNode->NumaNodeId);
         }
     });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
-{
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("heartbeat_splay", &TThis::HeartbeatSplay)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("failed_heartbeat_backoff_start_time", &TThis::FailedHeartbeatBackoffStartTime)
-        .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("failed_heartbeat_backoff_max_time", &TThis::FailedHeartbeatBackoffMaxTime)
-        .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Seconds(60));
-    registrar.Parameter("failed_heartbeat_backoff_multiplier", &TThis::FailedHeartbeatBackoffMultiplier)
-        .GreaterThanOrEqual(1.0)
-        .Default(2.0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter(
-        "send_heartbeat_on_job_finished",
-        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnJobFinished)
-        .Default(true);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("get_job_specs_timeout", &TThis::GetJobSpecsTimeout)
-        .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("test_heartbeat_delay", &TThis::TestHeartbeatDelay)
-        .Default();
-
-    registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
-        .DefaultCtor([] { return NConcurrency::TThroughputThrottlerConfig::Create(1_MB); });
-    registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
-        .Default(TDuration::Seconds(30));
-    registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
-        .Default(false);
-    registrar.Parameter("total_confirmation_period", &TThis::TotalConfirmationPeriod)
-        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -525,6 +481,55 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         // 10 user jobs containers per second by default.
         config->UserJobContainerCreationThrottler->Limit = 10;
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("heartbeat_splay", &TThis::HeartbeatSplay)
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("failed_heartbeat_backoff_start_time", &TThis::FailedHeartbeatBackoffStartTime)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("failed_heartbeat_backoff_max_time", &TThis::FailedHeartbeatBackoffMaxTime)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("failed_heartbeat_backoff_multiplier", &TThis::FailedHeartbeatBackoffMultiplier)
+        .GreaterThanOrEqual(1.0)
+        .Default(2.0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter(
+        "send_heartbeat_on_job_finished",
+        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnJobFinished)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("get_job_specs_timeout", &TThis::GetJobSpecsTimeout)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("test_heartbeat_delay", &TThis::TestHeartbeatDelay)
+        .Default();
+
+    registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
+        .DefaultCtor([] { return NConcurrency::TThroughputThrottlerConfig::Create(1_MB); });
+    registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
+        .Default(false);
+    registrar.Parameter("total_confirmation_period", &TThis::TotalConfirmationPeriod)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
