@@ -1298,10 +1298,10 @@ public:
     {
         YT_VERIFY(readMemoryLimit > 0);
 
+        // TODO(don-dron): Return MemoryUsageTracker usage for reader.
         TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = ReadMemoryLimit_,
-            .MaxInitialReaderReservedMemory = ReadMemoryLimit_,
-            .MemoryUsageTracker = MemoryUsageTracker_
+            .MaxInitialReaderReservedMemory = ReadMemoryLimit_
         };
 
         MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
