@@ -113,7 +113,7 @@ public:
             GetConfig()->ExecNode->JobProxySolomonExporter,
             New<TSolomonRegistry>());
 
-        if (GetConfig()->ExecNode->NbdServerConfig) {
+        if (GetConfig()->ExecNode->NbdConfig) {
             NbdQueue_ = New<TActionQueue>("Nbd");
 
             NApi::NNative::TConnectionOptions connectionOptions;
@@ -133,7 +133,7 @@ public:
             auto client = connection->CreateNativeClient(clientOptions);
 
             NbdServer_ = CreateNbdServer(
-                GetConfig()->ExecNode->NbdServerConfig,
+                GetConfig()->ExecNode->NbdConfig->NbdServerConfig,
                 std::move(client),
                 NBus::TTcpDispatcher::Get()->GetXferPoller(),
                 NbdQueue_->GetInvoker());

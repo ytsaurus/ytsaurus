@@ -318,6 +318,37 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNbdClientConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    TDuration Timeout;
+
+    REGISTER_YSON_STRUCT(TNbdClientConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdClientConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNbdConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    TNbdClientConfigPtr NbdClientConfig;
+    NNbd::TNbdServerConfigPtr NbdServerConfig;
+
+    REGISTER_YSON_STRUCT(TNbdConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExecNodeConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -394,7 +425,7 @@ public:
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
 
-    NNbd::TNbdServerConfigPtr NbdServerConfig;
+    TNbdConfigPtr NbdConfig;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 

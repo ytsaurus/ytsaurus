@@ -340,9 +340,10 @@ public:
 
     TFuture<TVolumeMeta> CreateNbdVolume(
         TGuid tag,
-        const TArtifactKey& artifactKey)
+        const TArtifactKey& artifactKey,
+        TNbdConfigPtr nbdConfig)
     {
-        return BIND(&TLayerLocation::DoCreateNbdVolume, MakeStrong(this), tag, artifactKey)
+        return BIND(&TLayerLocation::DoCreateNbdVolume, MakeStrong(this), tag, artifactKey, std::move(nbdConfig))
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -1040,11 +1041,14 @@ private:
 
     TVolumeMeta DoCreateNbdVolume(
         TGuid tag,
-        const TArtifactKey& artifactKey)
+        const TArtifactKey& artifactKey,
+        TNbdConfigPtr nbdConfig)
     {
         ValidateEnabled();
 
+        YT_VERIFY(nbdConfig);
         YT_VERIFY(artifactKey.has_filesystem());
+        YT_VERIFY(artifactKey.has_nbd_export_id());
 
         THashMap<TString, TString> volumeProperties = {
             {"backend", "nbd"},
@@ -1052,19 +1056,19 @@ private:
             {"place", PlacePath_}
         };
 
-        // TODO(yuryalekseev): NbdConfig, tcp:// + host + port or unix+tcp: + path
         TStringBuilder builder;
-        if (false /* options.NbdConfig */) {
-            if (false /* nbd server host + port in NbdConfig */) {
-                builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), 10809);
-            } else {
-                builder.AppendFormat("unix+tcp://%v/?", "/socket/path");
-            }
-            auto timeout = 5; // take timeout from NbdConfig
+        auto timeout = nbdConfig->NbdClientConfig->Timeout.Seconds();
+
+        if (nbdConfig->NbdServerConfig->UdsConfig) {
+            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->NbdServerConfig->UdsConfig->Path);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         } else {
-            builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), 10809);
-            builder.AppendFormat("&timeout=%v", 5);
+            auto port = 10809;
+            if (nbdConfig->NbdServerConfig->IdsConfig) {
+                port = nbdConfig->NbdServerConfig->IdsConfig->Port;
+            }
+            builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), port);
+            builder.AppendFormat("&timeout=%v", ToString(timeout));
         }
         builder.AppendFormat("&export=%v", artifactKey.nbd_export_id());
         builder.AppendFormat("&fs-type=%v", artifactKey.filesystem());
@@ -2491,15 +2495,18 @@ private:
         TGuid tag,
         const TArtifactKey& artifactKey)
     {
-        YT_VERIFY(artifactKey.has_filesystem());
+        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_filesystem(), "NBD layer %Qv doesn't have filesystem type", artifactKey.data_source().path());
+        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_nbd_export_id(), "NBD layer %Qv doesn't have export id", artifactKey.data_source().path());
 
         YT_LOG_DEBUG("Creating NBD volume (Tag: %v, Path: %v, Filesytem: %v)",
             tag,
             artifactKey.data_source().path(),
             artifactKey.filesystem());
 
+        THROW_ERROR_EXCEPTION_IF(!Bootstrap_->GetConfig()->ExecNode->NbdConfig, "NBD config is not present in ExecNode config for file %Qv with filesystem %Qv", artifactKey.data_source().path(), artifactKey.filesystem());
+
         auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, artifactKey))
+        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, artifactKey, Bootstrap_->GetConfig()->ExecNode->NbdConfig))
             .ValueOrThrow();
 
         auto volume = New<TNbdVolume>(
