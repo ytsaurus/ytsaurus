@@ -23,8 +23,8 @@ apt-get install -y build-essential manpages-dev libpcap-dev libpq-dev libssl-dev
 apt-get install -y python3.8 python3.8-dev python3.8-distutils python3.8-venv
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3.8
 python3.8 -m pip install --upgrade pip
-python3.8 -m pip install -i https://pypi.yandex-team.ru/simple yandex-yt==0.9.29
-python3.8 -m pip install -i https://pypi.yandex-team.ru/simple pyarrow==11.0.0
+python3.11 -m pip install -i https://pypi.yandex-team.ru/simple ytsaurus-client==0.13.7
+python3.11 -m pip install -i https://pypi.yandex-team.ru/simple pyarrow==12.0.1
 python3.8 -m pip install -i https://pypi.yandex-team.ru/simple pandas==1.5.3
 # python3.8 -m pip install -i https://pypi.yandex-team.ru/simple cython==3.0.0b1
 # python3.8 -m pip install -i https://pypi.yandex-team.ru/simple cyson
