@@ -24,8 +24,8 @@ apt-get install -y python3.7 python3.7-dev python3.7-distutils python3.7-venv
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3.7
 python3.7 -m pip install --upgrade pip
 python3.7 -m pip install -i https://pypi.yandex-team.ru/simple numpy==1.21.6
-python3.11 -m pip install -i https://pypi.yandex-team.ru/simple ytsaurus-client==0.13.7
-python3.11 -m pip install -i https://pypi.yandex-team.ru/simple pyarrow==12.0.1
+python3.7 -m pip install -i https://pypi.yandex-team.ru/simple ytsaurus-client==0.13.7
+python3.7 -m pip install -i https://pypi.yandex-team.ru/simple pyarrow==12.0.1
 python3.7 -m pip install -i https://pypi.yandex-team.ru/simple pandas==1.1.5
 python3.7 -m pip install -i https://pypi.yandex-team.ru/simple cyson
 python3.7 -m pip install -i https://pypi.yandex-team.ru/simple scipy==1.7.3
