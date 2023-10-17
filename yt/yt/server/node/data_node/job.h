@@ -51,7 +51,7 @@ public:
 
     void Abort(const TError& error);
 
-    NJobTrackerClient::TJobId GetId() const;
+    NJobTrackerClient::TJobId GetId() const noexcept override;
 
     NJobAgent::EJobType GetType() const;
 

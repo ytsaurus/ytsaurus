@@ -37,7 +37,10 @@ private:
 
     NYson::TYsonString JobStatistics_;
 
-    NClusterNode::TJobResources JobResourceUsage_;
+    NClusterNode::TJobResources BaseResourceUsage_;
+    NClusterNode::TJobResources AdditionalResourceUsage_;
+
+    std::vector<int> JobPorts_;
 
     TJobEvents JobEvents_;
 
@@ -59,7 +62,9 @@ private:
         TDuration jobDuration,
         const NYson::TYsonString& jobStatistics,
         TOperationId operationId,
-        const NClusterNode::TJobResources& jobResourceUsage,
+        const NClusterNode::TJobResources& baseResourceUsage,
+        const NClusterNode::TJobResources& additionalResourceUsage,
+        const std::vector<int>& jobPorts,
         const TJobEvents& jobEvents,
         const NControllerAgent::TCoreInfos& jobCoreInfos,
         const TExecAttributes& jobExecAttributes);

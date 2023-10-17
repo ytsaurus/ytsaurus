@@ -120,18 +120,22 @@ public:
     const std::vector<int>& GetPorts() const noexcept;
 
     //! Returns true unless overcommit occurred.
-    bool SetResourceUsage(NClusterNode::TJobResources newResourceUsage);
-    bool ChangeCumulativeResourceUsage(NClusterNode::TJobResources resourceUsageDelta);
+    bool SetBaseResourceUsage(NClusterNode::TJobResources newResourceUsage);
+    bool UpdateAdditionalResourceUsage(NClusterNode::TJobResources additionalResourceUsageDelta);
 
     void ReleaseCumulativeResources();
 
     NClusterNode::TJobResources GetResourceUsage() const noexcept;
+
+    std::pair<NClusterNode::TJobResources, NClusterNode::TJobResources> GetDetailedResourceUsage() const noexcept;
 
     const NClusterNode::TJobResourceAttributes& GetResourceAttributes() const noexcept;
 
     const NLogging::TLogger& GetLogger() const noexcept;
 
     NClusterNode::TJobResources GetResourceLimits() const noexcept;
+
+    virtual TGuid GetId() const noexcept = 0;
 
 protected:
     NLogging::TLogger Logger;
@@ -150,7 +154,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
 
-    NClusterNode::TJobResources Resources_;
+    NClusterNode::TJobResources BaseResourceUsage_;
+    NClusterNode::TJobResources AdditionalResourceUsage_;
     NClusterNode::TJobResourceAttributes ResourceAttributes_;
 
     std::vector<int> Ports_;
@@ -162,6 +167,29 @@ private:
     class TAcquiredResources;
     void SetAcquiredResources(TAcquiredResources&& acquiredResources);
     virtual void OnResourcesAcquired() noexcept = 0;
+
+    NClusterNode::TJobResources CumulativeResourceUsage() const noexcept;
+
+    struct TResourceHolderInfo
+    {
+        NClusterNode::TJobResources BaseResourceUsage;
+        NClusterNode::TJobResources AdditionalResourceUsage;
+        EResourcesConsumerType ResourcesConsumerType;
+    };
+
+    TResourceHolderInfo BuildResourceHolderInfo() const noexcept;
+
+    template <class TResourceUsageUpdater>
+        requires std::is_invocable_r_v<
+            NClusterNode::TJobResources,
+            TResourceUsageUpdater,
+            const NClusterNode::TJobResources&>
+    //! Semantic requirement: TResourceUsageUpdater::operator() must return delta between
+    //! cumulative resource usages before and after the call to this function
+    bool DoSetResourceUsage(
+        const NClusterNode::TJobResources& resourceUsage,
+        TStringBuf argumentName,
+        TResourceUsageUpdater resourceUsageUpdater);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceHolder)

@@ -2,6 +2,8 @@
 
 namespace NYT::NExecNode {
 
+using namespace NClusterNode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBriefJobInfo::TBriefJobInfo(
@@ -16,7 +18,9 @@ TBriefJobInfo::TBriefJobInfo(
     TDuration jobDuration,
     const NYson::TYsonString& jobStatistics,
     TOperationId operationId,
-    const NClusterNode::TJobResources& jobResourceUsage,
+    const TJobResources& baseResourceUsage,
+    const TJobResources& additionalResourceUsage,
+    const std::vector<int>& jobPorts,
     const TJobEvents& jobEvents,
     const NControllerAgent::TCoreInfos& jobCoreInfos,
     const TExecAttributes& jobExecAttributes)
@@ -31,7 +35,9 @@ TBriefJobInfo::TBriefJobInfo(
     , JobStartTime_(jobStartTime)
     , JobDuration_(jobDuration)
     , JobStatistics_(jobStatistics)
-    , JobResourceUsage_(jobResourceUsage)
+    , BaseResourceUsage_(baseResourceUsage)
+    , AdditionalResourceUsage_(additionalResourceUsage)
+    , JobPorts_(jobPorts)
     , JobEvents_(jobEvents)
     , JobCoreInfos_(jobCoreInfos)
     , JobExecAttributes_(jobExecAttributes)
@@ -51,7 +57,9 @@ void TBriefJobInfo::BuildOrchid(NYTree::TFluentMap fluent) const
             .Item("start_time").Value(JobStartTime_)
             .Item("duration").Value(JobDuration_)
             .OptionalItem("statistics", JobStatistics_)
-            .Item("resource_usage").Value(JobResourceUsage_)
+            .Item("base_resource_usage").Value(BaseResourceUsage_)
+            .Item("additional_resource_usage").Value(AdditionalResourceUsage_)
+            .Item("job_ports").Value(JobPorts_)
             .Item("events").Value(JobEvents_)
             .Item("core_infos").Value(JobCoreInfos_)
             .Item("exec_attributes").Value(JobExecAttributes_)
