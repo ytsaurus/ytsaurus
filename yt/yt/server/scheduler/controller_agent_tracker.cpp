@@ -632,6 +632,11 @@ public:
         auto groupedJobUpdates = RunInMessageOffloadInvoker(
             agent,
             [agent, nodeManager, request, response, context, config{Config_}] () {
+                const auto Logger = SchedulerLogger
+                    .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
+
+                YT_LOG_DEBUG("Group running job updates by node shards");
+
                 std::vector<TNodeShardJobUpdates> groupedJobUpdates(nodeManager->GetNodeShardCount());
 
                 agent->GetRunningJobStatisticsUpdatesInbox()->HandleIncoming(
@@ -641,14 +646,23 @@ public:
                         auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
                         groupedJobUpdates[shardId].RunningJobStatisticsUpdates.push_back(protoStatisticsUpdate);
                     });
+
+                YT_LOG_DEBUG("Running job updates grouped by node shards");
+
                 agent->GetRunningJobStatisticsUpdatesInbox()->ReportStatus(
                     response->mutable_agent_to_scheduler_running_job_statistics_updates());
+
+                YT_LOG_DEBUG("Handling job events outbox");
 
                 agent->GetJobEventsOutbox()->HandleStatus(
                     request->scheduler_to_agent_aborted_job_events());
                 agent->GetJobEventsOutbox()->BuildOutcoming(
                     response->mutable_scheduler_to_agent_aborted_job_events(),
                     config->MaxMessageJobEventCount);
+
+                YT_LOG_DEBUG("Job events outbox handled");
+
+                YT_LOG_DEBUG("Handling operation events outbox");
 
                 agent->GetOperationEventsOutbox()->HandleStatus(
                     request->scheduler_to_agent_operation_events());
@@ -659,9 +673,13 @@ public:
                         ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                     });
 
+                YT_LOG_DEBUG("Operation events outbox handled");
+
                 return groupedJobUpdates;
             })
             .ValueOrThrow();
+
+        YT_LOG_DEBUG("Handling operation events inbox");
 
         agent->GetOperationEventsInbox()->HandleIncoming(
             request->mutable_agent_to_scheduler_operation_events(),
@@ -788,6 +806,8 @@ public:
 
         agent->GetOperationEventsInbox()->ReportStatus(
             response->mutable_agent_to_scheduler_operation_events());
+
+        YT_LOG_DEBUG("Operation events inbox handled");
 
         if (request->has_controller_memory_limit()) {
             agent->SetMemoryStatistics(TControllerAgentMemoryStatistics{request->controller_memory_limit(), request->controller_memory_usage()});
