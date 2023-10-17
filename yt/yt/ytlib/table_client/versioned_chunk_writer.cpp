@@ -93,6 +93,7 @@ public:
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
+        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics))
         , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
         , KeyFilterBuilder_(CreateXorFilterBuilder(Config_, Schema_->GetKeyColumnCount()))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
@@ -274,6 +275,14 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
         SetProtoExtension(meta->mutable_extensions(), BlockMetaExt_);
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
+
+        if (!Options_->EnableColumnarValueStatistics) {
+            // Just in case...
+            ColumnarStatistics_.ClearValueStatistics();
+        }
+        if (!Options_->EnableRowCountInColumnarStatistics) {
+            ColumnarStatistics_.ChunkRowCount.reset();
+        }
         SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
         if (RowDigestBuilder_) {

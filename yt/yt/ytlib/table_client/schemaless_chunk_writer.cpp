@@ -155,7 +155,7 @@ public:
         , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
-        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize()))
+        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize(), Options_->EnableColumnarValueStatistics))
     {
         if (dataSink) {
             PackBaggageForChunkWriter(
@@ -373,6 +373,13 @@ protected:
         }
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
 
+        if (!Options_->EnableColumnarValueStatistics) {
+            // Just in case...
+            ColumnarStatistics_.ClearValueStatistics();
+        }
+        if (!Options_->EnableRowCountInColumnarStatistics) {
+            ColumnarStatistics_.ChunkRowCount.reset();
+        }
         SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
 
         if (IsSorted()) {
