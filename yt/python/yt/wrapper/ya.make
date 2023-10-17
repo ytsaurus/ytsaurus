@@ -3,8 +3,6 @@ PY23_LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
-    yt/yt/python/yt_yson_bindings
-
     yt/python/yt
 
     yt/python/yt/yson

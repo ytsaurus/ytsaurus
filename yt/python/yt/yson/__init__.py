@@ -39,7 +39,7 @@ from . import yson_types  # noqa
 
 TYPE = None
 try:
-    from yt_yson_bindings import load, loads, dump, dumps
+    from yt_yson_bindings import load, loads, dump, dumps, dump_parquete  # noqa
     TYPE = "BINARY"
 except ImportError as error:
     # XXX(asaitgalin): Sometimes module can't be imported because

@@ -2,6 +2,7 @@ from .common import (flatten, require, update, get_value, set_param, datetime_to
                      MB, chunk_iter_stream, deprecated, merge_blobs_by_size)
 from .compression import try_enable_parallel_write_gzip
 from .config import get_config, get_option
+from .constants import YSON_PACKAGE_INSTALLATION_TEXT
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
@@ -23,8 +24,6 @@ from .ypath import TablePath, ypath_join
 import yt.json_wrapper as json
 import yt.yson as yson
 import yt.logger as logger
-
-import yt_yson_bindings
 
 try:
     from yt.packages.six import PY3
@@ -1065,4 +1064,11 @@ def dump_parquete(table, output_file):
     :type path: str
     """
     stream = read_table(table, raw=True, format="arrow")
-    yt_yson_bindings.dump_parquete(output_file, stream)
+
+    if yson.TYPE != "BINARY":
+        raise YtError(
+            'YSON bindings required.'
+            'Bindings are shipped as additional package and '
+            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
+
+    yson.dump_parquete(output_file, stream)
