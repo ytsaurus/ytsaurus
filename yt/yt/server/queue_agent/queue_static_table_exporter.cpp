@@ -160,6 +160,8 @@ private:
     ui64 ExportFragmentUnixTs_;
     //! Corresponds to the queue being exported.
     TUserObject QueueObject_;
+    TTableSchemaPtr QueueSchema_;
+    TMasterTableSchemaId QueueSchemaId_;
     //! Original chunk specs fetched from master.
     std::vector<TChunkSpec> ChunkSpecs_;
     //! Pointers to chunk specs for chunks that are going to be exported within this iteration.
@@ -332,13 +334,15 @@ private:
         }
 
         auto attributes = FetchNodeAttributes(
-            QueueObject_.GetPath(), {"chunk_count", "dynamic", "schema"});
+            QueueObject_.GetPath(), {"chunk_count", "dynamic", "schema", "schema_id"});
 
         if (!attributes->Get<bool>("dynamic")) {
             THROW_ERROR_EXCEPTION("Queue %v should be a dynamic table", QueueObject_.GetPath());
         }
 
-        if (attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
+        QueueSchema_ = attributes->Get<TTableSchemaPtr>("schema");
+        QueueSchemaId_ = attributes->Get<TMasterTableSchemaId>("schema_id");
+        if (QueueSchema_->IsSorted()) {
             THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", QueueObject_.GetPath());
         }
 
@@ -498,8 +502,14 @@ private:
         auto proxy = CreateObjectServiceWriteProxy(Client_, destinationObjectCellTag);
 
         auto req = TChunkOwnerYPathProxy::BeginUpload(DestinationObject_.GetObjectIdPath());
-        req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
-        req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+        req->set_update_mode(ToProto<int>(EUpdateMode::Overwrite));
+        req->set_lock_mode(ToProto<int>(ELockMode::Exclusive));
+        if (CanUseSchemaId()) {
+            ToProto(req->mutable_table_schema_id(), QueueSchemaId_);
+        } else {
+            ToProto(req->mutable_table_schema(), QueueSchema_);
+        }
+        req->set_schema_mode(ToProto<int>(ETableSchemaMode::Strong));
 
         req->set_upload_transaction_title(Format(
             "Exporting queue %v to static table %v",
@@ -534,9 +544,10 @@ private:
             });
 
         YT_LOG_DEBUG(
-            "Started upload transaction for queue export (Destination: %v, UploadTransactionId: %v)",
+            "Started upload transaction for queue export (Destination: %v, UploadTransactionId: %v, OutputTableSchemaId: %v)",
             DestinationObject_.GetPath(),
-            UploadTransaction_->GetId());
+            UploadTransaction_->GetId(),
+            QueueSchemaId_);
     }
 
     void TeleportChunkMeta()
@@ -627,6 +638,13 @@ private:
         auto proxy = CreateObjectServiceWriteProxy(Client_, CellTagFromId(DestinationObject_.ObjectId));
 
         auto req = TChunkOwnerYPathProxy::EndUpload(DestinationObject_.GetObjectIdPath());
+        // COMPAT(achulkov2): Remove this once EndUpload stops overriding schemas.
+        if (CanUseSchemaId()) {
+            ToProto(req->mutable_table_schema_id(), QueueSchemaId_);
+        } else {
+            ToProto(req->mutable_table_schema(), QueueSchema_);
+        }
+        req->set_schema_mode(ToProto<int>(ETableSchemaMode::Strong));
         *req->mutable_statistics() = DataStatistics_;
 
         std::vector<TSecurityTag> inferredSecurityTags;
@@ -663,6 +681,11 @@ private:
 
         // TODO(achulkov2): Log summary of progress difference.
         YT_LOG_DEBUG("Updated export progress");
+    }
+
+    bool CanUseSchemaId() const
+    {
+        return CellTagFromId(QueueObject_.ObjectId) == CellTagFromId(DestinationObject_.ObjectId);
     }
 };
 

@@ -2505,18 +2505,39 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
         wait(try_remove, ignore_exceptions=True)
 
     @staticmethod
-    def _check_export(export_directory, expected_data):
-        export_fragments = sorted(ls(export_directory))
+    def _check_export(export_directory, expected_data, queue_path=None):
+        export_fragments = [name for name in sorted(ls(export_directory)) if f"{export_directory}/{name}" != queue_path]
         assert len(export_fragments) == len(expected_data)
         export_progress = get(f"{export_directory}/@queue_static_export_progress")
         assert export_progress["last_exported_fragment_unix_ts"] == int(export_fragments[-1].split("-")[0])
+
+        queue_id = get(f"{export_directory}/@queue_static_export_destination/originating_queue_id")
+        queue_schema_id = get(f"#{queue_id}/@schema_id")
+        queue_schema = get(f"#{queue_id}/@schema")
+        queue_native_cell_tag = get(f"#{queue_id}/@native_cell_tag")
 
         max_timestamp = 0
         total_row_count = 0
 
         for fragment_index, fragment_name in enumerate(export_fragments):
+            fragment_table_path = f"{export_directory}/{fragment_name}"
+
+            if fragment_table_path == queue_path:
+                continue
+
             fragment_unix_ts = int(fragment_name.split("-")[0])
-            rows = list(read_table(f"{export_directory}/{fragment_name}"))
+
+            fragment_native_cell_tag = get(f"{fragment_table_path}/@native_cell_tag")
+
+            # If both tables are on the same native cell, we use schema ids in upload.
+            if fragment_native_cell_tag == queue_native_cell_tag:
+                fragment_schema_id = get(f"{fragment_table_path}/@schema_id")
+                assert fragment_schema_id == queue_schema_id
+
+            fragment_schema = get(f"{fragment_table_path}/@schema")
+            assert fragment_schema == queue_schema
+
+            rows = list(read_table(fragment_table_path))
             assert list(map(itemgetter("data"), rows)) == expected_data[fragment_index]
 
             for row in rows:
@@ -2624,9 +2645,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         wait(lambda: len(ls(export_dir)) == 2)
 
-        # So that it's easier to check via common function.
-        remove(queue_path)
-        self._check_export(export_dir, [["foo"] * 6])
+        self._check_export(export_dir, [["foo"] * 6], queue_path=queue_path)
 
         self.remove_export_destination(export_dir)
 
@@ -2664,3 +2683,25 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
 class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
+
+    @authors("achulkov2")
+    def test_different_native_cells(self):
+        _, queue_id = self._create_queue("//portals/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        assert get(f"{export_dir}/@native_cell_tag") != get("//portals/q/@native_cell_tag")
+
+        insert_rows("//portals/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table("//portals/q")
+
+        set("//portals/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(export_dir, [["foo"] * 6])
+
+        self.remove_export_destination(export_dir)
