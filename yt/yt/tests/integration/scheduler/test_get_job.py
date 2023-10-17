@@ -452,13 +452,20 @@ class TestGetJob(_TestGetJobCommon):
 
         op.wait_for_state("completed")
 
+        @wait_no_assert
+        def check_job_completed():
+            job_info = retry(lambda: get_job(op.id, job_id))
+            assert job_info.get("controller_state") == "completed"
+
         # We emulate the situation when completed job still reports "running" to archive.
         _update_job_in_archive(op.id, job_id, {"controller_state": "running", "transient_state": "running"})
 
-        job_info = retry(lambda: get_job(op.id, job_id))
-        assert job_info.get("controller_state") == "running"
-        assert job_info.get("archive_state") == "running"
-        assert job_info.get("is_stale")
+        @wait_no_assert
+        def check_job_state():
+            job_info = retry(lambda: get_job(op.id, job_id))
+            assert job_info.get("controller_state") == "running"
+            assert job_info.get("archive_state") == "running"
+            assert job_info.get("is_stale")
 
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
