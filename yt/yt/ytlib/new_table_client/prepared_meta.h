@@ -198,25 +198,48 @@ struct TPreparedChunkMeta final
 
         std::vector<ui32> BlockIds;
         std::vector<ui32> BlockChunkRowCounts;
-        std::vector<ui16> ColumnIds;
         // Per block segment metas for each column in group.
         // Contains mapping from column index in group to offsets and serialized segment metas.
+
+        // Prepared segment metas from protobuf representation.
         std::vector<TSharedRef> MergedMetas;
+        // Offsets of segment meta stored in blocks.
+        std::vector<ui32> SegmentMetaOffsets;
     };
 
     std::vector<TColumnGroup> ColumnGroups;
-
     std::vector<TColumnGroupInfo> ColumnGroupInfos;
 
-    bool FullNewMeta = false;
     size_t Size = 0;
+    bool FullNewMeta = false;
 
-    size_t Prepare(
+    static TIntrusivePtr<TPreparedChunkMeta> FromProtoSegmentMetas(
         const NTableClient::TTableSchemaPtr& chunkSchema,
         const NTableClient::TRefCountedColumnMetaPtr& columnMetas,
         const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta,
         IBlockDataProvider* blockProvider = nullptr);
+
+    static TIntrusivePtr<TPreparedChunkMeta> FromSegmentMetasStoredInBlocks(
+        const NTableClient::TRefCountedColumnGroupInfosExtPtr& columnGroupInfos,
+        const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta);
+
+    static void VerifyEquality(
+        const TPreparedChunkMeta& fromProtoMeta,
+        const TPreparedChunkMeta& inBlocksMeta,
+        const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRawMeta>
+void VerifyRawSegmentMeta(const NProto::TSegmentMeta& protoMeta, TRange<TSharedRef> segmentData, const TRawMeta& rawMeta);
+
+template <EValueType Type>
+void VerifyRawVersionedSegmentMeta(
+    const NProto::TSegmentMeta& protoMeta,
+    TRange<TSharedRef> segmentData,
+    const TValueMeta<Type>& rawMeta,
+    bool aggregate);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -51,7 +51,7 @@ TGroupBlockHolder::TGroupBlockHolder(
     TRange<ui32> blockIds,
     TRange<ui32> blockChunkRowCounts,
     TRange<TSharedRef> blockSegmentsMetas,
-    const ui32* metaOffsetsInBlocks)
+    TRange<ui32> metaOffsetsInBlocks)
     : BlockIds_(blockIds)
     , BlockChunkRowCounts_(blockChunkRowCounts)
     , BlockSegmentsMetas_(blockSegmentsMetas)
@@ -67,12 +67,10 @@ TSharedRef TGroupBlockHolder::SwitchBlock(TSharedRef data)
 {
     YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
 
-    if (MetaOffsetsInBlocks_) {
-        auto blockId = BlockIds_[BlockIdIndex_];
-        BlockSegmentsMeta = TRef(data.Begin() + MetaOffsetsInBlocks_[blockId], data.End());
-        YT_VERIFY(BlockSegmentsMetas_[BlockIdIndex_].Size() == BlockSegmentsMeta.Size());
-    } else {
+    if (MetaOffsetsInBlocks_.Empty()) {
         BlockSegmentsMeta = BlockSegmentsMetas_[BlockIdIndex_];
+    } else {
+        BlockSegmentsMeta = TRef(data.Begin() + MetaOffsetsInBlocks_[BlockIdIndex_], data.End());
     }
 
     auto oldBlock = std::move(Block);
@@ -147,7 +145,8 @@ std::vector<TGroupBlockHolder> CreateGroupBlockHolders(
         groupHolders.emplace_back(
             preparedChunkMeta.ColumnGroups[groupId].BlockIds,
             preparedChunkMeta.ColumnGroups[groupId].BlockChunkRowCounts,
-            preparedChunkMeta.ColumnGroups[groupId].MergedMetas);
+            preparedChunkMeta.ColumnGroups[groupId].MergedMetas,
+            preparedChunkMeta.ColumnGroups[groupId].SegmentMetaOffsets);
     }
 
     return groupHolders;

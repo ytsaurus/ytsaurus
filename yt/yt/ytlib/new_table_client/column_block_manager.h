@@ -21,7 +21,7 @@ public:
         TRange<ui32> blockIds,
         TRange<ui32> blockChunkRowCounts,
         TRange<TSharedRef> blockSegmentsMetas,
-        const ui32* metaOffsetsInBlocks = nullptr);
+        TRange<ui32> metaOffsetsInBlocks);
 
     bool NeedUpdateBlock(ui32 rowIndex) const;
 
@@ -37,7 +37,7 @@ private:
     const TRange<ui32> BlockIds_;
     const TRange<ui32> BlockChunkRowCounts_;
     const TRange<TSharedRef> BlockSegmentsMetas_;
-    const ui32* MetaOffsetsInBlocks_;
+    const TRange<ui32> MetaOffsetsInBlocks_;
 
     ui32 BlockRowLimit_ = 0;
     ui32 BlockIdIndex_ = 0;

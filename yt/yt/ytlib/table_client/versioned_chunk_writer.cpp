@@ -225,6 +225,8 @@ protected:
     TDataBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
 
+    TColumnGroupInfosExt ColumnGroupInfosExt_;
+
     TSystemBlockMetaExt SystemBlockMetaExt_;
 
     TSamplesExt SamplesExt_;
@@ -669,8 +671,9 @@ public:
         , DataToBlockFlush_(Config_->BlockSize)
     {
         auto createBlockWriter = [&] {
-            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
-            return BlockWriters_.back().get();
+            auto blockWriterIndex = std::ssize(BlockWriters_);
+            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(Options_->EnableSegmentMetaInBlocks));
+            return blockWriterIndex;
         };
 
         // 1. Timestamp and key columns are always stored in one group block.
@@ -678,18 +681,18 @@ public:
         //    all columns (key and value) have the same group in schema.
         auto mainBlockWriter = createBlockWriter();
 
-        // Timestamp column.
-        TimestampWriter_ = CreateTimestampWriter(mainBlockWriter);
-
         std::optional<TString> keyGroupFromSchema;
 
         // Key columns.
         for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
             const auto& columnSchema = Schema_->Columns()[keyColumnIndex];
+
+            ColumnToGroupIndex_.push_back(mainBlockWriter);
+
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 keyColumnIndex,
                 columnSchema,
-                mainBlockWriter,
+                BlockWriters_[mainBlockWriter].get(),
                 Config_->MaxSegmentValueCount));
 
             if (keyColumnIndex == 0) {
@@ -699,7 +702,7 @@ public:
             }
         }
 
-        THashMap<TString, TDataBlockWriter*> groupBlockWriters;
+        THashMap<TString, int> groupBlockWriters;
         if (keyGroupFromSchema) {
             groupBlockWriters[*keyGroupFromSchema] = mainBlockWriter;
         }
@@ -714,16 +717,21 @@ public:
 
             TDataBlockWriter* blockWriter = nullptr;
             if (columnSchema.Group()) {
-                auto [it, inserted] = groupBlockWriters.emplace(*columnSchema.Group(), nullptr);
+                auto [it, inserted] = groupBlockWriters.emplace(*columnSchema.Group(), 0);
                 if (inserted) {
-                    it->second = createBlockWriter();
+                    auto blockWriterIndex = createBlockWriter();
+                    it->second = blockWriterIndex;
                 }
 
-                blockWriter = it->second;
+                ColumnToGroupIndex_.push_back(it->second);
+                blockWriter = BlockWriters_[it->second].get();;
             } else if (Options_->SingleColumnGroupByDefault) {
-                blockWriter = mainBlockWriter;
+                ColumnToGroupIndex_.push_back(mainBlockWriter);
+                blockWriter = BlockWriters_[mainBlockWriter].get();
             } else {
-                blockWriter = createBlockWriter();
+                auto blockWriterIndex = createBlockWriter();
+                ColumnToGroupIndex_.push_back(blockWriterIndex);
+                blockWriter = BlockWriters_[blockWriterIndex].get();
             }
 
             ValueColumnWriters_.emplace_back(CreateVersionedColumnWriter(
@@ -732,6 +740,10 @@ public:
                 blockWriter,
                 Config_->MaxSegmentValueCount));
         }
+
+        // Timestamp column.
+        ColumnToGroupIndex_.push_back(mainBlockWriter);
+        TimestampWriter_ = CreateTimestampWriter(BlockWriters_[mainBlockWriter].get());
 
         YT_VERIFY(BlockWriters_.size() > 0);
     }
@@ -760,6 +772,7 @@ private:
     std::vector<std::unique_ptr<TDataBlockWriter>> BlockWriters_;
     std::vector<std::unique_ptr<IValueColumnWriter>> ValueColumnWriters_;
     std::unique_ptr<ITimestampWriter> TimestampWriter_;
+    std::vector<ui16> ColumnToGroupIndex_;
 
     i64 DataToBlockFlush_;
 
@@ -850,6 +863,14 @@ private:
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
+
+        if (Options_->EnableSegmentMetaInBlocks) {
+            ColumnGroupInfosExt_.add_block_group_indexes(blockWriterIndex);
+
+            YT_VERIFY(block.SegmentMetaOffset);
+            ColumnGroupInfosExt_.add_segment_meta_offsets(*block.SegmentMetaOffset);
+        }
+
         EncodingChunkWriter_->WriteBlock(std::move(block.Data), EBlockType::UncompressedData);
     }
 
@@ -862,6 +883,12 @@ private:
         miscExt.set_max_timestamp(TimestampWriter_->GetMaxTimestamp());
 
         auto meta = EncodingChunkWriter_->GetMeta();
+
+        if (Options_->EnableSegmentMetaInBlocks) {
+            ToProto(ColumnGroupInfosExt_.mutable_column_to_group(), ColumnToGroupIndex_);
+            SetProtoExtension(meta->mutable_extensions(), ColumnGroupInfosExt_);
+        }
+
         NProto::TColumnMetaExt columnMetaExt;
         for (const auto& valueColumnWriter : ValueColumnWriters_) {
             *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();

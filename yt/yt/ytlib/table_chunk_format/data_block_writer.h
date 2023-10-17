@@ -18,8 +18,10 @@ class TDataBlockWriter
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, GroupIndex);
+    DEFINE_BYVAL_RO_PROPERTY(bool, EnableSegmentMetaInBlocks);
 
 public:
+    explicit TDataBlockWriter(bool enableSegmentMetaInBlocks = false);
     void WriteSegment(TRange<TSharedRef> segment);
 
     void RegisterColumnWriter(IColumnWriterBase* streamWriter);

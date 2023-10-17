@@ -64,6 +64,10 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     DataBlockMeta_ = New<TRefCountedDataBlockMeta>(GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions()));
 
+    if (auto columnGroupInfos = FindProtoExtension<TColumnGroupInfosExt>(chunkMeta.extensions())) {
+        ColumnGroupInfos_ = New<TRefCountedColumnGroupInfosExt>(std::move(*columnGroupInfos));
+    }
+
     // This is for old horizontal versioned chunks, since TCachedVersionedChunkMeta use this call.
     if (auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions())) {
         ColumnMeta_ = New<TRefCountedColumnMeta>(std::move(*columnMeta));
@@ -126,6 +130,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         sizeof (TKey) * BlockLastKeys_.Size() +
         Misc_.SpaceUsedLong() +
         DataBlockMeta_->GetSize() * metaMemoryFactor +
+        (ColumnGroupInfos_ ? ColumnGroupInfos_->GetSize() * metaMemoryFactor : 0) +
         (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
         ChunkSchema_->GetMemoryUsage();
 }

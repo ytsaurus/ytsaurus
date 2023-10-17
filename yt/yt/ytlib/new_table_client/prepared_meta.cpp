@@ -255,7 +255,7 @@ struct TColumnInfo
     }
 };
 
-size_t TPreparedChunkMeta::Prepare(
+TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
     const NTableClient::TTableSchemaPtr& chunkSchema,
     const NTableClient::TRefCountedColumnMetaPtr& columnMetas,
     const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta,
@@ -268,20 +268,26 @@ size_t TPreparedChunkMeta::Prepare(
     std::vector<TColumnInfo> preparedColumns;
     // Plus one timestamp column.
     preparedColumns.resize(chunkSchemaColumns.size() + 1);
-    ColumnGroupInfos.resize(chunkSchemaColumns.size() + 1);
+
+    std::vector<TColumnGroup> columnGroups;
+    std::vector<TColumnGroupInfo> columnGroupInfos;
+    columnGroupInfos.resize(chunkSchemaColumns.size() + 1);
+
+    std::vector<std::vector<ui16>> columnIdsPerGroup;
 
     auto determineColumnGroup = [&] (std::vector<ui32> blockIds, int columnIndex) {
         YT_VERIFY(!blockIds.empty());
 
-        auto [it, inserted] = firstBlockIdToGroup.emplace(blockIds.front(), ColumnGroups.size());
+        auto [it, inserted] = firstBlockIdToGroup.emplace(blockIds.front(), columnGroups.size());
         if (inserted) {
-            ColumnGroups.emplace_back();
+            columnGroups.emplace_back();
+            columnIdsPerGroup.emplace_back();
         }
 
         auto groupId = it->second;
-        ColumnGroupInfos[columnIndex].GroupId = groupId;
+        columnGroupInfos[columnIndex].GroupId = groupId;
 
-        auto& blockGroup = ColumnGroups[groupId];
+        auto& blockGroup = columnGroups[groupId];
 
         // Fill BlockIds if blockGroup has been created. Otherwise check that BlockIds and blockIds are equal.
         if (inserted) {
@@ -290,8 +296,8 @@ size_t TPreparedChunkMeta::Prepare(
             YT_VERIFY(blockIds == blockGroup.BlockIds);
         }
 
-        ColumnGroupInfos[columnIndex].IndexInGroup = blockGroup.ColumnIds.size();
-        blockGroup.ColumnIds.push_back(columnIndex);
+        columnGroupInfos[columnIndex].IndexInGroup = columnIdsPerGroup[groupId].size();
+        columnIdsPerGroup[groupId].push_back(columnIndex);
     };
 
     for (int index = 0; index < std::ssize(chunkSchemaColumns); ++index) {
@@ -309,7 +315,6 @@ size_t TPreparedChunkMeta::Prepare(
     }
 
     {
-        // TODO(lukyan): Or use first group for timestamp?
         int timestampReaderIndex = columnMetas->columns().size() - 1;
 
         auto blockIds = preparedColumns[timestampReaderIndex].PrepareTimestampMetas(
@@ -319,8 +324,7 @@ size_t TPreparedChunkMeta::Prepare(
         determineColumnGroup(std::move(blockIds), timestampReaderIndex);
     }
 
-
-    for (auto& columnGroup : ColumnGroups) {
+    for (auto& columnGroup : columnGroups) {
         columnGroup.BlockChunkRowCounts.resize(std::ssize(columnGroup.BlockIds));
         for (int index = 0; index < std::ssize(columnGroup.BlockIds); ++index) {
             columnGroup.BlockChunkRowCounts[index] = blockMeta->data_blocks(columnGroup.BlockIds[index]).chunk_row_count();
@@ -328,10 +332,11 @@ size_t TPreparedChunkMeta::Prepare(
     }
 
     std::vector<TRef> blockSegmentMeta;
+    for (int groupId = 0; groupId < std::ssize(columnGroups); ++groupId) {
+        auto& blockGroup = columnGroups[groupId];
 
-    for (auto& blockGroup : ColumnGroups) {
         for (int index = 0; index < std::ssize(blockGroup.BlockIds); ++index) {
-            for (auto columnId : blockGroup.ColumnIds) {
+            for (auto columnId : columnIdsPerGroup[groupId]) {
                 auto& [segmentPivots, meta] = preparedColumns[columnId];
 
                 YT_VERIFY(!segmentPivots.empty());
@@ -348,7 +353,7 @@ size_t TPreparedChunkMeta::Prepare(
 
             size_t size = 0;
             for (const auto& metas : blockSegmentMeta) {
-                YT_VERIFY(metas.size() % 8 == 0);
+                YT_VERIFY(metas.size() % sizeof(ui64) == 0);
                 size += metas.size();
             }
 
@@ -373,10 +378,10 @@ size_t TPreparedChunkMeta::Prepare(
         YT_VERIFY(blockGroup.MergedMetas.size() == blockGroup.BlockIds.size());
     }
 
-    size_t size = ColumnGroups.capacity() * sizeof(TColumnGroup);
-    for (const auto& blockGroup : ColumnGroups) {
+    size_t size = columnGroups.capacity() * sizeof(TColumnGroup);
+    for (const auto& blockGroup : columnGroups) {
         size += blockGroup.BlockIds.capacity() * sizeof(ui32);
-        size += blockGroup.ColumnIds.capacity() * sizeof(ui16);
+        size += blockGroup.BlockChunkRowCounts.capacity() * sizeof(ui32);
         size += blockGroup.MergedMetas.capacity() * sizeof(TSharedRef);
 
         for (const auto& perBlockMeta : blockGroup.MergedMetas) {
@@ -384,10 +389,77 @@ size_t TPreparedChunkMeta::Prepare(
         }
     }
 
-    FullNewMeta = blockProvider;
-    Size = size;
+    return New<TPreparedChunkMeta>(std::move(columnGroups), std::move(columnGroupInfos), size, static_cast<bool>(blockProvider));
+}
 
-    return size;
+TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromSegmentMetasStoredInBlocks(
+    const NTableClient::TRefCountedColumnGroupInfosExtPtr& columnGroupInfosProto,
+    const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta)
+{
+    std::vector<TColumnGroupInfo> columnGroupInfos(columnGroupInfosProto->column_to_group_size());
+
+    int maxGroupId = 0;
+    for (int columnId = 0; columnId < columnGroupInfosProto->column_to_group_size(); ++columnId) {
+        auto groupId = columnGroupInfosProto->column_to_group(columnId);
+        maxGroupId = std::max(maxGroupId, groupId);
+    }
+
+    std::vector<int> columnsInGroup(maxGroupId + 1);
+    for (int columnId = 0; columnId < columnGroupInfosProto->column_to_group_size(); ++columnId) {
+        auto groupId = columnGroupInfosProto->column_to_group(columnId);
+        columnGroupInfos[columnId] = {static_cast<ui16>(groupId), static_cast<ui16>(columnsInGroup[groupId]++)};
+    }
+
+    std::vector<TColumnGroup> columnGroups(maxGroupId + 1);
+    for (int blockId = 0; blockId < columnGroupInfosProto->block_group_indexes_size(); ++blockId) {
+        auto groupId = columnGroupInfosProto->block_group_indexes(blockId);
+
+        auto& columnGroup = columnGroups[groupId];
+
+        columnGroup.BlockIds.push_back(blockId);
+        columnGroup.SegmentMetaOffsets.push_back(columnGroupInfosProto->segment_meta_offsets(blockId));
+        columnGroup.BlockChunkRowCounts.push_back(blockMeta->data_blocks(blockId).chunk_row_count());
+    }
+
+    size_t size = columnGroups.capacity() * sizeof(TColumnGroup);
+    for (const auto& blockGroup : columnGroups) {
+        size += blockGroup.BlockIds.capacity() * sizeof(ui32);
+        size += blockGroup.BlockChunkRowCounts.capacity() * sizeof(ui32);
+        size += blockGroup.SegmentMetaOffsets.capacity() * sizeof(ui16);
+    }
+
+    return New<TPreparedChunkMeta>(std::move(columnGroups), std::move(columnGroupInfos), size, true);
+}
+
+void TPreparedChunkMeta::VerifyEquality(
+    const TPreparedChunkMeta& fromProtoMeta,
+    const TPreparedChunkMeta& inBlocksMeta,
+    const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta)
+{
+    YT_VERIFY(fromProtoMeta.ColumnGroupInfos.size() == inBlocksMeta.ColumnGroupInfos.size());
+    for (int index = 0; index < std::ssize(fromProtoMeta.ColumnGroupInfos); ++index) {
+        YT_VERIFY(fromProtoMeta.ColumnGroupInfos[index].GroupId == inBlocksMeta.ColumnGroupInfos[index].GroupId);
+        YT_VERIFY(fromProtoMeta.ColumnGroupInfos[index].IndexInGroup == inBlocksMeta.ColumnGroupInfos[index].IndexInGroup);
+    }
+
+    YT_VERIFY(fromProtoMeta.ColumnGroups.size() == inBlocksMeta.ColumnGroups.size());
+    for (int index = 0; index < std::ssize(fromProtoMeta.ColumnGroups); ++index) {
+        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockIds.size() == fromProtoMeta.ColumnGroups[index].BlockChunkRowCounts.size());
+        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockIds.size() == fromProtoMeta.ColumnGroups[index].MergedMetas.size());
+
+        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockIds == inBlocksMeta.ColumnGroups[index].BlockIds);
+        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockChunkRowCounts == inBlocksMeta.ColumnGroups[index].BlockChunkRowCounts);
+        YT_VERIFY(fromProtoMeta.ColumnGroups[index].MergedMetas.size() == inBlocksMeta.ColumnGroups[index].SegmentMetaOffsets.size());
+    }
+
+    for (int groupId = 0; groupId < std::ssize(inBlocksMeta.ColumnGroups); ++groupId) {
+        for (int blockIdIndex = 0; blockIdIndex < std::ssize(inBlocksMeta.ColumnGroups[groupId].BlockIds); ++blockIdIndex) {
+            auto blockSize = blockMeta->data_blocks(inBlocksMeta.ColumnGroups[groupId].BlockIds[blockIdIndex]).uncompressed_size();
+            auto fromBlockMetaSize = blockSize - inBlocksMeta.ColumnGroups[groupId].SegmentMetaOffsets[blockIdIndex];
+            auto fromProtoMetaSize = std::ssize(fromProtoMeta.ColumnGroups[groupId].MergedMetas[blockIdIndex]);
+            YT_VERIFY(fromBlockMetaSize == fromProtoMetaSize);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

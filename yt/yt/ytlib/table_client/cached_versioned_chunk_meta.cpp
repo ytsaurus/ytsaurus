@@ -123,9 +123,28 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
     TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> newPreparedMeta = nullptr;
     while (!currentMeta || (blockProvider && !currentMeta->FullNewMeta)) {
         if (!newPreparedMeta) {
-            newPreparedMeta = New<NNewTableClient::TPreparedChunkMeta>();
-            newPreparedMeta->FullNewMeta = blockProvider;
-            newPreparedMeta->Prepare(ChunkSchema_, ColumnMeta(), DataBlockMeta(), blockProvider);
+            if (ColumnGroupInfos()) {
+                newPreparedMeta = NNewTableClient::TPreparedChunkMeta::FromSegmentMetasStoredInBlocks(
+                    ColumnGroupInfos(),
+                    DataBlockMeta());
+
+                auto fromProtoMeta = NNewTableClient::TPreparedChunkMeta::FromProtoSegmentMetas(
+                    ChunkSchema_,
+                    ColumnMeta(),
+                    DataBlockMeta(),
+                    blockProvider);
+
+                NNewTableClient::TPreparedChunkMeta::VerifyEquality(
+                    *fromProtoMeta,
+                    *newPreparedMeta,
+                    DataBlockMeta());
+            } else {
+                newPreparedMeta = NNewTableClient::TPreparedChunkMeta::FromProtoSegmentMetas(
+                    ChunkSchema_,
+                    ColumnMeta(),
+                    DataBlockMeta(),
+                    blockProvider);
+            }
         }
 
         void* rawCurrentMeta = currentMeta.Get();

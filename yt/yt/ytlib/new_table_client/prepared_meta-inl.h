@@ -42,4 +42,46 @@ void TKeyMeta<Type>::InitFromProto(const NProto::TSegmentMeta& meta, const ui64*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRawMeta>
+void VerifyRawSegmentMeta(
+    const NProto::TSegmentMeta& protoMeta,
+    TRange<TSharedRef> segmentData,
+    const TRawMeta& rawMeta)
+{
+    TRawMeta rawMetaFromProto;
+    memset(&rawMetaFromProto, 0, sizeof(rawMetaFromProto));
+
+    auto segmentSize = GetByteSize(segmentData);
+    std::vector<char> plainSegmentData;
+    plainSegmentData.reserve(segmentSize);
+    for (const auto& part : segmentData) {
+        plainSegmentData.insert(plainSegmentData.end(), part.Begin(), part.End());
+    }
+    rawMetaFromProto.InitFromProto(protoMeta, reinterpret_cast<const ui64*>(plainSegmentData.data()));
+
+    for (size_t i = 0; i < sizeof(TRawMeta); ++i) {
+        auto convertedFromProtoByte = reinterpret_cast<const char*>(&rawMetaFromProto)[i];
+        auto rawMetaByte = reinterpret_cast<const char*>(&rawMeta)[i];
+
+        YT_VERIFY(convertedFromProtoByte == rawMetaByte);
+    }
+}
+
+template <EValueType Type>
+void VerifyRawVersionedSegmentMeta(
+    const NProto::TSegmentMeta& protoMeta,
+    TRange<TSharedRef> segmentData,
+    const TValueMeta<Type>& rawMeta,
+    bool aggregate)
+{
+    if (aggregate) {
+        const auto& aggregateMeta = static_cast<const TAggregateValueMeta<Type>&>(rawMeta);
+        VerifyRawSegmentMeta(protoMeta, segmentData, aggregateMeta);
+    } else {
+        VerifyRawSegmentMeta(protoMeta, segmentData, rawMeta);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNewTableClient

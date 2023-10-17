@@ -23,7 +23,7 @@ TColumnWriterBase::TColumnWriterBase(TDataBlockWriter* blockWriter)
     BlockWriter_->RegisterColumnWriter(this);
 }
 
-void TColumnWriterBase::FinishBlock(int blockIndex)
+TSharedRef TColumnWriterBase::FinishBlock(int blockIndex)
 {
     FinishCurrentSegment();
 
@@ -33,6 +33,23 @@ void TColumnWriterBase::FinishBlock(int blockIndex)
     }
 
     CurrentBlockSegments_.clear();
+
+    size_t metaSize = 0;
+    for (const auto& meta : CurrentBlockSegmentMetas_) {
+        metaSize += meta.Size();
+    }
+
+    auto mergedMeta = TSharedMutableRef::Allocate(metaSize);
+    char* metasData = mergedMeta.Begin();
+
+    for (const auto& meta : CurrentBlockSegmentMetas_) {
+        std::copy(meta.begin(), meta.end(), metasData);
+        metasData += meta.size();
+    }
+
+    CurrentBlockSegmentMetas_.clear();
+
+    return mergedMeta;
 }
 
 const TColumnMeta& TColumnWriterBase::ColumnMeta() const
@@ -40,7 +57,7 @@ const TColumnMeta& TColumnWriterBase::ColumnMeta() const
     return ColumnMeta_;
 }
 
-void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo)
+void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo, TSharedRef inBlockMeta)
 {
     ui64 size = 0;
     for (const auto& part : segmentInfo->Data)  {
@@ -56,6 +73,13 @@ void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo)
 
     CurrentBlockSegments_.push_back(segmentInfo->SegmentMeta);
     BlockWriter_->WriteSegment(MakeRange(segmentInfo->Data));
+
+    CurrentBlockSegmentMetas_.push_back(std::move(inBlockMeta));
+}
+
+i64 TColumnWriterBase::GetOffset() const
+{
+    return BlockWriter_->GetOffset();
 }
 
 i64 TColumnWriterBase::GetMetaSize() const
@@ -142,7 +166,7 @@ void TVersionedColumnWriterBase::AddValues(
     }
 }
 
-void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
+void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo, NNewTableClient::TMultiValueIndexMeta* rawIndexMeta)
 {
     ui32 expectedValuesPerRow;
     ui32 maxDiffFromExpected;
@@ -163,12 +187,18 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
         auto* denseMeta = segmentInfo->SegmentMeta.MutableExtension(TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
         denseMeta->set_expected_values_per_row(expectedValuesPerRow);
 
-        segmentInfo->Data.push_back(BitPackUnsignedVector(
+        rawIndexMeta->ExpectedPerRow = expectedValuesPerRow;
+
+        segmentInfo->Data.push_back(BitpackVector(
             MakeRange(ValuesPerRow_),
-            maxDiffFromExpected));
+            maxDiffFromExpected,
+            &rawIndexMeta->OffsetsSize,
+            &rawIndexMeta->OffsetsWidth));
     } else {
         std::vector<ui64> rowIndexes;
         rowIndexes.reserve(NullBitmap_.GetBitSize());
+
+        rawIndexMeta->ExpectedPerRow = static_cast<ui32>(-1);
 
         for (int rowIndex = 0; rowIndex < std::ssize(ValuesPerRow_); ++rowIndex) {
             ui32 upperValueIndex = expectedValuesPerRow * (rowIndex + 1) + ZigZagDecode32(ValuesPerRow_[rowIndex]);
@@ -178,18 +208,24 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
         }
         YT_VERIFY(rowIndexes.size() == NullBitmap_.GetBitSize());
 
-        segmentInfo->Data.push_back(BitPackUnsignedVector(
+        segmentInfo->Data.push_back(BitpackVector(
             MakeRange(rowIndexes),
-            rowIndexes.back()));
+            rowIndexes.back(),
+            &rawIndexMeta->OffsetsSize,
+            &rawIndexMeta->OffsetsWidth));
     }
 
-    segmentInfo->Data.push_back(BitPackUnsignedVector(
+    segmentInfo->Data.push_back(BitpackVector(
         MakeRange(TimestampIndexes_),
-        MaxTimestampIndex_));
+        MaxTimestampIndex_,
+        &rawIndexMeta->WriteTimestampIdsSize,
+        &rawIndexMeta->WriteTimestampIdsWidth));
 
     if (Aggregate_) {
         segmentInfo->Data.push_back(AggregateBitmap_.Flush<TSegmentWriterTag>());
     }
+
+    rawIndexMeta->RowCount = ValuesPerRow_.size();
 
     segmentInfo->SegmentMeta.set_row_count(ValuesPerRow_.size());
 }

@@ -1,4 +1,5 @@
 #include "string_column_writer.h"
+#include "data_block_writer.h"
 #include "column_writer_detail.h"
 #include "helpers.h"
 
@@ -139,7 +140,7 @@ protected:
         return value;
     }
 
-    void DumpDictionaryValues(TSegmentInfo* segmentInfo)
+    void DumpDictionaryValues(TSegmentInfo* segmentInfo, NNewTableClient::TBlobMeta* rawBlobMeta)
     {
         auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, {.InitializeStorage = false});
 
@@ -173,24 +174,27 @@ protected:
 
         YT_VERIFY(dictionaryOffset == DictionaryByteSize_);
 
+        rawBlobMeta->Direct = false;
+
         // 1. Value ids.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(ids), dictionarySize + 1));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(ids), dictionarySize + 1, &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
 
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&dictionaryOffsets, &expectedLength, &maxDiff);
 
         // 2. Dictionary offsets.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(dictionaryOffsets), maxDiff));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(dictionaryOffsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 3. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);
 
         auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
+        rawBlobMeta->ExpectedLength = expectedLength;
     }
 
-    void DumpDirectValues(TSegmentInfo* segmentInfo, TSharedRef nullBitmap)
+    void DumpDirectValues(TSegmentInfo* segmentInfo, TSharedRef nullBitmap, NNewTableClient::TBlobMeta* rawBlobMeta)
     {
         auto offsets = GetDirectDenseOffsets();
 
@@ -199,8 +203,10 @@ protected:
         ui32 maxDiff;
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
 
+        rawBlobMeta->Direct = true;
+
         // 1. Direct offsets.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(offsets), maxDiff));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 2. Null bitmap.
         segmentInfo->Data.push_back(std::move(nullBitmap));
@@ -212,6 +218,7 @@ protected:
 
         auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
+        rawBlobMeta->ExpectedLength = expectedLength;
     }
 
 
@@ -305,26 +312,35 @@ private:
         TSegmentInfo segmentInfo;
         segmentInfo.SegmentMeta.set_version(0);
 
-        DumpVersionedData(&segmentInfo);
+        NNewTableClient::TValueMeta<ValueType> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.ChunkRowCount = RowCount_;
+
+        DumpVersionedData(&segmentInfo, &rawMeta);
 
         i64 dictionaryByteSize = this->GetDictionaryByteSize();
         i64 directByteSize = this->GetDirectByteSize();
         if (dictionaryByteSize < directByteSize) {
-            this->DumpDictionaryValues(&segmentInfo);
+            this->DumpDictionaryValues(&segmentInfo, &rawMeta);
 
             segmentInfo.SegmentMeta.set_type(ToProto<int>(segmentInfo.Dense
                 ? EVersionedStringSegmentType::DictionaryDense
                 : EVersionedStringSegmentType::DictionarySparse));
 
         } else {
-            this->DumpDirectValues(&segmentInfo, NullBitmap_.Flush<TSegmentWriterTag>());
+            this->DumpDirectValues(&segmentInfo, NullBitmap_.Flush<TSegmentWriterTag>(), &rawMeta);
 
             segmentInfo.SegmentMeta.set_type(ToProto<int>(segmentInfo.Dense
                 ? EVersionedStringSegmentType::DirectDense
                 : EVersionedStringSegmentType::DirectSparse));
         }
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawVersionedSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta, Aggregate_);
+        }
     }
 };
 
@@ -450,7 +466,7 @@ private:
         return nullBitmap.Flush<TSegmentWriterTag>();
     }
 
-    void DumpDirectRleData(TSegmentInfo* segmentInfo)
+    void DumpDirectRleData(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TBlobMeta* rawBlobMeta)
     {
         auto stringData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DirectRleSize_, {.InitializeStorage = false});
         std::vector<ui32> offsets;
@@ -472,14 +488,16 @@ private:
 
         YT_VERIFY(stringOffset == DirectRleSize_);
 
+        rawBlobMeta->Direct = true;
+
         // 1. Row indexes.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
 
         // 2. Value offsets.
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(offsets), maxDiff));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 3. Null bitmap.
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
@@ -489,9 +507,10 @@ private:
 
         auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
+        rawBlobMeta->ExpectedLength = expectedLength;
     }
 
-    void DumpDictionaryRleData(TSegmentInfo* segmentInfo)
+    void DumpDictionaryRleData(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TBlobMeta* rawBlobMeta)
     {
         auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, {.InitializeStorage = false});
 
@@ -500,6 +519,8 @@ private:
 
         std::vector<ui32> ids;
         ids.reserve(RleRowIndexes_.size());
+
+        rawBlobMeta->Direct = false;
 
         ui32 dictionaryOffset = 0;
         ui32 dictionarySize = 0;
@@ -525,22 +546,23 @@ private:
         }
 
         // 1. Row indexes.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
 
         // 2. Value ids.
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(ids), Dictionary_.size()));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(ids), Dictionary_.size(), &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
 
         // 3. Dictionary offsets.
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
-        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(offsets), maxDiff));
+        segmentInfo->Data.push_back(BitpackVector(MakeRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 4. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);
 
         auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
+        rawBlobMeta->ExpectedLength = expectedLength;
     }
 
     void DumpSegment()
@@ -555,28 +577,42 @@ private:
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
 
+        NNewTableClient::TKeyMeta<ValueType> rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+        rawMeta.DataOffset = TColumnWriterBase::GetOffset();
+        rawMeta.RowCount = Values_.size();
+        rawMeta.ChunkRowCount = RowCount_;
+
         switch (type) {
             case EUnversionedStringSegmentType::DirectRle:
-                DumpDirectRleData(&segmentInfo);
+                rawMeta.Dense = false;
+                DumpDirectRleData(&segmentInfo, &rawMeta, &rawMeta);
                 break;
 
             case EUnversionedStringSegmentType::DictionaryRle:
-                DumpDictionaryRleData(&segmentInfo);
+                rawMeta.Dense = false;
+                DumpDictionaryRleData(&segmentInfo, &rawMeta, &rawMeta);
                 break;
 
             case EUnversionedStringSegmentType::DirectDense:
-                this->DumpDirectValues(&segmentInfo, GetDirectDenseNullBitmap());
+                rawMeta.Dense = true;
+                this->DumpDirectValues(&segmentInfo, GetDirectDenseNullBitmap(), &rawMeta);
                 break;
 
             case EUnversionedStringSegmentType::DictionaryDense:
-                this->DumpDictionaryValues(&segmentInfo);
+                rawMeta.Dense = true;
+                this->DumpDictionaryValues(&segmentInfo, &rawMeta);
                 break;
 
             default:
                 YT_ABORT();
         }
 
-        TColumnWriterBase::DumpSegment(&segmentInfo);
+        TColumnWriterBase::DumpSegment(&segmentInfo, TSharedRef::MakeCopy<TSegmentWriterTag>(MetaToRef(rawMeta)));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawSegmentMeta(segmentInfo.SegmentMeta, segmentInfo.Data, rawMeta);
+        }
     }
 
     TEnumIndexedVector<EUnversionedStringSegmentType, i32> GetSegmentSizeVector() const

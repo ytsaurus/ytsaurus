@@ -1,6 +1,8 @@
 #include "timestamp_writer.h"
 #include "data_block_writer.h"
 
+#include <yt/yt/ytlib/new_table_client/prepared_meta.h>
+
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
@@ -51,7 +53,7 @@ public:
         TryDumpSegment();
     }
 
-    void FinishBlock(int blockIndex) override
+    TSharedRef FinishBlock(int blockIndex) override
     {
         FinishCurrentSegment();
 
@@ -63,6 +65,21 @@ public:
         }
 
         CurrentBlockSegments_.clear();
+
+        size_t metaSize = sizeof(NNewTableClient::TTimestampMeta) * CurrentBlockSegmentMetas_.size();
+
+        auto mergedMeta = TSharedMutableRef::Allocate(metaSize);
+        char* metasData = mergedMeta.Begin();
+
+        for (const auto& meta : CurrentBlockSegmentMetas_) {
+            auto ref = MetaToRef(meta);
+            std::copy(ref.Begin(), ref.End(), metasData);
+            metasData += ref.size();
+        }
+
+        CurrentBlockSegmentMetas_.clear();
+
+        return mergedMeta;
     }
 
     void FinishCurrentSegment() override
@@ -141,6 +158,8 @@ private:
     i64 RowCount_ = 0;
     i64 MetaSize_ = 0;
 
+    // Segment metas are stored in block in new columnar format.
+    std::vector<NNewTableClient::TTimestampMeta> CurrentBlockSegmentMetas_;
 
     ui32 RegisterTimestamp(TTimestamp timestamp)
     {
@@ -186,30 +205,43 @@ private:
             timestamp -= MinSegmentTimestamp_;
         }
 
+        NNewTableClient::TTimestampMeta rawMeta;
+        memset(&rawMeta, 0, sizeof(rawMeta));
+
+        rawMeta.BaseTimestamp = MinSegmentTimestamp_;
+
         ui32 expectedWritesPerRow ;
         ui32 maxWriteIndex;
         PrepareDiffFromExpected(&WriteTimestampCounts_, &expectedWritesPerRow, &maxWriteIndex);
+
+        rawMeta.ExpectedWritesPerRow = expectedWritesPerRow;
 
         ui32 expectedDeletesPerRow;
         ui32 maxDeleteIndex;
         PrepareDiffFromExpected(&DeleteTimestampCounts_, &expectedDeletesPerRow, &maxDeleteIndex);
 
+        rawMeta.ExpectedDeletesPerRow = expectedDeletesPerRow;
+
         i64 size = 0;
-
         std::vector<TSharedRef> data;
-        data.push_back(BitPackUnsignedVector(MakeRange(Dictionary_), MaxSegmentTimestamp_ - MinSegmentTimestamp_));
+
+        data.push_back(BitpackVector(
+            MakeRange(Dictionary_),
+            MaxSegmentTimestamp_ - MinSegmentTimestamp_,
+            &rawMeta.TimestampsDictSize,
+            &rawMeta.TimestampsDictWidth));
         size += data.back().Size();
 
-        data.push_back(BitPackUnsignedVector(MakeRange(WriteTimestampIds_), Dictionary_.size()));
+        data.push_back(BitpackVector(MakeRange(WriteTimestampIds_), Dictionary_.size(), &rawMeta.WriteTimestampSize, &rawMeta.WriteTimestampWidth));
         size += data.back().Size();
 
-        data.push_back(BitPackUnsignedVector(MakeRange(DeleteTimestampIds_), Dictionary_.size()));
+        data.push_back(BitpackVector(MakeRange(DeleteTimestampIds_), Dictionary_.size(), &rawMeta.DeleteTimestampSize, &rawMeta.DeleteTimestampWidth));
         size += data.back().Size();
 
-        data.push_back(BitPackUnsignedVector(MakeRange(WriteTimestampCounts_), maxWriteIndex));
+        data.push_back(BitpackVector(MakeRange(WriteTimestampCounts_), maxWriteIndex, &rawMeta.WriteOffsetDiffsSize, &rawMeta.WriteOffsetDiffsWidth));
         size += data.back().Size();
 
-        data.push_back(BitPackUnsignedVector(MakeRange(DeleteTimestampCounts_), maxDeleteIndex));
+        data.push_back(BitpackVector(MakeRange(DeleteTimestampCounts_), maxDeleteIndex, &rawMeta.DeleteOffsetDiffsSize, &rawMeta.DeleteOffsetDiffsWidth));
         size += data.back().Size();
 
         TSegmentMeta segmentMeta;
@@ -219,6 +251,10 @@ private:
         segmentMeta.set_offset(BlockWriter_->GetOffset());
         segmentMeta.set_chunk_row_count(RowCount_);
         segmentMeta.set_size(size);
+
+        rawMeta.DataOffset = BlockWriter_->GetOffset();
+        rawMeta.RowCount = WriteTimestampCounts_.size();
+        rawMeta.ChunkRowCount = RowCount_;
 
         auto* meta = segmentMeta.MutableExtension(TTimestampSegmentMeta::timestamp_segment_meta);
         meta->set_min_timestamp(MinSegmentTimestamp_);
@@ -231,6 +267,12 @@ private:
         CurrentBlockSegments_.push_back(segmentMeta);
 
         BlockWriter_->WriteSegment(MakeRange(data));
+
+        if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
+            VerifyRawSegmentMeta(segmentMeta, data, rawMeta);
+        }
+
+        CurrentBlockSegmentMetas_.push_back(std::move(rawMeta));
     }
 };
 

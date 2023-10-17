@@ -312,6 +312,7 @@ protected:
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = testOptions.OptimizeFor;
         options->ChunkFormat = testOptions.ChunkFormat;
+        options->EnableSegmentMetaInBlocks = true;
         options->Postprocess();
 
         auto chunkWriter = CreateVersionedChunkWriter(
@@ -771,6 +772,7 @@ protected:
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = testOptions.OptimizeFor;
         options->ChunkFormat = testOptions.ChunkFormat;
+        options->EnableSegmentMetaInBlocks = true;
         options->Postprocess();
 
         auto chunkWriter = CreateVersionedChunkWriter(
