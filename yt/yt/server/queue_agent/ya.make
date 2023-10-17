@@ -38,9 +38,3 @@ PEERDIR(
 )
 
 END()
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        bin
-    )
-ENDIF()

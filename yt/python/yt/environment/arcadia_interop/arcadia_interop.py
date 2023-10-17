@@ -21,24 +21,26 @@ except ImportError:
     resource = None
 
 
-PROGRAMS = [("master", "master/bin"),
-            ("clock", "clock_server/bin"),
-            ("timestamp-provider", "timestamp_provider/bin"),
-            ("discovery", "discovery_server/bin"),
-            ("node", "node/bin"),
-            ("job-proxy", "job_proxy/bin"),
-            ("exec", "exec/bin"),
-            ("proxy", "rpc_proxy/bin"),
-            ("http-proxy", "http_proxy/bin"),
-            ("tools", "tools/bin"),
-            ("scheduler", "scheduler/bin"),
-            ("controller-agent", "controller_agent/bin"),
-            ("cell-balancer", "cell_balancer/bin"),
-            ("tablet-balancer", "tablet_balancer/bin"),
-            ("master-cache", "master_cache/bin"),
-            ("queue-agent", "queue_agent/bin"),
-            ("cypress-proxy", "cypress_proxy/bin"),
-            ("query-tracker", "query_tracker/bin")]
+ALL_COMPONENTS = [
+    "master",
+    "clock",
+    "timestamp-provider",
+    "discovery",
+    "node",
+    "job-proxy",
+    "exec",
+    "proxy",
+    "http-proxy",
+    "tools",
+    "scheduler",
+    "controller-agent",
+    "cell-balancer",
+    "tablet-balancer",
+    "master-cache",
+    "queue-agent",
+    "cypress-proxy",
+    "query-tracker",
+]
 
 
 def sudo_rmtree(path):
@@ -134,13 +136,13 @@ def prepare_yt_binaries(destination,
         shutil.copy(ytserver_all, ytserver_all_destination)
         ytserver_all = ytserver_all_destination
 
-    programs = PROGRAMS
+    if component_whitelist is None:
+        components = ALL_COMPONENTS
+    else:
+        components = [component for component in ALL_COMPONENTS if component in component_whitelist]
 
-    if component_whitelist is not None:
-        programs = [(component, path) for component, path in programs if component in component_whitelist]
-
-    for binary, server_dir in programs:
-        dst_path = os.path.join(destination, "ytserver-" + binary)
+    for component in components:
+        dst_path = os.path.join(destination, "ytserver-" + component)
         if copy_ytserver_all:
             os.link(ytserver_all, dst_path)
         else:
@@ -200,14 +202,12 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
 
     # Compute which components should be taken from trunk and which from artifacts.
 
-    all_components = [program for program, _ in PROGRAMS]
-
-    trunk_components = set(program for program, _ in PROGRAMS)
+    trunk_components = set(ALL_COMPONENTS)
     for artifact_name, components in artifact_components.items():
         for component in components:
-            if component not in all_components:
+            if component not in ALL_COMPONENTS:
                 raise RuntimeError("Unknown artifact component {}; known components are {}".format(
-                                   component, all_components))
+                                   component, ALL_COMPONENTS))
             if component not in trunk_components:
                 raise RuntimeError("Artifact component {} is specified multiple times".format(component))
             trunk_components.remove(component)

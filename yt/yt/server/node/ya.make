@@ -209,12 +209,6 @@ PEERDIR(
 
 END()
 
-IF (NOT OPENSOURCE)
-    RECURSE(
-        bin
-    )
-ENDIF()
-
 RECURSE_FOR_TESTS(
     data_node/unittests
     tablet_node/unittests

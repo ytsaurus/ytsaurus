@@ -889,7 +889,6 @@
   "yt/yt/server/controller_agent/controllers/CMakeLists.txt":"",
   "yt/yt/server/controller_agent/unittests/CMakeLists.txt":"",
   "yt/yt/server/cypress_proxy/CMakeLists.txt":"",
-  "yt/yt/server/cypress_proxy/bin/CMakeLists.txt":"",
   "yt/yt/server/discovery_server/CMakeLists.txt":"",
   "yt/yt/server/exec/CMakeLists.txt":"",
   "yt/yt/server/http_proxy/CMakeLists.txt":"",
