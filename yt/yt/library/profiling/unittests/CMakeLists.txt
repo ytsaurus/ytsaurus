@@ -58,7 +58,7 @@ set_property(
   yt-yt-library-profiling-unittests
   PROPERTY
   LABELS
-  SMALL
+  MEDIUM
 )
 set_property(
   TEST
