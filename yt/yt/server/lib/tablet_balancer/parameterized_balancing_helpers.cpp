@@ -390,7 +390,8 @@ double TParameterizedReassignSolver::GetTabletMetric(const TTabletPtr& tablet) c
         default:
             THROW_ERROR_EXCEPTION(
                 "Tablet metric value type is not numerical: got %v",
-                value.Type);
+                value.Type)
+                << TErrorAttribute("metric_formula", Config_.Metric);
     }
 }
 
