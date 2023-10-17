@@ -329,6 +329,8 @@ func convertMaintenanceType(t yt.MaintenanceType) (*rpc_proxy.EMaintenanceType, 
 		ret = rpc_proxy.EMaintenanceType_MT_DISABLE_TABLET_CELLS
 	case yt.MaintenanceTypeDisableWriteSessions:
 		ret = rpc_proxy.EMaintenanceType_MT_DISABLE_WRITE_SESSIONS
+	case yt.MaintenanceTypePendingRestart:
+		ret = rpc_proxy.EMaintenanceType_MT_PENDING_RESTART
 	default:
 		return nil, xerrors.Errorf("unexpected maintenance type %q", t)
 	}
@@ -347,6 +349,7 @@ func makeRemoveMaintenanceResponse(r *rpc_proxy.TRspRemoveMaintenance) (*yt.Remo
 		DisableSchedulerJobsCounts: int(r.GetDisableSchedulerJobs()),
 		DisableWriteSessionsCounts: int(r.GetDisableWriteSessions()),
 		DisableTabletCellsCounts:   int(r.GetDisableTabletCells()),
+		PendingRestartCounts:       int(r.GetPendingRestart()),
 	}
 
 	return ret, nil

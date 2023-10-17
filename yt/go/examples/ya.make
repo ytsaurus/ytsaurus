@@ -1,4 +1,5 @@
 RECURSE(
+    admin
     compute-email-example
     count-names-example
     cypress-example

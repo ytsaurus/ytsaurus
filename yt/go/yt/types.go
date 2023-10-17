@@ -313,6 +313,7 @@ const (
 	MaintenanceTypeDisableSchedulerJobs MaintenanceType = "disable_scheduler_jobs"
 	MaintenanceTypeDisableWriteSessions MaintenanceType = "disable_write_sessions"
 	MaintenanceTypeDisableTabletCells   MaintenanceType = "disable_tablet_cells"
+	MaintenanceTypePendingRestart       MaintenanceType = "pending_restart"
 )
 
 type MaintenanceComponent string

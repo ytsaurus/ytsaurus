@@ -924,6 +924,10 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 		w.MapKeyString("output_row_limit")
 		w.Any(o.OutputRowLimit)
 	}
+	if o.UseCanonicalNullRelations != nil {
+		w.MapKeyString("use_canonical_null_relations")
+		w.Any(o.UseCanonicalNullRelations)
+	}
 	if o.Timestamp != nil {
 		w.MapKeyString("timestamp")
 		w.Any(o.Timestamp)

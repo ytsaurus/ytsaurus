@@ -53,11 +53,12 @@ func (s *Suite) TestAddRemoveMaintenance(t *testing.T, yc yt.Client) {
 	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
 	defer cancel()
 
-	// get node
+	// Get node
 	var nodes []string
 	require.NoError(t, yc.ListNode(ctx, ypath.Path("//sys/cluster_nodes"), &nodes, nil))
 	node := nodes[0]
 
+	// Check count of maintenance requests
 	checkReqs := func(expectedLen int) {
 		t.Helper()
 
@@ -68,38 +69,38 @@ func (s *Suite) TestAddRemoveMaintenance(t *testing.T, yc yt.Client) {
 		require.Len(t, reqs, expectedLen)
 	}
 
-	// adding new maintenance requests
-	_, err := yc.AddMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, yt.MaintenanceTypeDisableWriteSessions, "sessions1", nil)
+	// Adding new maintenance requests
+	addResp, err := yc.AddMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, yt.MaintenanceTypePendingRestart, "restart1", nil)
 	require.NoError(t, err)
-	_, err = yc.AddMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, yt.MaintenanceTypeDisableSchedulerJobs, "jobs1", nil)
+	_, err = yc.AddMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, yt.MaintenanceTypePendingRestart, "restart2", nil)
 	require.NoError(t, err)
-	_, err = yc.AddMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, yt.MaintenanceTypeDisableSchedulerJobs, "jobs2", nil)
+	_, err = yc.AddMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, yt.MaintenanceTypePendingRestart, "restart3", nil)
 	require.NoError(t, err)
 
 	checkReqs(3)
 
-	// removing all maintenances with type=disable_scheduler_jobs
+	// Removing maintenance with comment "restart1"
 	resp, err := yc.RemoveMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, &yt.RemoveMaintenanceOptions{
-		Type: ptr.T(yt.MaintenanceTypeDisableSchedulerJobs),
+		IDs: []yt.MaintenanceID{addResp.ID},
 	})
 	require.NoError(t, err)
 	require.Equal(t, yt.RemoveMaintenanceResponse{
-		DisableSchedulerJobsCounts: 2,
+		PendingRestartCounts: 1,
 	}, *resp)
 
-	checkReqs(1)
+	checkReqs(2)
 
-	// check handling error on empty options
+	// Check handling error on empty options
 	_, err = yc.RemoveMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, nil)
 	require.Error(t, err)
 
-	// removing all maintenances
+	// Removing remaining maintenances
 	resp, err = yc.RemoveMaintenance(ctx, yt.MaintenanceComponentClusterNode, node, &yt.RemoveMaintenanceOptions{
-		All: ptr.Bool(true),
+		Mine: ptr.Bool(true),
 	})
 	require.NoError(t, err)
 	require.Equal(t, yt.RemoveMaintenanceResponse{
-		DisableWriteSessionsCounts: 1,
+		PendingRestartCounts: 2,
 	}, *resp)
 
 	checkReqs(0)

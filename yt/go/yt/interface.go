@@ -864,6 +864,7 @@ type RemoveMaintenanceResponse struct {
 	DisableSchedulerJobsCounts int `yson:"disable_scheduler_jobs"`
 	DisableWriteSessionsCounts int `yson:"disable_write_sessions"`
 	DisableTabletCellsCounts   int `yson:"disable_tablet_cells"`
+	PendingRestartCounts       int `yson:"pending_restart"`
 }
 
 type DisableChunkLocationsResponse struct {
