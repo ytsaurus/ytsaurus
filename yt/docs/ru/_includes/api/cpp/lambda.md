@@ -20,7 +20,7 @@
 
 ## Использование библиотеки yt-lambda
 
-Подключите `PEERDIR(mapreduce/yt/library/lambda)` в ya.make, включите в программу заголовок `#include `.
+Подключите `PEERDIR(yt/cpp/mapreduce/library/lambda)` в ya.make, включите в программу заголовок `#include yt/cpp/mapreduce/library/lambda/yt_lambda.h`.
 [Инициализируйте YT](../../api/cpp/description.md#init) и получите `client`. Передавайте `client` или [транзакцию](../../api/cpp/description.md#transactions) первым параметром в описанные в данном документе функции.
 
 Функции этой библиотеки хорошо сочетаются с использованием записей в формате [protobuf](../../api/cpp/protobuf.md).
