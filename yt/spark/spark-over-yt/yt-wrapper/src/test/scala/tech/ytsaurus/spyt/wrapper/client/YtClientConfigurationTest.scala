@@ -15,6 +15,7 @@ class YtClientConfigurationTest extends AnyFlatSpec with Matchers {
 
     conf.fullProxy shouldEqual "short.yt.yandex.net"
     conf.port shouldEqual 80
+    conf.isHttps shouldBe false
   }
 
   it should "parse long proxy" in {
@@ -22,6 +23,7 @@ class YtClientConfigurationTest extends AnyFlatSpec with Matchers {
 
     conf.fullProxy shouldEqual "name.yt.yandex.net"
     conf.port shouldEqual 80
+    conf.isHttps shouldBe false
   }
 
   it should "parse long proxy with port" in {
@@ -29,6 +31,7 @@ class YtClientConfigurationTest extends AnyFlatSpec with Matchers {
 
     conf.fullProxy shouldEqual "name.yt.yandex.net"
     conf.port shouldEqual 8082
+    conf.isHttps shouldBe false
   }
 
   it should "parse proxy with schema" in {
@@ -36,6 +39,7 @@ class YtClientConfigurationTest extends AnyFlatSpec with Matchers {
 
     conf.fullProxy shouldEqual "some.random.proxy.net"
     conf.port shouldEqual 443
+    conf.isHttps shouldBe true
   }
 
   it should "parse proxy with schema and port" in {
@@ -43,6 +47,7 @@ class YtClientConfigurationTest extends AnyFlatSpec with Matchers {
 
     conf.fullProxy shouldEqual "some.random.proxy.net"
     conf.port shouldEqual 8082
+    conf.isHttps shouldBe true
   }
 
   it should "parse proxy with schema, ipv4 address and port" in {
@@ -50,6 +55,7 @@ class YtClientConfigurationTest extends AnyFlatSpec with Matchers {
 
     conf.fullProxy shouldEqual "127.0.0.1"
     conf.port shouldEqual 8082
+    conf.isHttps shouldBe true
   }
 
   it should "parse proxy with schema, ipv6 address and port" in {
@@ -57,5 +63,6 @@ class YtClientConfigurationTest extends AnyFlatSpec with Matchers {
 
     conf.fullProxy shouldEqual "[::1]"
     conf.port shouldEqual 8082
+    conf.isHttps shouldBe true
   }
 }

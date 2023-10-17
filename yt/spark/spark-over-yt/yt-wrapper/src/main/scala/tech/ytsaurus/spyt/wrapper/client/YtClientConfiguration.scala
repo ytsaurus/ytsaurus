@@ -37,6 +37,8 @@ case class YtClientConfiguration(proxy: String,
     if (url.getPort != -1) url.getPort else if (url.getDefaultPort != -1) url.getDefaultPort else 80
   }.get
 
+  def isHttps: Boolean = proxyUrl.toOption.exists(_.getProtocol == "https")
+
   def clientAuth: YTsaurusClientAuth = YTsaurusClientAuth.builder().setUser(user).setToken(token).build()
 }
 

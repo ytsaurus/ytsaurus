@@ -147,13 +147,19 @@ trait YtClientUtils {
   }
 
   private def buildYTsaurusClient(connector: DefaultBusConnector, cluster: YTsaurusCluster,
-                                  clientAuth: YTsaurusClientAuth, rpcOptions: RpcOptions): YTsaurusClient = {
-    YTsaurusClient.builder()
-      .setSharedBusConnector(connector)
+                                  config: YtClientConfiguration, rpcOptions: RpcOptions): YTsaurusClient = {
+    val clientBuilder = YTsaurusClient.builder()
+
+    clientBuilder.setSharedBusConnector(connector)
       .setClusters(java.util.List.of[YTsaurusCluster](cluster))
-      .setAuth(clientAuth)
+      .setAuth(config.clientAuth)
       .setRpcOptions(rpcOptions)
-      .build()
+
+    if (config.isHttps) {
+      clientBuilder.setConfig(YTsaurusClientConfig.builder().setUseTLS(true).build())
+    }
+
+    clientBuilder.build()
   }
 
   private def createJobProxyClient(config: YtClientConfiguration,
@@ -178,7 +184,7 @@ trait YtClientUtils {
       new JArrayList(),
       config.proxyRole.orNull)
 
-    val client = buildYTsaurusClient(connector, cluster, config.clientAuth, rpcOptions)
+    val client = buildYTsaurusClient(connector, cluster, config, rpcOptions)
 
     initYtClient(client)
   }
@@ -206,7 +212,7 @@ trait YtClientUtils {
 
     rpcOptions.setPreferableDiscoveryMethod(DiscoveryMethod.HTTP)
 
-    val client = buildYTsaurusClient(connector, cluster, config.clientAuth, rpcOptions)
+    val client = buildYTsaurusClient(connector, cluster, config, rpcOptions)
 
     initYtClient(client)
   }
