@@ -1205,7 +1205,6 @@ TEST_F(TArrowTestBase, TestArrowReadingWithoutSystemColumns)
     }
 
     while (auto block = WaitFor(stream->Read()).ValueOrThrow()) {
-
         NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
         NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
         auto payloadRef = NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
@@ -1270,7 +1269,6 @@ TEST_F(TArrowTestBase, TestArrowNullColumns)
     }
 
     while (auto block = WaitFor(stream->Read()).ValueOrThrow()) {
-
         NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
         NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
         auto payloadRef = NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
@@ -1283,7 +1281,6 @@ TEST_F(TArrowTestBase, TestArrowNullColumns)
 
             EXPECT_EQ(batch->column_name(1),"VoidColumn");
             EXPECT_TRUE(std::dynamic_pointer_cast<arrow::NullArray>(batch->column(1)));
-
         }
     }
 }
