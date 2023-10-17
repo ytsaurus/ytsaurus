@@ -277,7 +277,7 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString descri
         CASE(EPythonType::Bool, EWireType::Boolean)
 #undef CASE
     }
-    Y_ABORT();
+    YT_ABORT();
 }
 
 TPythonToSkiffConverter WrapWithMiddlewareConverter(TPythonToSkiffConverter converter, Py::Callable middlewareConverter)

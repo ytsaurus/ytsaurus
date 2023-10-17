@@ -56,7 +56,7 @@ TSkiffToPythonConverter MaybeWrapSkiffToPythonConverter(
     bool validateOptionalOnRuntime = false)
 {
     if (forceOptional) {
-        Y_ABORT_UNLESS(!IsTiTypeOptional(pySchema));
+        YT_VERIFY(!IsTiTypeOptional(pySchema));
         return CreateOptionalSkiffToPythonConverter(std::move(converter), false);
     }
     if (IsTiTypeOptional(pySchema)) {
@@ -240,7 +240,7 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverterImpl(
         CASE(EPythonType::Bool, EWireType::Boolean)
 #undef CASE
     }
-    Y_ABORT();
+    YT_ABORT();
 }
 
 TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter converter, Py::Callable middlewareConverter)
@@ -665,7 +665,7 @@ TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Ob
     } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
         return CreateDictSkiffToPythonConverter(description, pySchema, false, validateOptionalOnRuntime);
     } else {
-        Y_ABORT();
+        YT_ABORT();
     }
 }
 

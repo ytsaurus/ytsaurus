@@ -60,7 +60,7 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
             return Py::Bytes(obj.getAttr("_bytes"));
         }
     }
-    Y_ABORT();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -148,9 +148,9 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
         }
         // We don't need to check yson correctness, pull parser does it by itself.
         case EYsonItemType::EndOfStream: {
-	        PyErr_SetNone(PyExc_StopIteration);
+            PyErr_SetNone(PyExc_StopIteration);
             return nullptr;
-	    }
+        }
         case EYsonItemType::EndAttributes:
         case EYsonItemType::EndMap:
         case EYsonItemType::EndList: {
@@ -166,7 +166,7 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
         if (PyTuple_SetItem(Tuple1_.get(), 0, result.release()) == -1) {
             throw Py::Exception();
         }
-        Y_ABORT_UNLESS(constructor);
+        YT_VERIFY(constructor);
         result = PyObjectPtr(PyObject_CallObject(constructor, Tuple1_.get()));
         if (!result) {
             throw Py::Exception();
