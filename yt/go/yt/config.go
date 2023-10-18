@@ -61,11 +61,16 @@ type Config struct {
 	// When this variable is set, client tries reading token from ~/.yt/token file.
 	ReadTokenFromFile bool
 
+	// Credentials can be used for authentication.
+	//
+	// If Credentials are not set, OAuth token is used.
+	Credentials Credentials
+
 	// TVMFn is used to issue service tickets for YT API requests.
 	//
 	// TVM is a preferred way of service authentication.
 	//
-	// If TVMFn is not set, OAuth token is used.
+	// If TVMFn is not set, Credentials or OAuth token are used.
 	//
 	// Assign yttvm.TVMFn(tvm.Client) to this field, if you wish to enable tvm authentication.
 	TVMFn TVMFn

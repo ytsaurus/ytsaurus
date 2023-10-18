@@ -28,7 +28,7 @@ type client struct {
 	conf           *yt.Config
 	httpClusterURL yt.ClusterURL
 	rpcClusterURL  yt.ClusterURL
-	token          string
+	credentials    yt.Credentials
 
 	log    log.Structured
 	tracer opentracing.Tracer
@@ -70,8 +70,10 @@ func NewClient(conf *yt.Config) (*client, error) {
 		Timeout: 60 * time.Second,
 	}
 
-	if token := conf.GetToken(); token != "" {
-		c.token = token
+	if conf.Credentials != nil {
+		c.credentials = conf.Credentials
+	} else if token := conf.GetToken(); token != "" {
+		c.credentials = &yt.TokenCredentials{Token: token}
 	}
 
 	c.proxySet = &internal.ProxySet{UpdateFn: c.listRPCProxies}
@@ -159,7 +161,9 @@ func (c *client) invoke(
 	if err != nil {
 		return err
 	}
-	opts = append(opts, bus.WithCredentials(credentials))
+	if credentials != nil {
+		opts = append(opts, bus.WithCredentials(credentials))
+	}
 
 	if call.Attachments != nil {
 		opts = append(opts, bus.WithAttachments(call.Attachments...))
@@ -210,8 +214,7 @@ func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error)
 		return credentials, nil
 	}
 
-	credentials := &yt.TokenCredentials{Token: c.token}
-	return credentials, nil
+	return c.credentials, nil
 }
 
 func (c *client) getConn(ctx context.Context, addr string) (*Conn, error) {
