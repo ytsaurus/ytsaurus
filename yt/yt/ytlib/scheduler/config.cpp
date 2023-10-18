@@ -278,7 +278,7 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(100_GB)
         .Default();
-    registrar.Parameter("keep_allocation_delay", &TThis::KeepAllocationDelay)
+    registrar.Parameter("allocation_release_delay", &TThis::AllocationReleaseDelay)
         .Default();
     registrar.Parameter("cancellation_stage", &TThis::CancelationStage)
         .Default();

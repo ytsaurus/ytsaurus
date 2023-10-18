@@ -21,6 +21,10 @@ TEST_SRCS(
     test_vanilla_operation.py
 )
 
+PEERDIR(
+    yt/yt/tests/integration/helpers
+)
+
 END()
 
 RECURSE_FOR_TESTS(

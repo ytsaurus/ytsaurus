@@ -47,11 +47,21 @@ void TStructuredLoggingTopicDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TApiTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TApiServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
     registrar.Parameter("security_manager", &TThis::SecurityManager)
+        .DefaultNew();
+    registrar.Parameter("testing", &TThis::TestingOptions)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
@@ -87,6 +97,8 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default(256);
     registrar.Parameter("formats", &TThis::Formats)
         .Default();
+    registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->StructuredLoggingMainTopic->SuppressedMethods = THashSet<TString>{"ModifyRows", "BatchModifyRows", "LookupRows", "VersionedLookupRows"};

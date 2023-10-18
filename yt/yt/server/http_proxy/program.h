@@ -125,6 +125,8 @@ protected:
             configNode = GetConfigNode();
         }
 
+        ConfigureAllocator({.SnapshotUpdatePeriod = config->HeapProfiler->SnapshotUpdatePeriod});
+
         ConfigureNativeSingletons(config);
         StartDiagnosticDump(config);
 

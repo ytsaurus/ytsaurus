@@ -12,6 +12,8 @@ from yt_commands import (
 
 from yt.common import YtError, YtResponseError
 
+from helpers.ytprof import process_ytprof_heap_profile
+
 import yt_error_codes
 
 import yt.yson as yson
@@ -175,7 +177,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             spec={
                 "testing": {
                     "allocation_size": 20 * 1024 ** 2,
-                    "keep_allocation_delay": 60000,
+                    "allocation_release_delay": 60000,
                 }
             },
         )
@@ -195,7 +197,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             spec={
                 "testing": {
                     "allocation_size": 300 * 1024 ** 2,
-                    "keep_allocation_delay": 60000,
+                    "allocation_release_delay": 60000,
                 }
             },
         )
@@ -284,7 +286,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                 spec={
                     "testing": {
                         "allocation_size": 20 * 1024 ** 2,
-                        "keep_allocation_delay": 1000 ** 2,
+                        "allocation_release_delay": 1000 ** 2,
                     }
                 },
                 track=False,
@@ -710,6 +712,7 @@ class TestOperationControllerLimit(YTEnvSetup):
         op = run_test_vanilla("sleep 60", job_count=1, spec={
             "testing": {
                 "allocation_size": 200 * 1024 ** 2,
+                "allocation_release_delay": 1000 ** 2,
             },
         })
         with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
@@ -742,6 +745,7 @@ class TestMemoryOverconsumptionThreshold(YTEnvSetup):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={
             "testing": {
                 "allocation_size": 100 * 1024 ** 2,
+                "allocation_release_delay": 1000 ** 2,
             },
         })
 
@@ -789,7 +793,7 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
             spec={
                 "testing": {
                     "allocation_size": 100 * 1024 ** 2,
-                    "keep_allocation_delay": 60000,
+                    "allocation_release_delay": 60000,
                 },
             })
 
@@ -836,12 +840,13 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
         agent_alerts_path = f"//sys/controller_agents/instances/{controller_agents[0]}/@alerts"
 
         run_test_vanilla(
-            "sleep 5",
+            "sleep 30",
             job_count=1,
             track=False,
             spec={
                 "testing": {
                     "allocation_size": 400 * 1024 ** 2,
+                    "allocation_release_delay": 30000,
                 },
             })
 
@@ -901,7 +906,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             spec={
                 "testing": {
                     "allocation_size": 50 * 1024 ** 2,
-                    "keep_allocation_delay": 30000,
+                    "allocation_release_delay": 30000,
                 },
             },
             track=False,
@@ -911,7 +916,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             spec={
                 "testing": {
                     "allocation_size": 50 * 1024 ** 2,
-                    "keep_allocation_delay": 30000,
+                    "allocation_release_delay": 30000,
                 },
             },
             track=False,
@@ -921,7 +926,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             spec={
                 "testing": {
                     "allocation_size": 400 * 1024 ** 2,
-                    "keep_allocation_delay": 30000,
+                    "allocation_release_delay": 30000,
                 },
             },
             track=False,
@@ -980,7 +985,7 @@ class TestMemoryWatchdog(YTEnvSetup):
                 spec={
                     "testing": {
                         "allocation_size": 50 * 1024 * 1024,
-                        "keep_allocation_delay": 3000,
+                        "allocation_release_delay": 3000,
                     },
                 },
                 track=False,
@@ -995,7 +1000,7 @@ class TestMemoryWatchdog(YTEnvSetup):
                 spec={
                     "testing": {
                         "allocation_size": 10 * 1024 * 1024,
-                        "keep_allocation_delay": 1000,
+                        "allocation_release_delay": 1000,
                     },
                 },
                 track=False,
@@ -1012,3 +1017,47 @@ class TestMemoryWatchdog(YTEnvSetup):
                 assert err.contains_code(yt_error_codes.ControllerMemoryLimitExceeded)
                 failed += 1
         assert failed == 1
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestControllerAgentHeapProfile(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+
+    DELTA_PROXY_CONFIG = {
+        "heap_profiler": {
+            "snapshot_update_period": 50,
+        }
+    }
+
+    @authors("ni-stoiko")
+    def test_controller_heap_profile(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("<append=%true>//tmp/t_in", [{"a": 1}])
+
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="<sorted_by=[a]>//tmp/t_out",
+            command="sleep 3600",
+            spec={
+                "testing": {
+                    "allocation_size": 20 * 1024 ** 2,
+                    "allocation_release_delay": 60000,
+                }
+            },
+        )
+
+        time.sleep(1)
+
+        monitoring_port = self.Env.configs["controller_agent"][0]["monitoring_port"]
+        tag = "operation_id"
+        memory_usage = process_ytprof_heap_profile(self.path_to_run, monitoring_port, [tag])
+
+        assert memory_usage
+        assert op.id in memory_usage[tag].keys()
+        assert memory_usage[tag][op.id] > 5 * 1024 ** 2

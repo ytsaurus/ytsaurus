@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/misc/public.h>
+#include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/client/formats/public.h>
 
@@ -71,6 +71,21 @@ DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiTestingOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    THeapProfilerTestingOptionsPtr HeapProfiler;
+
+    REGISTER_YSON_STRUCT(TApiTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TApiTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiServiceConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -80,6 +95,8 @@ public:
     TSecurityManagerDynamicConfigPtr SecurityManager;
 
     static constexpr int DefaultClientCacheCapacity = 1000;
+
+    TApiTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TApiServiceConfig);
 
@@ -114,6 +131,8 @@ public:
     i64 StructuredLoggingQueryTruncationSize;
 
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    bool EnableAllocationTags;
 
     REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);
 

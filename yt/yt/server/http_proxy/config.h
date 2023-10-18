@@ -89,6 +89,8 @@ class TApiTestingOptions
 public:
     THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
+    THeapProfilerTestingOptionsPtr HeapProfiler;
+
     REGISTER_YSON_STRUCT(TApiTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -143,6 +145,8 @@ public:
     TFramingConfigPtr Framing;
 
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    bool EnableAllocationTags;
 
     REGISTER_YSON_STRUCT(TApiDynamicConfig);
 

@@ -858,6 +858,7 @@
   "yt/yt/library/ytprof/CMakeLists.txt":"",
   "yt/yt/library/ytprof/api/CMakeLists.txt":"",
   "yt/yt/library/ytprof/http/CMakeLists.txt":"",
+  "yt/yt/library/ytprof/proto/CMakeLists.txt":"",
   "yt/yt/orm/CMakeLists.txt":"",
   "yt/yt/orm/library/CMakeLists.txt":"",
   "yt/yt/orm/library/attributes/CMakeLists.txt":"",

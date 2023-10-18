@@ -18,6 +18,7 @@ TEST_SRCS(
 
 PEERDIR(
     yt/yt/tests/conftest_lib
+    yt/yt/tests/integration/helpers
 )
 
 IF (NOT OPENSOURCE)

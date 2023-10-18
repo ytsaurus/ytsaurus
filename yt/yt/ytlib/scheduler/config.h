@@ -606,7 +606,7 @@ public:
 
     std::optional<i64> AllocationSize;
 
-    std::optional<TDuration> KeepAllocationDelay;
+    std::optional<TDuration> AllocationReleaseDelay;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
     std::optional<EControllerFailureType> ControllerFailure;
