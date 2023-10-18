@@ -309,7 +309,11 @@ def spark_home():
 def call_get_proxy_address_url(**kwargs):
     # COMPAT(atokarew): replace this with get_proxy_address_url when compatibility with python wrapper <= 0.13.4 and spark cluster >= 1.73.0 is not important.
     import yt.wrapper.http_helpers
+
     if hasattr(yt.wrapper.http_helpers, 'get_proxy_address_url'):
-        return yt.wrapper.http_helpers.get_proxy_address_url(**kwargs)
+        result = yt.wrapper.http_helpers.get_proxy_address_url(**kwargs)
     else:
-        return yt.wrapper.http_helpers.get_proxy_url(**kwargs)
+        result = yt.wrapper.http_helpers.get_proxy_url(**kwargs)
+    if result.startswith('http://'):
+        result = result[7:]
+    return result
