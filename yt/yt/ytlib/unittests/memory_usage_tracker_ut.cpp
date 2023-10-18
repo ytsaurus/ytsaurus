@@ -58,6 +58,7 @@ TEST(TMemoryUsageTrackerTest, Basic)
 
     EXPECT_TRUE(tracker->TryAcquire(ECategory::BlockCache, 1).IsOK());
     EXPECT_TRUE(tracker->TryAcquire(ECategory::P2P, 1).IsOK());
+    tracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, NoCategoryLimit)
@@ -84,6 +85,7 @@ TEST(TMemoryUsageTrackerTest, NoCategoryLimit)
     EXPECT_EQ(tracker->GetTotalFree(), 0);
     EXPECT_EQ(tracker->GetTotalUsed(), 11000);
     EXPECT_EQ(tracker->GetUsed(ECategory::BlockCache), 5000);
+    tracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, ForbidZeroTryAcquireWhenOvercommit)
@@ -96,6 +98,7 @@ TEST(TMemoryUsageTrackerTest, ForbidZeroTryAcquireWhenOvercommit)
     tracker->Acquire(ECategory::BlockCache, 1);
     EXPECT_EQ(tracker->GetFree(ECategory::BlockCache), 0);
     EXPECT_FALSE(tracker->TryAcquire(ECategory::BlockCache, 0).IsOK());
+    tracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, LimitlessCategory)
@@ -105,6 +108,8 @@ TEST(TMemoryUsageTrackerTest, LimitlessCategory)
     EXPECT_EQ(tracker->GetTotalLimit(), 3000);
     EXPECT_EQ(tracker->GetExplicitLimit(ECategory::P2P), std::numeric_limits<i64>::max());
     EXPECT_EQ(tracker->GetLimit(ECategory::P2P), 3000);
+
+    tracker->ClearTrackers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

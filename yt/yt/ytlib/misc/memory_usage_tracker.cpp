@@ -58,6 +58,8 @@ public:
         ECategory category,
         std::optional<TPoolTag> poolTag = {}) override;
 
+    void ClearTrackers() override;
+
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
@@ -88,8 +90,13 @@ private:
     THashMap<TPoolTag, TIntrusivePtr<TPool>> Pools_;
     std::atomic<i64> TotalPoolWeight_ = 0;
 
+    TEnumIndexedVector<EMemoryCategory, ITypedNodeMemoryTrackerPtr> CategoryTrackers_;
+    THashMap<TPoolTag, TEnumIndexedVector<EMemoryCategory, ITypedNodeMemoryTrackerPtr>> PoolTrackers_;
+
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
+
+    void InitCategoryTrackers();
 
     i64 DoGetLimit(ECategory category) const;
     i64 DoGetLimit(ECategory category, const TPool* pool) const;
@@ -210,6 +217,28 @@ TNodeMemoryTracker::TNodeMemoryTracker(
     for (auto [category, limit] : limits) {
         YT_VERIFY(limit >= 0);
         Categories_[category].Limit.store(limit);
+    }
+
+    InitCategoryTrackers();
+}
+
+void TNodeMemoryTracker::InitCategoryTrackers()
+{
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        CategoryTrackers_[category] = New<TTypedMemoryTracker>(this, category, std::nullopt);
+    }
+}
+
+void TNodeMemoryTracker::ClearTrackers()
+{
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        CategoryTrackers_[category] = nullptr;
+    }
+
+    for (auto& it : PoolTrackers_) {
+        for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+            it.second[category] = nullptr;
+        }
     }
 }
 
@@ -531,10 +560,41 @@ ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
 {
-    return New<TTypedMemoryTracker>(
-        this,
-        category,
-        std::move(poolTag));
+    if (poolTag) {
+        auto guard = Guard(SpinLock_);
+
+        auto it = PoolTrackers_.find(poolTag.value());
+
+        if (it.IsEnd()) {
+            TEnumIndexedVector<EMemoryCategory, ITypedNodeMemoryTrackerPtr> trackers;
+            auto tracker = New<TTypedMemoryTracker>(
+                this,
+                category,
+                std::move(poolTag));
+            trackers[category] = tracker;
+            PoolTrackers_.insert({poolTag.value(), std::move(trackers)});
+            return tracker;
+        } else {
+            auto& trackers = it->second;
+
+            if (auto tracker = trackers[category]) {
+                return tracker;
+            } else {
+                tracker = New<TTypedMemoryTracker>(
+                    this,
+                    category,
+                    std::move(poolTag));
+                trackers[category] = tracker;
+                return tracker;
+            }
+        }
+    } else {
+        auto tracker = CategoryTrackers_[category];
+
+        YT_VERIFY(tracker != nullptr);
+
+        return tracker;
+    }
 }
 
 typename TNodeMemoryTracker::TPool*
