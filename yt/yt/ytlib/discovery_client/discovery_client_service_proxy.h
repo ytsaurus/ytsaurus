@@ -16,6 +16,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, ListMembers);
     DEFINE_RPC_PROXY_METHOD(NProto, GetGroupMeta);
+    DEFINE_RPC_PROXY_METHOD(NProto, ListGroups);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
 };

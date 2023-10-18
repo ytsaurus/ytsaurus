@@ -70,6 +70,23 @@ public:
             ->Run();
     }
 
+    TFuture<TListGroupsResult> ListGroups(
+        const TString& prefix,
+        const TListGroupsOptions& options) override
+    {
+        auto guard = ReaderGuard(Lock_);
+
+        return New<TListGroupsRequestSession>(
+            AddressPool_,
+            ConnectionConfig_,
+            ClientConfig_,
+            ChannelFactory_,
+            Logger,
+            prefix,
+            options)
+            ->Run();
+    }
+
     void Reconfigure(TDiscoveryClientConfigPtr config) override
     {
         auto guard = WriterGuard(Lock_);
