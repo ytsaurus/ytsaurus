@@ -224,7 +224,7 @@ private:
                     .Logger = Logger,
                 });
 
-            Y_ABORT_UNLESS(OperandSchemas_.size() == ResultStripes_.size());
+            YT_VERIFY(OperandSchemas_.size() == ResultStripes_.size());
             for (const auto& [resultStripe, schema] : Zip(ResultStripes_, OperandSchemas_)) {
                 auto columnStableNames = MapNamesToStableNames(
                     *schema,
