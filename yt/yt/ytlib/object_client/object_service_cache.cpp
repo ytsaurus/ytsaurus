@@ -405,7 +405,6 @@ void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr&
     AggregationPeriod_.store(config->AggregationPeriod);
     MinAdvisedStickyGroupSize_.store(config->MinAdvisedStickyGroupSize);
     MaxAdvisedStickyGroupSize_.store(config->MaxAdvisedStickyGroupSize);
-    YT_LOG_INFO("reconfig %v", ConvertToYsonString(config, EYsonFormat::Text).ToString());
 }
 
 TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TString& user, const TString& method)
