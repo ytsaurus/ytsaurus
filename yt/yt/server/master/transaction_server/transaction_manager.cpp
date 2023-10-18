@@ -352,7 +352,7 @@ public:
                     parentType,
                     transactionObjectType,
                     hintId);
-                transactionObjectType = EObjectType::SystemTransaction;
+                transactionObjectType = EObjectType::NestedTransaction;
             }
 
             if (!IsSystemTransactionType(transactionObjectType) && IsSystemTransactionType(parentType)) {
@@ -1691,6 +1691,7 @@ private:
             attributes->Set("operation_title", request->operation_title());
         }
 
+        auto transactionType = TypeFromId(hintId);
         auto* transaction = DoStartTransaction(
             isUpload,
             parent,
@@ -1700,7 +1701,7 @@ private:
             /*deadline*/ std::nullopt,
             title,
             *attributes,
-            /* isCypressTransaction */ true,
+            IsCypressTransactionType(transactionType),
             hintId);
         YT_VERIFY(transaction->GetId() == hintId);
     }
