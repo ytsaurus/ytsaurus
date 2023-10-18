@@ -4,7 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/packages/ya.make.common)
 
 FROM_SANDBOX(
     # YT_ALL
-    FILE 5205741952
+    FILE 5263920384
     OUT ytserver-all RENAME result/ytserver-all
     EXECUTABLE
 )
