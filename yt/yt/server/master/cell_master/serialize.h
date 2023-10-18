@@ -171,6 +171,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicateAlienClusterRegistry)                                (2436))  // ponasenko-rs
     ((ChunkMergerModeUnderTransaction)                              (2437))  // cherepashka
     ((FixSystemTransactionReplication)                              (2438))  // h0pless
+    ((SecondaryIndex)                                               (2439))  // sabdenovch
 );
 
 ////////////////////////////////////////////////////////////////////////////////

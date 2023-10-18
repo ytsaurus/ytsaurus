@@ -5,6 +5,7 @@
 #include "private.h"
 #include "replicated_table_node_proxy.h"
 #include "replicated_table_node.h"
+#include "secondary_index.h"
 #include "table_manager.h"
 #include "table_node_proxy.h"
 #include "table_node.h"
@@ -393,6 +394,26 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 
     // TODO(aleksandra-zh, gritukan): consider moving that to Zombify.
     table->ResetHunkStorageNode();
+}
+
+template <class TImpl>
+void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
+{
+    const auto& objectManager = this->GetBootstrap()->GetObjectManager();
+
+    if (auto* secondaryIndex = table->GetIndexTo()) {
+        secondaryIndex->SetIndexTable(nullptr);
+        objectManager->UnrefObject(secondaryIndex);
+
+        table->SetIndexTo(nullptr);
+    }
+
+    for (auto* secondaryIndex : table->SecondaryIndices()) {
+        secondaryIndex->SetTable(nullptr);
+        objectManager->UnrefObject(secondaryIndex);
+    }
+
+    table->MutableSecondaryIndices().clear();
 }
 
 template <class TImpl>

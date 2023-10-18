@@ -5,6 +5,7 @@
 #include "mount_config_attributes.h"
 #include "private.h"
 #include "replicated_table_node.h"
+#include "secondary_index.h"
 #include "table_collocation.h"
 #include "table_manager.h"
 #include "table_node.h"
@@ -402,6 +403,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AssignedMountConfigExperiments)
         .SetPresent(isDynamic)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SecondaryIndices)
+        .SetPresent(isDynamic && !table->SecondaryIndices().empty()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IndexTo)
+        .SetPresent(isDynamic && table->GetIndexTo()));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -1013,6 +1018,54 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             .Item(pair.first).Value(pair.second);
                     }
                 });
+
+            return true;
+        }
+
+        case EInternedAttributeKey::SecondaryIndices: {
+            if (!table->IsDynamic() || table->SecondaryIndices().empty()) {
+                return false;
+            }
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+            BuildYsonFluently(consumer)
+                .DoMapFor(
+                    table->SecondaryIndices(),
+                    [&] (auto fluent, TSecondaryIndex* secondaryIndex) {
+                        auto indexPath = cypressManager->GetNodePath(
+                            secondaryIndex->GetIndexTable(),
+                            /*transaction*/ nullptr);
+                        auto kind = secondaryIndex->GetKind();
+
+                        fluent
+                            .Item(ToString(secondaryIndex->GetId()))
+                            .BeginMap()
+                                .Item("index_path").Value(indexPath)
+                                .Item("kind").Value(kind)
+                            .EndMap();
+                    });
+
+            return true;
+        }
+
+        case EInternedAttributeKey::IndexTo: {
+            if (!table->IsDynamic() || !table->GetIndexTo()) {
+                return false;
+            }
+
+            auto* secondaryIndex = table->GetIndexTo();
+            auto tablePath = Bootstrap_->GetCypressManager()->GetNodePath(
+                secondaryIndex->GetTable(),
+                /*transaction*/ nullptr);
+            auto kind = secondaryIndex->GetKind();
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                .Item("index_id").Value(secondaryIndex->GetId())
+                .Item("table_path").Value(tablePath)
+                .Item("kind").Value(kind)
+                .EndMap();
 
             return true;
         }

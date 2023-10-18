@@ -10,6 +10,7 @@
 #include "replication_card_type_handler.h"
 #include "replication_card_collocation_type_handler.h"
 #include "chaos_table_replica_type_handler.h"
+#include "secondary_index_type_handler.h"
 #include "table_collocation_type_handler.h"
 #include "tablet_action_type_handler.h"
 #include "chaos_replicated_table_type_handler.h"
@@ -139,6 +140,7 @@ TClient::TClient(
     , Counters_(Profiler_)
     , TypeHandlers_{
         CreateReplicatedTableReplicaTypeHandler(this),
+        CreateSecondaryIndexTypeHandler(this),
         CreateReplicationCardTypeHandler(this),
         CreateReplicationCardCollocationTypeHandler(this),
         CreateChaosReplicatedTableTypeHandler(this),

@@ -23,6 +23,7 @@ struct ITableManager
 public:
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(SecondaryIndex, TSecondaryIndex);
 
     virtual void Initialize() = 0;
 
@@ -147,6 +148,13 @@ public:
         bool dynamic,
         bool chaos,
         NCypressClient::TVersionedNodeId nodeId) = 0;
+
+    //! Secondary index management.
+    virtual TSecondaryIndex* CreateSecondaryIndex(
+        NObjectClient::TObjectId hintId,
+        ESecondaryIndexKind type,
+        TTableNode* table,
+        TTableNode* secondaryIndex) = 0;
 
     //! Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(

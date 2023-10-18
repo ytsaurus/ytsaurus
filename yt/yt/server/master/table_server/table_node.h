@@ -52,6 +52,7 @@ private:
         NTabletClient::MinValidTabletState,
         NTabletClient::MaxValidTabletState>;
     using TTabletList = std::vector<NTabletServer::TTablet*>;
+    using TSecondaryIndexList = std::vector<TSecondaryIndexId>;
 
     struct TDynamicTableAttributes
     {
@@ -85,6 +86,8 @@ private:
         bool IsVitalConsumer = false;
         NTabletServer::TMountConfigStoragePtr MountConfigStorage;
         NTabletServer::THunkStorageNodePtr HunkStorageNode;
+        THashSet<TSecondaryIndex*> SecondaryIndices;
+        TSecondaryIndex* IndexTo = nullptr;
 
         TDynamicTableAttributes();
 
@@ -134,6 +137,8 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsConsumer);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IsVitalConsumer);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, SecondaryIndices);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IndexTo);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);

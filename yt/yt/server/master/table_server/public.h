@@ -17,9 +17,11 @@ namespace NYT::NTableServer {
 using TTableId = NTableClient::TTableId;
 using TMasterTableSchemaId = NObjectClient::TObjectId;
 using TTableCollocationId = NTableClient::TTableCollocationId;
+using TSecondaryIndexId = NObjectClient::TObjectId;
 
 DECLARE_ENTITY_TYPE(TMasterTableSchema, TMasterTableSchemaId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTableCollocation, TTableCollocationId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TSecondaryIndex, TSecondaryIndexId, NObjectClient::TDirectObjectIdHash)
 
 class TTableNode;
 class TReplicatedTableNode;
@@ -41,6 +43,7 @@ DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)
 DECLARE_MASTER_OBJECT_TYPE(TMasterTableSchema);
 
 using NTableClient::ETableCollocationType;
+using NTableClient::ESecondaryIndexKind;
 
 ////////////////////////////////////////////////////////////////////////////////
 

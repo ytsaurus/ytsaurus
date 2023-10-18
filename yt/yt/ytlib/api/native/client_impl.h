@@ -766,6 +766,7 @@ private:
     friend class TReplicationCardTypeHandler;
     friend class TReplicationCardCollocationTypeHandler;
     friend class TChaosTableReplicaTypeHandler;
+    friend class TSecondaryIndexTypeHandler;
     friend class TTableCollocationTypeHandler;
     friend class TTabletActionTypeHandler;
     friend class TChaosReplicatedTableTypeHandler;

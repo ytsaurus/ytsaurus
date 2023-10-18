@@ -5,6 +5,8 @@
 #include "mount_config_attributes.h"
 #include "replicated_table_node.h"
 #include "schemaful_node.h"
+#include "secondary_index.h"
+#include "secondary_index_type_handler.h"
 #include "table_collocation.h"
 #include "table_collocation_type_handler.h"
 #include "table_node.h"
@@ -152,6 +154,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
         objectManager->RegisterHandler(CreateTableCollocationTypeHandler(Bootstrap_, &TableCollocationMap_));
+        objectManager->RegisterHandler(CreateSecondaryIndexTypeHandler(Bootstrap_, &SecondaryIndexMap_));
 
         // COMPAT(h0pless): Remove this after empty schema migration is complete.
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
@@ -230,6 +233,7 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(MasterTableSchema, TMasterTableSchema);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(TableCollocation, TTableCollocation);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(SecondaryIndex, TSecondaryIndex);
 
 
     TTableNode* GetTableNodeOrThrow(TTableId id) override
@@ -749,6 +753,39 @@ public:
         return effectiveTableSchema;
     }
 
+    TSecondaryIndex* CreateSecondaryIndex(
+        TObjectId hintId,
+        ESecondaryIndexKind kind,
+        TTableNode* table,
+        TTableNode* indexTable) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (!indexTable->SecondaryIndices().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
+        }
+        if (indexTable->GetIndexTo()) {
+            THROW_ERROR_EXCEPTION("Index cannot have multiple primary tables");
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto secondaryIndexId = objectManager->GenerateId(EObjectType::SecondaryIndex, hintId);
+
+        auto* secondaryIndex = SecondaryIndexMap_.Insert(
+            secondaryIndexId,
+            TPoolAllocator::New<TSecondaryIndex>(secondaryIndexId));
+        // A single reference ensures index object is deleted when either primary or index table is deleted.
+        YT_VERIFY(secondaryIndex->RefObject() == 1);
+        secondaryIndex->SetKind(kind);
+        secondaryIndex->SetTable(table);
+        secondaryIndex->SetIndexTable(indexTable);
+
+        indexTable->SetIndexTo(secondaryIndex);
+        InsertOrCrash(table->MutableSecondaryIndices(), secondaryIndex);
+
+        return secondaryIndex;
+    }
+
     TTableCollocation* CreateTableCollocation(
         TObjectId hintId,
         ETableCollocationType type,
@@ -1204,6 +1241,8 @@ private:
 
     NHydra::TEntityMap<TTableCollocation> TableCollocationMap_;
 
+    NHydra::TEntityMap<TSecondaryIndex> SecondaryIndexMap_;
+
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
@@ -1539,6 +1578,7 @@ private:
         NativeTableSchemaToObjectMap_.clear();
         EmptyMasterTableSchema_ = nullptr;
         TableCollocationMap_.Clear();
+        SecondaryIndexMap_.Clear();
         StatisticsUpdateRequests_.Clear();
         Queues_.clear();
         Consumers_.clear();
@@ -1561,6 +1601,11 @@ private:
     {
         MasterTableSchemaMap_.LoadKeys(context);
         TableCollocationMap_.LoadKeys(context);
+
+        // COMPAT(sabdenovch)
+        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
+            SecondaryIndexMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1569,6 +1614,11 @@ private:
 
         Load(context, StatisticsUpdateRequests_);
         TableCollocationMap_.LoadValues(context);
+
+        // COMPAT(sabdenovch)
+        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
+            SecondaryIndexMap_.LoadValues(context);
+        }
 
         Load(context, Queues_);
         Load(context, Consumers_);
@@ -2019,6 +2069,7 @@ private:
     {
         MasterTableSchemaMap_.SaveKeys(context);
         TableCollocationMap_.SaveKeys(context);
+        SecondaryIndexMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -2026,6 +2077,7 @@ private:
         MasterTableSchemaMap_.SaveValues(context);
         Save(context, StatisticsUpdateRequests_);
         TableCollocationMap_.SaveValues(context);
+        SecondaryIndexMap_.SaveValues(context);
         Save(context, Queues_);
         Save(context, Consumers_);
     }
@@ -2069,6 +2121,7 @@ private:
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, MasterTableSchema, TMasterTableSchema, MasterTableSchemaMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, TableCollocation, TTableCollocation, TableCollocationMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, SecondaryIndex, TSecondaryIndex, SecondaryIndexMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

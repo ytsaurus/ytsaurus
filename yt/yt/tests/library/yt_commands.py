@@ -2142,6 +2142,17 @@ def create_table_collocation(table_ids=None, table_paths=None, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
+def create_secondary_index(table_path, index_table_path, kind=None, **kwargs):
+    kwargs["type"] = "secondary_index"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["table_path"] = table_path
+    kwargs["attributes"]["index_table_path"] = index_table_path
+    if kind is not None:
+        kwargs["attributes"]["kind"] = kind
+    return execute_command("create", kwargs, parse_yson=True)
+
+
 def create_data_center(name, **kwargs):
     kwargs["type"] = "data_center"
     if "attributes" not in kwargs:

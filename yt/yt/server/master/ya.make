@@ -326,6 +326,9 @@ SRCS(
     table_server/replicated_table_node.cpp
     table_server/schemaful_node_type_handler.cpp
     table_server/schemaful_node.cpp
+    table_server/secondary_index_proxy.cpp
+    table_server/secondary_index_type_handler.cpp
+    table_server/secondary_index.cpp
     table_server/table_collocation_proxy.cpp
     table_server/table_collocation_type_handler.cpp
     table_server/table_collocation.cpp

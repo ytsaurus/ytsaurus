@@ -568,6 +568,9 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/schemaful_node_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/schemaful_node.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/secondary_index_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/secondary_index_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/secondary_index.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation.cpp

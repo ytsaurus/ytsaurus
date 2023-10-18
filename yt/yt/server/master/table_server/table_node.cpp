@@ -3,6 +3,7 @@
 #include "private.h"
 #include "master_table_schema.h"
 #include "mount_config_attributes.h"
+#include "secondary_index.h"
 #include "table_collocation.h"
 #include "table_manager.h"
 
@@ -104,6 +105,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, IsVitalConsumer);
     Save(context, *MountConfigStorage);
     Save(context, HunkStorageNode);
+    Save(context, SecondaryIndices);
+    Save(context, IndexTo);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(
@@ -181,6 +184,12 @@ void TTableNode::TDynamicTableAttributes::Load(
     }
 
     Load(context, HunkStorageNode);
+
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
+        Load(context, SecondaryIndices);
+        Load(context, IndexTo);
+    }
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \

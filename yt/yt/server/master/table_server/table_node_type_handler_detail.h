@@ -34,6 +34,7 @@ protected:
         const NCypressServer::TCreateNodeContext& context) override;
 
     void DoDestroy(TImpl* table) override;
+    void DoZombify(TImpl* table) override;
 
     void DoBranch(
         const TImpl* originatingNode,

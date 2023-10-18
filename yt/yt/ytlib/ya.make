@@ -51,6 +51,7 @@ SRCS(
     api/native/replication_card_type_handler.cpp
     api/native/rpc_helpers.cpp
     api/native/skynet.cpp
+    api/native/secondary_index_type_handler.cpp
     api/native/sync_replica_cache.cpp
     api/native/table_collocation_type_handler.cpp
     api/native/table_reader.cpp
