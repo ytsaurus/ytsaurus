@@ -62,6 +62,17 @@ void FromProto(TListMembersOptions* listMembersOptions, const NProto::TListMembe
     }
 }
 
+
+void ToProto(NProto::TListGroupsOptions* protoListGroupsOptions, const TListGroupsOptions& listGroupsOptions)
+{
+    protoListGroupsOptions->set_limit(listGroupsOptions.Limit);
+}
+
+void FromProto(TListGroupsOptions* listSubgroupsOptions, const NProto::TListGroupsOptions& protoListGroupsOptions)
+{
+    listSubgroupsOptions->Limit = protoListGroupsOptions.limit();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsMemberSystemAttribute(const TString& key)

@@ -21,6 +21,17 @@ struct TListMembersOptions
     std::vector<TString> AttributeKeys;
 };
 
+struct TListGroupsOptions
+{
+    int Limit = 1000;
+};
+
+struct TListGroupsResult
+{
+    std::vector<TGroupId> GroupIds;
+    bool Incomplete = false;
+};
+
 struct TMemberInfo
 {
     TMemberId Id;
@@ -44,6 +55,9 @@ void FromProto(TGroupMeta* groupMeta, const NProto::TGroupMeta& protoGroupMeta);
 
 void ToProto(NProto::TListMembersOptions* protoListMembersOptions, const TListMembersOptions& listMembersOptions);
 void FromProto(TListMembersOptions* listMembersOptions, const NProto::TListMembersOptions& protoListMembersOptions);
+
+void ToProto(NProto::TListGroupsOptions* protoListGroupsOptions, const TListGroupsOptions& listSubgroupsOptions);
+void FromProto(TListGroupsOptions* listSubgroupsOptions, const NProto::TListGroupsOptions& protoListGroupsOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
