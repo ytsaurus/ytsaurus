@@ -3078,11 +3078,11 @@ private:
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }
 
-    void SetOperationFinalState(const TOperationPtr& operation, EOperationState state, const TError& error)
+    void SetOperationFinalState(const TOperationPtr& operation, EOperationState state, TError error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto truncatedError = error.Truncate();
+        auto truncatedError = std::move(error).Truncate();
 
         if (!operation->GetStarted().IsSet()) {
             operation->SetStarted(truncatedError);

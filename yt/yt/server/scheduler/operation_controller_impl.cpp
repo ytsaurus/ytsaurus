@@ -472,7 +472,7 @@ void TOperationControllerImpl::OnJobAborted(
         .Id = jobId,
         .FinishTime = TInstant::Now(),
         .AbortReason = abortReason,
-        .Error = error.Truncate(),
+        .Error = std::move(error).Truncate(),
         .Scheduled = scheduled,
     };
 
