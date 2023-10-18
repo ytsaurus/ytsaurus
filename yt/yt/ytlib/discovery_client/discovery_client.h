@@ -19,15 +19,9 @@ struct IDiscoveryClient
     //! GetReadyEvent's future should be awaited before discovery client usage.
     virtual TFuture<void> GetReadyEvent() const = 0;
 
-    //! It is not guaranteed that size of returned vector will be less than option.Limit
     virtual TFuture<std::vector<TMemberInfo>> ListMembers(
         const TString& groupId,
         const TListMembersOptions& option) = 0;
-
-    //! It is not guaranteed that size of returned vector will be less than option.Limit
-    virtual TFuture<TListGroupsResult> ListGroups(
-        const TString& prefix,
-        const TListGroupsOptions& option) = 0;
 
     virtual TFuture<TGroupMeta> GetGroupMeta(const TString& groupId) = 0;
 

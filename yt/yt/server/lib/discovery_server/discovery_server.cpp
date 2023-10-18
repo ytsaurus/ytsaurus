@@ -51,7 +51,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListMembers));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetGroupMeta));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGroups));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }
@@ -100,25 +99,6 @@ private:
         }
 
         context->SetResponseInfo("MemberCount: %v", members.size());
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NDiscoveryClient::NProto, ListGroups)
-    {
-        const auto& prefix = request->prefix();
-        auto options = FromProto<TListGroupsOptions>(request->options());
-
-        context->SetRequestInfo("Prefix: %v, Limit: %v",
-            prefix,
-            options.Limit);
-
-        auto result = GroupManager_->ListGroupsOrThrow(prefix, options);
-        for (const auto& group : result.Groups) {
-            ToProto(response->add_group_ids(), group->GetId());
-        }
-        response->set_incomplete(result.Incomplete);
-
-        context->SetResponseInfo("SubgroupsCount: %v", result.Groups.size());
         context->Reply();
     }
 

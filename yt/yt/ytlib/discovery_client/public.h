@@ -17,9 +17,6 @@ class TListMembersOptions;
 class TReqListMembers;
 class TRspListMembers;
 
-class TReqListGroups;
-class TRspListGroups;
-
 class TReqGetGroupMeta;
 class TRspGetGroupMeta;
 

@@ -30,7 +30,6 @@ public:
         TDuration leaseTimeout);
 
     TGroupPtr GetGroupOrThrow(const TGroupId& id);
-    TListGroupsResult ListGroupsOrThrow(const TGroupId& prefix, const NDiscoveryClient::TListGroupsOptions& options);
 
     THashSet<TMemberPtr> GetModifiedMembers();
 
@@ -46,7 +45,6 @@ private:
 
     THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds);
     TGroupPtr FindGroup(const TGroupId& id);
-    TListGroupsResult ListGroups(const TGroupId& prefix, const NDiscoveryClient::TListGroupsOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupManager)

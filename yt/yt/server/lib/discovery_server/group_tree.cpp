@@ -665,42 +665,6 @@ public:
         return SyncYPathGet(ConvertToNode(userAttributeYson), TYPath(tokenizer.GetInput()));
     }
 
-    TListGroupsResult ListGroups(const TYPath& path, const TListGroupsOptions& options)
-    {
-        auto guard = ReaderGuard(Lock_);
-
-        auto [node, unresolvedPath] = ResolvePath(path);
-
-        if (!unresolvedPath.empty()) {
-            return {.Groups = {}, .Incomplete = false};
-        }
-
-        std::vector<TGroupPtr> result;
-        auto incomplete = false;
-        std::stack<TGroupNodePtr, std::vector<TGroupNodePtr>> stack;
-        stack.push(std::move(node));
-
-        while (!stack.empty()) {
-            auto current = std::move(stack.top());
-            stack.pop();
-
-            const auto& group = current->GetGroup();
-            if (group) {
-                if (options.Limit == ssize(result)) {
-                    incomplete = true;
-                    break;
-                }
-                result.push_back(group);
-            }
-
-            for (const auto& [key, child]: current->GetChildren()) {
-                stack.push(child);
-            }
-        }
-
-        return {.Groups = std::move(result), .Incomplete = incomplete};
-    }
-
     bool Exists(const TYPath& path)
     {
         auto guard = ReaderGuard(Lock_);
@@ -1016,11 +980,6 @@ bool TGroupTree::Exists(const TYPath& path)
 TGroupPtr TGroupTree::FindGroup(const TYPath& path)
 {
     return Impl_->FindGroup(path);
-}
-
-TListGroupsResult TGroupTree::ListGroups(const TYPath& path, const TListGroupsOptions& options)
-{
-    return Impl_->ListGroups(path, options);
 }
 
 THashMap<TGroupId, TGroupPtr> TGroupTree::GetOrCreateGroups(const std::vector<TGroupId>& groupIds)
