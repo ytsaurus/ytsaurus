@@ -1616,7 +1616,7 @@ void TJob::DoSetResult(
         JobResultExtension_ = std::move(jobResultExtension);
     }
 
-    Error_ = error.Truncate();
+    Error_ = std::move(error).Truncate();
 
     JobProxyCompleted_ = receivedFromJobProxy;
 
