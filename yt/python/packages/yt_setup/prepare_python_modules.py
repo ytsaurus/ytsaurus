@@ -77,6 +77,7 @@ def prepare_python_modules(
         source_root,
         output_path,
         build_root,
+        use_modules_from_contrib=False,
         prepare_binary_symlinks=False,
         prepare_bindings=True,
         prepare_bindings_libraries=True,
@@ -123,7 +124,8 @@ def prepare_python_modules(
         for path in files_to_copy:
             cp_r_755(path, packages_dir)
 
-    if os.path.exists(os.path.join(source_root, "contrib/python")):
+    if use_modules_from_contrib:
+        assert os.path.exists(os.path.join(source_root, "contrib/python"))
         for package_name in CONTRIB_PYTHON_PACKAGE_LIST:
             if isinstance(package_name, tuple):
                 package_name, package_relative_path = package_name
@@ -194,6 +196,7 @@ def main():
     parser.add_argument("--output-path", required=True)
     parser.add_argument("--build-root")
     parser.add_argument("--fix-type-info-package", action="store_true", default=False)
+    parser.add_argument("--use-modules-from-contrib", action="store_true", default=False)
     parser.add_argument("--prepare-bindings-libraries", action="store_true", default=False)
     args = parser.parse_args()
 
@@ -204,6 +207,7 @@ def main():
         source_root=args.source_root,
         output_path=args.output_path,
         build_root=args.build_root,
+        use_modules_from_contrib=args.use_modules_from_contrib,
         should_fix_type_info_package=args.fix_type_info_package,
         prepare_bindings_libraries=args.prepare_bindings_libraries)
 
