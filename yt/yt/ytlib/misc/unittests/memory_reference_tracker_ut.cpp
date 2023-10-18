@@ -113,6 +113,11 @@ public:
         YT_ABORT();
     }
 
+    void ClearTrackers()
+    {
+        YT_ABORT();
+    }
+
     i64 GetExplicitLimit(EMemoryCategory /*category*/) const
     {
         YT_ABORT();

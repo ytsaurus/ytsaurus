@@ -62,6 +62,8 @@ public:
     virtual ITypedNodeMemoryTrackerPtr WithCategory(
         ECategory category,
         std::optional<TPoolTag> poolTag = {}) = 0;
+
+    virtual void ClearTrackers() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
