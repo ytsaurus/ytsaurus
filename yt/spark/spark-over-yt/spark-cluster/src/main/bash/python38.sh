@@ -25,8 +25,7 @@ apt-get install -y build-essential manpages-dev libpcap-dev libpq-dev libssl-dev
 apt-get install -y $PYTHON_VERSION $PYTHON_VERSION-dev $PYTHON_VERSION-distutils $PYTHON_VERSION-venv
 curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
 $PYTHON_VERSION -m pip install --upgrade pip
-$PYTHON_VERSION -m pip uninstall yandex-yt
-$PYTHON_VERSION -m pip install -i https://pypi.yandex-team.ru/simple ytsaurus-client==0.13.7
+$PYTHON_VERSION -m pip install -i https://pypi.yandex-team.ru/simple yandex-yt==0.13.1
 $PYTHON_VERSION -m pip install -i https://pypi.yandex-team.ru/simple pyarrow==12.0.1
 $PYTHON_VERSION -m pip install -i https://pypi.yandex-team.ru/simple pandas==1.5.3
 # $PYTHON_VERSION -m pip install -i https://pypi.yandex-team.ru/simple cython==3.0.0b1
