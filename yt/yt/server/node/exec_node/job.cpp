@@ -40,6 +40,9 @@
 #include <yt/yt/server/lib/nbd/cypress_file_block_device.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
@@ -141,7 +144,7 @@ NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
     IInvokerPtr invoker,
     const NLogging::TLogger& Logger)
 {
-    YT_LOG_INFO("Creating Nbd cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+    YT_LOG_INFO("Creating NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id());
@@ -165,7 +168,7 @@ NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
         Logger
     );
 
-    YT_LOG_INFO("Created Nbd cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+    YT_LOG_INFO("Created NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id());
@@ -329,9 +332,12 @@ void TJob::DoStart()
                         layer.set_nbd_export_id(ToString(nbdExportId));
                         ++nbdExportCount;
 
+                        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(JobSpecExt_->authenticated_user());
+                        auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
+
                         auto device = CreateCypressFileBlockDevice(
                             layer,
-                            nbdServer->GetClient(),
+                            std::move(client),
                             nbdServer->GetInvoker(),
                             nbdServer->GetLogger());
 

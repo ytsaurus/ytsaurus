@@ -34,11 +34,11 @@ class TNbdServer
 public:
     TNbdServer(
         TNbdServerConfigPtr config,
-        NApi::NNative::IClientPtr client,
+        NApi::NNative::IConnectionPtr connection,
         IPollerPtr poller,
         IInvokerPtr invoker)
         : Config_(std::move(config))
-        , Client_(std::move(client))
+        , Connection_(std::move(connection))
         , Poller_(std::move(poller))
         , Invoker_(std::move(invoker))
     { }
@@ -93,9 +93,9 @@ public:
         return Logger;
     }
 
-    virtual NApi::NNative::IClientPtr GetClient() const override
+    virtual NApi::NNative::IConnectionPtr GetConnection() const override
     {
-        return Client_;
+        return Connection_;
     }
 
     virtual IInvokerPtr GetInvoker() const override
@@ -108,7 +108,7 @@ private:
         .WithTag("ServerId: %v", TGuid::Create());
 
     const TNbdServerConfigPtr Config_;
-    const NApi::NNative::IClientPtr Client_;
+    const NApi::NNative::IConnectionPtr Connection_;
     const IPollerPtr Poller_;
     const IInvokerPtr Invoker_;
 
@@ -608,13 +608,13 @@ DEFINE_REFCOUNTED_TYPE(TNbdServer)
 
 INbdServerPtr CreateNbdServer(
     TNbdServerConfigPtr config,
-    NApi::NNative::IClientPtr client,
+    NApi::NNative::IConnectionPtr connection,
     IPollerPtr poller,
     IInvokerPtr invoker)
 {
     auto server = New<TNbdServer>(
         std::move(config),
-        std::move(client),
+        std::move(connection),
         std::move(poller),
         std::move(invoker));
     server->Start();

@@ -128,13 +128,9 @@ public:
             connection->GetNodeDirectorySynchronizer()->Start();
             connection->GetClusterDirectorySynchronizer()->Start();
 
-            // TODO(yuryalekseev): See to user name
-            auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-            auto client = connection->CreateNativeClient(clientOptions);
-
             NbdServer_ = CreateNbdServer(
                 GetConfig()->ExecNode->NbdConfig->NbdServerConfig,
-                std::move(client),
+                std::move(connection),
                 NBus::TTcpDispatcher::Get()->GetXferPoller(),
                 NbdQueue_->GetInvoker());
         }
