@@ -46,6 +46,7 @@ target_sources(unittester-query PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp

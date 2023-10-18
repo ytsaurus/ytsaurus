@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "key_trie.h"
+#include "query.h"
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -75,6 +76,37 @@ TIter MergeOverlappingRanges(TIter begin, TIter end)
     ++dest;
     return dest;
 }
+
+struct TSelfifyRewriter
+    : public TRewriter<TSelfifyRewriter>
+{
+    const TConstJoinClausePtr& JoinClause;
+
+    TConstExpressionPtr OnReference(const TReferenceExpression* reference)
+    {
+        for (int index = 0; index < std::ssize(JoinClause->ForeignEquations); ++index) {
+            if (auto* foreignRefEq = JoinClause->ForeignEquations[index]->As<TReferenceExpression>()) {
+                const auto& mapping = JoinClause->Schema.Mapping;
+                auto it = std::find_if(mapping.begin(), mapping.end(), [&] (const TColumnDescriptor& desc) {
+                    return desc.Name == foreignRefEq->ColumnName;
+                });
+
+                if (it == mapping.end()) {
+                    continue;
+                }
+
+                if (JoinClause->Schema.Original->Columns()[it->Index].Name() == reference->ColumnName) {
+                    const auto& self = JoinClause->SelfEquations[index];
+                    YT_VERIFY(!self.Evaluated);
+
+                    return self.Expression;
+                }
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Foreign evaluated column refers to columns missing from join clause");
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

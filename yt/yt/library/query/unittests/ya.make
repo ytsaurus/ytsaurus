@@ -9,6 +9,7 @@ SRCS(
     ql_computed_columns_ut.cpp
     ql_expressions_ut.cpp
     ql_helpers.cpp
+    ql_misc_ut.cpp
     ql_query_ut.cpp
     ql_range_inference_ut.cpp
     ql_range_coordination_ut.cpp
