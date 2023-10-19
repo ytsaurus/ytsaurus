@@ -38,7 +38,7 @@ message TYtPipelineConfig
     //
     // To use it you need to give your transform a name, e.g.:
     //
-    //      pCollection | "MyCoolParDo" >> ParDo(...) | ...
+    //      pCollection | "MyParDo" >> ParDo(...) | ...
     //
     // Then put a configuration to OperationConfig, e.g.:
     //
