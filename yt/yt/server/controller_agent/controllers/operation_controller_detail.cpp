@@ -6429,11 +6429,16 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             futures.push_back(batchReq->Invoke());
         }
 
+        auto checkErrorExternalCells = [] (const auto& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting attributes of output tables from external cells");
+        };
+
         auto responses = WaitFor(AllSucceeded(futures));
-        THROW_ERROR_EXCEPTION_IF_FAILED(responses, "Error getting attributes of output tables from external cells");
+        checkErrorExternalCells(responses);
 
         THashMap<TOutputTablePtr, IAttributeDictionaryPtr> tableAttributes;
         for (const auto& response : responses.Value()) {
+            checkErrorExternalCells(GetCumulativeError(response));
             auto rspsOrErrors = response->GetResponses<TTableYPathProxy::TRspGet>();
             for (const auto& rspOrError : rspsOrErrors) {
                 const auto& rsp = rspOrError.Value();
