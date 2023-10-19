@@ -572,11 +572,10 @@ class TTestingOperationOptions
     : public NYTree::TYsonStruct
 {
 public:
-    TDelayConfigPtr ControllerSchedulingDelay;
+    //! The following delays are used inside the operation controller.
 
     TDelayConfigPtr ScheduleJobDelay;
-
-    //! The following delays are used inside the operation controller.
+    TDelayConfigPtr InsideScheduleJobDelay;
 
     std::optional<TDuration> DelayInsideOperationCommit;
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
@@ -593,6 +592,8 @@ public:
     std::optional<TDuration> DelayInsideMaterialize;
 
     //! The following delays are used inside the scheduler.
+
+    TDelayConfigPtr ScheduleJobDelayScheduler;
 
     TDelayConfigPtr DelayInsideMaterializeScheduler;
 

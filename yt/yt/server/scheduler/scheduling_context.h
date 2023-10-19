@@ -110,6 +110,9 @@ struct ISchedulingContext
 
     virtual TScheduleJobsStatistics GetSchedulingStatistics() const = 0;
     virtual void SetSchedulingStatistics(TScheduleJobsStatistics statistics) = 0;
+
+    virtual void StoreScheduleJobExecDurationEstimate(TDuration duration) = 0;
+    virtual TDuration ExtractScheduleJobExecDurationEstimate() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)

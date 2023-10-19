@@ -42,6 +42,7 @@ struct TControllerScheduleJobResult
     std::optional<TJobStartDescriptor> StartDescriptor;
     TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, int> Failed;
     TDuration Duration;
+    std::optional<TDuration> NextDurationEstimate;
     TIncarnationId IncarnationId;
     TControllerEpoch ControllerEpoch;
 };

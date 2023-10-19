@@ -253,21 +253,34 @@ void UpdateJobletFromSummary(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TScheduleJobStatistics::TScheduleJobStatistics(int movingAverageWindowSize)
+    : SuccessfulDurationMovingAverage_(movingAverageWindowSize)
+{ }
+
 void TScheduleJobStatistics::RecordJobResult(const TControllerScheduleJobResult& scheduleJobResult)
 {
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Failed[reason] += scheduleJobResult.Failed[reason];
+        Failed_[reason] += scheduleJobResult.Failed[reason];
     }
-    Duration += scheduleJobResult.Duration;
-    ++Count;
+    TotalDuration_ += scheduleJobResult.Duration;
+    ++Count_;
+
+    if (scheduleJobResult.StartDescriptor) {
+        SuccessfulDurationMovingAverage_.AddValue(scheduleJobResult.Duration);
+    }
+}
+
+void TScheduleJobStatistics::SetMovingAverageWindowSize(int movingAverageWindowSize)
+{
+    SuccessfulDurationMovingAverage_.SetWindowSize(movingAverageWindowSize);
 }
 
 void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Failed);
-    Persist(context, Duration);
-    Persist(context, Count);
+    Persist(context, Failed_);
+    Persist(context, TotalDuration_);
+    Persist(context, Count_);
 }
 
 DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);

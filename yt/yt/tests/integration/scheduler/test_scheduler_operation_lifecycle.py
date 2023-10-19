@@ -1968,3 +1968,25 @@ class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
         time.sleep(15)
 
         assert op.get_state() == "completed"
+
+
+##################################################################
+
+
+class TestSuccessfulScheduleJobDurationEstimate(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "schedule_job_statistics_log_backoff": 10,
+            "schedule_job_statistics_moving_average_window_size": 10,
+        },
+    }
+
+    @authors("eshcherbin")
+    def test_simple(self):
+        op = run_sleeping_vanilla(job_count=2, spec={"testing": {"inside_schedule_job_delay": {"duration": 500}}})
+
+        wait(lambda: get(op.get_orchid_path() + "/progress/schedule_job_statistics/successful_duration_estimate_us", default=-1) >= 500000)

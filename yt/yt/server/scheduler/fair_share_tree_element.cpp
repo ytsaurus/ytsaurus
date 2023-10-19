@@ -1708,8 +1708,8 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
     , TSchedulerOperationElementFixedState(operation, std::move(controllerConfig), TSchedulingTagFilter(spec->SchedulingTagFilter))
-    , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(std::move(spec))
+    , RuntimeParameters_(std::move(runtimeParameters))
     , Controller_(std::move(controller))
     , FairShareStrategyOperationState_(std::move(state))
 { }
@@ -1719,8 +1719,8 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     TSchedulerCompositeElement* clonedParent)
     : TSchedulerElement(other, clonedParent)
     , TSchedulerOperationElementFixedState(other)
-    , RuntimeParameters_(other.RuntimeParameters_)
     , Spec_(other.Spec_)
+    , RuntimeParameters_(other.RuntimeParameters_)
     , Controller_(other.Controller_)
 { }
 
@@ -1850,6 +1850,18 @@ TString TSchedulerOperationElement::GetId() const
 TOperationId TSchedulerOperationElement::GetOperationId() const
 {
     return OperationId_;
+}
+
+void TSchedulerOperationElement::SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters)
+{
+    RuntimeParameters_ = std::move(runtimeParameters);
+
+    Controller_->SetDetailedLogsEnabled(RuntimeParameters_->EnableDetailedLogs);
+}
+
+TOperationFairShareTreeRuntimeParametersPtr TSchedulerOperationElement::GetRuntimeParameters() const
+{
+    return RuntimeParameters_;
 }
 
 std::optional<bool> TSchedulerOperationElement::IsAggressiveStarvationEnabled() const
@@ -2012,35 +2024,33 @@ TControllerEpoch TSchedulerOperationElement::GetControllerEpoch() const
     return Controller_->GetEpoch();
 }
 
-void TSchedulerOperationElement::IncreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext)
+void TSchedulerOperationElement::OnScheduleJobStarted(const ISchedulingContextPtr& schedulingContext)
 {
-    Controller_->IncreaseConcurrentScheduleJobCalls(schedulingContext);
+    Controller_->OnScheduleJobStarted(schedulingContext);
 }
 
-void TSchedulerOperationElement::IncreaseScheduleJobCallsSinceLastUpdate(const ISchedulingContextPtr& schedulingContext)
+void TSchedulerOperationElement::OnScheduleJobFinished(const ISchedulingContextPtr& schedulingContext)
 {
-    Controller_->IncreaseScheduleJobCallsSinceLastUpdate(schedulingContext);
-}
-
-void TSchedulerOperationElement::DecreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext)
-{
-    Controller_->DecreaseConcurrentScheduleJobCalls(schedulingContext);
+    Controller_->OnScheduleJobFinished(schedulingContext);
 }
 
 bool TSchedulerOperationElement::IsMaxScheduleJobCallsViolated() const
 {
-    bool result = false;
-    Controller_->CheckMaxScheduleJobCallsOverdraft(
+    return Controller_->CheckMaxScheduleJobCallsOverdraft(
         Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(
-            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
-        &result);
-    return result;
+            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls));
 }
 
 bool TSchedulerOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
     const ISchedulingContextPtr& schedulingContext) const
 {
     return Controller_->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(schedulingContext);
+}
+
+bool TSchedulerOperationElement::IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(
+    const ISchedulingContextPtr& schedulingContext) const
+{
+    return Controller_->IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(schedulingContext);
 }
 
 bool TSchedulerOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const

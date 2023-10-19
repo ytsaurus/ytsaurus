@@ -68,6 +68,9 @@ public:
     TScheduleJobsStatistics GetSchedulingStatistics() const override;
     void SetSchedulingStatistics(TScheduleJobsStatistics statistics) override;
 
+    virtual void StoreScheduleJobExecDurationEstimate(TDuration duration) override;
+    virtual TDuration ExtractScheduleJobExecDurationEstimate() override;
+
 private:
     const int NodeShardId_;
     const TSchedulerConfigPtr Config_;
@@ -93,6 +96,8 @@ private:
     THashMap<TOperationId, TJobResources> ConditionalUsageDiscountMap_;
 
     TScheduleJobsStatistics SchedulingStatistics_;
+
+    std::optional<TDuration> ScheduleJobExecDurationEstimate_;
 
     bool CanSatisfyResourceRequest(
         const TJobResources& jobResources,

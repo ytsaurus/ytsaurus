@@ -283,7 +283,7 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdateAggregatedRunningJobStatistics, MakeWeak(this)),
         Config->RunningJobStatisticsUpdatePeriod))
-    , ScheduleJobStatistics_(New<TScheduleJobStatistics>())
+    , ScheduleJobStatistics_(New<TScheduleJobStatistics>(Config->ScheduleJobStatisticsMovingAverageWindowSize))
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
@@ -4375,7 +4375,7 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
 
-    MaybeDelay(Spec_->TestingOperationOptions->ControllerSchedulingDelay);
+    MaybeDelay(Spec_->TestingOperationOptions->ScheduleJobDelay);
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG("Stale schedule job attempt");
@@ -4388,21 +4388,26 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     TWallTimer timer;
     auto scheduleJobResult = New<TControllerScheduleJobResult>();
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
+    auto scheduleJobDuration = timer.GetElapsedTime();
     if (scheduleJobResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
     }
-    scheduleJobResult->Duration = timer.GetElapsedTime();
+    scheduleJobResult->Duration = scheduleJobDuration;
     scheduleJobResult->ControllerEpoch = ControllerEpoch;
 
     ScheduleJobStatistics_->RecordJobResult(*scheduleJobResult);
+    scheduleJobResult->NextDurationEstimate = ScheduleJobStatistics_->SuccessfulDurationMovingAverage().GetAverage();
 
     auto now = NProfiling::GetCpuInstant();
     if (now > ScheduleJobStatisticsLogDeadline_) {
         AccountExternalScheduleJobFailures();
-        YT_LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, FailureReasons: %v)",
-            ScheduleJobStatistics_->Count,
-            ScheduleJobStatistics_->Duration,
-            ScheduleJobStatistics_->Failed);
+
+        YT_LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, SuccessfulDurationEstimate: %v, FailureReasons: %v)",
+            ScheduleJobStatistics_->GetCount(),
+            ScheduleJobStatistics_->GetTotalDuration(),
+            ScheduleJobStatistics_->SuccessfulDurationMovingAverage().GetAverage(),
+            ScheduleJobStatistics_->Failed());
+
         ScheduleJobStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleJobStatisticsLogBackoff);
     }
 
@@ -4449,6 +4454,7 @@ bool TOperationControllerBase::IsThrottling() const noexcept
     // Check invoker wait time.
     bool waitTimeThrottling = false;
     {
+        // TODO(eshcherbin): Change to max wait time throttling because average wait time doesn't make sense.
         auto scheduleJobInvokerStatistics = GetInvokerStatistics(Config->ScheduleJobControllerQueue);
         auto scheduleJobWaitTime = scheduleJobInvokerStatistics.AverageWaitTime;
         waitTimeThrottling = scheduleJobWaitTime > Config->ScheduleJobWaitTimeThreshold;
@@ -4488,6 +4494,8 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
 
     RunningJobStatisticsUpdateExecutor_->SetPeriod(config->RunningJobStatisticsUpdatePeriod);
     SendRunningJobTimeStatisticsUpdatesExecutor_->SetPeriod(config->RunningJobTimeStatisticsUpdatesSendPeriod);
+
+    ScheduleJobStatistics_->SetMovingAverageWindowSize(config->ScheduleJobStatisticsMovingAverageWindowSize);
 }
 
 void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)
@@ -4605,6 +4613,8 @@ void TOperationControllerBase::DoScheduleJob(
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NodeBanned);
         return;
     }
+
+    MaybeDelay(Spec_->TestingOperationOptions->InsideScheduleJobDelay);
 
     TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ true);
     if (!scheduleJobResult->StartDescriptor) {
@@ -8770,9 +8780,13 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("stderr_supported").Value(static_cast<bool>(StderrTable_))
         .EndMap()
         .Item("schedule_job_statistics").BeginMap()
-            .Item("count").Value(ScheduleJobStatistics_->Count)
-            .Item("duration").Value(ScheduleJobStatistics_->Duration)
-            .Item("failed").Value(ScheduleJobStatistics_->Failed)
+            .Item("count").Value(ScheduleJobStatistics_->GetCount())
+            .Item("total_duration").Value(ScheduleJobStatistics_->GetTotalDuration())
+            // COMPAT(eshcherbin)
+            .Item("duration").Value(ScheduleJobStatistics_->GetTotalDuration())
+            .Item("failed").Value(ScheduleJobStatistics_->Failed())
+            .Item("successful_duration_estimate_us").Value(
+                ScheduleJobStatistics_->SuccessfulDurationMovingAverage().GetAverage().value_or(TDuration::Zero()).MicroSeconds())
         .EndMap()
         // COMPAT(gritukan): Drop it in favour of "total_job_counter".
         .Item("jobs").Value(GetTotalJobCounter())
@@ -10089,6 +10103,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.GetVersion() >= ESnapshotVersion::InitialMinNeededResources) {
         Persist(context, InitialMinNeededResources_);
     }
+
+    if (context.IsLoad()) {
+        ScheduleJobStatistics_->SetMovingAverageWindowSize(Config->ScheduleJobStatisticsMovingAverageWindowSize);
+    }
 }
 
 void TOperationControllerBase::ValidateRevivalAllowed() const
@@ -10608,7 +10626,7 @@ void TOperationControllerBase::AccountExternalScheduleJobFailures() const
 
     for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         auto count = ExternalScheduleJobFailureCounts_[reason].exchange(0);
-        ScheduleJobStatistics_->Failed[reason] += count;
+        ScheduleJobStatistics_->Failed()[reason] += count;
     }
 }
 

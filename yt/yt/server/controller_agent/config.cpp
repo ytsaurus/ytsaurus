@@ -944,6 +944,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("schedule_job_statistics_log_backoff", &TThis::ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));
 
+    registrar.Parameter("schedule_job_statistics_moving_average_window_size", &TThis::ScheduleJobStatisticsMovingAverageWindowSize)
+        .Default(50)
+        .GreaterThanOrEqual(0);
+
     registrar.Parameter("controller_throttling_log_backoff", &TThis::ControllerThrottlingLogBackoff)
         .Default(TDuration::Seconds(1));
 

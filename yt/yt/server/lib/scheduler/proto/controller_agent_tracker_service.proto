@@ -130,6 +130,7 @@ message TScheduleJobResponse
     optional bool interruptible = 4;
     repeated TFailedCounter failed = 5;
     required uint64 duration = 6;
+    optional uint64 next_duration_estimate = 10;
     required NYT.NProto.TGuid operation_id = 7;
     required int32 controller_epoch = 8 [default = -1];
 

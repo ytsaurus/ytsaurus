@@ -25,6 +25,7 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Extract common mocks to a separate file?
 class TSchedulerStrategyHostMock
     : public TRefCounted
     , public ISchedulerStrategyHost
@@ -266,7 +267,7 @@ class TOperationControllerStrategyHostMock
 {
 public:
     explicit TOperationControllerStrategyHostMock(TJobResourcesWithQuotaList jobResourcesList)
-        : JobResourcesList(std::move(jobResourcesList))
+        : JobResourcesList_(std::move(jobResourcesList))
     { }
 
     TControllerEpoch GetEpoch() const override
@@ -286,7 +287,7 @@ public:
     TCompositeNeededResources GetNeededResources() const override
     {
         TJobResources totalResources;
-        for (const auto& resources : JobResourcesList) {
+        for (const auto& resources : JobResourcesList_) {
             totalResources += resources.ToJobResources();
         }
         return TCompositeNeededResources{.DefaultResources = totalResources};
@@ -298,7 +299,7 @@ public:
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
         TJobResourcesWithQuotaList minNeededResourcesList;
-        for (const auto& resources : JobResourcesList) {
+        for (const auto& resources : JobResourcesList_) {
             bool dominated = false;
             for (const auto& minNeededResourcesElement : minNeededResourcesList) {
                 if (Dominates(resources.ToJobResources(), minNeededResourcesElement.ToJobResources())) {
@@ -326,7 +327,7 @@ public:
     }
 
 private:
-    TJobResourcesWithQuotaList JobResourcesList;
+    TJobResourcesWithQuotaList JobResourcesList_;
 };
 
 using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControllerStrategyHostMock>;
