@@ -463,13 +463,13 @@ public:
         objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, EObjectType::ErasureJournalChunk));
         for (auto type = MinErasureChunkPartType;
              type <= MaxErasureChunkPartType;
-             type = static_cast<EObjectType>(static_cast<int>(type) + 1))
+             type = static_cast<EObjectType>(ToUnderlying(type) + 1))
         {
             objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, type));
         }
         for (auto type = MinErasureJournalChunkPartType;
              type <= MaxErasureJournalChunkPartType;
-             type = static_cast<EObjectType>(static_cast<int>(type) + 1))
+             type = static_cast<EObjectType>(ToUnderlying(type) + 1))
         {
             objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, type));
         }
@@ -1189,7 +1189,7 @@ public:
             }
             const auto& children = chunkList->Children();
             int index = GetChildIndex(chunkList, chunk);
-            if (index + 1 == static_cast<int>(children.size())) {
+            if (index + 1 == std::ssize(children)) {
                 continue;
             }
             auto* rightSibling = children[index + 1]->AsChunk();
@@ -1359,14 +1359,14 @@ public:
                             .LocationUuid = locationUuid,
                             .ReplicaIndex = replica.GetReplicaIndex(),
                         },
-                        .NodeId = static_cast<ui32>(replica.GetNodeId()),
+                        .NodeId = replica.GetNodeId(),
                     };
                     transaction->WriteRow(chunkReplica);
 
                     NRecords::TLocationReplicas locationReplica{
                         .Key = {
-                            .CellTag = static_cast<ui16>(Bootstrap_->GetCellTag()),
-                            .NodeId = static_cast<ui32>(replica.GetNodeId()),
+                            .CellTag = Bootstrap_->GetCellTag(),
+                            .NodeId = replica.GetNodeId(),
                             .IdHash = locationUuid.Parts32[0],
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
@@ -2214,7 +2214,7 @@ public:
 
         for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
             NJobTrackerClient::NProto::TJobSpec jobSpec;
-            jobSpec.set_type(static_cast<int>(scheduledJob->GetType()));
+            jobSpec.set_type(ToProto<int>(scheduledJob->GetType()));
 
             if (!scheduledJob->FillJobSpec(Bootstrap_, &jobSpec)) {
                 continue;
@@ -3783,15 +3783,14 @@ private:
                             .LocationUuid = locationUuid,
                             .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
                         },
-                        .NodeId = static_cast<ui32>(nodeId),
-
+                        .NodeId = nodeId,
                     };
                     transaction->WriteRow(chunkReplica);
 
                     NRecords::TLocationReplicas locationReplica{
                         .Key = {
-                            .CellTag = static_cast<ui16>(Bootstrap_->GetCellTag()),
-                            .NodeId = static_cast<ui32>(nodeId),
+                            .CellTag = Bootstrap_->GetCellTag(),
+                            .NodeId = nodeId,
                             .IdHash = locationUuid.Parts32[0],
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
@@ -3817,8 +3816,8 @@ private:
                     transaction->DeleteRow(chunkReplicaKey);
 
                     NRecords::TLocationReplicasKey locationReplicaKey{
-                        .CellTag = static_cast<ui16>(Bootstrap_->GetCellTag()),
-                        .NodeId = static_cast<ui32>(nodeId),
+                        .CellTag = Bootstrap_->GetCellTag(),
+                        .NodeId = nodeId,
                         .IdHash = locationUuid.Parts32[0],
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
@@ -5653,7 +5652,7 @@ private:
         NProto::TReqRemoveDeadSequoiaChunkReplicas request;
         for (const auto& replica : replicasOrError.Value()) {
             auto* protoReplica = request.add_replicas();
-            protoReplica->set_node_id(replica.NodeId);
+            protoReplica->set_node_id(ToProto<i32>(replica.NodeId));
             protoReplica->set_replica_index(replica.Key.ReplicaIndex);
             ToProto(protoReplica->mutable_chunk_id(), replica.Key.ChunkId);
             ToProto(protoReplica->mutable_location_uuid(), replica.Key.LocationUuid);

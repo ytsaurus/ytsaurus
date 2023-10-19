@@ -2,6 +2,10 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 namespace NYT::NSequoiaClient {
