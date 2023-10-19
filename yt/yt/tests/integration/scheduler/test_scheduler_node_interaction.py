@@ -769,7 +769,7 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
             return get(total_scheduling_heartbeat_complexity_orchid_path)
 
         testing_options = {
-            "schedule_job_delay": {
+            "schedule_job_delay_scheduler": {
                 "duration": 10000000,
                 "type": "async",
             },

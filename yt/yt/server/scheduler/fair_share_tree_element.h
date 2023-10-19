@@ -744,8 +744,6 @@ class TSchedulerOperationElement
     , public TSchedulerOperationElementFixedState
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
-
     DEFINE_BYREF_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
 public:
@@ -772,6 +770,9 @@ public:
 
     TString GetId() const override;
     TOperationId GetOperationId() const;
+
+    void SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters);
+    TOperationFairShareTreeRuntimeParametersPtr GetRuntimeParameters() const;
 
     void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
     bool AreDetailedLogsEnabled() const final;
@@ -825,12 +826,12 @@ public:
     // TODO(eshcherbin): Maybe expose controller itself in the API?
     TControllerEpoch GetControllerEpoch() const;
 
-    void IncreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
-    void IncreaseScheduleJobCallsSinceLastUpdate(const ISchedulingContextPtr& schedulingContext);
-    void DecreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleJobStarted(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleJobFinished(const ISchedulingContextPtr& schedulingContext);
 
     bool IsMaxScheduleJobCallsViolated() const;
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
@@ -887,6 +888,8 @@ protected:
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
 private:
+    TOperationFairShareTreeRuntimeParametersPtr RuntimeParameters_;
+
     const TFairShareStrategyOperationControllerPtr Controller_;
     const TFairShareStrategyOperationStatePtr FairShareStrategyOperationState_;
 

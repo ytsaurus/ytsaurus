@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
+#include <yt/yt/core/misc/moving_average.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,15 +64,29 @@ void UpdateJobletFromSummary(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TScheduleJobStatistics
+class TScheduleJobStatistics
     : public TRefCounted
     , public IPersistent
 {
+public:
+    //! Persistent statistics.
+    using TScheduleJobFailReasonCounter = TEnumIndexedVector<EScheduleJobFailReason, int>;
+    DEFINE_BYREF_RW_PROPERTY(TScheduleJobFailReasonCounter, Failed);
+
+    DEFINE_BYVAL_RO_PROPERTY(TDuration, TotalDuration);
+    DEFINE_BYVAL_RO_PROPERTY(i64, Count);
+
+    //! Transient statistics.
+    // TODO(eshcherbin): Use exponential moving average for O(1) memory?
+    DEFINE_BYREF_RO_PROPERTY(TMovingAverage<TDuration>, SuccessfulDurationMovingAverage);
+
+public:
+    TScheduleJobStatistics() = default;
+    explicit TScheduleJobStatistics(int movingAverageWindowSize);
+
     void RecordJobResult(const NScheduler::TControllerScheduleJobResult& scheduleJobResult);
 
-    TEnumIndexedVector<EScheduleJobFailReason, int> Failed;
-    TDuration Duration;
-    i64 Count = 0;
+    void SetMovingAverageWindowSize(int movingAverageWindowSize);
 
     void Persist(const TPersistenceContext& context);
 };

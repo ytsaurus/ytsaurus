@@ -1724,6 +1724,9 @@ private:
                     protoResponse->set_interruptible(startDescriptor.Interruptible);
                 }
                 protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
+                if (scheduleJobResult.NextDurationEstimate) {
+                    protoResponse->set_next_duration_estimate(ToProto<i64>(*scheduleJobResult.NextDurationEstimate));
+                }
                 for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
                     if (scheduleJobResult.Failed[reason] > 0) {
                         auto* protoCounter = protoResponse->add_failed();

@@ -213,6 +213,20 @@ void TSchedulingContextBase::SetSchedulingStatistics(TScheduleJobsStatistics sta
     SchedulingStatistics_ = statistics;
 }
 
+void TSchedulingContextBase::StoreScheduleJobExecDurationEstimate(TDuration duration)
+{
+    YT_ASSERT(!ScheduleJobExecDurationEstimate_);
+
+    ScheduleJobExecDurationEstimate_ = duration;
+}
+
+TDuration TSchedulingContextBase::ExtractScheduleJobExecDurationEstimate()
+{
+    YT_ASSERT(ScheduleJobExecDurationEstimate_);
+
+    return *std::exchange(ScheduleJobExecDurationEstimate_, {});
+}
+
 void TSchedulingContextBase::ResetUsageDiscounts()
 {
     UnconditionalResourceUsageDiscount_ = {};

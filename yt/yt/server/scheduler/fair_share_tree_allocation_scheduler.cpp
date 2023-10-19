@@ -1964,8 +1964,7 @@ std::optional<EDeactivationReason> TScheduleJobsContext::TryStartScheduleJob(
         return EDeactivationReason::IsNotAlive;
     }
 
-    element->IncreaseConcurrentScheduleJobCalls(SchedulingContext_);
-    element->IncreaseScheduleJobCallsSinceLastUpdate(SchedulingContext_);
+    element->OnScheduleJobStarted(SchedulingContext_);
 
     *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(
@@ -1988,7 +1987,7 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
         element->GetTreeId(),
         TreeSnapshot_->TreeConfig());
 
-    MaybeDelay(element->Spec()->TestingOperationOptions->ScheduleJobDelay);
+    MaybeDelay(element->Spec()->TestingOperationOptions->ScheduleJobDelayScheduler);
 
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->StartDescriptor) {
@@ -2058,7 +2057,7 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
 
 void TScheduleJobsContext::FinishScheduleJob(TSchedulerOperationElement* element)
 {
-    element->DecreaseConcurrentScheduleJobCalls(SchedulingContext_);
+    element->OnScheduleJobFinished(SchedulingContext_);
 }
 
 EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriority(
@@ -2183,6 +2182,10 @@ std::optional<EDeactivationReason> TScheduleJobsContext::CheckBlocked(const TSch
 {
     if (element->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(SchedulingContext_)) {
         return EDeactivationReason::MaxConcurrentScheduleJobCallsPerNodeShardViolated;
+    }
+
+    if (element->IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(SchedulingContext_)) {
+        return EDeactivationReason::MaxConcurrentScheduleJobExecDurationPerNodeShardViolated;
     }
 
     if (element->ScheduleJobBackoffCheckEnabled() &&

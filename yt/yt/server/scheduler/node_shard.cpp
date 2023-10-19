@@ -1354,6 +1354,9 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         result->Failed[static_cast<EScheduleJobFailReason>(protoCounter.reason())] = protoCounter.value();
     }
     FromProto(&result->Duration, response.duration());
+    if (response.has_next_duration_estimate()) {
+        result->NextDurationEstimate = FromProto<TDuration>(response.next_duration_estimate());
+    }
     result->IncarnationId = entry.IncarnationId;
     result->ControllerEpoch = response.controller_epoch();
 

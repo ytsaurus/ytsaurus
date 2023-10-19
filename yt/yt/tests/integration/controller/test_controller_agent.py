@@ -342,7 +342,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
     def test_time_based_throttling(self):
         create("table", "//tmp/input")
 
-        testing_options = {"controller_scheduling_delay": {"duration": 200}}
+        testing_options = {"schedule_job_delay": {"duration": 200}}
 
         data = [{"foo": i} for i in range(5)]
         write_table("//tmp/input", data)

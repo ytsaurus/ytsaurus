@@ -227,9 +227,9 @@ void TDelayConfig::Register(TRegistrar registrar)
 // TODO(eshcherbin): Change all delays to TDelayConfigPtr.
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("controller_scheduling_delay", &TThis::ControllerSchedulingDelay)
-        .Default();
     registrar.Parameter("schedule_job_delay", &TThis::ScheduleJobDelay)
+        .Default();
+    registrar.Parameter("inside_schedule_job_delay", &TThis::InsideScheduleJobDelay)
         .Default();
     registrar.Parameter("delay_inside_revive", &TThis::DelayInsideRevive)
         .Default();
@@ -242,6 +242,8 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("delay_inside_materialize", &TThis::DelayInsideMaterialize)
         .Default();
     registrar.Parameter("delay_inside_operation_commit", &TThis::DelayInsideOperationCommit)
+        .Default();
+    registrar.Parameter("schedule_job_delay_scheduler", &TThis::ScheduleJobDelayScheduler)
         .Default();
     registrar.Parameter("delay_inside_materialize_scheduler", &TThis::DelayInsideMaterializeScheduler)
         .Default();
@@ -281,6 +283,14 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_during_operation_abort", &TThis::ThrowExceptionDuringOperationAbort)
         .Default(false);
+
+    registrar.Postprocessor([] (TTestingOperationOptions* config) {
+        if (const auto& delay = config->InsideScheduleJobDelay;
+            delay && delay->Type != EDelayType::Sync)
+        {
+            THROW_ERROR_EXCEPTION("\"inside_schedule_job_delay\" must be sync, use \"schedule_job_delay\" instead");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

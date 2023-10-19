@@ -1871,7 +1871,7 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
             job_count=2,
             spec={
                 "pool_trees": ["default", "other"],
-                "testing": {"controller_scheduling_delay": {"duration": 3000, "type": "async"}},
+                "testing": {"schedule_job_delay": {"duration": 3000, "type": "async"}},
             },
         )
         op.wait_for_state("running")

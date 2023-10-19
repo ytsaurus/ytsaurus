@@ -1062,6 +1062,7 @@ public:
 
     //! Backoff between schedule job statistics logging.
     TDuration ScheduleJobStatisticsLogBackoff;
+    int ScheduleJobStatisticsMovingAverageWindowSize;
 
     //! Backoff between controller throttling logging.
     TDuration ControllerThrottlingLogBackoff;

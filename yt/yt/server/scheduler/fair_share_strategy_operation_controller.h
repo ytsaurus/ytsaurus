@@ -15,11 +15,10 @@ public:
     TFairShareStrategyOperationController(
         IOperationStrategyHost* operation,
         const TFairShareStrategyOperationControllerConfigPtr& config,
-        int NodeShardCount);
+        int nodeShardCount);
 
-    void DecreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
-    void IncreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
-    void IncreaseScheduleJobCallsSinceLastUpdate(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleJobStarted(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleJobFinished(const ISchedulingContextPtr& schedulingContext);
 
     TControllerEpoch GetEpoch() const;
 
@@ -30,9 +29,10 @@ public:
 
     void UpdateMinNeededJobResources();
 
-    void UpdateMaxConcurrentControllerScheduleJobCallsPerNodeShard(const TFairShareStrategyOperationControllerConfigPtr& config);
-    void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
+    void UpdateConcurrentScheduleJobThrottlingLimits(const TFairShareStrategyOperationControllerConfigPtr& config);
+    bool CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls) const;
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
     bool ScheduleJobBackoffObserved() const;
 
@@ -44,6 +44,7 @@ public:
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig);
 
+    // TODO(eshcherbin): Move to private.
     void AbortJob(
         TJobId jobId,
         EAbortReason abortReason,
@@ -62,6 +63,8 @@ public:
     void UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
     TFairShareStrategyOperationControllerConfigPtr GetConfig();
 
+    void SetDetailedLogsEnabled(bool enabled);
+
 private:
     const IOperationControllerStrategyHostPtr Controller_;
     const TOperationId OperationId_;
@@ -71,16 +74,26 @@ private:
     NThreading::TReaderWriterSpinLock ConfigLock_;
     TAtomicIntrusivePtr<TFairShareStrategyOperationControllerConfig> Config_;
 
-    struct TStateShard
+    struct alignas(CacheLineSize) TStateShard
     {
         mutable std::atomic<int> ScheduleJobCallsSinceLastUpdate = 0;
-        char Padding[64];
+
+        char Padding[CacheLineSize];
+
         int ConcurrentScheduleJobCalls = 0;
+        TDuration ConcurrentScheduleJobExecDuration;
+
+        TDuration ScheduleJobExecDurationEstimate;
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     const int NodeShardCount_;
+
     std::atomic<int> MaxConcurrentControllerScheduleJobCallsPerNodeShard_;
+    std::atomic<TDuration> MaxConcurrentControllerScheduleJobExecDurationPerNodeShard_;
+
+    std::atomic<bool> EnableConcurrentScheduleJobExecDurationThrottling_ = false;
+
     mutable int ScheduleJobCallsOverdraft_ = 0;
 
     std::atomic<NProfiling::TCpuDuration> ScheduleJobControllerThrottlingBackoff_;
@@ -89,6 +102,10 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
+
+    bool DetailedLogsEnabled_ = false;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)

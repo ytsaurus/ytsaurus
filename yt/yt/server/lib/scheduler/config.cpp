@@ -89,6 +89,12 @@ void TFairShareStrategyOperationControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_concurrent_controller_schedule_job_calls", &TThis::MaxConcurrentControllerScheduleJobCalls)
         .Default(100)
         .GreaterThan(0);
+    registrar.Parameter("max_concurrent_controller_schedule_job_exec_duration", &TThis::MaxConcurrentControllerScheduleJobExecDuration)
+        .Default(TDuration::Seconds(1))
+        .GreaterThan(TDuration::Zero());
+
+    registrar.Parameter("enable_concurrent_schedule_job_exec_duration_throttling", &TThis::EnableConcurrentScheduleJobExecDurationThrottling)
+        .Default(false);
 
     registrar.Parameter("concurrent_controller_schedule_job_calls_regularization", &TThis::ConcurrentControllerScheduleJobCallsRegularization)
         .Default(2.0)

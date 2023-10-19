@@ -467,7 +467,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def test_schedule_job_timed_out_alert(self):
         create_test_tables()
 
-        testing_options = {"controller_scheduling_delay": {"duration": 3500, "type": "async"}}
+        testing_options = {"schedule_job_delay": {"duration": 3500, "type": "async"}}
 
         op = map(
             command="cat",

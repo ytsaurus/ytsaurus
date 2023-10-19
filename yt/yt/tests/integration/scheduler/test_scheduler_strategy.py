@@ -187,7 +187,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         memory_limit = 30 * 1024 * 1024
 
-        testing_options = {"controller_scheduling_delay": {"duration": 500, "type": "async"}}
+        testing_options = {"schedule_job_delay": {"duration": 500, "type": "async"}}
 
         op = map(
             track=False,
@@ -423,7 +423,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             },
             spec={
                 "testing": {
-                    "schedule_job_delay": {
+                    "schedule_job_delay_scheduler": {
                         "duration": 1000,
                     },
                 },
@@ -550,7 +550,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
             {
                 "allowed_resource_usage_staleness": 0,
             })
-        slow_spec = {"testing": {"controller_scheduling_delay": {"duration": 1000, "type": "async"}}}
+        slow_spec = {"testing": {"schedule_job_delay": {"duration": 1000, "type": "async"}}}
 
         create_pool("pool")
         create_pool(
@@ -2053,7 +2053,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
     def test_pools_reconfiguration(self):
         create_test_tables(attributes={"replication_factor": 1})
 
-        testing_options = {"controller_scheduling_delay": {"duration": 1000}}
+        testing_options = {"schedule_job_delay": {"duration": 1000}}
 
         create_pool("test_pool_1")
         create_pool("test_pool_2")
