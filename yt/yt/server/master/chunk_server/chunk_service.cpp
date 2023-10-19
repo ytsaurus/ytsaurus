@@ -18,11 +18,11 @@
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
-
-#include <yt/yt/server/master/sequoia_server/config.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
@@ -33,6 +33,8 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
+
+#include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -58,6 +60,7 @@ using namespace NCellMaster;
 using namespace NHydra;
 using namespace NTransactionClient;
 using namespace NRpc;
+using namespace NDataNodeTrackerClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -370,9 +373,6 @@ private:
             : NNodeTrackerClient::EAddressType::InternalRpc;
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
-        const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
-        auto fetchChunkMetaFromSequoia = sequoiaConfig->Enable && sequoiaConfig->FetchChunkMetaFromSequoia;
-
         std::vector<TFuture<void>> metaFetchFutures;
 
         for (const auto& protoStoreId : request->subrequests()) {
@@ -400,14 +400,6 @@ private:
                         spec->set_row_index_is_absolute(true);
                     }
 
-                    if (ShouldFetchChunkMetaFromSequoia(chunk, fetchChunkMetaFromSequoia)) {
-                        metaFetchFutures.push_back(FetchChunkMetasFromSequoia(
-                            request->fetch_all_meta_extensions(),
-                            extensionTags,
-                            {spec},
-                            Bootstrap_));
-                    }
-
                     auto rowIndex = dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore
                         ? std::make_optional(dynamicStore->GetTableRowIndex())
                         : std::nullopt;
@@ -425,7 +417,6 @@ private:
                         /*timestampTransactionId*/ {},
                         /*fetchParityReplicas*/ true,
                         request->fetch_all_meta_extensions(),
-                        fetchChunkMetaFromSequoia,
                         extensionTags,
                         &nodeDirectoryBuilder,
                         Bootstrap_,
@@ -737,50 +728,18 @@ private:
                 "Chunk confirmation request without location uuids is received");
         }
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        if (!configManager->GetConfig()->SequoiaManager->Enable) {
-            // TODO(shakurov): use mutation idempotizer for all mutations (not
-            // just the Object Service ones), then enable boomerangs here.
-            const auto enableMutationBoomerangs = false;
+        // TODO(shakurov): use mutation idempotizer for all mutations (not
+        // just the Object Service ones), then enable boomerangs here.
+        const auto enableMutationBoomerangs = false;
 
-            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
-                !suppressUpstreamSync,
-                Bootstrap_,
-                std::move(transactionIds),
-                context,
-                chunkManager->CreateExecuteBatchMutation(context),
-                enableMutationBoomerangs);
-            YT_VERIFY(preparationFuture);
-        } else {
-            // TODO(aleksandra-zh): YT-16872, Respect the Response Keeper!
-            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
-                !suppressUpstreamSync,
-                Bootstrap_,
-                std::move(transactionIds),
-                context->GetRequestId());
-
-            preparationFuture.Apply(BIND([=] (const TError& error) {
-                if (error.IsOK()) {
-                    auto preparedRequest = chunkManager->PrepareExecuteBatchRequest(context->Request());
-                    auto mutation = chunkManager->CreateExecuteBatchMutation(
-                        &preparedRequest->MutationRequest,
-                        &preparedRequest->MutationResponse);
-
-                    std::vector<TFuture<void>> futures({
-                        mutation->Commit().AsVoid(),
-                        chunkManager->ExecuteBatchSequoia(preparedRequest),
-                    });
-                    return AllSucceeded(std::move(futures))
-                        .Apply(BIND([=] {
-                            chunkManager->PrepareExecuteBatchResponse(preparedRequest, &context->Response());
-                            context->Reply();
-                        }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
-                } else {
-                    context->Reply(error);
-                    return VoidFuture;
-                }
-            }).AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService)));
-        }
+        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+            !suppressUpstreamSync,
+            Bootstrap_,
+            std::move(transactionIds),
+            context,
+            chunkManager->CreateExecuteBatchMutation(context),
+            enableMutationBoomerangs);
+        YT_VERIFY(preparationFuture);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
@@ -884,7 +843,6 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& configManager = Bootstrap_->GetConfigManager();
 
         auto suppressUpstreamSync = GetSuppressUpstreamSync(context->RequestHeader());
         // NB: supporting lazy transaction replication here is required for (at
@@ -893,38 +851,19 @@ private:
         // basic attributes for output & debug tables. Thus, at the moment of
         // starting a transaction the set of cells it'll be needed to be
         // replicated to is yet unknown.
-        if (configManager->GetConfig()->SequoiaManager->Enable && chunkManager->IsSequoiaCreateChunkRequest(*request)) {
-            // TODO(aleksandra-zh): YT-16872, Respect the Response Keeper!
-            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
-                !suppressUpstreamSync,
-                Bootstrap_,
-                {transactionId},
-                context->GetRequestId());
 
-            preparationFuture.Apply(BIND([=] (const TError& error) {
-                if (!error.IsOK()) {
-                    context->Reply(error);
-                }
+        // TODO(shakurov): use mutation idempotizer for all mutations (not
+        // just the Object Service ones), then enable boomerangs here.
+        const auto enableMutationBoomerangs = false;
 
-                context->ReplyFrom(chunkManager->SequoiaCreateChunk(*request)
-                    .Apply(BIND([] (const NChunkClient::NProto::TRspCreateChunk& response) {
-                        return CreateResponseMessage(response);
-                    }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())));
-            }).AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService)));
-        } else {
-            // TODO(shakurov): use mutation idempotizer for all mutations (not
-            // just the Object Service ones), then enable boomerangs here.
-            const auto enableMutationBoomerangs = false;
-
-            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
-                !suppressUpstreamSync,
-                Bootstrap_,
-                {transactionId},
-                context,
-                chunkManager->CreateCreateChunkMutation(context),
-                enableMutationBoomerangs);
-            YT_VERIFY(preparationFuture);
-        }
+        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+            !suppressUpstreamSync,
+            Bootstrap_,
+            {transactionId},
+            context,
+            chunkManager->CreateCreateChunkMutation(context),
+            enableMutationBoomerangs);
+        YT_VERIFY(preparationFuture);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)
@@ -947,17 +886,33 @@ private:
                 "Chunk confirmation request without location uuids is received");
         }
 
-        if (chunkManager->IsSequoiaConfirmChunkRequest(*request)) {
-            context->ReplyFrom(chunkManager->SequoiaConfirmChunk(*request)
-                .Apply(BIND([] (const NChunkClient::NProto::TRspConfirmChunk& response) {
-                    return CreateResponseMessage(response);
-                }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())));
-        } else {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto mutation = chunkManager->CreateConfirmChunkMutation(context);
-            mutation->SetCurrentTraceContext();
-            mutation->CommitAndReply(context);
+        if (configManager->GetConfig()->SequoiaManager->Enable && request->location_uuids_supported()) {
+            auto allReplicas = request->replicas();
+            request->mutable_replicas()->Clear();
+            request->mutable_legacy_replicas()->Clear();
+
+            NProto::TReqAddConfirmReplicas addSequoiaReplicas;
+            ToProto(addSequoiaReplicas.mutable_chunk_id(), chunkId);
+
+            for (const auto& replica : allReplicas) {
+                auto locationUuid = FromProto<TChunkLocationUuid>(replica.location_uuid());
+                if (!chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                    *request->add_replicas() = replica;
+                } else {
+                    *addSequoiaReplicas.add_replicas() = replica;
+                }
+            }
+
+            if (addSequoiaReplicas.replicas_size() > 0) {
+                WaitFor(chunkManager->AddSequoiaConfirmReplicas(addSequoiaReplicas))
+                    .ThrowOnError();
+            }
+
         }
+
+        auto mutation = chunkManager->CreateConfirmChunkMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)

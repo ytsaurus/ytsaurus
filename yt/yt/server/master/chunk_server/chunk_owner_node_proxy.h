@@ -24,7 +24,6 @@ void BuildChunkSpec(
     const TChunkViewModifier* modifier,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
-    bool fetchMetaFromSequoia,
     const THashSet<int>& extensionTags,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NCellMaster::TBootstrap* bootstrap,

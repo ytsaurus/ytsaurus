@@ -126,57 +126,6 @@ struct IChunkManager
         NChunkClient::NProto::TReqExecuteBatch* request,
         NChunkClient::NProto::TRspExecuteBatch* response) = 0;
 
-    struct TSequoiaExecuteBatchRequest
-    {
-        std::vector<NChunkClient::NProto::TReqCreateChunk> CreateChunkSubrequests;
-        std::vector<NChunkClient::NProto::TReqConfirmChunk> ConfirmChunkSubrequests;
-    };
-
-    struct TSequoiaExecuteBatchResponse
-    {
-        std::vector<NChunkClient::NProto::TRspCreateChunk> CreateChunkSubresponses;
-        std::vector<NChunkClient::NProto::TRspConfirmChunk> ConfirmChunkSubresponses;
-    };
-
-    struct TPreparedExecuteBatchRequest final
-    {
-        //! Mutation for non-Sequoia requests.
-        NChunkClient::NProto::TReqExecuteBatch MutationRequest;
-        NChunkClient::NProto::TRspExecuteBatch MutationResponse;
-
-        //! Sequoia subrequests.
-        TSequoiaExecuteBatchRequest SequoiaRequest;
-        TSequoiaExecuteBatchResponse SequoiaResponse;
-
-        //! Original request split info.
-        std::vector<bool> IsCreateChunkSubrequestSequoia;
-        std::vector<bool> IsConfirmChunkSubrequestSequoia;
-    };
-    using TPreparedExecuteBatchRequestPtr = TIntrusivePtr<TPreparedExecuteBatchRequest>;
-
-    virtual TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(
-        const NChunkClient::NProto::TReqExecuteBatch& request) = 0;
-
-    virtual void PrepareExecuteBatchResponse(
-        TPreparedExecuteBatchRequestPtr request,
-        NChunkClient::NProto::TRspExecuteBatch* response) = 0;
-
-    virtual TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) = 0;
-
-    // COMPAT(aleksandra-zh)
-    virtual TFuture<NChunkClient::NProto::TRspCreateChunk> CreateChunk(
-        const NChunkClient::NProto::TReqCreateChunk& request) = 0;
-    virtual TFuture<NChunkClient::NProto::TRspConfirmChunk> ConfirmChunk(
-        const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
-
-    virtual TFuture<NChunkClient::NProto::TRspCreateChunk> SequoiaCreateChunk(
-        const NChunkClient::NProto::TReqCreateChunk& request) = 0;
-    virtual TFuture<NChunkClient::NProto::TRspConfirmChunk> SequoiaConfirmChunk(
-        const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
-
-    virtual bool IsSequoiaCreateChunkRequest(const NChunkClient::NProto::TReqCreateChunk& request) = 0;
-    virtual bool IsSequoiaConfirmChunkRequest(const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
-
     virtual bool CanHaveSequoiaReplicas(TChunkId chunkId) const = 0;
     virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const = 0;
 
@@ -402,6 +351,8 @@ struct IChunkManager
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
         const NDataNodeTrackerClient::NProto::TReqModifyReplicas& request) = 0;
+    virtual TFuture<void> AddSequoiaConfirmReplicas(
+        const NProto::TReqAddConfirmReplicas& request) = 0;
 
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,

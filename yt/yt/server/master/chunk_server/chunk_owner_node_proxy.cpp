@@ -152,7 +152,6 @@ void BuildChunkSpec(
     const TChunkViewModifier* modifier,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
-    bool fetchMetaFromSequoia,
     const THashSet<int>& extensionTags,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     TBootstrap* bootstrap,
@@ -194,12 +193,10 @@ void BuildChunkSpec(
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
     chunkSpec->set_striped_erasure(chunk->GetStripedErasure());
 
-    auto setMetaExtensions = !ShouldFetchChunkMetaFromSequoia(chunk, fetchMetaFromSequoia);
     ToProto(
         chunkSpec->mutable_chunk_meta(),
         chunk->ChunkMeta(),
-        fetchAllMetaExtensions ? nullptr : &extensionTags,
-        setMetaExtensions);
+        fetchAllMetaExtensions ? nullptr : &extensionTags);
 
     // Try to keep responses small -- avoid producing redundant limits.
     if (!lowerLimit.IsTrivial()) {
@@ -294,13 +291,6 @@ void BuildDynamicStoreSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShouldFetchChunkMetaFromSequoia(
-    TChunk* chunk,
-    bool fetchMetaFromSequoia)
-{
-    return chunk->IsSequoia() && fetchMetaFromSequoia;
-}
-
 TFuture<void> FetchChunkMetasFromSequoia(
     bool fetchAllMetaExtensions,
     const THashSet<int>& extensionTags,
@@ -360,9 +350,6 @@ public:
         if (!request.fetch_all_meta_extensions()) {
             ExtensionTags_.insert(request.extension_tags().begin(), request.extension_tags().end());
         }
-
-        const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
-        FetchChunkMetaFromSequoia_ = sequoiaConfig->Enable && sequoiaConfig->FetchChunkMetaFromSequoia;
     }
 
     void Run()
@@ -387,8 +374,6 @@ private:
     int CurrentRangeIndex_ = 0;
 
     THashSet<int> ExtensionTags_;
-    bool FetchChunkMetaFromSequoia_ = false;
-    std::vector<NChunkClient::NProto::TChunkSpec*> ChunkSpecsToFetchMetaFromSequoia_;
 
     NNodeTrackerServer::TNodeDirectoryBuilder NodeDirectoryBuilder_;
     bool Finished_ = false;
@@ -483,7 +468,6 @@ private:
             modifier,
             FetchContext_.FetchParityReplicas,
             RpcContext_->Request().fetch_all_meta_extensions(),
-            FetchChunkMetaFromSequoia_,
             ExtensionTags_,
             &NodeDirectoryBuilder_,
             Bootstrap_,
@@ -494,10 +478,6 @@ private:
             chunk->GetId(),
             chunkSpec->chunk_meta().features(),
             FetchContext_.SupportedChunkFeatures);
-
-        if (ShouldFetchChunkMetaFromSequoia(chunk, FetchChunkMetaFromSequoia_)) {
-            ChunkSpecsToFetchMetaFromSequoia_.push_back(chunkSpec);
-        }
 
         return true;
     }
@@ -584,31 +564,10 @@ private:
 
         ++CurrentRangeIndex_;
         if (CurrentRangeIndex_ == std::ssize(FetchContext_.Ranges)) {
-            FetchChunkMetasFromSequoia();
+            ReplySuccess();
         } else {
             TraverseCurrentRange();
         }
-    }
-
-    void FetchChunkMetasFromSequoia()
-    {
-        if (ChunkSpecsToFetchMetaFromSequoia_.empty()) {
-            ReplySuccess();
-            return;
-        }
-
-        auto fetchFuture = NChunkServer::FetchChunkMetasFromSequoia(
-            RpcContext_->Request().fetch_all_meta_extensions(),
-            ExtensionTags_,
-            std::move(ChunkSpecsToFetchMetaFromSequoia_),
-            Bootstrap_);
-        fetchFuture.Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-            if (error.IsOK()) {
-                ReplySuccess();
-            } else {
-                ReplyError(error);
-            }
-        }));
     }
 };
 
