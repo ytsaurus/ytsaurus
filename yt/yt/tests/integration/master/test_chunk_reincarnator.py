@@ -607,7 +607,8 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         self._wait_for_reincarnation(
             "//tmp/native",
             datetime.utcnow(),
-            whole_table_reincarnation=False)
+            whole_table_reincarnation=False,
+            interesting_chunks=[exported_dynamic_chunk])
 
         assert get("//tmp/native/@chunk_ids")[0] != exported_dynamic_chunk
 
