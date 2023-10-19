@@ -317,3 +317,6 @@ def call_get_proxy_address_url(**kwargs):
     if result.startswith('http://'):
         result = result[7:]
     return result
+
+def parse_bool(flag):
+    return flag is not None and flag.lower() == 'true'

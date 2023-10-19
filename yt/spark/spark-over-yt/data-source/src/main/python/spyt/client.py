@@ -14,7 +14,7 @@ from yt.wrapper.http_helpers import get_token, get_user_name
 logger = logging.getLogger(__name__)
 
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
-    SparkDiscovery, parse_memory, format_memory, base_spark_conf
+    SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool
 from .conf import read_remote_conf, read_global_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility, \
     read_cluster_conf, SELF_VERSION
 from .enabler import set_enablers, set_except_enablers, get_enablers_list
@@ -140,7 +140,7 @@ def _configure_client_mode(spark_conf,
     os.environ["SPARK_BASE_DISCOVERY_PATH"] = str(discovery.base_discovery_path)
     spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
 
-    jar_caching_enabled = spark_conf.get("spark.yt.jarCaching") == 'True'
+    jar_caching_enabled = parse_bool(spark_conf.get("spark.yt.jarCaching"))
 
     spyt_version = SELF_VERSION
     spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
@@ -265,6 +265,11 @@ def _build_spark_conf(num_executors=None,
     set_enablers(spark_conf, spark_conf_args, spark_cluster_conf, enablers)
     set_except_enablers(spark_conf, spark_cluster_conf, enablers)
     set_except_enablers(spark_conf, spark_conf_args, enablers)
+
+    ipv6_preference_enabled = parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
+    if ipv6_preference_enabled:
+        spark_conf.set('spark.driver.extraJavaOptions', '-Djava.net.preferIPv6Addresses=true')
+        spark_conf.set('spark.executor.extraJavaOptions', '-Djava.net.preferIPv6Addresses=true')
 
     return spark_conf
 

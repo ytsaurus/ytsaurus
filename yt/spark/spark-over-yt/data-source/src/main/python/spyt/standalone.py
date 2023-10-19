@@ -24,7 +24,8 @@ from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spy
     latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
     worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config
-from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster, call_get_proxy_address_url
+from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster, call_get_proxy_address_url, \
+    parse_bool
 from .enabler import SpytEnablers
 from .version import __version__
 
@@ -129,11 +130,6 @@ def _parse_memory(memory_str):
         unit = unit + "b"
     return value * units[unit]
 
-
-def _parse_bool(flag):
-    return flag is not None and flag.lower() == 'true'
-
-
 def _wait_op_start(op, operation_path, client):
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
         if state.is_running() and exists(operation_path, client=client):
@@ -207,9 +203,9 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
 
     cluster_conf = read_cluster_conf(str(discovery.conf()), client)
     spark_conf = cluster_conf['spark_conf']
-    dedicated_driver_op = _parse_bool(spark_conf.get('spark.dedicated_operation_mode'))
-    jar_caching_enabled = _parse_bool(spark_conf.get('spark.yt.jarCaching'))
-    ipv6_preference_enabled = _parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
+    dedicated_driver_op = parse_bool(spark_conf.get('spark.dedicated_operation_mode'))
+    jar_caching_enabled = parse_bool(spark_conf.get('spark.yt.jarCaching'))
+    ipv6_preference_enabled = parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
 
     _add_master(discovery, spark_base_args, rest=True, client=client)
     _add_shs_option(discovery, spark_base_args, client=client)
@@ -312,13 +308,15 @@ def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None
     discovery = SparkDiscovery(discovery_path=discovery_path)
 
     spark_conf = read_cluster_conf(str(discovery.conf()), client)['spark_conf']
-    jar_caching_enabled = _parse_bool(spark_conf.get('spark.yt.jarCaching'))
+    jar_caching_enabled = parse_bool(spark_conf.get('spark.yt.jarCaching'))
+    ipv6_preference_enabled = parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
 
     _add_master(discovery, spark_base_args, rest=False, client=client)
     _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_conf({"spark.ui.showConsoleProgress": "true"}, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client, jar_caching_enabled)
+    _add_ipv6_preference(ipv6_preference_enabled, spark_base_args)
     spark_env = _create_spark_env(client, spark_home)
 
     os.execve(spark_shell_path, spark_base_args + spark_args, spark_env)
