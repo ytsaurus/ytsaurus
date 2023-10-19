@@ -483,6 +483,10 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     TNodeId nodeId = request->node_id();
 
+    if (nodeId == InvalidNodeId) {
+        THROW_ERROR_EXCEPTION("Invalid node id; skip processing node heartbeat");
+    }
+
     if (!incarnationId) {
         WrongIncarnationRequestCount_.Increment();
         THROW_ERROR_EXCEPTION(
@@ -1621,6 +1625,8 @@ TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const TSt
 TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAddress)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    YT_VERIFY(nodeId != InvalidNodeId);
 
     YT_LOG_DEBUG(
         "Register node (NodeId: %v, NodeAddress: %v)",
