@@ -846,7 +846,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(FormatEnum(node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkMergerMode()));
+                .Value(FormatEnum(node->GetChunkMergerMode()));
             return true;
 
         case EInternedAttributeKey::IsBeingMerged: {
@@ -1171,9 +1171,15 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
             }
 
-            ValidateNoTransaction();
+            const auto& uninternedKey = key.Unintern();
+            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
 
-            SetChunkMergerMode(ConvertTo<EChunkMergerMode>(value));
+            const auto& mode = ConvertTo<EChunkMergerMode>(value);
+            node->SetChunkMergerMode(mode);
+
+            if (!node->IsExternal()) {
+                MaybeScheduleChunkMerge();
+            }
             return true;
         }
 
@@ -1298,14 +1304,11 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 void TChunkOwnerNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& /* readLimit */) const
 { }
 
-void TChunkOwnerNodeProxy::SetChunkMergerMode(EChunkMergerMode mode)
+void TChunkOwnerNodeProxy::MaybeScheduleChunkMerge()
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    YT_VERIFY(node->IsTrunk());
 
-    node->SetChunkMergerMode(mode);
-
-    if (!node->IsExternal() && mode != EChunkMergerMode::None) {
+    if (node->IsTrunk() && node->GetChunkMergerMode() != EChunkMergerMode::None) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->ScheduleChunkMerge(node);
     }

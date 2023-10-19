@@ -41,12 +41,12 @@ public:
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NErasure::ECodec, ErasureCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableStripedErasure);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableSkynetSharing);
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NChunkClient::EChunkMergerMode, ChunkMergerMode);
 
     // TODO(aleksandra-zh): Merger stuff, wrap that.
     // If chunk owner is changed, while it is being merged, it should be marked updated
     // to initiate another merge after the current one is finished.
     DEFINE_BYVAL_RW_PROPERTY(bool, UpdatedSinceLastMerge, false);
-    DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EChunkMergerMode, ChunkMergerMode, NChunkClient::EChunkMergerMode::None);
     DEFINE_BYREF_RW_PROPERTY(TChunkMergerTraversalInfo, ChunkMergerTraversalInfo);
 
 public:

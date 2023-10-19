@@ -169,6 +169,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkMergerQueuesUsagePerAccount)                             (2434))  // vovamelnikov
     ((EnableChangelogChunkPreallocationByDefault)                   (2435))  // akozhikhov
     ((ReplicateAlienClusterRegistry)                                (2436))  // ponasenko-rs
+    ((ChunkMergerModeUnderTransaction)                              (2437))  // cherepashka
 );
 
 ////////////////////////////////////////////////////////////////////////////////
