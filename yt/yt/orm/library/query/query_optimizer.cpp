@@ -28,7 +28,7 @@ public:
     }
 
 private:
-    bool OptimizedAnything_{false};
+    bool OptimizedAnything_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,10 +218,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJoinOptimizer : public TBaseOptimizer
+class TJoinOptimizer
+    : public TBaseOptimizer
 {
 public:
-    TJoinOptimizer(TQuery* query)
+    explicit TJoinOptimizer(TQuery* query)
         : Query_(query)
     { }
 
@@ -237,7 +238,7 @@ public:
     }
 
 private:
-    TQuery* Query_;
+    TQuery* const Query_;
     THashMap<TReference, TReference> ColumnsMapping_;
 
     using TBaseOptimizer::OptimizationAllowed;
@@ -439,7 +440,7 @@ bool TryOptimizeGroupByWithUniquePrefix(
 bool TryOptimizeTryGetString(TQuery* query)
 {
     TTryGetStringOptimizer optimizer;
-    THROW_ERROR_EXCEPTION_UNLESS(query, "TryOptimizeTryGetString() received a nullptr query");
+    YT_VERIFY(query);
     return optimizer.Run(query);
 }
 
