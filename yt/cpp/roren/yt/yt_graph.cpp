@@ -1013,9 +1013,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config)
+std::shared_ptr<IYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config)
 {
-    auto graph = std::make_unique<TYtGraph>(config);
+    auto graph = std::make_shared<TYtGraph>(config);
     TBuildingVisitor visitor(config, graph.get());
     TraverseInTopologicalOrder(GetRawPipeline(pipeline), &visitor);
     return graph;

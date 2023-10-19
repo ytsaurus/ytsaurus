@@ -3,6 +3,8 @@
 #include "yt_graph.h"
 #include "yt_graph_v2.h"
 
+#include "operation_runner.h"
+
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/interface/executor.h>
 
@@ -45,11 +47,11 @@ public:
     void Run(const TPipeline& pipeline) override
     {
         try {
-            IClientBasePtr tx = Tx_? static_cast<IClientBasePtr>(Tx_) : static_cast<IClientBasePtr>(Client_);
+            IClientBasePtr tx = Tx_ ? static_cast<IClientBasePtr>(Tx_) : static_cast<IClientBasePtr>(Client_);
 
             YT_LOG_DEBUG("Transforming Roren pipeline to YT graph");
 
-            std::unique_ptr<IYtGraph> ytGraph;
+            std::shared_ptr<IYtGraph> ytGraph;
             if (Config_.GetEnableV2Optimizer()) {
                 ytGraph = BuildYtGraphV2(pipeline, Config_);
             } else {
@@ -65,18 +67,10 @@ public:
             TStartOperationContext context;
             context.Config = std::make_shared<TYtPipelineConfig>(Config_);
 
+            auto concurrencyLimit = Config_.GetConcurrencyLimit();
+            auto runner = MakeOperationRunner(tx, ytGraph, concurrencyLimit);
             for (const auto& level : ytGraph->GetOperationLevels()) {
-                std::vector<IOperationPtr> operations;
-                operations.reserve(level.size());
-                for (auto operationNodeId : level) {
-                    auto operation = ytGraph->StartOperation(tx, operationNodeId, context);
-                    YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
-                    operations.emplace_back(std::move(operation));
-                }
-
-                for (const auto& operation : operations) {
-                    operation->Watch().GetValueSync();
-                }
+                runner->RunOperations(level, context);
             }
             YT_LOG_DEBUG("All operations was completed");
 

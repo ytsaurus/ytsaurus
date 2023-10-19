@@ -54,8 +54,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TYtGraphV2> BuildYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config);
-std::unique_ptr<TYtGraphV2> BuildOptimizedYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config);
+std::shared_ptr<TYtGraphV2> BuildYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config);
+std::shared_ptr<TYtGraphV2> BuildOptimizedYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

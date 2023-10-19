@@ -45,4 +45,7 @@ message TYtPipelineConfig
     //          TNode spec = ...;
     //          (*config.MutableOperationConfig())["MyParDo"].SetSpecPatch(NodeToYsonString(specPatch));
     map<string, TOperationConfig> OperatinonConfig = 6;
+
+    // Limit for the number of concurrent YT operations.
+    optional int32 ConcurrencyLimit = 7 [default = 10];
 }

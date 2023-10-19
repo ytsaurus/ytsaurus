@@ -13,11 +13,14 @@ target_link_libraries(cpp-roren-yt PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  cpp-threading-future
+  threading-future-subscription
   cpp-roren-interface
   roren-yt-proto
   cpp-mapreduce-client
 )
 target_sources(cpp-roren-yt PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/operation_runner.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/jobs.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/base_state.cpp

@@ -87,11 +87,11 @@ private:
 
 private:
     friend class TBuildingVisitor;
-    friend std::unique_ptr<TYtGraph> BuildYtGraph(const TPipeline& pipeline, TString workingDir);
+    friend std::shared_ptr<TYtGraph> BuildYtGraph(const TPipeline& pipeline, TString workingDir);
     friend void OptimizeYtGraph(TYtGraph* graph);
 };
 
-std::unique_ptr<IYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config);
+std::shared_ptr<IYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

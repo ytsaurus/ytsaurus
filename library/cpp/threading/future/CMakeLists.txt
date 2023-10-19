@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(subscription)
 
 add_library(cpp-threading-future)
 target_link_libraries(cpp-threading-future PUBLIC

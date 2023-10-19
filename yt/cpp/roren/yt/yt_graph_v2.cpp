@@ -1492,9 +1492,9 @@ public:
         }
     }
 
-    std::unique_ptr<TYtGraphV2> Build()
+    std::shared_ptr<TYtGraphV2> Build()
     {
-        return std::make_unique<TYtGraphV2>(std::move(PlainGraph_));
+        return std::make_shared<TYtGraphV2>(std::move(PlainGraph_));
     }
 
 private:
@@ -1899,14 +1899,14 @@ std::set<TString> TYtGraphV2::GetEdgeDebugStringSet() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TYtGraphV2> BuildYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config)
+std::shared_ptr<TYtGraphV2> BuildYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config)
 {
     TYtGraphV2Builder builder{config};
     TraverseInTopologicalOrder(GetRawPipeline(pipeline), &builder);
     return builder.Build();
 }
 
-std::unique_ptr<TYtGraphV2> BuildOptimizedYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config)
+std::shared_ptr<TYtGraphV2> BuildOptimizedYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config)
 {
     auto graph = BuildYtGraphV2(pipeline, config);
     graph->Optimize();
