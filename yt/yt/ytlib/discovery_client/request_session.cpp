@@ -286,6 +286,66 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TListGroupsRequestSession::TListGroupsRequestSession(
+    TServerAddressPoolPtr addressPool,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TDiscoveryClientConfigPtr clientConfig,
+    IChannelFactoryPtr channelFactory,
+    const NLogging::TLogger& logger,
+    TGroupId groupPrefix,
+    TListGroupsOptions options)
+    : TRequestSession<TListGroupsResult>(
+        clientConfig->ReadQuorum,
+        std::move(addressPool),
+        logger)
+    , ConnectionConfig_(std::move(connectionConfig))
+    , ClientConfig_(std::move(clientConfig))
+    , ChannelFactory_(std::move(channelFactory))
+    , GroupPrefix_(std::move(groupPrefix))
+    , Options_(std::move(options))
+{ }
+
+TFuture<void> TListGroupsRequestSession::MakeRequest(const TString& address)
+{
+    auto proxy = CreateProxy(
+        ClientConfig_,
+        ConnectionConfig_,
+        ChannelFactory_,
+        address);
+
+    auto req = proxy.ListGroups();
+    req->set_prefix(GroupPrefix_);
+    ToProto(req->mutable_options(), Options_);
+
+    return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspListGroupsPtr>& rspOrError){
+        if (!rspOrError.IsOK() && !rspOrError.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
+            return TError(rspOrError);
+        }
+
+        auto guard = Guard(Lock_);
+        if (rspOrError.IsOK()) {
+            const auto& rsp = rspOrError.Value();
+            Incomplete_ |= rsp->incomplete();
+            for (const auto& protoGroupId : rsp->group_ids()) {
+                auto groupId = FromProto<TGroupId>(protoGroupId);
+                FoundGroupIds_.emplace(groupId);
+            }
+        }
+
+        if (++SuccessCount_ == GetRequiredSuccessCount()) {
+            if (!FoundGroupIds_.empty()) {
+                Promise_.TrySet({.GroupIds = std::vector<TString>{FoundGroupIds_.begin(), FoundGroupIds_.end()}, .Incomplete = Incomplete_});
+            } else {
+                Promise_.TrySet(TError(NDiscoveryClient::EErrorCode::NoSuchGroup, "Group %Qv does not exist", GroupPrefix_));
+            }
+        }
+
+        return TError();
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetGroupMetaRequestSession::TGetGroupMetaRequestSession(
     TServerAddressPoolPtr addressPool,
     TDiscoveryConnectionConfigPtr connectionConfig,

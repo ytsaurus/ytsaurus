@@ -86,10 +86,26 @@ TGroupPtr TGroupManager::GetGroupOrThrow(const TGroupId& id)
     auto group = FindGroup(id);
     if (!group) {
         THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::NoSuchGroup,
-            "No such group %v",
+            "No such group %Qv",
             id);
     }
     return group;
+}
+
+TListGroupsResult TGroupManager::ListGroups(const TGroupId& prefix, const NDiscoveryClient::TListGroupsOptions& options)
+{
+    return GroupTree_->ListGroups(prefix, options);
+}
+
+TListGroupsResult TGroupManager::ListGroupsOrThrow(const TGroupId& prefix, const NDiscoveryClient::TListGroupsOptions& options)
+{
+    auto result = ListGroups(prefix, options);
+    if (result.Groups.empty()) {
+        THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::NoSuchGroup,
+            "No groups with prefix %Qv",
+            prefix);
+    }
+    return result;
 }
 
 THashSet<TMemberPtr> TGroupManager::GetModifiedMembers()

@@ -145,6 +145,38 @@ DEFINE_REFCOUNTED_TYPE(TListMembersRequestSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TListGroupsRequestSession
+    : public TRequestSession<TListGroupsResult>
+{
+public:
+    TListGroupsRequestSession(
+        TServerAddressPoolPtr addressPool,
+        TDiscoveryConnectionConfigPtr connectionConfig,
+        TDiscoveryClientConfigPtr clientConfig,
+        NRpc::IChannelFactoryPtr channelFactory,
+        const NLogging::TLogger& logger,
+        TGroupId groupPrefix,
+        TListGroupsOptions options);
+
+private:
+    const TDiscoveryConnectionConfigPtr ConnectionConfig_;
+    const TDiscoveryClientConfigPtr ClientConfig_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
+    const TGroupId GroupPrefix_;
+    const TListGroupsOptions Options_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    THashSet<TGroupId> FoundGroupIds_;
+    bool Incomplete_ = false;
+    int SuccessCount_ = 0;
+
+    TFuture<void> MakeRequest(const TString& address) override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TListGroupsRequestSession)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetGroupMetaRequestSession
     : public TRequestSession<TGroupMeta>
 {
