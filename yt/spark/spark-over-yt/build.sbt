@@ -29,13 +29,8 @@ lazy val `yt-wrapper` = (project in file("yt-wrapper"))
 lazy val `spark-fork` = (project in file("spark-fork"))
   .enablePlugins(SparkPackagePlugin, PythonPlugin)
   .settings(
-    sparkAdditionalJars := Seq(
-      (`file-system` / assembly).value
-    ),
-    sparkAdditionalBin := Seq(
-      baseDirectory.value / "driver-op-discovery.sh",
-      baseDirectory.value / "job-id-discovery.sh",
-    ),
+    sparkAdditionalJars := Nil,
+    sparkAdditionalBin := Nil,
     sparkAdditionalPython := Nil
   )
   .settings(
@@ -75,13 +70,21 @@ lazy val `cluster` = (project in file("spark-cluster"))
     libraryDependencies ++= spark,
     assembly / assemblyJarName := s"spark-yt-launcher.jar",
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(true),
-    assembly / test := {}
+    assembly / test := {},
+    zipPath := Some(target.value / "spark-extra.zip"),
+    zipMapping ++= Seq(
+      sourceDirectory.value / "main" / "spark-extra" / "bin" -> "",
+      sourceDirectory.value / "main" / "spark-extra" / "conf" -> "",
+      (`file-system` / assembly).value -> "jars"
+    ),
   )
   .settings(
     clusterSpytBuild := {
       val rootDirectory = baseDirectory.value.getParentFile
       val assemblyFile = assembly.value // Forces build
       makeLinkToBuildDirectory(assemblyFile, rootDirectory, assemblyFile.getName)
+      val zipFile = zip.value
+      makeLinkToBuildDirectory(zipFile, rootDirectory, zipFile.getName)
       val versionValue = (ThisBuild / spytClusterVersion).value
       val baseConfigDir = (Compile / resourceDirectory).value
       val logger = streams.value.log
@@ -121,6 +124,7 @@ lazy val `cluster` = (project in file("spark-cluster"))
 
       sparkLink ++ Seq(
         YtPublishFile(assembly.value, basePath, None, isTtlLimited = isTtlLimited),
+        YtPublishFile(zip.value, basePath, None, isTtlLimited = isTtlLimited)
       ) ++ clusterConfigArtifacts
     }
   )
@@ -180,7 +184,9 @@ lazy val `data-source` = (project in file("data-source"))
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
     pythonDeps := {
       val binBasePath = sourceDirectory.value / "main" / "bin"
-      ("jars" -> (`spark-submit` / assembly).value) +: binBasePath.listFiles().map(f => "bin" -> f)
+      val fs_assembly = (`file-system` / assembly).value
+      val submit_assembly = (`spark-submit` / assembly).value
+      Seq("pyspark_jars" -> fs_assembly, "spyt_jars" -> submit_assembly) ++ binBasePath.listFiles().map(f => "bin" -> f)
     }
   )
 
@@ -205,6 +211,7 @@ lazy val `file-system` = (project in file("file-system"))
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
+    assembly / assemblyJarName := "spark-yt-file-system.jar",
     assembly / assemblyShadeRules ++= clusterShadeRules,
     assembly / test := {},
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false)

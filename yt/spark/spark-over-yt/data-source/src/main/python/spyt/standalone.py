@@ -352,12 +352,17 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     else:
         spark_home = "./tmpfs"
     livy_tgz = "livy.tgz"
+    spark_root = "{}/{}".format(spark_home, "spark")
 
     def script_path(script):
         return "{}/{}".format(spark_home, driver_op_discovery_script)
 
     def _unpack_command(archive_name, dest):
         return "tar --warning=no-unknown-keyword -xf {} -C {}".format(archive_name, dest)
+
+    def _unzip_command(archive_name, dest):
+        # COMPAT(alex-shishkin): Support clusters without spark-extra.zip
+        return "(if [ -f {} ]; then unzip -o {} -d {}; fi)".format(archive_name, archive_name, dest)
 
     def _launcher_command(component, additional_commands=[], xmx="512m", extra_java_opts=None, launcher_opts=""):
         create_dir = "mkdir -p {}".format(spark_home)
@@ -366,7 +371,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar{1}".format(xmx, extra_java_opts_str)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
-        commands = [create_dir, move_java, _unpack_command("spark.tgz", spark_home)] + additional_commands + [
+        commands = [create_dir, move_java, _unpack_command("spark.tgz", spark_home),
+                    _unzip_command("spark-extra.zip", spark_root)] + additional_commands + [
             "{} {} tech.ytsaurus.spark.launcher.{}Launcher {}".format(run_launcher, spark_conf, component, launcher_opts)
         ]
         return " && ".join(commands)

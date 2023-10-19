@@ -27,7 +27,8 @@ object ClusterConfig {
       ),
       file_paths = Seq(
         s"$clusterBasePath/spark.tgz",
-        s"$clusterBasePath/spark-yt-launcher.jar"
+        s"$clusterBasePath/spark-yt-launcher.jar",
+        s"$clusterBasePath/spark-extra.zip",
       ) ++ sidecarConfigsClusterPaths
     )
   }

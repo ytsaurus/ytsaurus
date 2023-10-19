@@ -25,7 +25,8 @@ setuptools.setup(
     url='https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt',
     packages=[
         'spyt',
-        'spyt.jars'
+        'spyt.jars',
+        'pyspark.jars'
     ],
     install_requires=[
         'ytsaurus-pyspark=={}'.format(__spark_version__),
@@ -35,10 +36,12 @@ setuptools.setup(
     scripts=scripts,
     license='http://www.apache.org/licenses/LICENSE-2.0',
     package_dir={
-        'spyt.jars': 'deps/jars'
+        'spyt.jars': 'deps/spyt_jars',
+        'pyspark.jars': 'deps/pyspark_jars',
     },
     package_data={
-        'spyt.jars': ['*.jar']
+        'spyt.jars': ['*.jar'],
+        'pyspark.jars': ['*.jar'],
     },
     include_package_data=True,
 )

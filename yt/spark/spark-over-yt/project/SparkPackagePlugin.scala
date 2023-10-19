@@ -81,16 +81,7 @@ object SparkPackagePlugin extends AutoPlugin {
     sparkIsSnapshot := isSnapshot.value || version.value.contains("beta") || version.value.contains("dev"),
     sparkReleaseGlobalConfig := !sparkIsSnapshot.value,
     sparkReleaseLinks := !sparkIsSnapshot.value,
-    sparkLocalConfigs := {
-      Seq(
-        sparkForkHome.value / "spark-defaults.conf",
-        sparkForkHome.value / "spark-env.sh",
-        sparkForkHome.value / "log4j" / "log4j.properties",
-        sparkForkHome.value / "log4j" / "log4j.clusterLogJson.properties",
-        sparkForkHome.value / "log4j" / "log4j.clusterLog.properties",
-        sparkForkHome.value / "log4j" / "log4j.worker.properties"
-      )
-    },
+    sparkLocalConfigs := Nil,
     sparkAdditionalBin := Nil,
     sparkYtSubdir := {
       if (sparkIsSnapshot.value) "snapshots" else "releases"
