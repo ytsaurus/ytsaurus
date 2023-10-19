@@ -1,6 +1,6 @@
 """YT usage errors"""
 
-from .common import hide_auth_headers_in_request_info
+from .common import hide_auth_headers_in_request_info, hide_auth_headers
 
 import yt.common
 
@@ -230,7 +230,7 @@ class YtIncorrectResponse(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "headers": response.headers,
+            "headers": hide_auth_headers(response.headers),
             "request_info": hide_auth_headers_in_request_info(response.request_info),
             "body": self.truncate(response.text)}
         super(YtIncorrectResponse, self).__init__(message, attributes=attributes)
