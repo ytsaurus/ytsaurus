@@ -26,6 +26,7 @@ import inspect
 import os
 import platform
 import random
+import re
 import socket
 import sys
 import threading
@@ -63,29 +64,27 @@ MB = 1024 * KB
 GB = 1024 * MB
 
 
-def hide_fields(object, fields, prefixes, hidden_value="hidden"):
+def hide_fields(object, fields, prefixes, prefix_re=None, hidden_value="hidden"):
     if isinstance(object, dict):
         for key in fields:
             if key in object:
                 object[key] = hidden_value
         for key, value in iteritems(object):
-            if (
-                isinstance(value, text_type if PY3 else binary_type)
-                and any(value.startswith(prefix) for prefix in prefixes)
-            ):
+            if prefixes and isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
                 object[key] = hidden_value
+            elif prefix_re and isinstance(value, text_type if PY3 else binary_type) and prefix_re.search(value):
+                object[key] = prefix_re.sub(hidden_value, value)
             else:
-                hide_fields(value, fields, prefixes, hidden_value)
+                hide_fields(value, fields, prefixes, prefix_re, hidden_value)
     elif isinstance(object, list):
         for index in xrange(len(object)):
             value = object[index]
-            if (
-                isinstance(value, text_type if PY3 else binary_type)
-                and any(value.startswith(prefix) for prefix in prefixes)
-            ):
+            if prefixes and isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
                 object[index] = hidden_value
+            elif prefix_re and isinstance(value, text_type if PY3 else binary_type) and prefix_re.search(value):
+                object[index] = prefix_re.sub(hidden_value, value)
             else:
-                hide_fields(value, fields, prefixes, hidden_value)
+                hide_fields(value, fields, prefixes, prefix_re, hidden_value)
 
 
 def hide_secure_vault(params):
@@ -96,7 +95,7 @@ def hide_secure_vault(params):
 
 def hide_arguments(args):
     args = deepcopy(args)
-    hide_fields(args, fields=(), prefixes=("AQAD-",))
+    hide_fields(args, fields=(), prefixes=(), prefix_re=re.compile(r"\bAQAD\-\S+"))
     return args
 
 
