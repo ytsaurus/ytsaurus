@@ -1,6 +1,6 @@
 package spyt
 
 object SparkForkVersion {
-  val sparkForkVersion = "1.72.0"
+  val sparkForkVersion = "1.74.0"
 }
 
