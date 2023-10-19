@@ -4,7 +4,10 @@ package NRoren;
 message TOperationConfig
 {
     // Patch for operation spec in yson format.
-    // Map fields are merged with existing, other fields overrides existing.
+    // Map fields are merged with existing, other fields overrides default spec derived by Roren.
+    // 
+    // If operation runs multiple transforms and spec patches for these transforms conflict
+    // i.e. contain different values for the same key, exception will be thrown when starting pipeline.
     optional string SpecPatch = 1;
 }
 
@@ -32,5 +35,14 @@ message TYtPipelineConfig
 
     // Configuration for particular operations.
     // In general it's recommended to avoid such configurations.
+    //
+    // To use it you need to give your transform a name, e.g.:
+    //
+    //      pCollection | "MyCoolParDo" >> ParDo(...) | ...
+    //
+    // Then put a configuration to OperationConfig, e.g.:
+    //
+    //          TNode spec = ...;
+    //          (*config.MutableOperationConfig())["MyParDo"].SetSpecPatch(NodeToYsonString(specPatch));
     map<string, TOperationConfig> OperatinonConfig = 6;
 }
