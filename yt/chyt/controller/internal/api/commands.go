@@ -289,15 +289,15 @@ var StartCmdDescriptor = CmdDescriptor{
 }
 
 func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request, params map[string]any) {
-	userToken, err := auth.GetTokenFromHeader(r)
+	credentials, err := auth.GetCredentials(r)
 	if err != nil && !a.disableAuth {
 		a.replyWithError(w, err)
 		return
 	}
 	userClient, err := ythttp.NewClient(&yt.Config{
-		Token:  userToken,
-		Proxy:  a.api.cfg.AgentInfo.Proxy,
-		Logger: a.l.Structured(),
+		Credentials: credentials,
+		Proxy:       a.api.cfg.AgentInfo.Proxy,
+		Logger:      a.l.Structured(),
 	})
 	if err != nil {
 		a.replyWithError(w, err)

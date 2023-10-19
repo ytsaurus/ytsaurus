@@ -15,7 +15,7 @@ func ContainsUnauthorized(err error) bool {
 		yterrors.ContainsErrorCode(err, yterrors.CodeAuthenticationError)
 }
 
-func WhoAmI(proxy string, token string) (username string, err error) {
+func WhoAmI(proxy string, credentials yt.Credentials) (username string, err error) {
 	address := yt.NormalizeProxyURL(proxy, false /*disableDiscovery*/, false /*tvmOnly*/, 0 /*tvmOnlyPort*/).Address
 	url := address + "/auth/whoami"
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -26,7 +26,8 @@ func WhoAmI(proxy string, token string) (username string, err error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Add("Authorization", "OAuth "+token)
+
+	credentials.Set(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

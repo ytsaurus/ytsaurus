@@ -11,7 +11,7 @@ require (
 	go.uber.org/zap v1.25.0
 	go.ytsaurus.tech/library/go/core/log v0.0.3
 	go.ytsaurus.tech/library/go/ptr v0.0.1
-	go.ytsaurus.tech/yt/go v0.0.11
+	go.ytsaurus.tech/yt/go v0.0.12
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 )
 

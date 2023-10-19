@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
@@ -43,4 +44,24 @@ func GetTokenFromHeader(r *http.Request) (string, error) {
 
 	token := strings.TrimSpace(authorization[len(oauthPrefix):])
 	return token, nil
+}
+
+func GetCredentials(r *http.Request) (yt.Credentials, error) {
+	if r.Header.Get("Authorization") != "" {
+		token, err := GetTokenFromHeader(r)
+		if err != nil {
+			return nil, err
+		}
+		return &yt.TokenCredentials{Token: token}, nil
+	}
+
+	if r.Header.Get(yt.XYaUserTicket) != "" {
+		return &yt.UserTicketCredentials{Ticket: r.Header.Get(yt.XYaUserTicket)}, nil
+	}
+
+	if r.Header.Get(yt.XYaServiceTicket) != "" {
+		return &yt.ServiceTicketCredentials{Ticket: r.Header.Get(yt.XYaServiceTicket)}, nil
+	}
+
+	return nil, yterrors.Err("client is missing credentials")
 }
