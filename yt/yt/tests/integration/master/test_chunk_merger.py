@@ -775,8 +775,7 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
-    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
-    def test_max_nodes_being_merged(self, merge_mode):
+    def test_max_nodes_being_merged(self):
         create("table", "//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
