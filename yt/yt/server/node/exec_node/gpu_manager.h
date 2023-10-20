@@ -87,6 +87,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
     const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr TestGpuInfoUpdateExecutor_;
 
     std::vector<TString> GpuDevices_;
 
@@ -129,6 +130,8 @@ private:
     void OnFetchDriverLayerInfo();
     bool IsDriverLayerMissing() const;
     void PopulateAlerts(std::vector<TError>* alerts) const;
+
+    void OnTestGpuInfoUpdate();
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)

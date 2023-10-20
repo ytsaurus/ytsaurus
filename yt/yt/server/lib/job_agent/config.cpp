@@ -112,6 +112,11 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("test_gpu_count", &TThis::TestGpuCount)
         .Default(0);
+    registrar.Parameter("test_utilization_gpu_rate", &TThis::TestUtilizationGpuRate)
+        .InRange(0.0, 1.0)
+        .Default(0.0);
+    registrar.Parameter("test_gpu_info_update_period", &TThis::TestGpuInfoUpdatePeriod)
+        .Default(TDuration::MilliSeconds(100));
 
     registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
         .DefaultNew();

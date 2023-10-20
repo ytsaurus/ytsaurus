@@ -300,7 +300,7 @@ private:
     std::optional<TInstant> ExtraGpuCheckStartTime_;
     std::optional<TInstant> ExtraGpuCheckFinishTime_;
 
-    using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, TInstant>;
+    using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, std::optional<TInstant>>;
     std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
 

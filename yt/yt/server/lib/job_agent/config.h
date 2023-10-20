@@ -89,6 +89,7 @@ public:
 
     TGpuInfoSourceConfigPtr GpuInfoSource;
 
+    // TODO(eshcherbin): Extract test options to subconfig?
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
     bool TestResource;
@@ -96,8 +97,9 @@ public:
     bool TestLayers;
     bool TestSetupCommands;
     bool TestExtraGpuCheckCommandFailure;
-
     int TestGpuCount;
+    double TestUtilizationGpuRate;
+    TDuration TestGpuInfoUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TGpuManagerConfig);
 

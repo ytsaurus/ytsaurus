@@ -2498,6 +2498,20 @@ def assert_statistics(
     return assertion(deprecated_statistic_value)
 
 
+def assert_statistics_v2(
+    operation,
+    key,
+    assertion,
+    job_state="completed",
+    job_type="map",
+    summary_type="sum",
+    pool_tree=None,
+):
+    statistics = get(operation.get_path() + "/@progress/job_statistics_v2")
+    statistic_value = extract_statistic_v2(statistics, key, job_state, job_type, summary_type, pool_tree)
+    return assertion(statistic_value)
+
+
 ##################################################################
 
 

@@ -106,6 +106,10 @@ TGpuManager::TGpuManager(
             .Period = Config_->DriverLayerFetchPeriod,
             .Splay = Config_->DriverLayerFetchPeriodSplay
         }))
+    , TestGpuInfoUpdateExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetJobInvoker(),
+        BIND(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
+        Config_->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(Config_->GpuInfoSource))
 {
     if (!Config_->Enable) {
@@ -165,15 +169,19 @@ TGpuManager::TGpuManager(
         GpuDevices_.push_back(descriptor.DeviceName);
         FreeSlots_.emplace_back(descriptor.DeviceNumber);
 
-        TGpuInfo info{
-            .UpdateTime = now,
-            .Index = descriptor.DeviceNumber
-        };
-        YT_VERIFY(HealthyGpuInfoMap_.emplace(descriptor.DeviceNumber, info).second);
+        EmplaceOrCrash(
+            HealthyGpuInfoMap_,
+            descriptor.DeviceNumber,
+            TGpuInfo{
+                .UpdateTime = now,
+                .Index = descriptor.DeviceNumber,
+            });
     }
 
     if (!Config_->TestResource) {
         HealthCheckExecutor_->Start();
+    } else {
+        TestGpuInfoUpdateExecutor_->Start();
     }
 
     Bootstrap_->SubscribePopulateAlerts(
@@ -357,6 +365,18 @@ void TGpuManager::OnFetchDriverLayerInfo()
         }
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to fetch GPU layer");
+    }
+}
+
+void TGpuManager::OnTestGpuInfoUpdate()
+{
+    auto now = TInstant::Now();
+
+    auto guard = Guard(SpinLock_);
+
+    for (auto& [_, gpuInfo] : HealthyGpuInfoMap_) {
+        gpuInfo.UtilizationGpuRate = Config_->TestUtilizationGpuRate;
+        gpuInfo.UpdateTime = now;
     }
 }
 
