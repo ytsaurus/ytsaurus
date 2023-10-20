@@ -2,13 +2,14 @@
 
 #include "private.h"
 
-#include "engine.h"
+#include <yt/yt/client/api/public.h>
+
 
 namespace NYT::NQueryTracker {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateSpytEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot);
+IQueryEnginePtr CreateSpytEngine(NApi::IClientPtr stateClient, NYPath::TYPath stateRoot);
 
 ///////////////////////////////////////////////////////////////////////////////
 

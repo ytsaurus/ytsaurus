@@ -54,6 +54,8 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("default_cluster", &TThis::DefaultCluster)
         .Default();
+    registrar.Parameter("default_discovery_path", &TThis::DefaultDiscoveryPath)
+        .Default();
     registrar.Parameter("spyt_home", &TThis::SpytHome)
         .Default("//home/spark");
     registrar.Parameter("http_client", &TThis::HttpClient)
