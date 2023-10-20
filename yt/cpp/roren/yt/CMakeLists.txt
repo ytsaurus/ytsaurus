@@ -20,12 +20,13 @@ target_link_libraries(cpp-roren-yt PUBLIC
   cpp-mapreduce-client
 )
 target_sources(cpp-roren-yt PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/operation_runner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/jobs.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/base_state.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/dependency_runner.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/jobs.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/kv_state.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/operation_runner.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/profile_state.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_io_private.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_graph.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_graph_v2.cpp

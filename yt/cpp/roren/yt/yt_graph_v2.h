@@ -35,6 +35,8 @@ public:
     std::vector<std::vector<TOperationNodeId>>
     GetOperationLevels() const override;
 
+    THashMap<TOperationNodeId, std::vector<TOperationNodeId>> GetNextOperationMapping() const;
+
     NYT::IOperationPtr StartOperation(
         const NYT::IClientBasePtr &client,
         TOperationNodeId id,

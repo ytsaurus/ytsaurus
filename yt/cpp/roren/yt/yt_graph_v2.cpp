@@ -1703,6 +1703,30 @@ std::vector<std::vector<IYtGraph::TOperationNodeId>> TYtGraphV2::GetOperationLev
     return operationNodeLevels;
 }
 
+THashMap<IYtGraph::TOperationNodeId, std::vector<IYtGraph::TOperationNodeId>>
+TYtGraphV2::GetNextOperationMapping() const
+{
+    THashMap<const TOperationNode*, IYtGraph::TOperationNodeId> idMap;
+    THashMap<IYtGraph::TOperationNodeId, std::vector<IYtGraph::TOperationNodeId>> operationMap;
+    for (ssize_t i = 0; i < std::ssize(PlainGraph_->Operations); ++i) {
+        const auto& operationNode = PlainGraph_->Operations[i];
+        idMap[operationNode.get()] = i;
+        operationMap[i] = {};
+    }
+
+    for (ssize_t i = 0; i < std::ssize(PlainGraph_->Operations); ++i) {
+        const auto& operationNode = PlainGraph_->Operations[i];
+
+        for (const auto& [_, outputTable] : operationNode->OutputTables) {
+            for (const auto& nextOperationNode : outputTable->InputFor) {
+                operationMap[idMap[operationNode.get()]].push_back(idMap[nextOperationNode.Operation]);
+            }
+        }
+    }
+
+    return operationMap;
+}
+
 static void PatchOperationSpec(NYT::TNode* result, const NYT::TNode& patch, const TString& currentPath = {})
 {
     if (result->IsUndefined()) {

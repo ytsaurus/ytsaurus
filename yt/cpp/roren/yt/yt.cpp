@@ -3,6 +3,7 @@
 #include "yt_graph.h"
 #include "yt_graph_v2.h"
 
+#include "dependency_runner.h"
 #include "operation_runner.h"
 
 #include <yt/cpp/roren/interface/roren.h>
@@ -68,10 +69,17 @@ public:
             context.Config = std::make_shared<TYtPipelineConfig>(Config_);
 
             auto concurrencyLimit = Config_.GetConcurrencyLimit();
-            auto runner = MakeOperationRunner(tx, ytGraph, concurrencyLimit);
-            for (const auto& level : ytGraph->GetOperationLevels()) {
-                runner->RunOperations(level, context);
+
+            if (Config_.GetEnableV2Optimizer()) {
+                auto runner = MakeDependencyRunner(tx, std::dynamic_pointer_cast<TYtGraphV2>(ytGraph), concurrencyLimit);
+                runner->RunOperations(context);
+            } else {
+                auto runner = MakeOperationRunner(tx, ytGraph, concurrencyLimit);
+                for (const auto& level : ytGraph->GetOperationLevels()) {
+                    runner->RunOperations(level, context);
+                }
             }
+
             YT_LOG_DEBUG("All operations was completed");
 
             // tx->Commit();
