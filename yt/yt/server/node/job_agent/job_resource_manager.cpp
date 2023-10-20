@@ -472,14 +472,14 @@ public:
 
         auto systemMemory = resourceDelta.SystemMemory;
         if (systemMemory > 0) {
-            resourceUsageOverdrafted |= SystemMemoryUsageTracker_->Acquire(systemMemory);
+            resourceUsageOverdrafted |= !SystemMemoryUsageTracker_->Acquire(systemMemory);
         } else if (systemMemory < 0) {
             SystemMemoryUsageTracker_->Release(-systemMemory);
         }
 
         auto userMemory = resourceDelta.UserMemory;
         if (userMemory > 0) {
-            resourceUsageOverdrafted |= UserMemoryUsageTracker_->Acquire(userMemory);
+            resourceUsageOverdrafted |= !UserMemoryUsageTracker_->Acquire(userMemory);
         } else if (userMemory < 0) {
             UserMemoryUsageTracker_->Release(-userMemory);
         }
