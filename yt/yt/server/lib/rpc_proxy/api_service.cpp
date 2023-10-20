@@ -9,6 +9,7 @@
 #include "helpers.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
@@ -615,6 +616,7 @@ public:
         , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
             config->ClientCache,
             Connection_))
+        , HeapProfilerTestingOptions_(config->TestingOptions->HeapProfiler)
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -790,6 +792,7 @@ private:
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
+    const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
@@ -826,6 +829,26 @@ private:
         return AuthenticatedClientCache_->Get(identity, options);
     }
 
+    void AllocateTestData(TTraceContextPtr traceContext)
+    {
+        if (!traceContext) {
+            return;
+        }
+
+        if (HeapProfilerTestingOptions_->AllocationSize) {
+            auto guard = TCurrentTraceContextGuard(traceContext);
+
+            auto size = HeapProfilerTestingOptions_->AllocationSize.value();
+            auto delay = HeapProfilerTestingOptions_->AllocationReleaseDelay.value_or(TDuration::Zero());
+
+            MakeTestHeapAllocation(size, delay);
+
+            YT_LOG_DEBUG("Test heap allocation is finished (AllocationSize: %v, AllocationReleaseDelay: %v)",
+                size,
+                delay);
+        }
+    }
+
     void SetupTracing(const IServiceContextPtr& context)
     {
         auto* traceContext = NTracing::TryGetCurrentTraceContext();
@@ -847,6 +870,16 @@ private:
             if (identity.UserTag != identity.User) {
                 traceContext->AddTag("user_tag", identity.UserTag);
             }
+        }
+
+        if (config->EnableAllocationTags) {
+            traceContext->SetAllocationTags({
+                {RpcProxyUserAllocationTag, identity.User},
+                {RpcProxyRequestIdAllocationTag, ToString(context->GetRequestId())},
+                {RpcProxyRpcAllocationTag, TString(context->RequestHeader().method())}
+            });
+
+            AllocateTestData(traceContext);
         }
     }
 

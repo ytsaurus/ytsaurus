@@ -257,4 +257,16 @@ void TJobReporterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THeapProfilerTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allocation_size", &TThis::AllocationSize)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(100_GB)
+        .Default(0);
+    registrar.Parameter("allocation_release_delay", &TThis::AllocationReleaseDelay)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

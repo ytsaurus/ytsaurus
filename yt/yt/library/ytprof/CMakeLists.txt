@@ -8,18 +8,7 @@
 
 add_subdirectory(api)
 add_subdirectory(http)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
+add_subdirectory(proto)
 
 add_library(yt-library-ytprof)
 target_compile_options(yt-library-ytprof PRIVATE
@@ -36,14 +25,11 @@ target_link_libraries(yt-library-ytprof PUBLIC
   backtrace-cursors-frame_pointer
   backtrace-cursors-libunwind
   library-ytprof-api
+  library-ytprof-proto
   contrib-libs-libunwind
   libs-tcmalloc-malloc_extension
   library-cpp-svnversion
   yt-yt-core
-  contrib-libs-protobuf
-)
-target_proto_messages(yt-library-ytprof PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/profile.proto
 )
 target_sources(yt-library-ytprof PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/signal_safe_profiler.cpp
@@ -54,18 +40,4 @@ target_sources(yt-library-ytprof PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/build_info.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/external_pprof.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/symbolize.cpp
-)
-target_proto_addincls(yt-library-ytprof
-  ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(yt-library-ytprof
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
 )

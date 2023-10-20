@@ -1281,7 +1281,7 @@ private:
     //! Size of allocation will produced by method TestHeap().
     mutable std::atomic<i64> TestingAllocationSize_;
     //! Duration of storing allocations on heap.
-    std::optional<TDuration> KeepAllocationDelay_;
+    std::optional<TDuration> AllocationReleaseDelay_;
 
     //! Per transaction intermediate data weight limit for the fast medium (SSD)
     //! in the public intermediate account.

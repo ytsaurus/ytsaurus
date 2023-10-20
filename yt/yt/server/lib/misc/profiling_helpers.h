@@ -60,6 +60,48 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Produces allocation on heap and keeps it for testing.
+class TTestAllocGuard
+{
+public:
+    TTestAllocGuard(
+        i64 allocationPartSize,
+        std::function<void()> constructCallback,
+        std::function<void()> destructCallback,
+        TDuration delayBeforeDestruct = TDuration::Zero(),
+        IInvokerPtr destructCallbackInvoker = nullptr);
+
+    TTestAllocGuard(const TTestAllocGuard& other) = delete;
+
+    TTestAllocGuard(TTestAllocGuard&& other);
+
+    TTestAllocGuard& operator=(const TTestAllocGuard& other) = delete;
+
+    TTestAllocGuard& operator=(TTestAllocGuard&& other);
+
+    ~TTestAllocGuard();
+
+private:
+    TString Raw_;
+    bool Active_ = false;
+    std::function<void()> ConstructCallback_;
+    std::function<void()> DestructCallback_;
+    TDuration DelayBeforeDestruct_;
+    IInvokerPtr DestructCallbackInvoker_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TTestAllocGuard> MakeTestHeapAllocation(
+    i64 AllocationSize,
+    TDuration AllocationReleaseDelay,
+    std::function<void()> constructCallback = [] {},
+    std::function<void()> destructCallback = [] {},
+    IInvokerPtr destructCallbackInvoker = nullptr,
+    i64 allocationPartSize = 1_MB);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define PROFILING_HELPERS_H_

@@ -81,6 +81,9 @@ void TApiTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("delay_before_command", &TThis::DelayBeforeCommand)
         .Default();
+
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +126,9 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("formats", &TThis::Formats)
         .Default();
+
+    registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

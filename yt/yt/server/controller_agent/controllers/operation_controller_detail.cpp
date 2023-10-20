@@ -323,7 +323,7 @@ TOperationControllerBase::TOperationControllerBase(
         Config->UpdateAccountResourceUsageLeasesPeriod))
     , TotalJobCounter_(New<TProgressCounter>())
     , TestingAllocationSize_(Spec_->TestingOperationOptions->AllocationSize.value_or(0))
-    , KeepAllocationDelay_(Spec_->TestingOperationOptions->KeepAllocationDelay)
+    , AllocationReleaseDelay_(Spec_->TestingOperationOptions->AllocationReleaseDelay)
     , FastIntermediateMediumLimit_(std::min(
         Spec_->FastIntermediateMediumLimit,
         Config->FastIntermediateMediumLimit))
@@ -452,7 +452,7 @@ std::vector<TTestAllocGuard> TOperationControllerBase::TestHeap() const
                 allocationPartSize,
                 decrementer,
                 incrementer,
-                KeepAllocationDelay_.value_or(TDuration::Zero()),
+                AllocationReleaseDelay_.value_or(TDuration::Zero()),
                 GetInvoker());
         }
 

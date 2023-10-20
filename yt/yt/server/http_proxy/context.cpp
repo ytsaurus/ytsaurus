@@ -9,14 +9,12 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
+
 #include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/rpc_proxy/public.h>
 
-#include <yt/yt/core/json/json_writer.h>
-#include <yt/yt/core/json/config.h>
-
-#include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/core/logging/fluent_log.h>
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/poller.h>
@@ -24,29 +22,34 @@
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/helpers.h>
 
+#include <yt/yt/core/json/config.h>
+#include <yt/yt/core/json/json_writer.h>
+
+#include <yt/yt/core/logging/fluent_log.h>
+
 #include <yt/yt/core/rpc/authenticator.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/yt/client/security_client/public.h>
-#include <yt/yt/client/api/rpc_proxy/public.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <util/random/random.h>
 
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
 
-#include <util/random/random.h>
-
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
-using namespace NYson;
-using namespace NYTree;
-using namespace NHttp;
 using namespace NDriver;
 using namespace NFormats;
+using namespace NHttp;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NScheduler;
+using namespace NTracing;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -686,13 +689,23 @@ void TContext::SetupOutputParameters()
 
 void TContext::SetupTracing()
 {
-    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+    if (auto* traceContext = TryGetCurrentTraceContext()) {
         if (Api_->GetConfig()->ForceTracing) {
             traceContext->SetSampled();
         }
 
         auto sampler = Api_->GetCoordinator()->GetTraceSampler();
         sampler->SampleTraceContext(DriverRequest_.AuthenticatedUser, traceContext);
+
+        if (Api_->GetDynamicConfig()->EnableAllocationTags) {
+            traceContext->SetAllocationTags({
+                {HttpProxyUserAllocationTag, DriverRequest_.AuthenticatedUser},
+                {HttpProxyRequestIdAllocationTag, ToString(Request_->GetRequestId())},
+                {HttpProxyCommandAllocationTag, DriverRequest_.CommandName}
+            });
+
+            AllocateTestData(traceContext);
+        }
     }
 }
 
@@ -845,8 +858,8 @@ TSharedRef DumpError(const TError& error)
 void TContext::LogAndProfile()
 {
     WallTime_ = Timer_.GetElapsedTime();
-    if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
-        NTracing::FlushCurrentTraceContextElapsedTime();
+    if (const auto* traceContext = TryGetCurrentTraceContext()) {
+        FlushCurrentTraceContextElapsedTime();
         CpuTime_ = traceContext->GetElapsedTime();
     }
 
@@ -1025,6 +1038,28 @@ void TContext::ProcessDelayBeforeCommandTestingOption()
     YT_LOG_DEBUG("Waiting for %v seconds due to \"delay_before_command\" testing option",
         commandDelayOptions.Delay.SecondsFloat());
     TDelayedExecutor::WaitForDuration(commandDelayOptions.Delay);
+}
+
+void TContext::AllocateTestData(TTraceContextPtr traceContext)
+{
+    auto testingOptions = Api_->GetConfig()->TestingOptions->HeapProfiler;
+
+    if (!testingOptions || !traceContext) {
+        return;
+    }
+
+    if (testingOptions->AllocationSize) {
+        auto guard = TCurrentTraceContextGuard(traceContext);
+
+        auto size = testingOptions->AllocationSize.value();
+        auto delay = testingOptions->AllocationReleaseDelay.value_or(TDuration::Zero());
+
+        MakeTestHeapAllocation(size, delay);
+
+        YT_LOG_DEBUG("Test heap allocation is finished (AllocationSize: %v, AllocationReleaseDelay: %v)",
+            size,
+            delay);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

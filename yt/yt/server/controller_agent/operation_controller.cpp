@@ -137,61 +137,6 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestAllocGuard::TTestAllocGuard(
-        i64 allocationPartSize,
-        std::function<void()> constructCallback,
-        std::function<void()> destructCallback,
-        TDuration delayBeforeDestruct,
-        IInvokerPtr destructCallbackInvoker)
-    : Raw_(TString(allocationPartSize, 'x'))
-    , Active_(true)
-    , ConstructCallback_(std::move(constructCallback))
-    , DestructCallback_(std::move(destructCallback))
-    , DelayBeforeDestruct_(delayBeforeDestruct)
-    , DestructCallbackInvoker_(std::move(destructCallbackInvoker))
-{
-    ConstructCallback_();
-}
-
-TTestAllocGuard::TTestAllocGuard(TTestAllocGuard&& other)
-{
-    *this = std::move(other);
-}
-
-TTestAllocGuard& TTestAllocGuard::operator=(TTestAllocGuard&& other)
-{
-    Raw_ = std::move(other.Raw_);
-    Active_ = other.Active_;
-    ConstructCallback_ = std::move(other.ConstructCallback_);
-    DestructCallback_ = std::move(other.DestructCallback_);
-    DelayBeforeDestruct_ = other.DelayBeforeDestruct_;
-    DestructCallbackInvoker_ = std::move(other.DestructCallbackInvoker_);
-
-    other.Active_ = false;
-
-    return *this;
-}
-
-TTestAllocGuard::~TTestAllocGuard()
-{
-    if (Active_) {
-        Active_ = false;
-
-        NConcurrency::TDelayedExecutor::MakeDelayed(
-            DelayBeforeDestruct_,
-            DestructCallbackInvoker_ ? DestructCallbackInvoker_ : GetCurrentInvoker())
-            .Subscribe(BIND([
-                    destruct = std::move(DestructCallback_),
-                    raw = std::move(Raw_)
-                ] (const NYT::TErrorOr<void>&) {
-                    Y_UNUSED(raw);
-                    destruct();
-                }));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Ensures that operation controllers are being destroyed in a
 //! dedicated invoker and releases memory tag when controller is destroyed.
 class TOperationControllerWrapper

@@ -272,4 +272,20 @@ DEFINE_REFCOUNTED_TYPE(TJobReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THeapProfilerTestingOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<i64> AllocationSize;
+    std::optional<TDuration> AllocationReleaseDelay;
+
+    REGISTER_YSON_STRUCT(THeapProfilerTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THeapProfilerTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

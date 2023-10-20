@@ -10,6 +10,12 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto HttpProxyUserAllocationTag = "user";
+constexpr auto HttpProxyRequestIdAllocationTag = "request_id";
+constexpr auto HttpProxyCommandAllocationTag = "command";
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline const NLogging::TLogger HttpProxyLogger("HttpProxy");
 inline const NProfiling::TProfiler HttpProxyProfiler("/http_proxy");
 
