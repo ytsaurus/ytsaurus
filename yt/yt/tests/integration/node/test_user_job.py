@@ -12,7 +12,8 @@ from yt_commands import (
     vanilla, run_test_vanilla, abort_job,
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
-    update_nodes_dynamic_config, set_node_banned, check_all_stderrs, assert_statistics,
+    update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
+    assert_statistics, assert_statistics_v2,
     heal_exec_node, ban_node,
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config)
 
@@ -3361,3 +3362,45 @@ class TestSlotManagerResurrect(YTEnvSetup):
             path = "{}/disabled".format(location["path"])
             if os.path.exists(path):
                 os.remove(path)
+
+
+##################################################################
+
+
+class TestGpuStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_controller": {
+                "gpu_manager": {
+                    "test_resource": True,
+                    "test_gpu_count": 1,
+                    "test_utilization_gpu_rate": 0.5,
+                },
+            },
+        },
+    }
+
+    @authors("eshcherbin")
+    def test_do_not_account_prepare_time(self):
+        op = run_test_vanilla(
+            command="sleep 1",
+            spec={
+                "job_testing_options": {"delay_after_node_directory_prepared": 10000},
+            },
+            task_patch={
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            },
+            track=True,
+        )
+
+        wait(lambda: assert_statistics_v2(
+            op,
+            "user_job.gpu.cumulative_utilization_gpu",
+            lambda utilization: 500 <= utilization <= 2500,
+            job_type="task",
+        ))
