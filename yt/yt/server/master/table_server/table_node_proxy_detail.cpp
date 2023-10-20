@@ -942,7 +942,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             }
 
             BuildYsonFluently(consumer)
-                .Value(GetEffectiveQueueAgentStage(Bootstrap_, table));
+                .Value(GetEffectiveQueueAgentStage(Bootstrap_, table->GetQueueAgentStage()));
             return true;
 
         case EInternedAttributeKey::TreatAsQueueConsumer:
@@ -1134,7 +1134,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             if (!isQueue) {
                 break;
             }
-            return GetQueueAgentAttributeAsync(Bootstrap_, table, GetPath(), key);
+            return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
         }
 
         case EInternedAttributeKey::QueueConsumerStatus:
@@ -1142,7 +1142,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             if (!isConsumer) {
                 break;
             }
-            return GetQueueAgentAttributeAsync(Bootstrap_, table, GetPath(), key);
+            return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
         }
 
         default:

@@ -12,6 +12,7 @@
 #include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
+#include <yt/yt/server/master/table_server/helpers.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -71,6 +72,11 @@ private:
 
         const auto* impl = GetThisImpl();
 
+        bool isSorted = impl->IsSorted();
+        bool isQueue = impl->IsQueue();
+        bool isConsumer = impl->IsConsumer();
+        bool hasNonEmptySchema = impl->HasNonEmptySchema();
+
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
             .SetWritable(true)
             .SetReplicated(true)
@@ -88,12 +94,30 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueConsumer)
             .SetWritable(true)
-            .SetPresent(impl->HasNonEmptySchema() && impl->IsSorted()));
+            .SetPresent(hasNonEmptySchema && isSorted));
+
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueAgentStage)
+            .SetWritable(true)
+            .SetRemovable(true)
+            .SetPresent(hasNonEmptySchema));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueStatus)
+            .SetPresent(isQueue)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueuePartitions)
+            .SetPresent(isQueue)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueConsumerStatus)
+            .SetPresent(isConsumer)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueConsumerPartitions)
+            .SetPresent(isConsumer)
+            .SetOpaque(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* node = GetThisImpl();
+        bool hasNonEmptySchema = node->HasNonEmptySchema();
         const auto* trunkNode = node->GetTrunkNode();
 
         switch (key) {
@@ -130,6 +154,15 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::QueueAgentStage:
+                if (!hasNonEmptySchema) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(GetEffectiveQueueAgentStage(Bootstrap_, node->GetQueueAgentStage()));
+                return true;
+
             default:
                 break;
         }
@@ -139,6 +172,8 @@ private:
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
+        auto* table = GetThisImpl();
+
         switch (key) {
             case EInternedAttributeKey::ChaosCellBundle: {
                 ValidateNoTransaction();
@@ -176,6 +211,24 @@ private:
                 } else if (!isConsumerObjectAfter && isConsumerObjectBefore) {
                     chaosManager->UnregisterConsumer(lockedTableNode);
                 }
+
+                SetModified(EModificationType::Attributes);
+
+                return true;
+            }
+
+            case EInternedAttributeKey::QueueAgentStage: {
+                ValidateNoTransaction();
+
+                if (!table->HasNonEmptySchema()) {
+                    break;
+                }
+
+                auto* lockedTable = LockThisImpl();
+                lockedTable->SetQueueAgentStage(ConvertTo<TString>(value));
+
+                SetModified(EModificationType::Attributes);
+
                 return true;
             }
 
@@ -186,10 +239,29 @@ private:
         return TCypressNodeProxyBase::SetBuiltinAttribute(key, value, force);
     }
 
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::QueueAgentStage: {
+                ValidateNoTransaction();
+                auto* lockedTable = LockThisImpl();
+                lockedTable->SetQueueAgentStage(std::nullopt);
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::RemoveBuiltinAttribute(key);
+    }
+
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* table = GetThisImpl();
         const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
+        bool isQueue = table->IsQueue();
+        bool isConsumer = table->IsConsumer();
 
         switch (key) {
             case EInternedAttributeKey::Era:
@@ -259,6 +331,22 @@ private:
                         return BuildYsonStringFluently()
                             .Value(card->ReplicationCardCollocationId);
                     }));
+
+            case EInternedAttributeKey::QueueStatus:
+            case EInternedAttributeKey::QueuePartitions: {
+                if (!isQueue) {
+                    break;
+                }
+                return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
+            }
+
+            case EInternedAttributeKey::QueueConsumerStatus:
+            case EInternedAttributeKey::QueueConsumerPartitions: {
+                if (!isConsumer) {
+                    break;
+                }
+                return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
+            }
 
             default:
                 break;

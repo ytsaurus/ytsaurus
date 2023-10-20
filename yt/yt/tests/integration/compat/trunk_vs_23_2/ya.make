@@ -80,7 +80,6 @@ PY_SRCS(
     yt/yt/tests/integration/controller/test_remote_copy_operation.py
     yt/yt/tests/integration/controller/test_sort_operation.py
     yt/yt/tests/integration/node/test_disk_quota.py
-    yt/yt/tests/integration/queues/test_queue_agent.py
 )
 
 TEST_SRCS(
@@ -97,7 +96,6 @@ TEST_SRCS(
     test_scheduler_update.py
     test_disk_quota.py
     test_operations_archive.py
-    test_queue_agent.py
 )
 
 END()

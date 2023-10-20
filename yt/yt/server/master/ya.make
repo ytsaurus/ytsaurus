@@ -66,6 +66,7 @@ SRCS(
     chaos_server/chaos_replicated_table_node.cpp
     chaos_server/chaos_service.cpp
     chaos_server/config.cpp
+
     chaos_server/proto/alien_cell.proto
     chaos_server/proto/chaos_manager.proto
 

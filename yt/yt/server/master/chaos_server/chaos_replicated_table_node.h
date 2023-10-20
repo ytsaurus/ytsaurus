@@ -25,6 +25,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardId, ReplicationCardId);
     DEFINE_BYVAL_RW_PROPERTY(bool, OwnsReplicationCard);
     DEFINE_BYVAL_RW_PROPERTY(bool, TreatAsConsumer);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, QueueAgentStage);
 
 public:
     using TCypressNode::TCypressNode;

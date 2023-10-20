@@ -1494,9 +1494,9 @@ class TestMasterIntegration(TestQueueAgentBase):
 
         # Wait for consumer status to become available.
         wait(lambda: len(get("//tmp/c/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
+        wait(lambda: get("//tmp/c/@queue_consumer_status").get("queues").get("primary://tmp/q").get("partition_count") == 1, ignore_exceptions=True)
 
-        # TODO(achulkov2): Check the queue_consumer_partitions attribute once the corresponding queue_controller
-        #  code is written.
+        assert len(get("//tmp/c/@queue_consumer_partitions").get("primary://tmp/q")) == 1
 
         # Check that consumer attributes are opaque.
         full_attributes = get("//tmp/c/@")
@@ -2304,6 +2304,90 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
                                         next_row_index=1, unread_row_count=4)
 
         unregister_queue_consumer(queue, consumer)
+
+    @authors("nadya73")
+    def test_chaos_queue_agent_stage(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        chaos_replicated_queue = "//tmp/crq"
+        self._create_chaos_replicated_queue(chaos_replicated_queue)
+
+        assert get("//tmp/crq/@queue_agent_stage") == "production"
+
+        set("//sys/@config/queue_agent_server/default_queue_agent_stage", "another_default")
+        assert get("//tmp/crq/@queue_agent_stage") == "another_default"
+
+        set("//tmp/crq/@queue_agent_stage", "testing")
+        assert get("//tmp/crq/@queue_agent_stage") == "testing"
+
+        remove("//tmp/crq/@queue_agent_stage")
+        assert get("//tmp/crq/@queue_agent_stage") == "another_default"
+
+        set("//tmp/crq/@queue_agent_stage", "testing")
+        assert get("//tmp/crq/@queue_agent_stage") == "testing"
+
+        # There is no queue agent with stage "testing", so accessing queue status would result in an error.
+        with raises_yt_error('Queue agent stage "testing" is not found'):
+            get("//tmp/crq/@queue_status")
+
+        tx = start_transaction()
+        with raises_yt_error("Operation cannot be performed in transaction"):
+            set("//tmp/crq/@queue_agent_stage", "value_under_tx", tx=tx)
+
+    @authors("nadya73")
+    def test_chaos_queue_attributes(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        chaos_replicated_queue = "//tmp/crq"
+        self._create_chaos_replicated_queue(chaos_replicated_queue)
+
+        assert get("//tmp/crq/@queue_agent_stage") == "production"
+
+        # Wait for queue status to become available.
+        wait(lambda: get("//tmp/crq/@queue_status/partition_count") == 1, ignore_exceptions=True)
+
+        # Check the zeroth partition.
+        def check_partition():
+            partitions = get("//tmp/crq/@queue_partitions")
+            if len(partitions) == 1:
+                assert partitions[0]["available_row_count"] == 0
+                return True
+            return False
+
+        wait(check_partition)
+
+        # Check that queue attributes are opaque.
+        full_attributes = get("//tmp/crq/@")
+        for attribute in ("queue_status", "queue_partitions"):
+            assert full_attributes[attribute] == YsonEntity()
+
+    @authors("nadya73")
+    def test_chaos_consumer_attributes(self):
+        chaos_queue, _, chaos_consumer, _ = self._create_chaos_queue_consumer_pair()
+
+        register_queue_consumer(chaos_queue, chaos_consumer, vital=True)
+
+        assert get(f"{chaos_consumer}/@queue_agent_stage") == "production"
+
+        # Check that queue_agent_stage is writable.
+        set(f"{chaos_consumer}/@queue_agent_stage", "testing")
+        set(f"{chaos_consumer}/@queue_agent_stage", "production")
+
+        # Wait for consumer status to become available.
+        wait(lambda: len(get(f"{chaos_consumer}/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
+
+        assert get(f"{chaos_consumer}/@queue_consumer_partitions").get(f"primary:{chaos_queue}")[0].get("unread_row_count") == 0
+
+        insert_rows(f"{chaos_queue}", [{"$tablet_index": 0, "data": "foo"}] * 5)
+
+        wait(lambda: get(f"{chaos_consumer}/@queue_consumer_partitions").get(f"primary:{chaos_queue}")[0].get("unread_row_count") == 5, ignore_exceptions=True)
+
+        # Check that consumer attributes are opaque.
+        full_attributes = get(f"{chaos_consumer}/@")
+        for attribute in ("queue_consumer_status", "queue_consumer_partitions"):
+            assert full_attributes[attribute] == YsonEntity()
 
 
 class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):

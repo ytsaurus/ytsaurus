@@ -25,15 +25,15 @@ using namespace NYTree;
 
 TString GetEffectiveQueueAgentStage(
     TBootstrap* bootstrap,
-    const TTableNode* table)
+    const std::optional<TString>& queueAgentStage)
 {
-    return table->GetQueueAgentStage().value_or(
+    return queueAgentStage.value_or(
         bootstrap->GetConfigManager()->GetConfig()->QueueAgentServer->DefaultQueueAgentStage);
 }
 
 TFuture<TYsonString> GetQueueAgentAttributeAsync(
     TBootstrap* bootstrap,
-    const TTableNode* table,
+    const std::optional<TString>& queueAgentStageOptional,
     const TYPath& path,
     TInternedAttributeKey key)
 {
@@ -57,7 +57,7 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
             YT_ABORT();
     }
 
-    auto queueAgentStage = GetEffectiveQueueAgentStage(bootstrap, table);
+    auto queueAgentStage = GetEffectiveQueueAgentStage(bootstrap, queueAgentStageOptional);
 
     // NB: instead of using cluster connection from our bootstrap, we take it
     // from the cluster directory. This works as a poor man's dynamic cluster connection
