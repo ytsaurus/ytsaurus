@@ -1728,12 +1728,9 @@ void TSortedDynamicStore::LoadRow(
             }
         }
 
-        // COMPAT(gritukan)
-        if (lastReadLockTimestamps) {
-            auto lastReadLockTimestamp = lastReadLockTimestamps[lockIndex];
-            auto revision = CaptureTimestamp(lastReadLockTimestamp, timestampToRevision);
-            AddReadLockRevision(lock, revision);
-        }
+        auto lastReadLockTimestamp = lastReadLockTimestamps[lockIndex];
+        auto revision = CaptureTimestamp(lastReadLockTimestamp, timestampToRevision);
+        AddReadLockRevision(lock, revision);
     }
 
     // Delete timestamps are also in descending order.
@@ -2059,6 +2056,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
     if (Load<bool>(context)) {
         auto lastReadLockTimestamps = Load<std::vector<TTimestamp>>(context);
+        YT_VERIFY(!lastReadLockTimestamps.empty());
         auto lastReadLockTimestampPtr = lastReadLockTimestamps.begin();
 
         auto chunkMeta = New<TRefCountedChunkMeta>(Load<TChunkMeta>(context));
@@ -2119,12 +2117,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             }
 
             for (auto row : batch->MaterializeRows()) {
-                // COMPAT(gritukan)
-                if (lastReadLockTimestamps.empty()) {
-                    LoadRow(row, &scratchData, nullptr);
-                } else {
-                    LoadRow(row, &scratchData, lastReadLockTimestampPtr);
-                }
+                LoadRow(row, &scratchData, lastReadLockTimestampPtr);
                 lastReadLockTimestampPtr += ColumnLockCount_;
             }
         }
