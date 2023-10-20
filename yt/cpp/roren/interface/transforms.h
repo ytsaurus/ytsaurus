@@ -627,25 +627,7 @@ TFlattenTransform Flatten();
 template <typename TRow>
 TPCollection<TRow> Flatten(const std::vector<TPCollection<TRow>>& pCollectionList)
 {
-    Y_ABORT_UNLESS(pCollectionList.size() > 0, "Cannot flatten empty list of pCollection");
-    const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList.front());
-    std::vector<NPrivate::TPCollectionNode*> pCollectionNodeList;
-    for (const auto& pCollection : pCollectionList) {
-        const auto& curRawPipeline = NPrivate::GetRawPipeline(pCollection);
-        Y_ABORT_UNLESS(curRawPipeline.Get() == rawPipeline.Get(), "Cannot flatten pCollections belonging to different pipelines");
-
-        auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
-        pCollectionNodeList.push_back(rawInputNode);
-    }
-    auto rawFlatten = NPrivate::MakeRawFlatten<TRow>(NPrivate::MakeRowVtable<TRow>(), ssize(pCollectionList));
-
-    auto transformNode = rawPipeline->AddTransform(rawFlatten, pCollectionNodeList);
-    const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
-
-    Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
-    const auto& rawOutputNode = taggedSinkNodeList[0].second;
-
-    return MakePCollection<TRow>(rawOutputNode, rawPipeline);
+    return pCollectionList | Flatten();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

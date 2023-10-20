@@ -100,6 +100,11 @@ private:
     /// @endcond
 };
 
+/// @brief Apply Flatten-like transform to a vector of PCollections
+template <typename TRow, typename TTransform>
+    requires CApplicableTo<TTransform, std::vector<TPCollection<TRow>>>
+TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionList, const TTransform& transform);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
@@ -341,6 +346,20 @@ template <typename TTransform>
 TRenamedTransform<TTransform> operator>>(TString name, TTransform transform)
 {
     return TRenamedTransform{std::move(name), std::move(transform)};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TRow, typename TTransform>
+    requires CApplicableTo<TTransform, std::vector<TPCollection<TRow>>>
+TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionList, const TTransform& transform)
+{
+    if (pCollectionList.empty()) {
+        Y_ABORT("Cannot apply transform to an empty list of PCollections");
+    }
+    const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList[0]);
+    auto guard = rawPipeline->StartTransformGuard(transform.GetName());
+    return transform.ApplyTo(pCollectionList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
