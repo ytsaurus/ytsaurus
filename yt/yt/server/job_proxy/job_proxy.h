@@ -127,6 +127,8 @@ private:
 
     NRpc::IServerPtr RpcServer_;
 
+    NConcurrency::IThreadPoolPtr ApiServiceThreadPool_;
+
     std::unique_ptr<NExecNode::TSupervisorServiceProxy> SupervisorProxy_;
 
     NApi::NNative::IClientPtr Client_;
