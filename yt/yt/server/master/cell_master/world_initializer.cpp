@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 
+#include <yt/yt/server/master/object_server/private.h>
+
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/group.h>
 
@@ -1061,6 +1063,18 @@ private:
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         WaitFor(transactionSupervisor->CommitTransaction(transactionId))
             .ThrowOnError();
+    }
+
+    template <class TTypedRequest>
+    static TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>> ExecuteVerb(
+        const IYPathServicePtr& service,
+        const TIntrusivePtr<TTypedRequest>& request)
+    {
+        return NYTree::ExecuteVerb(
+            service,
+            request,
+            ObjectServerLogger,
+            NLogging::ELogLevel::Debug);
     }
 
     void ScheduleCreateNode(
