@@ -667,12 +667,12 @@ private:
             }
         });
 
-        IdleCpuFraction_ = idleCpuFraction;
-        IdleCpuLimit_ = cpuLimit * IdleCpuFraction_;
-        CpuLimit_ = cpuLimit;
-
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
         SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);
+
+        CpuLimit_ = cpuLimit;
+        IdleCpuFraction_ = idleCpuFraction;
+        IdleCpuLimit_ = CalculateIdleCpuLimit();
 
         YT_VERIFY(!Config_->UseDaemonSubcontainer || SelfInstance_->GetParentName());
         auto baseContainer = Config_->UseDaemonSubcontainer
@@ -843,7 +843,7 @@ private:
         }
 
         CpuLimit_ = cpuLimit;
-        IdleCpuLimit_ = cpuLimit * IdleCpuFraction_;
+        IdleCpuLimit_ = CalculateIdleCpuLimit();
         UpdateContainerCpuLimits();
 
     }
@@ -851,8 +851,13 @@ private:
     void UpdateIdleCpuFraction(double idleCpuFraction) override
     {
         IdleCpuFraction_ = idleCpuFraction;
-        IdleCpuLimit_ = CpuLimit_ * IdleCpuFraction_;
+        IdleCpuLimit_ = CalculateIdleCpuLimit();
         UpdateContainerCpuLimits();
+    }
+
+    double CalculateIdleCpuLimit() const
+    {
+        return std::max(0., CpuLimit_ - SelfInstance_->GetCpuGuarantee()) * IdleCpuFraction_;
     }
 
     void ClearSlotCpuSets(int slotCount) override

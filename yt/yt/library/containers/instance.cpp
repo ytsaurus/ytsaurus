@@ -646,6 +646,15 @@ public:
             : 0;
     }
 
+    double GetCpuGuarantee() const override
+    {
+        auto result = WaitFor(Executor_->GetContainerProperty(Name_, "cpu_guarantee"))
+            .ValueOrThrow();
+        return result
+            ? std::stod(*result)
+            : 0;
+    }
+
     std::vector<pid_t> GetPids() const override
     {
         auto getPidCgroup = [&] (const TString& cgroups) {
