@@ -2025,7 +2025,12 @@ private:
                     watcher.LockOptions->CheckBackoff,
                     watcher.LockOptions->WaitTimeout);
             } catch (const std::exception& ex) {
-                HandleWatcherError(TError(ex), strictMode, watcher.AlertType);
+                HandleWatcherError(
+                    TError("Watcher failed to take lock")
+                        << ex
+                        << TErrorAttribute("watcher_type", watcher.WatcherType),
+                    strictMode,
+                    watcher.AlertType);
                 return;
             }
 
