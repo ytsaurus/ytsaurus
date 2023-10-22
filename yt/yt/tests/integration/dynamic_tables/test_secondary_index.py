@@ -4,12 +4,14 @@ from yt.common import wait
 
 from yt_commands import (
     authors, get, exists, remove, create_secondary_index, create_dynamic_table,
-    sync_create_cells,
+    sync_create_cells, sync_mount_table, select_rows, insert_rows, sorted_dicts,
 )
 
 ##################################################################
 
-EMPTY_COLUMN = {"name": "$empty", "type": "int64"}
+EMPTY_COLUMN_NAME = "$empty"
+
+EMPTY_COLUMN = {"name": EMPTY_COLUMN_NAME, "type": "int64"}
 
 PRIMARY_SCHEMA = [
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
@@ -72,7 +74,7 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_delete_index(self):
         sync_create_cells(1)
-        table_id, index_table_id, index_id = self._create_basic_tables()
+        _, _, index_id = self._create_basic_tables()
 
         remove(f"#{index_id}")
         assert not exists("//tmp/table/@secondary_indices")
@@ -81,7 +83,7 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_delete_primary_table(self):
         sync_create_cells(1)
-        table_id, index_table_id, index_id = self._create_basic_tables()
+        _, _, index_id = self._create_basic_tables()
 
         remove("//tmp/table")
         assert not exists("//tmp/index_table/@index_to")
@@ -90,8 +92,59 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_delete_index_table(self):
         sync_create_cells(1)
-        table_id, index_table_id, index_id = self._create_basic_tables()
+        _, _, index_id = self._create_basic_tables()
 
         remove("//tmp/index_table")
         assert not exists("//tmp/table/@secondary_indices")
         wait(lambda: not exists(f"#{index_id}"))
+
+    @authors("sabdenovch")
+    def test_secondary_index_select_simple(self):
+        sync_create_cells(1)
+        self._create_basic_tables()
+        sync_mount_table("//tmp/table")
+        sync_mount_table("//tmp/index_table")
+
+        table_rows = [
+            {"keyA": 0, "keyB": "alpha", "keyC": False, "valueA": "one", "valueB": 100, "valueC": 150},
+            {"keyA": 1, "keyB": "beta", "keyC": True, "valueA": "two", "valueB": 100, "valueC": 240},
+            {"keyA": 1, "keyB": "gamma", "keyC": False, "valueA": "one", "valueB": 100, "valueC": 110},
+        ]
+        index_table_rows = [
+            {"valueA": "one", "keyA": 0, "keyB": "alpha", "keyC": False, EMPTY_COLUMN_NAME: 0},
+            {"valueA": "two", "keyA": 1, "keyB": "beta", "keyC": True, EMPTY_COLUMN_NAME: 0},
+            {"valueA": "one", "keyA": 1, "keyB": "gamma", "keyC": False, EMPTY_COLUMN_NAME: 0},
+        ]
+        insert_rows("//tmp/table", table_rows)
+        insert_rows("//tmp/index_table", index_table_rows)
+
+        rows = select_rows("keyA, keyB, keyC, valueA, valueB, valueC from [//tmp/table] with index [//tmp/index_table]")
+        assert sorted_dicts(rows) == sorted_dicts(table_rows)
+
+        filtered = [{"valueB": 100, "valueC": 240}]
+        rows = select_rows("valueB, valueC from [//tmp/table] with index [//tmp/index_table] where valueA = \"two\"")
+        assert rows == filtered
+
+    @authors("sabdenovch")
+    def test_secondary_index_select_with_alias(self):
+        sync_create_cells(1)
+        self._create_basic_tables()
+        sync_mount_table("//tmp/table")
+        sync_mount_table("//tmp/index_table")
+
+        table_rows = [{"keyA": 0, "keyB": "alpha", "keyC": False, "valueA": "one", "valueB": 100, "valueC": 150}]
+        index_table_rows = [{"valueA": "one", "keyA": 0, "keyB": "alpha", "keyC": False, EMPTY_COLUMN_NAME: 0}]
+        insert_rows("//tmp/table", table_rows)
+        insert_rows("//tmp/index_table", index_table_rows)
+
+        aliased_table_rows = [{
+            "Alias.keyA": 0,
+            "Alias.keyB": "alpha",
+            "Alias.keyC": False,
+            "Alias.valueA": "one",
+            "Alias.valueB": 100,
+            "Alias.valueC": 150,
+        }]
+        rows = select_rows("Alias.keyA, Alias.keyB, Alias.keyC, Alias.valueA, Alias.valueB, Alias.valueC "
+                           "from [//tmp/table] Alias with index [//tmp/index_table]")
+        assert sorted_dicts(rows) == sorted_dicts(aliased_table_rows)

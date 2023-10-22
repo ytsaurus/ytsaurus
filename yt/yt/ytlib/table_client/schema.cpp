@@ -81,4 +81,41 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
+{
+    for (const auto& key : tableSchema.GetKeyColumns()) {
+        auto* column = indexTableSchema.FindColumn(key);
+        if (!column) {
+            THROW_ERROR_EXCEPTION("Key column %Qv missing in the index",
+                key);
+        }
+        if (!column->SortOrder()) {
+            THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in the index",
+                key);
+        }
+    }
+
+    for (int index = 0; index < indexTableSchema.GetColumnCount(); ++index) {
+        const auto& indexColumn = indexTableSchema.Columns()[index];
+        if (auto* tableColumn = tableSchema.FindColumn(indexColumn.Name())) {
+            auto tableType = tableColumn->GetWireType();
+            auto indexType = indexColumn.GetWireType();
+            if (tableType != indexType) {
+                THROW_ERROR_EXCEPTION("Type mismatch for the column %Qv",
+                    indexColumn.Name())
+                    << TErrorAttribute("table_type", tableType)
+                    << TErrorAttribute("index_type", indexType);
+            }
+        } else {
+            if (!indexColumn.SortOrder()) {
+                THROW_ERROR_EXCEPTION_IF(indexColumn.Name() != EmptyValueColumnName,
+                    "Non-key non-utility column %Qv of the index is missing in the table schema",
+                    indexColumn.Name());
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

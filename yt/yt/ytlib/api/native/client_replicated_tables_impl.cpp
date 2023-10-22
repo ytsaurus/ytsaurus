@@ -366,27 +366,6 @@ TString TClient::PickRandomCluster(
 
 std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> TClient::PrepareInSyncReplicaCandidates(
     const TTabletReadOptions& options,
-    NAst::TQuery* query)
-{
-    std::vector<TYPath> paths{query->Table.Path};
-    for (const auto& join : query->Joins) {
-        paths.push_back(join.Table.Path);
-    }
-
-    const auto& tableMountCache = Connection_->GetTableMountCache();
-    std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
-    for (const auto& path : paths) {
-        asyncTableInfos.push_back(tableMountCache->GetTableInfo(path));
-    }
-
-    auto tableInfos = WaitFor(AllSucceeded(asyncTableInfos))
-        .ValueOrThrow();
-
-    return PrepareInSyncReplicaCandidates(options, tableInfos);
-}
-
-std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> TClient::PrepareInSyncReplicaCandidates(
-    const TTabletReadOptions& options,
     const std::vector<TTableMountInfoPtr>& tableInfos)
 {
     bool someReplicated = false;

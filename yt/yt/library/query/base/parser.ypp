@@ -65,6 +65,7 @@
 
 %token KwSelect "keyword `SELECT`"
 %token KwFrom "keyword `FROM`"
+%token KwWithIndex "keyword `WITH INDEX`"
 %token KwWhere "keyword `WHERE`"
 %token KwHaving "keyword `HAVING`"
 %token KwOffset "keyword `OFFSET`"
@@ -223,17 +224,25 @@ table-descriptor
         {
             $$ = TTableDescriptor($path, $alias);
         }
-    |   Identifier[path]
+    | Identifier[path]
         {
             $$ = TTableDescriptor($path);
         }
 ;
 
 from-clause
-    : KwFrom table-descriptor[table] join-clause
+    : KwFrom table-descriptor[table] with-index-clause join-clause
         {
             std::get<TQuery>(head->Ast).Table = $table;
         }
+;
+
+with-index-clause
+    : KwWithIndex Identifier[path]
+        {
+            std::get<TQuery>(head->Ast).WithIndex = TTableDescriptor($path);
+        }
+    |
 ;
 
 join-predicate
@@ -241,7 +250,7 @@ join-predicate
         {
             $$ = $predicate;
         }
-    | { }
+    |
 ;
 
 join-clause
@@ -635,7 +644,7 @@ transform-default-expr
         {
             $$ = $expr;
         }
-    | { }
+    |
 ;
 
 literal-value

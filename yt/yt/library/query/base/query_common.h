@@ -26,6 +26,8 @@ struct TDataSplit
 
     TLegacyOwningKey LowerBound = NTableClient::MinKey();
     TLegacyOwningKey UpperBound = NTableClient::MaxKey();
+
+    NHydra::TRevision MountRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

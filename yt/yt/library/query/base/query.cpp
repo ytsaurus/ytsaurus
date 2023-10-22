@@ -1218,6 +1218,7 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
     result->Limit = serialized.limit();
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();
     result->InferRanges = serialized.infer_ranges();
+
     FromProto(&result->IsFinal, serialized.is_final());
 
     FromProto(&result->Schema.Original, serialized.original_schema());

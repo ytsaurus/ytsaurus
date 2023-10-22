@@ -204,6 +204,7 @@ bool operator == (const TQuery& lhs, const TQuery& rhs)
     return
         std::tie(
             lhs.Table,
+            lhs.WithIndex,
             lhs.Joins,
             lhs.SelectExprs,
             lhs.WherePredicate,
@@ -214,6 +215,7 @@ bool operator == (const TQuery& lhs, const TQuery& rhs)
             lhs.Limit) ==
         std::tie(
             rhs.Table,
+            rhs.WithIndex,
             rhs.Joins,
             rhs.SelectExprs,
             rhs.WherePredicate,
@@ -261,6 +263,7 @@ std::vector<TStringBuf> GetKeywords()
 #define XX(keyword) result.push_back(#keyword);
 
     XX(from)
+    XX(index)
     XX(where)
     XX(having)
     XX(offset)
@@ -569,6 +572,11 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
 
     builder->AppendString(" FROM ");
     FormatTableDescriptor(builder, query.Table);
+
+    if (query.WithIndex) {
+        builder->AppendString(" WITH INDEX ");
+        FormatTableDescriptor(builder, *query.WithIndex);
+    }
 
     for (const auto& join : query.Joins) {
         FormatJoin(builder, join);

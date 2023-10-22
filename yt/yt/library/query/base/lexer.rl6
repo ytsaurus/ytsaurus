@@ -26,6 +26,7 @@ typedef TParser::token_type TToken;
 
     kw_select = 'select'i;
     kw_from = 'from'i;
+    kw_with_index = 'with'i wss 'index'i;
     kw_where = 'where'i;
     kw_having = 'having'i;
     kw_offset = 'offset'i;
@@ -94,6 +95,7 @@ typedef TParser::token_type TToken;
 
         kw_select => { type = TToken::KwSelect; fbreak; };
         kw_from => { type = TToken::KwFrom; fbreak; };
+        kw_with_index => { type = TToken::KwWithIndex; fbreak; };
         kw_where => { type = TToken::KwWhere; fbreak; };
         kw_having => { type = TToken::KwHaving; fbreak; };
         kw_offset => { type = TToken::KwOffset; fbreak; };

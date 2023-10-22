@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/chunk_pools/public.h>
 
+#include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
@@ -935,10 +936,6 @@ private:
     std::pair<std::vector<NTabletClient::TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> PrepareInSyncReplicaCandidates(
         const TTabletReadOptions& options,
         const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos);
-
-    std::pair<std::vector<NTabletClient::TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> PrepareInSyncReplicaCandidates(
-        const TTabletReadOptions& options,
-        NQueryClient::NAst::TQuery* query);
 
     std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> PickInSyncClusterAndPatchQuery(
         const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos,

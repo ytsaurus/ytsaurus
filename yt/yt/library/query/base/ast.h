@@ -320,6 +320,7 @@ struct TJoin
     bool IsLeft;
     TTableDescriptor Table;
     TIdentifierList Fields;
+    TIdentifierList Equivalences;
 
     TExpressionList Lhs;
     TExpressionList Rhs;
@@ -359,6 +360,7 @@ bool operator != (const TJoin& lhs, const TJoin& rhs);
 struct TQuery
 {
     TTableDescriptor Table;
+    std::optional<TTableDescriptor> WithIndex;
     std::vector<TJoin> Joins;
 
     TNullableExpressionList SelectExprs;

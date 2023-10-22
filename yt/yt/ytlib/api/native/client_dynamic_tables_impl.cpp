@@ -30,6 +30,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
@@ -278,6 +279,107 @@ TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
     };
 }
 
+class TStickyTableMountInfoCache final
+{
+public:
+    explicit TStickyTableMountInfoCache(ITableMountCachePtr underlying)
+        : Underlying_(std::move(underlying))
+    { }
+
+    TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path)
+    {
+        auto guard = Guard(SpinLock_);
+
+        return TableInfoMap_.contains(path)
+            ? TableInfoMap_[path]
+            : TableInfoMap_[path] = Underlying_->GetTableInfo(path);
+    }
+
+private:
+    const ITableMountCachePtr Underlying_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    THashMap<NYPath::TYPath, TFuture<TTableMountInfoPtr>> TableInfoMap_;
+};
+
+using TStickyTableMountInfoCachePtr = TIntrusivePtr<TStickyTableMountInfoCache>;
+
+void TransformWithIndexStatement(NAst::TAstHead* head, const TStickyTableMountInfoCachePtr& cache)
+{
+    auto& query = std::get<NAst::TQuery>(head->Ast);
+    if (!query.WithIndex) {
+        return;
+    }
+
+    auto& index = *(query.WithIndex);
+
+    auto indexTableInfo = WaitFor(cache->GetTableInfo(index.Path))
+        .ValueOrThrow();
+    auto tableInfo = WaitFor(cache->GetTableInfo(query.Table.Path))
+        .ValueOrThrow();
+
+    indexTableInfo->ValidateDynamic();
+    indexTableInfo->ValidateSorted();
+
+    auto indexTableSchema = indexTableInfo->Schemas[ETableSchemaKind::Primary];
+    auto tableSchema = tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    ValidateIndexSchema(*tableSchema, *indexTableSchema);
+
+    NAst::TIdentifierList equivalences;
+    NAst::TIdentifierList joinColumns;
+
+    YT_ASSERT(!index.Alias);
+
+    const auto& alias = index.Alias = query.Table.Alias;
+
+    for (const auto& column : tableSchema->Columns()) {
+        auto* reflection = indexTableSchema->FindColumn(column.Name());
+        if (!reflection) {
+            YT_VERIFY(!column.SortOrder());
+            continue;
+        }
+
+        auto reference = alias
+            ? head->New<NAst::TReferenceExpression>(NQueryClient::TSourceLocation(), column.Name(), *alias)
+            : head->New<NAst::TReferenceExpression>(NQueryClient::TSourceLocation(), column.Name());
+
+        if (column.SortOrder()) {
+            joinColumns.push_back(std::move(reference));
+        } else {
+            equivalences.push_back(std::move(reference));
+        }
+    }
+
+    std::swap(query.Table, index);
+    query.Joins.emplace(
+        query.Joins.begin(),
+        /*isLeft*/ false,
+        std::move(index),
+        std::move(joinColumns),
+        /*predicate*/ std::nullopt);
+
+    query.Joins.front().Equivalences = std::move(equivalences);
+}
+
+std::vector<TTableMountInfoPtr> GetQueryTableInfos(
+    NAst::TQuery* query,
+    const TStickyTableMountInfoCachePtr& cache)
+{
+    std::vector<TYPath> paths{query->Table.Path};
+    for (const auto& join : query->Joins) {
+        paths.push_back(join.Table.Path);
+    }
+
+    std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
+    for (const auto& path : paths) {
+        asyncTableInfos.push_back(cache->GetTableInfo(path));
+    }
+
+    return WaitFor(AllSucceeded(asyncTableInfos))
+        .ValueOrThrow();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +390,7 @@ class TQueryPreparer
 {
 public:
     TQueryPreparer(
-        NTabletClient::ITableMountCachePtr tableMountCache,
+        const TStickyTableMountInfoCachePtr& tableMountCache,
         IInvokerPtr invoker,
         TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr,
         TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {})
@@ -307,7 +409,7 @@ public:
     }
 
 private:
-    const NTabletClient::ITableMountCachePtr TableMountCache_;
+    const TStickyTableMountInfoCachePtr& TableMountCache_;
     const IInvokerPtr Invoker_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
     const TSelectRowsOptions::TExpectedTableSchemas ExpectedTableSchemas_;
@@ -360,6 +462,7 @@ private:
         return TDataSplit{
             .ObjectId = tableInfo->TableId,
             .TableSchema = GetTableSchema(path, tableInfo),
+            .MountRevision = tableInfo->PrimaryRevision,
         };
     }
 };
@@ -1293,7 +1396,12 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto parsedQuery = ParseSource(queryString, EParseMode::Query, options.PlaceholderValues);
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
-    auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(options, astQuery);
+    auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
+    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
+
+    auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(
+        options,
+        GetQueryTableInfos(astQuery, cache));
     if (!tableInfos.empty()) {
         std::vector<TYPath> paths;
         for (const auto& tableInfo : tableInfos) {
@@ -1380,9 +1488,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    const auto& tableMountCache = Connection_->GetTableMountCache();
     auto queryPreparer = New<TQueryPreparer>(
-        tableMountCache,
+        cache,
         Connection_->GetInvoker(),
         options.DetailedProfilingInfo,
         options.ExpectedTableSchemas);
@@ -1458,7 +1565,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     if (options.DetailedProfilingInfo) {
         const auto& path = astQuery->Table.Path;
         timer.Restart();
-        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+        auto tableInfo = WaitFor(cache->GetTableInfo(path))
             .ValueOrThrow();
         auto mountCacheWaitTime = timer.GetElapsedTime();
         if (tableInfo->EnableDetailedProfiling) {
@@ -1529,6 +1636,9 @@ NYson::TYsonString TClient::DoExplainQuery(
 {
     auto parsedQuery = ParseSource(queryString, EParseMode::Query);
 
+    auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
+    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
+
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
         : GetNativeConnection()->GetConfig()->UdfRegistryPath;
@@ -1551,9 +1661,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    auto queryPreparer = New<TQueryPreparer>(
-        GetNativeConnection()->GetTableMountCache(),
-        GetNativeConnection()->GetInvoker());
+    auto queryPreparer = New<TQueryPreparer>(cache, GetNativeConnection()->GetInvoker());
 
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),

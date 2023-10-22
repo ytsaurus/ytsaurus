@@ -149,6 +149,7 @@ TEST_F(TAstFormatTest, Query)
     TestQuery("a, b from t");
     TestQuery("t.a, t.b from t");
     TestQuery("* from t where key > 0");
+    TestQuery("* from t with index table_index");
     TestQuery("* from t order by key");
     TestQuery("* from t order by key asc");
     TestQuery("* from t order by key desc");
