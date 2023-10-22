@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(0.12.0)
+VERSION(0.12.1)
 
 LICENSE(BSD-3-Clause)
 
@@ -17,6 +17,7 @@ RESOURCE_FILES(
     PREFIX contrib/python/cycler/py3/
     .dist-info/METADATA
     .dist-info/top_level.txt
+    cycler/py.typed
 )
 
 END()
