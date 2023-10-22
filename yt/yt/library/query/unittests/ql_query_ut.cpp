@@ -23,6 +23,7 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -1682,6 +1683,113 @@ protected:
         } else {
             return prepareAndExecute();
         }
+    }
+
+    TQueryStatistics EvaluateCoordinatedGroupBy(
+        const TString& query,
+        const TDataSplit& dataSplit,
+        const std::vector<std::vector<TString>>& owningSources,
+        const TResultMatcher& resultMatcher)
+    {
+        auto primaryQuery = Prepare(query, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {});
+        YT_VERIFY(primaryQuery->GroupClause);
+
+        int tablets = owningSources.size();
+
+        std::vector<TRefiner> refiners(
+            tablets,
+            [] (TConstExpressionPtr expr, const TKeyColumns& /*keyColumns*/) {
+                return expr;
+            });
+
+        TConstFrontQueryPtr frontQuery;
+        std::vector<TConstQueryPtr> subqueries;
+        std::tie(frontQuery, subqueries) = CoordinateQuery(primaryQuery, refiners);
+
+        std::vector<std::vector<TOwningRow>> owningSourceRows(tablets);
+        std::vector<std::vector<TRow>> sourceRows(tablets);
+        for (int index = 0; index < tablets; ++index) {
+            for (const auto& row : owningSources[index]) {
+                owningSourceRows[index].push_back(
+                    NTableClient::YsonToSchemafulRow(row, *subqueries[index]->GetReadSchema(), true));
+                sourceRows[index].push_back(TRow(owningSourceRows[index].back()));
+            }
+        }
+
+        int tabletIndex = 0;
+        std::vector<int> tabletReadProgress(tablets, 0);
+        std::vector<TQueryStatistics> resultStatistics(tablets);
+        auto getNextReader = [&] () -> ISchemafulUnversionedReaderPtr {
+            int index = tabletIndex++;
+            if (index == tablets) {
+                return nullptr;
+            }
+
+            auto readRows = [&] (const TRowBatchReadOptions& options) {
+                // Reset memory to test correct capturing of data.
+                auto& readSoFar = tabletReadProgress[index];
+                for (int rowIndex = 0; rowIndex < readSoFar; ++rowIndex) {
+                    owningSourceRows[index][rowIndex] = TOwningRow();
+                }
+
+                auto size = std::min<i64>(options.MaxRowsPerRead, sourceRows[index].size() - readSoFar);
+                std::vector<TRow> rows(
+                    sourceRows[index].begin() + readSoFar,
+                    sourceRows[index].begin() + readSoFar + size);
+
+                readSoFar += size;
+
+                return rows.empty()
+                    ? nullptr
+                    : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows)));
+            };
+
+            auto readerMock = New<NiceMock<TReaderMock>>();
+            EXPECT_CALL(*readerMock, Read(_))
+                .WillRepeatedly(Invoke(readRows));
+            ON_CALL(*readerMock, GetReadyEvent())
+                .WillByDefault(Return(VoidFuture));
+
+            auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
+            resultStatistics[index] = Evaluator_->Run(
+                subqueries[index],
+                readerMock,
+                pipe->GetWriter(),
+                /*joinProfiler*/ nullptr,
+                FunctionProfilers_,
+                AggregateProfilers_,
+                GetDefaultMemoryChunkProvider(),
+                TQueryBaseOptions());
+
+            return pipe->GetReader();
+        };
+
+        auto frontReader = CreateUnorderedSchemafulReader(getNextReader, 2);
+
+        IUnversionedRowsetWriterPtr writer;
+        TFuture<IUnversionedRowsetPtr> asyncResultRowset;
+        std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(frontQuery->GetTableSchema());
+
+        auto frontStatistics = Evaluator_->Run(
+            frontQuery,
+            frontReader,
+            writer,
+            /*joinProfiler*/ nullptr,
+            FunctionProfilers_,
+            AggregateProfilers_,
+            GetDefaultMemoryChunkProvider(),
+            TQueryBaseOptions());
+
+        resultMatcher(WaitFor(asyncResultRowset).ValueOrThrow()->GetRows(), *frontQuery->GetTableSchema());
+
+        if (IsTimeDumpEnabled()) {
+            DumpTime(frontStatistics);
+        }
+        for (auto& stat : resultStatistics) {
+            frontStatistics.AddInnerStatistics(std::move(stat));
+        }
+
+        return frontStatistics;
     }
 
     const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());
@@ -6553,6 +6661,98 @@ TEST_F(TQueryEvaluateTest, ListExprToAny)
     Evaluate("to_any(a) as b FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
         {"b", ESimpleLogicalValueType::Any}
     })));
+}
+
+TEST_F(TQueryEvaluateTest, CoordinatedMaxGroupBy)
+{
+    auto split = MakeSplit({
+        {"id", EValueType::Int64, ESortOrder::Ascending},
+        {"revision", EValueType::Int64},
+        {"person", EValueType::String},
+    });
+    std::vector<std::vector<TString>> source = {
+        {
+            "id=1; revision=2; person=\"britney\"",
+            "id=2; revision=3; person=\"camilla\"",
+            "id=3; revision=2; person=\"frida\"",
+            "id=4; revision=3; person=\"evelyn\"",
+        },
+        {
+            "id=5; revision=1; person=\"agnes\"",
+            "id=6; revision=2; person=\"evelyn\"",
+            "id=7; revision=1; person=\"daisy\"",
+            "id=8; revision=2; person=\"camilla\"",
+        },
+        {
+            "id=9; revision=1; person=\"daisy\"",
+            "id=10; revision=3; person=\"camilla\"",
+            "id=11; revision=1; person=\"frida\"",
+            "id=12; revision=3; person=\"britney\"",
+        },
+    };
+
+    auto resultSplit = MakeSplit({
+        {"revision", EValueType::Int64},
+        {"max_person", EValueType::String},
+    });
+
+    auto result = YsonToRows({
+        "max_person=\"frida\"",
+        "revision=1;max_person=\"frida\"",
+        "revision=2;max_person=\"frida\"",
+        "revision=3;max_person=\"evelyn\"",
+    }, resultSplit);
+
+    EvaluateCoordinatedGroupBy(
+        "revision, max(person) as max_person FROM [//t] "
+        "group by revision with totals order by revision limit 100",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, CoordinatedArgMaxGroupBy)
+{
+    auto split = MakeSplit({
+        {"id", EValueType::Int64, ESortOrder::Ascending},
+        {"revision", EValueType::Int64},
+        {"person", EValueType::String},
+        {"date", EValueType::Int64},
+    });
+    std::vector<std::vector<TString>> source = {
+        {
+            "id=1; revision=1; person=\"daisy\"; date=4",
+            "id=2; revision=2; person=\"britney\"; date=2",
+        },
+        {
+            "id=3; revision=1; person=\"agnes\"; date=3",
+            "id=4; revision=1; person=\"evelyn\"; date=5",
+        },
+        {
+            "id=5; revision=2; person=\"daisy\"; date=1",
+            "id=6; revision=2; person=\"agnes\"; date=6",
+        },
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"revision", EValueType::Int64},
+            {"argmax_person", EValueType::String},
+        });
+
+        auto result = YsonToRows({
+            "argmax_person=\"agnes\"",
+            "revision=1;argmax_person=\"evelyn\"",
+            "revision=2;argmax_person=\"agnes\"",
+        }, resultSplit);
+
+        EvaluateCoordinatedGroupBy(
+            "revision, argmax(person, date) as argmax_person FROM [//t] "
+            "group by revision with totals order by revision limit 100",
+            split,
+            source,
+            ResultMatcher(result));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

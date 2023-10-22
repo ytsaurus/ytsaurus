@@ -601,7 +601,7 @@ public:
             this_ = MakeStrong(this),
             argumentType,
             name
-        ] (TCGBaseContext& builder, Value* /*buffer*/, TCGValue dstAggState, TCGValue aggState) {
+        ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue dstAggState) {
             return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
                 dstAggState.GetIsNull(builder),
@@ -612,11 +612,11 @@ public:
                     return CodegenIf<TCGBaseContext, TCGValue>(
                         builder,
                         aggState.GetIsNull(builder),
-                        [&] (TCGBaseContext& /*builder*/) {
-                            return dstAggState;
+                        [&] (TCGBaseContext& builder) {
+                            return this_->InitializeAggregateValue(builder, buffer, dstAggState, argumentType);
                         },
                         [&] (TCGBaseContext& builder) {
-                            return this_->MergeTwoAggStates(builder, dstAggState, aggState, argumentType);
+                            return this_->UpdateAggregateValue(builder, buffer, aggState, dstAggState, argumentType);
                         });
                 });
         };
@@ -741,67 +741,6 @@ public:
             argumentType);
     }
 
-    TCGValue MergeTwoAggStates(
-        TCGBaseContext& builder,
-        TCGValue dstAggState,
-        TCGValue aggState,
-        EValueType argumentType) const
-    {
-        Value* data = aggState.GetTypedData(builder);
-        Value* dstData = dstAggState.GetTypedData(builder);
-        Value* length = aggState.GetLength();
-        Value* dstLength = dstAggState.GetLength();
-
-        if (Function_ == "sum") {
-            switch (argumentType) {
-                case EValueType::Int64:
-                case EValueType::Uint64:
-                    data = builder->CreateAdd(data, dstData);
-                    break;
-                case EValueType::Double:
-                    data = builder->CreateFAdd(data, dstData);
-                    break;
-                default:
-                    YT_UNIMPLEMENTED();
-            }
-        } else if (Function_ == "min" || Function_ == "max") {
-            Value* compareResult;
-            if (Function_ == "min") {
-                compareResult = CodegenCompare(
-                    builder,
-                    argumentType,
-                    data,
-                    dstData,
-                    length,
-                    dstLength);
-            } else {
-                compareResult = CodegenCompare(
-                    builder,
-                    argumentType,
-                    dstData,
-                    data,
-                    dstLength,
-                    length);
-            }
-
-            data = builder->CreateSelect(compareResult, data, dstData);
-            if (argumentType == EValueType::String) {
-                length = builder->CreateSelect(compareResult, length, dstLength);
-            }
-        } else {
-            YT_UNIMPLEMENTED();
-        }
-
-        return TCGValue::Create(
-            builder,
-            builder->getFalse(),
-            nullptr,
-            length,
-            data,
-            argumentType
-        );
-    }
-
 private:
     const TString Function_;
 };
@@ -868,7 +807,7 @@ public:
             this_ = MakeStrong(this),
             argumentTypes,
             name
-        ] (TCGBaseContext& builder, Value* /*buffer*/, TCGValue dstAggState, TCGValue aggState) {
+        ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue dstAggState) {
             return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
                 dstAggState.GetIsNull(builder),
@@ -879,11 +818,18 @@ public:
                     return CodegenIf<TCGBaseContext, TCGValue>(
                         builder,
                         aggState.GetIsNull(builder),
-                        [&] (TCGBaseContext& /*builder*/) {
-                            return dstAggState;
+                        [&] (TCGBaseContext& builder) {
+                            return PackValues(
+                                builder,
+                                buffer,
+                                UnpackValues(
+                                    builder,
+                                    dstAggState,
+                                    argumentTypes),
+                                argumentTypes);
                         },
                         [&] (TCGBaseContext& builder) {
-                            return this_->MergeTwoAggStates(builder, dstAggState, aggState, argumentTypes);
+                            return this_->MergeTwoAggStates(builder, buffer, aggState, dstAggState, argumentTypes);
                         });
                 });
         };
@@ -985,8 +931,9 @@ public:
 
     TCGValue MergeTwoAggStates(
         TCGBaseContext& builder,
-        TCGValue dstAggState,
+        Value* buffer,
         TCGValue aggState,
+        TCGValue dstAggState,
         const std::vector<EValueType>& argumentTypes) const
     {
         if (Function_ == "argmin" || Function_ == "argmax") {
@@ -1012,7 +959,7 @@ public:
                     return aggState;
                 },
                 [&] (TCGBaseContext& /*builder*/) {
-                    return dstAggState;
+                    return PackValues(builder, buffer, dstDataUnpacked, argumentTypes);
                 }
             );
         } else {
