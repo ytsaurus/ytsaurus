@@ -250,7 +250,7 @@ join-predicate
         {
             $$ = $predicate;
         }
-    |
+    | { }
 ;
 
 join-clause
@@ -644,7 +644,7 @@ transform-default-expr
         {
             $$ = $expr;
         }
-    |
+    | { }
 ;
 
 literal-value
