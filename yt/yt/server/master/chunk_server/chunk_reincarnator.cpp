@@ -573,7 +573,6 @@ public:
             bootstrap,
             EAutomatonThreadQueue::ChunkReincarnator)
         , ChunkScanner_(
-            bootstrap->GetObjectManager(),
             EChunkScanKind::Reincarnation,
             /*journal*/ false)
         , TransactionRotator_(bootstrap, "Chunk reincarnator transaction")
@@ -1475,7 +1474,7 @@ private:
             // To prevent uncontrolled |ScheduledJobs_|'s growth.
             ssize(chunksToReincarnate) + ssize(exportedChunks) + ssize(ScheduledJobs_) < 2 * config->MaxRunningJobCount)
         {
-            auto [chunk, errorCount] = ChunkScanner_.DequeueChunk();
+            auto* chunk = ChunkScanner_.DequeueChunk();
 
             if (!IsObjectAlive(chunk)) {
                 continue;

@@ -196,9 +196,12 @@ private:
 
     std::array<TJobEpoch, ChunkShardCount> JobEpochs_;
 
+    // Sequoia chunk refresh needs to track error count.
+    using TChunkRefreshScanner = TChunkScannerWithPayload<int>;
+
     NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
-    const std::unique_ptr<TChunkScanner> BlobRefreshScanner_;
-    const std::unique_ptr<TChunkScanner> JournalRefreshScanner_;
+    const std::unique_ptr<TChunkRefreshScanner> BlobRefreshScanner_;
+    const std::unique_ptr<TChunkRefreshScanner> JournalRefreshScanner_;
 
     NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRequisitionUpdateScanner_;
@@ -385,7 +388,7 @@ private:
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const;
 
-    const std::unique_ptr<TChunkScanner>& GetChunkRefreshScanner(TChunk* chunk) const;
+    const std::unique_ptr<TChunkRefreshScanner>& GetChunkRefreshScanner(TChunk* chunk) const;
     const std::unique_ptr<TChunkScanner>& GetChunkRequisitionUpdateScanner(TChunk* chunk) const;
 
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);

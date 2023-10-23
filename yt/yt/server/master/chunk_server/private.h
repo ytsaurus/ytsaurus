@@ -34,7 +34,9 @@ DECLARE_REFCOUNTED_STRUCT(IDataNodeTrackerInternal)
 
 DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 
-class TChunkScanner;
+template <class TPayload>
+class TChunkScannerWithPayload;
+using TChunkScanner = TChunkScannerWithPayload<void>;
 
 DEFINE_ENUM(EAddReplicaReason,
     (IncrementalHeartbeat)

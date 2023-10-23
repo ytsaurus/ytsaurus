@@ -149,7 +149,6 @@ public:
         , SuccessfulSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/successful_seals"))
         , UnsuccessfuleSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/unsuccessful_seals"))
         , SealScanner_(std::make_unique<TChunkScanner>(
-            Bootstrap_->GetObjectManager(),
             EChunkScanKind::Seal,
             /*isJournal*/ true))
     {
@@ -464,7 +463,7 @@ private:
             }
 
             ++totalCount;
-            auto [chunk, errorCount] = SealScanner_->DequeueChunk();
+            auto* chunk = SealScanner_->DequeueChunk();
             if (!chunk) {
                 continue;
             }

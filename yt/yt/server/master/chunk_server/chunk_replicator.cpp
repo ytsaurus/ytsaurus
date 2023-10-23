@@ -339,20 +339,16 @@ TChunkReplicator::TChunkReplicator(
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(std::move(chunkPlacement))
     , JobRegistry_(std::move(jobRegistry))
-    , BlobRefreshScanner_(std::make_unique<TChunkScanner>(
-        Bootstrap_->GetObjectManager(),
+    , BlobRefreshScanner_(std::make_unique<TChunkRefreshScanner>(
         EChunkScanKind::Refresh,
         /*journal*/ false))
-    , JournalRefreshScanner_(std::make_unique<TChunkScanner>(
-        Bootstrap_->GetObjectManager(),
+    , JournalRefreshScanner_(std::make_unique<TChunkRefreshScanner>(
         EChunkScanKind::Refresh,
         /*journal*/ true))
     , BlobRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
-        Bootstrap_->GetObjectManager(),
         EChunkScanKind::RequisitionUpdate,
         /*journal*/ false))
     , JournalRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
-        Bootstrap_->GetObjectManager(),
         EChunkScanKind::RequisitionUpdate,
         /*journal*/ true))
     , MissingPartChunkRepairQueueBalancer_(
@@ -2552,7 +2548,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
         return;
     }
 
-    GetChunkRefreshScanner(chunk)->EnqueueChunk(chunk);
+    GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0});
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
@@ -2632,7 +2628,7 @@ void TChunkReplicator::OnRefresh()
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto doRefreshChunks = [&] (
-        const std::unique_ptr<TChunkScanner>& scanner,
+        const std::unique_ptr<TChunkRefreshScanner>& scanner,
         int* const totalCount,
         int* const aliveCount,
         int* const replicasErrorCount,
@@ -2666,7 +2662,7 @@ void TChunkReplicator::OnRefresh()
                         refreshErrorCount,
                         replicasOrError);
                 }
-                scanner->EnqueueChunk(chunk.Get(), refreshErrorCount);
+                scanner->EnqueueChunk({chunk.Get(), refreshErrorCount});
                 ++(*replicasErrorCount);
                 continue;
             }
@@ -3144,7 +3140,7 @@ void TChunkReplicator::OnRequisitionUpdate()
             }
 
             ++(*totalCount);
-            auto [chunk, errorCount] = scanner->DequeueChunk();
+            auto* chunk = scanner->DequeueChunk();
             if (!IsObjectAlive(chunk)) {
                 continue;
             }
@@ -3475,7 +3471,7 @@ void TChunkReplicator::FlushEndorsementQueue()
         }).AsyncVia(invoker));
 }
 
-const std::unique_ptr<TChunkScanner>& TChunkReplicator::GetChunkRefreshScanner(TChunk* chunk) const
+const std::unique_ptr<TChunkReplicator::TChunkRefreshScanner>& TChunkReplicator::GetChunkRefreshScanner(TChunk* chunk) const
 {
     return chunk->IsJournal() ? JournalRefreshScanner_ : BlobRefreshScanner_;
 }

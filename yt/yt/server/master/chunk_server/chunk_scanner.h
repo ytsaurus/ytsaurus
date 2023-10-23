@@ -35,9 +35,7 @@ namespace NYT::NChunkServer {
 class TGlobalChunkScanner
 {
 public:
-    TGlobalChunkScanner(
-        NObjectServer::IObjectManagerPtr objectManager,
-        bool journal);
+    explicit TGlobalChunkScanner(bool journal);
 
     //! Starts scan of one of the shards.
     //! Schedules #descriptor->chunkCount chunks starting from
@@ -73,12 +71,10 @@ protected:
     std::bitset<ChunkShardCount> ActiveShardIndices_;
 
     TGlobalChunkScanner(
-        NObjectServer::IObjectManagerPtr objectManager,
         bool journal,
         NLogging::TLogger logger);
 
 private:
-    const NObjectServer::IObjectManagerPtr ObjectManager_;
     const bool Journal_;
     const NLogging::TLogger Logger;
 
@@ -95,10 +91,34 @@ private:
     void RecomputeActiveGlobalChunkScanIndex();
 };
 
+namespace NDetail {
+
+class TChunkScannerBase
+    : public TGlobalChunkScanner
+{
+public:
+    TChunkScannerBase(
+        EChunkScanKind kind,
+        bool journal);
+
+protected:
+    const EChunkScanKind Kind_;
+
+    static bool IsObjectAlive(TChunk* chunk);
+    static int GetShardIndex(TChunk* chunk);
+
+    bool GetScanFlag(TChunk* chunk) const;
+    void ClearScanFlag(TChunk* chunk);
+    void SetScanFlag(TChunk* chunk);
+    bool IsRelevant(TChunk* chunk) const;
+};
+
+} // namespace NDetail
+
 //! A helper for background chunk scan.
 /*!
- *  1. In addition to handling global chunk scan, maintains a queue of chunks to
- *  be scanned later. Supports dequeuing chunks enqueued up to a certain
+ *  1. In addition to handling global chunk scan, maintains a queue of chunks
+ *  with payload to be scanned later. Supports dequeuing chunks enqueued up to a certain
  *  deadline instant.
  *
  *  2. Provides the effective size of the queue, including manually queued chunks and
@@ -109,14 +129,25 @@ private:
  *
  *  The chunks present in the queue carry an additional ephemeral ref.
  */
-class TChunkScanner
-    : public TGlobalChunkScanner
+template <class TPayload>
+class TChunkScannerWithPayload
+    : public NDetail::TChunkScannerBase
 {
+private:
+    using TBase = NDetail::TChunkScannerBase;
+
+    constexpr static bool WithPayload = !std::is_void_v<TPayload>;
+
+    struct TChunkWithPayload
+    {
+        TChunk* Chunk = nullptr;
+        TPayload Payload = {};
+    };
+
 public:
-    TChunkScanner(
-        NObjectServer::IObjectManagerPtr objectManager,
-        EChunkScanKind kind,
-        bool journal);
+    using TQueuedChunk = std::conditional_t<WithPayload, TChunkWithPayload, TChunk*>;
+
+    using TBase::TChunkScannerBase::TChunkScannerBase;
 
     void Stop(int shardIndex);
 
@@ -129,7 +160,7 @@ public:
      *
      *  Otherwise, sets the scan flag, ephemeral-refs the chunk, and enqueues it.
      */
-    bool EnqueueChunk(TChunk* chunk, int errorCount = 0);
+    bool EnqueueChunk(TQueuedChunk chunk);
 
     //! Tries to dequeue the next chunk.
     /*!
@@ -140,7 +171,7 @@ public:
      *
      *  See #TGlobalChunkScanner::DequeueChunk().
      */
-    std::pair<TChunk*, int> DequeueChunk();
+    TQueuedChunk DequeueChunk();
 
     //! Returns |true| if there are some unscanned chunks, either scheduled for the global scan
     //! or added manually at #deadline or earlier.
@@ -152,17 +183,33 @@ public:
     int GetQueueSize() const;
 
 private:
-    const EChunkScanKind Kind_;
+    struct TQueueEntryWithPayload
+    {
+        NObjectServer::TEphemeralObjectPtr<TChunk> Chunk;
+        TPayload Payload;
+        NProfiling::TCpuInstant Instant;
+    };
 
-    struct TQueueEntry
+    struct TQueueEntryWithoutPayload
     {
         NObjectServer::TEphemeralObjectPtr<TChunk> Chunk;
         NProfiling::TCpuInstant Instant;
-        int ErrorCount = 0;
     };
+
+    using TQueueEntry = std::conditional_t<WithPayload, TQueueEntryWithPayload, TQueueEntryWithoutPayload>;
+
     std::queue<TQueueEntry> Queue_;
+
+    constexpr static TQueuedChunk None() noexcept;
+    constexpr static TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
+
+    constexpr static TChunk* GetChunk(const TQueuedChunk& chunk) noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
+
+#define CHUNK_SCANNER_INL_H_
+#include "chunk_scanner-inl.h"
+#undef  CHUNK_SCANNER_INL_H_
