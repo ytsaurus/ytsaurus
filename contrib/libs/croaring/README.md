@@ -7,7 +7,7 @@
 
 
 
-Portable Roaring bitmaps in C (and C++) with full support for your favorite compiler (GNU GCC, LLVM's clang, Visual Studio). Included in the [Awesome C](https://github.com/kozross/awesome-c) list of open source C software.
+Portable Roaring bitmaps in C (and C++) with full support for your favorite compiler (GNU GCC, LLVM's clang, Visual Studio, Apple Xcode, Intel oneAPI). Included in the [Awesome C](https://github.com/kozross/awesome-c) list of open source C software.
 
 # Introduction
 
@@ -16,7 +16,7 @@ Bitsets, also called bitmaps, are commonly used as fast data structures. Unfortu
 
 Roaring bitmaps are compressed bitmaps which tend to outperform conventional compressed bitmaps such as WAH, EWAH or Concise.
 They are used by several major systems such as [Apache Lucene][lucene] and derivative systems such as [Solr][solr] and
-[Elasticsearch][elasticsearch], [Metamarkets' Druid][druid], [LinkedIn Pinot][pinot], [Netflix Atlas][atlas],  [Apache Spark][spark], [OpenSearchServer][opensearchserver], [Cloud Torrent][cloudtorrent], [Whoosh][whoosh], [InfluxDB](https://www.influxdata.com), [Pilosa][pilosa], [Bleve](http://www.blevesearch.com), [Microsoft Visual Studio Team Services (VSTS)][vsts], and eBay's [Apache Kylin][kylin]. The CRoaring library is used in several systems such as [Apache Doris](http://doris.incubator.apache.org), [StarRocks](https://github.com/StarRocks/starrocks). The YouTube SQL Engine, [Google Procella](https://research.google/pubs/pub48388/), uses Roaring bitmaps for indexing.
+[Elasticsearch][elasticsearch], [Metamarkets' Druid][druid], [LinkedIn Pinot][pinot], [Netflix Atlas][atlas], [Apache Spark][spark], [OpenSearchServer][opensearchserver], [Cloud Torrent][cloudtorrent], [Whoosh][whoosh], [InfluxDB](https://www.influxdata.com), [Pilosa][pilosa], [Bleve](http://www.blevesearch.com), [Microsoft Visual Studio Team Services (VSTS)][vsts], and eBay's [Apache Kylin][kylin]. The CRoaring library is used in several systems such as [Apache Doris](http://doris.incubator.apache.org), [ClickHouse](https://github.com/ClickHouse/ClickHouse), and [StarRocks](https://github.com/StarRocks/starrocks). The YouTube SQL Engine, [Google Procella](https://research.google/pubs/pub48388/), uses Roaring bitmaps for indexing.
 
 We published a peer-reviewed article on the design and evaluation of this library:
 
@@ -66,6 +66,83 @@ We support big-endian systems such as IBM s390x through emulators---except for
 IO serialization which is only supported on little-endian systems (see [issue 423](https://github.com/RoaringBitmap/CRoaring/issues/423)).
 
 
+# Quick Start
+
+The CRoaring library can be amalgamated into a single source file that makes it easier
+for integration into other projects. Moreover, by making it possible to compile
+all the critical code into one compilation unit, it can improve the performance. For
+the rationale, please see the [SQLite documentation](https://www.sqlite.org/amalgamation.html), 
+or the corresponding [Wikipedia entry](https://en.wikipedia.org/wiki/Single_Compilation_Unit).
+Users who choose this route, do not need to rely on CRoaring's build system (based on CMake).
+
+We offer amalgamated files as part of each release.
+
+Linux or macOS users might follow the following instructions if they have a recent C or C++ compiler installed and a standard utility (`wget`).
+
+
+ 1. Pull the library in a directory
+    ```
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.2/roaring.c
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.2/roaring.h
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.2/roaring.hh
+    ```
+ 2. Create a new file named `demo.c` with this content:
+    ```C
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include "roaring.c"
+        int main() {
+        roaring_bitmap_t *r1 = roaring_bitmap_create();
+        for (uint32_t i = 100; i < 1000; i++) roaring_bitmap_add(r1, i);
+        printf("cardinality = %d\n", (int) roaring_bitmap_get_cardinality(r1));
+        roaring_bitmap_free(r1);
+
+        bitset_t *b = bitset_create();
+        for (int k = 0; k < 1000; ++k) {
+                bitset_set(b, 3 * k);
+        }
+        printf("%zu \n", bitset_count(b));
+        bitset_free(b);
+        return EXIT_SUCCESS;
+        }
+    ```
+ 2. Create a new file named `demo.cpp` with this content:
+    ```C++
+        #include <iostream>
+        #include "roaring.hh"
+        #include "roaring.c"
+        int main() {
+        roaring::Roaring r1;
+        for (uint32_t i = 100; i < 1000; i++) {
+            r1.add(i);
+        }
+        std::cout << "cardinality = " << r1.cardinality() << std::endl;
+
+        roaring::Roaring64Map r2;
+        for (uint64_t i = 18000000000000000100ull; i < 18000000000000001000ull; i++) {
+            r2.add(i);
+        }
+        std::cout << "cardinality = " << r2.cardinality() << std::endl;
+        return 0;
+        }
+    ```
+ 2. Compile
+    ```
+    cc -o demo demo.c 
+    c++ -std=c++11 -o demopp demo.cpp
+    ```
+ 3. `./demo`
+   ```
+    cardinality = 900
+    1000 
+   ```
+ 4. `./demopp`
+   ```
+    cardinality = 900
+    cardinality = 900
+   ```
+
+
 # Using as a CMake dependency
 
 If you like CMake, you can just a few lines in you `CMakeLists.txt` file to grab a `CRoaring` release. [See our demonstration for further details](https://github.com/RoaringBitmap/croaring_cmake_demo_single_file).
@@ -103,16 +180,7 @@ target_link_libraries(repro PUBLIC roaring::roaring)
 ```
 
 
-# Amalgamation/Unity Build
-
-The CRoaring library can be amalgamated into a single source file that makes it easier
-for integration into other projects. Moreover, by making it possible to compile
-all the critical code into one compilation unit, it can improve the performance. For
-the rationale, please see the SQLite documentation, https://www.sqlite.org/amalgamation.html,
-or the corresponding Wikipedia entry (https://en.wikipedia.org/wiki/Single_Compilation_Unit).
-Users who choose this route, do not need to rely on CRoaring's build system (based on CMake).
-
-We maintain pre-generated amalgamated files at https://github.com/lemire/CRoaringUnityBuild for your convenience.
+# Amalgamating
 
 To generate the amalgamated files yourself, you can invoke a bash script...
 
@@ -120,57 +188,19 @@ To generate the amalgamated files yourself, you can invoke a bash script...
 ./amalgamation.sh
 ```
 
+If you prefer a silent output, you can use the following command to redirect ``stdout`` :
+
+```bash
+./amalgamation.sh > /dev/null
+```
+
+
 (Bash shells are standard under Linux and macOS. Bash shells are available under Windows as part of the  [GitHub Desktop](https://desktop.github.com/) under the name ``Git Shell``. So if you have cloned the ``CRoaring`` GitHub repository from within the GitHub Desktop, you can right-click on ``CRoaring``, select ``Git Shell`` and then enter the above commands.)
 
 It is not necessary to invoke the script in the CRoaring directory. You can invoke
 it from any directory where you want the amalgamation files to be written.
 
 It will generate three files for C users: ``roaring.h``, ``roaring.c`` and ``amalgamation_demo.c``... as well as some brief instructions. The ``amalgamation_demo.c`` file is a short example, whereas ``roaring.h`` and ``roaring.c`` are "amalgamated" files (including all source and header files for the project). This means that you can simply copy the files ``roaring.h`` and ``roaring.c`` into your project and be ready to go! No need to produce a library! See the ``amalgamation_demo.c`` file.
-
-For example, you can use the C code as follows:
-```C++
-#include <stdio.h>
-#include "roaring.c"
-int main() {
-  roaring_bitmap_t *r1 = roaring_bitmap_create();
-  for (uint32_t i = 100; i < 1000; i++) roaring_bitmap_add(r1, i);
-  printf("cardinality = %d\n", (int) roaring_bitmap_get_cardinality(r1));
-  roaring_bitmap_free(r1);
-  return 0;
-}
-```
-
-The script will also generate C++ files for C++ users, including an example. You can use the C++ as follows.
-
-```C++
-#include <iostream>
-
-#include "roaring.hh"
-#include "roaring64map.hh"
-
-using namespace roaring;
-int main() {
-    Roaring r1;
-    for (uint32_t i = 100; i < 1000; i++) {
-        r1.add(i);
-    }
-    std::cout << "cardinality = " << r1.cardinality() << std::endl;
-
-    Roaring64Map r2;
-    for (uint64_t i = 18000000000000000100ull; i < 18000000000000001000ull;
-         i++) {
-        r2.add(i);
-    }
-    std::cout << "cardinality = " << r2.cardinality() << std::endl;
-    return EXIT_SUCCESS;
-}
-```
-
-If you prefer a silent output, you can use the following command to redirect ``stdout`` :
-
-```bash
-./amalgamation.sh > /dev/null
-```
 
 # API
 

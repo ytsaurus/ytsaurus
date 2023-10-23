@@ -198,23 +198,23 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures(void) {
   if (ebx & cpuid_avx512f_bit) {
     host_isa |= CROARING_AVX512F;
   }
-  
+
   if (ebx & cpuid_avx512bw_bit) {
     host_isa |= CROARING_AVX512BW;
   }
-  
+
   if (ebx & cpuid_avx512dq_bit) {
     host_isa |= CROARING_AVX512DQ;
   }
-  
+
   if (ecx & cpuid_avx512vbmi2_bit) {
     host_isa |= CROARING_AVX512VBMI2;
   }
-  
+
   if (ecx & cpuid_avx512bitalg_bit) {
     host_isa |= CROARING_AVX512BITALG;
   }
-  
+
   if (ecx & cpuid_avx512vpopcntdq_bit) {
     host_isa |= CROARING_AVX512VPOPCNTDQ;
   }
@@ -267,7 +267,11 @@ int croaring_hardware_support(void) {
 #elif defined(__AVX2__)
 
 int croaring_hardware_support(void) {
-  static int support = 0xFFFFFFF;
+  static
+#if CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_C
+      _Atomic
+#endif
+      int support = 0xFFFFFFF;
   if(support == 0xFFFFFFF) {
     bool avx512_support = false;
 #if CROARING_COMPILER_SUPPORTS_AVX512
@@ -281,7 +285,11 @@ int croaring_hardware_support(void) {
 #else
 
 int croaring_hardware_support(void) {
-  static int support = 0xFFFFFFF;
+  static
+#if CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_C
+      _Atomic
+#endif
+      int support = 0xFFFFFFF;
   if(support == 0xFFFFFFF) {
     bool has_avx2 = (croaring_detect_supported_architectures() & CROARING_AVX2) == CROARING_AVX2;
     bool has_avx512 = false;
