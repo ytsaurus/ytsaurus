@@ -1,4 +1,4 @@
-from yt.library.ytprof.proto import profile_pb2
+import yt.library.ytprof.proto.profile_pb2 as profile_pb2
 
 from yt_commands import wait
 
