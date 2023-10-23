@@ -127,6 +127,8 @@ public:
     //! once in `ceil(TrimmingPeriod / PassPeriod)` queue controller passes.
     std::optional<TDuration> TrimmingPeriod;
 
+    bool EnableQueueStaticExport;
+
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

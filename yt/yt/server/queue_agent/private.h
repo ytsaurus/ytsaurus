@@ -62,6 +62,8 @@ DECLARE_REFCOUNTED_CLASS(TQueueAgentServerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
+DECLARE_REFCOUNTED_CLASS(TQueueExporter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TAgentId = TString;
@@ -71,6 +73,7 @@ using TAgentId = TString;
 DECLARE_REFCOUNTED_STRUCT(IObjectStore)
 DECLARE_REFCOUNTED_STRUCT(IObjectController)
 DECLARE_REFCOUNTED_STRUCT(IQueueController)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentClientDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

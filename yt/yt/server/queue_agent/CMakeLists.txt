@@ -18,6 +18,8 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-yt-client
+  yt-client-federated
   yt-yt-ytlib
   server-lib-admin
   server-lib-cypress_election
@@ -38,4 +40,5 @@ target_sources(yt-server-queue_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_static_table_exporter.cpp
 )

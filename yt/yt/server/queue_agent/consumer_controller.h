@@ -13,9 +13,10 @@ bool UpdateConsumerController(
     IObjectControllerPtr& controller,
     bool leading,
     const NQueueClient::TConsumerTableRow& row,
+    const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
     TQueueControllerDynamicConfigPtr dynamicConfig,
-    NHiveClient::TClientDirectoryPtr clientDirectory,
+    TQueueAgentClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////

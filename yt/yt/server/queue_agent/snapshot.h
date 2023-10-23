@@ -14,6 +14,7 @@ struct TQueueSnapshot
     : public TRefCounted
 {
     NQueueClient::TQueueTableRow Row;
+    std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     TError Error;
 
@@ -75,6 +76,7 @@ struct TConsumerSnapshot
 {
     // This field is always set.
     NQueueClient::TConsumerTableRow Row;
+    std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     TError Error;
 
@@ -97,6 +99,10 @@ struct TSubConsumerSnapshot
     TPerformanceCounters ReadRate;
 
     TError Error;
+
+    //! Temporary information for debugging. Equal to the same value of the corresponding queue.
+    //! COMPAT(achulkov2): Remove this.
+    bool HasCumulativeDataWeightColumn = false;
 
     std::vector<TConsumerPartitionSnapshotPtr> PartitionSnapshots;
 };

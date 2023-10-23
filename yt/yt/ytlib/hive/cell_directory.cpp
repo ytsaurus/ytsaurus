@@ -524,6 +524,7 @@ public:
     void Clear() override
     {
         auto guard = WriterGuard(SpinLock_);
+        CellTagToEntry_.clear();
         CellIdToEntry_.clear();
     }
 

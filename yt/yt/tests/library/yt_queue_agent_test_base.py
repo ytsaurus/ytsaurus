@@ -357,13 +357,13 @@ class TestQueueAgentBase(YTEnvSetup):
             "schema": schema,
         }
         attributes.update(kwargs)
-        create("table", path, attributes=attributes)
+        queue_id = create("table", path, attributes=attributes)
         if partition_count != 1:
             sync_reshard_table(path, partition_count)
         if mount:
             sync_mount_table(path)
 
-        return schema
+        return schema, queue_id
 
     def _create_consumer(self, path, mount=True, **kwargs):
         attributes = {
@@ -391,7 +391,8 @@ class TestQueueAgentBase(YTEnvSetup):
             "offset": offset,
         } for partition_index, offset in partition_index_to_offset.items()])
 
-    def _flush_table(self, path, first_tablet_index=None, last_tablet_index=None):
+    @staticmethod
+    def _flush_table(path, first_tablet_index=None, last_tablet_index=None):
         sync_freeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
         sync_unfreeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
 

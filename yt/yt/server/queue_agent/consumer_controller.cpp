@@ -28,6 +28,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NApi;
 using namespace NHiveClient;
 using namespace NLogging;
 using namespace NQueueClient;
@@ -49,12 +50,14 @@ class TConsumerSnapshotBuildSession final
 public:
     TConsumerSnapshotBuildSession(
         TConsumerTableRow row,
+        std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         TConsumerSnapshotPtr previousConsumerSnapshot,
         std::vector<TConsumerRegistrationTableRow> registrations,
         TLogger logger,
-        TClientDirectoryPtr clientDirectory,
+        TQueueAgentClientDirectoryPtr clientDirectory,
         const IObjectStore* store)
         : Row_(std::move(row))
+        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
         , Registrations_(std::move(registrations))
         , Logger(logger)
@@ -67,6 +70,7 @@ public:
         ConsumerSnapshot_->PassIndex = PreviousConsumerSnapshot_->PassIndex + 1;
         ConsumerSnapshot_->PassInstant = TInstant::Now();
         ConsumerSnapshot_->Row = Row_;
+        ConsumerSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
         try {
             GuardedBuild();
@@ -81,14 +85,15 @@ public:
 
 private:
     const TConsumerTableRow Row_;
+    const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
     const TConsumerSnapshotPtr PreviousConsumerSnapshot_;
     const std::vector<TConsumerRegistrationTableRow> Registrations_;
     const TLogger Logger;
     // TODO(max42): mark TClientDirectory::GetClientOrThrow as const.
-    TClientDirectoryPtr ClientDirectory_;
+    TQueueAgentClientDirectoryPtr ClientDirectory_;
     const IObjectStore* Graph_;
 
-    NApi::IClientPtr Client_;
+    IClientPtr Client_;
     IConsumerClientPtr ConsumerClient_;
 
     TConsumerSnapshotPtr ConsumerSnapshot_ = New<TConsumerSnapshot>();
@@ -112,10 +117,18 @@ private:
             THROW_ERROR_EXCEPTION("Consumer schema is not known yet");
         }
 
+        if (IsReplicatedTableObjectType(Row_.ObjectType) && !ReplicatedTableMappingRow_) {
+            THROW_ERROR_EXCEPTION("No replicated table mapping row is known for replicated consumer");
+        }
+        if (ReplicatedTableMappingRow_) {
+            ReplicatedTableMappingRow_->Validate();
+        }
+
         auto consumerRef = ConsumerSnapshot_->Row.Ref;
 
-        Client_ = ClientDirectory_->GetClientOrThrow(consumerRef.Cluster);
-        ConsumerClient_ = CreateConsumerClient(consumerRef.Path, *ConsumerSnapshot_->Row.Schema);
+        auto clientContext = ClientDirectory_->GetDataReadContext(ConsumerSnapshot_, /*onlyDataReplicas*/ true);
+        Client_ = clientContext.Client;
+        ConsumerClient_ = CreateConsumerClient(clientContext.Path, *ConsumerSnapshot_->Row.Schema);
 
         THashMap<TCrossClusterReference, TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
         for (const auto& registration : Registrations_) {
@@ -176,6 +189,8 @@ private:
             subSnapshot->Error = queueSnapshot->Error;
             return subSnapshot;
         }
+
+        subSnapshot->HasCumulativeDataWeightColumn = queueSnapshot->HasCumulativeDataWeightColumn;
 
         // Assume partition count to be the same as the partition count in the current queue snapshot.
         auto partitionCount = queueSnapshot->PartitionCount;
@@ -257,13 +272,13 @@ private:
         std::vector<TFuture<void>> futures;
 
         if (queueSnapshot->HasTimestampColumn) {
-            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectTimestamps, MakeStrong(this), Logger, queueRef, subSnapshot)
+            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectTimestamps, MakeStrong(this), Logger, queueSnapshot, subSnapshot)
                 .AsyncVia(GetCurrentInvoker())
                 .Run());
         }
 
         if (queueSnapshot->HasCumulativeDataWeightColumn) {
-            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectCumulativeDataWeights, MakeStrong(this), Logger, queueRef, queueSnapshot, subSnapshot)
+            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectCumulativeDataWeights, MakeStrong(this), Logger, queueSnapshot, subSnapshot)
                 .AsyncVia(GetCurrentInvoker())
                 .Run());
         }
@@ -284,15 +299,20 @@ private:
         return subSnapshot;
     }
 
-    void CollectTimestamps(const TLogger& logger, const TCrossClusterReference& queueRef, const TSubConsumerSnapshotPtr& subSnapshot)
+    void CollectTimestamps(
+        const TLogger& logger,
+        const TQueueSnapshotConstPtr& queueSnapshot,
+        const TSubConsumerSnapshotPtr& subSnapshot)
     {
         const auto& Logger = logger;
 
         YT_LOG_DEBUG("Collecting consumer timestamps");
 
+        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
+
         TStringBuilder queryBuilder;
         queryBuilder.AppendFormat("[$tablet_index], [$timestamp] from [%v] where ([$tablet_index], [$row_index]) in (",
-            queueRef.Path);
+            clientContext.Path);
         bool isFirstTuple = true;
 
         for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(subSnapshot->PartitionSnapshots)) {
@@ -300,7 +320,7 @@ private:
                 if (!isFirstTuple) {
                     queryBuilder.AppendString(", ");
                 }
-                queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, consumerPartitionSnapshot->NextRowIndex );
+                queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, consumerPartitionSnapshot->NextRowIndex);
                 isFirstTuple = false;
             }
         }
@@ -312,10 +332,11 @@ private:
         }
 
         // Calculate next row commit times and processing lags.
-        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
         auto query = queryBuilder.Flush();
+        TSelectRowsOptions options;
+        options.ReplicaConsistency = EReplicaConsistency::Sync;
         YT_LOG_TRACE("Executing query for next row commit times (Query: %v)", query);
-        auto result = WaitFor(client->SelectRows(query))
+        auto result = WaitFor(clientContext.Client->SelectRows(query))
             .ValueOrThrow();
 
         for (const auto& row : result.Rowset->GetRows()) {
@@ -324,8 +345,9 @@ private:
 
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];
 
-            auto commitTimestamp = FromUnversionedValue<ui64>(row[1]);
-            consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(commitTimestamp).first;
+            if (auto commitTimestamp = FromUnversionedValue<std::optional<ui64>>(row[1])) {
+                consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(*commitTimestamp).first;
+            }
         }
 
         YT_LOG_DEBUG("Consumer timestamps collected");
@@ -333,7 +355,6 @@ private:
 
     void CollectCumulativeDataWeights(
         const TLogger& logger,
-        const TCrossClusterReference& queueRef,
         const TQueueSnapshotConstPtr& queueSnapshot,
         const TSubConsumerSnapshotPtr& subSnapshot)
     {
@@ -354,8 +375,8 @@ private:
             }
         }
 
-        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-        auto result = NQueueAgent::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
+        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
+        auto result = NQueueAgent::CollectCumulativeDataWeights(clientContext.Path, clientContext.Client, tabletAndRowIndices, Logger);
 
         for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];
@@ -374,12 +395,14 @@ public:
     TConsumerController(
         bool leading,
         const TConsumerTableRow& row,
+        const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
         const IObjectStore* store,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
-        TClientDirectoryPtr clientDirectory,
+        TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
         : Leading_(leading)
         , ConsumerRow_(row)
+        , ReplicatedTableMappingRow_(replicatedTableMappingRow)
         , ConsumerRef_(row.Ref)
         , ObjectStore_(store)
         , DynamicConfig_(dynamicConfig)
@@ -399,6 +422,7 @@ public:
         // Prepare initial erroneous snapshot.
         auto consumerSnapshot = New<TConsumerSnapshot>();
         consumerSnapshot->Row = row;
+        consumerSnapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
         consumerSnapshot->Error = TError("Consumer is not processed yet");
         ConsumerSnapshot_.Exchange(std::move(consumerSnapshot));
 
@@ -414,6 +438,13 @@ public:
         const auto& consumerRow = std::any_cast<const TConsumerTableRow&>(row);
 
         ConsumerRow_.Store(consumerRow);
+    }
+
+    void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ReplicatedTableMappingRow_.Store(row);
     }
 
     void OnDynamicConfigChanged(
@@ -450,6 +481,7 @@ public:
             .Item("pass_index").Value(consumerSnapshot->PassIndex)
             .Item("pass_instant").Value(consumerSnapshot->PassInstant)
             .Item("row").Value(consumerSnapshot->Row)
+            .Item("replicated_table_mapping_row").Value(consumerSnapshot->ReplicatedTableMappingRow)
             .Item("status").Do(std::bind(BuildConsumerStatusYson, consumerSnapshot, _1))
             .Item("partitions").Do(std::bind(BuildConsumerPartitionListYson, consumerSnapshot, _1))
         .EndMap();
@@ -463,12 +495,13 @@ public:
 private:
     bool Leading_;
     TAtomicObject<TConsumerTableRow> ConsumerRow_;
+    TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
     const TCrossClusterReference ConsumerRef_;
     const IObjectStore* ObjectStore_;
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
     TQueueControllerDynamicConfigAtomicPtr DynamicConfig_;
 
-    const TClientDirectoryPtr ClientDirectory_;
+    const TQueueAgentClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
 
     using TConsumerSnapshotAtomicPtr = TAtomicIntrusivePtr<TConsumerSnapshot>;
@@ -498,6 +531,7 @@ private:
 
         auto nextConsumerSnapshot = New<TConsumerSnapshotBuildSession>(
             ConsumerRow_.Load(),
+            ReplicatedTableMappingRow_.Load(),
             /*previousConsumerSnapshot*/ ConsumerSnapshot_.Acquire(),
             std::move(registrations),
             Logger,
@@ -524,9 +558,10 @@ bool UpdateConsumerController(
     IObjectControllerPtr& controller,
     bool leading,
     const TConsumerTableRow& row,
+    const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
     TQueueControllerDynamicConfigPtr dynamicConfig,
-    TClientDirectoryPtr clientDirectory,
+    TQueueAgentClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker)
 {
     if (controller && controller->IsLeading() == leading) {
@@ -536,6 +571,7 @@ bool UpdateConsumerController(
     controller = New<TConsumerController>(
         leading,
         row,
+        replicatedTableMappingRow,
         store,
         std::move(dynamicConfig),
         std::move(clientDirectory),

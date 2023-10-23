@@ -2,11 +2,11 @@ from yt_env_setup import (Restarter, QUEUE_AGENTS_SERVICE)
 from yt_queue_agent_test_base import (TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid)
 
-from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
+from yt_commands import (authors, get, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
-                         sync_unfreeze_table, create_table_replica, alter_table_replica)
+                         sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, read_table)
 
 from yt.common import YtError, update_inplace
 
@@ -271,7 +271,7 @@ class TestQueueController(TestQueueAgentBase):
     def test_queue_status(self):
         orchid = QueueAgentOrchid()
 
-        schema = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
+        schema, _ = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
         schema_with_cumulative_data_weight = schema + [{"name": "$cumulative_data_weight", "type": "int64"}]
         self._create_registered_consumer("//tmp/c", "//tmp/q")
 
@@ -396,6 +396,26 @@ class TestQueueController(TestQueueAgentBase):
         orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
         consumer_partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
         assert_partition(consumer_partitions[1], 2)
+
+    @authors("achulkov2")
+    def test_null_columns(self):
+        orchid = QueueAgentOrchid()
+
+        schema, _ = self._create_queue("//tmp/q", enable_timestamp_column=False, enable_cumulative_data_weight_column=False)
+        insert_rows("//tmp/q", [{"data": "foo"}] * 3)
+
+        schema += [{"name": "$timestamp", "type": "uint64"}]
+        schema += [{"name": "$cumulative_data_weight", "type": "int64"}]
+        sync_unmount_table("//tmp/q")
+        alter_table("//tmp/q", schema=schema)
+        sync_mount_table("//tmp/q")
+
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
+
+        self._wait_for_component_passes()
+
+        assert orchid.get_queue_orchid("primary://tmp/q").get_status()["partition_count"] == 1
+        assert orchid.get_consumer_orchid("primary://tmp/c").get_status()["queues"]["primary://tmp/q"]["partition_count"] == 1
 
     @authors("max42")
     def test_consumer_partition_disposition(self):
@@ -2061,6 +2081,230 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         # TODO(max42): come up with some checks here.
 
 
+class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "clusters": ["primary", "remote_0", "remote_1"],
+            "poll_replicated_objects": True,
+            "write_registration_table_mapping": True,
+        },
+        "queue_agent": {
+            "handle_replicated_objects": True,
+            "controller": {
+                "enable_automatic_trimming": True,
+            }
+        }
+    }
+
+    QUEUE_SCHEMA = [
+        {"name": "$timestamp", "type": "uint64"},
+        {"name": "data", "type": "string"},
+    ]
+
+    NUM_REMOTE_CLUSTERS = 2
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    def _create_cells(self):
+        for driver in self._get_drivers():
+            sync_create_cells(1, driver=driver)
+
+    @staticmethod
+    def _wait_for_replicated_queue_row_count(replicas, row_count, partition_index=0):
+        def ok():
+            for replica in replicas:
+                path = replica["replica_path"]
+                cluster = replica["cluster_name"]
+                replica_row_count = len(select_rows(
+                    f"* from [{path}] where [$tablet_index] = {partition_index}",
+                    driver=get_driver(cluster=cluster)))
+                if replica_row_count != row_count:
+                    print_debug(f"Expected {row_count} rows in replica {cluster}:{path}, but found {replica_row_count}")
+                    return False
+            return True
+
+        wait(ok)
+
+    @staticmethod
+    def _flush_replicated_queue(replicas):
+        for replica in replicas:
+            sync_flush_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+
+    @staticmethod
+    def _assert_queue_partition(partition, lower_row_index, upper_row_index):
+        assert partition["lower_row_index"] == lower_row_index
+        assert partition["upper_row_index"] == upper_row_index
+        assert partition["available_row_count"] == upper_row_index - lower_row_index
+
+    @staticmethod
+    def _assert_consumer_partition(partition, next_row_index, unread_row_count):
+        assert partition["next_row_index"] == next_row_index
+        assert partition["unread_row_count"] == unread_row_count
+
+    def _create_chaos_replicated_queue(self, path):
+        queue_queue_replica_path = f"{path}_queue"
+        chaos_replicated_queue_replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True,
+             "replica_path": f"{queue_queue_replica_path}"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{queue_queue_replica_path}"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{queue_queue_replica_path}"},
+        ]
+        self._create_chaos_replicated_table_base(
+            path,
+            chaos_replicated_queue_replicas,
+            self.QUEUE_SCHEMA)
+        return chaos_replicated_queue_replicas
+
+    def _create_replicated_queue(self, path):
+        queue_replica_path = f"{path}_replica"
+        replicated_queue_replicas = [
+            {"cluster_name": "primary", "mode": "async", "enabled": True,
+             "replica_path": f"{queue_replica_path}"},
+            {"cluster_name": "remote_0", "mode": "sync", "enabled": True,
+             "replica_path": f"{queue_replica_path}"},
+            {"cluster_name": "remote_1", "mode": "sync", "enabled": True,
+             "replica_path": f"{queue_replica_path}"},
+        ]
+        self._create_replicated_table_base(
+            path,
+            replicated_queue_replicas,
+            self.QUEUE_SCHEMA)
+        return replicated_queue_replicas
+
+    def _create_chaos_replicated_consumer(self, path):
+        consumer_data_replica_path = f"{path}_data"
+        consumer_queue_replica_path = f"{path}_queue"
+        chaos_replicated_consumer_replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_data_replica_path}"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_queue_replica_path}"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_data_replica_path}"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{consumer_queue_replica_path}"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True,
+             "replica_path": f"{consumer_data_replica_path}"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{consumer_queue_replica_path}"},
+        ]
+        self._create_chaos_replicated_table_base(
+            path,
+            chaos_replicated_consumer_replicas,
+            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes={"treat_as_queue_consumer": True})
+        return chaos_replicated_consumer_replicas
+
+    def _create_replicated_consumer(self, path):
+        consumer_replica_path = f"{path}_replica"
+        replicated_consumer_replicas = [
+            {"cluster_name": "primary", "mode": "sync", "enabled": True,
+             "replica_path": f"{consumer_replica_path}"},
+            {"cluster_name": "remote_0", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_replica_path}"},
+            {"cluster_name": "remote_1", "mode": "sync", "enabled": True,
+             "replica_path": f"{consumer_replica_path}"},
+        ]
+        self._create_replicated_table_base(
+            path,
+            replicated_consumer_replicas,
+            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes_patch={"treat_as_queue_consumer": True})
+        return replicated_consumer_replicas
+
+    def _create_chaos_queue_consumer_pair(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        chaos_replicated_queue = "//tmp/crq"
+        chaos_replicated_consumer = "//tmp/crc"
+
+        return (chaos_replicated_queue, self._create_chaos_replicated_queue(chaos_replicated_queue),
+                chaos_replicated_consumer, self._create_chaos_replicated_consumer(chaos_replicated_consumer))
+
+    def _create_replicated_queue_consumer_pair(self):
+        self._create_cells()
+
+        replicated_queue = "//tmp/rq"
+        replicated_consumer = "//tmp/rc"
+
+        return (replicated_queue, self._create_replicated_queue(replicated_queue),
+                replicated_consumer, self._create_replicated_consumer(replicated_consumer))
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("create_queue_consumer_pair", [
+        _create_chaos_queue_consumer_pair,
+        _create_replicated_queue_consumer_pair,
+    ])
+    def test_replicated_trim(self, create_queue_consumer_pair):
+        queue, queue_replicas, consumer, consumer_replicas = create_queue_consumer_pair(self)
+
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        # Register queues and consumers for cypress synchronizer to see them.
+        register_queue_consumer(queue, consumer, vital=True)
+
+        self._wait_for_component_passes()
+
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue}")
+        consumer_orchid = queue_agent_orchid.get_consumer_orchid(f"primary:{consumer}")
+
+        queue_orchid.wait_fresh_pass()
+        consumer_orchid.wait_fresh_pass()
+
+        queue_orchid.get_status()
+        consumer_orchid.get_status()
+
+        queue_partitions = queue_orchid.get_partitions()
+        self._assert_queue_partition(queue_partitions[0], 0, 0)
+        consumer_partitions = consumer_orchid.get_partitions()
+        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
+                                        next_row_index=0, unread_row_count=0)
+
+        insert_rows(queue, [{"data": "foo", "$tablet_index": 0}] * 3)
+
+        queue_orchid.wait_fresh_pass()
+        consumer_orchid.wait_fresh_pass()
+
+        queue_partitions = queue_orchid.get_partitions()
+        self._assert_queue_partition(queue_partitions[0], 0, 3)
+
+        consumer_partitions = consumer_orchid.get_partitions()
+        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
+                                        next_row_index=0, unread_row_count=3)
+
+        advance_consumer(consumer, queue, partition_index=0, old_offset=None, new_offset=1)
+
+        consumer_orchid.wait_fresh_pass()
+
+        consumer_partitions = consumer_orchid.get_partitions()
+        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
+                                        next_row_index=1, unread_row_count=2)
+
+        set(f"{queue}/@auto_trim_config", {"enable": True})
+        cypress_synchronizer_orchid.wait_fresh_pass()
+
+        self._flush_replicated_queue(queue_replicas)
+        insert_rows(queue, [{"data": "bar", "$tablet_index": 0}] * 2)
+
+        self._wait_for_replicated_queue_row_count(queue_replicas, 4)
+
+        queue_orchid.wait_fresh_pass()
+
+        queue_partitions = queue_orchid.get_partitions()
+        self._assert_queue_partition(queue_partitions[0], 1, 5)
+
+        consumer_partitions = consumer_orchid.get_partitions()
+        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
+                                        next_row_index=1, unread_row_count=4)
+
+        unregister_queue_consumer(queue, consumer)
+
+
 class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -2074,19 +2318,6 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     }
 
     QUEUE_SCHEMA = [{"name": "data", "type": "string"}]
-
-    @staticmethod
-    def _create_replicas(replicated_table, replicas):
-        replica_ids = []
-        for replica in replicas:
-            replica["mode"] = replica.get("mode", "async")
-            replica_id = create_table_replica(replicated_table, replica["cluster_name"], replica["replica_path"],
-                                              attributes={"mode": replica["mode"]})
-            if replica.get("enabled", False):
-                alter_table_replica(replica_id, enabled=True)
-
-            replica_ids.append(replica_id)
-        return replica_ids
 
     @staticmethod
     def _assert_internal_queues_are(expected_queues):
@@ -2240,3 +2471,236 @@ class TestDynamicConfig(TestQueueAgentBase):
         })
 
         orchid.wait_fresh_pass()
+
+
+class TestQueueStaticExportBase(TestQueueAgentBase):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_TEST_PARTITIONS = 3
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "controller": {
+                "enable_queue_static_export": True,
+            },
+        },
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "enable": True,
+        },
+    }
+
+    @staticmethod
+    def _create_export_destination(export_directory, queue_id):
+        create("map_node", export_directory, recursive=True, ignore_existing=True)
+        set(f"{export_directory}/@queue_static_export_destination", {
+            "originating_queue_id": queue_id,
+        })
+
+    @staticmethod
+    def remove_export_destination(export_directory):
+        def try_remove():
+            remove(export_directory)
+            return True
+
+        wait(try_remove, ignore_exceptions=True)
+
+    @staticmethod
+    def _check_export(export_directory, expected_data, queue_path=None):
+        export_fragments = [name for name in sorted(ls(export_directory)) if f"{export_directory}/{name}" != queue_path]
+        assert len(export_fragments) == len(expected_data)
+        export_progress = get(f"{export_directory}/@queue_static_export_progress")
+        assert export_progress["last_exported_fragment_unix_ts"] == int(export_fragments[-1].split("-")[0])
+
+        queue_id = get(f"{export_directory}/@queue_static_export_destination/originating_queue_id")
+        queue_schema_id = get(f"#{queue_id}/@schema_id")
+        queue_schema = get(f"#{queue_id}/@schema")
+        queue_native_cell_tag = get(f"#{queue_id}/@native_cell_tag")
+
+        max_timestamp = 0
+        total_row_count = 0
+
+        for fragment_index, fragment_name in enumerate(export_fragments):
+            fragment_table_path = f"{export_directory}/{fragment_name}"
+
+            if fragment_table_path == queue_path:
+                continue
+
+            fragment_unix_ts = int(fragment_name.split("-")[0])
+
+            fragment_native_cell_tag = get(f"{fragment_table_path}/@native_cell_tag")
+
+            # If both tables are on the same native cell, we use schema ids in upload.
+            if fragment_native_cell_tag == queue_native_cell_tag:
+                fragment_schema_id = get(f"{fragment_table_path}/@schema_id")
+                assert fragment_schema_id == queue_schema_id
+
+            fragment_schema = get(f"{fragment_table_path}/@schema")
+            assert fragment_schema == queue_schema
+
+            rows = list(read_table(fragment_table_path))
+            assert list(map(itemgetter("data"), rows)) == expected_data[fragment_index]
+
+            for row in rows:
+                ts = row["$timestamp"]
+                max_timestamp = max(ts, max_timestamp)
+
+                assert ts >> 30 <= fragment_unix_ts
+
+            total_row_count += len(rows)
+
+        assert max(map(itemgetter("max_timestamp"), export_progress["tablets"].values())) == max_timestamp
+        assert sum(map(itemgetter("row_count"), export_progress["tablets"].values())) == total_row_count
+
+
+class TestQueueStaticExport(TestQueueStaticExportBase):
+    @authors("cherepashka", "achulkov2")
+    @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
+    def test_multicell_export(self, queue_external_cell_tag):
+        if getattr(self, "ENABLE_TMP_PORTAL", False) and queue_external_cell_tag == 10:
+            pytest.skip()
+
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_orchid = CypressSynchronizerOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q", external_cell_tag=queue_external_cell_tag)
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
+        self._flush_table("//tmp/q")
+
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(export_dir, [["bar"] * 7])
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        # NB: No flush.
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        time.sleep(5)
+        self._check_export(export_dir, [["bar"] * 7])
+
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 2)
+        self._check_export(export_dir, [["bar"] * 7, ["foo"] * 5])
+
+        self.remove_export_destination(export_dir)
+
+    # TODO(achulkov2): Add test that replicated/chaos queues are not exported.
+
+    @authors("cherepashka", "achulkov2")
+    def test_export_order(self):
+        _, queue_id = self._create_queue("//tmp/q", partition_count=3)
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 2, "data": "third chunk"}] * 2)
+        self._flush_table("//tmp/q")
+
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second chunk"}] * 2)
+        self._flush_table("//tmp/q")
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "first chunk"}] * 2)
+        self._flush_table("//tmp/q")
+
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+
+        expected_data = [["first chunk"] * 2 + ["second chunk"] * 2 + ["third chunk"] * 2]
+        self._check_export(export_dir, expected_data)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("cherepashka", "achulkov2")
+    def test_export_to_the_same_folder(self):
+        export_dir = "//tmp/export"
+        create("map_node", export_dir)
+
+        queue_path = f"{export_dir}/q"
+        _, queue_id = self._create_queue(queue_path)
+
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table(queue_path)
+
+        set(f"{queue_path}/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
+
+        wait(lambda: len(ls(export_dir)) == 2)
+
+        self._check_export(export_dir, [["foo"] * 6], queue_path=queue_path)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("cherepashka", "achulkov2")
+    def test_wrong_originating_queue(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q")
+        _, queue_id = self._create_queue("//tmp/q1")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "some data for export"}] * 2)
+        self._flush_table("//tmp/q")
+
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 2 * 1000,
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        #  We perform exports with a period of 2 seconds, so we wait for 4.
+        time.sleep(4)
+
+        # The export directory is not configured to accept exports from //tmp/q, so none should have been performed.
+        assert len(ls(export_dir)) == 0
+
+        self.remove_export_destination(export_dir)
+
+
+class TestQueueStaticExportPortals(TestQueueStaticExport):
+    ENABLE_TMP_PORTAL = True
+
+    @authors("achulkov2")
+    def test_different_native_cells(self):
+        _, queue_id = self._create_queue("//portals/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        assert get(f"{export_dir}/@native_cell_tag") != get("//portals/q/@native_cell_tag")
+
+        insert_rows("//portals/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table("//portals/q")
+
+        set("//portals/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(export_dir, [["foo"] * 6])
+
+        self.remove_export_destination(export_dir)

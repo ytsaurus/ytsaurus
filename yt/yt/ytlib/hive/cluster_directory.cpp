@@ -174,7 +174,7 @@ bool TClusterDirectory::HasTvmId(NAuth::TTvmId tvmId) const
     return ClusterTvmIds_.find(tvmId) != ClusterTvmIds_.end();
 }
 
-TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name, INodePtr config) const
+TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name, INodePtr config)
 {
     TCluster cluster{
         .Name = name,
@@ -186,7 +186,7 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name
         if (!typedConfig->Static->ClusterName) {
             typedConfig->Static->ClusterName = name;
         }
-        cluster.Connection = NNative::CreateConnection(typedConfig, ConnectionOptions_);
+        cluster.Connection = NNative::CreateConnection(typedConfig, ConnectionOptions_, MakeStrong(this));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating connection to cluster %Qv",
             name)

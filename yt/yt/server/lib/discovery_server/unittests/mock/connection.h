@@ -87,7 +87,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
+    NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const override
     {
         YT_UNIMPLEMENTED();
     }

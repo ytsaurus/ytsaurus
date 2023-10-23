@@ -77,7 +77,7 @@ private:
     THashMap<TString, TCluster> NameToCluster_;
     THashMultiSet<NAuth::TTvmId> ClusterTvmIds_;
 
-    TCluster CreateCluster(const TString& name, NYTree::INodePtr nativeConnectionConfig) const;
+    TCluster CreateCluster(const TString& name, NYTree::INodePtr nativeConnectionConfig);
     static NApi::TClusterTag GetClusterTag(const TCluster& cluster);
 };
 

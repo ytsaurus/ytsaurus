@@ -58,11 +58,15 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
     TQueueAutoTrimConfig expectedAutoTrimConfig;
     expectedAutoTrimConfig.Enable = true;
 
+    TQueueStaticExportConfig expectedStaticExportConfig;
+    expectedStaticExportConfig.ExportPeriod = TDuration::Seconds(1);
+    expectedStaticExportConfig.ExportDirectory = "//dir";
+
     TString guidBytes = "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10";
     auto objectId = TObjectId(GuidFromBytes(guidBytes));
 
     TString ysonAttributes = "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; "
-        "auto_trim_config={enable=%true}; queue_agent_stage=fun; "
+        "auto_trim_config={enable=%true}; queue_agent_stage=fun; static_export_config={export_period=1000;export_directory=\"//dir\"};"
         + Format("id=%Qv}", objectId);
 
     CheckConversions<TQueueTableRow>(
@@ -77,6 +81,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             .Dynamic = true,
             .Sorted = false,
             .AutoTrimConfig = expectedAutoTrimConfig,
+            .StaticExportConfig = expectedStaticExportConfig,
             .QueueAgentStage = "fun",
             .ObjectId = objectId,
             .SynchronizationError = TError(),

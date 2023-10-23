@@ -1,6 +1,7 @@
 #include "profile_manager.h"
 
 #include "snapshot.h"
+#include "helpers.h"
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/solomon/sensor.h>
@@ -16,14 +17,6 @@ using namespace NQueueClient;
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional<i64> rhs)
-{
-    if (lhs && rhs) {
-        return *lhs - *rhs;
-    }
-    return {};
-}
 
 //! Helper for incrementing a counter only if delta is non-negative.
 void SafeIncrement(TCounter& counter, i64 delta)
@@ -341,9 +334,27 @@ public:
                 auto rowsConsumed = currentConsumerPartitionSnapshot->NextRowIndex - previousConsumerPartitionSnapshot->NextRowIndex;
                 SafeIncrement(profilingCounters.RowsConsumed, rowsConsumed);
 
-                SafeIncrement(profilingCounters.DataWeightConsumed, OptionalSub(
+                auto dataWeightConsumed = OptionalSub(
                     currentConsumerPartitionSnapshot->CumulativeDataWeight,
-                    previousConsumerPartitionSnapshot->CumulativeDataWeight));
+                    previousConsumerPartitionSnapshot->CumulativeDataWeight);
+                SafeIncrement(profilingCounters.DataWeightConsumed, dataWeightConsumed);
+
+                if (rowsConsumed > 0 && !dataWeightConsumed && currentSubSnapshot->HasCumulativeDataWeightColumn) {
+                    YT_LOG_DEBUG(
+                        "Consumer for queue with cumulative data weight support could not export data weight consumed "
+                        "(Queue: %v, Partition: %v, CumulativeDataWeight: %v -> %v, NextRowIndex: %v -> %v, RowsConsumed: %v, UnreadRowCount: %v -> %v, UnreadDataWeight: %v -> %v)",
+                        queueRef,
+                        partitionIndex,
+                        previousConsumerPartitionSnapshot->CumulativeDataWeight,
+                        currentConsumerPartitionSnapshot->CumulativeDataWeight,
+                        previousConsumerPartitionSnapshot->NextRowIndex,
+                        currentConsumerPartitionSnapshot->NextRowIndex,
+                        rowsConsumed,
+                        previousConsumerPartitionSnapshot->UnreadRowCount,
+                        currentConsumerPartitionSnapshot->UnreadRowCount,
+                        previousConsumerPartitionSnapshot->UnreadDataWeight,
+                        currentConsumerPartitionSnapshot->UnreadDataWeight);
+                }
 
                 profilingCounters.LagRows.Update(currentConsumerPartitionSnapshot->UnreadRowCount);
                 SafeUpdate(profilingCounters.LagDataWeight, currentConsumerPartitionSnapshot->UnreadDataWeight);
