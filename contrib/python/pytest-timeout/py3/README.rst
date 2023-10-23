@@ -2,7 +2,7 @@
 pytest-timeout
 ==============
 
-|python| |version| |anaconda| |ci|
+|python| |version| |anaconda| |ci| |pre-commit|
 
 .. |version| image:: https://img.shields.io/pypi/v/pytest-timeout.svg
   :target: https://pypi.python.org/pypi/pytest-timeout
@@ -16,13 +16,18 @@ pytest-timeout
 .. |python| image:: https://img.shields.io/pypi/pyversions/pytest-timeout.svg
   :target: https://pypi.python.org/pypi/pytest-timeout/
 
-**This is not the timeout you are looking for!**
+.. |pre-commit| image:: https://results.pre-commit.ci/badge/github/pytest-dev/pytest-timeout/master.svg
+   :target: https://results.pre-commit.ci/latest/github/pytest-dev/pytest-timeout/master
+
 
 .. warning::
 
    Please read this README carefully and only use this plugin if you
-   understand the consequences.  Remember your test suite needs to be
-   **fast**, timeouts are a last resort not an expected failure mode.
+   understand the consequences.  This plugin is designed to catch
+   excessively long test durations like deadlocked or hanging tests,
+   it is not designed for precise timings or performance regressions.
+   Remember your test suite should aim to be **fast**, with timeouts
+   being a last resort, not an expected failure mode.
 
 This plugin will time each test and terminate it when it takes too
 long.  Termination may or may not be graceful, please see below, but
@@ -236,16 +241,20 @@ check to see if the module it belongs to is present in a set of known
 debugging frameworks modules OR if pytest itself drops you into a pdb
 session using ``--pdb`` or similar.
 
+This functionality can be disabled with the ``--disable-debugger-detection`` flag
+or the corresponding ``timeout_disable_debugger_detection`` ini setting / environment
+variable.
 
-Extending pytest-timeout with plugings
-======================================
+
+Extending pytest-timeout with plugins
+=====================================
 
 ``pytest-timeout`` provides two hooks that can be used for extending the tool.  These
-hooks are used for for setting the timeout timer and cancelling it it the timeout is not
+hooks are used for setting the timeout timer and cancelling it if the timeout is not
 reached.
 
 For example, ``pytest-asyncio`` can provide asyncio-specific code that generates better
-traceback and points on timed out ``await`` instead of the running loop ieration.
+traceback and points on timed out ``await`` instead of the running loop iteration.
 
 See `pytest hooks documentation
 <https://docs.pytest.org/en/latest/how-to/writing_hook_functions.html>`_ for more info
@@ -313,6 +322,7 @@ function:
    import pytest
    import pytest_timeout
 
+
    def on_timeout():
        if pytest_timeout.is_debugging():
            return
@@ -321,6 +331,12 @@ function:
 
 Changelog
 =========
+
+2.2.0
+-----
+
+- Add ``--timeout-disable-debugger-detection`` flag, thanks
+  Michael Peters
 
 2.1.0
 -----
@@ -348,7 +364,7 @@ Changelog
   thread to avoid crash.
 - Fix pycharm debugger detection so timeouts are not triggered during
   debugger usage.
-- Dropped support for Python 2, minimum pytest version upported is 5.0.0.
+- Dropped support for Python 2, minimum pytest version supported is 5.0.0.
 
 1.4.2
 -----
@@ -383,7 +399,7 @@ Changelog
 1.3.2
 -----
 
-- This changelog was ommitted for the 1.3.2 release and was added
+- This changelog was omitted for the 1.3.2 release and was added
   afterwards.  Apologies for the confusion.
 - Fix pytest 3.7.3 compatibility.  The capture API had changed
   slightly and this needed fixing.  Thanks Bruno Oliveira for the

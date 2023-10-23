@@ -40,11 +40,17 @@ When set to True, defers the timeout evaluation to only the test
 function body, ignoring the time it takes when evaluating any fixtures
 used in the test.
 """.strip()
+DISABLE_DEBUGGER_DETECTION_DESC = """
+When specified, disables debugger detection. breakpoint(), pdb.set_trace(), etc.
+will be interrupted by the timeout.
+""".strip()
 
 # bdb covers pdb, ipdb, and possibly others
 # pydevd covers PyCharm, VSCode, and possibly others
 KNOWN_DEBUGGING_MODULES = {"pydevd", "bdb", "pydevd_frame_evaluator"}
-Settings = namedtuple("Settings", ["timeout", "method", "func_only"])
+Settings = namedtuple(
+    "Settings", ["timeout", "method", "func_only", "disable_debugger_detection"]
+)
 
 
 @pytest.hookimpl
@@ -68,9 +74,21 @@ def pytest_addoption(parser):
         choices=["signal", "thread"],
         help=METHOD_DESC,
     )
+    group.addoption(
+        "--timeout-disable-debugger-detection",
+        dest="timeout_disable_debugger_detection",
+        action="store_true",
+        help=DISABLE_DEBUGGER_DETECTION_DESC,
+    )
     parser.addini("timeout", TIMEOUT_DESC)
     parser.addini("timeout_method", METHOD_DESC)
-    parser.addini("timeout_func_only", FUNC_ONLY_DESC, type="bool")
+    parser.addini("timeout_func_only", FUNC_ONLY_DESC, type="bool", default=False)
+    parser.addini(
+        "timeout_disable_debugger_detection",
+        DISABLE_DEBUGGER_DETECTION_DESC,
+        type="bool",
+        default=False,
+    )
 
 
 class TimeoutHooks:
@@ -107,19 +125,24 @@ def pytest_configure(config):
     """Register the marker so it shows up in --markers output."""
     config.addinivalue_line(
         "markers",
-        "timeout(timeout, method=None, func_only=False): Set a timeout, timeout "
+        "timeout(timeout, method=None, func_only=False, "
+        "disable_debugger_detection=False): Set a timeout, timeout "
         "method and func_only evaluation on just one test item.  The first "
         "argument, *timeout*, is the timeout in seconds while the keyword, "
-        "*method*, takes the same values as the --timeout_method option. The "
+        "*method*, takes the same values as the --timeout-method option. The "
         "*func_only* keyword, when set to True, defers the timeout evaluation "
         "to only the test function body, ignoring the time it takes when "
-        "evaluating any fixtures used in the test.",
+        "evaluating any fixtures used in the test. The "
+        "*disable_debugger_detection* keyword, when set to True, disables "
+        "debugger detection, allowing breakpoint(), pdb.set_trace(), etc. "
+        "to be interrupted",
     )
 
     settings = get_env_settings(config)
     config._env_timeout = settings.timeout
     config._env_timeout_method = settings.method
     config._env_timeout_func_only = settings.func_only
+    config._env_timeout_disable_debugger_detection = settings.disable_debugger_detection
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -238,7 +261,7 @@ def pytest_timeout_set_timer(item, settings):
 
         def handler(signum, frame):
             __tracebackhide__ = True
-            timeout_sigalrm(item, settings.timeout)
+            timeout_sigalrm(item, settings)
 
         def cancel():
             signal.setitimer(signal.ITIMER_REAL, 0)
@@ -248,9 +271,7 @@ def pytest_timeout_set_timer(item, settings):
         signal.signal(signal.SIGALRM, handler)
         signal.setitimer(signal.ITIMER_REAL, settings.timeout)
     elif timeout_method == "thread":
-        timer = threading.Timer(
-            settings.timeout, timeout_timer, (item, settings.timeout)
-        )
+        timer = threading.Timer(settings.timeout, timeout_timer, (item, settings))
         timer.name = "%s %s" % (__name__, item.nodeid)
 
         def cancel():
@@ -299,17 +320,21 @@ def get_env_settings(config):
         method = DEFAULT_METHOD
 
     func_only = config.getini("timeout_func_only")
-    if func_only == []:
-        # No value set
-        func_only = None
-    if func_only is not None:
-        func_only = _validate_func_only(func_only, "config file")
-    return Settings(timeout, method, func_only or False)
+
+    disable_debugger_detection = config.getvalue("timeout_disable_debugger_detection")
+    if disable_debugger_detection is None:
+        ini = config.getini("timeout_disable_debugger_detection")
+        if ini:
+            disable_debugger_detection = _validate_disable_debugger_detection(
+                ini, "config file"
+            )
+
+    return Settings(timeout, method, func_only, disable_debugger_detection)
 
 
 def _get_item_settings(item, marker=None):
     """Return (timeout, method) for an item."""
-    timeout = method = func_only = None
+    timeout = method = func_only = disable_debugger_detection = None
     if not marker:
         marker = item.get_closest_marker("timeout")
     if marker is not None:
@@ -317,15 +342,18 @@ def _get_item_settings(item, marker=None):
         timeout = _validate_timeout(settings.timeout, "marker")
         method = _validate_method(settings.method, "marker")
         func_only = _validate_func_only(settings.func_only, "marker")
+        disable_debugger_detection = _validate_disable_debugger_detection(
+            settings.disable_debugger_detection, "marker"
+        )
     if timeout is None:
         timeout = item.config._env_timeout
     if method is None:
         method = item.config._env_timeout_method
     if func_only is None:
         func_only = item.config._env_timeout_func_only
-    if func_only is None:
-        func_only = False
-    return Settings(timeout, method, func_only)
+    if disable_debugger_detection is None:
+        disable_debugger_detection = item.config._env_timeout_disable_debugger_detection
+    return Settings(timeout, method, func_only, disable_debugger_detection)
 
 
 def _parse_marker(marker):
@@ -362,7 +390,7 @@ def _parse_marker(marker):
         method = None
     if func_only is NOTSET:
         func_only = None
-    return Settings(timeout, method, func_only)
+    return Settings(timeout, method, func_only, None)
 
 
 def _validate_timeout(timeout, where):
@@ -384,20 +412,31 @@ def _validate_method(method, where):
 
 def _validate_func_only(func_only, where):
     if func_only is None:
-        return False
+        return None
     if not isinstance(func_only, bool):
         raise ValueError("Invalid func_only value %s from %s" % (func_only, where))
     return func_only
 
 
-def timeout_sigalrm(item, timeout):
+def _validate_disable_debugger_detection(disable_debugger_detection, where):
+    if disable_debugger_detection is None:
+        return None
+    if not isinstance(disable_debugger_detection, bool):
+        raise ValueError(
+            "Invalid disable_debugger_detection value %s from %s"
+            % (disable_debugger_detection, where)
+        )
+    return disable_debugger_detection
+
+
+def timeout_sigalrm(item, settings):
     """Dump stack of threads and raise an exception.
 
     This will output the stacks of any threads other then the
     current to stderr and then raise an AssertionError, thus
     terminating the test.
     """
-    if is_debugging():
+    if not settings.disable_debugger_detection and is_debugging():
         return
     __tracebackhide__ = True
     nthreads = len(threading.enumerate())
@@ -406,16 +445,16 @@ def timeout_sigalrm(item, timeout):
     dump_stacks()
     if nthreads > 1:
         write_title("Timeout", sep="+")
-    pytest.fail("Timeout >%ss" % timeout)
+    pytest.fail("Timeout >%ss" % settings.timeout)
 
 
-def timeout_timer(item, timeout):
+def timeout_timer(item, settings):
     """Dump stack of threads and call os._exit().
 
     This disables the capturemanager and dumps stdout and stderr.
     Then the stacks are dumped and os._exit(1) is called.
     """
-    if is_debugging():
+    if not settings.disable_debugger_detection and is_debugging():
         return
     try:
         capman = item.config.pluginmanager.getplugin("capturemanager")
@@ -482,7 +521,7 @@ def write_title(title, stream=None, sep="~"):
 def write(text, stream=None):
     """Write text to stream.
 
-    Pretty stupid really, only here for symetry with .write_title().
+    Pretty stupid really, only here for symmetry with .write_title().
     """
     if stream is None:
         stream = sys.stderr
