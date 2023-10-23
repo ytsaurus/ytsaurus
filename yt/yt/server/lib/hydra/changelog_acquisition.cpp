@@ -28,11 +28,13 @@ public:
         TDistributedHydraManagerConfigPtr config,
         TEpochContextPtr epochContext,
         i64 changelogId,
-        std::optional<TPeerPriority> priority)
+        std::optional<TPeerPriority> priority,
+        NLogging::TLogger logger)
         : Config_(std::move(config))
         , EpochContext_(std::move(epochContext))
         , ChangelogId_(changelogId)
         , Priority_(priority)
+        , Logger(std::move(logger))
     { }
 
     TFuture<void> Run()
@@ -51,7 +53,7 @@ private:
     const TEpochContextPtr EpochContext_;
     const i64 ChangelogId_;
     const std::optional<TPeerPriority> Priority_;
-    const NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger;
 
     int SuccessCount_ = 0;
     bool LocalSucceeded_ = false;
@@ -133,14 +135,17 @@ private:
     void OnRemoteChangelogAcquired(TPeerId id, const TInternalHydraServiceProxy::TErrorOrRspAcquireChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(rspOrError, "Error acquiring changelog at follower (PeerId: %v)", id);
+            YT_LOG_INFO(rspOrError, "Error acquiring changelog at follower (PeerId: %v, ChangelogId: %v)",
+                id,
+                ChangelogId_);
             return;
         }
 
         auto voting = EpochContext_->CellManager->GetPeerConfig(id)->Voting;
-        YT_LOG_INFO("Remote changelog acquired by follower (PeerId: %v, Voting: %v)",
+        YT_LOG_INFO("Remote changelog acquired by follower (PeerId: %v, Voting: %v, ChangelogId: %v)",
             id,
-            voting);
+            voting,
+            ChangelogId_);
 
         if (voting) {
             ++SuccessCount_;
@@ -155,7 +160,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Local changelog acquired");
+        YT_LOG_INFO("Local changelog acquired (ChangelogId: %v)", ChangelogId_);
 
         ++SuccessCount_;
         LocalSucceeded_ = true;
@@ -193,13 +198,15 @@ TFuture<void> RunChangelogAcquisition(
     TDistributedHydraManagerConfigPtr config,
     TEpochContextPtr epochContext,
     int changelogId,
-    std::optional<TPeerPriority> priority)
+    std::optional<TPeerPriority> priority,
+    NLogging::TLogger logger)
 {
     auto session = New<TAcquireChangelogSession>(
         std::move(config),
         std::move(epochContext),
         changelogId,
-        priority);
+        priority,
+        std::move(logger));
     return session->Run();
 }
 

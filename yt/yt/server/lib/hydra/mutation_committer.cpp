@@ -782,7 +782,8 @@ void TLeaderCommitter::Checkpoint()
     YT_VERIFY(!AcquiringChangelog_);
 
     AcquiringChangelog_ = true;
-    RunChangelogAcquisition(Config_->Get(), EpochContext_, NextLoggedVersion_.SegmentId + 1, std::nullopt).Subscribe(
+
+    RunChangelogAcquisition(Config_->Get(), EpochContext_, NextLoggedVersion_.SegmentId + 1, std::nullopt, Logger).Subscribe(
         BIND(&TLeaderCommitter::OnChangelogAcquired, MakeStrong(this))
             .Via(EpochContext_->EpochControlInvoker));
 }

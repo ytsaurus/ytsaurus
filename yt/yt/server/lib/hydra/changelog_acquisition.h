@@ -23,7 +23,8 @@ TFuture<void> RunChangelogAcquisition(
     NHydra::TDistributedHydraManagerConfigPtr config,
     TEpochContextPtr epochContext,
     int changelogId,
-    std::optional<TPeerPriority> priority);
+    std::optional<TPeerPriority> priority,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

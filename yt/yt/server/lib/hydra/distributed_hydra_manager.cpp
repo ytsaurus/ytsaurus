@@ -1980,9 +1980,10 @@ private:
             newChangelogId,
             priority,
             newTerm);
-        WaitFor(RunChangelogAcquisition(Config_->Get(), ControlEpochContext_, newChangelogId, priority))
+        WaitFor(RunChangelogAcquisition(Config_->Get(), ControlEpochContext_, newChangelogId, priority, Logger))
             .ThrowOnError();
-        YT_LOG_INFO("Changelog acquired");
+        YT_LOG_INFO("Changelog acquired (ChangelogId: %v)",
+            newChangelogId);
 
         return newChangelogId;
     }
