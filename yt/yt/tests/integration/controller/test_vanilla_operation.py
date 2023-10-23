@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    raises_yt_error,
     create, ls, sorted_dicts,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context)
@@ -574,7 +575,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
             pytest.skip()
 
-        try:
+        with raises_yt_error("Duplicate entries in output_table_paths"):
             vanilla(
                 spec={
                     "tasks": {
@@ -589,10 +590,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     },
                 }
             )
-        except YtError as e:
-            assert "Duplicate entries in output_table_paths" in str(e)
-        else:
-            assert False, "operation should've failed"
 
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

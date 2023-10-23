@@ -377,6 +377,15 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
             pytest.skip()
 
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        data = [
+            {"line": "some_data"},
+            {"line": "other_data"},
+        ]
+        write_table("//tmp/t_in", data)
+
         kwargs = dict(
             in_="//tmp/t_in",
             out=["//tmp/t_out", "//tmp/t_out", "//tmp/t_out"],
@@ -396,12 +405,8 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             kwargs["sort_by"] = "line"
             kwargs["reduce_by"] = "line"
 
-        try:
+        with raises_yt_error("Duplicate entries in output_table_paths"):
             start_op(op_type, **kwargs)
-        except YtError as e:
-            assert "Duplicate entries in output_table_paths" in str(e)
-        else:
-            assert False, "operation should've failed"
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
