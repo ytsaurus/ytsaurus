@@ -1112,7 +1112,9 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NProto, ReportMutationsStateHashes)
         {
-            context->SetRequestInfo();
+            auto peerId = request->peer_id();
+            context->SetRequestInfo("PeerId: %v",
+                peerId);
 
             auto owner = GetOwnerOrThrow();
 
@@ -1121,7 +1123,7 @@ private:
                 for (const auto& mutationInfo : request->mutations_info()) {
                     auto sequenceNumber = mutationInfo.sequence_number();
                     auto stateHash = mutationInfo.state_hash();
-                    owner->StateHashChecker_->Report(sequenceNumber, stateHash);
+                    owner->StateHashChecker_->Report(sequenceNumber, stateHash, peerId);
                 }
             }
 
@@ -2815,6 +2817,7 @@ private:
 
         TInternalHydraServiceProxy proxy(std::move(channel));
         auto request = proxy.ReportMutationsStateHashes();
+        request->set_peer_id(epochContext->CellManager->GetSelfPeerId());
 
         std::vector<i64> sequenceNumbers;
         for (auto sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {

@@ -15,7 +15,7 @@ TStateHashChecker::TStateHashChecker(
     , Limit_(limit)
 { }
 
-void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
+void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash, int peerId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -23,16 +23,19 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
 
     auto it = SequenceNumberToStateHash_.find(sequenceNumber);
     if (it == SequenceNumberToStateHash_.end()) {
-        YT_VERIFY(SequenceNumberToStateHash_.emplace(sequenceNumber, stateHash).second);
+        EmplaceOrCrash(SequenceNumberToStateHash_, sequenceNumber, TReportedStateHash{peerId, stateHash});
 
         if (std::ssize(SequenceNumberToStateHash_) > Limit_) {
             SequenceNumberToStateHash_.erase(SequenceNumberToStateHash_.begin());
         }
-    } else if (it->second != stateHash) {
-        YT_LOG_ALERT("State hashes differ (SequenceNumber: %v, ExpectedStateHash: %x, ActualStateHash: %x)",
+    } else if (it->second.StateHash != stateHash) {
+        YT_LOG_ALERT("State hashes differ "
+            "(SequenceNumber: %v, FirstStateHash: %x, FirstPeerId: %v, SecondStateHash: %x, SecondPeerId: %v)",
             sequenceNumber,
-            it->second,
-            stateHash);
+            it->second.StateHash,
+            it->second.PeerId,
+            stateHash,
+            peerId);
     }
 }
 
@@ -55,7 +58,7 @@ THashMap<i64, ui64> TStateHashChecker::GetStateHashes(const std::vector<i64>& se
     for (auto sequenceNumber : sequenceNumbers) {
         auto it = SequenceNumberToStateHash_.find(sequenceNumber);
         if (it != SequenceNumberToStateHash_.end()) {
-            EmplaceOrCrash(result, std::make_pair(sequenceNumber, it->second));
+            EmplaceOrCrash(result, sequenceNumber, it->second.StateHash);
         }
     }
     return result;

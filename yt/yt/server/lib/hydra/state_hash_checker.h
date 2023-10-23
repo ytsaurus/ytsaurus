@@ -20,7 +20,7 @@ public:
         int limit,
         NLogging::TLogger logger);
 
-    void Report(i64 sequenceNumber, ui64 stateHash);
+    void Report(i64 sequenceNumber, ui64 stateHash, int peerId);
     THashMap<i64, ui64> GetStateHashes(const std::vector<i64>& sequenceNumbers);
 
     void ReconfigureLimit(int limit);
@@ -30,7 +30,12 @@ private:
 
     int Limit_;
 
-    std::map<i64, ui64> SequenceNumberToStateHash_;
+    struct TReportedStateHash
+    {
+        int PeerId;
+        ui64 StateHash;
+    };
+    std::map<i64, TReportedStateHash> SequenceNumberToStateHash_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 };

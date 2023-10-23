@@ -1243,7 +1243,8 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     MutationSizeSinceLastSnapshot_ += mutationSize;
 
     if (Config_->Get()->EnableStateHashChecker) {
-        StateHashChecker_->Report(sequenceNumber, StateHash_);
+        auto peerId = GetEpochContext()->CellManager->GetSelfPeerId();
+        StateHashChecker_->Report(sequenceNumber, StateHash_, peerId);
     }
 
     if (auto invariantsCheckProbability = Config_->Get()->InvariantsCheckProbability) {

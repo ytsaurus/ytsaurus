@@ -398,7 +398,7 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("state_hash_checker_mutation_verification_sampling_rate", &TThis::StateHashCheckerMutationVerificationSamplingRate)
         .GreaterThan(0)
-        .Default(10);
+        .Default(1);
 
     registrar.Parameter("max_queued_mutation_count", &TThis::MaxQueuedMutationCount)
         .GreaterThan(0)

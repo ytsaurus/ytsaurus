@@ -199,6 +199,7 @@ message TReqReportMutationsStateHashes
     }
 
     repeated TMutationInfo mutations_info = 1;
+    required int32 peer_id = 2;
 }
 
 message TRspReportMutationsStateHashes
