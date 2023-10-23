@@ -133,7 +133,7 @@ struct IInstance
     virtual std::optional<TString> GetParentName() const = 0;
     virtual std::optional<TString> GetRootName() const = 0;
 
-    //! Returns externally visible pid of the root proccess inside container.
+    //! Returns externally visible pid of the root process inside container.
     //! Throws if container is not running.
     virtual pid_t GetPid() const = 0;
     //! Returns the list of externally visible pids of processes running inside container.

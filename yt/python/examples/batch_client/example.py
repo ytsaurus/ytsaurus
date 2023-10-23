@@ -39,7 +39,7 @@ def main():
     print(unexisting_table_exists_result.get_result())
 
     if create_result.is_ok():
-        print("Table was created successfuly.")
+        print("Table was created successfully.")
     else:
         # Если запустить этот скрипт два раза подряд, то во второй раз создание таблицы завершится с ошибкой,
         # что таблица уже существует.

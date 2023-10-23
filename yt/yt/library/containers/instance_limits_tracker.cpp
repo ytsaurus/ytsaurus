@@ -176,4 +176,4 @@ void FormatValue(TStringBuilderBase* builder, const TInstanceLimits& limits, TSt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainters
+} // namespace NYT::NContainers

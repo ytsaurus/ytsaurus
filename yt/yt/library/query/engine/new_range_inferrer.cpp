@@ -371,7 +371,7 @@ public:
 
             if (!generator.IsFinished()) {
                 PrefixRow_[columnId] = generator.Next();
-                // Suffix is resetted here.
+                // Suffix is reset here.
                 EvalIndex_ = std::ssize(Generators_);
                 return true;
             } else {
@@ -673,7 +673,7 @@ public:
                 auto expressionEstimation = GetEstimation(evaluatedColumnIndex, referenceIds, constraints);
 
                 // Sometimes estimation can be zero. Skip such constraints.
-                // We can not determine if constraint is empty at previous stages beacuse
+                // We can not determine if constraint is empty at previous stages because
                 // in general case range (a, b) is not empty when a < b. But for integers range (1, 2) is empty.
                 if (expressionEstimation == 0) {
                      return {0, 0};

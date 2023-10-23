@@ -7,7 +7,7 @@ import yt.wrapper
 
 
 # Для того чтобы обращаться к свойствам строк таблиц (например, из какой таблицы пришла строка)
-# нужно воспользоваться декоратором yt.wraper.with_context и добавить к аргументам функции `context'
+# нужно воспользоваться декоратором yt.wrapper.with_context и добавить к аргументам функции `context'
 # Этот новый аргумент как раз и поможет нам со свойствами строк.
 @yt.wrapper.with_context
 def filter_robots_reducer(key, input_row_iterator, context):

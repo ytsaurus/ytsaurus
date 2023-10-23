@@ -608,8 +608,8 @@ void EnrichKeyRange(
         const std::optional<TUnversionedValue>& finalizeSentinel,
         const std::optional<TUnversionedValue>& sentinel)> finalizeRow;
     if (shrinkSize < prefixSize) {
-        // Shrinked.
-        // If is shrinked, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
+        // Shrunk.
+        // If is shrunk, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
         // upper bound
         finalizeRow = [&] (
             TUnversionedRow src,

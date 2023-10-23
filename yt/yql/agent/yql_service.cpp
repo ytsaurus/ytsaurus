@@ -84,4 +84,4 @@ IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namepsace NYT::NYqlAgent
+} // namespace NYT::NYqlAgent

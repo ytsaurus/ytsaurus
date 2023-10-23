@@ -127,7 +127,7 @@ public:
     i64 StructuredLoggingMaxRequestByteSize;
 
     //! Maximum size of the query in SelectRows request.
-    //! Queries exeeding this limit will be truncated.
+    //! Queries exceeding this limit will be truncated.
     i64 StructuredLoggingQueryTruncationSize;
 
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;

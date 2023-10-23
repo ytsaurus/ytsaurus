@@ -636,7 +636,7 @@ TPCollection<TRow> Flatten(const std::vector<TPCollection<TRow>>& pCollectionLis
 /// @brief Generic transform
 ///
 /// Is meant to returned by functions creating composite transforms providing
-/// possibility to hide implemetation details in `.cpp` file.
+/// possibility to hide implementation details in `.cpp` file.
 ///
 /// Example of usage:
 ///

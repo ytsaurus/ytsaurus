@@ -234,7 +234,7 @@ std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
     }
 }
 
-void TNonOwningCGroup::EnsureExistance() const
+void TNonOwningCGroup::EnsureExistence() const
 {
     YT_LOG_INFO("Creating cgroup (Cgroup: %v)", FullPath_);
 
@@ -412,7 +412,7 @@ TCGroup::~TCGroup()
 
 void TCGroup::Create()
 {
-    EnsureExistance();
+    EnsureExistence();
     Created_ = true;
 }
 
@@ -488,7 +488,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(
             ex,
-            "Failed to retreive CPU statistics from cgroup (Cgroup: %v)",
+            "Failed to retrieve CPU statistics from cgroup (Cgroup: %v)",
             GetFullPath());
     }
 #endif
@@ -603,7 +603,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(
             ex,
-            "Failed to retreive block IO statistics from cgroup (Cgroup: %v)",
+            "Failed to retrieve block IO statistics from cgroup (Cgroup: %v)",
             GetFullPath());
     }
 #else
@@ -654,7 +654,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(
             ex,
-            "Failed to retreive memory statistics from cgroup (Cgroup: %v)",
+            "Failed to retrieve memory statistics from cgroup (Cgroup: %v)",
             GetFullPath());
     }
 #endif

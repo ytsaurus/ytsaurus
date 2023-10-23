@@ -14,7 +14,7 @@ type OptionDescriptor struct {
 	Type         OptionType `yson:"type" json:"type"`
 	CurrentValue any        `yson:"current_value,omitempty" json:"current_value,omitempty"`
 	DefaultValue any        `yson:"default_value,omitempty" json:"default_value,omitempty"`
-	Choises      []any      `yson:"choises,omitempty" json:"choises,omitempty"`
+	Choices      []any      `yson:"choices,omitempty" json:"choices,omitempty"`
 	Description  string     `yson:"description,omitempty" json:"description,omitempty"`
 }
 

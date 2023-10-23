@@ -161,7 +161,7 @@ TMasterChunkSpecFetcher::TCellState& TMasterChunkSpecFetcher::GetCellState(TCell
             cellTag);
         it->second.BatchReq = proxy.ExecuteBatchWithRetries(
             Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
-        // TODO(dakovalkov): doesn't work with BatchWtihRetries.
+        // TODO(dakovalkov): doesn't work with BatchWithRetries.
         // SetBalancingHeader(it->second.BatchReq, Client_->GetNativeConnection(), MasterReadOptions_);
     }
     return it->second;

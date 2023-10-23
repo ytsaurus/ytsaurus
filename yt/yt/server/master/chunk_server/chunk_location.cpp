@@ -281,7 +281,7 @@ void TChunkLocation::SetDestroyedReplicasIterator(TDestroyedReplicasIterator ite
 void TChunkLocation::ResetDestroyedReplicasIterator()
 {
     static_assert(std::extent_v<TDestroyedReplicaShardedSet> == std::extent_v<decltype(DestroyedReplicasIterators_)>,
-        "Sizes of DestroyedReplicas and DestroyedReplicasInterators are different");
+        "Sizes of DestroyedReplicas and DestroyedReplicasIterators are different");
     for (auto i = 0; i < std::ssize(DestroyedReplicasIterators_); ++i) {
         DestroyedReplicasIterators_[i] = DestroyedReplicas_[i].begin();
     }

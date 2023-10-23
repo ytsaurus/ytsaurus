@@ -826,7 +826,7 @@ TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
     }
 }
 
-TEST_F(TClearTmpTestBase, TestErrorneousSkiffReading_YTADMINREQ_32428)
+TEST_F(TClearTmpTestBase, TestErroneousSkiffReading_YTADMINREQ_32428)
 {
     TRichYPath tablePath{"//tmp/test_errorneous_skiff_reading"};
     TCreateNodeOptions options;

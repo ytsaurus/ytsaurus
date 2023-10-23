@@ -24,7 +24,7 @@ void TDynamicRingBuffer::Push(TStringBuf data)
 
     while (data.length() > 0) {
         size_t pos = NormalizeIndex(Begin_ + Size_);
-        size_t bytesAvailable = BytesContiniouslyAvailable(pos, data.length());
+        size_t bytesAvailable = BytesContinuouslyAvailable(pos, data.length());
         MemCopy(Buf_.Data() + pos, data.Data(), bytesAvailable);
         NSan::Unpoison(Buf_.Data() + pos, bytesAvailable);
         Size_ += bytesAvailable;
@@ -37,7 +37,7 @@ void TDynamicRingBuffer::Pop(TBuffer* destination, size_t count)
     YT_ASSERT(Size() >= count);
 
     while (count > 0) {
-        size_t bytesAvailable = BytesContiniouslyAvailable(Begin_, count);
+        size_t bytesAvailable = BytesContinuouslyAvailable(Begin_, count);
         destination->Append(Buf_.Data() + Begin_, bytesAvailable);
         Begin_ = NormalizeIndex(Begin_ + bytesAvailable);
         Size_ -= bytesAvailable;
@@ -86,7 +86,7 @@ size_t TDynamicRingBuffer::NormalizeIndex(size_t index) const
     return index < Buf_.Capacity() ? index : index - Buf_.Capacity();
 }
 
-size_t TDynamicRingBuffer::BytesContiniouslyAvailable(size_t pos, size_t limit) const
+size_t TDynamicRingBuffer::BytesContinuouslyAvailable(size_t pos, size_t limit) const
 {
     return Min(Buf_.Capacity() - pos, limit);
 }
@@ -97,7 +97,7 @@ void TDynamicRingBuffer::Relocate(size_t size)
 
     size_t bytesCopied = 0;
     while (bytesCopied < Size_) {
-        size_t bytesAvailable = BytesContiniouslyAvailable(Begin_, Size_ - bytesCopied);
+        size_t bytesAvailable = BytesContinuouslyAvailable(Begin_, Size_ - bytesCopied);
         newBuf.Append(Buf_.Data() + Begin_, bytesAvailable);
         Begin_ = NormalizeIndex(Begin_ + bytesAvailable);
         bytesCopied += bytesAvailable;

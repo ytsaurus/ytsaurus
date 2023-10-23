@@ -492,7 +492,7 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         table_path = "//tmp/t"
         VALUE_NULL = YsonEntity()
 
-        # Setting ttl so that overwriting will be perfromed immediately after compaction.
+        # Setting ttl so that overwriting will be performed immediately after compaction.
         create("table", table_path, attributes={"schema": schema, "dynamic": True, "min_data_ttl": 0, "max_data_ttl": 0})
         sync_create_cells(1)
         sync_mount_table(table_path)

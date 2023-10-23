@@ -221,7 +221,7 @@ TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
     // 2. At the same time finalization has started;
     // In this case c-python runtime tries to exit the thread on attempt to acquire GIL;
     // this causes unwind of the stack, that executes this destructor,
-    // but PyEval_RestoreThread checks existance of GIL that can be already destroyed.
+    // but PyEval_RestoreThread checks existence of GIL that can be already destroyed.
     // if (!Py_IsInitialized()) {
     //     return;
     // }

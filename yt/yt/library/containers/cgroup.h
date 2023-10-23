@@ -53,7 +53,7 @@ public:
 
     std::vector<TNonOwningCGroup> GetChildren() const;
 
-    void EnsureExistance() const;
+    void EnsureExistence() const;
 
     void Lock() const;
     void Unlock() const;

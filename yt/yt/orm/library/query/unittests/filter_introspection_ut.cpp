@@ -210,7 +210,7 @@ TEST(FilterIntrospection, ExtractAllReferences)
             THashSet<TString>({"/labels/position", "/spec/supported_modes", "/status/disabled", "/status/state/raw"}));
     }
 
-    // Check expression with repetition, extration to vector
+    // Check expression with repetition, extraction to vector
     {
         std::vector<TString> result;
         ExtractFilterAttributeReferences(

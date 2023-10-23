@@ -12,7 +12,7 @@ DEFINE_ENUM(EExtendedYsonFormat,
     (Binary)
     (Text)
     (Pretty)
-    // Unescaped* analogs. They are simmilar to regular, but they do not escape string literals.
+    // Unescaped* analogs. They are similar to regular, but they do not escape string literals.
     // These are used to display unicode strings in a human readable format.
     // It only escapes control charactesrs (e.g. '\\', '\"', '\r' and '\n').
     (UnescapedText)

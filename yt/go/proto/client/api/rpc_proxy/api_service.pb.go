@@ -1897,7 +1897,7 @@ func (x *TRowsetDescriptor) GetSchema() *TTableSchema {
 	return nil
 }
 
-// Could be embedded into response attachement block sequence along with the actual data
+// Could be embedded into response attachment block sequence along with the actual data
 // to indidate the progress of table reader/writer.
 type TRowsetStatistics struct {
 	state         protoimpl.MessageState

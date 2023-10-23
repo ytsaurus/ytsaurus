@@ -22,9 +22,9 @@ public:
                 doc.SetTitle(entry.GetDocTitle());
             }
             doc.AddLinks()->Swap(entry.MutableLink());
-            doc.AddOccurenceCounts(entry.GetOccurenceCount());
-            auto newCount = doc.GetExtraInfo().GetTotalOccurenceCount() + entry.GetOccurenceCount();
-            doc.MutableExtraInfo()->SetTotalOccurenceCount(newCount);
+            doc.AddOccurrenceCounts(entry.GetOccurrenceCount());
+            auto newCount = doc.GetExtraInfo().GetTotalOccurrenceCount() + entry.GetOccurrenceCount();
+            doc.MutableExtraInfo()->SetTotalOccurrenceCount(newCount);
         }
         writer->AddRow(doc);
     }

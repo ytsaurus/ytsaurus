@@ -48,11 +48,11 @@ class HostPort {
         if (portString != null && !portString.isEmpty()) {
             // Try to parse the whole port string as a number.
             // JDK7 accepts leading plus signs. We don't want to.
-            checkArgument(!portString.startsWith("+"), "Unparseable port number: %s", hostPortString);
+            checkArgument(!portString.startsWith("+"), "Unparsable port number: %s", hostPortString);
             try {
                 port = Integer.parseInt(portString);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Unparseable port number: " + hostPortString);
+                throw new IllegalArgumentException("Unparsable port number: " + hostPortString);
             }
             checkArgument(isValidPort(port), "Port number out of range: %s", hostPortString);
         }

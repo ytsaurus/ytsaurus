@@ -243,7 +243,7 @@ void TInputChunkMapping::OnChunkDisappeared(const TInputChunkPtr& chunk)
 {
     auto guard = WriterGuard(SpinLock_);
 
-    YT_LOG_DEBUG("Input chunk mapping has registered a chunk disappearence (Chunk: %v)", chunk->GetChunkId());
+    YT_LOG_DEBUG("Input chunk mapping has registered a chunk disappearance (Chunk: %v)", chunk->GetChunkId());
     Substitutes_[chunk].clear();
 }
 

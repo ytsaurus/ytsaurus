@@ -1430,7 +1430,7 @@ void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
 
         YT_LOG_DEBUG(
             "Provided integral share for burst pool "
-            "(Pool: %v, ShareRatioByVolume: %v, ProposedIntegralShare: %v, FSWithingGuarantees: %v, IntegralShare: %v)",
+            "(Pool: %v, ShareRatioByVolume: %v, ProposedIntegralShare: %v, FSWithinGuarantees: %v, IntegralShare: %v)",
             burstPool->GetId(),
             GetIntegralShareRatioByVolume(burstPool),
             proposedIntegralShare,
@@ -1524,7 +1524,7 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         relaxedPool->IntegralResourcesState().LastShareRatio = MaxComponent(limitedIntegralShare);
 
         YT_LOG_DEBUG("Provided integral share for relaxed pool "
-            "(Pool: %v, ShareRatioByVolume: %v, Suggestion: %v, FSWithingGuarantees: %v, IntegralShare: %v, LimitedIntegralShare: %v)",
+            "(Pool: %v, ShareRatioByVolume: %v, Suggestion: %v, FSWithinGuarantees: %v, IntegralShare: %v, LimitedIntegralShare: %v)",
             relaxedPool->GetId(),
             GetIntegralShareRatioByVolume(relaxedPool),
             suggestion,

@@ -107,7 +107,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Helper for TOpt::StoreMappedResult to validate file paths for existance.
+//! Helper for TOpt::StoreMappedResult to validate file paths for existence.
 TString CheckPathExistsArgMapper(const TString& arg);
 
 //! Helper for TOpt::StoreMappedResult to parse GUIDs.

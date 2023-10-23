@@ -4239,7 +4239,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(std::ssize(suspendedChunks), std::ssize(suspendedCookies));
 }
 
-INSTANTIATE_TEST_SUITE_P(Instantation200,
+INSTANTIATE_TEST_SUITE_P(Instantiation200,
     TSortedChunkPoolNewKeysTestRandomized,
     ::testing::Combine(::testing::Range(0, NumberOfRepeats), ::testing::Bool()));
 

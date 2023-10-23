@@ -7,7 +7,7 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Min is included because lower bound is included.
-// Max is excluded beacuse upper bound is excluded.
+// Max is excluded because upper bound is excluded.
 // It allows keep resulting ranges without augmenting suffix with additional sentinels (e.g. [Max included] -> [Max included, Max excluded]).
 TValueBound MinBound{MakeUnversionedSentinelValue(EValueType::Min), false};
 TValueBound MaxBound{MakeUnversionedSentinelValue(EValueType::Max), false};

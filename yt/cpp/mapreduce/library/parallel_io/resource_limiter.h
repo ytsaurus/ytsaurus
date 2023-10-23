@@ -14,7 +14,7 @@ enum EResourceLimiterLockType {
     HARD
 };
 
-/// @brief Allow to limit usage of a resouce like RAM etc.
+/// @brief Allow to limit usage of a resource like RAM etc.
 ///
 /// For example, you can pass it to several TParallelFileWriter-s and limit their total RAM usage.
 class IResourceLimiter

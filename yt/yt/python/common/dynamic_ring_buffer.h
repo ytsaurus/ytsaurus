@@ -30,7 +30,7 @@ private:
 
     size_t NormalizeIndex(size_t index) const;
 
-    size_t BytesContiniouslyAvailable(size_t pos, size_t limit = Max<size_t>()) const;
+    size_t BytesContinuouslyAvailable(size_t pos, size_t limit = Max<size_t>()) const;
 
     void Relocate(size_t size);
 

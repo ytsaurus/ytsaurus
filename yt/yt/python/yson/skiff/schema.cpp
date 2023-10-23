@@ -27,13 +27,13 @@ TSkiffSchema::TSkiffSchema(
     ui16 index = 0;
     for (const auto& denseField : TableDescription_.DenseFieldDescriptionList)
     {
-        FieldIndeces_[denseField.Name()] = index;
+        FieldIndices_[denseField.Name()] = index;
         index += 1;
     }
 
     for (const auto& sparseField : TableDescription_.SparseFieldDescriptionList)
     {
-        FieldIndeces_[sparseField.Name()] = index;
+        FieldIndices_[sparseField.Name()] = index;
         index += 1;
     }
 }
@@ -72,12 +72,12 @@ TFieldDescription TSkiffSchema::GetSparseField(ui16 index)
 
 ui16 TSkiffSchema::GetFieldIndex(const TString& name)
 {
-    return FieldIndeces_[name];
+    return FieldIndices_[name];
 }
 
 bool TSkiffSchema::HasField(const TString& name)
 {
-    return FieldIndeces_.find(name) != FieldIndeces_.end();
+    return FieldIndices_.find(name) != FieldIndices_.end();
 }
 
 std::shared_ptr<NSkiff::TSkiffSchema> TSkiffSchema::GetSkiffSchema()

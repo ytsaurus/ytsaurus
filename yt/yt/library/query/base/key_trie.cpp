@@ -272,7 +272,7 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
     result->Bounds = IntersectBounds(lhs->Bounds, rhs->Bounds);
 
     // Iterate through resulting bounds and convert singleton ranges into
-    // new edges in the trie. This enables futher range limiting.
+    // new edges in the trie. This enables further range limiting.
     auto it = result->Bounds.begin();
     auto jt = result->Bounds.begin();
     auto kt = result->Bounds.end();
@@ -359,7 +359,7 @@ void GetRangesFromTrieWithinRangeImpl(
         }
 
         if (refineUpper && offset >= upperBoundSize) {
-            // NB: prefix is exactly the upper bound, which is non-inlusive.
+            // NB: prefix is exactly the upper bound, which is non-inclusive.
             continue;
         }
 

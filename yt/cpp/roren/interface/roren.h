@@ -131,7 +131,7 @@ public:
     TPCollection<TRow> Get(const TTypeTag<TRow>& tag) const;
 
     ///
-    /// @brief Unpack multiple PCollections by thier TypeTags.
+    /// @brief Unpack multiple PCollections by their TypeTags.
     ///
     /// Aborts program if any tag is not found in TMultiPCollection.
     template <typename... TypeTags>

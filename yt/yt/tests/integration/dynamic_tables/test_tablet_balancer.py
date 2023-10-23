@@ -151,7 +151,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             with_slicing=True)
 
     @authors("alexelexa")
-    def test_by_bundle_erros(self):
+    def test_by_bundle_errors(self):
         instances = get("//sys/tablet_balancer/instances")
 
         self._configure_bundle("default")

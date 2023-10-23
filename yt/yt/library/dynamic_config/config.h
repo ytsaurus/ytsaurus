@@ -24,7 +24,7 @@ struct TDynamicConfigManagerOptions
     //! If true, node with dynamic config contains not just
     //! a config, but a map from boolean formula to dynamic
     //! config. In that case the single config whose formula
-    //! is satisfied by instanse's tags is used. If multiple
+    //! is satisfied by instances's tags is used. If multiple
     //! dynamic config formulas are satisfied, none of the
     //! configs are applied and alert is set.
     bool ConfigIsTagged = false;

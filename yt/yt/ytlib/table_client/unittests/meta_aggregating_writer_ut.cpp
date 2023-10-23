@@ -187,11 +187,11 @@ protected:
         TColumnarStatistics expectedStatistics;
         expectedStatistics.Update(Rows_);
 
-        auto writenStatistics = NYT::FromProto<TColumnarStatistics>(
+        auto writtenStatistics = NYT::FromProto<TColumnarStatistics>(
             GetProtoExtension<NProto::TColumnarStatisticsExt>(MemoryWriter_->GetChunkMeta()->Getextensions()),
             GetProtoExtension<NYT::NChunkClient::NProto::TMiscExt>(MemoryWriter_->GetChunkMeta()->Getextensions()).row_count());
 
-        EXPECT_EQ(writenStatistics, expectedStatistics);
+        EXPECT_EQ(writtenStatistics, expectedStatistics);
     }
 };
 

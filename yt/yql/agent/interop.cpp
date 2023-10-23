@@ -202,7 +202,7 @@ std::vector<TYqlRowset> BuildRowsets(
             rowsets.push_back(std::move(rowset));
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_DEBUG("Error bulding rowset result (ResultIndex: %v, Error: %v)", index, error);
+            YT_LOG_DEBUG("Error building rowset result (ResultIndex: %v, Error: %v)", index, error);
             rowsets.push_back({.Error = error});
         }
     }

@@ -40,7 +40,7 @@ def ensure_table_exists(path, schema, do_create, args):
         elif msg:
             raise RuntimeError(msg + ". Use --force to replace existing table")
         else:
-            logger.info("Using exising table")
+            logger.info("Using existing table")
             return
 
     logger.info("Creating new table")

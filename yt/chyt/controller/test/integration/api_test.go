@@ -686,7 +686,7 @@ func stripOptions(optionGroups []strawberry.OptionGroupDescriptor) []strawberry.
 				Type:         option.Type,
 				CurrentValue: option.CurrentValue,
 				DefaultValue: option.DefaultValue,
-				Choises:      option.Choises,
+				Choices:      option.Choices,
 			}
 		}
 		strippedGroups[groupID] = strawberry.OptionGroupDescriptor{

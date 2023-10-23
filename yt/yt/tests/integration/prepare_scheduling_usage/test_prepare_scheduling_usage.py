@@ -77,7 +77,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         assert "/parent_pool" in (row["pool_path"] for row in rows)
         assert "/parent_pool/test_pool" in (row["pool_path"] for row in rows)
 
-    def _check_opertion_info(self, rows, op_id):
+    def _check_operation_info(self, rows, op_id):
         accumulated_resource_usage_memory = 0.0
         accumulated_resource_usage_cpu = 0.0
         cumulative_max_memory = 0.0
@@ -222,7 +222,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         assert len(rows2) >= 1
         assert rows1 != rows2
         rows = rows1 + rows2
-        self._check_opertion_info(rows, op_id)
+        self._check_operation_info(rows, op_id)
 
     def _run_script_table_mode(self, input_data, target, expiration_timeout):
         prepare_scheduling_usage_dir = "//prepare_scheduling_usage"
@@ -341,4 +341,4 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                 for row in read_table(link_target_path):
                     assert json.loads(row["tags_json"]) == ["my_key"]
 
-        self._check_opertion_info(read_table(output_filepath), op_id)
+        self._check_operation_info(read_table(output_filepath), op_id)

@@ -190,7 +190,7 @@ void GroupByShards(
         // !pred(shardIt, itemIt)
 
         // For interval: itemIt->upper <= *shardIt
-        // For points: *itemIt < shardIt is allways true: *shardIt <= *itemIt ~ shardIt > *itemIt
+        // For points: *itemIt < shardIt is always true: *shardIt <= *itemIt ~ shardIt > *itemIt
 
         // First shard: item PRECEDES shard
         shardIt = ExponentialSearch(shardItStart, shards.end(), [&] (auto it) {

@@ -59,7 +59,7 @@ class TestSnapshotValidation(YTEnvSetup):
             binary,
             snapshot_path,
             changelog_path,
-            build_snaphot_dir,
+            build_snapshot_dir,
             config_path,
             cell_id=None,
             snapshot_meta=None):
@@ -69,7 +69,7 @@ class TestSnapshotValidation(YTEnvSetup):
             binary,
             "--validate-snapshot", snapshot_path,
             "--replay-changelogs", changelog_path,
-            "--build-snapshot", build_snaphot_dir,
+            "--build-snapshot", build_snapshot_dir,
             "--config", config_path,
             "--sleep-after-initialize",
         ]

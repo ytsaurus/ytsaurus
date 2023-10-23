@@ -13,11 +13,11 @@ import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
 public class PrerequisiteOptions {
-    public static class RevisionPrerequsite {
+    public static class RevisionPrerequisite {
         private final String path;
         private final long revision;
 
-        public RevisionPrerequsite(String path, long revision) {
+        public RevisionPrerequisite(String path, long revision) {
             this.path = path;
             this.revision = revision;
         }
@@ -26,7 +26,7 @@ public class PrerequisiteOptions {
     @Nullable
     private List<GUID> transactionsIds;
     @Nullable
-    private List<RevisionPrerequsite> revisions;
+    private List<RevisionPrerequisite> revisions;
 
     public PrerequisiteOptions() {
     }
@@ -46,7 +46,7 @@ public class PrerequisiteOptions {
         return this;
     }
 
-    public PrerequisiteOptions setRevisions(RevisionPrerequsite... revisions) {
+    public PrerequisiteOptions setRevisions(RevisionPrerequisite... revisions) {
         this.revisions = Arrays.asList(revisions);
         return this;
     }
@@ -74,7 +74,7 @@ public class PrerequisiteOptions {
             }
         }
         if (revisions != null) {
-            for (RevisionPrerequsite rev : revisions) {
+            for (RevisionPrerequisite rev : revisions) {
                 builder.addRevisions(TPrerequisiteOptions.TRevisionPrerequisite.newBuilder()
                         .setPath(rev.path)
                         .setRevision(rev.revision)

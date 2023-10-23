@@ -45,7 +45,7 @@ public enum ColumnSortOrder {
     public static ColumnSortOrder fromId(int id) {
         ColumnSortOrder sortOrder = MAP_FROM_ID.get(id);
         if (sortOrder == null) {
-            throw new IllegalArgumentException("Unsupport sort order " + id);
+            throw new IllegalArgumentException("Unsupported sort order " + id);
         }
         return sortOrder;
     }

@@ -14,13 +14,13 @@ public:
     ~TFunctionContext();
 
     //! Creates typed function-local object.
-    //! Function-local objects are destroyed automaticaly when the function context is destroyed.
+    //! Function-local objects are destroyed automatically when the function context is destroyed.
     //! In case of any error, nullptr is returned.
     template <class T, class... Args>
     T* CreateObject(Args&&... args);
 
     //! Creates untyped function-local object.
-    //! Function-local objects are destroyed automaticaly when the function context is destroyed.
+    //! Function-local objects are destroyed automatically when the function context is destroyed.
     //! In case of any error, nullptr is returned.
     void* CreateUntypedObject(void* pointer, void(*deleter)(void*));
 

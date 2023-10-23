@@ -50,7 +50,7 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 					Type:         TypeString,
 					CurrentValue: speclet.PreemptionMode,
 					DefaultValue: "normal",
-					Choises:      []any{"normal", "graceful"},
+					Choices:      []any{"normal", "graceful"},
 					Description:  "Preemption mode for a corresponding YT operation.",
 				},
 				{

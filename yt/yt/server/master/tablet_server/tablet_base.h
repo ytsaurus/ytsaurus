@@ -115,7 +115,7 @@ public:
     //! Most master-node communication goes through per-tablet avenues except
     //! mount and unmount messages. Node endpoint id resolves to either per-tablet
     //! avenue endpoint id (if avenues are already adopted) or falls back to cell id.
-    void SetNodeAvenueEndpointId(NHiveServer::TAvenueEndpointId enpointId);
+    void SetNodeAvenueEndpointId(NHiveServer::TAvenueEndpointId endpointId);
     NHiveServer::TEndpointId GetNodeEndpointId() const;
 
     // COMPAT(ifsmirnov)

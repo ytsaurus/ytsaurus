@@ -4,7 +4,7 @@ from .log_tailer import prepare_log_tailer_tables
 from .compatibility import validate_ytserver_clickhouse_version, LAUNCHER_VERSION
 from .helpers import get_alias_from_env_or_raise
 
-from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
+from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccessful_finish_state
 from yt.wrapper.common import YtError, require, update, update_inplace
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.cypress_commands import get, exists, copy, create, list
@@ -277,7 +277,7 @@ def do_wait_for_instances(op, instance_count, operation_alias, client=None):
                 logger.info("Clique started and ready for serving under alias %s", operation_alias)
                 return op
         elif state.is_unsuccessfully_finished():
-            process_operation_unsuccesful_finish_state(op, op.get_error(state))
+            process_operation_unsuccessful_finish_state(op, op.get_error(state))
         else:
             op.printer(state)
 

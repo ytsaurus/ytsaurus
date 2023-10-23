@@ -7,7 +7,7 @@ message TUrl {
 }
 
 message TExtraInfo {
-    optional uint32 TotalOccurenceCount = 1;
+    optional uint32 TotalOccurrenceCount = 1;
 }
 
 message TDoc {
@@ -16,18 +16,18 @@ message TDoc {
     // с соответствующими (возможно, сложными) типами.
     option (NYT.default_field_flags) = SERIALIZATION_YT;
 
-    optional string Title = 1           [(NYT.key_column_name) = "Title"];
-    repeated TUrl Links = 2             [(NYT.column_name) = "Links"];
-    repeated uint32 OccurenceCounts = 3 [(NYT.column_name) = "UpdateTimes"];
+    optional string Title = 1            [(NYT.key_column_name) = "Title"];
+    repeated TUrl Links = 2              [(NYT.column_name) = "Links"];
+    repeated uint32 OccurrenceCounts = 3 [(NYT.column_name) = "UpdateTimes"];
 
     // Данное поле специально помечено как сериализуемое в бинарном (PROTOBUF) режиме.
     // В таблице эта колонка будет иметь тип "string".
-    optional TExtraInfo ExtraInfo = 4   [(NYT.column_name) = "ExtraInfo", (NYT.flags) = SERIALIZATION_PROTOBUF];
+    optional TExtraInfo ExtraInfo = 4    [(NYT.column_name) = "ExtraInfo", (NYT.flags) = SERIALIZATION_PROTOBUF];
 }
 
 message TLinkEntry {
     option (NYT.default_field_flags) = SERIALIZATION_YT;
-    optional string DocTitle = 1       [(NYT.column_name) = "DocTitle"];
-    optional TUrl Link = 2             [(NYT.column_name) = "Link"];
-    optional uint32 OccurenceCount = 3 [(NYT.column_name) = "OccurenceCount"];
+    optional string DocTitle = 1        [(NYT.column_name) = "DocTitle"];
+    optional TUrl Link = 2              [(NYT.column_name) = "Link"];
+    optional uint32 OccurrenceCount = 3 [(NYT.column_name) = "OccurrenceCount"];
 }

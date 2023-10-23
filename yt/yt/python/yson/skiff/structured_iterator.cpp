@@ -207,7 +207,7 @@ void TSkiffStructuredIterator::InitType()
     behaviors().supportIter();
 
     PYCXX_ADD_NOARGS_METHOD(get_table_index, GetTableIndex, "Returns index of table current row belongs to");
-    PYCXX_ADD_NOARGS_METHOD(get_key_switch, GetKeySwitch, "Returns true iff current row's key differs from previos one's");
+    PYCXX_ADD_NOARGS_METHOD(get_key_switch, GetKeySwitch, "Returns true iff current row's key differs from previous one's");
     PYCXX_ADD_NOARGS_METHOD(get_row_index, GetRowIndex, "Returns index of current row");
     PYCXX_ADD_NOARGS_METHOD(get_range_index, GetRangeIndex, "Returns index of range current row belongs to");
     PYCXX_ADD_NOARGS_METHOD(with_context, WithContext, "Returns iterator over the pairs (context, row)");
@@ -244,7 +244,7 @@ Py::Object LoadSkiffStructured(Py::Tuple& args, Py::Dict& kwargs)
         Py::PythonClassObject<TSkiffSchemaPython> schemaPythonObject(schema);
         skiffSchemas.push_back(schemaPythonObject.getCxxObject()->GetSchemaObject()->GetSkiffSchema());
     }
-    // TODO(aleexfi): Add TSkiffRawStructuredIteartor to parse only system fields
+    // TODO(aleexfi): Add TSkiffRawStructuredIterator to parse only system fields
     Py::Callable classType(TSkiffStructuredIterator::type());
     Py::PythonClassObject<TSkiffStructuredIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 

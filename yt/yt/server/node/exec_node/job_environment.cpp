@@ -618,7 +618,7 @@ private:
         // Retry destruction until success.
         bool destroyed = false;
         while (!destroyed) {
-            YT_LOG_DEBUG("Start containter destruction attempt (RootContainer: %v)", rootContainer);
+            YT_LOG_DEBUG("Start container destruction attempt (RootContainer: %v)", rootContainer);
 
             auto containers = WaitFor(DestroyPortoExecutor_->ListSubcontainers(rootContainer, false))
                 .ValueOrThrow();

@@ -196,7 +196,7 @@ def main():
                         help="Tmpfs limit for SPYT node, when starting a cluster")
 
     parser.add_argument("--input", action='append', default=[],
-                        help="Identifer for the imported object. " \
+                        help="Identifier for the imported object. " \
                         "Refer to documentation in import.md on how to describe imported data.")
     parser.add_argument("--output", action='append', default=[],
                         help="Path in YT to store imported data")

@@ -43,7 +43,7 @@ public:
     std::shared_ptr<NSkiff::TSkiffSchema> GetSkiffSchema();
 
 private:
-    THashMap<TString, ui16> FieldIndeces_;
+    THashMap<TString, ui16> FieldIndices_;
     NSkiffExt::TSkiffTableDescription TableDescription_;
 
     std::shared_ptr<NSkiff::TSkiffSchema> SkiffSchema_;

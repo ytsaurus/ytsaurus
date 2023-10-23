@@ -1236,7 +1236,7 @@ public:
 
     // Columns already presented in Lookup are shared.
     // In mapping presented all columns needed for read and renamed schema.
-    // SelfJoinedColumns and ForeignJoinedColumns are builded from Lookup using OriginTableIndex and LastTableIndex.
+    // SelfJoinedColumns and ForeignJoinedColumns are built from Lookup using OriginTableIndex and LastTableIndex.
     void Merge(TBuilderCtxBase& other)
     {
         size_t otherTablesCount = other.Tables.size();
