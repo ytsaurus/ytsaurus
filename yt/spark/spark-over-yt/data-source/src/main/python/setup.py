@@ -26,7 +26,9 @@ setuptools.setup(
     packages=[
         'spyt',
         'spyt.jars',
-        'pyspark.jars'
+        'pyspark.bin',
+        'pyspark.conf',
+        'pyspark.jars',
     ],
     install_requires=[
         'ytsaurus-pyspark=={}'.format(__spark_version__),
@@ -37,11 +39,12 @@ setuptools.setup(
     license='http://www.apache.org/licenses/LICENSE-2.0',
     package_dir={
         'spyt.jars': 'deps/spyt_jars',
-        'pyspark.jars': 'deps/pyspark_jars',
+        'pyspark.bin': 'deps/pyspark_deps/bin',
+        'pyspark.conf': 'deps/pyspark_deps/conf',
+        'pyspark.jars': 'deps/pyspark_deps/jars',
     },
     package_data={
         'spyt.jars': ['*.jar'],
-        'pyspark.jars': ['*.jar'],
     },
     include_package_data=True,
 )

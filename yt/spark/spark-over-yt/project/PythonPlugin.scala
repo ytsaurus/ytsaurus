@@ -40,7 +40,11 @@ object PythonPlugin extends AutoPlugin {
       val targetDir = new File(deps, relativePath)
       targetDir.mkdirs()
       val target = new File(targetDir, file.getName)
-      IO.copyFile(file, target)
+      if (file.isDirectory) {
+        IO.copyDirectory(file, target)
+      } else {
+        IO.copyFile(file, target)
+      }
     }
   }
 

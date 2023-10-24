@@ -73,8 +73,8 @@ lazy val `cluster` = (project in file("spark-cluster"))
     assembly / test := {},
     zipPath := Some(target.value / "spark-extra.zip"),
     zipMapping ++= Seq(
-      sourceDirectory.value / "main" / "spark-extra" / "bin" -> "",
-      sourceDirectory.value / "main" / "spark-extra" / "conf" -> "",
+      (`data-source` / sourceDirectory).value / "main" / "spark-extra" / "bin" -> "",
+      (`data-source` / sourceDirectory).value / "main" / "spark-extra" / "conf" -> "",
       (`file-system` / assembly).value -> "jars"
     ),
   )
@@ -183,10 +183,13 @@ lazy val `data-source` = (project in file("data-source"))
     assembly / test := {},
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
     pythonDeps := {
+      val sparkExtraBasePath = sourceDirectory.value / "main" / "spark-extra"
       val binBasePath = sourceDirectory.value / "main" / "bin"
       val fs_assembly = (`file-system` / assembly).value
       val submit_assembly = (`spark-submit` / assembly).value
-      Seq("pyspark_jars" -> fs_assembly, "spyt_jars" -> submit_assembly) ++ binBasePath.listFiles().map(f => "bin" -> f)
+      sparkExtraBasePath.listFiles().map(f => "pyspark_deps" -> f) ++
+        binBasePath.listFiles().map(f => "bin" -> f) ++
+        Seq("pyspark_deps/jars" -> fs_assembly, "spyt_jars" -> submit_assembly)
     }
   )
 
