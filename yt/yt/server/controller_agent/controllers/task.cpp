@@ -1946,10 +1946,10 @@ void TTask::RegisterStripe(
         return;
     }
 
+    YT_VERIFY(joblet);
+
     const auto& destinationPool = streamDescriptor->DestinationPool;
     if (streamDescriptor->RequiresRecoveryInfo) {
-        YT_VERIFY(joblet);
-
         const auto& chunkMapping = streamDescriptor->ChunkMapping;
         YT_VERIFY(chunkMapping);
 
@@ -2013,7 +2013,9 @@ void TTask::RegisterStripe(
             completedJob,
             stripe);
     } else {
-        destinationPool->AddWithKey(stripe, key);
+        if (!joblet->Restarted) {
+            destinationPool->AddWithKey(stripe, key);
+        }
     }
 }
 

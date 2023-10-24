@@ -799,18 +799,12 @@ print "x={0}\ty={1}".format(x, y)
 
     def _find_intermediate_chunks(self):
         # Figure out the intermediate chunk
-        chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
-        intermediate_chunk_ids = []
-        for c in chunks:
-            if "staging_transaction_id" in c.attributes:
-                tx_id = c.attributes["staging_transaction_id"]
-                try:
-                    if 'Scheduler "output" transaction' in get("#{}/@title".format(tx_id)):
-                        intermediate_chunk_ids.append(str(c))
-                except YtError:
-                    # Transaction may vanish
-                    pass
-        return intermediate_chunk_ids
+        chunks = ls("//sys/chunks", attributes=["requisition"])
+        return [
+            str(c)
+            for c in chunks
+            if c.attributes["requisition"][0]["account"] == "intermediate"
+        ]
 
     def _ban_nodes_with_intermediate_chunks(self):
         intermediate_chunk_ids = self._find_intermediate_chunks()
@@ -825,6 +819,14 @@ print "x={0}\ty={1}".format(x, y)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node_id)) == "offline")
 
         return [node_id]
+
+    def _abort_single_job_if_running(self, op, job_id):
+        jobs = op.get_running_jobs().keys()
+        if len(jobs) > 0:
+            assert len(jobs) == 1
+            running_job = list(jobs)[0]
+            if running_job == job_id:
+                abort_job(running_job)
 
     @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])
@@ -855,17 +857,12 @@ print "x={0}\ty={1}".format(x, y)
 
         self._ban_nodes_with_intermediate_chunks()
 
-        jobs = op.get_running_jobs().keys()
-        if len(jobs) > 0:
-            assert len(jobs) == 1
-            running_job = list(jobs)[0]
-            if running_job == first_reduce_job:
-                abort_job(running_job)
         # We abort reducer and restarted job will fail
         # due to unavailable intermediate chunk.
         # This will lead to a lost map job.
         # It can happen that running job was on banned node,
         # so we must check that we are aborting the right job.
+        self._abort_single_job_if_running(op, first_reduce_job)
 
         release_breakpoint()
         op.track()
@@ -3110,6 +3107,110 @@ done
             {"b": "b one"},
             {"b": "b two"},
         ]
+
+    @authors("coteeq")
+    def test_mapper_does_not_duplicate_lost_chunk(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out_mapper")
+
+        orig_data = [{"x": 1, "y": 2}, {"x": 2, "y": 3}] * 5
+        write_table("//tmp/t_in", orig_data)
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out=[
+                "//tmp/t_out_mapper",
+                "//tmp/t_out",
+            ],
+            reduce_by="x",
+            sort_by="x",
+            mapper_command="tee /proc/self/fd/4",
+            reducer_command=with_breakpoint("cat;BREAKPOINT"),
+            spec={
+                "sort_locality_timeout": 0,
+                "sort_assignment_timeout": 0,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "mapper_output_table_count": 1,
+            },
+            track=False,
+        )
+
+        first_reduce_job = wait_breakpoint()[0]
+
+        assert self._ban_nodes_with_intermediate_chunks() != []
+        self._abort_single_job_if_running(op, first_reduce_job)
+
+        release_breakpoint()
+        op.track()
+
+        assert get(op.get_path() + "/@progress/map_jobs/lost") == 1
+
+        assert_items_equal(read_table("//tmp/t_out_mapper"), orig_data)
+        assert_items_equal(read_table("//tmp/t_out"), orig_data)
+
+    @authors("coteeq")
+    @pytest.mark.xfail(
+        reason=(
+            "Restarted job pushes recalculated chunks only to those chunk pools, which reported "
+            "chunk loss. This leads to inconsistency between mapper's and reducer's outputs."
+            "In this test, intermediate chunk is lost and recalculated, but"
+            "mapper's output chunk is still alive and has old data from lost job"
+        )
+    )
+    def test_mapper_does_not_duplicate_lost_chunk_consistent_restart(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out_mapper")
+
+        orig_data = [{"x": 1, "y": 2}, {"x": 2, "y": 3}] * 5
+        write_table("//tmp/t_in", orig_data)
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out=[
+                "//tmp/t_out_mapper",
+                "//tmp/t_out",
+            ],
+            reduce_by="x",
+            sort_by="x",
+            mapper_command="""echo {x=\\"$(date +%Y-%m-%dT%H:%M:%S.%N)\\"} | tee /proc/self/fd/4""",
+            # TODO(coteeq): in a number of places, CA assumes, that map job produces chunks of same size
+            # mapper_command=(
+            #     'for i in $(seq $(($(date +%N) / 50000000))); do'
+            #     '    echo "{x=$i;}";'
+            #     'done | tee /proc/self/fd/4'
+            # ),
+            reducer_command=with_breakpoint("cat;BREAKPOINT"),
+            spec={
+                "sort_locality_timeout": 0,
+                "sort_assignment_timeout": 0,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "mapper_output_table_count": 1,
+            },
+            track=False,
+        )
+
+        first_reduce_job = wait_breakpoint()[0]
+
+        assert self._ban_nodes_with_intermediate_chunks() != []
+        self._abort_single_job_if_running(op, first_reduce_job)
+
+        release_breakpoint()
+        op.track()
+
+        assert get(op.get_path() + "/@progress/map_jobs/lost") == 1
+
+        assert_items_equal(read_table("//tmp/t_out_mapper"), read_table("//tmp/t_out"))
 
     def _remove_intermediate_chunks(self, ratio):
         intermediate_chunk_ids = self._find_intermediate_chunks()

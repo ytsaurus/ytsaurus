@@ -808,8 +808,7 @@ protected:
 
         bool CanLoseJobs() const override
         {
-            bool multipleOutputs = std::ssize(OutputStreamDescriptors_) > 1;
-            return !multipleOutputs && Controller_->Spec->EnableIntermediateOutputRecalculation;
+            return Controller_->Spec->EnableIntermediateOutputRecalculation;
         }
 
         std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
