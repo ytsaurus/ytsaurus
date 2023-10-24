@@ -2764,6 +2764,36 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
+    @authors("achulkov2")
+    def test_table_name_formatting(self):
+        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue("//tmp/q")
+
+        self._create_export_destination(export_dir, queue_id)
+
+        start = datetime.datetime.utcnow()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table("//tmp/q")
+
+        set("//tmp/q/@static_export_config", {
+            "export_directory": export_dir,
+            "export_period": 3 * 1000,
+            "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%d.%m.%H.%M.%S",
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        output_table_name = ls(export_dir)[0]
+
+        end = datetime.datetime.utcnow()
+
+        def fmt_time(dt):
+            return f"{dt.isoformat(timespec='seconds')}Z-period-is-3-fmt-{dt.strftime('%Y.%d.%m.%H.%M.%S')}"
+
+        assert fmt_time(start) <= output_table_name <= fmt_time(end)
+
+        self.remove_export_destination(export_dir)
+
 
 class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True

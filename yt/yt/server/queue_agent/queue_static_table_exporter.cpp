@@ -116,19 +116,17 @@ public:
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         TYPath queue,
-        TYPath exportDirectory,
-        TDuration exportPeriod,
+        TQueueStaticExportConfig exportConfig,
         const TLogger& logger)
         : Client_(std::move(client))
         , Connection_(Client_->GetNativeConnection())
         , Invoker_(std::move(invoker))
         , Queue_(std::move(queue))
-        , ExportDirectory_(std::move(exportDirectory))
-        , ExportPeriod_(exportPeriod)
+        , ExportConfig_(std::move(exportConfig))
         , Logger(logger.WithTag(
             "ExportDirectory: %v, ExportPeriod: %v",
-            ExportDirectory_,
-            ExportPeriod_))
+            ExportConfig_.ExportDirectory,
+            ExportConfig_.ExportPeriod))
     { }
 
     TFuture<void> Run()
@@ -144,8 +142,7 @@ private:
     const IInvokerPtr Invoker_;
 
     const TYPath Queue_;
-    const TYPath ExportDirectory_;
-    const TDuration ExportPeriod_;
+    const TQueueStaticExportConfig ExportConfig_;
 
     const TLogger Logger;
 
@@ -201,7 +198,7 @@ private:
         auto transactionId = transaction->GetId();
         WaitFor(transaction->LockNode(Queue_, ELockMode::Snapshot))
             .ThrowOnError();
-        WaitFor(transaction->LockNode(ExportDirectory_, ELockMode::Exclusive))
+        WaitFor(transaction->LockNode(ExportConfig_.ExportDirectory, ELockMode::Exclusive))
             .ThrowOnError();
 
         Options_.TransactionId = transactionId;
@@ -244,7 +241,7 @@ private:
 
     ui64 GetMinFragmentUnixTs(TTimestamp timestamp)
     {
-        auto period = ExportPeriod_.Seconds();
+        auto period = ExportConfig_.ExportPeriod.Seconds();
         YT_VERIFY(period > 0);
 
         auto unixTs = UnixTimeFromTimestamp(timestamp);
@@ -255,7 +252,7 @@ private:
 
     void ComputeExportFragmentUnixTs()
     {
-        auto period = ExportPeriod_.Seconds();
+        auto period = ExportConfig_.ExportPeriod.Seconds();
         YT_VERIFY(period > 0);
 
         auto exportUnixTs = ExportInstant_.Seconds();
@@ -352,7 +349,7 @@ private:
     TExportProgressPtr ValidateDestinationAndFetchProgress()
     {
         auto exportDirectoryAttributes = FetchNodeAttributes(
-            ExportDirectory_,
+            ExportConfig_.ExportDirectory,
             {ExportDestinationAttributeName_, ExportProgressAttributeName_});
 
         auto destinationConfig = exportDirectoryAttributes->Get<TQueueStaticExportDestinationConfig>(ExportDestinationAttributeName_);
@@ -456,13 +453,34 @@ private:
         YT_LOG_DEBUG("Finished fetching chunk specs (Count: %v)", ChunkSpecs_.size());
     }
 
+    TString GetOutputTableName(ui64 unixTs)
+    {
+        auto instant = TInstant::Seconds(unixTs);
+
+        auto outputTableName = ExportConfig_.OutputTableNamePattern;
+
+        std::vector<std::pair<TString, TString>> variables = {
+            {"%UNIX_TS", ToString(unixTs)},
+            {"%PERIOD", ToString(ExportConfig_.ExportPeriod.Seconds())},
+            {"%ISO", instant.ToStringUpToSeconds()},
+        };
+
+        // Replace all occurrences of variables with their values.
+        for (const auto& [variable, value] : variables) {
+            for (size_t position = 0; (position = outputTableName.find(variable, position)) != TString::npos; ) {
+                outputTableName.replace(position, variable.length(), value);
+            }
+        }
+
+        return instant.FormatGmTime(outputTableName.c_str());
+    }
+
     void CreateOutputTable()
     {
         auto destinationPath = Format(
-            "%s/%v-%v",
-            ExportDirectory_,
-            ExportFragmentUnixTs_,
-            ExportPeriod_.Seconds());
+            "%s/%v",
+            ExportConfig_.ExportDirectory,
+            GetOutputTableName(ExportFragmentUnixTs_));
         DestinationObject_ = TUserObject(destinationPath, Options_.TransactionId);
 
         TCreateNodeOptions createOptions;
@@ -674,7 +692,7 @@ private:
         TSetNodeOptions options;
         options.TransactionId = Options_.TransactionId;
         WaitFor(Client_->SetNode(
-            Format("%v/@%v", ExportDirectory_, ExportProgressAttributeName_),
+            Format("%v/@%v", ExportConfig_.ExportDirectory, ExportProgressAttributeName_),
             ConvertToYsonString(newExportProgress),
             options))
             .ThrowOnError();
@@ -704,15 +722,13 @@ TQueueExporter::TQueueExporter(
 
 TFuture<void> TQueueExporter::RunExportIteration(
     TYPath queue,
-    TYPath exportDirectory,
-    TDuration exportPeriod)
+    const TQueueStaticExportConfig& exportConfig)
 {
     auto exportTask = New<TQueueExportTask>(
         Client_,
         Invoker_,
         std::move(queue),
-        std::move(exportDirectory),
-        exportPeriod,
+        exportConfig,
         Logger);
     return exportTask->Run();
 }
