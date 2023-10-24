@@ -88,6 +88,12 @@ public:
         return true;
     }
 
+    virtual bool DeviceIsRegistered(const TString& name) override
+    {
+        auto guard = ReaderGuard(NameToDeviceLock_);
+        return NameToDevice_.contains(name);
+    }
+
     virtual const NLogging::TLogger& GetLogger() const override
     {
         return Logger;

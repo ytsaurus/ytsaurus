@@ -28,6 +28,8 @@ struct INbdServer
     //! Returns |true| upon success and |false| if no such device is registered.
     virtual bool TryUnregisterDevice(const TString& name) = 0;
 
+    virtual bool DeviceIsRegistered(const TString& name) = 0;
+
     virtual const NLogging::TLogger& GetLogger() const = 0;
 
     virtual NApi::NNative::IConnectionPtr GetConnection() const = 0;

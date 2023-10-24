@@ -18,6 +18,8 @@
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 
+#include <yt/yt/server/lib/nbd/cypress_file_block_device.h>
+
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 
@@ -30,6 +32,7 @@
 #include <yt/yt/server/tools/proc.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -88,6 +91,50 @@ static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 static const TString StorageSuffix = "storage";
 static const TString MountSuffix = "mount";
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
+    const NDataNode::TArtifactKey& artifactKey,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker,
+    const NLogging::TLogger& Logger)
+{
+    YT_VERIFY(artifactKey.has_filesystem());
+    YT_VERIFY(artifactKey.has_nbd_export_id());
+
+    YT_LOG_INFO("Creating NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+        artifactKey.file_path(),
+        artifactKey.filesystem(),
+        artifactKey.nbd_export_id());
+
+    auto config = New<NNbd::TCypressFileBlockDeviceConfig>();
+    config->Path = artifactKey.file_path();
+    if (config->Path.empty()) {
+        THROW_ERROR_EXCEPTION("No file path for filesystem image")
+            << TErrorAttribute("type_name", artifactKey.GetTypeName())
+            << TErrorAttribute("filesystem", artifactKey.filesystem())
+            << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
+    }
+
+    auto device = NNbd::CreateCypressFileBlockDevice(
+        artifactKey.nbd_export_id(),
+        std::move(config),
+        std::move(client),
+        std::move(invoker),
+        Logger);
+
+    YT_LOG_INFO("Created NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+        artifactKey.file_path(),
+        artifactKey.filesystem(),
+        artifactKey.nbd_export_id());
+
+    return device;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,6 +264,8 @@ public:
     {
         return std::get<TNbdVolumePtr>(Variant_);
     }
+
+    TFuture<void> Remove();
 
 private:
     std::variant<TLayerPtr, TNbdVolumePtr> Variant_;
@@ -2123,7 +2172,17 @@ public:
             return RemoveFuture_;
         }
 
-        RemoveFuture_ = Location_->RemoveVolume(VolumeMeta_.Id);
+        // At first remove overlay volume, then remove constituent volumes and layers.
+        auto future = Location_->RemoveVolume(VolumeMeta_.Id);
+        RemoveFuture_ = future.Apply(BIND([overlayDataArray = OverlayDataArray_]() mutable {
+            std::vector<TFuture<void>> futures;
+            futures.reserve(overlayDataArray.size());
+            for (auto& overlayData : overlayDataArray) {
+                futures.push_back(overlayData.Remove());
+            }
+            return AllSucceeded(futures);
+        }));
+
         return RemoveFuture_;
     }
 
@@ -2165,11 +2224,13 @@ public:
         const TVolumeMeta& meta,
         TPortoVolumeManagerPtr owner,
         TLayerLocationPtr location,
-        const TArtifactKey& artifactKey)
+        const TArtifactKey& artifactKey,
+        NNbd::INbdServerPtr nbdServer)
         : VolumeMeta_(meta)
         , Owner_(std::move(owner))
         , Location_(std::move(location))
         , ArtifactKey_(artifactKey)
+        , NbdServer_(nbdServer)
     { }
 
     ~TNbdVolume()
@@ -2183,7 +2244,12 @@ public:
             return RemoveFuture_;
         }
 
-        RemoveFuture_ = Location_->RemoveVolume(VolumeMeta_.Id);
+        // At first remove volume, then unregister export.
+        auto future = Location_->RemoveVolume(VolumeMeta_.Id);
+        RemoveFuture_ = future.Apply(BIND([nbdServer = NbdServer_, layer=ArtifactKey_]() {
+            nbdServer->TryUnregisterDevice(layer.nbd_export_id());
+        }));
+
         return RemoveFuture_;
     }
 
@@ -2207,6 +2273,7 @@ private:
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
     const TArtifactKey ArtifactKey_;
+    const NNbd::INbdServerPtr NbdServer_;
 
     TFuture<void> RemoveFuture_;
 };
@@ -2231,6 +2298,15 @@ const TArtifactKey& TOverlayData::GetArtifactKey() const
     }
 
     return std::get<TNbdVolumePtr>(Variant_)->GetArtifactKey();
+}
+
+TFuture<void> TOverlayData::Remove()
+{
+    if (IsLayer()) {
+        return VoidFuture;
+    }
+
+    return GetNbdVolume()->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2441,6 +2517,51 @@ private:
         LayerCache_->BuildOrchid(fluent);
     }
 
+    //! Register NBD layers (images) with NBD server. It must be done prior to creating NBD volumes.
+    TFuture<void> PrepareNbdExport(
+        TGuid tag,
+        const TArtifactKey& layer)
+    {
+        YT_LOG_DEBUG("Prepare NBD export (Tag: %v, Path: %v, ExportId: %v)",
+            tag,
+            layer.file_path(),
+            layer.nbd_export_id());
+
+        auto nbdServer = Bootstrap_->GetNbdServer();
+        if (!nbdServer) {
+            auto error = TError(
+                "No NBD server to register layer with path %Qv and export id %Qv",
+                layer.file_path(),
+                layer.nbd_export_id());
+            YT_LOG_ERROR(error, "Failed to prepare NBD export");
+            return MakeFuture<void>(error);
+        }
+
+        // TODO(yuryalekseev): user
+        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+        auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
+
+        try {
+            auto device = CreateCypressFileBlockDevice(
+                layer,
+                std::move(client),
+                nbdServer->GetInvoker(),
+                nbdServer->GetLogger());
+
+            auto future = device->Initialize();
+            nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
+            return future;
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_LOG_ERROR(error, "Failed to create and register NBD export");
+            return MakeFuture<void>(error);
+        }
+
+        // We should never get here.
+        return VoidFuture;
+    }
+
+    //! Create NBD volumes.
     std::vector<TFuture<TOverlayData>> PrepareNbdVolumes(
         TGuid tag,
         const std::vector<TArtifactKey>& artifactKeys)
@@ -2456,14 +2577,18 @@ private:
 
         for (const auto& artifactKey : artifactKeys) {
             YT_VERIFY(artifactKey.has_filesystem());
+            YT_VERIFY(artifactKey.has_nbd_export_id());
 
-            auto future = BIND(
+            // There could be a CreateNbdVolume() failure after a successful PrepareNbdExport().
+            // In such cases NBD exports are unregistered by TJob::Cleanup().
+            auto exportFuture = PrepareNbdExport(tag, artifactKey);
+            auto volumeFuture = exportFuture.Apply(BIND(
                 &TPortoVolumeManager::CreateNbdVolume,
                 MakeStrong(this),
                 tag,
-                artifactKey).AsyncVia(GetCurrentInvoker()).Run().As<TOverlayData>();
+                artifactKey).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
 
-            futures.push_back(std::move(future));
+            futures.push_back(std::move(volumeFuture));
         }
 
         return futures;
@@ -2498,8 +2623,9 @@ private:
         THROW_ERROR_EXCEPTION_IF(!artifactKey.has_filesystem(), "NBD layer %Qv doesn't have filesystem type", artifactKey.data_source().path());
         THROW_ERROR_EXCEPTION_IF(!artifactKey.has_nbd_export_id(), "NBD layer %Qv doesn't have export id", artifactKey.data_source().path());
 
-        YT_LOG_DEBUG("Creating NBD volume (Tag: %v, Path: %v, Filesytem: %v)",
+        YT_LOG_DEBUG("Creating NBD volume (Tag: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,
+            artifactKey.nbd_export_id(),
             artifactKey.data_source().path(),
             artifactKey.filesystem());
 
@@ -2513,11 +2639,13 @@ private:
             volumeMeta,
             this,
             location,
-            artifactKey);
+            artifactKey,
+            Bootstrap_->GetNbdServer());
 
-        YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, Path: %v, Filesytem: %v)",
+        YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,
             volumeMeta.Id,
+            artifactKey.nbd_export_id(),
             artifactKey.data_source().path(),
             artifactKey.filesystem());
 

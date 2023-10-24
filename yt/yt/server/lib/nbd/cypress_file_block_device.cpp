@@ -141,6 +141,8 @@ public:
 private:
     void DoInitialize()
     {
+        YT_LOG_INFO("Initializing cypress file block divice (Path: %v)", Config_->Path);
+
         NYPath::TRichYPath richPath{Config_->Path};
 
         auto userObject = GetUserObject(richPath, Client_, Logger);
@@ -169,6 +171,8 @@ private:
         }
 
         InitializeChunkStructs(userObject, chunkSpecs);
+
+        YT_LOG_INFO("Initialized cypress file block device (Path: %v)", Config_->Path);
     }
 
     TFuture<std::vector<std::vector<TSharedRef>>> ReadFromChunks(const std::vector<TChunk>& chunks, i64 offset, i64 length, const TGuid& readId)

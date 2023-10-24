@@ -36,12 +36,7 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
-#include <yt/yt/server/lib/nbd/config.h>
-#include <yt/yt/server/lib/nbd/cypress_file_block_device.h>
-#include <yt/yt/server/lib/nbd/server.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
-#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -137,44 +132,6 @@ static const TString SlotIndexPattern("\%slot_index\%");
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
-    const NDataNode::TArtifactKey& artifactKey,
-    NApi::NNative::IClientPtr client,
-    IInvokerPtr invoker,
-    const NLogging::TLogger& Logger)
-{
-    YT_LOG_INFO("Creating NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
-        artifactKey.file_path(),
-        artifactKey.filesystem(),
-        artifactKey.nbd_export_id());
-
-    YT_VERIFY(artifactKey.has_filesystem());
-    YT_VERIFY(artifactKey.has_nbd_export_id());
-    auto config = New<NNbd::TCypressFileBlockDeviceConfig>();
-    config->Path = artifactKey.file_path();
-    if (config->Path.empty()) {
-        THROW_ERROR_EXCEPTION("No file path for filesystem image")
-            << TErrorAttribute("type_name", artifactKey.GetTypeName())
-            << TErrorAttribute("filesystem", artifactKey.filesystem())
-            << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
-    }
-
-    auto device = CreateCypressFileBlockDevice(
-        artifactKey.nbd_export_id(),
-        std::move(config),
-        std::move(client),
-        std::move(invoker),
-        Logger
-    );
-
-    YT_LOG_INFO("Created NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
-        artifactKey.file_path(),
-        artifactKey.filesystem(),
-        artifactKey.nbd_export_id());
-
-    return device;
-}
 
 TGuid CreateNbdExportId(TJobId jobId, int nbdExportIndex)
 {
@@ -319,34 +276,6 @@ void TJob::DoStart()
             }
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
-
-            // TODO(yuryalekseev): What's the right place for it?
-            if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-                // Register nbd layers with nbd server. It must be done prior to creating nbd porto volumes.
-                auto nbdExportCount = 0;
-                for (auto& layer : LayerArtifactKeys_) {
-                    if (layer.has_filesystem()) {
-                        auto nbdExportId = CreateNbdExportId(Id_, nbdExportCount);
-                        layer.set_nbd_export_id(ToString(nbdExportId));
-                        ++nbdExportCount;
-
-                        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(JobSpecExt_->authenticated_user());
-                        auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
-
-                        auto device = CreateCypressFileBlockDevice(
-                            layer,
-                            std::move(client),
-                            nbdServer->GetInvoker(),
-                            nbdServer->GetLogger());
-
-                        auto future = device->Initialize();
-
-                        nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
-
-                        ArtifactPrepareFutures_.push_back(std::move(future));
-                    }
-                }
-            }
 
             // This is a heavy part of preparation, offload it to compression invoker.
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
@@ -582,16 +511,6 @@ void TJob::Terminate(EJobState finalState, TError error)
 
         if (const auto& slot = GetUserSlot()) {
             slot->CancelPreparation();
-        }
-
-        // TODO(yuryalekseev): What's the right place for it?
-        if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-            // Unregister nbd layers with nbd server.
-            for (auto& layer : LayerArtifactKeys_) {
-                if (layer.has_nbd_export_id()) {
-                    nbdServer->TryUnregisterDevice(layer.nbd_export_id());
-                }
-            }
         }
     };
 
@@ -2240,6 +2159,8 @@ void TJob::Cleanup()
         RootVolume_.Reset();
     }
 
+    CleanupNbdExports();
+
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
             try {
@@ -2262,6 +2183,25 @@ void TJob::Cleanup()
     CleanupFinished_.Set();
 
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
+}
+
+//! Make sure NBD exports are unregistered in case of volume creation failures.
+void TJob::CleanupNbdExports()
+{
+    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+        for (const auto& artifactKey : LayerArtifactKeys_) {
+            if (!artifactKey.has_nbd_export_id()) {
+                continue;
+            }
+
+            if (nbdServer->DeviceIsRegistered(artifactKey.nbd_export_id())) {
+                YT_LOG_ERROR("NBD export %Qlv with path %Qlv is still unexpectedly registered, unregister it",
+                    artifactKey.nbd_export_id(),
+                    artifactKey.file_path());
+                nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+            }
+        }
+    }
 }
 
 TFuture<void> TJob::GetCleanupFinishedEvent()
@@ -2623,6 +2563,16 @@ void TJob::InitializeArtifacts()
 
         for (const auto& layerKey : UserJobSpec_->layers()) {
             LayerArtifactKeys_.emplace_back(layerKey);
+        }
+
+        // Mark NBD layers.
+        auto nbdExportCount = 0;
+        for (auto& layer : LayerArtifactKeys_) {
+            if (layer.has_filesystem()) {
+                auto nbdExportId = CreateNbdExportId(Id_, nbdExportCount);
+                layer.set_nbd_export_id(ToString(nbdExportId));
+                ++nbdExportCount;
+            }
         }
 
         if (UserJobSpec_->has_docker_image()) {

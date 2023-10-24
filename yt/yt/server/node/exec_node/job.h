@@ -437,6 +437,7 @@ private:
 
     // Finalization.
     void Cleanup();
+    void CleanupNbdExports();
 
     // Preparation.
     void PrepareNodeDirectory();
