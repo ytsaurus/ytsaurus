@@ -73,7 +73,7 @@ def parse_bash_command_line(command_line):
         else:
             return environment_variables.strip(), command_with_args[0], command_with_args[1]
 
-    return "", command_line, ""
+    return environment_variables.strip(), command_with_args[0], ""
 
 
 def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environment,
