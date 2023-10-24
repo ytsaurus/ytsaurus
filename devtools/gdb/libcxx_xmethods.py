@@ -121,13 +121,12 @@ class StringSizeWorker(gdb.xmethod.XMethodWorker):
 
     def __call__(self, obj):
         ss = destructure_compressed_pair(obj['__r_'])[0]['__s']
-        __short_mask = 0x1
-        if ((ss['__size_'] & __short_mask) == 0):
-            return ss['__size_'] >> 1
-
-        else:
+        is_long = ss['__is_long_']
+        if is_long:
             sl = destructure_compressed_pair(obj['__r_'])[0]['__l']
             return sl['__size_']
+        else:
+            return ss['__size_']
 
 
 class StringIndexWorker(gdb.xmethod.XMethodWorker):
