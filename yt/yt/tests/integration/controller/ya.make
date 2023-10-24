@@ -21,9 +21,15 @@ TEST_SRCS(
     test_vanilla_operation.py
 )
 
-PEERDIR(
-    yt/yt/tests/integration/helpers
-)
+IF (NOT OPENSOURCE)
+    PEERDIR(
+        yt/yt/tests/integration/helpers
+    )
+
+    TEST_SRCS(
+        test_controller_agent_heap_profile.py
+    )
+ENDIF()
 
 END()
 

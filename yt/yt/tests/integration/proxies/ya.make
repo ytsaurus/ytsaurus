@@ -18,15 +18,16 @@ TEST_SRCS(
 
 PEERDIR(
     yt/yt/tests/conftest_lib
-    yt/yt/tests/integration/helpers
 )
 
 IF (NOT OPENSOURCE)
     PEERDIR(
         library/python/tvmauth
+        yt/yt/tests/integration/helpers
     )
 
     TEST_SRCS(
+        test_proxy_heap_profile.py
         test_yandex_auth.py
     )
 ENDIF()

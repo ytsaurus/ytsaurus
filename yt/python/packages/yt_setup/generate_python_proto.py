@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    proto_dirs = ("yt/yt_proto/yt/core", "yt/yt_proto/yt/client", "yt/yt/library/ytprof/proto")
+    proto_dirs = ("yt/yt_proto/yt/core", "yt/yt_proto/yt/client")
     for dir in proto_dirs:
         generate_proto_recursively(Path(dir), args.source_root, args.output)
 
