@@ -172,6 +172,8 @@ private:
     // Persistent fields.
     NTransactionServer::TTransactionRotator TransactionRotator_;
     THashMap<NCypressClient::TObjectId, NSecurityServer::TAccountId> NodesBeingMerged_;
+    THashMap<NSecurityServer::TAccountId, int> NodesBeingMergedPerAccount_;
+
     i64 ConfigVersion_ = 0;
 
     struct TChunkMergerStatistics
@@ -231,8 +233,8 @@ private:
 
     THashMap<NSecurityServer::TAccountId, TAccountQueuesUsage> QueuesUsage_;
 
-    THashMap<NSecurityServer::TAccountId, int> NodesBeingMergedPerAccount_;
-
+    // COMPAT(aleksandra-zh)
+    bool NeedRestorePersistentStatistics_ = false;
 
     void IncrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
     void DecrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
