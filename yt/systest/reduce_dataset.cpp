@@ -128,6 +128,7 @@ TReduceDataset::TReduceDataset(const IDataset& inner, const TReduceOperation& op
     }
     std::copy(Operation_.Reducer->OutputColumns().begin(), Operation_.Reducer->OutputColumns().end(),
         std::back_inserter(Table_.DataColumns));
+    Table_.SortColumns = std::ssize(ReduceByIndices_);
 }
 
 const TTable& TReduceDataset::table_schema() const

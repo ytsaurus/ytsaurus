@@ -43,7 +43,7 @@ std::vector<std::vector<TNode>> TFilterMultiMapper::Run(TCallState* /*state*/, T
 {
     if (input[ColumnIndex_] == Value_) {
         return {std::vector<TNode>(input.begin(), input.end())};
-    };
+    }
 
     return {};
 }

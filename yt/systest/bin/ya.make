@@ -7,6 +7,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/library/program
     yt/systest
 )
 

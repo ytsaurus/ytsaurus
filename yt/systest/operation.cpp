@@ -16,6 +16,9 @@ std::unique_ptr<IRowMapper> CreateFromProto(
         case NProto::TRowMapper::kSetSeed: {
             return std::make_unique<TSetSeedRowMapper>(input, operationProto.set_seed());
         }
+        case NProto::TRowMapper::kIdentity: {
+            return std::make_unique<TIdentityRowMapper>(input, operationProto.identity());
+        }
         case NProto::TRowMapper::kGenerateRandom: {
             return std::make_unique<TGenerateRandomRowMapper>(
                 input, operationProto.generate_random());
@@ -23,6 +26,16 @@ std::unique_ptr<IRowMapper> CreateFromProto(
         case NProto::TRowMapper::kConcatenateColumns: {
             return std::make_unique<TConcatenateColumnsRowMapper>(
                 input, operationProto.concatenate_columns());
+            break;
+        }
+        case NProto::TRowMapper::kDeleteColumn: {
+            return std::make_unique<TDeleteColumnRowMapper>(
+                input, operationProto.delete_column());
+            break;
+        }
+        case NProto::TRowMapper::kRenameColumn: {
+            return std::make_unique<TRenameColumnRowMapper>(
+                input, operationProto.rename_column());
             break;
         }
         case NProto::TRowMapper::OPERATION_NOT_SET:

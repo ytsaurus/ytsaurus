@@ -6,8 +6,8 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(bin)
 add_subdirectory(proto)
-add_subdirectory(tester)
 add_subdirectory(unittests)
 
 add_library(yt-systest)
@@ -18,17 +18,23 @@ target_link_libraries(yt-systest PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-cpp-getopt
   cpp-mapreduce-client
   cpp-mapreduce-interface
   cpp-mapreduce-io
   yt-systest-proto
   yt-yt-client
+  yt-library-containers
+  yt-library-program
+  library-profiling-solomon
   yt_proto-yt-client
 )
 target_sources(yt-systest PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/bootstrap_dataset.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/dataset_operation.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/decorate_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/map_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/operation.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/operation/map.cpp

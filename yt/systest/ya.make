@@ -4,8 +4,10 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     bootstrap_dataset.cpp
+    config.cpp
     dataset.cpp
     dataset_operation.cpp
+    decorate_dataset.cpp
     map_dataset.cpp
     operation.cpp
 
@@ -26,6 +28,8 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/getopt
+
     yt/cpp/mapreduce/client
     yt/cpp/mapreduce/interface
     yt/cpp/mapreduce/io
@@ -34,14 +38,18 @@ PEERDIR(
 
     yt/yt/client
 
+    yt/yt/library/containers
+    yt/yt/library/program
+    yt/yt/library/profiling/solomon
+
     yt/yt_proto/yt/client
 )
 
 END()
 
 RECURSE(
+    bin
     helm
     scripts
-    tester
     unittests
 )

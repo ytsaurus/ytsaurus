@@ -12,6 +12,8 @@ spec:
       value: '{proxy={enable_proxy_discovery=%false}}'
     - name: YT_TOKEN
       value: 'password'
+    - name: YT_LOG_LEVEL
+      value: 'info'
     - name: YT_PROXY
       value: "$(HTTP_PROXIES_LB_SERVICE_HOST):$(HTTP_PROXIES_LB_SERVICE_PORT)"
-    command: ['systest']
+    command: ['systest', '-n', '4', '--ipv4', 'true', '--enable-reduce', 'true', '--enable-renames', 'true', '--enable-deletes', 'false']
