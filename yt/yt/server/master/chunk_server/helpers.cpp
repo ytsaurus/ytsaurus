@@ -311,6 +311,16 @@ void AttachToChunkList(
         }
     }
 
+    if (chunkList->HasChildToIndexMapping()) {
+        for (auto* child : children) {
+            if (chunkList->HasChild(child)) {
+                THROW_ERROR_EXCEPTION("Cannot append a duplicate child %v to chunk list %v",
+                    child->GetId(),
+                    chunkList->GetId());
+            }
+        }
+    }
+
     // NB: Accumulate statistics from left to right to get Sealed flag correct.
     TChunkTreeStatistics statisticsDelta;
     for (auto* child : children) {

@@ -99,8 +99,8 @@ public:
     bool HasTrimmableCumulativeStatistics() const;
     bool HasChildToIndexMapping() const;
 
-    // Checks if chunk list contains specified child.
-    // Supported for chunk lists with child to index mapping only.
+    //! Checks if the chunk list already contains #child.
+    //! Only supported for chunk lists with child to index mapping (\see #HasChildToIndexMapping).
     bool HasChild(TChunkTree* child) const;
 
     NTableClient::TKeyBound GetPivotKeyBound() const;
