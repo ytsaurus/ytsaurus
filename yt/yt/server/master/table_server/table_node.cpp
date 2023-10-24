@@ -186,10 +186,10 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, HunkStorageNode);
 
     // COMPAT(sabdenovch)
-    // if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-    //     Load(context, SecondaryIndices);
-    //     Load(context, IndexTo);
-    // }
+    if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
+        Load(context, SecondaryIndices);
+        Load(context, IndexTo);
+    }
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
