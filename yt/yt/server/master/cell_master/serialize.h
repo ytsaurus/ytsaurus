@@ -171,9 +171,8 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicateAlienClusterRegistry)                                (2436))  // ponasenko-rs
     ((ChunkMergerModeUnderTransaction)                              (2437))  // cherepashka
     ((FixSystemTransactionReplication)                              (2438))  // h0pless
-    ((SecondaryIndex)                                               (2439))  // sabdenovch
-    ((QueueAgentStageForChaos)                                      (2440))  // nadya73
-    ((FixMergerStatistics)                                          (2441))  // aleksandra-zh
+    ((QueueAgentStageForChaos)                                      (2439))  // nadya73
+    ((FixMergerStatistics)                                          (2440))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

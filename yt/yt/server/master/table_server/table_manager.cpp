@@ -1603,9 +1603,9 @@ private:
         TableCollocationMap_.LoadKeys(context);
 
         // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-            SecondaryIndexMap_.LoadKeys(context);
-        }
+        // if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
+        //     SecondaryIndexMap_.LoadKeys(context);
+        // }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1616,9 +1616,9 @@ private:
         TableCollocationMap_.LoadValues(context);
 
         // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-            SecondaryIndexMap_.LoadValues(context);
-        }
+        // if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
+        //     SecondaryIndexMap_.LoadValues(context);
+        // }
 
         Load(context, Queues_);
         Load(context, Consumers_);
