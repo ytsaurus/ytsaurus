@@ -133,20 +133,18 @@ public:
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
             chunkManager->AttachToChunkList(
                 newRootChunkList,
-                chunkLists.data(),
-                chunkLists.data() + firstTabletIndex);
+                MakeRange(chunkLists).Slice(0, firstTabletIndex));
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* newTabletChunkList = chunkManager->CloneTabletChunkList(chunkLists[index]->AsChunkList());
-                chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
+                chunkManager->AttachToChunkList(newRootChunkList, {newTabletChunkList});
 
                 actionCount += newTabletChunkList->Statistics().ChunkCount;
             }
 
             chunkManager->AttachToChunkList(
                 newRootChunkList,
-                chunkLists.data() + lastTabletIndex + 1,
-                chunkLists.data() + chunkLists.size());
+                MakeRange(chunkLists).Slice(lastTabletIndex + 1, chunkLists.size()));
 
             actionCount += newRootChunkList->Children().size();
 
@@ -366,7 +364,7 @@ public:
                             // Chunk fits into the tablet.
                             chunkManager->AttachToChunkList(
                                 newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList(),
-                                chunk);
+                                {chunk});
                             if (oldEdenStoreIds.contains(chunk->GetId())) {
                                 newEdenStoreIds[relativeIndex].push_back(chunk->GetId());
                             }
@@ -384,7 +382,7 @@ public:
                                 TChunkViewModifier().WithReadRange(newReadRange));
                             chunkManager->AttachToChunkList(
                                 newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList(),
-                                newChunkView);
+                                {newChunkView});
                             if (oldEdenStoreIds.contains(chunk->GetId())) {
                                 newEdenStoreIds[relativeIndex].push_back(newChunkView->GetId());
                             }
@@ -446,7 +444,7 @@ public:
                     EnumerateChunksInChunkTree(mainTabletChunkList, &chunks);
                 }
                 for (auto* chunk : chunks) {
-                    chunkManager->AttachToChunkList(chunkList, chunk);
+                    chunkManager->AttachToChunkList(chunkList, {chunk});
                 }
             };
             for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
@@ -482,15 +480,13 @@ public:
             const auto& oldTabletChunkLists = oldRootChunkLists[contentType]->Children();
             chunkManager->AttachToChunkList(
                 newRootChunkLists[contentType],
-                oldTabletChunkLists.data(),
-                oldTabletChunkLists.data() + firstTabletIndex);
+                MakeRange(oldTabletChunkLists).Slice(0, firstTabletIndex));
             chunkManager->AttachToChunkList(
                 newRootChunkLists[contentType],
                 newTabletChunkLists[contentType]);
             chunkManager->AttachToChunkList(
                 newRootChunkLists[contentType],
-                oldTabletChunkLists.data() + lastTabletIndex + 1,
-                oldTabletChunkLists.data() + oldTabletChunkLists.size());
+                MakeRange(oldTabletChunkLists).Slice(lastTabletIndex + 1, oldTabletChunkLists.size()));
         }
 
         // Replace root chunk list.
@@ -522,15 +518,13 @@ public:
 
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            oldTabletChunkLists.data(),
-            oldTabletChunkLists.data() + firstTabletIndex);
+            MakeRange(oldTabletChunkLists).Slice(0, firstTabletIndex));
 
         chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkLists);
 
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            oldTabletChunkLists.data() + lastTabletIndex + 1,
-            oldTabletChunkLists.data() + oldTabletChunkLists.size());
+            MakeRange(oldTabletChunkLists).Slice(lastTabletIndex + 1,  oldTabletChunkLists.size()));
 
         oldRootChunkList->RemoveOwningNode(hunkStorage);
         hunkStorage->SetChunkList(newRootChunkList);
@@ -767,7 +761,7 @@ public:
                 EChunkDetachPolicy::OrderedTabletSuffix);
 
             if (flushedChunk) {
-                chunkManager->AttachToChunkList(tabletChunkList, flushedChunk);
+                chunkManager->AttachToChunkList(tabletChunkList, {flushedChunk});
             }
 
             allDynamicStores.erase(allDynamicStores.begin());
@@ -775,7 +769,7 @@ public:
 
             if (request->request_dynamic_store_id()) {
                 auto* dynamicStoreToAdd = chunksToAttach.back()->AsDynamicStore();
-                chunkManager->AttachToChunkList(tabletChunkList, dynamicStoreToAdd);
+                chunkManager->AttachToChunkList(tabletChunkList, {dynamicStoreToAdd});
             }
         } else {
             AttachChunksToTablet(tablet, chunksToAttach);
@@ -946,13 +940,13 @@ public:
             auto* tablet = table->Tablets()[0]->As<TTablet>();
             SetLogicalRowCount(tabletChunkList, tablet->GetTrimmedRowCount());
         }
-        chunkManager->AttachToChunkList(newChunkList, tabletChunkList);
+        chunkManager->AttachToChunkList(newChunkList, {tabletChunkList});
 
         std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
         chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
 
         auto* tabletHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
-        chunkManager->AttachToChunkList(newHunkChunkList, tabletHunkChunkList);
+        chunkManager->AttachToChunkList(newHunkChunkList, {tabletHunkChunkList});
 
         oldChunkList->RemoveOwningNode(table);
     }
@@ -1550,7 +1544,7 @@ private:
         while (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && chunkList->Children().empty()) {
             auto* parent = GetUniqueParent(chunkList);
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            chunkManager->DetachFromChunkList(parent, chunkList, EChunkDetachPolicy::SortedTablet);
+            chunkManager->DetachFromChunkList(parent, {chunkList}, EChunkDetachPolicy::SortedTablet);
             chunkList = parent;
         }
     }

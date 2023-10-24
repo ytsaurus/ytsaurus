@@ -18,14 +18,7 @@ struct IChunkReplacerCallbacks
 {
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) = 0;
-    virtual void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) = 0;
-    virtual void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) = 0;
+        TRange<TChunkTree*> children) = 0;
     virtual TChunkList* CreateChunkList(
         EChunkListKind kind) = 0;
     // TODO(shakurov): remove these, make TChunkReplacer own its new root chunk

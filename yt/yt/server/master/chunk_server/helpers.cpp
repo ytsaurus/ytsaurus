@@ -250,21 +250,19 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent)
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TChunkTree* const* childrenBegin,
-    TChunkTree* const* childrenEnd)
+    TRange<TChunkTree*> children)
 {
     // A shortcut.
-    if (childrenBegin == childrenEnd) {
+    if (children.empty()) {
         return;
     }
 
     if (chunkList->GetKind() == EChunkListKind::JournalRoot) {
         // Make sure all new children have the same value of "sealed" and "overlayed" flags.
-        const auto* firstChild = childrenBegin[0];
+        const auto* firstChild = children[0];
         bool childrenSealed = firstChild->IsSealed();
         bool childrenOverlayed = firstChild->GetOverlayed();
-        for (auto it = childrenBegin; it != childrenEnd; ++it) {
-            const auto* child = *it;
+        for (const auto* child : children) {
             if (bool childSealed = child->IsSealed(); childSealed != childrenSealed) {
                 THROW_ERROR_EXCEPTION("Improper sealed flag for child %v: expected %Qlv, actual %Qlv",
                     child->GetId(),
@@ -293,7 +291,7 @@ void AttachToChunkList(
             ++unsealedCount;
         }
         if (!childrenSealed) {
-            unsealedCount += static_cast<int>(childrenEnd - childrenBegin);
+            unsealedCount += std::ssize(children);
         }
         if (unsealedCount > 1) {
             if (!childrenOverlayed) {
@@ -315,8 +313,7 @@ void AttachToChunkList(
 
     // NB: Accumulate statistics from left to right to get Sealed flag correct.
     TChunkTreeStatistics statisticsDelta;
-    for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        auto* child = *it;
+    for (auto* child : children) {
         AppendChunkTreeChild(chunkList, child, &statisticsDelta);
         SetChunkTreeParent(chunkList, child);
     }
@@ -330,25 +327,23 @@ void AttachToChunkList(
 
 void DetachFromChunkList(
     TChunkList* chunkList,
-    TChunkTree* const* childrenBegin,
-    TChunkTree* const* childrenEnd,
+    TRange<TChunkTree*> children,
     EChunkDetachPolicy policy)
 {
     // A shortcut.
-    if (childrenBegin == childrenEnd) {
+    if (children.empty()) {
         return;
     }
 
     chunkList->IncrementVersion();
 
     TChunkTreeStatistics statisticsDelta;
-    for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
-        auto* child = *childIt;
+    for (auto* child : children) {
         statisticsDelta.Accumulate(GetChunkTreeStatistics(child));
         ResetChunkTreeParent(chunkList, child);
     }
 
-    auto& children = chunkList->Children();
+    auto& existingChildren = chunkList->Children();
     switch (policy) {
         case EChunkDetachPolicy::OrderedTabletSuffix: {
             YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
@@ -356,22 +351,22 @@ void DetachFromChunkList(
             YT_VERIFY(chunkList->Children().back()->GetType() ==
                 EObjectType::OrderedDynamicTabletStore);
 
-            int childCount = childrenEnd - childrenBegin;
-            int firstChildIndex = children.size() - childCount;
+            int childCount = std::ssize(children);
+            int firstChildIndex = std::ssize(existingChildren) - childCount;
 
             YT_VERIFY(firstChildIndex >= chunkList->GetTrimmedChildCount());
             for (int index = 0; index < childCount; ++index) {
-                if (children[firstChildIndex + index] != childrenBegin[index]) {
+                if (existingChildren[firstChildIndex + index] != children[index]) {
                     YT_LOG_ALERT("Attempted to detach children from ordered tablet out of order "
                         "(ChunkListId: %v, RelativeStoreIndex: %v, DetachedStoreId: %v, ActualStoreId: %v)",
                         chunkList->GetId(),
                         index,
-                        childrenBegin[index]->GetId(),
-                        children[firstChildIndex + index]->GetId());
+                        children[index]->GetId(),
+                        existingChildren[firstChildIndex + index]->GetId());
                 }
             }
 
-            children.erase(children.begin() + firstChildIndex, children.end());
+            existingChildren.erase(existingChildren.begin() + firstChildIndex, existingChildren.end());
             chunkList->CumulativeStatistics().TrimBack(childCount);
             break;
         }
@@ -380,18 +375,18 @@ void DetachFromChunkList(
             YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
 
             int childIndex = chunkList->GetTrimmedChildCount();
-            for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
-                auto* child = *childIt;
-                YT_VERIFY(child == children[childIndex]);
-                children[childIndex] = nullptr;
+            for (auto* child : children) {
+                YT_VERIFY(child == existingChildren[childIndex]);
+                existingChildren[childIndex] = nullptr;
+                ++childIndex;
             }
-            int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
+            int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + std::ssize(children);
             if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
-                newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
+                newTrimmedChildCount > existingChildren.size() * ChunkListTombstoneRelativeThreshold)
             {
-                children.erase(
-                    children.begin(),
-                    children.begin() + newTrimmedChildCount);
+                existingChildren.erase(
+                    existingChildren.begin(),
+                    existingChildren.begin() + newTrimmedChildCount);
 
                 chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
 
@@ -426,26 +421,25 @@ void DetachFromChunkList(
             // Used in sorted tablet compaction.
             YT_VERIFY(chunkList->HasChildToIndexMapping());
             auto& childToIndex = chunkList->ChildToIndex();
-            for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
-                auto* child = *childIt;
+            for (auto* child : children) {
                 auto indexIt = childToIndex.find(child);
                 YT_VERIFY(indexIt != childToIndex.end());
                 int index = indexIt->second;
 
                 // To remove child from the middle we swap it with the last one and update
                 // cumulative statistics accordingly.
-                if (index != std::ssize(children) - 1) {
-                    auto delta = TCumulativeStatisticsEntry(GetChunkTreeStatistics(children.back())) -
-                        TCumulativeStatisticsEntry(GetChunkTreeStatistics(children[index]));
+                if (index != std::ssize(existingChildren) - 1) {
+                    auto delta = TCumulativeStatisticsEntry(GetChunkTreeStatistics(existingChildren.back())) -
+                        TCumulativeStatisticsEntry(GetChunkTreeStatistics(existingChildren[index]));
                     chunkList->CumulativeStatistics().Update(index, delta);
 
-                    children[index] = children.back();
-                    childToIndex[children[index]] = index;
+                    existingChildren[index] = existingChildren.back();
+                    childToIndex[existingChildren[index]] = index;
                 }
 
                 chunkList->CumulativeStatistics().PopBack();
                 childToIndex.erase(indexIt);
-                children.pop_back();
+                existingChildren.pop_back();
             }
             break;
         }

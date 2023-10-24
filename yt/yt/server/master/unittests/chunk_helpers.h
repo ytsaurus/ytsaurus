@@ -20,15 +20,6 @@ TGuid GenerateId(NCypressClient::EObjectType type);
 
 NTableClient::TUnversionedOwningRow BuildKey(const TString& yson);
 
-void AttachToChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children);
-
-void DetachFromChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children,
-    EChunkDetachPolicy policy);
-
 class TChunkGeneratorBase
     : public ::testing::Test
     , public TBootstrapMock

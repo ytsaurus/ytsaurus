@@ -25,14 +25,7 @@ struct IChunkTreeBalancerCallbacks
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) = 0;
-    virtual void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) = 0;
-    virtual void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) = 0;
+        TRange<TChunkTree*> children) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkTreeBalancerCallbacks)

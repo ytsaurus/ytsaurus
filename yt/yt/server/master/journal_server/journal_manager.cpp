@@ -190,7 +190,7 @@ private:
             // for AttachToChunkList to compute statistics correctly
             // (it is not the sum of row counts for overlayed chunks).
             chunk->SetRowCount(newRowCount - appendedRowCount);
-            chunkManager->AttachToChunkList(newChunkList, child);
+            chunkManager->AttachToChunkList(newChunkList, {child});
             // Then set it back.
             chunk->SetRowCount(chunkRowCount);
 

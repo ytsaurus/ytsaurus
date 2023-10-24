@@ -25,14 +25,13 @@ using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AttachToChunkList(
+void AttachToChunkListAndRef(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children)
+    TRange<TChunkTree*> children)
 {
     NChunkServer::AttachToChunkList(
         chunkList,
-        children.data(),
-        children.data() + children.size());
+        children);
     for (auto* child : children) {
         child->RefObject();
     }
@@ -119,33 +118,11 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) override
+        TRange<TChunkTree*> children) override
     {
         NChunkServer::AttachToChunkList(
             chunkList,
-            children.data(),
-            children.data() + children.size());
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) override
-    {
-        NChunkServer::AttachToChunkList(
-            chunkList,
-            &child,
-            &child + 1);
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) override
-    {
-        NChunkServer::AttachToChunkList(
-            chunkList,
-            childrenBegin,
-            childrenEnd);
+            children);
     }
 
 private:
@@ -169,9 +146,9 @@ TEST(ChunkTreeBalancer, Chain)
         chunkListChain.push_back(bootstrap->CreateChunkList());
     }
     for (int i = 0; i + 1 < ChainSize; ++i) {
-        AttachToChunkList(chunkListChain[i], {chunkListChain[i + 1]});
+        AttachToChunkListAndRef(chunkListChain[i], {chunkListChain[i + 1]});
     }
-    AttachToChunkList(chunkListChain.back(), {chunk.get()});
+    AttachToChunkListAndRef(chunkListChain.back(), {chunk.get()});
 
     auto root = chunkListChain.front();
     bootstrap->RefObject(root);
@@ -202,10 +179,10 @@ TEST(ChunkTreeBalancer, ManyChunkLists)
     bootstrap->RefObject(root);
     for (int i = 0; i < ChunkListCount; ++i) {
         auto chunkList = bootstrap->CreateChunkList();
-        AttachToChunkList(chunkList, {createChunk()});
+        AttachToChunkListAndRef(chunkList, {createChunk()});
         chunkLists.push_back(chunkList);
     }
-    AttachToChunkList(root, chunkLists);
+    AttachToChunkListAndRef(root, chunkLists);
 
     TChunkTreeBalancer balancer(bootstrap);
 
@@ -227,10 +204,10 @@ TEST(ChunkTreeBalancer, EmptyChunkLists)
     bootstrap->RefObject(root);
     for (int i = 0; i < ChunkListCount; ++i) {
         auto chunkList = bootstrap->CreateChunkList();
-        AttachToChunkList(chunkList, {bootstrap->CreateChunkList()});
+        AttachToChunkListAndRef(chunkList, {bootstrap->CreateChunkList()});
         chunkLists.push_back(chunkList);
     }
-    AttachToChunkList(root, chunkLists);
+    AttachToChunkListAndRef(root, chunkLists);
 
     TChunkTreeBalancer balancer(bootstrap);
 
@@ -261,11 +238,11 @@ TEST(ChunkTreeBalancer, PermissiveMode)
     for (int i = 0; i < ChunkListCount; ++i) {
         auto subRoot = bootstrap->CreateChunkList();
         for (int j = 0; j < ChunkCount; ++j) {
-            AttachToChunkList(subRoot, {createChunk()});
+            AttachToChunkListAndRef(subRoot, {createChunk()});
         }
         chunkLists.push_back(subRoot);
     }
-    AttachToChunkList(root, chunkLists);
+    AttachToChunkListAndRef(root, chunkLists);
 
     TChunkTreeBalancer balancer(bootstrap);
 

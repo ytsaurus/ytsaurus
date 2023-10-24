@@ -175,28 +175,6 @@ NTableClient::TUnversionedOwningRow BuildKey(const TString& yson)
     return NTableClient::YsonToKey(yson);
 }
 
-void AttachToChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children)
-{
-    NChunkServer::AttachToChunkList(
-        chunkList,
-        children.data(),
-        children.data() + children.size());
-}
-
-void DetachFromChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children,
-    EChunkDetachPolicy policy)
-{
-    NChunkServer::DetachFromChunkList(
-        chunkList,
-        children.data(),
-        children.data() + children.size(),
-        policy);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TComparator MakeComparator(int keyLength)

@@ -229,7 +229,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk: {
             // Just adding the chunk to the last chunk list.
-            Callbacks_->AttachToChunkList(lastChunkList, child);
+            Callbacks_->AttachToChunkList(lastChunkList, {child});
             break;
         }
 
@@ -253,8 +253,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
                         chunkList->Children().size() - mergedCount);
                     Callbacks_->AttachToChunkList(
                         lastChunkList,
-                        &*chunkList->Children().begin() + mergedCount,
-                        &*chunkList->Children().begin() + mergedCount + count);
+                        MakeRange(chunkList->Children()).Slice(mergedCount, mergedCount + count));
                     mergedCount += count;
                 }
             }

@@ -42,7 +42,7 @@ bool TChunkReplacer::FindChunkList(
                 return false;
             }
 
-            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, chunkTree);
+            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, {chunkTree});
             Stack_.pop();
             continue;
         }
@@ -51,7 +51,7 @@ bool TChunkReplacer::FindChunkList(
         if (chunkList->GetId() == desiredChunkListId) {
             PrevParentChunkList_ = chunkList;
             NewParentChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
-            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, NewParentChunkList_);
+            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, {NewParentChunkList_});
         } else if (chunkList->Statistics().Rank > 1) {
             if (entry.Index < std::ssize(chunkList->Children())) {
                 Stack_.push({chunkList->Children()[entry.Index], 0});
@@ -59,7 +59,7 @@ bool TChunkReplacer::FindChunkList(
                 continue;
             }
         } else {
-            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, chunkList);
+            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, {chunkList});
         }
 
         Stack_.pop();
@@ -82,7 +82,7 @@ bool TChunkReplacer::ReplaceChunkSequence(
     std::vector<TChunkTree*> chunkStash;
     auto flush = [&] {
         for (auto* chunk : chunkStash) {
-            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, chunk);
+            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, {chunk});
         }
     };
     while (ChunkListIndex_ < std::ssize(PrevParentChunkList_->Children())) {
@@ -93,14 +93,14 @@ bool TChunkReplacer::ReplaceChunkSequence(
         } else {
             if (chunkToReplaceIndex > 0) {
                 flush();
-                ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, child);
+                ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, {child});
                 return false;
             }
-            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, child);
+            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, {child});
         }
 
         if (chunkToReplaceIndex == std::ssize(chunksToReplaceIds)) {
-            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, newChunk);
+            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, {newChunk});
             return true;
         }
     }

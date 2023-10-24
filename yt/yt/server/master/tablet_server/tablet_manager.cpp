@@ -1557,7 +1557,7 @@ public:
 
                 if (updateMode == EUpdateMode::Append) {
                     if (!appendChunkList->Children().empty()) {
-                        chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
+                        chunkManager->AttachToChunkList(tabletChunkList, {appendChunkList});
                     }
                 }
 
@@ -1984,7 +1984,7 @@ public:
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                 auto* sourceRootChunkList = trunkSourceTable->GetChunkList(contentType);
                 auto* tabletChunkList = sourceRootChunkList->Children()[index];
-                chunkManager->AttachToChunkList(clonedRootChunkLists[contentType], tabletChunkList);
+                chunkManager->AttachToChunkList(clonedRootChunkLists[contentType], {tabletChunkList});
             }
 
             clonedTablets.push_back(clonedTablet);
@@ -2572,7 +2572,7 @@ public:
         TabletChunkManager_->CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->AttachToChunkList(tablet->GetChunkList(), dynamicStore);
+        chunkManager->AttachToChunkList(tablet->GetChunkList(), {dynamicStore});
         YT_LOG_DEBUG("Dynamic store attached to tablet (TabletId: %v, DynamicStoreId: %v)",
             tablet->GetId(),
             dynamicStore->GetId());

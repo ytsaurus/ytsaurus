@@ -257,24 +257,9 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) override
+        TRange<TChunkTree*> children) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) override
-    {
-        Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, child);
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) override
-    {
-        Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
     }
 
 private:
@@ -1097,7 +1082,7 @@ public:
         transactionManager->StageObject(transaction, chunk);
 
         if (chunkList) {
-            AttachToChunkList(chunkList, chunk);
+            AttachToChunkList(chunkList, {chunk});
         }
 
         YT_LOG_DEBUG(
@@ -1473,12 +1458,10 @@ public:
     TChunkList* CloneTabletChunkList(TChunkList* chunkList) override
     {
         auto* newChunkList = CreateChunkList(chunkList->GetKind());
-
         if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
             AttachToChunkList(
                 newChunkList,
-                chunkList->Children().data() + chunkList->GetTrimmedChildCount(),
-                chunkList->Children().data() + chunkList->Children().size());
+                MakeRange(chunkList->Children()).Slice(chunkList->GetTrimmedChildCount(), chunkList->Children().size()));
 
             // Restoring statistics.
             newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
@@ -1502,75 +1485,27 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) override
+        TRange<TChunkTree*> children) override
     {
-        NChunkServer::AttachToChunkList(chunkList, childrenBegin, childrenEnd);
+        NChunkServer::AttachToChunkList(chunkList, children);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto it = childrenBegin; it != childrenEnd; ++it) {
-            auto* child = *it;
+        for (auto* child : children) {
             objectManager->RefObject(child);
         }
     }
 
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) override
-    {
-        AttachToChunkList(
-            chunkList,
-            children.data(),
-            children.data() + children.size());
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) override
-    {
-        AttachToChunkList(
-            chunkList,
-            &child,
-            &child + 1);
-    }
-
     void DetachFromChunkList(
         TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd,
+        TRange<TChunkTree*> children,
         EChunkDetachPolicy policy) override
     {
-        NChunkServer::DetachFromChunkList(chunkList, childrenBegin, childrenEnd, policy);
+        NChunkServer::DetachFromChunkList(chunkList, children, policy);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto it = childrenBegin; it != childrenEnd; ++it) {
-            auto* child = *it;
+        for (auto* child : children) {
             objectManager->UnrefObject(child);
         }
-    }
-
-    void DetachFromChunkList(
-        TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children,
-        EChunkDetachPolicy policy) override
-    {
-        DetachFromChunkList(
-            chunkList,
-            children.data(),
-            children.data() + children.size(),
-            policy);
-    }
-
-    void DetachFromChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child,
-        EChunkDetachPolicy policy) override
-    {
-        DetachFromChunkList(
-            chunkList,
-            &child,
-            &child + 1,
-            policy);
     }
 
     void ReplaceChunkListChild(

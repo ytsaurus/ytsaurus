@@ -185,28 +185,13 @@ struct IChunkManager
 
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) = 0;
-    virtual void AttachToChunkList(
-        TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) = 0;
-    virtual void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) = 0;
+        TRange<TChunkTree*> children) = 0;
 
     virtual void DetachFromChunkList(
         TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd,
+        TRange<TChunkTree*> children,
         EChunkDetachPolicy policy) = 0;
-    virtual void DetachFromChunkList(
-        TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children,
-        EChunkDetachPolicy policy) = 0;
-    virtual void DetachFromChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child,
-        EChunkDetachPolicy policy) = 0;
+
     // NB: Keep in mind that cumulative chunk list statistics will not be
     // recalculated.
     virtual void ReplaceChunkListChild(

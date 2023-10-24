@@ -37,33 +37,11 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) override
+        TRange<TChunkTree*> children) override
     {
         NChunkServer::AttachToChunkList(
             chunkList,
-            children.data(),
-            children.data() + children.size());
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) override
-    {
-        NChunkServer::AttachToChunkList(
-            chunkList,
-            &child,
-            &child + 1);
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) override
-    {
-        NChunkServer::AttachToChunkList(
-            chunkList,
-            childrenBegin,
-            childrenEnd);
+            children);
     }
 
     TChunkList* CreateChunkList(EChunkListKind /*kind*/) override

@@ -195,24 +195,9 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children) override
+        TRange<TChunkTree*> children) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* child) override
-    {
-        Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, child);
-    }
-
-    void AttachToChunkList(
-        TChunkList* chunkList,
-        TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd) override
-    {
-        Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
     }
 
     TChunkList* CreateChunkList(EChunkListKind kind) override

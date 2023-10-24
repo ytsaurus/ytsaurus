@@ -89,8 +89,6 @@ using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
 
-using NChunkClient::NProto::TReqFetch;
-using NChunkClient::NProto::TRspFetch;
 using NChunkClient::NProto::TDataStatistics;
 
 using NYT::FromProto;
@@ -1649,10 +1647,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         snapshotChunkList->RemoveOwningNode(lockedNode);
                         lockedNode->SetChunkList(newChunkList);
 
-                        chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
+                        chunkManager->AttachToChunkList(newChunkList, {snapshotChunkList});
 
                         auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-                        chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
+                        chunkManager->AttachToChunkList(newChunkList, {deltaChunkList});
 
                         context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v",
                             newChunkList->GetId(),
@@ -1668,7 +1666,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                         for (int index = 0; index < std::ssize(snapshotChunkList->Children()); ++index) {
                             auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
-                            chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                            chunkManager->AttachToChunkList(newChunkList, {appendChunkList});
                         }
 
                         snapshotChunkList->RemoveOwningNode(lockedNode);
@@ -1708,7 +1706,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                             if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                                 for (int index = 0; index < std::ssize(oldMainChunkList->Children()); ++index) {
                                     auto* appendChunkList = chunkManager->CreateChunkList(appendChunkListKind);
-                                    chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                                    chunkManager->AttachToChunkList(newChunkList, {appendChunkList});
                                 }
                             }
 

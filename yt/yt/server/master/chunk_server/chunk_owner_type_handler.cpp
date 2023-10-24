@@ -438,6 +438,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             YT_VERIFY(!topmostCommit);
             if (!isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
                 for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                    auto* deltaTree = deltaTrees[contentType];
                     auto* originatingChunkList = originatingChunkLists[contentType];
                     auto* newOriginatingChunkList = newOriginatingChunkLists[contentType];
                     if (!originatingChunkList) {
@@ -445,11 +446,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                         continue;
                     }
 
-                    chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
+                    chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList->Children()[0]});
                     auto* newDeltaChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
-                    chunkManager->AttachToChunkList(newOriginatingChunkList, newDeltaChunkList);
-                    chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
-                    chunkManager->AttachToChunkList(newDeltaChunkList, deltaTrees[contentType]);
+                    chunkManager->AttachToChunkList(newOriginatingChunkList, {newDeltaChunkList});
+                    chunkManager->AttachToChunkList(newDeltaChunkList, {originatingChunkList->Children()[1], deltaTree});
                 }
             }
 
@@ -469,8 +469,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     }
 
                     auto* deltaTree = deltaTrees[contentType];
-                    chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
-                    chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
+                    chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList, deltaTree});
 
                     if (requisitionUpdateNeeded) {
                         chunkManager->ScheduleChunkRequisitionUpdate(deltaTree);
