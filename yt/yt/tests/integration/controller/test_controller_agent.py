@@ -12,8 +12,6 @@ from yt_commands import (
 
 from yt.common import YtError, YtResponseError
 
-from helpers.ytprof import process_ytprof_heap_profile
-
 import yt_error_codes
 
 import yt.yson as yson
@@ -117,10 +115,6 @@ class TestControllerMemoryUsage(YTEnvSetup):
     @authors("ignat", "gepardo", "ni-stoiko")
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
-        # In this test we rely on the assignment order of memory tags.
-        # Tags are given to operations sequentially during lifetime of controller agent.
-        # So this test should pass only if it is the first test in this test suite.
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -1017,47 +1011,3 @@ class TestMemoryWatchdog(YTEnvSetup):
                 assert err.contains_code(yt_error_codes.ControllerMemoryLimitExceeded)
                 failed += 1
         assert failed == 1
-
-
-@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestControllerAgentHeapProfile(YTEnvSetup):
-    NUM_SCHEDULERS = 1
-
-    DELTA_PROXY_CONFIG = {
-        "heap_profiler": {
-            "snapshot_update_period": 50,
-        }
-    }
-
-    @authors("ni-stoiko")
-    def test_controller_heap_profile(self):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        write_table("<append=%true>//tmp/t_in", [{"a": 1}])
-
-        controller_agents = ls("//sys/controller_agents/instances")
-        assert len(controller_agents) == 1
-
-        op = map(
-            track=False,
-            in_="//tmp/t_in",
-            out="<sorted_by=[a]>//tmp/t_out",
-            command="sleep 3600",
-            spec={
-                "testing": {
-                    "allocation_size": 20 * 1024 ** 2,
-                    "allocation_release_delay": 60000,
-                }
-            },
-        )
-
-        time.sleep(1)
-
-        monitoring_port = self.Env.configs["controller_agent"][0]["monitoring_port"]
-        tag = "operation_id"
-        memory_usage = process_ytprof_heap_profile(self.path_to_run, monitoring_port, [tag])
-
-        assert memory_usage
-        assert op.id in memory_usage[tag].keys()
-        assert memory_usage[tag][op.id] > 5 * 1024 ** 2

@@ -1,10 +1,8 @@
 from .proxy_format_config import _TestProxyFormatConfigBase
 
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, is_asan_build
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
-
-from helpers.ytprof import process_ytprof_heap_profile
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, map,
@@ -918,78 +916,3 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
             pass
 
         wait(lambda: self._get_hydra_monitoring().get("read_only", None))
-
-
-@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestHttpProxyHeapProfile(HttpProxyTestBase):
-    NUM_HTTP_PROXIES = 1
-    DELTA_PROXY_CONFIG = {
-        "heap_profiler": {
-            "snapshot_update_period": 50,
-        },
-        "api": {
-            "testing": {
-                "heap_profiler": {
-                    "allocation_size": 20 * 1024 ** 2,
-                    "allocation_release_delay" : 120 * 1000,
-                },
-            },
-        },
-    }
-
-    PATH = "//tmp/test"
-
-    def _execute_command(self, http_method, command_name, params):
-        headers = {
-            "X-YT-Parameters": yson.dumps(params),
-            "X-YT-Header-Format": "<format=text>yson",
-            "X-YT-Output-Format": "<format=text>yson",
-            "X-YT-User-Name": "root",
-        }
-        rsp = requests.request(
-            http_method,
-            "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
-            headers=headers,
-        )
-
-        try_parse_yt_error_headers(rsp)
-        return rsp
-
-    @authors("ni-stoiko")
-    @pytest.mark.timeout(120)
-    def test_heap_profile(self):
-        set("//sys/http_proxies/@config", {
-            "api": {
-                "enable_allocation_tags": True,
-            },
-        })
-        wait(lambda: get("//sys/http_proxies/@config")["api"]["enable_allocation_tags"])
-        time.sleep(1)
-
-        create("table", self.PATH)
-        write_table(f"<append=%true>{self.PATH}", [{"key": "x"}])
-
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-
-        params = {
-            "path": self.PATH,
-            "output_format": "yson",
-        }
-
-        tags = ["request_id", "user", "command"]
-
-        def check_memory_usage(memory_usage):
-            if len(memory_usage) < 3:
-                return False
-
-            assert "root" in memory_usage["user"].keys()
-            assert "read_table" in memory_usage["command"].keys()
-
-            for value in [value for tag in tags for value in memory_usage[tag].values()]:
-                assert value > 5 * 1024 ** 2
-
-            return len(memory_usage) == 3
-
-        self._execute_command("GET", "read_table", params)
-        time.sleep(1)
-        wait(lambda: check_memory_usage(process_ytprof_heap_profile(self.path_to_run, monitoring_port, tags)))
