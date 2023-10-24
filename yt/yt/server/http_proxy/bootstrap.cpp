@@ -261,6 +261,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         TvmOnlyApiHttpsServer_ = NHttps::CreateServer(Config_->TvmOnlyHttpsServer, Poller_, Acceptor_);
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
+
+    SetNodeByYPath(
+        orchidRoot,
+        "/http_proxy",
+        CreateVirtualNode(Api_->CreateOrchidService()));
 }
 
 TBootstrap::~TBootstrap() = default;

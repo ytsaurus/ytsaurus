@@ -22,17 +22,18 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   yt-library-auth_server
   yt-library-clickhouse_discovery
   yt-library-dynamic_config
+  yt-library-ytprof
   yt-core-https
-  cpp-yt-phdr_cache
   ytserver
   server-lib-chunk_pools
   server-lib-cypress_registrar
   server-lib-zookeeper_proxy
   server-lib-logging
+  library-cpp-cgiparam
+  library-cpp-getopt
   cpp-streams-brotli
   cpp-string_utils-base64
-  library-cpp-getopt
-  library-cpp-cgiparam
+  cpp-yt-phdr_cache
 )
 target_sources(yt-server-http_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp

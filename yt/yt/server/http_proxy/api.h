@@ -88,6 +88,10 @@ public:
 
     int GetNumberOfConcurrentRequests();
 
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
+
+    NYTree::IYPathServicePtr CreateOrchidService();
+
 private:
     const TApiConfigPtr Config_;
     TAtomicIntrusivePtr<TApiDynamicConfig> DynamicConfig_;
@@ -98,6 +102,8 @@ private:
     const TCompositeHttpAuthenticatorPtr HttpAuthenticator_;
     const TCoordinatorPtr Coordinator_;
     const IAccessCheckerPtr AccessChecker_;
+
+    const IInvokerPtr ControlInvoker_;
 
     const NConcurrency::IPollerPtr Poller_;
 

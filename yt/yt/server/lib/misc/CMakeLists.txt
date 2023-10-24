@@ -17,8 +17,9 @@ target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
-  yt-library-process
   yt-library-coredumper
+  yt-library-process
+  yt-library-ytprof
   library-cpp-porto
 )
 target_sources(server-lib-misc PRIVATE
@@ -46,8 +47,9 @@ target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
-  yt-library-process
   yt-library-coredumper
+  yt-library-process
+  yt-library-ytprof
   library-cpp-porto
 )
 target_sources(server-lib-misc.global PRIVATE

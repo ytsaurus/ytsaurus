@@ -1,6 +1,6 @@
 from .proxy_format_config import _TestProxyFormatConfigBase
 
-from yt_env_setup import YTEnvSetup, Restarter, RPC_PROXIES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, RPC_PROXIES_SERVICE, is_asan_build
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, create, ls,
@@ -1133,3 +1133,79 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
         yson_format = expected_format.attributes.get("format", "text")
         expected_content_operation = yson.dumps(content, yson_format=yson_format, yson_type="list_fragment")
         self._test_format_defaults_operations(format, user, content, expected_content_operation)
+
+
+##################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestRpcProxyTaggedMemoryStatistics(TestRpcProxyBase):
+    NUM_RPC_PROXIES = 1
+
+    DELTA_PROXY_CONFIG = {
+        "heap_profiler": {
+            "snapshot_update_period": 20,
+        },
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "orchid_cache_update_period": 50,
+            "testing": {
+                "heap_profiler": {
+                    "allocation_size": 20 * 1024 ** 2,
+                    "allocation_release_delay" : 120 * 1000,
+                },
+            },
+        },
+    }
+
+    USER = "root"
+
+    def enable_allocation_tags(self, proxies):
+        set(f"//sys/{proxies}/@config", {
+            "api": {
+                "enable_allocation_tags": True,
+            },
+        })
+        wait(lambda: get(f"//sys/{proxies}/@config")["api"]["enable_allocation_tags"])
+
+    def check_memory_usage(self, memory_usage):
+        tags = ["user", "request_id", "rpc"]
+        if not memory_usage or len(memory_usage) < len(tags):
+            return False
+
+        for tag in tags:
+            assert tag in memory_usage
+
+        assert self.USER in memory_usage["user"].keys()
+
+        request_total_usage = 0
+        for value in memory_usage["request_id"].values():
+            request_total_usage += value
+
+        assert request_total_usage / len(memory_usage["request_id"]) > 5 * 1024 ** 2
+
+        rpc_total_usage = 0
+        for value in memory_usage["rpc"].values():
+            rpc_total_usage += value
+
+        assert rpc_total_usage / len(memory_usage["rpc"]) > 5 * 1024 ** 2
+
+        assert memory_usage["user"][self.USER] == request_total_usage
+        assert request_total_usage == rpc_total_usage
+
+        return True
+
+    @authors("ni-stoiko")
+    @pytest.mark.timeout(120)
+    def test_tagged_memory_statistics(self):
+        self.enable_allocation_tags("rpc_proxies")
+        time.sleep(1)
+
+        rpc_proxies = ls("//sys/rpc_proxies")
+        assert len(rpc_proxies) == 1
+        rpc_proxy_agent_orchid = f"//sys/rpc_proxies/{rpc_proxies[0]}/orchid/rpc_proxy"
+        self._start_simple_operation("cat")
+        time.sleep(1)
+        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/tagged_memory_statistics")))

@@ -7,6 +7,8 @@
 #include "dynamic_config_manager.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
+
 #include <yt/yt/core/http/helpers.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -17,6 +19,8 @@ using namespace NConcurrency;
 using namespace NHttp;
 using namespace NProfiling;
 using namespace NSecurityClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +46,7 @@ TApi::TApi(TBootstrap* bootstrap)
     , HttpAuthenticator_(bootstrap->GetHttpAuthenticator())
     , Coordinator_(bootstrap->GetCoordinator())
     , AccessChecker_(bootstrap->GetAccessChecker())
+    , ControlInvoker_(bootstrap->GetControlInvoker())
     , Poller_(bootstrap->GetPoller())
     , DefaultNetworkName_(bootstrap->GetConfig()->DefaultNetwork)
 {
@@ -304,6 +309,28 @@ void TApi::OnDynamicConfigChanged(
     VERIFY_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newConfig->Api);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TApi::BuildOrchid(IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .DoMap([] (TFluentMap fluent) {
+            CollectTaggedMemoryStatistics(
+                fluent.GetConsumer(),
+                {
+                    HttpProxyUserAllocationTag,
+                    HttpProxyCommandAllocationTag,
+                    HttpProxyRequestIdAllocationTag
+                });
+        });
+}
+
+IYPathServicePtr TApi::CreateOrchidService()
+{
+    return IYPathService::FromProducer(BIND_NO_PROPAGATE(&TApi::BuildOrchid, MakeStrong(this)))
+        ->Via(ControlInvoker_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

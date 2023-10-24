@@ -665,6 +665,7 @@ void TJobProxy::EnableRpcProxyInJobProxy()
     ApiServiceThreadPool_ = CreateThreadPool(4, "RpcProxy");
     auto ApiService_ = CreateApiService(
         Config_->ApiService,
+        GetControlInvoker(),
         ApiServiceThreadPool_->GetInvoker(),
         connection,
         authenticationManager->GetRpcAuthenticator(),

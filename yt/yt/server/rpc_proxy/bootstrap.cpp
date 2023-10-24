@@ -228,6 +228,7 @@ void TBootstrap::DoRun()
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
             Config_->ApiService,
+            GetControlInvoker(),
             GetWorkerInvoker(),
             Connection_,
             authenticationManager->GetRpcAuthenticator(),
@@ -314,6 +315,11 @@ void TBootstrap::DoRun()
         YT_LOG_INFO("Listening for GRPC requests on port %v", port);
         GrpcServer_->Start();
     }
+
+    SetNodeByYPath(
+        orchidRoot,
+        "/rpc_proxy",
+        CreateVirtualNode(ApiService_->CreateOrchidService()));
 }
 
 void TBootstrap::OnDynamicConfigChanged(

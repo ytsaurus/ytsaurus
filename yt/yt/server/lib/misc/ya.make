@@ -21,8 +21,9 @@ SRCS(
 
 PEERDIR(
     yt/yt/ytlib
-    yt/yt/library/process
     yt/yt/library/coredumper
+    yt/yt/library/process
+    yt/yt/library/ytprof
 )
 
 IF(OS_LINUX)
