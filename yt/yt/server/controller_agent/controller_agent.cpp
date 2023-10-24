@@ -1158,8 +1158,6 @@ private:
     TPeriodicExecutorPtr HeartbeatExecutor_;
     TPeriodicExecutorPtr ScheduleJobHeartbeatExecutor_;
 
-    INodePtr OperationsEffectiveAcl_;
-
     TMemoryWatchdogPtr MemoryWatchdog_;
 
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
@@ -1194,7 +1192,6 @@ private:
             SyncMasterCellDirectory();
             UpdateConfig();
             PerformHandshake();
-            FetchOperationsEffectiveAcl();
             OnConnected();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error connecting to scheduler");
@@ -1309,15 +1306,6 @@ private:
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
         SchedulerVersion_ = rsp->scheduler_version();
-    }
-
-    void FetchOperationsEffectiveAcl()
-    {
-        YT_LOG_INFO("Fetching operations effective acl");
-
-        OperationsEffectiveAcl_ = ConvertToNode(
-            WaitFor(Bootstrap_->GetClient()->GetNode("//sys/operations/@effective_acl"))
-                .ValueOrThrow());
     }
 
     void OnConnected()
