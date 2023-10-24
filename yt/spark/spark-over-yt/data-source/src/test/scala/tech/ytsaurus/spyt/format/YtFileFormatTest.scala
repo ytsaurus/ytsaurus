@@ -560,6 +560,14 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
+  it should "read categorical arrow" in {
+    val data = (0 to 500).map(i => if (i % 2 == 0) "a" else "b")
+    data.toDF("a").write.optimizeFor("scan").yt(tmpPath)
+
+    val df = spark.read.enableArrow.yt(tmpPath)
+    df.select("a").collect().map(_.get(0)) should contain theSameElementsAs data
+  }
+
   it should "read primitives in any column" in {
     val data = Seq(
       Seq[Any](0L, 0.0, 0.0f, false, 0.toByte, UInt64Long(0)),
