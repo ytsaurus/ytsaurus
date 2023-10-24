@@ -396,9 +396,6 @@ public:
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
-    //! Porto executor config.
-    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
-
     bool EnableMemoryReferenceTracker;
 
     //! Network throttler limit is this smaller than NetworkBandwidth.

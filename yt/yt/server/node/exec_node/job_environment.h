@@ -43,10 +43,6 @@ struct IJobEnvironment
 
     virtual void UpdateCpuLimit(double cpuLimit) = 0;
 
-    virtual void UpdateIdleCpuFraction(double idleCpuFraction) = 0;
-
-    virtual void ClearSlotCpuSets(int slotCount) = 0;
-
     virtual double GetCpuLimit(ESlotType slotType) const = 0;
 
     virtual i64 GetMajorPageFaultCount() const = 0;
@@ -65,6 +61,10 @@ struct IJobEnvironment
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) = 0;
+
+    virtual void OnDynamicConfigChanged(
+        const TSlotManagerDynamicConfigPtr& oldConfig,
+        const TSlotManagerDynamicConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobEnvironment)

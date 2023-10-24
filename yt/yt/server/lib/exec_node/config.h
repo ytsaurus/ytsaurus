@@ -75,7 +75,7 @@ class TSimpleJobEnvironmentConfig
 {
     REGISTER_YSON_STRUCT(TSimpleJobEnvironmentConfig);
 
-    static void Register(TRegistrar registrar   );
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)
@@ -249,10 +249,6 @@ public:
 
     //! Default medium used to run jobs without disk requests.
     TString DefaultMediumName;
-
-    bool DisableJobsOnGpuCheckFailure;
-
-    double IdleCpuFraction;
 
     TSlotManagerTestingConfigPtr Testing;
 
@@ -521,17 +517,20 @@ class TSlotManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<bool> DisableJobsOnGpuCheckFailure;
+    bool DisableJobsOnGpuCheckFailure;
 
     //! Enables disk usage checks in periodic disk resources update.
     bool CheckDiskSpaceLimit;
 
     //! How to distribute cpu resources between 'common' and 'idle' slots.
-    std::optional<double> IdleCpuFraction;
+    double IdleCpuFraction;
 
     bool EnableNumaNodeScheduling;
 
     bool EnableJobEnvironmentResurrection;
+
+    //! Polymorphic job environment configuration.
+    NYTree::INodePtr JobEnvironment;
 
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
 

@@ -456,8 +456,6 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("use_porto_network_limit_in_throttler", &TThis::UsePortoNetworkLimitInThrottler)
         .Default(true);
-    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
-        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

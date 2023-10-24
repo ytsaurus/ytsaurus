@@ -50,11 +50,10 @@ static const auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSlotManager::TSlotManager(
-    TSlotManagerConfigPtr config,
-    IBootstrap* bootstrap)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+TSlotManager::TSlotManager(IBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+    , StaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)
+    , DynamicConfig_(New<TSlotManagerDynamicConfig>())
     , SlotCount_(Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->UserSlots)
     , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetCurrentProcessId()))
     , PortoHealthChecker_(New<TPortoHealthChecker>(
@@ -64,14 +63,12 @@ TSlotManager::TSlotManager(
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-    ClusterConfig_.Store(New<TClusterNodeDynamicConfig>());
+    YT_VERIFY(StaticConfig_);
 }
 
 bool TSlotManager::IsJobEnvironmentResurrectionEnabled()
 {
-    return ClusterConfig_.Acquire()
-        ->ExecNode
-        ->SlotManager
+    return DynamicConfig_.Acquire()
         ->EnableJobEnvironmentResurrection;
 }
 
@@ -129,9 +126,6 @@ void TSlotManager::Initialize()
     Bootstrap_->GetJobController()->SubscribeJobProxyBuildInfoUpdated(
         BIND(&TSlotManager::OnJobProxyBuildInfoUpdated, MakeStrong(this)));
 
-    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-    dynamicConfigManager->SubscribeConfigChanged(BIND(&TSlotManager::OnDynamicConfigChanged, MakeWeak(this)));
-
     auto initializeResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -150,7 +144,7 @@ void TSlotManager::Initialize()
         BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
             .Via(Bootstrap_->GetJobInvoker()));
 
-    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
 
     if (environmentConfig->Type == EJobEnvironmentType::Porto) {
         PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
@@ -194,7 +188,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     }
 
     JobEnvironment_ = CreateJobEnvironment(
-        Config_->JobEnvironment,
+        StaticConfig_->JobEnvironment,
         Bootstrap_);
 
     // Job environment must be initialized first, since it cleans up all the processes,
@@ -219,20 +213,20 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         Locations_.clear();
 
         int locationIndex = 0;
-        for (const auto& locationConfig : Config_->Locations) {
+        for (const auto& locationConfig : StaticConfig_->Locations) {
             Locations_.push_back(New<TSlotLocation>(
                 std::move(locationConfig),
                 Bootstrap_,
                 Format("slot%v", locationIndex),
                 JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
-                Config_->EnableTmpfs,
+                StaticConfig_->EnableTmpfs,
                 SlotCount_,
                 BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, JobEnvironment_)));
             ++locationIndex;
         }
     }
 
-    for (const auto& numaNode : Config_->NumaNodes) {
+    for (const auto& numaNode : StaticConfig_->NumaNodes) {
         NumaNodeStates_.push_back(TNumaNodeState{
             .NumaNodeInfo = TNumaNodeInfo{
                 .NumaNodeId = numaNode->NumaNodeId,
@@ -250,30 +244,33 @@ TFuture<void> TSlotManager::InitializeEnvironment()
 }
 
 void TSlotManager::OnDynamicConfigChanged(
-    const TClusterNodeDynamicConfigPtr& oldNodeConfig,
-    const TClusterNodeDynamicConfigPtr& newNodeConfig)
+    const TSlotManagerDynamicConfigPtr& oldConfig,
+    const TSlotManagerDynamicConfigPtr& newConfig)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    DynamicConfig_.Store(newNodeConfig->ExecNode->SlotManager);
-    PortoHealthChecker_->OnDynamicConfigChanged(newNodeConfig->PortoExecutor);
-    ClusterConfig_.Store(newNodeConfig);
+    DynamicConfig_.Store(newConfig);
 
-    BIND([=, this, this_ = MakeStrong(this)] () {
-        try {
-            JobEnvironment_->UpdateIdleCpuFraction(GetIdleCpuFraction());
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
 
-            if (oldNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling &&
-                !newNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling)
-            {
-                JobEnvironment_->ClearSlotCpuSets(SlotCount_);
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+        auto portoEnvironmentConfig = NYTree::ConvertTo<TPortoJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
+        PortoHealthChecker_->OnDynamicConfigChanged(portoEnvironmentConfig->PortoExecutor);
+    }
+
+    Bootstrap_->GetJobInvoker()->Invoke(
+        BIND([
+            oldConfig = std::move(oldConfig),
+            newConfig = std::move(newConfig),
+            this,
+            this_ = MakeStrong(this)
+        ] {
+            try {
+                JobEnvironment_->OnDynamicConfigChanged(oldConfig, newConfig);
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(TError(ex));
             }
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(TError(ex));
-        }
-    })
-        .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run();
+        }));
 }
 
 void TSlotManager::UpdateAliveLocations()
@@ -435,10 +432,7 @@ bool TSlotManager::HasGpuAlerts() const
     VERIFY_THREAD_AFFINITY_ANY();
     VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
 
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    bool disableJobsOnGpuCheckFailure = dynamicConfig
-        ? dynamicConfig->DisableJobsOnGpuCheckFailure.value_or(Config_->DisableJobsOnGpuCheckFailure)
-        : Config_->DisableJobsOnGpuCheckFailure;
+    bool disableJobsOnGpuCheckFailure = DynamicConfig_.Acquire()->DisableJobsOnGpuCheckFailure;
 
     return !Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures].IsOK() ||
         (disableJobsOnGpuCheckFailure && !Alerts_[ESlotManagerAlertType::GpuCheckFailed].IsOK());
@@ -515,10 +509,7 @@ bool TSlotManager::CanResurrect() const
 
 double TSlotManager::GetIdleCpuFraction() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    return dynamicConfig
-        ? dynamicConfig->IdleCpuFraction.value_or(Config_->IdleCpuFraction)
-        : Config_->IdleCpuFraction;
+    return DynamicConfig_.Acquire()->IdleCpuFraction;
 }
 
 i64 TSlotManager::GetMajorPageFaultCount() const
@@ -691,12 +682,12 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
             ConsecutiveAbortedSchedulerJobCount_ = 0;
         }
 
-        if (ConsecutiveAbortedSchedulerJobCount_ > Config_->MaxConsecutiveJobAborts) {
+        if (ConsecutiveAbortedSchedulerJobCount_ > StaticConfig_->MaxConsecutiveJobAborts) {
             if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK()) {
-                auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
+                auto delay = StaticConfig_->DisableJobsTimeout + RandomDuration(StaticConfig_->DisableJobsTimeout);
 
                 auto error = TError("Too many consecutive scheduler job abortions")
-                    << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveJobAborts);
+                    << TErrorAttribute("max_consecutive_aborts", StaticConfig_->MaxConsecutiveJobAborts);
                 YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
                 Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = error;
 
@@ -711,12 +702,12 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
                 ConsecutiveFailedGpuJobCount_ = 0;
             }
 
-            if (ConsecutiveFailedGpuJobCount_ > Config_->MaxConsecutiveGpuJobFailures) {
+            if (ConsecutiveFailedGpuJobCount_ > StaticConfig_->MaxConsecutiveGpuJobFailures) {
                 if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures].IsOK()) {
-                    auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
+                    auto delay = StaticConfig_->DisableJobsTimeout + RandomDuration(StaticConfig_->DisableJobsTimeout);
 
                     auto error = TError("Too many consecutive GPU job failures")
-                        << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveGpuJobFailures);
+                        << TErrorAttribute("max_consecutive_aborts", StaticConfig_->MaxConsecutiveGpuJobFailures);
                     YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
                     Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = error;
 
@@ -735,7 +726,7 @@ void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
     auto guard = WriterGuard(AlertsLock_);
 
     // TODO(gritukan): Most likely #IsExecNode condition will not be required after bootstraps split.
-    if (!Config_->Testing->SkipJobProxyUnavailableAlert && Bootstrap_->IsExecNode()) {
+    if (!StaticConfig_->Testing->SkipJobProxyUnavailableAlert && Bootstrap_->IsExecNode()) {
         auto& alert = Alerts_[ESlotManagerAlertType::JobProxyUnavailable];
 
         if (alert.IsOK() && !error.IsOK()) {
@@ -860,7 +851,7 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
     }
 
     {
-        auto defaultMediumName = Config_->DefaultMediumName;
+        auto defaultMediumName = StaticConfig_->DefaultMediumName;
         auto descriptor = mediumDirectory->FindByName(defaultMediumName);
         if (!descriptor) {
             THROW_ERROR_EXCEPTION("Default medium is unknown (MediumName: %v)",
@@ -901,7 +892,7 @@ void TSlotManager::AsyncInitialize()
 
         // To this moment all old processed must have been killed, so we can safely clean up old volumes
         // during root volume manager initialization.
-        auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+        auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
         if (environmentConfig->Type == EJobEnvironmentType::Porto) {
             auto volumeManagerOrError = WaitFor(CreatePortoVolumeManager(
                 Bootstrap_->GetConfig()->DataNode,

@@ -166,12 +166,6 @@ public:
     void UpdateCpuLimit(double /*cpuLimit*/) override
     { }
 
-    void UpdateIdleCpuFraction(double /*idleCpuFraction*/) override
-    { }
-
-    void ClearSlotCpuSets(int /*slotCount*/) override
-    { }
-
     double GetCpuLimit(ESlotType /*slotType*/) const override
     {
         return 0;
@@ -195,6 +189,11 @@ public:
         THROW_ERROR_EXCEPTION("Setup scripts are not yet supported by %Qlv environment",
             BasicConfig_->Type);
     }
+
+    void OnDynamicConfigChanged(
+        const TSlotManagerDynamicConfigPtr& /*oldConfig*/,
+        const TSlotManagerDynamicConfigPtr& /*newConfig*/) override
+    { };
 
 protected:
     struct TJobProxyProcess
@@ -442,21 +441,32 @@ public:
             "env_destroy",
             ExecNodeProfiler.WithPrefix("/job_environment/porto_destroy")))
         , ContainerDestroyFailureCounter(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
-    {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TPortoJobEnvironment::OnDynamicConfigChanged, MakeWeak(this)));
-    }
+    { }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TSlotManagerDynamicConfigPtr& oldConfig,
+        const TSlotManagerDynamicConfigPtr& newConfig) override
     {
-        if (auto executor = PortoExecutor_) {
-            executor->OnDynamicConfigChanged(newNodeConfig->PortoExecutor);
+        auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
+
+        if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+            auto portoConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
+
+            if (auto executor = PortoExecutor_) {
+                executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            }
+
+            if (auto executor = DestroyPortoExecutor_) {
+                executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            }
         }
 
-        if (auto executor = DestroyPortoExecutor_) {
-            executor->OnDynamicConfigChanged(newNodeConfig->PortoExecutor);
+        UpdateIdleCpuFraction(newConfig->IdleCpuFraction);
+
+        if (oldConfig->EnableNumaNodeScheduling &&
+            !newConfig->EnableNumaNodeScheduling)
+        {
+            ClearSlotCpuSets();
         }
     }
 
@@ -606,6 +616,7 @@ private:
     double CpuLimit_;
     double IdleCpuLimit_;
     double IdleCpuFraction_;
+    int SlotCount_;
 
     void DestroyAllSubcontainers(const TString& rootContainer)
     {
@@ -673,6 +684,7 @@ private:
         CpuLimit_ = cpuLimit;
         IdleCpuFraction_ = idleCpuFraction;
         IdleCpuLimit_ = CalculateIdleCpuLimit();
+        SlotCount_ = slotCount;
 
         YT_VERIFY(!Config_->UseDaemonSubcontainer || SelfInstance_->GetParentName());
         auto baseContainer = Config_->UseDaemonSubcontainer
@@ -848,7 +860,7 @@ private:
 
     }
 
-    void UpdateIdleCpuFraction(double idleCpuFraction) override
+    void UpdateIdleCpuFraction(double idleCpuFraction)
     {
         IdleCpuFraction_ = idleCpuFraction;
         IdleCpuLimit_ = CalculateIdleCpuLimit();
@@ -860,9 +872,9 @@ private:
         return std::max(0., CpuLimit_ - SelfInstance_->GetCpuGuarantee()) * IdleCpuFraction_;
     }
 
-    void ClearSlotCpuSets(int slotCount) override
+    void ClearSlotCpuSets()
     {
-        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
+        for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
             UpdateSlotCpuSet(slotIndex, ESlotType::Common, EmptyCpuSet);
             UpdateSlotCpuSet(slotIndex, ESlotType::Idle, EmptyCpuSet);
         }

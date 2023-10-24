@@ -82,7 +82,7 @@ public:
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
-        SlotManager_ = New<TSlotManager>(GetConfig()->ExecNode->SlotManager, this);
+        SlotManager_ = New<TSlotManager>(this);
 
         GpuManager_ = New<TGpuManager>(this, GetConfig()->ExecNode->JobController->GpuManager);
 
@@ -389,6 +389,10 @@ private:
         GetMasterConnector()->OnDynamicConfigChanged(
             oldConfig->ExecNode->MasterConnector,
             newConfig->ExecNode->MasterConnector);
+
+        GetSlotManager()->OnDynamicConfigChanged(
+            oldConfig->ExecNode->SlotManager,
+            newConfig->ExecNode->SlotManager);
 
         DynamicConfig_ = newConfig;
     }

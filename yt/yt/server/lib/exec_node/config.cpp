@@ -171,12 +171,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_medium_name", &TThis::DefaultMediumName)
         .Default(NChunkClient::DefaultSlotsMediumName);
 
-    registrar.Parameter("disable_jobs_on_gpu_check_failure", &TThis::DisableJobsOnGpuCheckFailure)
-        .Default(true);
-
-    registrar.Parameter("idle_cpu_fraction", &TThis::IdleCpuFraction)
-        .Default(0);
-
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 
@@ -563,19 +557,22 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disable_jobs_on_gpu_check_failure", &TThis::DisableJobsOnGpuCheckFailure)
-        .Default();
+        .Default(true);
 
     registrar.Parameter("check_disk_space_limit", &TThis::CheckDiskSpaceLimit)
         .Default(true);
 
     registrar.Parameter("idle_cpu_fraction", &TThis::IdleCpuFraction)
-        .Default();
+        .Default(0);
 
     registrar.Parameter("enable_numa_node_scheduling", &TThis::EnableNumaNodeScheduling)
         .Default(false);
 
     registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
         .Default(false);
+
+    registrar.Parameter("job_environment", &TThis::JobEnvironment)
+        .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

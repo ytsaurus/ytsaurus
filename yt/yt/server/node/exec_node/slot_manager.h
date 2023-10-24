@@ -62,9 +62,7 @@ public:
     DEFINE_SIGNAL(void(), Disabled);
 
 public:
-    TSlotManager(
-        TSlotManagerConfigPtr config,
-        IBootstrap* bootstrap);
+    explicit TSlotManager(IBootstrap* bootstrap);
 
     //! Initializes slots etc.
     void Initialize();
@@ -72,8 +70,8 @@ public:
     TFuture<void> InitializeEnvironment();
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
+        const TSlotManagerDynamicConfigPtr& oldConfig,
+        const TSlotManagerDynamicConfigPtr& newConfig);
 
     //! Acquires a free slot, throws on error.
     IUserSlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest);
@@ -149,8 +147,10 @@ public:
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
 private:
-    const TSlotManagerConfigPtr Config_;
     IBootstrap* const Bootstrap_;
+    const TSlotManagerConfigPtr StaticConfig_;
+    TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
+
     const int SlotCount_;
     const TString NodeTag_;
     const NContainers::TPortoHealthCheckerPtr PortoHealthChecker_;
@@ -158,9 +158,6 @@ private:
     std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
 
     std::atomic<bool> JobProxyReady_ = false;
-
-    TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
-    TAtomicIntrusivePtr<NClusterNode::TClusterNodeDynamicConfig> ClusterConfig_;
 
     TAtomicIntrusivePtr<IVolumeManager> RootVolumeManager_;
 
