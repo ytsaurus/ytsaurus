@@ -70,14 +70,6 @@ public:
         return TResolveResultHere{path};
     }
 
-    bool DoInvoke(const IYPathServiceContextPtr& context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(Get);
-        DISPATCH_YPATH_SERVICE_METHOD(Remove);
-
-        return TYPathServiceBase::DoInvoke(context);
-    }
-
 protected:
     IBootstrap* const Bootstrap_;
     // TODO(kvk1920): Since `TPathResolver` tries to resolve node's ancestors
@@ -89,6 +81,14 @@ protected:
 
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, Get);
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, Remove);
+
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Get);
+        DISPATCH_YPATH_SERVICE_METHOD(Remove);
+
+        return TYPathServiceBase::DoInvoke(context);
+    }
 
     TCellId CellIdFromCellTag(TCellTag cellTag) const
     {
@@ -107,6 +107,73 @@ protected:
             EMasterChannelKind::Follower,
             CellTagFromId(id),
             Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
+    }
+
+    void RemoveNode(
+        TNodeId nodeId,
+        const TMangledSequoiaPath& path)
+    {
+        YT_VERIFY(TypeFromId(nodeId) != EObjectType::Rootstock);
+
+        // Remove from resolve table.
+        Transaction_->DeleteRow(NRecords::TResolveNodeKey{
+            .Path = path,
+        });
+
+        // Remove from reverse resolve table.
+        Transaction_->DeleteRow(NRecords::TReverseResolveNodeKey{
+            .NodeId = nodeId,
+        });
+
+        // Remove from master cell.
+        NCypressServer::NProto::TReqRemoveNode reqRemoveNode;
+        ToProto(reqRemoveNode.mutable_node_id(), nodeId);
+        Transaction_->AddTransactionAction(
+            CellTagFromId(nodeId),
+            MakeTransactionActionData(reqRemoveNode));
+    }
+
+    TCellTag RemoveRootstock()
+    {
+        YT_VERIFY(TypeFromId(Id_) == EObjectType::Scion);
+
+        // Scion removal causes rootstock removal.
+        // Since rootstock's parent _always_ lives at the same cell as rootstock
+        // `DetachChild()` isn't needed.
+
+        // TODO(kvk1920): Think about inferring rootstock's id from scion's one.
+        auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
+        auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
+            .ValueOrThrow();
+        auto rootstockId = ConvertTo<TNodeId>(NYson::TYsonString(rspGet->value()));
+
+        NCypressServer::NProto::TReqRemoveNode reqRemoveRootstock;
+        ToProto(reqRemoveRootstock.mutable_node_id(), rootstockId);
+        Transaction_->AddTransactionAction(
+            CellTagFromId(rootstockId),
+            MakeTransactionActionData(reqRemoveRootstock));
+        return CellTagFromId(rootstockId);
+    }
+
+    void VerifyRemovalOfNodeWithNonSequoiaParent(const TYPath& parentPath)
+    {
+        // Only scion node can have non-Sequoia parent.
+        if (TypeFromId(Id_) != EObjectType::Scion) {
+            YT_LOG_FATAL("Attempted to remove Sequoia node with non-Sequoia parent (ParentPath: %v, NodePath: %v, NodeId: %v)",
+                parentPath,
+                Path_,
+                Id_);
+        }
+    }
+
+    void DetachThisFromParent(TNodeId parentId, const TString& thisKey)
+    {
+        NCypressServer::NProto::TReqDetachChild reqDetachChild;
+        ToProto(reqDetachChild.mutable_parent_id(), parentId);
+        reqDetachChild.set_key(thisKey);
+        Transaction_->AddTransactionAction(
+            CellTagFromId(parentId),
+            MakeTransactionActionData(reqDetachChild));
     }
 
     void HandleUnresolvedSuffixOnRemoval(
@@ -208,57 +275,30 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
     }
 
     if (request->force()) {
-        // TODO(kvk1920): Current cypress behaviour is just ignore some errors.
+        // TODO(kvk1920): Current cypress behaviour is just to ignore some errors.
         THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
     }
 
     auto [parentPath, thisName] = DirNameAndBaseName(Path_);
 
-
     // Acquire shared lock on parent node.
-    NRecords::TResolveNodeKey parentKey{.Path = MangleSequoiaPath(parentPath)};
-    Transaction_->LockRow(parentKey, ELockType::SharedStrong);
+    Transaction_->LockRow(
+        NRecords::TResolveNodeKey{.Path = MangleSequoiaPath(parentPath)},
+        ELockType::SharedStrong);
 
     auto parent = ResolvePath(Transaction_, parentPath);
-    TCellTag coordinatorCellTag;
+    // Ensure that every case is handled.
+    static_assert(std::variant_size<decltype(parent)>() == 2);
+
+    TCellTag subtreeRootCell;
     if (std::holds_alternative<TCypressResolveResult>(parent)) {
-        if (TypeFromId(Id_) != EObjectType::Scion) {
-            YT_LOG_ALERT("Attempted to remove Sequoia node with non-Sequoia parent (ParentPath: %v, NodePath: %v, NodeId: %v)",
-                parentPath,
-                Path_,
-                Id_);
-            THROW_ERROR_EXCEPTION("Failed to remove Sequoia node: node is not scion but has non-Sequoia parent")
-                << TErrorAttribute("parent_path", parentPath)
-                << TErrorAttribute("node_path", Path_)
-                << TErrorAttribute("node_id", Id_);
-        }
-
-        // Scion removal causes rootstock removal.
-        // Since rootstock's parent _always_ lives at the same cell as rootstock
-        // `DetachChild()` isn't needed.
-
-        // TODO(kvk1920): Think about inferring rootstock's id from scion's one.
-        auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
-        auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
-            .ValueOrThrow();
-        auto rootstockId = ConvertTo<TNodeId>(NYson::TYsonString(rspGet->value()));
-
-        NCypressServer::NProto::TReqRemoveNode reqRemoveRootstock;
-        ToProto(reqRemoveRootstock.mutable_node_id(), rootstockId);
-        Transaction_->AddTransactionAction(
-            CellTagFromId(rootstockId),
-            MakeTransactionActionData(reqRemoveRootstock));
-        coordinatorCellTag = CellTagFromId(rootstockId);
+        // Only scion node can have non-Sequoia parent.
+        VerifyRemovalOfNodeWithNonSequoiaParent(parentPath);
+        subtreeRootCell = RemoveRootstock();
     } else {
-        // Ensure that every case is handled.
-        static_assert(std::variant_size<TResolveResult>() == 2);
         auto parentId = GetOrCrash<TSequoiaResolveResult>(parent).ResolvedPrefixNodeId;
-        NCypressServer::NProto::TReqDetachChild detachChild;
-        ToProto(detachChild.mutable_parent_id(), parentId);
-        Transaction_->AddTransactionAction(
-            CellTagFromId(parentId),
-            MakeTransactionActionData(detachChild));
-        coordinatorCellTag = CellTagFromId(parentId);
+        DetachThisFromParent(parentId, thisName);
+        subtreeRootCell = CellTagFromId(parentId);
     }
 
     auto mangledPath = MangleSequoiaPath(Path_);
@@ -268,32 +308,24 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
     auto selectedRowsLimit = request->recursive() ? std::nullopt : std::optional(2);
 
     auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TResolveNodeKey>(
-        {Format("path >= %Qv", mangledPath), Format("path <= %Qv", MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(mangledPath))},
+        {
+            Format("path >= %Qv", mangledPath),
+            Format("path <= %Qv", MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+        },
         selectedRowsLimit))
         .ValueOrThrow();
-    YT_ASSERT(nodesToRemove.size() >= 1);
+    YT_VERIFY(nodesToRemove.size() >= 1);
 
     if (!request->recursive() && nodesToRemove.size() > 1) {
         THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
     }
 
     for (const auto& node : nodesToRemove) {
-        auto nodeId = ConvertTo<TNodeId>(node.NodeId);
-
-        // Delete node from resolve table.
-        Transaction_->DeleteRow(node.Key);
-        // Delete node from back resolve table.
-        Transaction_->DeleteRow(NRecords::TReverseResolveNodeKey{.NodeId = node.NodeId});
-        // Delete node on master.
-        NCypressServer::NProto::TReqRemoveNode reqRemoveNode;
-        ToProto(reqRemoveNode.mutable_node_id(), nodeId);
-        Transaction_->AddTransactionAction(
-            CellTagFromId(nodeId),
-            MakeTransactionActionData(reqRemoveNode));
+        RemoveNode(node.NodeId, node.Key.Path);
     }
 
     WaitFor(Transaction_->Commit({
-            .CoordinatorCellId = CellIdFromCellTag(coordinatorCellTag),
+            .CoordinatorCellId = CellIdFromCellTag(subtreeRootCell),
             .Force2PC = true,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
         }))
