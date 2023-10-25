@@ -3,8 +3,7 @@
 #include "base_state.h"
 #include <tuple>
 
-namespace NRoren {
-namespace NPrivate::NProfileState {
+namespace NRoren::NPrivate::NProfileState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,17 +13,17 @@ using TStateTKV = TKV<typename TState::TKey, typename TState::TValue>;
 Y_HAS_MEMBER(Base);
 
 template <class T, std::enable_if_t<THasBase<T>::value, int> = 0>
-inline TStringBuf Name(const T& column) {
+TStringBuf Name(const T& column) {
     return column.Base();
 }
 
 template <class T, std::enable_if_t<!THasBase<T>::value, int> = 0>
-inline TStringBuf Name(const T& column) {
+TStringBuf Name(const T& column) {
     return column.Name();
 }
 
 template <class TColumnNames, class T>
-inline void LoadStateItem(T& dst, size_t i, const TColumnNames& columns, NYT::TNode node)
+void LoadStateItem(T& dst, size_t i, const TColumnNames& columns, const NYT::TNode& node)
 {
     auto column = Name(columns[i]);
     if (!node.HasKey(column)) {
@@ -35,7 +34,7 @@ inline void LoadStateItem(T& dst, size_t i, const TColumnNames& columns, NYT::TN
         return;
     }
 
-    if constexpr (is_optional<T>) {
+    if constexpr (IsOptional<T>) {
         dst = data.template As<typename T::value_type>();
     } else {
         dst = data.template As<T>();
@@ -43,7 +42,7 @@ inline void LoadStateItem(T& dst, size_t i, const TColumnNames& columns, NYT::TN
 }
 
 template <class TColumnNames, class TItemsPack>
-inline void LoadState(TItemsPack& vp, const TColumnNames& columns, NYT::TNode node)
+void LoadState(TItemsPack& vp, const TColumnNames& columns, const NYT::TNode& node)
 {
     auto f = [&] (auto& ... v) {
         size_t i = 0;
@@ -60,13 +59,10 @@ void LoadStateEntry(TRawRowHolder& row, const NYT::TNode& node)
     LoadState(*static_cast<typename TState::TValue*>(row.GetValueOfKV()), TState::Schema().ValueColumns, node);
 }
 
-template <typename T>
-void unsupported_type(const T&) = delete;
-
 template <class TColumnNames, class T>
-inline void SaveStateItem(::NYson::TYsonWriter& writer, const T& item, size_t i, const TColumnNames& columns)
+void SaveStateItem(::NYson::TYsonWriter& writer, const T& item, size_t i, const TColumnNames& columns)
 {
-    if constexpr (is_optional<T>) {
+    if constexpr (IsOptional<T>) {
         if (item) {
             SaveStateItem(writer, item.value(), i, columns);
         }
@@ -84,13 +80,13 @@ inline void SaveStateItem(::NYson::TYsonWriter& writer, const T& item, size_t i,
         } else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
             writer.OnDoubleScalar(item);
         } else {
-            unsupported_type(item);
+            static_assert(TDependentFalse<T>, "unsupported type");
         }
     }
 }
 
 template <class TColumnNames, class TItemsPack>
-inline void SaveState(::NYson::TYsonWriter& writer, const TColumnNames& columns, const TItemsPack& ip)
+void SaveState(::NYson::TYsonWriter& writer, const TColumnNames& columns, const TItemsPack& ip)
 {
     auto f = [&] (auto& ... item) {
         size_t i = 0;
@@ -100,7 +96,7 @@ inline void SaveState(::NYson::TYsonWriter& writer, const TColumnNames& columns,
 }
 
 template <class T>
-inline void UpdateValue(T& value, const std::optional<T>& update)
+void UpdateValue(T& value, const std::optional<T>& update)
 {
     if (update) {
         value = update.value();
@@ -108,20 +104,20 @@ inline void UpdateValue(T& value, const std::optional<T>& update)
 }
 
 template <typename TValues, typename TMutationValues, std::size_t... I>
-inline void UpdateValues(TValues& result, const TMutationValues& update, std::index_sequence<I...>)
+void UpdateValues(TValues& result, const TMutationValues& update, std::index_sequence<I...>)
 {
     (UpdateValue(std::get<I>(result), std::get<I>(update)), ...);
 }
 
 template <typename TValues, typename TMutationValues>
-inline void UpdateValues(TValues& result, const TMutationValues& update)
+void UpdateValues(TValues& result, const TMutationValues& update)
 {
     auto seq = std::make_index_sequence<std::tuple_size_v<TValues>>{};
     UpdateValues(result, update, seq);
 }
 
 template <class TState>
-inline void SaveStateEntry(::NYson::TYsonWriter& writer, void* rawState, const void* rawTKV)
+void SaveStateEntry(::NYson::TYsonWriter& writer, void* rawState, const void* rawTKV)
 {
     const auto* tkv = reinterpret_cast<const TStateTKV<TState>*>(rawTKV);
     TState* state = static_cast<TState*>(rawState);
@@ -164,12 +160,16 @@ TRawRowHolder StateFromTKV(const void* rawTKV)
     return result;
 }
 
-}  // namespace NPrivate::NProfileState
+////////////////////////////////////////////////////////////////////////////////
+
+}  // namespace NRoren::NPrivate::NProfileState
+
+namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TState>
-TPState<typename TState::TKey, TState> MakeYtProfilePState(const TPipeline& ytPipeline, TString in_state_path, TString out_state_path = {})
+TPState<typename TState::TKey, TState> MakeYtProfilePState(const TPipeline& ytPipeline, TString inStatePath, TString outStatePath = {})
 {
     using NPrivate::MakeRowVtable;
     using NPrivate::TYtStateVtable;
@@ -185,7 +185,7 @@ TPState<typename TState::TKey, TState> MakeYtProfilePState(const TPipeline& ytPi
     stateVtable.SaveState = &SaveStateEntry<TState>;
     stateVtable.StateFromKey = &StateFromKey<TState>;
     stateVtable.StateFromTKV = &StateFromTKV<TState>;
-    return MakeYtPState<typename TState::TKey, TState>(ytPipeline, std::move(in_state_path), std::move(out_state_path), std::move(stateVtable));
+    return MakeYtPState<typename TState::TKey, TState>(ytPipeline, std::move(inStatePath), std::move(outStatePath), std::move(stateVtable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

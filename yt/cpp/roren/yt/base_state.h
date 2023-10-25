@@ -9,7 +9,7 @@
 #include <yt/cpp/roren/interface/private/raw_pipeline.h>
 
 template <typename T>
-concept is_optional = std::same_as<T, std::optional<typename T::value_type>>;
+concept IsOptional = std::same_as<T, std::optional<typename T::value_type>>;
 
 namespace NRoren::NPrivate
 {
@@ -37,16 +37,16 @@ extern TTypeTag<TYtStateVtable> YtStateVtableTag;
 extern TTypeTag<TString> YtStateInPathTag;
 extern TTypeTag<TString> YtStateOutPathTag;
 
-void InitializeYtPState(TRawPStateNodePtr pState, TString in_state_path, TString out_state_path, TYtStateVtable stateVtable);
+void InitializeYtPState(TRawPStateNodePtr pState, TString inStatePath, TString outStatePath, TYtStateVtable stateVtable);
 
 template <typename TKey, typename TState>
-TPState<TKey, TState> MakeYtPState(const TPipeline& YtPipeline, TString in_state_path, TString out_state_path, TYtStateVtable stateVtable)
+TPState<TKey, TState> MakeYtPState(const TPipeline& YtPipeline, TString inStatePath, TString outStatePath, TYtStateVtable stateVtable)
 {
     auto rawPipeline = NPrivate::GetRawPipeline(YtPipeline);
     auto pState = NPrivate::MakePState<TKey, TState>(rawPipeline);
     auto rawPState = NPrivate::GetRawPStateNode(pState);
 
-    InitializeYtPState(rawPState, std::move(in_state_path), std::move(out_state_path), std::move(stateVtable));
+    InitializeYtPState(rawPState, std::move(inStatePath), std::move(outStatePath), std::move(stateVtable));
     return pState;
 }
 

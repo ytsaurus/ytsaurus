@@ -2,22 +2,29 @@
 
 namespace NRoren::NPrivate
 {
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTypeTag<TYtStateVtable> YtStateVtableTag{"yt_state_vtable"};
 TTypeTag<TString> YtStateInPathTag{"yt_state_in_path"};
 TTypeTag<TString> YtStateOutPathTag{"yt_state_out_path"};
 
-void InitializeYtPState(TRawPStateNodePtr rawPState, TString in_state_path, TString out_state_path, TYtStateVtable stateVtable)
+void InitializeYtPState(TRawPStateNodePtr rawPState, TString inStatePath, TString outStatePath, TYtStateVtable stateVtable)
 {
-    if (out_state_path.empty()) {
-        out_state_path = in_state_path;
+    if (outStatePath.empty()) {
+        outStatePath = inStatePath;
     }
 
     NPrivate::SetAttribute(*rawPState, NPrivate::YtStateVtableTag, std::move(stateVtable));
-    NPrivate::SetAttribute(*rawPState, NPrivate::YtStateInPathTag, std::move(in_state_path));
-    NPrivate::SetAttribute(*rawPState, NPrivate::YtStateOutPathTag, std::move(out_state_path));
+    NPrivate::SetAttribute(*rawPState, NPrivate::YtStateInPathTag, std::move(inStatePath));
+    NPrivate::SetAttribute(*rawPState, NPrivate::YtStateOutPathTag, std::move(outStatePath));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 }  // namespace NRoren::NPrivate
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TSerializer<NRoren::NPrivate::TYtStateVtable>::Save(IOutputStream* output, const TYtStateVtable& stateVtable)
 {

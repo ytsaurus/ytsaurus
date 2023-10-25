@@ -3,14 +3,15 @@
 #include "base_state.h"
 #include <tuple>
 
-namespace NRoren {
-namespace NPrivate::NKvState {
+namespace NRoren::NPrivate::NKvState {
+
+////////////////////////////////////////////////////////////////////////////////
 
 extern const TString KeyColumn;
 extern const TString ValueColumn;
 
 template <class T>
-inline void LoadStateItem(T& dst, const TString& column, NYT::TNode node)
+void LoadStateItem(T& dst, const TString& column, const NYT::TNode& node)
 {
     if (!node.HasKey(column)) {
         return;
@@ -20,20 +21,17 @@ inline void LoadStateItem(T& dst, const TString& column, NYT::TNode node)
         return;
     }
 
-    if constexpr (is_optional<T>) {
+    if constexpr (IsOptional<T>) {
         dst = data.template As<typename T::value_type>();
     } else {
         dst = data.template As<T>();
     }
 }
 
-template <typename T>
-void unsupported_type(const T&) = delete;
-
 template <class T>
-inline void SaveStateItem(::NYson::TYsonWriter& writer, const T& item, const TString& column)
+void SaveStateItem(::NYson::TYsonWriter& writer, const T& item, const TString& column)
 {
-    if constexpr (is_optional<T>) {
+    if constexpr (IsOptional<T>) {
         if (item) {
             SaveStateItem(writer, item.value(), column);
         }
@@ -50,7 +48,7 @@ inline void SaveStateItem(::NYson::TYsonWriter& writer, const T& item, const TSt
         } else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
             writer.OnDoubleScalar(item);
         } else {
-            unsupported_type(item);
+            static_assert(TDependentFalse<T>, "unsupported type");
         }
     }
 }
@@ -100,12 +98,15 @@ TRawRowHolder StateFromTKV(const void* rawTKV)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-}  // namespace NPrivate::NProfileState
+
+}  // namespace NRoren::NPrivate::NProfileState
+
+namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TState>
-TPState<typename TState::TKey, TState> MakeYtKvPState(const TPipeline& ytPipeline, TString in_state_path, TString out_state_path = {})
+TPState<typename TState::TKey, TState> MakeYtKvPState(const TPipeline& ytPipeline, TString inStatePath, TString outStatePath = {})
 {
     using NPrivate::MakeRowVtable;
     using NPrivate::TYtStateVtable;
@@ -120,14 +121,14 @@ TPState<typename TState::TKey, TState> MakeYtKvPState(const TPipeline& ytPipelin
     stateVtable.SaveState = &SaveStateEntry<TState>;
     stateVtable.StateFromKey = &StateFromKey<TState>;
     stateVtable.StateFromTKV = &StateFromTKV<TState>;
-    return MakeYtPState<typename TState::TKey, TState>(ytPipeline, std::move(in_state_path), std::move(out_state_path), std::move(stateVtable));
+    return MakeYtPState<typename TState::TKey, TState>(ytPipeline, std::move(inStatePath), std::move(outStatePath), std::move(stateVtable));
 }
 
 template <typename TKey, typename TValue>
-TPState<TKey, TKV<TKey, TValue>> MakeYtKvPState(const TPipeline& ytPipeline, TString in_state_path, TString out_state_path = {})
+TPState<TKey, TKV<TKey, TValue>> MakeYtKvPState(const TPipeline& ytPipeline, TString inStatePath, TString outStatePath = {})
 {
     using TState = TKV<TKey, TValue>;
-    return MakeYtKvPState<TState>(ytPipeline, std::move(in_state_path), std::move(out_state_path));
+    return MakeYtKvPState<TState>(ytPipeline, std::move(inStatePath), std::move(outStatePath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

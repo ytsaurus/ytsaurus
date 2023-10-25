@@ -1,10 +1,8 @@
 #include "profile_state.h"
 
-namespace NRoren {
+namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NPrivate {
 
 NYT::TNode TYtStateVtable::SerializableToNode(const TYtStateVtable& stateVtable)
 {
@@ -21,9 +19,7 @@ TYtStateVtable TYtStateVtable::SerializableFromNode(const NYT::TNode& node)
     return result;
 }
 
-}  // namespace NPrivate
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRoren
+} // namespace NRoren::NPrivate
 
