@@ -1,5 +1,4 @@
 {
-  ".":"yt/opensource/repos/ytsaurus/github_toplevel",
   ".github/pull_request_template.md":"yt/opensource/repos/ytsaurus/github_toplevel/.github/pull_request_template.md",
   ".github/workflows/build-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml",
   ".github/workflows/check-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/check-jobs.yaml",
@@ -53,7 +52,6 @@
   "cmake/protobuf.cmake":"",
   "cmake/shared_libs.cmake":"",
   "conanfile.txt":"",
-  "connectors":"yt/connectors",
   "connectors/import.py":"yt/connectors/import.py",
   "connectors/pom.xml":"yt/connectors/pom.xml",
   "contrib/CMakeLists.txt":"",
@@ -675,7 +673,6 @@
   "yt/java/annotations/build.gradle.kts":"",
   "yt/java/skiff/build.gradle.kts":"",
   "yt/java/type-info/build.gradle.kts":"",
-  "yt/java/type-info/src/test/resources":"library/cpp/type_info/ut/test-data",
   "yt/java/type-info/src/test/resources/README.txt":"library/cpp/type_info/ut/test-data/README.txt",
   "yt/java/type-info/src/test/resources/bad-types.txt":"library/cpp/type_info/ut/test-data/bad-types.txt",
   "yt/java/type-info/src/test/resources/good-types.txt":"library/cpp/type_info/ut/test-data/good-types.txt",
