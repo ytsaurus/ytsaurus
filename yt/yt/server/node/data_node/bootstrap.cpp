@@ -491,6 +491,7 @@ private:
 
         DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DataNode->DiskManagerProxy);
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
+        JobController_->OnDynamicConfigChanged(newConfig->DataNode->JobController);
     }
 };
 

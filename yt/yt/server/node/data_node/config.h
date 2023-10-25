@@ -768,6 +768,25 @@ DEFINE_REFCOUNTED_TYPE(TJournalManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobControllerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration WaitingJobsTimeout;
+
+    TDuration ProfilingPeriod;
+
+    bool AccountMasterMemoryRequest;
+
+    REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobControllerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public TJournalManagerConfig
 {
@@ -1024,6 +1043,9 @@ public:
 
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;
+
+    //! Job controller config.
+    TJobControllerDynamicConfigPtr JobController;
 
     REGISTER_YSON_STRUCT(TDataNodeDynamicConfig);
 

@@ -54,11 +54,10 @@ public:
 public:
     TJobController(
         IBootstrapBase* bootstrap)
-        : Config_(bootstrap->GetConfig()->ExecNode->JobController)
-        , Bootstrap_(bootstrap)
+        : Bootstrap_(bootstrap)
+        , DynamicConfig_(New<TJobControllerDynamicConfig>())
         , Profiler_("/job_controller")
     {
-        YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
@@ -77,7 +76,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::OnProfiling, MakeWeak(this)),
-            Config_->ProfilingPeriod);
+            DynamicConfig_.Acquire()->ProfilingPeriod);
         ProfilingExecutor_->Start();
 
         auto jobsProfiler = DataNodeProfiler.WithPrefix("/master_jobs");
@@ -85,10 +84,6 @@ public:
         MasterJobSensors_.AdaptivelyRepairedChunksCounter = jobsProfiler.Counter("/adaptively_repaired_chunks");
         MasterJobSensors_.TotalRepairedChunksCounter = jobsProfiler.Counter("/total_repaired_chunks");
         MasterJobSensors_.FailedRepairChunksCounter = jobsProfiler.Counter("/failed_repair_chunks");
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(
-            BIND_NO_PROPAGATE(&TJobController::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     std::vector<TMasterJobBasePtr> GetJobs() const
@@ -201,13 +196,31 @@ public:
             MakeStrong(this)));
     }
 
+
+    void OnDynamicConfigChanged(
+        const TJobControllerDynamicConfigPtr& newConfig) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_VERIFY(newConfig);
+
+        Bootstrap_->GetControlInvoker()->Invoke(
+            BIND([
+                this,
+                this_ = MakeStrong(this),
+                newConfig = std::move(newConfig)
+            ] {
+                ProfilingExecutor_->SetPeriod(newConfig->ProfilingPeriod);
+
+                DynamicConfig_.Store(std::move(newConfig));
+            }));
+    }
+
 private:
-    const TIntrusivePtr<const TJobControllerConfig> Config_;
     NClusterNode::IBootstrapBase* const Bootstrap_;
+    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_;
 
     IJobResourceManagerPtr JobResourceManager_;
-
-    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_{New<TJobControllerDynamicConfig>()};
 
     TMasterJobSensors MasterJobSensors_;
 
@@ -287,7 +300,7 @@ private:
             jobType,
             jobTrackerAddress);
 
-        auto waitingJobTimeout = Config_->WaitingJobsTimeout;
+        auto waitingJobTimeout = DynamicConfig_.Acquire()->WaitingJobsTimeout;
 
         RegisterJob(jobId, jobTrackerAddress, job, waitingJobTimeout);
 
@@ -372,21 +385,6 @@ private:
         }
 
         return &it->second;
-    }
-
-    void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
-    {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
-
-        auto jobControllerConfig = newNodeConfig->ExecNode->JobController;
-        YT_ASSERT(jobControllerConfig);
-        DynamicConfig_.Store(jobControllerConfig);
-
-        ProfilingExecutor_->SetPeriod(
-            jobControllerConfig->ProfilingPeriod.value_or(
-                Config_->ProfilingPeriod));
     }
 
     void ScheduleHeartbeat(const TMasterJobBasePtr& job)
@@ -480,7 +478,7 @@ private:
         }
 
         YT_VERIFY(std::ssize(response->Attachments()) == response->jobs_to_start_size());
-        auto config = DynamicConfig_.Acquire();
+        auto dynamicConfig = DynamicConfig_.Acquire();
         int attachmentIndex = 0;
         for (const auto& startInfo : response->jobs_to_start()) {
             auto jobId = FromProto<TJobId>(startInfo.job_id());
@@ -497,7 +495,7 @@ private:
 
             auto jobResourceLimits = FromNodeResources(resourceLimits);
 
-            if (!config->AccountMasterMemoryRequest) {
+            if (!dynamicConfig->AccountMasterMemoryRequest) {
                 // COMPAT(don-dron): Remove memory request on master. Only for repair jobs (256Mb).
                 // See set_system_memory in server/master/chunk_server/chunk_replicator.cpp::TRepairJob.
                 jobResourceLimits.SystemMemory = 0;

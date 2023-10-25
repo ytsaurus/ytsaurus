@@ -629,13 +629,14 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    Bootstrap_->GetJobInvoker()->Invoke(BIND([
-        this,
-        this_ = MakeStrong(this),
-        newConfig = std::move(newConfig)] {
-            DynamicConfig_.Store(newConfig);
-
+    Bootstrap_->GetJobInvoker()->Invoke(
+        BIND([
+            this,
+            this_ = MakeStrong(this),
+            newConfig = std::move(newConfig)
+        ] {
             OnConfigUpdated(newConfig);
+            DynamicConfig_.Store(std::move(newConfig));
         }));
 }
 

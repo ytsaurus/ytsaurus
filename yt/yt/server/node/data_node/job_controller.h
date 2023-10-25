@@ -52,6 +52,8 @@ public:
         const TRspHeartbeatPtr& response) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+
+    virtual void OnDynamicConfigChanged(const TJobControllerDynamicConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobController)

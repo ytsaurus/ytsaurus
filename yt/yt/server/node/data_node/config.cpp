@@ -667,6 +667,20 @@ void TJournalManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobControllerDynamicConfig::Register(TRegistrar registrar) {
+    // Make it greater than interrupt preemption timeout.
+    registrar.Parameter("waiting_jobs_timeout", &TThis::WaitingJobsTimeout)
+        .Default(TDuration::Seconds(30));
+
+    registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("account_master_memory_request", &TThis::AccountMasterMemoryRequest)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDataNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("lease_transaction_timeout", &TThis::LeaseTransactionTimeout)
@@ -964,6 +978,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .DefaultNew();
+
+    registrar.Parameter("job_controller", &TThis::JobController)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {

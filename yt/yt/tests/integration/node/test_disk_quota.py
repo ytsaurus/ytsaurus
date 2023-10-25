@@ -45,6 +45,16 @@ class TestDiskUsagePorto(YTEnvSetup):
         }
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "job_controller": {
+                    "waiting_jobs_timeout": 1000,
+                },
+            },
+        },
+    }
+
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1
@@ -301,6 +311,16 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
         }
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "job_controller": {
+                    "waiting_jobs_timeout": 1000,
+                },
+            },
+        },
+    }
+
     USE_PORTO = True
 
     @classmethod
@@ -530,6 +550,16 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
                 "enable_disk_quota": False
             }
         }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "job_controller": {
+                    "waiting_jobs_timeout": 1000,
+                },
+            },
+        },
     }
 
     USE_PORTO = True
