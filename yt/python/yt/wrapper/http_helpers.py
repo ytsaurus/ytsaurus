@@ -3,7 +3,7 @@ from .common import require, get_value, total_seconds, generate_uuid, generate_t
 from .constants import OAUTH_URL, FEEDBACK_URL
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
-                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
+                     YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
                      YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction, create_http_response_error)
 from .framing import unframed_iter_content
 from .command import parse_commands
@@ -92,7 +92,7 @@ def get_retriable_errors():
     from yt.packages.urllib3.exceptions import ConnectTimeoutError, ReadTimeoutError  # YTADMINREQ-22305 , YTADMINREQ-30006
     return (HTTPError, ConnectTimeoutError, ConnectionError, ReadTimeout, Timeout, IncompleteRead, BadStatusLine,
             SocketError, ChunkedEncodingError, ReadTimeoutError,
-            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded,
+            YtIncorrectResponse, YtProxyUnavailable,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
             YtRequestTimedOut, YtRetriableError, YtTransportError)
 

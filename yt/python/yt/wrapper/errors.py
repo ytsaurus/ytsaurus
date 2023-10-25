@@ -104,12 +104,6 @@ def create_http_response_error(underlying_error, url, request_headers, response_
     return error
 
 
-class YtRequestRateLimitExceeded(YtResponseError):
-    """Request rate limit exceeded error.
-       It is used in retries."""
-    pass
-
-
 class YtRequestQueueSizeLimitExceeded(YtResponseError):
     """Request queue size limit exceeded error.
        It is used in retries.
