@@ -36,6 +36,16 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child = 
 template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor);
 
+template <class TRequest>
+TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectory(
+    const IDataNodeTrackerPtr& dataNodeTracker,
+    const TRequest& request);
+template <class TRequest>
+TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectoryOrThrow(
+    const TNode* node,
+    const IDataNodeTrackerPtr& dataNodeTracker,
+    const TRequest& request);
+
 bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child);
 
 int GetChildIndex(const TChunkList* chunkList, const TChunkTree* child);

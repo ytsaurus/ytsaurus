@@ -713,12 +713,21 @@ public:
 
     bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
     {
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+        if (!IsObjectAlive(location)) {
+            return false;
+        }
+
+        return IsSequoiaChunkReplica(chunkId, location);
+    }
+
+    bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const override
+    {
         if (!CanHaveSequoiaReplicas(chunkId)) {
             return false;
         }
 
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
         if (!IsObjectAlive(location)) {
             return false;
         }
@@ -2490,9 +2499,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    // COMPAT(kvk1920)
-    TInstant TestingOnlyLastRecoveryTime_;
-
     TChunkLocation* FindLocationOnConfirmation(
         TChunk* chunk,
         TNode* node,
@@ -2938,11 +2944,11 @@ private:
 
             auto chunkId = chunk->GetId();
             if (!isImaginary) {
-                auto locationUuid = location->AsReal()->GetUuid();
-                if (IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                auto* realLocation = location->AsReal();
+                if (IsSequoiaChunkReplica(chunkId, realLocation)) {
                     YT_LOG_ALERT("Removing sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
                         chunkId,
-                        locationUuid);
+                        realLocation->GetUuid());
                 }
             }
 
@@ -2955,11 +2961,11 @@ private:
             for (auto replica : destroyedReplicasSet) {
                 auto chunkId = replica.Id;
                 if (!isImaginary) {
-                    auto locationUuid = location->AsReal()->GetUuid();
-                    if (IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                    auto* realLocation = location->AsReal();
+                    if (IsSequoiaChunkReplica(chunkId, realLocation)) {
                         YT_LOG_ALERT("Removing destroyed sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
                             chunkId,
-                            locationUuid);
+                            realLocation->GetUuid());
                     }
                 }
             }
@@ -3133,61 +3139,6 @@ private:
         }
     }
 
-    template <class TRequest>
-    TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectoryOrThrow(
-        const TNode* node,
-        const TRequest& request)
-    {
-        static_assert(
-            std::is_same_v<TRequest, TReqFullHeartbeat> ||
-            std::is_same_v<TRequest, TReqIncrementalHeartbeat> ||
-            std::is_same_v<TRequest, TReqModifyReplicas>,
-            "TRequest must be either TReqFullHeartbeat, TReqIncrementalHeartbeat or TReqModifyReplicas");
-
-        constexpr bool fullHeartbeat = std::is_same_v<TRequest, TReqFullHeartbeat>;
-        auto checkLocationIndices = [&] (const auto& chunkInfos) {
-            for (const auto& chunkInfo : chunkInfos) {
-                AlertAndThrowOnInvalidLocationIndex<fullHeartbeat>(chunkInfo, node, request.location_directory_size());
-            }
-        };
-
-        if constexpr (fullHeartbeat) {
-            checkLocationIndices(request.chunks());
-        } else {
-            checkLocationIndices(request.added_chunks());
-            checkLocationIndices(request.removed_chunks());
-        }
-
-        return ParseLocationDirectory(request);
-    }
-
-    template <class TRequest>
-    TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectory(const TRequest& request)
-    {
-        using namespace NDataNodeTrackerClient::NProto;
-        static_assert(
-            std::is_same_v<TRequest, TReqFullHeartbeat> ||
-            std::is_same_v<TRequest, TReqIncrementalHeartbeat> ||
-            std::is_same_v<TRequest, TReqModifyReplicas>,
-            "TRequest must be either TReqFullHeartbeat, TReqIncrementalHeartbeat or TReqModifyReplicas");
-
-        auto rawLocationDirectory = FromProto<TChunkLocationDirectory>(request.location_directory());
-        // NB: Location directory was previously parsed in
-        // `TDataNodeService::*Heartbeat()` so there is no need to validate it again.
-
-        TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> locationDirectory;
-        locationDirectory.reserve(rawLocationDirectory.Uuids().size());
-
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        for (auto uuid : rawLocationDirectory.Uuids()) {
-            // All locations were checked in `TDataNodeTracker::Hydra*Heartbeat()`
-            // so it should be safe to use `GetChunkLocationByUuid()` here.
-            locationDirectory.push_back(dataNodeTracker->GetChunkLocationByUuid(uuid));
-        }
-
-        return locationDirectory;
-    }
-
     void ProcessFullDataNodeHeartbeat(
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
@@ -3218,7 +3169,9 @@ private:
             }
         }
 
-        auto locationDirectory = ParseLocationDirectoryOrThrow(node, *request);
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        // We checked everything in TDataNodeTracker::ProcessFullHeartbeat.
+        auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
         auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->chunks());
 
@@ -3247,41 +3200,6 @@ private:
         OnMaybeNodeWriteTargetValidityChanged(
             node,
             EWriteTargetValidityChange::ReportedDataNodeHeartbeat);
-    }
-
-    template <bool FullHeartbeat>
-    void AlertAndThrowOnInvalidLocationIndex(
-        const auto& chunkInfo,
-        const TNode* node,
-        int locationDirectorySize)
-    {
-        // Heartbeats should no longer contain location uuids but if node was
-        // registered before master server update it still can send heartbeats
-        // with location uuids.
-        YT_ASSERT(
-            !chunkInfo.has_location_uuid() ||
-            node->GetRegisterTime() < TestingOnlyLastRecoveryTime_);
-
-        using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
-        static_assert(std::is_same_v<TChunkInfo, TChunkAddInfo> || std::is_same_v<TChunkInfo, TChunkRemoveInfo>,
-            "TChunkInfo must be either TChunkAddInfo or TChunkRemoveInfo");
-
-        constexpr bool isRemoval = !FullHeartbeat &&
-            std::is_same_v<std::decay_t<decltype(chunkInfo)>, TChunkRemoveInfo>;
-
-        if (chunkInfo.location_index() >= locationDirectorySize) {
-            YT_LOG_ALERT(
-                "Data node reported %v heartbeat with invalid location index "
-                "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
-                FullHeartbeat ? "full" : "incremental",
-                FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
-                FromProto<TChunkId>(chunkInfo.chunk_id()),
-                node->GetDefaultAddress(),
-                chunkInfo.location_index());
-
-            THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
-                FullHeartbeat ? "Full" : "Incremental");
-        }
     }
 
     void ScheduleEndorsement(TChunk* chunk)
@@ -3384,7 +3302,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        auto locationDirectory = ParseLocationDirectoryOrThrow(node, *request);
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+
+        auto locationDirectory = ParseLocationDirectoryOrThrow(node, dataNodeTracker, *request);
 
         if (request->added_chunks().size() > 0) {
             node->ValidateRegistered();
@@ -3458,7 +3378,9 @@ private:
             ->StartTransaction()
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
-                auto locationDirectory = ParseLocationDirectory(request);
+
+                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+                auto locationDirectory = ParseLocationDirectory(dataNodeTracker, request);
 
                 for (const auto& chunkInfo : request.added_chunks()) {
                     auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
@@ -3602,7 +3524,9 @@ private:
             }
         }
 
-        auto locationDirectory = ParseLocationDirectoryOrThrow(node, *request);
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        // We checked everything in TDataNodeTracker::ProcessIncrementalHeartbeat.
+        auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
         auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
 
         SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
@@ -5193,8 +5117,6 @@ private:
 
         BufferedProducer_->SetEnabled(true);
         CrpBufferedProducer_->SetEnabled(true);
-
-        TestingOnlyLastRecoveryTime_ = NProfiling::GetInstant();
     }
 
     void OnLeaderActive() override

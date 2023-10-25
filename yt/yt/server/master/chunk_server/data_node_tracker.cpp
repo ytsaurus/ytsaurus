@@ -132,9 +132,13 @@ public:
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        const auto& originalRequest = context->Request();
+        auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         auto preparedRequest = New<TFullHeartbeatRequest>();
-        const auto& originalRequest = context->Request();
 
         preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
         preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
@@ -144,12 +148,12 @@ public:
             *preparedRequest->SequoiaRequest.add_location_directory() = locationUuid;
         }
 
+        auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
         for (const auto& chunkInfo : originalRequest.chunks()) {
             auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
             auto locationIndex = chunkInfo.location_index();
-            YT_VERIFY(locationIndex < originalRequest.location_directory_size());
-            auto locationUuid = FromProto<TChunkLocationUuid>(originalRequest.location_directory()[locationIndex]);
-            if (chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+            auto* location = locationDirectory[locationIndex];
+            if (chunkManager->IsSequoiaChunkReplica(chunkId, location)) {
                 *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
             } else {
                 *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
@@ -202,9 +206,13 @@ public:
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        const auto& originalRequest = context->Request();
+        auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         auto preparedRequest = New<TIncrementalHeartbeatRequest>();
-        const auto& originalRequest = context->Request();
 
         preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
         preparedRequest->NonSequoiaRequest.mutable_added_chunks()->Clear();
@@ -215,12 +223,12 @@ public:
             *preparedRequest->SequoiaRequest.add_location_directory() = locationUuid;
         }
 
+        auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
         for (const auto& chunkInfo : originalRequest.added_chunks()) {
             auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
             auto locationIndex = chunkInfo.location_index();
-            YT_VERIFY(locationIndex < originalRequest.location_directory_size());
-            auto locationUuid = FromProto<TChunkLocationUuid>(originalRequest.location_directory()[locationIndex]);
-            if (chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+            auto* location = locationDirectory[locationIndex];
+            if (chunkManager->IsSequoiaChunkReplica(chunkId, location)) {
                 *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
             } else {
                 *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
@@ -230,9 +238,8 @@ public:
         for (const auto& chunkInfo : originalRequest.removed_chunks()) {
             auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
             auto locationIndex = chunkInfo.location_index();
-            YT_VERIFY(locationIndex < originalRequest.location_directory_size());
-            auto locationUuid = FromProto<TChunkLocationUuid>(originalRequest.location_directory()[locationIndex]);
-            if (chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+            auto* location = locationDirectory[locationIndex];
+            if (chunkManager->IsSequoiaChunkReplica(chunkId, location)) {
                 *preparedRequest->SequoiaRequest.add_removed_chunks() = chunkInfo;
             } else {
                 *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;
