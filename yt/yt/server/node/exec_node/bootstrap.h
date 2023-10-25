@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/server/lib/nbd/server.h>
+
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 namespace NYT::NExecNode {
@@ -49,6 +51,8 @@ struct IBootstrap
     virtual const TControllerAgentConnectorPoolPtr& GetControllerAgentConnectorPool() const = 0;
 
     virtual NClusterNode::TClusterNodeDynamicConfigPtr GetDynamicConfig() const = 0;
+
+    virtual const NYT::NNbd::INbdServerPtr& GetNbdServer() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

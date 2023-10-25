@@ -36,6 +36,8 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
@@ -126,6 +128,19 @@ using NCypressClient::EObjectType;
 static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
 static const TString SlotIndexPattern("\%slot_index\%");
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TGuid CreateNbdExportId(TJobId jobId, int nbdExportIndex)
+{
+    auto nbdExportId = jobId;
+    nbdExportId.Parts32[0] = nbdExportIndex;
+    return nbdExportId;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2146,6 +2161,8 @@ void TJob::Cleanup()
         RootVolume_.Reset();
     }
 
+    CleanupNbdExports();
+
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
             try {
@@ -2168,6 +2185,25 @@ void TJob::Cleanup()
     CleanupFinished_.Set();
 
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
+}
+
+//! Make sure NBD exports are unregistered in case of volume creation failures.
+void TJob::CleanupNbdExports()
+{
+    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+        for (const auto& artifactKey : LayerArtifactKeys_) {
+            if (!artifactKey.has_nbd_export_id()) {
+                continue;
+            }
+
+            if (nbdServer->DeviceIsRegistered(artifactKey.nbd_export_id())) {
+                YT_LOG_ERROR("NBD export %Qlv with path %Qlv is still unexpectedly registered, unregister it",
+                    artifactKey.nbd_export_id(),
+                    artifactKey.file_path());
+                nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+            }
+        }
+    }
 }
 
 TFuture<void> TJob::GetCleanupFinishedEvent()
@@ -2529,6 +2565,16 @@ void TJob::InitializeArtifacts()
 
         for (const auto& layerKey : UserJobSpec_->layers()) {
             LayerArtifactKeys_.emplace_back(layerKey);
+        }
+
+        // Mark NBD layers.
+        auto nbdExportCount = 0;
+        for (auto& layer : LayerArtifactKeys_) {
+            if (layer.has_filesystem()) {
+                auto nbdExportId = CreateNbdExportId(Id_, nbdExportCount);
+                layer.set_nbd_export_id(ToString(nbdExportId));
+                ++nbdExportCount;
+            }
         }
 
         if (UserJobSpec_->has_docker_image()) {

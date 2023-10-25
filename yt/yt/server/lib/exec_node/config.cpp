@@ -504,6 +504,24 @@ void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNbdClientConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("timeout", &TThis::Timeout)
+        .Default(TDuration::Seconds(30));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNbdConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("nbd_client", &TThis::NbdClientConfig)
+        .DefaultNew();
+    registrar.Parameter("nbd_server", &TThis::NbdServerConfig)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TExecNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_manager", &TThis::SlotManager)
@@ -613,6 +631,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("sensor_dump_timeout", &TThis::SensorDumpTimeout)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("nbd", &TThis::NbdConfig)
+        .Default();
 
     registrar.Preprocessor([] (TThis* config) {
         // 10 user jobs containers per second by default.

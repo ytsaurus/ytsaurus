@@ -95,6 +95,7 @@ target_link_libraries(yt-server-node PUBLIC
   lib-hydra_common-dry_run
   server-lib-hydra2
   server-lib-lsm
+  server-lib-nbd
   server-lib-rpc
   server-lib-controller_agent
   library-cpp-getopt

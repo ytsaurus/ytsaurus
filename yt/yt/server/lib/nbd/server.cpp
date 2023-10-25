@@ -34,43 +34,79 @@ class TNbdServer
 public:
     TNbdServer(
         TNbdServerConfigPtr config,
+        NApi::NNative::IConnectionPtr connection,
         IPollerPtr poller,
         IInvokerPtr invoker)
         : Config_(std::move(config))
+        , Connection_(std::move(connection))
         , Poller_(std::move(poller))
         , Invoker_(std::move(invoker))
     { }
 
     void Start()
     {
-        Listener_ = CreateListener(
-            TNetworkAddress::CreateIPv6Any(Config_->Port),
-            Poller_,
-            Poller_,
-            Config_->MaxBacklogSize);
-        AcceptConnection();
+        YT_LOG_INFO("Starting NBD server");
+
+        if (Config_->IdsConfig) {
+            Listener_ = CreateListener(
+                TNetworkAddress::CreateIPv6Any(Config_->IdsConfig->Port),
+                Poller_,
+                Poller_,
+                Config_->IdsConfig->MaxBacklogSize);
+            AcceptConnection();
+        }
+
+        YT_LOG_INFO("Started NBD server");
     }
 
     void RegisterDevice(
         const TString& name,
         IBlockDevicePtr device) override
     {
+        YT_LOG_INFO("Registering device (Name: %v, Info: %v)", name, device->DebugString());
+
         auto guard = WriterGuard(NameToDeviceLock_);
         auto [it, inserted] = NameToDevice_.emplace(name, device);
         if (!inserted) {
-            THROW_ERROR_EXCEPTION("Device %Qv is already registered", name);
+            THROW_ERROR_EXCEPTION("Device %Qv with %Qv is already registered", name, device->DebugString());
         }
-        YT_LOG_INFO("Device registered (Name: %v)", name);
+
+        YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
     }
 
     virtual bool TryUnregisterDevice(const TString& name) override
     {
+        YT_LOG_INFO("Unregistering device (Name: %v)", name);
+
         auto guard = WriterGuard(NameToDeviceLock_);
         if (NameToDevice_.erase(name) == 0) {
+            YT_LOG_INFO("Can't unregister unknown device (Name: %v)", name);
             return false;
         }
-        YT_LOG_INFO("Device unregistered (Name: %v)", name);
+
+        YT_LOG_INFO("Unregistered device (Name: %v)", name);
         return true;
+    }
+
+    virtual bool DeviceIsRegistered(const TString& name) override
+    {
+        auto guard = ReaderGuard(NameToDeviceLock_);
+        return NameToDevice_.contains(name);
+    }
+
+    virtual const NLogging::TLogger& GetLogger() const override
+    {
+        return Logger;
+    }
+
+    virtual NApi::NNative::IConnectionPtr GetConnection() const override
+    {
+        return Connection_;
+    }
+
+    virtual IInvokerPtr GetInvoker() const override
+    {
+        return Invoker_;
     }
 
 private:
@@ -78,6 +114,7 @@ private:
         .WithTag("ServerId: %v", TGuid::Create());
 
     const TNbdServerConfigPtr Config_;
+    const NApi::NNative::IConnectionPtr Connection_;
     const IPollerPtr Poller_;
     const IInvokerPtr Invoker_;
 
@@ -577,11 +614,13 @@ DEFINE_REFCOUNTED_TYPE(TNbdServer)
 
 INbdServerPtr CreateNbdServer(
     TNbdServerConfigPtr config,
+    NApi::NNative::IConnectionPtr connection,
     IPollerPtr poller,
     IInvokerPtr invoker)
 {
     auto server = New<TNbdServer>(
         std::move(config),
+        std::move(connection),
         std::move(poller),
         std::move(invoker));
     server->Start();

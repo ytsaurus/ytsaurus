@@ -17,6 +17,7 @@ message TVolumeMeta
     repeated TArtifactKey layer_artifact_keys = 1;
     repeated string layer_paths = 2;
     required NYT.NProto.TGuid id = 3;
+    optional int32 type = 4; // EVolumeType
 }
 
 ////////////////////////////////////////////////////////////////////////////////
