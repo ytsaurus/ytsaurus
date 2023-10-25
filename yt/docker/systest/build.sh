@@ -58,7 +58,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-systest="${ytsaurus_build_path}/yt/systest/tester/systest"
+systest="${ytsaurus_build_path}/yt/systest/bin/systest"
 dockerfile="${ytsaurus_source_path}/yt/docker/systest/Dockerfile"
 
 cp ${systest} ${output_path}
