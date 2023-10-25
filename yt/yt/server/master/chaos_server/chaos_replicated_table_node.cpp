@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
@@ -57,6 +59,7 @@ void TChaosReplicatedTableNode::Save(TSaveContext& context) const
     Save(context, ChaosCellBundle_);
     Save(context, ReplicationCardId_);
     Save(context, OwnsReplicationCard_);
+    Save(context, QueueAgentStage_);
 }
 
 void TChaosReplicatedTableNode::Load(TLoadContext& context)
@@ -74,6 +77,24 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     Load(context, OwnsReplicationCard_);
     if (context.GetVersion() < EMasterReign::AddSchemafulNodeTypeHandler) {
         Load(context, Schema_);
+    }
+
+    // COMPAT(nadya73): Remove queue related attributes for old reigns.
+    if (context.GetVersion() >= EMasterReign::QueueAgentStageForChaos) {
+        Load(context, QueueAgentStage_);
+    } else if (Attributes_) {
+        static const std::vector<TInternedAttributeKey> queueRelatedAttributes = {
+            EInternedAttributeKey::QueueStatus,
+            EInternedAttributeKey::QueuePartitions,
+            EInternedAttributeKey::QueueConsumerStatus,
+            EInternedAttributeKey::QueueConsumerPartitions,
+            EInternedAttributeKey::QueueAgentStage,
+            EInternedAttributeKey::TreatAsQueueConsumer,
+        };
+
+        for (const auto& attribute : queueRelatedAttributes) {
+            Attributes_->Remove(attribute.Unintern());
+        }
     }
 }
 
