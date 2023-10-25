@@ -173,7 +173,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSystemTransactionReplication)                              (2438))  // h0pless
     ((QueueAgentStageForChaos)                                      (2439))  // nadya73
     ((FixMergerStatistics)                                          (2440))  // aleksandra-zh
-    // 24.1 starts here.
+    // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
 );
 
