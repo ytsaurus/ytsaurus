@@ -17,6 +17,15 @@ type (
 		AttributeKeys []string
 	}
 
+	ListGroupsOptions struct {
+		Limit *int32
+	}
+
+	ListGroupsResponse struct {
+		GroupIDs   []string
+		Incomplete bool
+	}
+
 	Attribute struct {
 		Key   string
 		Value []byte
@@ -48,6 +57,14 @@ type DiscoveryClient interface {
 		groupID string,
 		options *ListMembersOptions,
 	) (members []*MemberInfo, err error)
+
+	// http:verb:"list_groups"
+	// http:params:"prefix"
+	ListGroups(
+		ctx context.Context,
+		prefix string,
+		options *ListGroupsOptions,
+	) (result *ListGroupsResponse, err error)
 
 	// http:verb:"get_group_meta"
 	// http:params:"group_id"

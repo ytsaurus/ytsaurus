@@ -49,6 +49,30 @@ func (e *Encoder) ListMembers(
 	return
 }
 
+func (e *Encoder) ListGroups(
+	ctx context.Context,
+	prefix string,
+	opts *yt.ListGroupsOptions,
+) (result *yt.ListGroupsResponse, err error) {
+	if opts == nil {
+		opts = &yt.ListGroupsOptions{}
+	}
+
+	req := &discovery_client.TReqListGroups{
+		Prefix:  &prefix,
+		Options: convertListGroupsOptions(opts),
+	}
+
+	call := e.newCall(MethodListGroups, NewListGroupsRequest(req), nil)
+
+	var rsp discovery_client.TRspListGroups
+	if err = e.Invoke(ctx, call, &rsp); err != nil {
+		return
+	}
+
+	return makeListGroupsResponse(&rsp)
+}
+
 func (e *Encoder) GetGroupMeta(
 	ctx context.Context,
 	groupID string,

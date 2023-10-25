@@ -4,12 +4,14 @@ import (
 	"go.ytsaurus.tech/yt/go/proto/client/discovery_client"
 	"go.ytsaurus.tech/yt/go/proto/core/ytree"
 	"go.ytsaurus.tech/yt/go/yt"
+	"golang.org/x/xerrors"
 )
 
 func convertListMembersOptions(opts *yt.ListMembersOptions) *discovery_client.TListMembersOptions {
 	if opts == nil {
 		return nil
 	}
+
 	return &discovery_client.TListMembersOptions{
 		Limit:         opts.Limit,
 		AttributeKeys: opts.AttributeKeys,
@@ -60,6 +62,29 @@ func convertMemberInfo(memberInfo *yt.MemberInfo) *discovery_client.TMemberInfo 
 		Priority:   &memberInfo.Priority,
 		Revision:   &memberInfo.Revision,
 		Attributes: attrDict,
+	}
+}
+
+func makeListGroupsResponse(r *discovery_client.TRspListGroups) (*yt.ListGroupsResponse, error) {
+	if r == nil {
+		return nil, xerrors.Errorf("unable to convert nil list groups result")
+	}
+
+	ret := &yt.ListGroupsResponse{
+		GroupIDs:   r.GroupIds,
+		Incomplete: *r.Incomplete,
+	}
+
+	return ret, nil
+}
+
+func convertListGroupsOptions(opts *yt.ListGroupsOptions) *discovery_client.TListGroupsOptions {
+	if opts == nil {
+		return nil
+	}
+
+	return &discovery_client.TListGroupsOptions{
+		Limit: opts.Limit,
 	}
 }
 

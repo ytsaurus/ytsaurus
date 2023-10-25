@@ -23,6 +23,24 @@ func (r ListMembersRequest) Path() (string, bool) {
 	return "", false
 }
 
+type ListGroupsRequest struct {
+	*discovery_client.TReqListGroups
+}
+
+func NewListGroupsRequest(r *discovery_client.TReqListGroups) *ListGroupsRequest {
+	return &ListGroupsRequest{TReqListGroups: r}
+}
+
+func (r ListGroupsRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("prefix", r.GetPrefix()),
+	}
+}
+
+func (r ListGroupsRequest) Path() (string, bool) {
+	return "", false
+}
+
 type GetGroupMetaRequest struct {
 	*discovery_client.TReqGetGroupMeta
 }

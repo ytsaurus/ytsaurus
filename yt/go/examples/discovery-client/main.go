@@ -46,7 +46,16 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
-	groupID := "/chyt/ch_public"
+	groupsPath := "/chyt"
+
+	rsp, err := c.ListGroups(ctx, groupsPath, &yt.ListGroupsOptions{Limit: ptr.Int32(2)})
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "error: %+v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(rsp)
+
+	groupID := rsp.GroupIDs[0]
 
 	meta, err := c.GetGroupMeta(ctx, groupID, nil)
 	if err != nil {
