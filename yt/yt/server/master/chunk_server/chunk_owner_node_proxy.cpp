@@ -1131,7 +1131,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             const auto& uninternedKey = key.Unintern();
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
 
-            const auto& mode = ConvertTo<EChunkMergerMode>(value);
+            auto mode = ConvertTo<EChunkMergerMode>(value);
             node->SetChunkMergerMode(mode);
 
             if (!node->IsExternal()) {
