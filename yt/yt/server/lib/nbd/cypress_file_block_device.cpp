@@ -75,6 +75,21 @@ public:
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
     {}
 
+    TCypressFileBlockDevice(
+        const TString& exportId,
+        const ::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+        TCypressFileBlockDeviceConfigPtr config,
+        NApi::NNative::IClientPtr client,
+        IInvokerPtr invoker,
+        const NLogging::TLogger& logger)
+        : ExportId_(exportId)
+        , ChunkSpecs_(chunkSpecs)
+        , Config_(config)
+        , Client_(client)
+        , Invoker_(invoker)
+        , Logger(logger.WithTag("ExportId: %v", ExportId_))
+    {}
+
     virtual i64 GetTotalSize() const override
     {
         return FileSize_;
@@ -145,32 +160,38 @@ private:
 
         NYPath::TRichYPath richPath{Config_->Path};
 
-        auto userObject = GetUserObject(richPath, Client_, Logger);
-        if (userObject.Type != NCypressClient::EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Invalid type of file %Qlv, expected %Qlv, but got %Qlv",
-                userObject.GetPath(),
-                NCypressClient::EObjectType::File,
-                userObject.Type);
-        }
+        if (ChunkSpecs_) {
+            NChunkClient::TUserObject userObject{richPath};
 
-        auto filesystem = GetFilesystem(userObject, Client_, Logger);
-        if (filesystem != "ext4" && filesystem != "squashfs") {
-            THROW_ERROR_EXCEPTION("Invalid filesystem attribute %Qlv of file %Qlv",
-                filesystem,
-                userObject.GetPath());
-        }
-
-        auto chunkSpecs = GetChunkSpecs(userObject, Client_, Logger);
-
-        {
             YT_LOG_INFO("Creating chunk reader host (File: %v)", userObject.GetPath());
-
             ChunkReaderHost_ = NChunkClient::TChunkReaderHost::FromClient(Client_);
-
             YT_LOG_INFO("Created chunk reader host (File: %v)", userObject.GetPath());
-        }
 
-        InitializeChunkStructs(userObject, chunkSpecs);
+            InitializeChunkStructs(userObject, *ChunkSpecs_);
+        } else {
+            auto userObject = GetUserObject(richPath, Client_, Logger);
+            if (userObject.Type != NCypressClient::EObjectType::File) {
+                THROW_ERROR_EXCEPTION("Invalid type of file %Qlv, expected %Qlv, but got %Qlv",
+                    userObject.GetPath(),
+                    NCypressClient::EObjectType::File,
+                    userObject.Type);
+            }
+
+            auto filesystem = GetFilesystem(userObject, Client_, Logger);
+            if (filesystem != "ext4" && filesystem != "squashfs") {
+                THROW_ERROR_EXCEPTION("Invalid filesystem attribute %Qlv of file %Qlv",
+                    filesystem,
+                    userObject.GetPath());
+            }
+
+            auto chunkSpecs = GetChunkSpecs(userObject, Client_, Logger);
+
+            YT_LOG_INFO("Creating chunk reader host (File: %v)", userObject.GetPath());
+            ChunkReaderHost_ = NChunkClient::TChunkReaderHost::FromClient(Client_);
+            YT_LOG_INFO("Created chunk reader host (File: %v)", userObject.GetPath());
+
+            InitializeChunkStructs(userObject, chunkSpecs);
+        }
 
         YT_LOG_INFO("Initialized cypress file block device (Path: %v)", Config_->Path);
     }
@@ -286,7 +307,8 @@ private:
         }));
     }
 
-    void InitializeChunkStructs(const NChunkClient::TUserObject& userObject, const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs)
+    template <typename T>
+    void InitializeChunkStructs(const NChunkClient::TUserObject& userObject, const T& chunkSpecs)
     {
         YT_LOG_INFO("Initializing chunk structs (File: %v, ChunkSpecs: %v)", userObject.GetPath(), chunkSpecs.size());
 
@@ -351,6 +373,7 @@ private:
 
 private:
     const TString& ExportId_;
+    std::optional<::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
     const TCypressFileBlockDeviceConfigPtr Config_;
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
@@ -523,6 +546,19 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     const NLogging::TLogger& logger)
 {
     return New<TCypressFileBlockDevice>(exportId, exportConfig, client, invoker, logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBlockDevicePtr CreateCypressFileBlockDevice(
+    const TString& exportId,
+    const ::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    TCypressFileBlockDeviceConfigPtr exportConfig,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker,
+    const NLogging::TLogger& logger)
+{
+    return New<TCypressFileBlockDevice>(exportId, chunkSpecs, exportConfig, client, invoker, logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

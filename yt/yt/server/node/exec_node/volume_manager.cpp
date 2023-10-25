@@ -105,31 +105,42 @@ NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
     YT_VERIFY(artifactKey.has_filesystem());
     YT_VERIFY(artifactKey.has_nbd_export_id());
 
-    YT_LOG_INFO("Creating NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+    YT_LOG_INFO("Creating NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
-        artifactKey.nbd_export_id());
+        artifactKey.nbd_export_id(),
+        artifactKey.chunk_specs_size());
 
     auto config = New<NNbd::TCypressFileBlockDeviceConfig>();
     config->Path = artifactKey.file_path();
     if (config->Path.empty()) {
-        THROW_ERROR_EXCEPTION("No file path for filesystem image")
+        THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
             << TErrorAttribute("type_name", artifactKey.GetTypeName())
+            << TErrorAttribute("filesystem", artifactKey.filesystem())
+            << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
+    }
+
+    if (artifactKey.filesystem() != "ext4" && artifactKey.filesystem() != "squashfs") {
+        THROW_ERROR_EXCEPTION("Unexpected filesystem for filesystem layer")
+            << TErrorAttribute("type_name", artifactKey.GetTypeName())
+            << TErrorAttribute("file_path", artifactKey.file_path())
             << TErrorAttribute("filesystem", artifactKey.filesystem())
             << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
     }
 
     auto device = NNbd::CreateCypressFileBlockDevice(
         artifactKey.nbd_export_id(),
+        artifactKey.chunk_specs(),
         std::move(config),
         std::move(client),
         std::move(invoker),
         Logger);
 
-    YT_LOG_INFO("Created NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v)",
+    YT_LOG_INFO("Created NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
-        artifactKey.nbd_export_id());
+        artifactKey.nbd_export_id(),
+        artifactKey.chunk_specs_size());
 
     return device;
 }
@@ -2172,9 +2183,14 @@ public:
             return RemoveFuture_;
         }
 
+        auto volumeId = GetId();
+        YT_LOG_DEBUG("Removing Overlay volume (VolumeId: %v)", volumeId);
+
         // At first remove overlay volume, then remove constituent volumes and layers.
         auto future = Location_->RemoveVolume(VolumeMeta_.Id);
-        RemoveFuture_ = future.Apply(BIND([overlayDataArray = OverlayDataArray_]() mutable {
+        RemoveFuture_ = future.Apply(BIND([volumeId=volumeId, overlayDataArray=OverlayDataArray_]() mutable {
+            YT_LOG_DEBUG("Removed Overlay volume (VolumeId: %v)", volumeId);
+
             std::vector<TFuture<void>> futures;
             futures.reserve(overlayDataArray.size());
             for (auto& overlayData : overlayDataArray) {
@@ -2222,14 +2238,14 @@ class TNbdVolume
 public:
     TNbdVolume(
         const TVolumeMeta& meta,
+        const TArtifactKey& artifactKey,
         TPortoVolumeManagerPtr owner,
         TLayerLocationPtr location,
-        const TArtifactKey& artifactKey,
         NNbd::INbdServerPtr nbdServer)
         : VolumeMeta_(meta)
+        , ArtifactKey_(artifactKey)
         , Owner_(std::move(owner))
         , Location_(std::move(location))
-        , ArtifactKey_(artifactKey)
         , NbdServer_(nbdServer)
     { }
 
@@ -2244,9 +2260,20 @@ public:
             return RemoveFuture_;
         }
 
+        auto volumeId = GetId();
+        YT_LOG_DEBUG("Removing NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
+            volumeId,
+            ArtifactKey_.nbd_export_id(),
+            ArtifactKey_.file_path());
+
         // At first remove volume, then unregister export.
         auto future = Location_->RemoveVolume(VolumeMeta_.Id);
-        RemoveFuture_ = future.Apply(BIND([nbdServer = NbdServer_, layer=ArtifactKey_]() {
+        RemoveFuture_ = future.Apply(BIND([volumeId=volumeId, layer=ArtifactKey_, nbdServer=NbdServer_]() {
+            YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
+                volumeId,
+                layer.nbd_export_id(),
+                layer.file_path());
+
             nbdServer->TryUnregisterDevice(layer.nbd_export_id());
         }));
 
@@ -2270,9 +2297,9 @@ public:
 
 private:
     const TVolumeMeta VolumeMeta_;
+    const TArtifactKey ArtifactKey_;
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
-    const TArtifactKey ArtifactKey_;
     const NNbd::INbdServerPtr NbdServer_;
 
     TFuture<void> RemoveFuture_;
@@ -2637,9 +2664,9 @@ private:
 
         auto volume = New<TNbdVolume>(
             volumeMeta,
+            artifactKey,
             this,
             location,
-            artifactKey,
             Bootstrap_->GetNbdServer());
 
         YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Path: %v, Filesytem: %v)",

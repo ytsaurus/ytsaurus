@@ -18,4 +18,14 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IBlockDevicePtr CreateCypressFileBlockDevice(
+    const TString& exportId,
+    const ::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    TCypressFileBlockDeviceConfigPtr config,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker,
+    const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNbd
