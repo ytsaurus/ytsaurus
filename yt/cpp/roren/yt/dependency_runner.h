@@ -25,18 +25,33 @@ public:
     void RunOperations(const TStartOperationContext& context);
 
 private:
-    struct TState
+    class TState
     {
+    public:
         explicit TState(i32 concurrencyLimit);
 
-        ::NThreading::TPromise<void> Promise;
-        ::NThreading::TFuture<void> MainFuture;
+        void WaitOperations();
+        void SignalCompletion();
+        void SignalError();
 
+        bool HasError() const;
+
+        void RegisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId, ::NYT::IOperationPtr operation);
+        void UnregisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId);
+        void AbortRunningOperations();
+
+    public:
         i32 AvailableToRun;
         ssize_t Completed = 0;
         ssize_t Cursor = 0;
 
-        bool HasError = false;
+    private:
+        ::NThreading::TPromise<void> Promise_;
+        ::NThreading::TFuture<void> MainFuture_;
+
+        bool HasError_ = false;
+
+        THashMap<IYtGraph::TOperationNodeId, ::NYT::IOperationPtr> RunningOperations_;
     };
 
 private:

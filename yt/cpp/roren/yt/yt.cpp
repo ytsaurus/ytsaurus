@@ -4,7 +4,7 @@
 #include "yt_graph_v2.h"
 
 #include "dependency_runner.h"
-#include "operation_runner.h"
+#include "level_runner.h"
 
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/interface/executor.h>
@@ -74,7 +74,7 @@ public:
                 auto runner = MakeDependencyRunner(tx, std::dynamic_pointer_cast<TYtGraphV2>(ytGraph), concurrencyLimit);
                 runner->RunOperations(context);
             } else {
-                auto runner = MakeOperationRunner(tx, ytGraph, concurrencyLimit);
+                auto runner = MakeLevelRunner(tx, ytGraph, concurrencyLimit);
                 for (const auto& level : ytGraph->GetOperationLevels()) {
                     runner->RunOperations(level, context);
                 }

@@ -12,11 +12,11 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationRunner
+class TLevelRunner
     : public ::NYT::TRefCounted
 {
 public:
-    TOperationRunner(
+    TLevelRunner(
         NYT::IClientBasePtr tx,
         std::shared_ptr<IYtGraph> ytGraph,
         i32 concurrencyLimit);
@@ -24,21 +24,36 @@ public:
     void RunOperations(const std::vector<IYtGraph::TOperationNodeId>& level, const TStartOperationContext& context);
 
 private:
-    struct TState
+    class TState
         : public ::NYT::TRefCounted
     {
+    public:
         explicit TState(i32 concurrencyLimit, const std::vector<IYtGraph::TOperationNodeId>& level);
 
-        const std::vector<IYtGraph::TOperationNodeId>& Level;
+        void WaitOperations();
+        void SignalCompletion();
+        void SignalError();
 
-        ::NThreading::TPromise<void> Promise;
-        ::NThreading::TFuture<void> MainFuture;
+        bool HasError() const;
+
+        void RegisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId, ::NYT::IOperationPtr operation);
+        void UnregisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId);
+        void AbortRunningOperations();
+
+    public:
+        const std::vector<IYtGraph::TOperationNodeId>& Level;
 
         i32 AvailableToRun;
         ssize_t Completed = 0;
         ssize_t Cursor = 0;
 
-        bool HasError = false;
+    private:
+        ::NThreading::TPromise<void> Promise_;
+        ::NThreading::TFuture<void> MainFuture_;
+
+        bool HasError_ = false;
+
+        THashMap<IYtGraph::TOperationNodeId, ::NYT::IOperationPtr> RunningOperations_;
     };
 
 private:
@@ -58,11 +73,11 @@ private:
     ::NYT::TIntrusivePtr<TState> State_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TOperationRunner)
+DECLARE_REFCOUNTED_TYPE(TLevelRunner)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationRunnerPtr MakeOperationRunner(
+TLevelRunnerPtr MakeLevelRunner(
     NYT::IClientBasePtr tx,
     std::shared_ptr<IYtGraph> ytGraph,
     i32 concurrencyLimit);

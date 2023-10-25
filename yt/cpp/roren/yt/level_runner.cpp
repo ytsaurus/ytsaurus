@@ -1,4 +1,4 @@
-#include "operation_runner.h"
+#include "level_runner.h"
 
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
@@ -15,18 +15,62 @@ namespace NRoren::NPrivate {
 
 using namespace NYT;
 
-TOperationRunner::TState::TState(i32 concurrencyLimit, const std::vector<IYtGraph::TOperationNodeId>& level)
+TLevelRunner::TState::TState(i32 concurrencyLimit, const std::vector<IYtGraph::TOperationNodeId>& level)
     : Level(level)
-    , Promise(::NThreading::NewPromise())
-    , MainFuture(Promise)
     , AvailableToRun(concurrencyLimit)
+    , Promise_(::NThreading::NewPromise())
+    , MainFuture_(Promise_)
 { }
+
+void TLevelRunner::TState::WaitOperations()
+{
+    MainFuture_.GetValueSync();
+}
+
+void TLevelRunner::TState::SignalCompletion()
+{
+    Promise_.SetValue();
+}
+
+void TLevelRunner::TState::SignalError()
+{
+    HasError_ = true;
+    Promise_.TrySetException(std::current_exception());
+}
+
+bool TLevelRunner::TState::HasError() const
+{
+    return HasError_;
+}
+
+void TLevelRunner::TState::RegisterRunningOperation(
+    IYtGraph::TOperationNodeId operationNodeId,
+    ::NYT::IOperationPtr operation)
+{
+    RunningOperations_[operationNodeId] = operation;
+}
+
+void TLevelRunner::TState::UnregisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId)
+{
+    RunningOperations_.erase(operationNodeId);
+}
+
+void TLevelRunner::TState::AbortRunningOperations()
+{
+    for (const auto& [_, operation] : RunningOperations_) {
+        try {
+            operation->AbortOperation();
+        } catch (const ::NYT::TErrorResponse&) {
+        }
+    }
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TOperationRunner)
+DEFINE_REFCOUNTED_TYPE(TLevelRunner)
 
-TOperationRunner::TOperationRunner(
+TLevelRunner::TLevelRunner(
     NYT::IClientBasePtr tx,
     std::shared_ptr<IYtGraph> ytGraph,
     i32 concurrencyLimit)
@@ -35,7 +79,7 @@ TOperationRunner::TOperationRunner(
     , ConcurrencyLimit_(concurrencyLimit)
 { }
 
-void TOperationRunner::RunOperations(
+void TLevelRunner::RunOperations(
     const std::vector<IYtGraph::TOperationNodeId>& level,
     const TStartOperationContext& context)
 {
@@ -50,10 +94,10 @@ void TOperationRunner::RunOperations(
         StartAllAvailable(context);
     }
 
-    State_->MainFuture.GetValueSync();
+    State_->WaitOperations();
 }
 
-void TOperationRunner::StartAllAvailable(const TStartOperationContext& context)
+void TLevelRunner::StartAllAvailable(const TStartOperationContext& context)
 {
     for (
         ;
@@ -64,13 +108,16 @@ void TOperationRunner::StartAllAvailable(const TStartOperationContext& context)
             [
                 self = ::NYT::MakeStrong(this),
                 state = State_,
+                operationNodeId = State_->Cursor,
                 context
             ] (const ::NThreading::TFuture<void>& operationFuture) {
                 auto guard = Guard(self->Lock_);
 
-                if (state->HasError) {
+                if (state->HasError()) {
                     return;
                 }
+
+                state->UnregisterRunningOperation(operationNodeId);
 
                 try {
                     operationFuture.TryRethrow();
@@ -79,36 +126,38 @@ void TOperationRunner::StartAllAvailable(const TStartOperationContext& context)
                     ++state->Completed;
 
                     if (state->Completed == std::ssize(state->Level)) {
-                        state->Promise.SetValue();
+                        state->SignalCompletion();
                     } else {
                         self->StartAllAvailable(context);
                     }
                 } catch (...) {
-                    state->HasError = true;
-                    state->Promise.TrySetException(std::current_exception());
+                    state->AbortRunningOperations();
+                    state->SignalError();
                 }
             });
     }
 }
 
-::NThreading::TFuture<void> TOperationRunner::StartOperation(
+::NThreading::TFuture<void> TLevelRunner::StartOperation(
     IYtGraph::TOperationNodeId operationNodeId,
     const TStartOperationContext& context)
 {
     auto operation = YtGraph_->StartOperation(Tx_, operationNodeId, context);
     YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
 
+    State_->RegisterRunningOperation(operationNodeId, operation);
+
     return operation->Watch();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationRunnerPtr MakeOperationRunner(
+TLevelRunnerPtr MakeLevelRunner(
     NYT::IClientBasePtr tx,
     std::shared_ptr<IYtGraph> ytGraph,
     i32 concurrencyLimit)
 {
-    return ::NYT::New<TOperationRunner>(tx, ytGraph, concurrencyLimit);
+    return ::NYT::New<TLevelRunner>(tx, ytGraph, concurrencyLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,10 +16,53 @@ namespace NRoren::NPrivate {
 using namespace NYT;
 
 TDependencyRunner::TState::TState(i32 concurrencyLimit)
-    : Promise(::NThreading::NewPromise())
-    , MainFuture(Promise)
-    , AvailableToRun(concurrencyLimit)
+    : AvailableToRun(concurrencyLimit)
+    , Promise_(::NThreading::NewPromise())
+    , MainFuture_(Promise_)
 { }
+
+void TDependencyRunner::TState::WaitOperations()
+{
+    MainFuture_.GetValueSync();
+}
+
+void TDependencyRunner::TState::SignalCompletion()
+{
+    Promise_.SetValue();
+}
+
+void TDependencyRunner::TState::SignalError()
+{
+    HasError_ = true;
+    Promise_.TrySetException(std::current_exception());
+}
+
+bool TDependencyRunner::TState::HasError() const
+{
+    return HasError_;
+}
+
+void TDependencyRunner::TState::RegisterRunningOperation(
+    IYtGraph::TOperationNodeId operationNodeId,
+    ::NYT::IOperationPtr operation)
+{
+    RunningOperations_[operationNodeId] = operation;
+}
+
+void TDependencyRunner::TState::UnregisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId)
+{
+    RunningOperations_.erase(operationNodeId);
+}
+
+void TDependencyRunner::TState::AbortRunningOperations()
+{
+    for (const auto& [_, operation] : RunningOperations_) {
+        try {
+            operation->AbortOperation();
+        } catch (const ::NYT::TErrorResponse&) {
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +89,7 @@ void TDependencyRunner::RunOperations(const TStartOperationContext& context)
         StartAllAvailable(context);
     }
 
-    State_.MainFuture.GetValueSync();
+    State_.WaitOperations();
 }
 
 void TDependencyRunner::StartAllAvailable(const TStartOperationContext& context)
@@ -59,16 +102,18 @@ void TDependencyRunner::StartAllAvailable(const TStartOperationContext& context)
         StartOperation(OperationsAvailableToRun_[State_.Cursor], context).Subscribe(
             [
                 self = ::NYT::MakeStrong(this),
-                id = State_.Cursor,
+                operationNodeId = State_.Cursor,
                 context
             ] (const ::NThreading::TFuture<void>& operationFuture) {
                 auto guard = Guard(self->Lock_);
 
                 auto& state = self->State_;
 
-                if (state.HasError) {
+                if (state.HasError()) {
                     return;
                 }
+
+                state.UnregisterRunningOperation(operationNodeId);
 
                 try {
                     operationFuture.TryRethrow();
@@ -76,16 +121,16 @@ void TDependencyRunner::StartAllAvailable(const TStartOperationContext& context)
                     ++state.AvailableToRun;
                     ++state.Completed;
 
-                    self->CompleteNext(id);
+                    self->CompleteNext(operationNodeId);
 
                     if (state.Completed == std::ssize(self->OperationsAvailableToRun_)) {
-                        state.Promise.SetValue();
+                        state.SignalCompletion();
                     } else {
                         self->StartAllAvailable(context);
                     }
                 } catch (...) {
-                    state.HasError = true;
-                    state.Promise.TrySetException(std::current_exception());
+                    state.AbortRunningOperations();
+                    state.SignalError();
                 }
             });
     }
@@ -97,6 +142,8 @@ void TDependencyRunner::StartAllAvailable(const TStartOperationContext& context)
 {
     auto operation = YtGraph_->StartOperation(Tx_, operationNodeId, context);
     YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
+
+    State_.RegisterRunningOperation(operationNodeId, operation);
 
     return operation->Watch();
 }
