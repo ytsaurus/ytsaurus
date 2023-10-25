@@ -420,7 +420,7 @@ private:
         YT_VERIFY(!IsReadOnly());
 
         TJournalWriterOptions options;
-        options.TransactionId = PrerequisiteTransaction_->GetId();
+        options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
         options.Config = Config_->Writer;
         options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
         options.EnableChunkPreallocation = Options_->EnableChangelogChunkPreallocation;
