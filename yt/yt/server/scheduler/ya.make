@@ -16,6 +16,7 @@ SRCS(
     fair_share_tree_allocation_scheduler_operation_shared_state.cpp
     fair_share_tree_allocation_scheduler_structs.cpp
     fair_share_tree_profiling.cpp
+    fair_share_tree_scheduling_snapshot.cpp
     fair_share_tree_snapshot.cpp
     fair_share_strategy_operation_controller.cpp
     fields_filter.cpp

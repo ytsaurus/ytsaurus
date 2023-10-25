@@ -153,6 +153,9 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
         .Alias("data_center_assignment_heuristic")
         .Default(ESchedulingSegmentModuleAssignmentHeuristic::MaxRemainingCapacity);
 
+    registrar.Parameter("module_preemption_heuristic", &TThis::ModulePreemptionHeuristic)
+        .Default(ESchedulingSegmentModulePreemptionHeuristic::Greedy);
+
     registrar.Parameter("module_type", &TThis::ModuleType)
         .Default(ESchedulingSegmentModuleType::DataCenter);
 
@@ -541,6 +544,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
         .Default(false);
+
+    registrar.Parameter("priority_module_assignment_timeout", &TThis::PriorityModuleAssignmentTimeout)
+        .Default(TDuration::Minutes(15));
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {

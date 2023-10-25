@@ -959,7 +959,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     def _get_operation_module(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op.id, tree) + "/scheduling_segment_module", default=None)
 
-    def _setup_node_modules(self):
+    def _setup_node_modules(self, module_per_node):
         raise NotImplementedError()
 
     def _get_module_type(self):
@@ -974,18 +974,13 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     def _get_node_tag_from_module(self, module):
         raise NotImplementedError()
 
-    def _setup_data_centers(self, ibc_to_dc=None):
+    def _setup_data_centers(self, node_count_per_data_center, ibc_to_dc=None):
         dc_to_rack = dict(zip(BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS, BaseTestSchedulingSegmentsMultiModule.RACKS))
-        for dc, r in dc_to_rack.items():
-            create_data_center(dc)
-            create_rack(r)
-            set("//sys/racks/{}/@data_center".format(r), dc)
-
-        dc_count = len(BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS)
+        data_center_index_per_node = sum([[i] * count for i, count in enumerate(node_count_per_data_center)], [])
 
         def get_node_rack(i, node):
             if ibc_to_dc is None:
-                return BaseTestSchedulingSegmentsMultiModule.RACKS[i % dc_count]
+                return BaseTestSchedulingSegmentsMultiModule.RACKS[data_center_index_per_node[i]]
             ibc = get("//sys/cluster_nodes/{}/@annotations/infiniband_cluster_tag".format(node))
             return dc_to_rack[ibc_to_dc[ibc]]
 
@@ -997,20 +992,19 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         for i, node in enumerate(nodes):
             wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == rack_to_dc[get_node_rack(i, node)])
 
-    def _setup_infiniband_clusters(self):
-        ibc_count = len(BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS)
+    def _setup_infiniband_clusters(self, node_count_per_infiniband_cluster):
+        infiniband_cluster_index_per_node = sum([[i] * count for i, count in enumerate(node_count_per_infiniband_cluster)], [])
         with Restarter(self.Env, NODES_SERVICE):
             for i, node_config in enumerate(self.Env.configs["node"]):
                 config = deepcopy(node_config)
                 annotations = config.pop("cypress_annotations", dict())
-                annotations["infiniband_cluster_tag"] = BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS[i % ibc_count]
+                annotations["infiniband_cluster_tag"] = BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS[infiniband_cluster_index_per_node[i]]
                 config["cypress_annotations"] = annotations
 
                 config_path = self.Env.config_paths["node"][i]
                 with open(config_path, "wb") as fout:
                     yson.dump(config, fout)
 
-        node_count_per_ibc = defaultdict(int)
         for node in ls("//sys/cluster_nodes"):
             def is_infiniband_cluster():
                 return (
@@ -1020,9 +1014,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             wait(is_infiniband_cluster)
             ibc = get(scheduler_orchid_node_path(node) + "/infiniband_cluster")
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
-            node_count_per_ibc[ibc] += 1
-        for ibc in BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS:
-            assert node_count_per_ibc[ibc] == BaseTestSchedulingSegmentsMultiModule.NUM_NODES // ibc_count
 
     @classmethod
     def setup_class(cls):
@@ -1080,7 +1071,39 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             for response in execute_batch(requests):
                 assert not get_batch_error(response)
 
-        self._setup_node_modules()
+        dc_to_rack = dict(zip(BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS, BaseTestSchedulingSegmentsMultiModule.RACKS))
+        for dc, r in dc_to_rack.items():
+            create_data_center(dc)
+            create_rack(r)
+            set("//sys/racks/{}/@data_center".format(r), dc)
+
+        module_count = BaseTestSchedulingSegmentsMultiModule.NUM_NODES // 2
+        self._setup_node_modules([module_count, module_count])
+
+    def _prepare_for_module_preemption_test(self):
+        update_pool_tree_config_option("default", "scheduling_segments/module_assignment_heuristic", "min_remaining_feasible_capacity")
+        update_pool_tree_config_option("default", "priority_module_assignment_timeout", 0)
+
+        create_pool(
+            "priority_large_gpu",
+            parent_pool="large_gpu",
+            attributes={
+                "allow_normal_preemption": False,
+                "enable_priority_scheduling_segment_module_assignment": True,
+            })
+
+    def _run_large_gpu_operations(self, job_count_per_operation):
+        operations = []
+        for job_count in job_count_per_operation:
+            op = run_sleeping_vanilla(
+                job_count=job_count,
+                spec={"pool": "large_gpu"},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1 * job_count))
+            operations.append(op)
+
+        return operations
 
     @authors("eshcherbin")
     def test_module_locality_for_large_multihost_operations(self):
@@ -1211,6 +1234,89 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         time.sleep(3.0)
 
         wait(lambda: are_almost_equal(fair_resource_amount_default_sensor.get(), 40.0))
+
+    @authors("omgronny")
+    def test_module_preemption(self):
+        self._prepare_for_module_preemption_test()
+
+        ops_in_module1 = self._run_large_gpu_operations([3, 1])
+        module1 = self._get_operation_module(ops_in_module1[0])
+        assert len(frozenset([self._get_operation_module(op) for op in ops_in_module1])) == 1
+
+        ops_in_module2 = self._run_large_gpu_operations([2, 2])
+        module2 = self._get_operation_module(ops_in_module2[0])
+        assert len(frozenset([self._get_operation_module(op) for op in ops_in_module2])) == 1
+
+        priority_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "priority_large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(priority_op.id), 0.2))
+
+        wait(lambda: self._get_operation_module(priority_op) == module1)
+        wait(lambda: len([op.id for op in ops_in_module1 if self._get_operation_module(op) == module1]) == 1)
+        wait(lambda: len([op.id for op in ops_in_module2 if self._get_operation_module(op) == module2]) == 2)
+
+    @authors("omgronny")
+    def test_module_preemption_in_specified_module(self):
+        self._prepare_for_module_preemption_test()
+
+        ops_in_module1 = self._run_large_gpu_operations([3, 1])
+        module1 = self._get_operation_module(ops_in_module1[0])
+        assert len(frozenset([self._get_operation_module(op) for op in ops_in_module1])) == 1
+
+        ops_in_module2 = self._run_large_gpu_operations([2, 2])
+        module2 = self._get_operation_module(ops_in_module2[0])
+        assert len(frozenset([self._get_operation_module(op) for op in ops_in_module2])) == 1
+
+        priority_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "priority_large_gpu", "scheduling_segment_modules": [module2]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(priority_op.id), 0.2))
+
+        wait(lambda: self._get_operation_module(priority_op) == module2)
+        wait(lambda: len([op.id for op in ops_in_module1 if self._get_operation_module(op) == module1]) == 2)
+        wait(lambda: len([op.id for op in ops_in_module2 if self._get_operation_module(op) == module2]) == 1)
+
+    @authors("omgronny")
+    def test_module_preemption_does_not_overcommit_modules(self):
+        self._prepare_for_module_preemption_test()
+
+        self._setup_node_modules([3, BaseTestSchedulingSegmentsMultiModule.NUM_NODES - 3])
+
+        op_in_small_module = run_sleeping_vanilla(
+            job_count=1,
+            spec={"pool": "priority_large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op_in_small_module.id), 0.1))
+        small_module = self._get_operation_module(op_in_small_module)
+
+        large_module = [module for module in self._get_all_modules() if module != small_module][0]
+        ops_in_large_module = []
+        for job_count in [3, 2, 1]:
+            op = run_sleeping_vanilla(
+                job_count=job_count,
+                spec={"pool": "large_gpu", "scheduling_segment_modules": [large_module]},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1 * job_count))
+            ops_in_large_module.append(op)
+
+        priority_op = run_sleeping_vanilla(
+            job_count=3,
+            spec={"pool": "priority_large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(priority_op.id), 0.3))
+        wait(lambda: self._get_operation_module(priority_op) == large_module)
+
+        wait(lambda: self._get_operation_module(ops_in_large_module[0]) == large_module)
+        wait(lambda: self._get_operation_module(ops_in_large_module[2]) == large_module)
+        wait(lambda: self._get_operation_module(ops_in_large_module[1]) != large_module)
 
     @authors("eshcherbin")
     def test_module_reset_on_zero_fair_share(self):
@@ -1525,8 +1631,8 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):
     NUM_TEST_PARTITIONS = 2
 
-    def _setup_node_modules(self):
-        self._setup_data_centers()
+    def _setup_node_modules(self, node_count_per_module):
+        self._setup_data_centers(node_count_per_module)
 
     def _get_module_type(self):
         return "data_center"
@@ -1544,8 +1650,8 @@ class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModul
 class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMultiModule):
     NUM_TEST_PARTITIONS = 2
 
-    def _setup_node_modules(self):
-        self._setup_infiniband_clusters()
+    def _setup_node_modules(self, node_count_per_module):
+        self._setup_infiniband_clusters(node_count_per_module)
 
     def _get_module_type(self):
         return "infiniband_cluster"

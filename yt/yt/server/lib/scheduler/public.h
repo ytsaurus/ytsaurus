@@ -169,6 +169,10 @@ DEFINE_ENUM(ESchedulingSegmentModuleAssignmentHeuristic,
     (MinRemainingFeasibleCapacity)
 );
 
+DEFINE_ENUM(ESchedulingSegmentModulePreemptionHeuristic,
+    (Greedy)
+);
+
 DEFINE_ENUM(ESchedulingSegmentModuleType,
     (DataCenter)
     (InfinibandCluster)

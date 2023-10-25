@@ -38,6 +38,7 @@ target_sources(yt-server-scheduler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler_operation_shared_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler_structs.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_profiling.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_scheduling_snapshot.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_snapshot.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy_operation_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp

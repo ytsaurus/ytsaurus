@@ -39,6 +39,8 @@ DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
 
 class TJobMetrics;
 
+DECLARE_REFCOUNTED_STRUCT(TDynamicAttributesListSnapshot)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TNonOwningElementList = std::vector<TSchedulerElement*>;
@@ -136,6 +138,12 @@ DEFINE_ENUM(EJobPreemptionReason,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TOperationElementsBySchedulingPriority = TEnumIndexedVector<EOperationSchedulingPriority, TNonOwningOperationElementList>;
+
+using TOperationCountByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, int>;
+using TOperationPreemptionPriorityParameters = std::pair<EOperationPreemptionPriorityScope, /*ssdPriorityPreemptionEnabled*/ bool>;
+using TOperationCountsByPreemptionPriorityParameters = THashMap<TOperationPreemptionPriorityParameters, TOperationCountByPreemptionPriority>;
 
 using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
 

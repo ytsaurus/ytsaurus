@@ -115,6 +115,34 @@ private:
     void DoUpdateSchedulingSegments(TUpdateSchedulingSegmentsContext* context);
     void Reset(TUpdateSchedulingSegmentsContext* context);
 
+    void ResetOperationModule(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
+    void PreemptNonPriorityOperationsFromModuleForOperation(
+        TOperationId priorityOperationId,
+        const TNonOwningOperationElementList& operations,
+        TUpdateSchedulingSegmentsContext* context) const;
+
+    bool IsOperationEligibleForPriorityModuleAssigment(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
+
+    double GetElementFairResourceAmount(const TSchedulerOperationElement* element, TUpdateSchedulingSegmentsContext* context) const;
+
+    struct TOperationsToPreempt
+    {
+        double TotalPenalty = 0.0;
+        TNonOwningOperationElementList Operations;
+        TSchedulingSegmentModule Module;
+    };
+
+    THashMap<TSchedulingSegmentModule, TNonOwningOperationElementList> CollectNonPriorityAssignedOperationsPerModule(
+        TUpdateSchedulingSegmentsContext* context) const;
+    std::optional<TOperationsToPreempt> FindBestOperationsToPreempt(
+        TOperationId operationId,
+        TUpdateSchedulingSegmentsContext* context) const;
+    std::optional<TOperationsToPreempt> FindBestOperationsToPreemptInModuleGreedy(
+        const TSchedulingSegmentModule& module,
+        double neededDemand,
+        TNonOwningOperationElementList assignedOperationElements,
+        TUpdateSchedulingSegmentsContext* context) const;
+
     void CollectCurrentResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const;
     void ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const;
     void CollectFairResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const;

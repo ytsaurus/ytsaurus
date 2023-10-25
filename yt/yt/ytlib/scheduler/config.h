@@ -301,6 +301,8 @@ public:
 
     bool ComputePromisedGuaranteeFairShare;
 
+    std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

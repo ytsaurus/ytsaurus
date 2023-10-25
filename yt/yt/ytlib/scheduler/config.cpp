@@ -2105,6 +2105,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("compute_promised_guarantee_fair_share", &TThis::ComputePromisedGuaranteeFairShare)
         .Default(false);
+
+    registrar.Parameter("enable_priority_scheduling_segment_module_assignment", &TThis::EnablePrioritySchedulingSegmentModuleAssignment)
+        .Default();
 }
 
 void TPoolConfig::Validate(const TString& poolName)

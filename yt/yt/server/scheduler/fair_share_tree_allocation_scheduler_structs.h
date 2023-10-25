@@ -57,6 +57,7 @@ struct TFairShareTreeJobSchedulerOperationState final
     TSchedulingSegmentModule SchedulingSegmentModule;
     std::optional<THashSet<TString>> SpecifiedSchedulingSegmentModules;
     std::optional<TInstant> FailingToScheduleAtModuleSince;
+    std::optional<TInstant> FailingToAssignToModuleSince;
 
     TFairShareTreeJobSchedulerOperationState(
         TStrategyOperationSpecPtr spec,
