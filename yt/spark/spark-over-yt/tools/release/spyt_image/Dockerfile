@@ -31,6 +31,8 @@ COPY ${BUILD_OUTPUT_PATH}/conf /data/conf
 COPY ${BUILD_OUTPUT_PATH}/spark-yt-data-source.jar /data/
 COPY ${BUILD_OUTPUT_PATH}/spark-yt-launcher.jar /data/
 COPY ${BUILD_OUTPUT_PATH}/spyt.zip /data/
+COPY ${BUILD_OUTPUT_PATH}/spark-yt-file-system.jar /data/
+COPY ${BUILD_OUTPUT_PATH}/spark-yt-submit.jar /data/
 
 COPY ${PUBLISH_SCRIPTS_PATH} /scripts
 COPY ./entrypoint.sh /entrypoint.sh

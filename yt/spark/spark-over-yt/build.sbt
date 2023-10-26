@@ -164,10 +164,12 @@ lazy val `data-source` = (project in file("data-source"))
       file.getName.contains("__pycache__") || file.getName.endsWith(".pyc")
     },
     clientSpytBuild := {
-      val assemblyFile = assembly.value // Forces build
-      makeLinkToBuildDirectory(assemblyFile, baseDirectory.value.getParentFile, assemblyFile.getName)
-      val zipFile = zip.value // Forces build
-      makeLinkToBuildDirectory(zipFile, baseDirectory.value.getParentFile, zipFile.getName)
+      val files = Seq(
+        assembly.value, zip.value, (`file-system` / assembly).value, (`spark-submit` / assembly).value
+      )
+      files.foreach { file =>
+        makeLinkToBuildDirectory(file, baseDirectory.value.getParentFile, file.getName)
+      }
     },
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
