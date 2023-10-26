@@ -19,7 +19,8 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tools && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-scheduler && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
-    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tcp-proxy
 
 COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 
