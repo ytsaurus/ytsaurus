@@ -104,7 +104,7 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollectTaggedMemoryStatistics(NYson::IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList);
+void CollectHeapUsageStatistics(NYson::IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8512,7 +8512,10 @@ i64 TOperationControllerBase::GetMemoryUsage() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(OperationId));
+    const auto snapshot = GetMemoryUsageSnapshot();
+    YT_VERIFY(snapshot);
+
+    return snapshot->GetUsage(OperationIdAllocationTag, ToString(OperationId));
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)

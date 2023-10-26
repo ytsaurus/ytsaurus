@@ -862,12 +862,11 @@ private:
     {
         BuildYsonFluently(consumer)
             .DoMap([] (TFluentMap fluent) {
-                CollectTaggedMemoryStatistics(
+                CollectHeapUsageStatistics(
                     fluent.GetConsumer(),
                     {
                         RpcProxyUserAllocationTag,
-                        RpcProxyRpcAllocationTag,
-                        RpcProxyRequestIdAllocationTag
+                        RpcProxyRpcAllocationTag
                     });
             });
     }

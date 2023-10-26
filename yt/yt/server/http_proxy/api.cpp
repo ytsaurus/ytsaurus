@@ -317,12 +317,11 @@ void TApi::BuildOrchid(IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .DoMap([] (TFluentMap fluent) {
-            CollectTaggedMemoryStatistics(
+            CollectHeapUsageStatistics(
                 fluent.GetConsumer(),
                 {
                     HttpProxyUserAllocationTag,
-                    HttpProxyCommandAllocationTag,
-                    HttpProxyRequestIdAllocationTag
+                    HttpProxyCommandAllocationTag
                 });
         });
 }

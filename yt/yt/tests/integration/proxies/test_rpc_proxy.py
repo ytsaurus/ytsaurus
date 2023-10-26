@@ -1139,7 +1139,7 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestRpcProxyTaggedMemoryStatistics(TestRpcProxyBase):
+class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
     NUM_RPC_PROXIES = 1
 
     DELTA_PROXY_CONFIG = {
@@ -1150,7 +1150,6 @@ class TestRpcProxyTaggedMemoryStatistics(TestRpcProxyBase):
 
     DELTA_RPC_PROXY_CONFIG = {
         "api_service": {
-            "orchid_cache_update_period": 50,
             "testing": {
                 "heap_profiler": {
                     "allocation_size": 20 * 1024 ** 2,
@@ -1160,31 +1159,31 @@ class TestRpcProxyTaggedMemoryStatistics(TestRpcProxyBase):
         },
     }
 
-    USER = "root"
+    USER = "u"
 
-    def enable_allocation_tags(self, proxies):
-        set(f"//sys/{proxies}/@config", {
+    def enable_allocation_tags(self, proxy):
+        set(f"//sys/{proxy}/@config", {
             "api": {
                 "enable_allocation_tags": True,
             },
         })
-        wait(lambda: get(f"//sys/{proxies}/@config")["api"]["enable_allocation_tags"])
+        wait(lambda: get(f"//sys/{proxy}/@config")["api"]["enable_allocation_tags"])
 
     def check_memory_usage(self, memory_usage):
-        tags = ["user", "request_id", "rpc"]
+        tags = ["user", "rpc"]
         if not memory_usage or len(memory_usage) < len(tags):
             return False
 
         for tag in tags:
             assert tag in memory_usage
+            if not memory_usage[tag]:
+                return False
 
-        assert self.USER in memory_usage["user"].keys()
+        if self.USER not in memory_usage["user"].keys():
+            return False
 
-        request_total_usage = 0
-        for value in memory_usage["request_id"].values():
-            request_total_usage += value
-
-        assert request_total_usage / len(memory_usage["request_id"]) > 5 * 1024 ** 2
+        if memory_usage["user"][self.USER] < 5 * 1024 ** 2:
+            return False
 
         rpc_total_usage = 0
         for value in memory_usage["rpc"].values():
@@ -1192,20 +1191,28 @@ class TestRpcProxyTaggedMemoryStatistics(TestRpcProxyBase):
 
         assert rpc_total_usage / len(memory_usage["rpc"]) > 5 * 1024 ** 2
 
-        assert memory_usage["user"][self.USER] == request_total_usage
-        assert request_total_usage == rpc_total_usage
+        user_total_usage = 0
+        for value in memory_usage["user"].values():
+            user_total_usage += value
+
+        assert user_total_usage == rpc_total_usage
 
         return True
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
-    def test_tagged_memory_statistics(self):
+    def test_heap_usage_statistics(self):
         self.enable_allocation_tags("rpc_proxies")
+        create_user(self.USER)
         time.sleep(1)
 
         rpc_proxies = ls("//sys/rpc_proxies")
         assert len(rpc_proxies) == 1
         rpc_proxy_agent_orchid = f"//sys/rpc_proxies/{rpc_proxies[0]}/orchid/rpc_proxy"
-        self._start_simple_operation("cat")
+
+        self._create_simple_table("//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True, authenticated_user=self.USER)
+        self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True, authenticated_user=self.USER)
+        map(in_="//tmp/t_in", out="//tmp/t_out", track=True, mapper_command="cat", authenticated_user=self.USER)
+
         time.sleep(1)
-        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/tagged_memory_statistics")))
+        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/heap_usage_statistics")))

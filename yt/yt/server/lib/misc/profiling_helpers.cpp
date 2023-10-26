@@ -132,13 +132,15 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollectTaggedMemoryStatistics(IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList)
+void CollectHeapUsageStatistics(IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList)
 {
     const auto memorySnapshot = GetMemoryUsageSnapshot();
-    auto taggedMemoryStatistics = BuildYsonStringFluently<EYsonType::MapFragment>();
+    YT_VERIFY(memorySnapshot);
 
-    taggedMemoryStatistics
-        .Item("tagged_memory_statistics").DoMapFor(
+    auto heapUsageStatistics = BuildYsonStringFluently<EYsonType::MapFragment>();
+
+    heapUsageStatistics
+        .Item("heap_usage_statistics").DoMapFor(
             memoryTagsList,
             [&] (TFluentMap fluent, const auto& tag) {
                 fluent.Item(tag).DoMap([&] (TFluentMap fluent) {
@@ -154,7 +156,7 @@ void CollectTaggedMemoryStatistics(IYsonConsumer* consumer, const std::vector<TS
                 });
             });
 
-    consumer->OnRaw(taggedMemoryStatistics.Finish());
+    consumer->OnRaw(heapUsageStatistics.Finish());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

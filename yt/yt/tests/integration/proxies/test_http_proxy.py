@@ -943,17 +943,16 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestHttpProxyTaggedMemoryStatistics(HttpProxyTestBase):
+class TestHttpProxyHeapUsageStatistics(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
     DELTA_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 50,
         },
         "api": {
-            "orchid_cache_update_period": 50,
             "testing": {
                 "heap_profiler": {
-                    "allocation_size": 20 * 1024 ** 2,
+                    "allocation_size": 50 * 1024 ** 2,
                     "allocation_release_delay" : 120 * 1000,
                 },
             },
@@ -980,16 +979,16 @@ class TestHttpProxyTaggedMemoryStatistics(HttpProxyTestBase):
         try_parse_yt_error_headers(rsp)
         return rsp
 
-    def enable_allocation_tags(self, proxies):
-        set(f"//sys/{proxies}/@config", {
+    def enable_allocation_tags(self, proxy):
+        set(f"//sys/{proxy}/@config", {
             "api": {
                 "enable_allocation_tags": True,
             },
         })
-        wait(lambda: get(f"//sys/{proxies}/@config")["api"]["enable_allocation_tags"])
+        wait(lambda: get(f"//sys/{proxy}/@config")["api"]["enable_allocation_tags"])
 
     def check_memory_usage(self, memory_usage, command):
-        tags = ["user", "request_id", "command"]
+        tags = ["user", "command"]
         if not memory_usage or len(memory_usage) < len(tags):
             return False
 
@@ -1002,17 +1001,11 @@ class TestHttpProxyTaggedMemoryStatistics(HttpProxyTestBase):
         assert memory_usage["user"][self.USER] > 5 * 1024 ** 2
         assert memory_usage["command"][command] > 5 * 1024 ** 2
 
-        request_total_usage = 0
-        for value in memory_usage["request_id"].values():
-            request_total_usage += value
-
-        assert request_total_usage / len(memory_usage["request_id"]) > 5 * 1024 ** 2
-
         return True
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
-    def test_tagged_memory_statistics(self):
+    def test_heap_usage_statistics(self):
         http_proxies = ls("//sys/http_proxies")
         assert len(http_proxies) == 1
         http_proxy_agent_orchid = f"//sys/http_proxies/{http_proxies[0]}/orchid/http_proxy"
@@ -1026,5 +1019,5 @@ class TestHttpProxyTaggedMemoryStatistics(HttpProxyTestBase):
         self._execute_command("GET", "read_table")
         time.sleep(1)
         wait(lambda: self.check_memory_usage(
-            get(http_proxy_agent_orchid + "/tagged_memory_statistics"),
+            get(http_proxy_agent_orchid + "/heap_usage_statistics"),
             "read_table"))
