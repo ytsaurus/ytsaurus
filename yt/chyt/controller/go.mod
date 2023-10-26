@@ -10,8 +10,9 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.25.0
 	go.ytsaurus.tech/library/go/core/log v0.0.3
+	go.ytsaurus.tech/library/go/httputil/headers v0.0.2
 	go.ytsaurus.tech/library/go/ptr v0.0.1
-	go.ytsaurus.tech/yt/go v0.0.12
+	go.ytsaurus.tech/yt/go v0.0.13
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 )
 
