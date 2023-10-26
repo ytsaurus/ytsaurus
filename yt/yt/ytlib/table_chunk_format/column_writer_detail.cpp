@@ -29,6 +29,13 @@ TSharedRef TColumnWriterBase::FinishBlock(int blockIndex)
 
     for (auto& segmentMeta : CurrentBlockSegments_) {
         segmentMeta.set_block_index(blockIndex);
+
+        auto segmentCount = ColumnMeta_.segments_size();
+        if (segmentCount > 0) {
+            auto currentSegmentStartRowIndex = segmentMeta.chunk_row_count() - segmentMeta.row_count();
+            YT_VERIFY(ColumnMeta_.segments(segmentCount - 1).chunk_row_count() == currentSegmentStartRowIndex);
+        }
+
         ColumnMeta_.add_segments()->Swap(&segmentMeta);
     }
 
