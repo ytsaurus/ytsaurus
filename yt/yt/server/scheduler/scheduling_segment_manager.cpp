@@ -394,9 +394,10 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
 
     YT_LOG_DEBUG(
         "Found operations to preempt for a priority operation "
-        "(OperationId: %v, BestOperationsToPreempt: %v)",
+        "(OperationId: %v, BestOperationsToPreemptSize: %v, TotalPenalty: %v)",
         operationId,
-        bestOperationsToPreempt->Operations);
+        bestOperationsToPreempt->Operations.size(),
+        bestOperationsToPreempt->TotalPenalty);
 
     return bestOperationsToPreempt;
 }
