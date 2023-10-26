@@ -898,6 +898,7 @@ message TVolumeSpec {
     optional string backend = 10;           // default: auto
     optional string place = 11;             // path in host or alias, default from client container
     optional string storage = 12;           // persistent storage, path or name, default: non-persistent
+    optional string image = 52;
     repeated string layers = 13;            // name or path
     optional bool read_only = 14;
 
