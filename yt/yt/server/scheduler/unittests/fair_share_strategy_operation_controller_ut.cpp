@@ -225,7 +225,7 @@ public:
     }
 
 protected:
-    TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
+    TSchedulerConfigPtr SchedulerConfig_;
 
     NChunkClient::TMediumDirectoryPtr MediumDirectory_ = New<NChunkClient::TMediumDirectory>();
 
