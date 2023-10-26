@@ -648,7 +648,7 @@ void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
     JobProxyEnvironment_.Store(std::move(environment));
 }
 
-void TJobProxy::EnableRpcProxyInJobProxy()
+void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
     NLogging::TLogger proxyLogger("RpcProxy");
@@ -662,7 +662,7 @@ void TJobProxy::EnableRpcProxyInJobProxy()
         Config_->AuthenticationManager,
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
-    ApiServiceThreadPool_ = CreateThreadPool(4, "RpcProxy");
+    ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
     auto ApiService_ = CreateApiService(
         Config_->ApiService,
         GetControlInvoker(),
@@ -676,7 +676,7 @@ void TJobProxy::EnableRpcProxyInJobProxy()
         proxyLogger,
         TProfiler());
     GetRpcServer()->RegisterService(ApiService_);
-    YT_LOG_INFO("RPC proxy API service registered");
+    YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
 }
 
 IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
@@ -800,7 +800,7 @@ TJobResult TJobProxy::RunJob()
             RootSpan_->SetSampled();
         }
         if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().enable_rpc_proxy_in_job_proxy()) {
-            EnableRpcProxyInJobProxy();
+            EnableRpcProxyInJobProxy(jobSpecExt.user_job_spec().rpc_proxy_worker_thread_pool_size());
         }
 
         JobProxyMemoryOvercommitLimit_ = jobSpecExt.has_job_proxy_memory_overcommit_limit()

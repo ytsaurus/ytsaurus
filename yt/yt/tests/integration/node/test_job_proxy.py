@@ -190,10 +190,15 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
             update_inplace(default_config, config)
         return YtClient(proxy=None, config=default_config)
 
-    def run_job_proxy(self, enable_rpc_proxy_in_job_proxy, time_limit=2000):
+    def run_job_proxy(self, enable_rpc_proxy, rpc_proxy_thread_pool_size=None,  time_limit=2000):
+        task_patch = {
+            "enable_rpc_proxy_in_job_proxy": enable_rpc_proxy,
+        }
+        if rpc_proxy_thread_pool_size is not None:
+            task_patch["rpc_proxy_worker_thread_pool_size"] = rpc_proxy_thread_pool_size
         op = run_test_vanilla(
             with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT; sleep {}".format(time_limit)),
-            task_patch={"enable_rpc_proxy_in_job_proxy": enable_rpc_proxy_in_job_proxy}
+            task_patch=task_patch
         )
         job_id = wait_breakpoint()[0]
         socket_file = op.read_stderr(job_id).decode("ascii").strip()
@@ -203,13 +208,13 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
     @authors("alex-shishkin")
     def test_disabled_rpc_proxy(self):
         with pytest.raises(YtError):
-            socket_file = self.run_job_proxy(enable_rpc_proxy_in_job_proxy=False)
+            socket_file = self.run_job_proxy(enable_rpc_proxy=False)
             client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
             client.list("/")
 
     @authors("alex-shishkin")
     def test_rpc_proxy_simple_query(self):
-        socket_file = self.run_job_proxy(enable_rpc_proxy_in_job_proxy=True)
+        socket_file = self.run_job_proxy(enable_rpc_proxy=True)
         client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
         root_listing = client.list("/")
         assert root_listing == ["sys", "tmp"]
@@ -217,9 +222,14 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
     @authors("alex-shishkin")
     def test_failed_rpc_proxy_auth(self):
         with pytest.raises(YtError):
-            socket_file = self.run_job_proxy(enable_rpc_proxy_in_job_proxy=True)
+            socket_file = self.run_job_proxy(enable_rpc_proxy=True)
             client = self.create_client_from_uds(socket_file, config={"token": "wrong_token"})
             client.list("/")
+
+    @authors("alex-shishkin")
+    def test_incorrect_thread_count(self):
+        with pytest.raises(YtError):
+            self.run_job_proxy(enable_rpc_proxy=True, rpc_proxy_thread_pool_size=0)
 
 
 class TestUnavailableJobProxy(JobProxyTestBase):
