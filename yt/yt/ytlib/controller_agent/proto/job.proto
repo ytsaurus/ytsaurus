@@ -286,6 +286,7 @@ message TUserJobSpec
     optional int64 job_proxy_memory_reserve = 66;
 
     optional bool enable_rpc_proxy_in_job_proxy = 70 [default = false];
+    optional int32 rpc_proxy_worker_thread_pool_size = 71 [default = 1];
 
     reserved 38, 48, 61, 62;
 }

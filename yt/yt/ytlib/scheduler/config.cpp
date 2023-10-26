@@ -1014,6 +1014,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_rpc_proxy_in_job_proxy", &TThis::EnableRpcProxyInJobProxy)
         .Default(false);
+    registrar.Parameter("rpc_proxy_worker_thread_pool_size", &TThis::RpcProxyWorkerThreadPoolSize)
+        .Default(1)
+        .GreaterThan(0);
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {

@@ -1237,6 +1237,7 @@ public:
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
 
     bool EnableRpcProxyInJobProxy;
+    int RpcProxyWorkerThreadPoolSize;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
