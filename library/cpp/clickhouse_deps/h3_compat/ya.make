@@ -1,4 +1,4 @@
-LIBRARY(clickhouse_h3_compat)
+LIBRARY()
 
 PEERDIR(
     contrib/libs/h3

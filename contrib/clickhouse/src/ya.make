@@ -65,9 +65,9 @@ PEERDIR(
     contrib/restricted/murmurhash
     contrib/restricted/patched/replxx
     contrib/restricted/turbo_base64
-    library/cpp/clickhouse_h3_compat
+    library/cpp/clickhouse_deps/h3_compat
+    library/cpp/clickhouse_deps/re2_st_stub
     library/cpp/consistent_hashing
-    library/cpp/re2_st
     library/cpp/sanitizer/include
 )
 
@@ -100,7 +100,7 @@ ADDINCL(
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/fast_float/include
     contrib/restricted/turbo_base64
-    library/cpp/clickhouse_h3_compat
+    library/cpp/clickhouse_deps/h3_compat
     library/cpp/consistent_hashing
 )
 

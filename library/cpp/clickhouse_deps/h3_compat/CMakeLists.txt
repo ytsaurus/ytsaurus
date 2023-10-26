@@ -7,13 +7,10 @@
 
 
 
-add_library(library-cpp-re2_st INTERFACE)
-target_include_directories(library-cpp-re2_st INTERFACE
-  ${CMAKE_SOURCE_DIR}/library/cpp/re2_st/include
-)
-target_link_libraries(library-cpp-re2_st INTERFACE
+add_library(cpp-clickhouse_deps-h3_compat INTERFACE)
+target_link_libraries(cpp-clickhouse_deps-h3_compat INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  contrib-libs-re2
+  contrib-libs-h3
 )

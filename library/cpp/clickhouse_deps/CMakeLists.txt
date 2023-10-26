@@ -6,11 +6,5 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(clickhouse_h3_compat INTERFACE)
-target_link_libraries(clickhouse_h3_compat INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-h3
-)
+add_subdirectory(h3_compat)
+add_subdirectory(re2_st_stub)

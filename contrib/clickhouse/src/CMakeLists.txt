@@ -70,7 +70,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
   ${CMAKE_SOURCE_DIR}/contrib/restricted/fast_float/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64
-  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_h3_compat
+  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_deps/h3_compat
   ${CMAKE_SOURCE_DIR}/library/cpp/consistent_hashing
 )
 target_link_libraries(contrib-clickhouse-src PUBLIC
@@ -131,9 +131,9 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-restricted-murmurhash
   restricted-patched-replxx
   contrib-restricted-turbo_base64
-  clickhouse_h3_compat
+  cpp-clickhouse_deps-h3_compat
+  cpp-clickhouse_deps-re2_st_stub
   consistent-hashing
-  library-cpp-re2_st
   cpp-sanitizer-include
 )
 target_sources(contrib-clickhouse-src PRIVATE
@@ -1486,7 +1486,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
   ${CMAKE_SOURCE_DIR}/contrib/restricted/fast_float/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64
-  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_h3_compat
+  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_deps/h3_compat
   ${CMAKE_SOURCE_DIR}/library/cpp/consistent_hashing
 )
 target_link_libraries(contrib-clickhouse-src.global PUBLIC
@@ -1547,9 +1547,9 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-restricted-murmurhash
   restricted-patched-replxx
   contrib-restricted-turbo_base64
-  clickhouse_h3_compat
+  cpp-clickhouse_deps-h3_compat
+  cpp-clickhouse_deps-re2_st_stub
   consistent-hashing
-  library-cpp-re2_st
   cpp-sanitizer-include
 )
 target_sources(contrib-clickhouse-src.global PRIVATE

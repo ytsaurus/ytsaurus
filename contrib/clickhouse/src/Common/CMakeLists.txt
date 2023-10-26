@@ -96,7 +96,7 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   dragonbox
   contrib-restricted-fast_float
   contrib-restricted-magic_enum
-  library-cpp-re2_st
+  cpp-clickhouse_deps-re2_st_stub
   cpp-sanitizer-include
 )
 target_sources(clickhouse-src-Common PRIVATE

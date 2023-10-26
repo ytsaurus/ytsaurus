@@ -50,7 +50,7 @@ PEERDIR(
     contrib/restricted/dragonbox
     contrib/restricted/fast_float
     contrib/restricted/magic_enum
-    library/cpp/re2_st
+    library/cpp/clickhouse_deps/re2_st_stub
     library/cpp/sanitizer/include
 )
 

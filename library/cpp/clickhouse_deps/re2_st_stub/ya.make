@@ -5,7 +5,7 @@ PEERDIR(
 )
 
 ADDINCL(
-    GLOBAL library/cpp/re2_st/include
+    GLOBAL library/cpp/clickhouse_deps/re2_st_stub/include
 )
 
 END()
