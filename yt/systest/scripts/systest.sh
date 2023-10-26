@@ -70,6 +70,8 @@ if [[ ${namespace} != "" ]]; then
   name_new_stress_test="newstresstest-${namespace}"
 fi
 
+kubectl get pod -A | cut -d' ' -f1 | grep -E '[0-9]{8}-[0-9]{4}' && exit 1
+
 helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/cluster
 
 # Wait for Cypress
