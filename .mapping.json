@@ -572,6 +572,8 @@
   "library/go/core/log/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/core/log/go.sum",
   "library/go/core/xerrors/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/core/xerrors/go.mod",
   "library/go/core/xerrors/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/core/xerrors/go.sum",
+  "library/go/httputil/headers/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/httputil/headers/go.mod",
+  "library/go/httputil/headers/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/httputil/headers/go.sum",
   "library/go/ptr/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/ptr/go.mod",
   "library/go/ptr/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/ptr/go.sum",
   "library/go/test/testhelpers/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/test/testhelpers/go.mod",
