@@ -1023,6 +1023,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        // Inject default docker image for job workspace.
+        if (!context.DockerImage) {
+            context.DockerImage = Config_->JobProxyImage;
+        }
+
         return CreateCriJobWorkspaceBuilder(
             invoker,
             std::move(context),
@@ -1062,7 +1067,16 @@ private:
 
         // FIXME(khlebnikov) user to run job proxy spec->Credentials.Uid = GetUserId(slotIndex);
 
-        for (const auto& bind: Config_->JobProxyBindMounts) {
+        for (const auto& bind : Config_->JobProxyBindMounts) {
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bind->InternalPath,
+                .HostPath = bind->ExternalPath,
+                .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        // Add bind mounts required for user job.
+        for (const auto& bind : config->Binds) {
             spec->BindMounts.push_back(NCri::TCriBindMount{
                 .ContainerPath = bind->InternalPath,
                 .HostPath = bind->ExternalPath,

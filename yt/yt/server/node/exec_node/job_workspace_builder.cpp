@@ -652,6 +652,7 @@ private:
                     const auto& imageResult = imageOrError.Value();
                     YT_LOG_INFO("Root volume prepared (Image: %v)", imageResult);
 
+                    ResultHolder_.DockerImage = imageResult.Image;
                     VolumePrepareFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
                 }));

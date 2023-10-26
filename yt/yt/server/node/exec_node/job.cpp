@@ -1840,6 +1840,8 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             auto& holder = resultOrError.Value();
             TmpfsPaths_ = holder.TmpfsPaths;
             RootVolume_ = holder.RootVolume;
+            // Workspace builder may add or replace docker image.
+            DockerImage_ = holder.DockerImage;
             SetupCommandCount_ = holder.SetupCommandCount;
 
             THROW_ERROR_EXCEPTION_IF_FAILED(
