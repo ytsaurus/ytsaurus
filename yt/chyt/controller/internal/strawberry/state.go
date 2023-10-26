@@ -55,6 +55,8 @@ type InfoState struct {
 		// TODO(max42): build Revision, etc.
 	} `yson:"controller"`
 
+	CreationTime yson.Time `yson:"creation_time,omitempty"`
+
 	YTOpStartTime  yson.Time `yson:"yt_op_start_time,omitempty"`
 	YTOpFinishTime yson.Time `yson:"yt_op_finish_time,omitempty"`
 }
@@ -87,8 +89,11 @@ func GetOpBriefAttributes(
 		return nil, err
 	}
 	return map[string]any{
-		"creator":    persistentState.Creator,
-		"start_time": infoState.YTOpStartTime,
-		"state":      GetOpState(speclet, infoState),
+		"creator":       persistentState.Creator,
+		"operation_id":  persistentState.YTOpID,
+		"creation_time": getYSONTimePointerOrNil(infoState.CreationTime),
+		"start_time":    getYSONTimePointerOrNil(infoState.YTOpStartTime),
+		"finish_time":   getYSONTimePointerOrNil(infoState.YTOpFinishTime),
+		"state":         GetOpState(speclet, infoState),
 	}, nil
 }

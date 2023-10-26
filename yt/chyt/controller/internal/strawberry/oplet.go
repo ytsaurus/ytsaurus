@@ -455,6 +455,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	var node struct {
 		PersistentState PersistentState `yson:"strawberry_persistent_state,attr"`
 		Revision        yt.Revision     `yson:"revision,attr"`
+		CreationTime    yson.Time       `yson:"creation_time,attr"`
 		Speclet         *struct {
 			Value    yson.RawValue `yson:"value,attr"`
 			Revision yt.Revision   `yson:"revision,attr"`
@@ -463,7 +464,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 
 	// Keep in sync with structure above.
 	attributes := []string{
-		"strawberry_persistent_state", "revision", "value",
+		"strawberry_persistent_state", "revision", "creation_time", "value",
 	}
 
 	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode, &node, &yt.GetNodeOptions{Attributes: attributes})
@@ -554,6 +555,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	oplet.persistentState.SpecletRevision = node.Speclet.Revision
 	oplet.strawberrySpeclet = strawberrySpeclet
 	oplet.controllerSpeclet = controllerSpeclet
+	oplet.infoState.CreationTime = node.CreationTime
 
 	oplet.l.Info("strawberry operation state updated from cypress",
 		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
@@ -872,8 +874,9 @@ type OpletStatus struct {
 	Creator          string               `yson:"creator,omitempty" json:"creator,omitempty"`
 	Pool             string               `yson:"pool,omitempty" json:"pool,omitempty"`
 	Stage            string               `yson:"stage" json:"stage"`
-	StartTime        yson.Time            `yson:"start_time,omitempty" json:"start_time,omitempty"`
-	FinishTime       yson.Time            `yson:"finish_time,omitempty" json:"finish_time,omitempty"`
+	CreationTime     *yson.Time           `yson:"creation_time,omitempty" json:"creation_time,omitempty"`
+	StartTime        *yson.Time           `yson:"start_time,omitempty" json:"start_time,omitempty"`
+	FinishTime       *yson.Time           `yson:"finish_time,omitempty" json:"finish_time,omitempty"`
 	IncarnationIndex int                  `yson:"incarnation_index" json:"incarnation_index"`
 	CtlAttributes    map[string]any       `yson:"ctl_attributes" json:"ctl_attributes"`
 	Error            string               `yson:"error,omitempty" json:"error,omitempty"`
@@ -883,8 +886,9 @@ func (oplet *Oplet) Status() (s OpletStatus, err error) {
 	s.State = GetOpState(oplet.ytOpStrawberrySpeclet, oplet.infoState)
 	s.Creator = oplet.persistentState.Creator
 	s.Stage = oplet.ytOpStrawberrySpeclet.StageOrDefault()
-	s.StartTime = oplet.infoState.YTOpStartTime
-	s.FinishTime = oplet.infoState.YTOpFinishTime
+	s.CreationTime = getYSONTimePointerOrNil(oplet.infoState.CreationTime)
+	s.StartTime = getYSONTimePointerOrNil(oplet.infoState.YTOpStartTime)
+	s.FinishTime = getYSONTimePointerOrNil(oplet.infoState.YTOpFinishTime)
 	s.IncarnationIndex = oplet.persistentState.IncarnationIndex
 	if oplet.persistentState.YTOpPool != nil {
 		s.Pool = *oplet.persistentState.YTOpPool

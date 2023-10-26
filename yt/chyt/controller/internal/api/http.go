@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"reflect"
 	"strings"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/httputil/headers"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -40,16 +42,44 @@ const (
 	DefaultFormat FormatType = FormatYSON
 )
 
-func getFormat(formatHeader string) (FormatType, error) {
-	switch formatHeader {
+func handleFormatNegotiation(header string) (FormatType, error) {
+	if header == "" {
+		return DefaultFormat, nil
+	}
+
+	formats, err := headers.ParseAccept(header)
+	if err != nil {
+		return "", err
+	}
+
+	for _, format := range formats {
+		switch format.Type {
+		case "application/yson":
+			return FormatYSON, nil
+		case "application/json":
+			return FormatJSON, nil
+		case "application/*", "*/*":
+			return DefaultFormat, nil
+		}
+	}
+
+	return "", yterrors.Err("unsupported format in Accept header", yterrors.Attr("accept_header", header))
+}
+
+func getFormatFromContentTypeHeader(header string) (FormatType, error) {
+	mediatype, _, err := mime.ParseMediaType(header)
+	if err != nil {
+		return "", err
+	}
+
+	switch mediatype {
 	case "application/yson":
 		return FormatYSON, nil
 	case "application/json":
 		return FormatJSON, nil
-	case "", "*/*":
-		return DefaultFormat, nil
 	}
-	return "", yterrors.Err("cannot get format, invalid header", yterrors.Attr("header", formatHeader))
+
+	return "", yterrors.Err("unsupported format in Content-Type header", yterrors.Attr("content_type_header", header))
 }
 
 func Unmarshal(data []byte, v any, format FormatType) error {
@@ -88,7 +118,7 @@ func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l lo
 }
 
 func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
-	format, err := getFormat(w.Header().Get("Content-Type"))
+	format, err := getFormatFromContentTypeHeader(w.Header().Get("Content-Type"))
 	if err != nil {
 		a.l.Error("failed to get output format", log.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -182,7 +212,7 @@ type CmdDescriptor struct {
 }
 
 func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Request, cmd CmdDescriptor) map[string]any {
-	outputFormat, err := getFormat(r.Header.Get("Accept"))
+	outputFormat, err := handleFormatNegotiation(r.Header.Get("Accept"))
 	if err != nil {
 		a.replyWithError(w, err)
 		return nil
@@ -191,7 +221,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 	// We need to set this header immediately because all reply functions use it.
 	w.Header()["Content-Type"] = []string{fmt.Sprintf("application/%v", outputFormat)}
 
-	inputFormat, err := getFormat(r.Header.Get("Content-Type"))
+	inputFormat, err := getFormatFromContentTypeHeader(r.Header.Get("Content-Type"))
 	if err != nil {
 		a.replyWithError(w, err)
 		return nil

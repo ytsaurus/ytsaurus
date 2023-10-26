@@ -106,3 +106,11 @@ func ParseSpeclet(specletYson yson.RawValue) (Speclet, error) {
 	}
 	return speclet, nil
 }
+
+func getYSONTimePointerOrNil(t yson.Time) *yson.Time {
+	if t.IsZero() {
+		return nil
+	} else {
+		return &t
+	}
+}
