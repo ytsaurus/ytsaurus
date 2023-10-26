@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/client/queue_client/config.h>
+
 #include <yt/yt/library/auth/auth.h>
 
 namespace NYT::NQueueAgent {
@@ -28,8 +30,7 @@ public:
 
     TFuture<void> RunExportIteration(
         NYPath::TYPath queue,
-        NYPath::TYPath exportDirectory,
-        TDuration exportPeriod);
+        const NQueueClient::TQueueStaticExportConfig& config);
 
 private:
     const NApi::NNative::IClientPtr Client_;

@@ -439,8 +439,7 @@ private:
 
         auto exportError = WaitFor(QueueExporter_->RunExportIteration(
             QueueRef_.Path,
-            staticExportConfig->ExportDirectory,
-            staticExportConfig->ExportPeriod));
+            *staticExportConfig));
         if (!exportError.IsOK()) {
             YT_LOG_ERROR(exportError, "Failed to perform static export for queue");
             return;
