@@ -1276,13 +1276,13 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         op_in_small_module = run_sleeping_vanilla(
             job_count=1,
-            spec={"pool": "priority_large_gpu"},
+            spec={"pool": "priority_large_gpu", "scheduling_segment_modules": [self._get_all_modules()[0]]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(op_in_small_module.id), 0.1))
-        small_module = self._get_operation_module(op_in_small_module)
+        wait(lambda: self._get_operation_module(op_in_small_module) == self._get_all_modules()[0])
 
-        large_module = [module for module in self._get_all_modules() if module != small_module][0]
+        large_module = self._get_all_modules()[1]
         ops_in_large_module = []
         for job_count in [3, 2, 1]:
             op = run_sleeping_vanilla(
