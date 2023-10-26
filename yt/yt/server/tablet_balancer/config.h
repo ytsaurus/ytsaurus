@@ -64,6 +64,7 @@ public:
 
     bool FetchTabletCellsFromSecondaryMasters;
     bool PickReshardPivotKeys;
+    bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;
     std::optional<double> ReshardSlicingAccuracy;
 
