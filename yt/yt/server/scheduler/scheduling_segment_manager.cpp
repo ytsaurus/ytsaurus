@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "persistent_fair_share_tree_allocation_scheduler_state.h"
+#include "fair_share_tree_scheduling_snapshot.h"
 #include "fair_share_tree_snapshot.h"
 
 #include <util/generic/algorithm.h>
@@ -216,8 +217,8 @@ void TSchedulingSegmentManager::DoUpdateSchedulingSegments(TUpdateSchedulingSegm
 {
     // Process operations.
     CollectCurrentResourceAmountPerSegment(context);
-    ResetOperationModuleAssignments(context);
     CollectFairResourceAmountPerSegment(context);
+    ResetOperationModuleAssignments(context);
     AssignOperationsToModules(context);
 
     // Process nodes.
@@ -238,6 +239,209 @@ void TSchedulingSegmentManager::Reset(TUpdateSchedulingSegmentsContext* context)
     for (auto& [_, node] : context->NodeStates) {
         SetNodeSegment(&node, ESchedulingSegment::Default, context);
     }
+}
+
+void TSchedulingSegmentManager::ResetOperationModule(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const
+{
+    auto& operation = context->OperationStates[operationElement->GetOperationId()];
+    auto& operationModule = operation->SchedulingSegmentModule;
+    YT_VERIFY(operationModule);
+
+    const auto& segment = operation->SchedulingSegment;
+    YT_VERIFY(segment);
+
+    double operationFairResourceAmount = GetElementFairResourceAmount(operationElement, context);
+
+    context->FairResourceAmountPerSegment.At(*segment).MutableAt(operationModule) -= operationFairResourceAmount;
+    context->RemainingCapacityPerModule[operationModule] += operationFairResourceAmount;
+
+    // NB: We will abort all jobs that are running in the wrong module.
+    operation->SchedulingSegmentModule.reset();
+    operation->FailingToScheduleAtModuleSince.reset();
+}
+
+void TSchedulingSegmentManager::PreemptNonPriorityOperationsFromModuleForOperation(
+    TOperationId priorityOperationId,
+    const TNonOwningOperationElementList& operations,
+    TUpdateSchedulingSegmentsContext* context) const
+{
+    for (const auto* operationElement : operations) {
+        auto module = context->OperationStates[operationElement->GetOperationId()]->SchedulingSegmentModule;
+
+        ResetOperationModule(operationElement, context);
+
+        YT_LOG_DEBUG(
+            "Operation preempted from module "
+            "(OperationId: %v, "
+            "Module: %v, "
+            "RemainingCapacityPerModule: %v, "
+            "PriorityOperationId: %v)",
+            operationElement->GetOperationId(),
+            module,
+            context->RemainingCapacityPerModule,
+            priorityOperationId);
+    }
+}
+
+bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssigment(
+    const TSchedulerOperationElement* operationElement,
+    TUpdateSchedulingSegmentsContext* context) const
+{
+    const auto& treeSnapshot = context->TreeSnapshot;
+    const auto& operation = context->OperationStates[operationElement->GetOperationId()];
+    const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(operationElement);
+    auto operationModuleAssignmentTimeout = treeSnapshot->TreeConfig()->PriorityModuleAssignmentTimeout;
+    auto failingToAssignToModuleSince = operation->FailingToAssignToModuleSince;
+
+    return attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled &&
+        failingToAssignToModuleSince &&
+        context->Now > *failingToAssignToModuleSince + operationModuleAssignmentTimeout;
+}
+
+double TSchedulingSegmentManager::GetElementFairResourceAmount(const TSchedulerOperationElement* element, TUpdateSchedulingSegmentsContext* context) const
+{
+    auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
+    auto snapshotTotalKeyResourceLimit = GetResource(context->TreeSnapshot->ResourceLimits(), keyResource);
+    return element->Attributes().FairShare.Total[keyResource] * snapshotTotalKeyResourceLimit;
+}
+
+THashMap<TSchedulingSegmentModule, TNonOwningOperationElementList> TSchedulingSegmentManager::CollectNonPriorityAssignedOperationsPerModule(
+    TUpdateSchedulingSegmentsContext* context) const
+{
+    THashMap<TSchedulingSegmentModule, TNonOwningOperationElementList> assignedOperationsPerModule;
+
+    const auto& treeSnapshot = context->TreeSnapshot;
+    for (const auto& [operationId, operation] : context->OperationStates) {
+        auto* element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
+        if (!element) {
+            continue;
+        }
+
+        const auto& segment = operation->SchedulingSegment;
+        if (!segment) {
+            continue;
+        }
+
+        const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element);
+        auto operationHasPriority = attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled;
+        if (auto module = operation->SchedulingSegmentModule;
+            module && !operationHasPriority)
+        {
+            assignedOperationsPerModule[module].push_back(element);
+        }
+    }
+
+    return assignedOperationsPerModule;
+}
+
+std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmentManager::FindBestOperationsToPreempt(
+    TOperationId operationId,
+    TUpdateSchedulingSegmentsContext* context) const
+{
+    auto element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
+    if (!element) {
+        return {};
+    }
+
+    auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
+    auto operationDemand = GetResource(element->ResourceDemand(), keyResource);
+
+    auto assignedOperationPerModule = CollectNonPriorityAssignedOperationsPerModule(context);
+
+    std::optional<TOperationsToPreempt> bestOperationsToPreempt;
+    const auto& specifiedModules = context->OperationStates[operationId]->SpecifiedSchedulingSegmentModules;
+    for (const auto& module : Config_->GetModules()) {
+        if (specifiedModules && !specifiedModules->contains(module)) {
+            continue;
+        }
+
+        auto neededDemand = operationDemand - context->RemainingCapacityPerModule[module];
+        if (neededDemand <= 0.0) {
+            return TOperationsToPreempt{
+                .Module = module,
+            };
+        }
+
+        auto bestOperationsToPreemptInModule = [&] {
+            switch (Config_->ModulePreemptionHeuristic) {
+                case ESchedulingSegmentModulePreemptionHeuristic::Greedy:
+                    return FindBestOperationsToPreemptInModuleGreedy(module, neededDemand, std::move(assignedOperationPerModule[module]), context);
+
+                default:
+                    YT_ABORT();
+            }
+        }();
+
+        if (!bestOperationsToPreemptInModule) {
+            continue;
+        }
+
+        if (!bestOperationsToPreempt ||
+            bestOperationsToPreemptInModule->TotalPenalty < bestOperationsToPreempt->TotalPenalty)
+        {
+            bestOperationsToPreempt = std::move(bestOperationsToPreemptInModule);
+        }
+    }
+
+    if (!bestOperationsToPreempt) {
+        YT_LOG_INFO(
+            "Failed to find a suitable operation set in any module to preempt for a priority operation "
+            "(OperationId: %v)",
+            operationId);
+
+        return {};
+    }
+
+    YT_LOG_DEBUG(
+        "Found operations to preempt for a priority operation "
+        "(OperationId: %v, BestOperationsToPreempt: %v)",
+        operationId,
+        bestOperationsToPreempt->Operations);
+
+    return bestOperationsToPreempt;
+}
+
+std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmentManager::FindBestOperationsToPreemptInModuleGreedy(
+    const TSchedulingSegmentModule& module,
+    double neededDemand,
+    TNonOwningOperationElementList assignedOperationElements,
+    TUpdateSchedulingSegmentsContext* context) const
+{
+    std::sort(assignedOperationElements.begin(), assignedOperationElements.end(), [&] (const TSchedulerOperationElement* lhs, const TSchedulerOperationElement* rhs) {
+        return GetElementFairResourceAmount(lhs, context) > GetElementFairResourceAmount(rhs, context);
+    });
+
+    TNonOwningOperationElementList bestOperationsToPreempt;
+    double fairResourceAmount = 0.0;
+    auto currentCandidate = assignedOperationElements.begin();
+    while (fairResourceAmount < neededDemand && currentCandidate != assignedOperationElements.end()) {
+        auto nextCandidate = std::next(currentCandidate);
+
+        while (nextCandidate != assignedOperationElements.end()) {
+            auto nextCandidateFairResourceAmount = GetElementFairResourceAmount(*nextCandidate, context);
+            if (nextCandidateFairResourceAmount + fairResourceAmount + NVectorHdrf::RatioComparisonPrecision < neededDemand)
+            {
+                break;
+            }
+
+            currentCandidate = nextCandidate;
+            nextCandidate = std::next(currentCandidate);
+        }
+
+        bestOperationsToPreempt.push_back(*currentCandidate);
+        fairResourceAmount += GetElementFairResourceAmount(*currentCandidate, context);
+        ++currentCandidate;
+    }
+
+    if (fairResourceAmount < neededDemand) {
+        return {};
+    }
+
+    return TOperationsToPreempt{
+        .TotalPenalty = fairResourceAmount,
+        .Operations = std::move(bestOperationsToPreempt),
+        .Module = module,
+    };
 }
 
 void TSchedulingSegmentManager::CollectCurrentResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const
@@ -268,79 +472,6 @@ void TSchedulingSegmentManager::CollectCurrentResourceAmountPerSegment(TUpdateSc
         context->NodesTotalKeyResourceLimit,
         snapshotTotalKeyResourceLimit,
         keyResource);
-}
-
-void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const
-{
-    if (context->Now <= InitializationDeadline_) {
-        return;
-    }
-
-    for (const auto& [operationId, operation] : context->OperationStates) {
-        auto* element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
-        if (!element) {
-            continue;
-        }
-
-        const auto& segment = operation->SchedulingSegment;
-        if (!segment || !IsModuleAwareSchedulingSegment(*segment)) {
-            // Segment may be unset due to a race, and in this case we silently ignore the operation.
-            continue;
-        }
-
-        auto& schedulingSegmentModule = operation->SchedulingSegmentModule;
-        if (!schedulingSegmentModule) {
-            continue;
-        }
-
-        auto& failingToScheduleAtModuleSince = operation->FailingToScheduleAtModuleSince;
-        auto resetOperationModule = [&] {
-            // NB: We will abort all jobs that are running in the wrong module.
-            schedulingSegmentModule.reset();
-            failingToScheduleAtModuleSince.reset();
-        };
-
-        if (element->ResourceUsageAtUpdate() != element->ResourceDemand()) {
-            if (!failingToScheduleAtModuleSince) {
-                failingToScheduleAtModuleSince = context->Now;
-            }
-
-            if (*failingToScheduleAtModuleSince + Config_->ModuleReconsiderationTimeout < context->Now) {
-                YT_LOG_DEBUG(
-                    "Operation has failed to schedule all jobs for too long, revoking its module assignment "
-                    "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v, "
-                    "InitializationDeadline: %v)",
-                    operationId,
-                    segment,
-                    schedulingSegmentModule,
-                    element->ResourceUsageAtUpdate(),
-                    element->ResourceDemand(),
-                    Config_->ModuleReconsiderationTimeout,
-                    InitializationDeadline_);
-
-                resetOperationModule();
-            }
-        } else {
-            failingToScheduleAtModuleSince.reset();
-        }
-
-        bool hasZeroUsageAndFairShare = (element->ResourceUsageAtUpdate() == TJobResources()) &&
-            Dominates(TResourceVector::SmallEpsilon(), element->Attributes().FairShare.Total);
-        if (hasZeroUsageAndFairShare && Config_->EnableModuleResetOnZeroFairShareAndUsage) {
-            YT_LOG_DEBUG(
-                "Revoking operation module assignment because it has zero fair share and usage "
-                "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, "
-                "InitializationDeadline: %v)",
-                operationId,
-                segment,
-                schedulingSegmentModule,
-                element->ResourceUsageAtUpdate(),
-                element->ResourceDemand(),
-                InitializationDeadline_);
-
-            resetOperationModule();
-        }
-    }
 }
 
 void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const
@@ -400,6 +531,73 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
     }
 }
 
+void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const
+{
+    if (context->Now <= InitializationDeadline_) {
+        return;
+    }
+
+    for (const auto& [operationId, operation] : context->OperationStates) {
+        auto* element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
+        if (!element) {
+            continue;
+        }
+
+        const auto& segment = operation->SchedulingSegment;
+        if (!segment || !IsModuleAwareSchedulingSegment(*segment)) {
+            // Segment may be unset due to a race, and in this case we silently ignore the operation.
+            continue;
+        }
+
+        auto& schedulingSegmentModule = operation->SchedulingSegmentModule;
+        if (!schedulingSegmentModule) {
+            continue;
+        }
+
+        auto& failingToScheduleAtModuleSince = operation->FailingToScheduleAtModuleSince;
+        if (element->ResourceUsageAtUpdate() != element->ResourceDemand()) {
+            if (!failingToScheduleAtModuleSince) {
+                failingToScheduleAtModuleSince = context->Now;
+            }
+
+            if (*failingToScheduleAtModuleSince + Config_->ModuleReconsiderationTimeout < context->Now) {
+                YT_LOG_DEBUG(
+                    "Operation has failed to schedule all jobs for too long, revoking its module assignment "
+                    "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v, "
+                    "InitializationDeadline: %v)",
+                    operationId,
+                    segment,
+                    schedulingSegmentModule,
+                    element->ResourceUsageAtUpdate(),
+                    element->ResourceDemand(),
+                    Config_->ModuleReconsiderationTimeout,
+                    InitializationDeadline_);
+
+                ResetOperationModule(element, context);
+            }
+        } else {
+            failingToScheduleAtModuleSince.reset();
+        }
+
+        bool hasZeroUsageAndFairShare = (element->ResourceUsageAtUpdate() == TJobResources()) &&
+            Dominates(TResourceVector::SmallEpsilon(), element->Attributes().FairShare.Total);
+        if (hasZeroUsageAndFairShare && Config_->EnableModuleResetOnZeroFairShareAndUsage) {
+            YT_LOG_DEBUG(
+                "Revoking operation module assignment because it has zero fair share and usage "
+                "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, "
+                "InitializationDeadline: %v)",
+                operationId,
+                segment,
+                schedulingSegmentModule,
+                element->ResourceUsageAtUpdate(),
+                element->ResourceDemand(),
+                InitializationDeadline_);
+
+            ResetOperationModule(element, context);
+        }
+    }
+}
+
 void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegmentsContext* context) const
 {
     auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
@@ -409,6 +607,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
         TOperationId OperationId;
         TFairShareTreeJobSchedulerOperationState* Operation;
         TSchedulerOperationElement* Element;
+        bool OperationHasPriority;
     };
     std::vector<TOperationStateWithElement> operationsToAssignToModule;
     operationsToAssignToModule.reserve(context->OperationStates.size());
@@ -437,13 +636,18 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             .OperationId = operationId,
             .Operation = operation.Get(),
             .Element = element,
+            .OperationHasPriority = IsOperationEligibleForPriorityModuleAssigment(element, context),
         });
     }
 
     std::sort(
         operationsToAssignToModule.begin(),
         operationsToAssignToModule.end(),
-        [keyResource] (const TOperationStateWithElement& lhs, const TOperationStateWithElement& rhs) {
+        [&] (const TOperationStateWithElement& lhs, const TOperationStateWithElement& rhs) {
+            if (lhs.OperationHasPriority != rhs.OperationHasPriority) {
+                return lhs.OperationHasPriority;
+            }
+
             auto lhsSpecifiedModuleCount = lhs.Operation->SpecifiedSchedulingSegmentModules
                 ? lhs.Operation->SpecifiedSchedulingSegmentModules->size()
                 : 0;
@@ -458,7 +662,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
                 GetResource(lhs.Element->ResourceDemand(), keyResource);
         });
 
-    for (const auto& [operationId, operation, element] : operationsToAssignToModule) {
+    for (const auto& [operationId, operation, element, operationHasPriority] : operationsToAssignToModule) {
         const auto& segment = operation->SchedulingSegment;
         auto operationDemand = GetResource(element->ResourceDemand(), keyResource);
 
@@ -500,6 +704,13 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             }
         }
 
+        if (!bestModule && operationHasPriority) {
+            if (auto operationsToPreempt = FindBestOperationsToPreempt(operationId, context)) {
+                PreemptNonPriorityOperationsFromModuleForOperation(operationId, operationsToPreempt->Operations, context);
+                bestModule = operationsToPreempt->Module;
+            }
+        }
+
         if (!bestModule) {
             YT_LOG_INFO(
                 "Failed to find a suitable module for operation "
@@ -512,6 +723,10 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
                 context->TotalCapacityPerModule,
                 operationId);
 
+            if (!operation->FailingToAssignToModuleSince) {
+                operation->FailingToAssignToModuleSince = context->Now;
+            }
+
             continue;
         }
 
@@ -522,6 +737,8 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
         context->FairResourceAmountPerSegment.At(*segment).MutableAt(operation->SchedulingSegmentModule) += operationDemand;
         context->RemainingCapacityPerModule[operation->SchedulingSegmentModule] -= operationDemand;
+
+        operation->FailingToAssignToModuleSince.reset();
 
         YT_LOG_DEBUG(
             "Assigned operation to a new scheduling segment module "
@@ -1027,8 +1244,8 @@ void TSchedulingSegmentManager::BuildPersistentState(TUpdateSchedulingSegmentsCo
                 TPersistentOperationSchedulingSegmentState{
                     .Module = operationState->SchedulingSegmentModule,
                 });
+            }
         }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

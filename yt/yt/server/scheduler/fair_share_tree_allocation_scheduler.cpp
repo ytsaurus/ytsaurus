@@ -221,6 +221,18 @@ bool IsNormalPreemptionAllowed(const TSchedulerElement* element)
     }
 }
 
+std::optional<bool> IsPrioritySchedulingSegmentModuleAssignmentEnabled(const TSchedulerElement* element)
+{
+    switch (element->GetType()) {
+        case ESchedulerElementType::Root:
+            return false;
+        case ESchedulerElementType::Operation:
+            return {};
+        case ESchedulerElementType::Pool:
+            return static_cast<const TSchedulerPoolElement*>(element)->GetConfig()->EnablePrioritySchedulingSegmentModuleAssignment;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 EJobSchedulingStage GetRegularSchedulingStageByPriority(EOperationSchedulingPriority priority) {
@@ -448,22 +460,6 @@ void TSchedulableChildSet::InitializeChildrenOrder()
     } else {
         MoveBestChildToFront();
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TStaticAttributes& TStaticAttributesList::AttributesOf(const TSchedulerElement* element)
-{
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
-}
-
-const TStaticAttributes& TStaticAttributesList::AttributesOf(const TSchedulerElement* element) const
-{
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -842,73 +838,6 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TSch
     }
 
     return attributes.ResourceUsage;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFairShareTreeSchedulingSnapshot::TFairShareTreeSchedulingSnapshot(
-    TStaticAttributesList staticAttributesList,
-    TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
-    THashSet<int> ssdPriorityPreemptionMedia,
-    TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
-    std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
-    TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
-    TFairShareTreeJobSchedulerOperationStateMap operationIdToState,
-    TFairShareTreeJobSchedulerSharedOperationStateMap operationIdToSharedState)
-    : StaticAttributesList_(std::move(staticAttributesList))
-    , SchedulableOperationsPerPriority_(std::move(schedulableOperationsPerPriority))
-    , SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
-    , CachedJobPreemptionStatuses_(std::move(cachedJobPreemptionStatuses))
-    , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
-    , OperationCountsByPreemptionPriorityParameters_(std::move(operationCountsByPreemptionPriorityParameters))
-    , OperationIdToState_(std::move(operationIdToState))
-    , OperationIdToSharedState_(std::move(operationIdToSharedState))
-{ }
-
-const TFairShareTreeJobSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationState(const TSchedulerOperationElement* element) const
-{
-    return GetOrCrash(OperationIdToState_, element->GetOperationId());
-}
-
-const TFairShareTreeJobSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationSharedState(const TSchedulerOperationElement* element) const
-{
-    return GetOrCrash(OperationIdToSharedState_, element->GetOperationId());
-}
-
-const TFairShareTreeJobSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationState(const TSchedulerOperationElement* element) const
-{
-    const auto& operationState = StaticAttributesList_.AttributesOf(element).OperationState;
-    YT_ASSERT(operationState);
-    return operationState;
-}
-
-const TFairShareTreeJobSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const
-{
-    const auto& operationSharedState = StaticAttributesList_.AttributesOf(element).OperationSharedState;
-    YT_ASSERT(operationSharedState);
-    return operationSharedState;
-}
-
-TDynamicAttributesListSnapshotPtr TFairShareTreeSchedulingSnapshot::GetDynamicAttributesListSnapshot() const
-{
-    return DynamicAttributesListSnapshot_.Acquire();
-}
-
-void TFairShareTreeSchedulingSnapshot::UpdateDynamicAttributesListSnapshot(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
-{
-    if (!resourceUsageSnapshot) {
-        DynamicAttributesListSnapshot_.Reset();
-        return;
-    }
-
-    auto attributesSnapshot = New<TDynamicAttributesListSnapshot>(
-        TDynamicAttributesManager::BuildDynamicAttributesListFromSnapshot(
-            treeSnapshot,
-            resourceUsageSnapshot,
-            NProfiling::GetCpuInstant()));
-    DynamicAttributesListSnapshot_.Store(std::move(attributesSnapshot));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3009,6 +2938,7 @@ void TFairShareTreeJobScheduler::PostUpdate(
     InitializeStaticAttributes(fairSharePostUpdateContext, postUpdateContext);
 
     PublishFairShareAndUpdatePreemptionAttributes(postUpdateContext->RootElement, postUpdateContext);
+    UpdateEffectiveRecursiveAttributes(postUpdateContext->RootElement, postUpdateContext);
 
     ProcessUpdatedStarvationStatuses(fairSharePostUpdateContext, postUpdateContext);
 
@@ -3048,7 +2978,7 @@ void TFairShareTreeJobScheduler::OnResourceUsageSnapshotUpdate(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const
 {
-    treeSnapshot->SchedulingSnapshot()->UpdateDynamicAttributesListSnapshot(treeSnapshot, resourceUsageSnapshot);
+    UpdateDynamicAttributesListSnapshot(treeSnapshot, resourceUsageSnapshot);
 }
 
 void TFairShareTreeJobScheduler::ProfileOperation(
@@ -3575,6 +3505,7 @@ void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributes(
     TSchedulerElement* element,
     TJobSchedulerPostUpdateContext* postUpdateContext) const
 {
+    // TODO(omgronny): Move EffectiveAggressivePreemptionAllowed update to UpdateEffectiveRecursiveAttributes.
     auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
     auto aggressivePreemptionAllowed = IsAggressivePreemptionAllowed(element);
     if (element->IsRoot()) {
@@ -3628,6 +3559,51 @@ void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributesAt
     operationSharedState->SetPreemptible(currentPreemptibleValue);
     operationSharedState->UpdatePreemptibleJobsList(element);
 }
+
+void TFairShareTreeJobScheduler::UpdateEffectiveRecursiveAttributes(
+    const TSchedulerElement* element,
+    TJobSchedulerPostUpdateContext* postUpdateContext)
+{
+    auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
+    auto prioritySchedulingSegmentModuleAssignmentEnabled = IsPrioritySchedulingSegmentModuleAssignmentEnabled(element);
+    if (element->IsRoot()) {
+        YT_VERIFY(prioritySchedulingSegmentModuleAssignmentEnabled);
+        attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled = *prioritySchedulingSegmentModuleAssignmentEnabled;
+    } else {
+        const auto* parent = element->GetParent();
+        YT_VERIFY(parent);
+        const auto& parentAttributes = postUpdateContext->StaticAttributesList.AttributesOf(parent);
+
+        attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled = prioritySchedulingSegmentModuleAssignmentEnabled
+            .value_or(parentAttributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled);
+    }
+
+    switch (element->GetType()) {
+        case ESchedulerElementType::Pool:
+        case ESchedulerElementType::Root:
+            UpdateEffectiveRecursiveAttributesAtCompositeElement(static_cast<const TSchedulerCompositeElement*>(element), postUpdateContext);
+            break;
+        case ESchedulerElementType::Operation:
+            UpdateEffectiveRecursiveAttributesAtOperation(static_cast<const TSchedulerOperationElement*>(element), postUpdateContext);
+            break;
+        default:
+            YT_ABORT();
+    }
+}
+
+void TFairShareTreeJobScheduler::UpdateEffectiveRecursiveAttributesAtCompositeElement(
+    const TSchedulerCompositeElement* element,
+    TJobSchedulerPostUpdateContext* postUpdateContext)
+{
+    for (const auto& child : element->EnabledChildren()) {
+        UpdateEffectiveRecursiveAttributes(child.Get(), postUpdateContext);
+    }
+}
+
+void TFairShareTreeJobScheduler::UpdateEffectiveRecursiveAttributesAtOperation(
+    const TSchedulerOperationElement* /*element*/,
+    TJobSchedulerPostUpdateContext* /*postUpdateContext*/)
+{ }
 
 void TFairShareTreeJobScheduler::ProcessUpdatedStarvationStatuses(
     TFairSharePostUpdateContext* fairSharePostUpdateContext,
@@ -3877,6 +3853,7 @@ void TFairShareTreeJobScheduler::ApplyOperationSchedulingSegmentsChanges(const T
         const auto& operationState = GetOperationState(operationId);
         operationState->SchedulingSegmentModule = changedOperationState->SchedulingSegmentModule;
         operationState->FailingToScheduleAtModuleSince = changedOperationState->FailingToScheduleAtModuleSince;
+        operationState->FailingToAssignToModuleSince = changedOperationState->FailingToAssignToModuleSince;
     }
 }
 
@@ -4000,6 +3977,24 @@ void TFairShareTreeJobScheduler::ManageSchedulingSegments()
     ApplyNodeSchedulingSegmentsChanges(movedNodes);
 
     YT_LOG_DEBUG("Finished managing scheduling segments");
+}
+
+void TFairShareTreeJobScheduler::UpdateDynamicAttributesListSnapshot(
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
+{
+    const auto& schedulingSnapshot = treeSnapshot->SchedulingSnapshot();
+    if (!resourceUsageSnapshot) {
+        schedulingSnapshot->ResetDynamicAttributesListSnapshot();
+        return;
+    }
+
+    auto attributesSnapshot = New<TDynamicAttributesListSnapshot>(
+        TDynamicAttributesManager::BuildDynamicAttributesListFromSnapshot(
+            treeSnapshot,
+            resourceUsageSnapshot,
+            NProfiling::GetCpuInstant()));
+    schedulingSnapshot->SetDynamicAttributesListSnapshot(std::move(attributesSnapshot));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

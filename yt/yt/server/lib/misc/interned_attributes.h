@@ -159,6 +159,7 @@
     XX(EnableFairShareTruncationInFifoPool, enable_fair_share_truncation_in_fifo_pool) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
+    XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSequoiaReplicas, enable_sequoia_replicas) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \

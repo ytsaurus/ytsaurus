@@ -178,6 +178,8 @@ public:
 
     ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
 
+    ESchedulingSegmentModulePreemptionHeuristic ModulePreemptionHeuristic;
+
     ESchedulingSegmentModuleType ModuleType;
 
     bool EnableInfinibandClusterTagValidation;
@@ -432,6 +434,8 @@ public:
     std::vector<double> PerPoolSatisfactionProfilingQuantiles;
 
     bool EnableGuaranteePriorityScheduling;
+
+    TDuration PriorityModuleAssignmentTimeout;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
