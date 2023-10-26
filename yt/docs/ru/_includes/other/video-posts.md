@@ -4,6 +4,11 @@
 
 ##  Конференции, публикации
 
+### 2023: Cypress — a distributed transactional file system in YTsaurus
+- **Мероприятие**: HighLoad Serbia 2023
+- **Материалы**: [YouTube](https://www.youtube.com/watch?v=7FsrQyd5yx0)
+- **Докладчик**: Григорий Резников
+
 ### 2023: YTsaurus SPYT: помогаем планировщику Apache Spark быть ещё эффективнее
 - **Мероприятие**: Saint HighLoad++ 2023
 - **Материалы**: [YouTube](https://www.youtube.com/watch?v=Gk9K1NkYCww), [slides](https://bit.ly/3PdCyQc)
