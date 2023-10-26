@@ -182,6 +182,7 @@ struct ICriExecutor
 
     virtual TFuture<TCriImageDescriptor> PullImage(
         const TCriImageDescriptor& image,
+        bool always = false,
         TCriPodSpecPtr podSpec = nullptr) = 0;
 
     virtual TFuture<void> RemoveImage(const TCriImageDescriptor& image) = 0;

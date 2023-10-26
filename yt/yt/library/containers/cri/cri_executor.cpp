@@ -530,8 +530,19 @@ public:
 
     TFuture<TCriImageDescriptor> PullImage(
         const TCriImageDescriptor& image,
+        bool always,
         TCriPodSpecPtr podSpec = nullptr) override
     {
+        if (!always) {
+            return GetImageStatus(image)
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TCriImageApi::TRspImageStatusPtr& imageStatus) {
+                    if (imageStatus->has_image()) {
+                        return MakeFuture(TCriImageDescriptor{.Image = imageStatus->image().id()});
+                    }
+                    return PullImage(image, /*always*/ true, podSpec);
+                }));
+        }
+
         auto req = ImageApi_.PullImage();
         FillImageSpec(req->mutable_image(), image);
         if (podSpec) {
