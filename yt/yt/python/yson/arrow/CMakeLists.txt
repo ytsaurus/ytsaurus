@@ -8,37 +8,25 @@
 
 find_package(Python3 REQUIRED COMPONENTS Development)
 
-add_shared_library(yson_lib)
-target_compile_options(yson_lib PRIVATE
+add_library(python-yson-arrow)
+target_compile_options(python-yson-arrow PRIVATE
   -DPYCXX_PYTHON_2TO3
   -DPYCXX_6_2_COMPATIBILITY
   -DPy_LIMITED_API=0x03040000
   -Wno-register
 )
-target_link_libraries(yson_lib PUBLIC
+target_include_directories(python-yson-arrow PUBLIC
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+)
+target_link_libraries(python-yson-arrow PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  Python3::Module
-  yt-yt-core
   yt-python-common
-  yt-python-yson
-  python-yson-arrow
+  contrib-libs-pycxx
+  libs-apache-arrow
+  Python3::Module
 )
-target_link_options(yson_lib PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -Wl,-z,notext
-  -Wl,-Bsymbolic
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
+target_sources(python-yson-arrow PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow/parquete.cpp
 )
-use_export_script(yson_lib
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson_shared/yson3.exports
-)
-vcs_info(yson_lib)

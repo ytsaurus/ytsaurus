@@ -10,4 +10,5 @@ PEERDIR(
     yt/yt/core
     yt/yt/python/common
     yt/yt/python/yson
+    yt/yt/python/yson/arrow
 )

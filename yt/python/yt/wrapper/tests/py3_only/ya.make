@@ -37,6 +37,7 @@ PEERDIR(
     yt/python/yt/wrapper/testlib
     yt/python/yt/testlib
     yt/python/yt/yson
+    yt/yt/python/yson/arrow
     yt/yt/python/yt_yson_bindings
 
     contrib/python/flaky

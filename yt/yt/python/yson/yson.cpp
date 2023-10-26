@@ -7,7 +7,7 @@
 #include "limited_yson_writer.h"
 #include "pull_object_builder.h"
 
-#include "arrow/parquete.h"
+#include "arrow.h"
 
 #include "skiff/schema.h"
 #include "skiff/record.h"

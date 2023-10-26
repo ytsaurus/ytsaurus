@@ -7,6 +7,7 @@
 
 
 find_package(Python3 REQUIRED COMPONENTS Development)
+add_subdirectory(arrow)
 
 add_library(yt-python-yson)
 target_compile_options(yt-python-yson PRIVATE
@@ -27,10 +28,10 @@ target_link_libraries(yt-python-yson PUBLIC
   yt-python-common
   contrib-libs-pycxx
   library-cpp-skiff
-  libs-apache-arrow
   Python3::Module
 )
 target_sources(yt-python-yson PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/error.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/lazy_dict.cpp
@@ -39,7 +40,6 @@ target_sources(yt-python-yson PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/pull_object_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/yson_lazy_map.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow/parquete.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/consumer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_common.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp
@@ -75,7 +75,6 @@ target_link_libraries(yt-python-yson.global PUBLIC
   yt-python-common
   contrib-libs-pycxx
   library-cpp-skiff
-  libs-apache-arrow
   Python3::Module
 )
 target_sources(yt-python-yson.global PRIVATE

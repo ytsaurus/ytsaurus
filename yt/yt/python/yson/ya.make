@@ -7,6 +7,7 @@ CXXFLAGS(
 )
 
 SRCS(
+    arrow.cpp
     error.cpp
     helpers.cpp
     lazy_dict.cpp
@@ -15,8 +16,6 @@ SRCS(
     pull_object_builder.cpp
     serialize.cpp
     yson_lazy_map.cpp
-
-    arrow/parquete.cpp
 
     skiff/consumer.cpp
     skiff/converter_common.cpp
@@ -42,7 +41,6 @@ PEERDIR(
     yt/yt/python/common
     contrib/libs/pycxx
     library/cpp/skiff
-    contrib/libs/apache/arrow
 )
 
 ADDINCL(

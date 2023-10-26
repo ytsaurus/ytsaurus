@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 PEERDIR(
     yt/python/yt/wrapper
     yt/python/yt/clickhouse
+    yt/yt/python/yson/arrow
     yt/yt/python/yt_yson_bindings
 
     # It is required to run job shell.

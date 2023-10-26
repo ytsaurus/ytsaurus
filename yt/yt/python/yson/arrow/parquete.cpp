@@ -1,5 +1,3 @@
-#include "parquete.h"
-
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
 

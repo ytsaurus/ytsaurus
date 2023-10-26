@@ -873,6 +873,7 @@
   "yt/yt/python/driver/rpc/CMakeLists.txt":"",
   "yt/yt/python/driver/rpc_shared/CMakeLists.txt":"",
   "yt/yt/python/yson/CMakeLists.txt":"",
+  "yt/yt/python/yson/arrow/CMakeLists.txt":"",
   "yt/yt/python/yson_shared/CMakeLists.txt":"",
   "yt/yt/scripts/prepare_pytest_environment.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/prepare_pytest_environment.sh",
   "yt/yt/scripts/pytest_requirements.txt":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/pytest_requirements.txt",
