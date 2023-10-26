@@ -24,6 +24,9 @@ public enum CypressNodeType implements StringValueEnum {
     REPLICATED_TABLE(425, "replicated_table"),
 
     // Tablet Manager stuff.
+    TABLET_CELL(700, "tablet_cell"),
+    TABLET(702, "tablet"),
+    TABLET_CELL_BUNDLE(706, "tablet_cell_bundle"),
     TABLE_REPLICA(709, "table_replica");
 
     public static final StringValueEnumResolver<CypressNodeType> R = StringValueEnumResolver.of(CypressNodeType.class);
