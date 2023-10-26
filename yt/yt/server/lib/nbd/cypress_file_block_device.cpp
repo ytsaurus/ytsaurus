@@ -32,9 +32,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NChunkClient::TUserObject GetUserObject(const NYPath::TRichYPath& richPath, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
-static TString GetFilesystem(const NChunkClient::TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
-static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const NChunkClient::TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
+static TUserObject GetUserObject(const NYPath::TRichYPath& richPath, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
+static TString GetFilesystem(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
+static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,24 +43,6 @@ struct TCypressFileBlockDeviceTag { };
 class TCypressFileBlockDevice
     : public IBlockDevice
 {
-private:
-    struct TBlock
-    {
-        i64 Size = 0;
-        i64 Offset = 0;
-    };
-
-    struct TChunk
-    {
-        i64 Size = 0;
-        i64 Index = 0;
-        i64 Offset = 0;
-        std::vector<TBlock> Blocks;
-        NChunkClient::IChunkReaderPtr Reader;
-        NChunkClient::NProto::TChunkSpec Spec;
-        NChunkClient::TRefCountedChunkMetaPtr Meta;
-    };
-
 public:
     TCypressFileBlockDevice(
         const TString& exportId,
@@ -77,7 +59,7 @@ public:
 
     TCypressFileBlockDevice(
         const TString& exportId,
-        const ::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         TCypressFileBlockDeviceConfigPtr config,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
@@ -154,6 +136,23 @@ public:
     }
 
 private:
+    struct TBlock
+    {
+        i64 Size = 0;
+        i64 Offset = 0;
+    };
+
+    struct TChunk
+    {
+        i64 Size = 0;
+        i64 Index = 0;
+        i64 Offset = 0;
+        std::vector<TBlock> Blocks;
+        IChunkReaderPtr Reader;
+        NChunkClient::NProto::TChunkSpec Spec;
+        TRefCountedChunkMetaPtr Meta;
+    };
+
     void DoInitialize()
     {
         YT_LOG_INFO("Initializing cypress file block divice (Path: %v)", Config_->Path);
@@ -161,10 +160,10 @@ private:
         NYPath::TRichYPath richPath{Config_->Path};
 
         if (ChunkSpecs_) {
-            NChunkClient::TUserObject userObject{richPath};
+            TUserObject userObject{richPath};
 
             YT_LOG_INFO("Creating chunk reader host (File: %v)", userObject.GetPath());
-            ChunkReaderHost_ = NChunkClient::TChunkReaderHost::FromClient(Client_);
+            ChunkReaderHost_ = TChunkReaderHost::FromClient(Client_);
             YT_LOG_INFO("Created chunk reader host (File: %v)", userObject.GetPath());
 
             InitializeChunkStructs(userObject, *ChunkSpecs_);
@@ -187,7 +186,7 @@ private:
             auto chunkSpecs = GetChunkSpecs(userObject, Client_, Logger);
 
             YT_LOG_INFO("Creating chunk reader host (File: %v)", userObject.GetPath());
-            ChunkReaderHost_ = NChunkClient::TChunkReaderHost::FromClient(Client_);
+            ChunkReaderHost_ = TChunkReaderHost::FromClient(Client_);
             YT_LOG_INFO("Created chunk reader host (File: %v)", userObject.GetPath());
 
             InitializeChunkStructs(userObject, chunkSpecs);
@@ -258,7 +257,7 @@ private:
             blockIndexes.push_back(b);
         }
 
-        NChunkClient::IChunkReader::TReadBlocksOptions readBlocksOptions;
+        IChunkReader::TReadBlocksOptions readBlocksOptions;
         readBlocksOptions.EstimatedSize = length;
         readBlocksOptions.ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
         readBlocksOptions.ClientOptions.ReadSessionId = readId;
@@ -308,7 +307,7 @@ private:
     }
 
     template <typename T>
-    void InitializeChunkStructs(const NChunkClient::TUserObject& userObject, const T& chunkSpecs)
+    void InitializeChunkStructs(const TUserObject& userObject, const T& chunkSpecs)
     {
         YT_LOG_INFO("Initializing chunk structs (File: %v, ChunkSpecs: %v)", userObject.GetPath(), chunkSpecs.size());
 
@@ -333,14 +332,14 @@ private:
 
             YT_LOG_INFO("Creating chunk reader (File: %v, Chunk: %v)", userObject.GetPath(), chunk.Index);
 
-            auto readerConfig = New<NChunkClient::TReplicationReaderConfig>();
+            auto readerConfig = New<TReplicationReaderConfig>();
             readerConfig->UseBlockCache = true;
 
             chunk.Reader = CreateReplicationReader(
                 std::move(readerConfig),
-                New<NChunkClient::TRemoteReaderOptions>(),
+                New<TRemoteReaderOptions>(),
                 ChunkReaderHost_,
-                FromProto<NChunkClient::TChunkId>(chunkSpec.chunk_id()),
+                FromProto<TChunkId>(chunkSpec.chunk_id()),
                 {}
             );
 
@@ -373,11 +372,11 @@ private:
 
 private:
     const TString& ExportId_;
-    std::optional<::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
+    std::optional<::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
     const TCypressFileBlockDeviceConfigPtr Config_;
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
-    NChunkClient::TChunkReaderHostPtr ChunkReaderHost_;
+    TChunkReaderHostPtr ChunkReaderHost_;
     std::vector<TChunk> Chunks_;
     i64 FileSize_ = 0;
     const NLogging::TLogger Logger;
@@ -386,13 +385,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Fetch basic object attributes from cypress.
-static NChunkClient::TUserObject GetUserObject(const NYPath::TRichYPath& richPath, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
+static TUserObject GetUserObject(const NYPath::TRichYPath& richPath, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
 {
     YT_LOG_INFO("Fetching file basic attributes (File: %v)", richPath);
 
-    NChunkClient::TUserObject userObject(richPath);
+    TUserObject userObject(richPath);
 
-    NChunkClient::GetUserObjectBasicAttributes(
+    GetUserObjectBasicAttributes(
         client,
         {&userObject},
         NCypressClient::NullTransactionId,
@@ -407,7 +406,7 @@ static NChunkClient::TUserObject GetUserObject(const NYPath::TRichYPath& richPat
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Fetch object's filesystem attribute from cypress.
-static TString GetFilesystem(const NChunkClient::TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
+static TString GetFilesystem(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
 {
     YT_LOG_INFO("Fetching file filesystem attribute (File: %v)", userObject.GetPath());
 
@@ -439,7 +438,7 @@ static TString GetFilesystem(const NChunkClient::TUserObject& userObject, NApi::
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Fetch object's chunk specs from cypress.
-static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const NChunkClient::TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
+static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
 {
     YT_LOG_INFO("Fetching file chunk specs (File: %v)", userObject.GetPath());
 
@@ -453,8 +452,8 @@ static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const NChunkC
     auto req = NFileClient::TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
     NObjectClient::AddCellTagToSyncWith(req, userObject.ObjectId);
 
-    NChunkClient::TLegacyReadLimit lowerLimit, upperLimit;
-    ToProto(req->mutable_ranges(), std::vector<NChunkClient::TLegacyReadRange>({NChunkClient::TLegacyReadRange(lowerLimit, upperLimit)}));
+    TLegacyReadLimit lowerLimit, upperLimit;
+    ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>({TLegacyReadRange(lowerLimit, upperLimit)}));
 
     NCypressClient::SetTransactionId(req, NCypressClient::NullTransactionId);
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
@@ -485,7 +484,7 @@ static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const NChunkC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NYT::NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TString& path, NApi::NNative::IClientPtr client, IInvokerPtr invoker, const NLogging::TLogger& Logger)
+std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TString& path, NApi::NNative::IClientPtr client, IInvokerPtr invoker, const NLogging::TLogger& Logger)
 {
     NYPath::TRichYPath richPath{path};
 
@@ -506,14 +505,14 @@ std::vector<NYT::NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TString& 
 
     YT_LOG_INFO("Fetching file chunk specs (File: %v)", userObject.GetPath());
 
-    auto chunkSpecFetcher = New<NChunkClient::TMasterChunkSpecFetcher>(
+    auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         client,
         NYT::NApi::TMasterReadOptions{},
         client->GetNativeConnection()->GetNodeDirectory(),
         invoker,
         client->GetNativeConnection()->GetConfig()->MaxChunksPerFetch,
         client->GetNativeConnection()->GetConfig()->MaxChunksPerLocateRequest,
-        [&] (const NChunkClient::TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             req->set_fetch_parity_replicas(true);
@@ -552,7 +551,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
 
 IBlockDevicePtr CreateCypressFileBlockDevice(
     const TString& exportId,
-    const ::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TCypressFileBlockDeviceConfigPtr exportConfig,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,

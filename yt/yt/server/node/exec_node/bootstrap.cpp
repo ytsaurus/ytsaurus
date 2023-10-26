@@ -129,7 +129,7 @@ public:
             connection->GetClusterDirectorySynchronizer()->Start();
 
             NbdServer_ = CreateNbdServer(
-                GetConfig()->ExecNode->NbdConfig->NbdServerConfig,
+                GetConfig()->ExecNode->NbdConfig->NbdServer,
                 std::move(connection),
                 NBus::TTcpDispatcher::Get()->GetXferPoller(),
                 NbdQueue_->GetInvoker());

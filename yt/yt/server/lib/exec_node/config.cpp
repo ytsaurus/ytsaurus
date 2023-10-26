@@ -376,9 +376,9 @@ void TNbdClientConfig::Register(TRegistrar registrar)
 
 void TNbdConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("nbd_client", &TThis::NbdClientConfig)
+    registrar.Parameter("nbd_client", &TThis::NbdClient)
         .DefaultNew();
-    registrar.Parameter("nbd_server", &TThis::NbdServerConfig)
+    registrar.Parameter("nbd_server", &TThis::NbdServer)
         .DefaultNew();
 }
 

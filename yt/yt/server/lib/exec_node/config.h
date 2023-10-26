@@ -333,8 +333,8 @@ class TNbdConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    TNbdClientConfigPtr NbdClientConfig;
-    NNbd::TNbdServerConfigPtr NbdServerConfig;
+    TNbdClientConfigPtr NbdClient;
+    NNbd::TNbdServerConfigPtr NbdServer;
 
     REGISTER_YSON_STRUCT(TNbdConfig);
 
