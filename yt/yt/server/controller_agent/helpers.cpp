@@ -130,7 +130,11 @@ void TUserFile::Persist(const TPersistenceContext& context)
     Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
     Persist(context, Dynamic);
     Persist(context, Layer);
-    Persist(context, Filesystem);
+
+    // COMPAT(yuryalekseev)
+    if (context.GetVersion() >= ESnapshotVersion::AddFilesystemAttribute) {
+        Persist(context, Filesystem);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

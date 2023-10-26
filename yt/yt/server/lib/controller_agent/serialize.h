@@ -30,6 +30,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistInputChunkMappingLogger)       (301205))
     // 23.2 starts here
     ((AddChunkSchemas)                      (301300))
+    ((AddFilesystemAttribute)               (301301))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
