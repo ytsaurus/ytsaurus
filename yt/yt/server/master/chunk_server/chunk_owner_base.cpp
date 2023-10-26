@@ -114,8 +114,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::ChunkMergerModeUnderTransaction) {
         Load(context, ChunkMergerMode_);
     } else {
-        NChunkClient::EChunkMergerMode chunkMergerMode;
-        Load(context, chunkMergerMode);
+        auto chunkMergerMode = Load<NChunkClient::EChunkMergerMode>(context);
         SetChunkMergerMode(chunkMergerMode);
     }
     Load(context, EnableSkynetSharing_);
