@@ -588,6 +588,7 @@ public:
 
     TApiService(
         TApiServiceConfigPtr config,
+        IInvokerPtr controlInvoker,
         IInvokerPtr workerInvoker,
         NApi::NNative::IConnectionPtr connection,
         NRpc::IAuthenticatorPtr authenticator,
@@ -616,6 +617,7 @@ public:
         , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
             config->ClientCache,
             Connection_))
+        , ControlInvoker_(std::move(controlInvoker))
         , HeapProfilerTestingOptions_(config->TestingOptions->HeapProfiler)
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
@@ -782,6 +784,12 @@ public:
         Config_.Store(config);
     }
 
+    IYPathServicePtr CreateOrchidService() override
+    {
+        return IYPathService::FromProducer(BIND_NO_PROPAGATE(&TApiService::BuildOrchid, MakeStrong(this)))
+            ->Via(ControlInvoker_);
+    }
+
 private:
     const TProfiler Profiler_;
     TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
@@ -792,6 +800,7 @@ private:
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
+    const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
@@ -847,6 +856,19 @@ private:
                 size,
                 delay);
         }
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .DoMap([] (TFluentMap fluent) {
+                CollectHeapUsageStatistics(
+                    fluent.GetConsumer(),
+                    {
+                        RpcProxyUserAllocationTag,
+                        RpcProxyRpcAllocationTag
+                    });
+            });
     }
 
     void SetupTracing(const IServiceContextPtr& context)
@@ -5470,6 +5492,7 @@ const TStructuredLoggingMethodDynamicConfigPtr TApiService::DefaultMethodConfig 
 
 IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
+    IInvokerPtr controlInvoker,
     IInvokerPtr workerInvoker,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
@@ -5483,6 +5506,7 @@ IApiServicePtr CreateApiService(
 {
     return New<TApiService>(
         std::move(config),
+        std::move(controlInvoker),
         std::move(workerInvoker),
         std::move(connection),
         std::move(authenticator),

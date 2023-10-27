@@ -1,6 +1,6 @@
 from .proxy_format_config import _TestProxyFormatConfigBase
 
-from yt_env_setup import YTEnvSetup, Restarter, RPC_PROXIES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, RPC_PROXIES_SERVICE, is_asan_build
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, create, ls,
@@ -1133,3 +1133,86 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
         yson_format = expected_format.attributes.get("format", "text")
         expected_content_operation = yson.dumps(content, yson_format=yson_format, yson_type="list_fragment")
         self._test_format_defaults_operations(format, user, content, expected_content_operation)
+
+
+##################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
+    NUM_RPC_PROXIES = 1
+
+    DELTA_PROXY_CONFIG = {
+        "heap_profiler": {
+            "snapshot_update_period": 20,
+        },
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "testing": {
+                "heap_profiler": {
+                    "allocation_size": 20 * 1024 ** 2,
+                    "allocation_release_delay" : 120 * 1000,
+                },
+            },
+        },
+    }
+
+    USER = "u"
+
+    def enable_allocation_tags(self, proxy):
+        set(f"//sys/{proxy}/@config", {
+            "api": {
+                "enable_allocation_tags": True,
+            },
+        })
+        wait(lambda: get(f"//sys/{proxy}/@config")["api"]["enable_allocation_tags"])
+
+    def check_memory_usage(self, memory_usage):
+        tags = ["user", "rpc"]
+        if not memory_usage or len(memory_usage) < len(tags):
+            return False
+
+        for tag in tags:
+            assert tag in memory_usage
+            if not memory_usage[tag]:
+                return False
+
+        if self.USER not in memory_usage["user"].keys():
+            return False
+
+        if memory_usage["user"][self.USER] < 5 * 1024 ** 2:
+            return False
+
+        rpc_total_usage = 0
+        for value in memory_usage["rpc"].values():
+            rpc_total_usage += value
+
+        assert rpc_total_usage / len(memory_usage["rpc"]) > 5 * 1024 ** 2
+
+        user_total_usage = 0
+        for value in memory_usage["user"].values():
+            user_total_usage += value
+
+        assert user_total_usage == rpc_total_usage
+
+        return True
+
+    @authors("ni-stoiko")
+    @pytest.mark.timeout(120)
+    def test_heap_usage_statistics(self):
+        self.enable_allocation_tags("rpc_proxies")
+        create_user(self.USER)
+        time.sleep(1)
+
+        rpc_proxies = ls("//sys/rpc_proxies")
+        assert len(rpc_proxies) == 1
+        rpc_proxy_agent_orchid = f"//sys/rpc_proxies/{rpc_proxies[0]}/orchid/rpc_proxy"
+
+        self._create_simple_table("//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True, authenticated_user=self.USER)
+        self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True, authenticated_user=self.USER)
+        map(in_="//tmp/t_in", out="//tmp/t_out", track=True, mapper_command="cat", authenticated_user=self.USER)
+
+        time.sleep(1)
+        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/heap_usage_statistics")))

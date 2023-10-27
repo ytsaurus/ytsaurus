@@ -1,6 +1,6 @@
 from .proxy_format_config import _TestProxyFormatConfigBase
 
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, is_asan_build
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
@@ -916,3 +916,84 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
             pass
 
         wait(lambda: self._get_hydra_monitoring().get("read_only", None))
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestHttpProxyHeapUsageStatistics(HttpProxyTestBase):
+    NUM_HTTP_PROXIES = 1
+    DELTA_PROXY_CONFIG = {
+        "heap_profiler": {
+            "snapshot_update_period": 50,
+        },
+        "api": {
+            "testing": {
+                "heap_profiler": {
+                    "allocation_size": 50 * 1024 ** 2,
+                    "allocation_release_delay" : 120 * 1000,
+                },
+            },
+        },
+    }
+
+    PATH = "//tmp/test"
+    USER = "root"
+    PARAMS = {"path": PATH, "output_format": "yson", }
+
+    def _execute_command(self, http_method, command_name, params=PARAMS):
+        headers = {
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
+            "X-YT-User-Name": self.USER,
+        }
+        rsp = requests.request(
+            http_method,
+            "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
+            headers=headers,
+        )
+
+        try_parse_yt_error_headers(rsp)
+        return rsp
+
+    def enable_allocation_tags(self, proxy):
+        set(f"//sys/{proxy}/@config", {
+            "api": {
+                "enable_allocation_tags": True,
+            },
+        })
+        wait(lambda: get(f"//sys/{proxy}/@config")["api"]["enable_allocation_tags"])
+
+    def check_memory_usage(self, memory_usage, command):
+        tags = ["user", "command"]
+        if not memory_usage or len(memory_usage) < len(tags):
+            return False
+
+        for tag in tags:
+            assert tag in memory_usage
+
+        assert self.USER in memory_usage["user"].keys()
+        assert command in memory_usage["command"].keys()
+
+        assert memory_usage["user"][self.USER] > 5 * 1024 ** 2
+        assert memory_usage["command"][command] > 5 * 1024 ** 2
+
+        return True
+
+    @authors("ni-stoiko")
+    @pytest.mark.timeout(120)
+    def test_heap_usage_statistics(self):
+        http_proxies = ls("//sys/http_proxies")
+        assert len(http_proxies) == 1
+        http_proxy_agent_orchid = f"//sys/http_proxies/{http_proxies[0]}/orchid/http_proxy"
+
+        self.enable_allocation_tags("http_proxies")
+        time.sleep(1)
+
+        create("table", self.PATH)
+        write_table(f"<append=%true>{self.PATH}", [{"key": "x"}])
+
+        self._execute_command("GET", "read_table")
+        time.sleep(1)
+        wait(lambda: self.check_memory_usage(
+            get(http_proxy_agent_orchid + "/heap_usage_statistics"),
+            "read_table"))

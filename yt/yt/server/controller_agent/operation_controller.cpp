@@ -186,8 +186,11 @@ public:
     {
         auto Logger = ControllerLogger.WithTag("OperationId: %v", Id_);
 
+        const auto snapshot = GetMemoryUsageSnapshot();
+        YT_VERIFY(snapshot);
+
         YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
-            GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(Id_)));
+            snapshot->GetUsage(OperationIdAllocationTag, ToString(Id_)));
 
         DtorInvoker_->Invoke(BIND([
             underlying = std::move(Underlying_),
@@ -195,7 +198,11 @@ public:
             Logger] () mutable
         {
             NProfiling::TWallTimer timer;
-            auto memoryUsageBefore = NYTProf::GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(id));
+
+            const auto snapshotBefore = GetMemoryUsageSnapshot();
+            YT_VERIFY(snapshotBefore);
+
+            auto memoryUsageBefore = snapshotBefore->GetUsage(OperationIdAllocationTag, ToString(id));
             YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v)", memoryUsageBefore);
             if (auto refCount = ResetAndGetResidualRefCount(underlying)) {
                 YT_LOG_WARNING(
@@ -203,7 +210,11 @@ public:
                     "(RefCount: %v)",
                     refCount);
             }
-            auto memoryUsageAfter = NYTProf::GetMemoryUsageSnapshot()->GetUsage(OperationIdAllocationTag, ToString(id));
+
+            const auto snapshotAfter = GetMemoryUsageSnapshot();
+            YT_VERIFY(snapshotAfter);
+
+            auto memoryUsageAfter = snapshotAfter->GetUsage(OperationIdAllocationTag, ToString(id));
             YT_LOG_INFO("Finished destructing operation controller (Elapsed: %v, MemoryUsageAfter: %v, MemoryUsageDecrease: %v)",
                 timer.GetElapsedTime(),
                 memoryUsageAfter,

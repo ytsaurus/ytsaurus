@@ -1,14 +1,16 @@
 #pragma once
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/tracing/public.h>
 
 #include <yt/yt/core/profiling/public.h>
 
-#include <yt/yt/core/ypath/public.h>
-
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/core/ypath/public.h>
+
+#include <library/cpp/yt/yson/consumer.h>
 
 namespace NYT {
 
@@ -99,6 +101,10 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
     std::function<void()> destructCallback = [] {},
     IInvokerPtr destructCallbackInvoker = nullptr,
     i64 allocationPartSize = 1_MB);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CollectHeapUsageStatistics(NYson::IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

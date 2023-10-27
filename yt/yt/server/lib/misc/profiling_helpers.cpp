@@ -1,15 +1,24 @@
 #include "profiling_helpers.h"
-#include "yt/yt/core/profiling/timing.h"
-#include "yt/yt/core/tracing/trace_context.h"
+
+#include <yt/yt/library/ytprof/heap_profiler.h>
+
+#include <yt/yt/core/concurrency/fls.h>
 
 #include <yt/yt/core/misc/tls_cache.h>
 
-#include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT {
 
 using namespace NProfiling;
 using namespace NYPath;
+using namespace NYson;
+using namespace NYTProf;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,6 +128,35 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
     }
 
     return testHeap;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CollectHeapUsageStatistics(IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList)
+{
+    const auto memorySnapshot = GetMemoryUsageSnapshot();
+    YT_VERIFY(memorySnapshot);
+
+    auto heapUsageStatistics = BuildYsonStringFluently<EYsonType::MapFragment>();
+
+    heapUsageStatistics
+        .Item("heap_usage_statistics").DoMapFor(
+            memoryTagsList,
+            [&] (TFluentMap fluent, const auto& tag) {
+                fluent.Item(tag).DoMap([&] (TFluentMap fluent) {
+                    auto memoryUsageStatistic = BuildYsonStringFluently<EYsonType::MapFragment>();
+
+                    memoryUsageStatistic.DoFor(
+                        memorySnapshot->GetUsage(tag),
+                        [] (TFluentMap fluent, const auto& pair) {
+                            fluent.Item(pair.first).Value(pair.second);
+                        });
+
+                    fluent.GetConsumer()->OnRaw(memoryUsageStatistic.Finish());
+                });
+            });
+
+    consumer->OnRaw(heapUsageStatistics.Finish());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

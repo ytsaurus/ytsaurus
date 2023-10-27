@@ -21,6 +21,8 @@ struct IApiService
 {
     //! Thread affinity: any.
     virtual void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) = 0;
+
+    virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IApiService)
@@ -31,6 +33,7 @@ DEFINE_REFCOUNTED_TYPE(IApiService)
 //! between services (e.g.: ORM and RPC proxy).
 IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
+    IInvokerPtr controlInvoker,
     IInvokerPtr workerInvoker,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,

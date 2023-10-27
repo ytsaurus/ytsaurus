@@ -59,8 +59,10 @@ void TApiServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
+
     registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
+
     registrar.Parameter("testing", &TThis::TestingOptions)
         .DefaultNew();
 
