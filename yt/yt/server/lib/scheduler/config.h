@@ -925,6 +925,8 @@ public:
     //! Can be a path to simple map node or special virtual map node.
     TString PoolTreesRoot;
 
+    int MaxEventLogNodeBatchSize;
+
     //! Period of scanning node infos to check that it belongs to some fair share tree.
     TDuration ValidateNodeTagsPeriod;
 

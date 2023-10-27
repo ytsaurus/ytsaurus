@@ -68,7 +68,7 @@ private:
     NEventLog::IEventLogWriterPtr RemoteEventLogWriter_;
     std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
 
-    void BuildNodeYson(const NScheduler::TExecNodePtr& node, NYTree::TFluentMap fluent);
+    void BuildNodeYson(const NScheduler::TExecNodePtr& node, NYTree::TFluentMap fluent) const;
     void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
 
     NYson::IYsonConsumer* GetEventLogConsumer() override;

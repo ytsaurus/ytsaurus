@@ -1207,13 +1207,17 @@ void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& erro
     }
 }
 
-void TNodeShard::BuildNodesYson(TFluentMap fluent)
+TNodeYsonList TNodeShard::BuildNodeYsonList() const
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    TNodeYsonList nodeYsons;
+    nodeYsons.reserve(std::ssize(IdToNode_));
     for (const auto& [nodeId, node] : IdToNode_) {
-        BuildNodeYson(node, fluent);
+        nodeYsons.emplace_back(nodeId, BuildNodeYson(node));
     }
+
+    return nodeYsons;
 }
 
 TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId)
@@ -2620,10 +2624,10 @@ const TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId op
     return GetOrCrash(IdToOperationState_, operationId);
 }
 
-void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
+NYson::TYsonString TNodeShard::BuildNodeYson(const TExecNodePtr& node) const
 {
     const auto& strategy = ManagerHost_->GetStrategy();
-    fluent
+    return BuildYsonStringFluently<EYsonType::MapFragment>()
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([&] (TFluentMap fluent) {
                 node->BuildAttributes(fluent);
@@ -2631,7 +2635,8 @@ void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
             .Do([&] (TFluentMap fluent) {
                 strategy->BuildSchedulingAttributesForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), fluent);
             })
-        .EndMap();
+        .EndMap()
+        .Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -134,8 +134,7 @@ public:
     void AbortJob(TJobId jobId, const TError& error);
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
 
-
-    void BuildNodesYson(NYTree::TFluentMap fluent);
+    TNodeYsonList BuildNodeYsonList() const;
 
     TOperationId FindOperationIdByJobId(TJobId job);
 
@@ -420,7 +419,7 @@ private:
     TOperationState& GetOperationState(TOperationId operationId) noexcept;
     const TOperationState& GetOperationState(TOperationId operationId) const noexcept;
 
-    void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
+    NYson::TYsonString BuildNodeYson(const TExecNodePtr& node) const;
 
     void UpdateNodeState(
         const TExecNodePtr& execNode,

@@ -334,6 +334,9 @@ struct ISchedulerStrategy
         const TBooleanFormulaTags& nodeTags,
         NYTree::TFluentMap fluent) const = 0;
 
+    //! These methods are used for event logging.
+    virtual std::optional<TString> GetMaybeTreeIdForNode(NNodeTrackerClient::TNodeId nodeId) const = 0;
+
     //! These OnFairShare*At methods used for testing purposes in simulator.
     //! Called periodically to collect the metrics of tree elements.
     virtual void OnFairShareProfilingAt(TInstant now) = 0;

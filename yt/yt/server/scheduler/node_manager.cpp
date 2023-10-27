@@ -363,26 +363,28 @@ void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& er
     }
 }
 
-void TNodeManager::BuildNodesYson(TFluentMap fluent)
+TNodeYsonList TNodeManager::BuildNodeYsonList() const
 {
-    std::vector<TFuture<TYsonString>> futures;
+    std::vector<TFuture<TNodeYsonList>> futures;
     futures.reserve(NodeShards_.size());
     for (const auto& nodeShard : NodeShards_) {
         futures.push_back(
-            BIND([nodeShard] {
-                return BuildYsonStringFluently<EYsonType::MapFragment>()
-                    .Do(BIND(&TNodeShard::BuildNodesYson, nodeShard))
-                    .Finish();
-            })
+            BIND(&TNodeShard::BuildNodeYsonList, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run());
     }
 
-    auto nodeYsonFragments = WaitFor(AllSucceeded(std::move(futures)))
+    auto nodeYsonsFromShards = WaitFor(AllSucceeded(std::move(futures)))
         .ValueOrThrow();
-    for (const auto& fragment : nodeYsonFragments) {
-        fluent.Items(fragment);
+
+    TNodeYsonList nodeYsons;
+    for (auto& fragment : nodeYsonsFromShards) {
+        for (auto& nodeIdAndYson : fragment) {
+            nodeYsons.push_back(std::move(nodeIdAndYson));
+        }
     }
+
+    return nodeYsons;
 }
 
 TFuture<TOperationId> TNodeManager::FindOperationIdByJobId(TJobId jobId)
