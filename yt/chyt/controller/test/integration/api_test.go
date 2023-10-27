@@ -773,3 +773,39 @@ func TestHTTPAPIJSONFormat(t *testing.T) {
 		},
 	})
 }
+
+func TestHTTPAPISetInt64ValueUsingJSONFormat(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequestWithFormat(
+		"set_option",
+		api.RequestParams{
+			Params: map[string]any{
+				"alias": alias,
+				"key":   "test_option",
+				"value": 1,
+			},
+		},
+		"json",
+	)
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("get_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "test_option",
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var resultWithOption map[string]any
+	err := yson.Unmarshal(r.Body, &resultWithOption)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), resultWithOption["result"])
+}

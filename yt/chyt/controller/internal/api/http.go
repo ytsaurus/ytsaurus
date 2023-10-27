@@ -102,6 +102,18 @@ func Marshal(v any, format FormatType) ([]byte, error) {
 	return nil, yterrors.Err("cannot marshal, invalid format type")
 }
 
+func tryCastFloats(v any) any {
+	if f, ok := v.(float64); ok && f == float64(int64(f)) {
+		return int64(f)
+	} else if m, ok := v.(map[string]any); ok {
+		for key, value := range m {
+			m[key] = tryCastFloats(value)
+		}
+		return m
+	}
+	return v
+}
+
 // HTTPAPI is a lightweight wrapper of API which handles http requests and transforms them to proper API calls.
 type HTTPAPI struct {
 	api         *API
@@ -239,6 +251,13 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 		return nil
 	}
 
+	if inputFormat == FormatJSON {
+		// To unmarshal JSON into an interface value, Unmarshal stores number in float64 value.
+		// https://pkg.go.dev/encoding/json#Unmarshal
+		// That's why we try to cast some of the numbers to int64.
+		request.Params = tryCastFloats(request.Params).(map[string]any)
+	}
+
 	params := request.Params
 
 	// Remove nil unparsed params.
@@ -272,6 +291,10 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 
 	// Cast params to proper type.
 	if request.Unparsed {
+		if inputFormat == FormatJSON {
+			a.replyWithError(w, yterrors.Err("decoding unparsed params in JSON format is unsupported"))
+			return nil
+		}
 		for _, param := range cmd.Parameters {
 			if value, ok := params[param.Name]; param.ActionOrDefault() == ActionStore && ok {
 				if unparsedValue, ok := value.(string); ok {
