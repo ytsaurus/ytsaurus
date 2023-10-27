@@ -4,7 +4,7 @@
 #include <Interpreters/Context.h>
 #include <Core/MySQL/PacketEndpoint.h>
 
-#include "config_core.h"
+#include "clickhouse_config.h"
 
 #if USE_SSL
 #    include <openssl/pem.h>

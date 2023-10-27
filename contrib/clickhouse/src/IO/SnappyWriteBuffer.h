@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Common/config.h>
+#include "clickhouse_config.h"
 
 #if USE_SNAPPY
 #include <IO/BufferWithOwnMemory.h>

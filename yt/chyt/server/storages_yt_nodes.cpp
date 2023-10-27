@@ -292,7 +292,7 @@ public:
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum /*processingStage*/,
         size_t /*maxBlockSize*/,
-        unsigned /*numStreams*/) override
+        size_t /*numStreams*/) override
     {
         auto* queryContext = GetQueryContext(context);
         // const auto& Logger = queryContext->Logger;

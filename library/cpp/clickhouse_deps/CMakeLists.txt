@@ -7,4 +7,5 @@
 
 
 add_subdirectory(h3_compat)
+add_subdirectory(incbin_stub)
 add_subdirectory(re2_st_stub)

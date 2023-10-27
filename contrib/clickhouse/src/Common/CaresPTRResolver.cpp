@@ -75,7 +75,7 @@ namespace DB
 
         if (library_init_result != ARES_SUCCESS)
         {
-            throw DB::Exception("Failed to initialize c-ares", DB::ErrorCodes::DNS_ERROR);
+            throw DB::Exception(DB::ErrorCodes::DNS_ERROR, "Failed to initialize c-ares");
         }
     }
 

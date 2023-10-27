@@ -63,22 +63,22 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
 
         void customizeContext(DB::ContextMutablePtr context) override
         {
-            auto& clientInfo = context->getClientInfo();
-
-            if (clientInfo.query_kind != DB::ClientInfo::QueryKind::SECONDARY_QUERY) {
+            if (context->getClientInfo().query_kind != DB::ClientInfo::QueryKind::SECONDARY_QUERY) {
                 // TODO(max42): support.
                 THROW_ERROR_EXCEPTION("Queries via native TCP protocol are not supported (CHYT-342)");
             }
 
-            clientInfo.current_user = clientInfo.initial_user;
+            auto user = context->getClientInfo().initial_user;
 
-            auto header = NYTree::ConvertTo<TSecondaryQueryHeaderPtr>(NYson::TYsonString(clientInfo.current_query_id));
-            clientInfo.current_query_id = ToString(header->QueryId);
+            context->setCurrentUserName(user);
+
+            auto header = NYTree::ConvertTo<TSecondaryQueryHeaderPtr>(NYson::TYsonString(context->getClientInfo().current_query_id));
+            context->setCurrentQueryId(ToString(header->QueryId));
 
             TTraceContextPtr traceContext = New<TTraceContext>(*header->SpanContext, "TcpHandler");
 
-            YT_LOG_DEBUG("Registering new user (UserName: %v)", clientInfo.current_user);
-            RegisterNewUser(context->getAccessControl(), TString(clientInfo.current_user));
+            YT_LOG_DEBUG("Registering new user (UserName: %v)", user);
+            RegisterNewUser(context->getAccessControl(), TString(user));
             YT_LOG_DEBUG("User registered");
 
             SetupHostContext(

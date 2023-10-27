@@ -15,16 +15,6 @@ RemoteBlockInputStream::RemoteBlockInputStream(
 
 RemoteBlockInputStream::RemoteBlockInputStream(
     const ConnectionPoolWithFailoverPtr & pool,
-    std::vector<IConnectionPool::Entry> && connections,
-    const String & query_, const Block & header_, ContextPtr context_,
-    const ThrottlerPtr & throttler, const Scalars & scalars_, const Tables & external_tables_, QueryProcessingStage::Enum stage_)
-    : query_executor(pool, std::move(connections), query_, header_, context_, throttler, scalars_, external_tables_, stage_)
-{
-    init();
-}
-
-RemoteBlockInputStream::RemoteBlockInputStream(
-    const ConnectionPoolWithFailoverPtr & pool,
     const String & query_, const Block & header_, ContextPtr context_,
     const ThrottlerPtr & throttler, const Scalars & scalars_, const Tables & external_tables_, QueryProcessingStage::Enum stage_)
     : query_executor(pool, query_, header_, context_, throttler, scalars_, external_tables_, stage_)
@@ -53,7 +43,7 @@ void RemoteBlockInputStream::cancel(bool kill)
 
 Block RemoteBlockInputStream::readImpl()
 {
-    auto block = query_executor.read();
+    auto block = query_executor.readBlock();
 
     if (isCancelledOrThrowIfKilled())
         return Block();

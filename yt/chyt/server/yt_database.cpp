@@ -245,6 +245,11 @@ private:
         DB::ContextPtr context,
         const std::string& name) const
     {
+        // Definitely not a YT table. Don't even try to parse it.
+        if (!name.starts_with("//") && !name.starts_with("<")) {
+            return nullptr;
+        }
+
         // Normally it's called with a query context.
         // In rare cases CH tries to find special tables (e.g. Dictionary)
         // outside of query execution and provides a global context.

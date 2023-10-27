@@ -220,12 +220,19 @@ DB::Pipe CreateRemoteSource(
     bool addTotals = false;
     bool addExtremes = false;
     bool asyncRead = false;
+    bool asyncQuerySending = false;
     if (!isInsert && processingStage == DB::QueryProcessingStage::Complete) {
         addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
         addExtremes = context->getSettingsRef().extremes;
     }
 
-    auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes, asyncRead);
+    auto pipe = createRemoteSourcePipe(
+        remoteQueryExecutor,
+        addAggregationInfo,
+        addTotals,
+        addExtremes,
+        asyncRead,
+        asyncQuerySending);
 
     pipe.addSimpleTransform([&] (const DB::Block & header) {
         return std::make_shared<TLoggingTransform>(
@@ -997,7 +1004,7 @@ public:
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum processingStage,
         size_t /*maxBlockSize*/,
-        unsigned /*numStreams*/) override
+        size_t /*numStreams*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -1023,7 +1030,8 @@ public:
     DB::SinkToStoragePtr write(
         const DB::ASTPtr& /*ptr*/,
         const DB::StorageMetadataPtr& /*metadata_snapshot*/,
-        DB::ContextPtr context) override
+        DB::ContextPtr context,
+        bool /*asyncInsert*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -1415,7 +1423,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         }
         const auto* ast = args.engine_args[0]->as<DB::ASTLiteral>();
         if (ast && ast->value.getType() == DB::Field::Types::String) {
-            auto extraAttributes = ConvertToAttributes(TYsonString(TString(DB::safeGet<std::string>(ast->value))));
+            auto extraAttributes = ConvertToAttributes(TYsonString(TString(ast->value.safeGet<std::string>())));
             attributes->MergeFrom(*extraAttributes);
         } else {
             THROW_ERROR_EXCEPTION("Extra attributes must be a string literal");

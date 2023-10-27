@@ -55,14 +55,14 @@ namespace {
 void VerifyNonParametric(const ASTFunction& functionNode)
 {
     if (functionNode.children.size() != 1) {
-        throw Exception("Table function " + functionNode.name + " does not support parameters",
-            ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
+        throw Exception(
+            ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
+            "Table function {} does not support parameters",
+            functionNode.name);
     }
 }
 
-using TArguments = std::vector<ASTPtr>;
-
-TArguments& GetAllArguments(const ASTFunction& functionNode)
+DB::ASTs& GetAllArguments(const ASTFunction& functionNode)
 {
     VerifyNonParametric(functionNode);
 
@@ -70,13 +70,14 @@ TArguments& GetAllArguments(const ASTFunction& functionNode)
     return argumentListNode.children;
 }
 
-void ValidateNumberOfArguments(const TArguments& arguments, const size_t numArgumentsExpected)
+void ValidateNumberOfArguments(const DB::ASTs& arguments, const size_t numArgumentsExpected)
 {
     if (arguments.size() != numArgumentsExpected) {
         throw Exception(
-            "Number of arguments mismatch: "
-            "expected " + std::to_string(numArgumentsExpected) + ", provided: " + std::to_string(arguments.size()),
-            ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
+            ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
+            "Number of arguments mismatch: expected {}, provided: {}",
+            std::to_string(numArgumentsExpected),
+            std::to_string(arguments.size()));
     }
 }
 
@@ -135,7 +136,7 @@ public:
         }
     }
 
-    ColumnsDescription getActualTableStructure(ContextPtr context) const override
+    ColumnsDescription getActualTableStructure(ContextPtr context, bool /*isInsertQuery*/) const override
     {
         auto table_tmp = Execute(context);
         return table_tmp->getInMemoryMetadataPtr()->getColumns();
@@ -145,7 +146,8 @@ public:
         const ASTPtr& /*functionAst*/,
         ContextPtr context,
         const std::string& /*tableName*/,
-        ColumnsDescription /*cached_columns*/) const override
+        ColumnsDescription /*cachedColumns*/,
+        bool /*isInsertQuery*/) const override
     {
         return Execute(context);
     }
@@ -194,17 +196,18 @@ public:
         parsePathArguments(arguments, context);
     }
 
-    ColumnsDescription getActualTableStructure(ContextPtr context) const override
+    ColumnsDescription getActualTableStructure(ContextPtr context, bool /*isInsertQuery*/) const override
     {
         auto table_tmp = Execute(context);
         return table_tmp->getInMemoryMetadataPtr()->getColumns();
     }
 
     StoragePtr executeImpl(
-        const ASTPtr& /* functionAst */,
+        const ASTPtr& /*functionAst*/,
         ContextPtr context,
-        const std::string& /* tableName */,
-        ColumnsDescription /* cached_columns */) const override
+        const std::string& /*tableName*/,
+        ColumnsDescription /*cachedColumns*/,
+        bool /*isInsertQuery*/) const override
     {
         return Execute(context);
     }
@@ -215,18 +218,19 @@ public:
     }
 
 protected:
-    virtual void parsePathArguments(TArguments& arguments, ContextPtr context) = 0;
+    virtual void parsePathArguments(DB::ASTs& arguments, ContextPtr context) = 0;
     virtual bool IsPathAllowed(const TYPath& path) const = 0;
 
 private:
     std::string GetDirectoryRequiredArgument(
-        TArguments& arguments,
+        DB::ASTs& arguments,
         ContextPtr context) const
     {
         if (arguments.empty()) {
             throw Exception(
-                "Table function " + getName() + " expected at least one argument: directory path",
-                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
+                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION,
+                "Table function {} expected at least one argument: directory path",
+                getName());
         }
 
         return EvaluateIdentifierArgument(arguments[0], context);
@@ -314,7 +318,7 @@ public:
     }
 
 private:
-    void parsePathArguments(TArguments& arguments, ContextPtr context) override
+    void parsePathArguments(DB::ASTs& arguments, ContextPtr context) override
     {
         args_count = arguments.size();
         if (args_count == 2) {
@@ -324,9 +328,9 @@ private:
             to = TString(EvaluateArgument<std::string>(arguments[2], context));
         } else if (3 < args_count){
             throw Exception(
-                "Too may arguments: "
-                "expected 1, 2 or 3, provided: " + std::to_string(arguments.size()),
-                ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION);
+                ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION,
+                "Too may arguments: expected 1, 2 or 3, provided: {}",
+                arguments.size());
         }
     }
 
@@ -369,7 +373,7 @@ public:
 private:
     mutable std::unique_ptr<OptimizedRegularExpression> Matcher_;
 
-    void parsePathArguments(TArguments& arguments, ContextPtr context) override
+    void parsePathArguments(DB::ASTs& arguments, ContextPtr context) override
     {
         // 1) directory, 2) regexp
         ValidateNumberOfArguments(arguments, 2);
@@ -406,7 +410,7 @@ public:
 private:
     mutable std::unique_ptr<Poco::Glob> Matcher_;
 
-    void parsePathArguments(TArguments& arguments, ContextPtr context) override
+    void parsePathArguments(DB::ASTs& arguments, ContextPtr context) override
     {
         // 1) directory 2) pattern
         ValidateNumberOfArguments(arguments, 2);

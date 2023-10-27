@@ -32,7 +32,7 @@ NativeBlockOutputStream::NativeBlockOutputStream(
     {
         ostr_concrete = typeid_cast<CompressedWriteBuffer *>(&ostr);
         if (!ostr_concrete)
-            throw Exception("When need to write index for NativeBlockOutputStream, ostr must be CompressedWriteBuffer.", ErrorCodes::LOGICAL_ERROR);
+            throw Exception( ErrorCodes::LOGICAL_ERROR, "When need to write index for NativeBlockOutputStream, ostr must be CompressedWriteBuffer.");
     }
 }
 
@@ -58,7 +58,7 @@ static void writeData(const IDataType & type, const ColumnPtr & column, WriteBuf
     auto serialization = type.getDefaultSerialization();
 
     ISerialization::SerializeBinaryBulkStatePtr state;
-    serialization->serializeBinaryBulkStatePrefix(settings, state);
+    serialization->serializeBinaryBulkStatePrefix(*full_column, settings, state);
     serialization->serializeBinaryBulkWithMultipleStreams(*full_column, offset, limit, settings, state);
     serialization->serializeBinaryBulkStateSuffix(settings, state);
 }

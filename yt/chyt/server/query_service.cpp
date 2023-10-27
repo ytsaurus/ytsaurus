@@ -126,18 +126,17 @@ private:
         session.authenticate(User_, /*password=*/ "", Poco::Net::SocketAddress());
         QueryContext_ = session.makeQueryContext();
 
-        auto& clientInfo = QueryContext_->getClientInfo();
-        clientInfo.initial_query_id = ToString(QueryId_);
-        clientInfo.current_query_id = ToString(QueryId_);
-        clientInfo.initial_user = User_;
-        clientInfo.query_kind = DB::ClientInfo::QueryKind::INITIAL_QUERY;
+        QueryContext_->setInitialQueryId(ToString(QueryId_));
+        QueryContext_->setCurrentQueryId(ToString(QueryId_));
+        QueryContext_->setInitialUserName(User_);
+        QueryContext_->setQueryKind(DB::ClientInfo::QueryKind::INITIAL_QUERY);
 
         DB::SettingsChanges settingsChanges;
         for (const auto& [key, value] : chytRequest.settings()) {
             std::string_view view(value);
             settingsChanges.emplace_back(key, DB::Field(view));
         }
-        QueryContext_->checkSettingsConstraints(settingsChanges);
+        QueryContext_->checkSettingsConstraints(settingsChanges, DB::SettingSource::QUERY);
         QueryContext_->applySettingsChanges(settingsChanges);
 
         auto traceContext = NTracing::TTraceContext::NewRoot("ChytRPCQueryHandler");

@@ -50,10 +50,9 @@ DB::ContextMutablePtr PrepareContextForQuery(
 
     auto queryId = TQueryId::Create();
 
-    auto& clientInfo = contextForQuery->getClientInfo();
-    clientInfo.initial_user = clientInfo.current_user;
-    clientInfo.query_kind = DB::ClientInfo::QueryKind::INITIAL_QUERY;
-    clientInfo.initial_query_id = ToString(queryId);
+    contextForQuery->setInitialUserName(contextForQuery->getClientInfo().current_user);
+    contextForQuery->setQueryKind(DB::ClientInfo::QueryKind::INITIAL_QUERY);
+    contextForQuery->setInitialQueryId(ToString(queryId));
 
     auto traceContext = NTracing::TTraceContext::NewRoot("HealthCheckerQuery");
 

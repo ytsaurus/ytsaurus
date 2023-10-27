@@ -86,8 +86,7 @@ void TMemoryWatchdog::CheckMemoryUsage()
     // allocations, changing presumed value of RSS accordingly. It does
     // not work in our case as we have lots of our own allocations, so
     // we have to reconcile RSS more frequently than once per minute.
-    total_memory_tracker.set(rss);
-    CurrentMetrics::set(CurrentMetrics::MemoryTracking, rss);
+    MemoryTracker::setRSS(rss, 0);
 }
 
 void TMemoryWatchdog::CheckRss(size_t rss)

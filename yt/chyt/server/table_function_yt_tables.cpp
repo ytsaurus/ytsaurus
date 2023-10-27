@@ -113,8 +113,9 @@ public:
 
         if (!function.arguments || function.arguments->children.empty()) {
             throw DB::Exception(
-                "Table function '" + getName() + "' must have arguments.",
-                DB::ErrorCodes::BAD_ARGUMENTS);
+                DB::ErrorCodes::BAD_ARGUMENTS,
+                "Table function {} must have arguments",
+                getName());
         }
 
         DB::ASTs& args = function.arguments->children;
@@ -153,7 +154,7 @@ public:
         }
     }
 
-    DB::ColumnsDescription getActualTableStructure(DB::ContextPtr context) const override
+    DB::ColumnsDescription getActualTableStructure(DB::ContextPtr context, bool /*isInsertQuery*/) const override
     {
         if (!Storage_) {
             Storage_ = Execute(context);
@@ -178,7 +179,8 @@ private:
         const DB::ASTPtr& /*functionAst*/,
         DB::ContextPtr context,
         const std::string& /*tableName*/,
-        DB::ColumnsDescription /*cached_columns*/) const override
+        DB::ColumnsDescription /*cachedColumns*/,
+        bool /*isInsertQuery*/) const override
     {
         if (!Storage_) {
             Storage_ = Execute(context);

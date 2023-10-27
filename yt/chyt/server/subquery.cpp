@@ -752,7 +752,7 @@ private:
             return BoolMask(true, true);
         }
 
-        int usedKeyColumnCount = keyCondition->getMaxKeyColumn() + 1;
+        int usedKeyColumnCount = keyCondition->getKeyIndices().size();
         YT_VERIFY(usedKeyColumnCount <= OperandSchemas_[operandIndex]->GetKeyColumnCount());
 
         auto chKeys = ToClickHouseKeys(

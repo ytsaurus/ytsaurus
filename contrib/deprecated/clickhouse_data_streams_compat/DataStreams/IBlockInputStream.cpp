@@ -102,7 +102,10 @@ void IBlockInputStream::readPrefix()
     if (!read_prefix_is_called)
         read_prefix_is_called = true;
     else
-        throw Exception("readPrefix is called twice for " + getName() + " stream", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(
+            ErrorCodes::LOGICAL_ERROR,
+            "readPrefix is called twice for {} stream",
+            getName());
 #endif
 
     readPrefixImpl();
@@ -121,7 +124,10 @@ void IBlockInputStream::readSuffix()
     if (!read_suffix_is_called)
         read_suffix_is_called = true;
     else
-        throw Exception("readSuffix is called twice for " + getName() + " stream", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(
+            ErrorCodes::LOGICAL_ERROR,
+            "readSuffix is called twice for {} stream", 
+            getName());
 #endif
 
     forEachChild([&] (IBlockInputStream & child)
@@ -299,7 +305,7 @@ bool IBlockInputStream::isCancelledOrThrowIfKilled() const
     if (!is_cancelled)
         return false;
     if (is_killed)
-        throw Exception("Query was cancelled", ErrorCodes::QUERY_WAS_CANCELLED);
+        throw Exception(ErrorCodes::QUERY_WAS_CANCELLED, "Query was cancelled");
     return true;
 }
 

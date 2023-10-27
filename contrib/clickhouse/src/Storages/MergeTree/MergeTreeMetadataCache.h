@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config_core.h"
+#include "clickhouse_config.h"
 
 #if USE_ROCKSDB
 #include <base/types.h>

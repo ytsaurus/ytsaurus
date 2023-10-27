@@ -13,15 +13,16 @@ target_compile_options(clickhouse-src-Common PUBLIC
 )
 target_compile_options(clickhouse-src-Common PRIVATE
   -DAWS_SDK_VERSION_MAJOR=1
-  -DAWS_SDK_VERSION_MINOR=7
-  -DAWS_SDK_VERSION_PATCH=231
+  -DAWS_SDK_VERSION_MINOR=10
+  -DAWS_SDK_VERSION_PATCH=36
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
+  -DBOOST_TIMER_ENABLE_DEPRECATED=1
   -DCARES_STATICLIB
   -DENABLE_MULTITARGET_CODE=1
-  -DENABLE_OPENSSL_ENCRYPTION
-  -DHAS_RESERVED_IDENTIFIER
+  -DINCBIN_SILENCE_BITCODE_WARNING
   -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
+  -DLZ4_FAST_DEC_LOOP=1
   -DPOCO_ENABLE_CPP11
   -DPOCO_HAVE_FD_EPOLL
   -DPOCO_OS_FAMILY_UNIX
@@ -37,8 +38,8 @@ target_compile_options(clickhouse-src-Common PRIVATE
 )
 target_include_directories(clickhouse-src-Common PUBLIC
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/include
 )
 target_include_directories(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base
@@ -48,7 +49,7 @@ target_include_directories(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
   ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
-  ${CMAKE_SOURCE_DIR}/contrib/libs/xxhash
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
   ${CMAKE_SOURCE_DIR}/contrib/restricted/fast_float/include
@@ -79,9 +80,12 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   libs-poco-XML
   contrib-libs-re2
   contrib-libs-snappy
-  contrib-libs-xxhash
+  contrib-libs-sparsehash
   contrib-libs-zstd
+  restricted-aws-aws-c-common
+  restricted-aws-aws-c-io
   restricted-boost-circular_buffer
+  restricted-boost-container_hash
   restricted-boost-context
   restricted-boost-convert
   restricted-boost-dynamic_bitset
@@ -100,11 +104,20 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   cpp-sanitizer-include
 )
 target_sources(clickhouse-src-Common PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/includes/configs/config_version.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ActionLock.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/AlignedBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Allocator.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/AsyncLoader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/AsyncTaskExecutor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/AsynchronousMetrics.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Base58.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Base64.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/CancelToken.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/CancelableSharedMutex.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/CaresPTRResolver.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ClickHouseRevision.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ConcurrencyControl.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/AbstractConfigurationComparison.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/ConfigHelper.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/ConfigProcessor.cpp
@@ -120,46 +133,59 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/DateLUTImpl.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Dwarf.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Elf.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/EnvironmentProxyConfigurationResolver.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Epoll.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ErrorCodes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/EventFD.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/EventNotifier.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Exception.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FST.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FailPoint.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorDump.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorHash.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorSum.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorToString.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorWriteBinary.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FileCache.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FileCacheFactory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FileCacheSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FileChecker.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FileSegment.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FileRenamer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FrequencyHolder.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/FunctionDocumentation.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/GetPriorityForLoadBalancing.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/HTTPHeaderFilter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/IO.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/IPv6ToBinary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/IntervalKind.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/JSONBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/LRUFileCachePriority.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/KnownObjectNames.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/LockMemoryExceptionInThread.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/LoggingFormatStringHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Macros.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryStatisticsOS.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryTracker.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryTrackerBlockerInThread.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/NamePrompter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/NetlinkMetricsProvider.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/OpenSSLHelpers.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/OpenTelemetryTraceContext.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/OptimizedRegularExpression.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/OvercommitTracker.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/PODArray.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/PipeFDs.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ProcfsMetricsProvider.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ProfileEvents.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ProfileEventsScope.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ProgressIndication.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ProxyConfigurationResolverProvider.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ProxyListConfigurationResolver.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/QueryProfiler.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/RWLock.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/RemoteHostFilter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/RemoteProxyConfigurationResolver.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/SensitiveDataMasker.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/SettingsChanges.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/SharedLibrary.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/SharedMutex.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ShellCommand.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ShellCommandSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/StackTrace.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/StatusFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/StatusInfo.cpp
@@ -169,7 +195,6 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/SystemLogBase.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/TLDListsHolder.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/TargetSpecific.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/TaskStatsInfoGetter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/TerminalSize.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ThreadFuzzer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ThreadPool.cpp
@@ -183,16 +208,21 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/UnicodeBar.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/VersionNumber.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/WeakHash.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/XMLUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/IKeeper.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/TestKeeper.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperArgs.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperCachingGetter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperCommon.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperConstants.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperIO.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperImpl.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperLock.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperNodeCache.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/assertProcessUserMatchesDataOwner.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/atomicRename.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/checkSSLReturnCode.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/checkStackSize.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/clearPasswordFromCommandLine.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/clickhouse_malloc.cpp
@@ -209,11 +239,11 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/getMultipleKeysFromConfig.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/getNumberOfPhysicalCPUCores.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/getRandomASCIIString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/getResource.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/hasLinuxCapability.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/hex.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/isLocalAddress.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/isValidUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/likePatternToRegexp.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/makeSocketAddress.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/new_delete.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/parseAddress.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/parseGlobs.cpp
@@ -225,12 +255,15 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/setThreadName.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/thread_local_rng.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/waitForPid.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Coordination/KeeperFeatureFlags.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/AIO.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/LibArchiveReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/ZipArchiveReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/ZipArchiveWriter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/createArchiveReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/createArchiveWriter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/hasRegisteredArchiveFileExtension.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/AsyncReadCounters.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/AsynchronousReadBufferFromFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/AsynchronousReadBufferFromFileDescriptor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/BoundedReadBuffer.cpp
@@ -241,6 +274,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/CascadeWriteBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/CompressionMethod.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ConcatSeekableReadBuffer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ConnectionTimeouts.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/DoubleConverter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/FileEncryptionCommon.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ForkWriteBuffer.cpp
@@ -248,7 +282,6 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/HTTPCommon.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/HadoopSnappyReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/HashingWriteBuffer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/IOThreadPool.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/LZMADeflatingWriteBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/LZMAInflatingReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/LimitReadBuffer.cpp
@@ -269,6 +302,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ParallelReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/PeekableReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Progress.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromEncryptedFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromFileBase.cpp
@@ -279,17 +313,41 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromPocoSocket.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromS3.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadHelpers.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadWriteBufferFromHTTP.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/ClassifiersConfig.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/DynamicResourceManager.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/FairPolicy.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/FifoQueue.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/PriorityPolicy.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/SemaphoreConstraint.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/StaticResourceManager.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/registerResourceManagers.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/registerSchedulerNodes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/AWSLogger.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/Client.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/Credentials.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/PocoHTTPClient.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/PocoHTTPClientFactory.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/ProviderType.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/Requests.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/URI.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/copyS3File.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/getObjectInfo.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/S3Common.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/SeekAvoidingReadBuffer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/SeekableReadBuffer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/SharedThreadPools.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/SnappyReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/SnappyWriteBuffer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/StdIStreamFromMemory.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/StdStreamBufFromReadBuffer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/SwapHelper.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/SynchronousReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/TimeoutSetter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/UseSSL.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/VarInt.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WithFileName.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WithFileSize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromEncryptedFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromFileBase.cpp
@@ -300,7 +358,8 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromOStream.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromPocoSocket.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromS3.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromTemporaryFile.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromS3BufferAllocationPolicy.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromS3TaskTracker.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferValidUTF8.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ZlibDeflatingWriteBuffer.cpp

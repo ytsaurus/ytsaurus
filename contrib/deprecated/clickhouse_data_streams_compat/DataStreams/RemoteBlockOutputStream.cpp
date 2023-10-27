@@ -29,8 +29,8 @@ RemoteBlockOutputStream::RemoteBlockOutputStream(Connection & connection_,
     modified_client_info.query_kind = ClientInfo::QueryKind::SECONDARY_QUERY;
     if (CurrentThread::isInitialized())
     {
-        modified_client_info.client_trace_context
-            = CurrentThread::get().thread_trace_context;
+        // modified_client_info.client_trace_context
+        //     = CurrentThread::get().thread_trace_context;
     }
 
     /** Send query and receive "header", that describes table structure.
@@ -73,8 +73,10 @@ RemoteBlockOutputStream::RemoteBlockOutputStream(Connection & connection_,
             /// client's already got this information for remote table. Ignore.
         }
         else
-            throw NetException("Unexpected packet from server (expected Data or Exception, got "
-                + String(Protocol::Server::toString(packet.type)) + ")", ErrorCodes::UNEXPECTED_PACKET_FROM_SERVER);
+            throw NetException(
+                 ErrorCodes::UNEXPECTED_PACKET_FROM_SERVER,
+                 "Unexpected packet from server (expected Data or Exception, got {})",
+                String(Protocol::Server::toString(packet.type)));
     }
 }
 
@@ -129,8 +131,10 @@ void RemoteBlockOutputStream::writeSuffix()
             // Do nothing
         }
         else
-            throw NetException("Unexpected packet from server (expected EndOfStream or Exception, got "
-            + String(Protocol::Server::toString(packet.type)) + ")", ErrorCodes::UNEXPECTED_PACKET_FROM_SERVER);
+            throw NetException(
+                ErrorCodes::UNEXPECTED_PACKET_FROM_SERVER,
+                "Unexpected packet from server (expected EndOfStream or Exception, got {})",
+                String(Protocol::Server::toString(packet.type)));
     }
 
     finished = true;

@@ -196,14 +196,14 @@ DB::ASTPtr CreateKeyComparison(
     // (a < x) or (a == x and b < y) or (a == x and b == y and c <= z)
 
     // Outer disjunct list: (...) or (...) or (...)
-    std::vector<DB::ASTPtr> disjunctionArgs;
+    DB::ASTs disjunctionArgs;
     disjunctionArgs.reserve(keySize);
 
     // Inner conjunct list: (a == x and b < y)
     // It's modified through iterations by changing comparison function
     // in the last element to 'equals' and adding one more condition at the end.
     // (a == x and b < y) -> (a == x and b == y) -> (a == x and b == y and c <= z)
-    std::vector<DB::ASTPtr> conjunctionArgs;
+    DB::ASTs conjunctionArgs;
     conjunctionArgs.reserve(keySize);
 
     for (int index = 0; index < keySize; ++index) {
@@ -995,7 +995,7 @@ void TQueryAnalyzer::AddBoundConditionToJoinedSubquery(
         return condition;
     };
 
-    std::vector<DB::ASTPtr> conjunctionArgs = {};
+    DB::ASTs conjunctionArgs = {};
 
     if (lowerBound) {
         YT_VERIFY(!lowerBound.IsUpper);

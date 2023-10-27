@@ -256,9 +256,10 @@ struct TComputedColumnPopulationMatcher
         YT_LOG_TRACE("Populating prepared set for literal (Literal: %v)", literal);
 
         // Part below is done similarly to DB::makeExplicitSet.
-
-        auto setKey = DB::PreparedSetKey::forLiteral(*literal, dataTypes);
-        if (data.PreparedSets.get(setKey)) {
+        const auto& context = data.getContext();
+        auto setElementKeys = DB::Set::getElementTypes(dataTypes, context->getSettingsRef().transform_null_in);
+        auto setKey = literal->getTreeHash();
+        if (data.PreparedSets.findTuple(setKey, setElementKeys)) {
             // Already prepared.
             return;
         }
@@ -266,22 +267,17 @@ struct TComputedColumnPopulationMatcher
         DB::Block block;
         const auto& functionAst = std::dynamic_pointer_cast<DB::ASTFunction>(literal);
         if (functionAst && (functionAst->name == "tuple" || functionAst->name == "array")) {
-            block = DB::createBlockForSet(std::make_shared<DB::DataTypeTuple>(dataTypes), functionAst, dataTypes, data.getContext());
+            block = DB::createBlockForSet(std::make_shared<DB::DataTypeTuple>(dataTypes), functionAst, dataTypes, context);
         } else {
             YT_ABORT();
         }
 
-        auto set = std::make_shared<DB::Set>(DB::SizeLimits(), true /* fill_set_elements */, data.getContext()->getSettingsRef().transform_null_in);
-        set->setHeader(block.cloneEmpty().getColumnsWithTypeAndName());
-        set->insertFromBlock(block.getColumnsWithTypeAndName());
-        set->finishInsert();
-
-        data.PreparedSets.set(setKey, std::move(set));
+        data.PreparedSets.addFromTuple(setKey, block, context->getSettings());
     }
 
     static DB::ASTPtr PrepareInStatement(const TInclusionStatement& resultStatement, Data& data)
     {
-        std::vector<DB::ASTPtr> innerTupleAsts;
+        DB::ASTs innerTupleAsts;
         for (const auto& tuple : resultStatement.PossibleTuples) {
             auto innerTupleAst = DB::makeASTFunction("tuple");
             for (const auto& field : tuple) {
@@ -293,7 +289,7 @@ struct TComputedColumnPopulationMatcher
         auto outerTupleAst = DB::makeASTFunction("tuple");
         outerTupleAst->arguments->children = innerTupleAsts;
 
-        std::vector<DB::ASTPtr> columnAsts;
+        DB::ASTs columnAsts;
 
         std::vector<DB::DataTypePtr> dataTypes;
         for (const auto& columnName : resultStatement.ColumnNames) {
@@ -316,9 +312,9 @@ struct TComputedColumnPopulationMatcher
 
     static DB::ASTPtr PrepareDNFStatement(const TInclusionStatement& resultStatement, Data& /* data */)
     {
-        std::vector<DB::ASTPtr> conjuncts;
+        DB::ASTs conjuncts;
         for (const auto& tuple : resultStatement.PossibleTuples) {
-            std::vector<DB::ASTPtr> equations;
+            DB::ASTs equations;
             for (const auto& [columnName, field] : Zip(resultStatement.ColumnNames, tuple)) {
                 auto equationAst = DB::makeASTFunction(
                     "equals",
@@ -340,7 +336,7 @@ struct TComputedColumnPopulationMatcher
         const auto& Logger = data.Logger;
 
         // It may happen that original statement is not implied by any of the deductions, so we always include the original statement.
-        std::vector<DB::ASTPtr> conjunctAsts = {originalAst.clone()};
+        DB::ASTs conjunctAsts = {originalAst.clone()};
         for (const auto& entry : data.Entries) {
             if (originalStatement.ContainsReferences(entry.References)) {
                 auto filteredOriginalStatement = originalStatement.Filter(entry.References);

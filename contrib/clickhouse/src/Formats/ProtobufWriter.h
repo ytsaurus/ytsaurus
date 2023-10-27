@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config_formats.h"
+#include "clickhouse_config.h"
 
 #if USE_PROTOBUF
 #   include <Core/Types.h>

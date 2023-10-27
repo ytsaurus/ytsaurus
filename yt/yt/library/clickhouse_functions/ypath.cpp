@@ -132,13 +132,17 @@ public:
     {
         if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
             throw Exception(
-                "Illegal type " + arguments[0]->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of first argument of function {}",
+                arguments[0]->getName(),
+                getName());
         }
         if (!isString(removeNullable(arguments[1])) && !WhichDataType(removeNullable(arguments[1])).isNothing()) {
             throw Exception(
-                "Illegal type " + arguments[1]->getName() + " of second argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of second argument of function {}",
+                arguments[1]->getName(),
+                getName());
         }
 
         if (OutputDataType_->canBeInsideNullable() && (arguments[0]->isNullable() || arguments[1]->isNullable())) {
@@ -348,30 +352,36 @@ public:
     {
         if (arguments.size() < 2) {
             throw Exception(
-                "Too few arguments, should be at least 2",
-                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
+                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION,
+                "Too few arguments, should be at least 2");
         }
         if (arguments.size() > 3) {
             throw Exception(
-                "Too many arguments, should be at most 3",
-                ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION);
+                ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION,
+                "Too many arguments, should be at most 3");
         }
 
         if (!isString(removeNullable(arguments[0].type)) && !WhichDataType(removeNullable(arguments[0].type)).isNothing()) {
             throw Exception(
-                "Illegal type " + arguments[0].type->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of first argument of function {}",
+                arguments[0].type->getName(),
+                getName());
         }
         if (!isString(removeNullable(arguments[1].type)) && !WhichDataType(removeNullable(arguments[1].type)).isNothing()) {
             throw Exception(
-                "Illegal type " + arguments[1].type->getName() + " of second argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of second argument of function {}",
+                arguments[1].type->getName(),
+                getName());
         }
         if (arguments.size() == 3) {
             if (!isString(removeNullable(arguments[2].type)) && !WhichDataType(removeNullable(arguments[2].type)).isNothing()) {
                 throw Exception(
-                    "Illegal type " + arguments[2].type->getName() + " of third argument of function " + getName(),
-                    ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                    ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                    "Illegal type {} of third argument of function {}",
+                    arguments[2].type->getName(),
+                    getName());
             }
         }
 
@@ -507,21 +517,26 @@ public:
     {
         if (!isString(removeNullable(arguments[0].type)) && !WhichDataType(removeNullable(arguments[0].type)).isNothing()) {
             throw Exception(
-                "Illegal type " + arguments[0].type->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of first argument of function {}",
+                arguments[0].type->getName(),
+                getName());
         }
         if (!isString(removeNullable(arguments[1].type)) && !WhichDataType(removeNullable(arguments[1].type)).isNothing()) {
             throw Exception(
-                "Illegal type " + arguments[1].type->getName() + " of second argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of second argument of function {}",
+                arguments[1].type->getName(),
+                getName());
         }
         const auto& type = arguments[2];
         auto typeConst = typeid_cast<const ColumnConst *>(type.column.get());
         if (!typeConst || !isString(type.type)) {
             throw Exception(
-                "Illegal type " + type.type->getName() + " of third argument of function " + getName()
-                + ", only const string is supported",
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of third argument of function {}, only const string is supported",
+                type.type->getName(),
+                getName());
         }
 
         return DataTypeFactory::instance().get(typeConst->getValue<String>());

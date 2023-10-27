@@ -501,7 +501,7 @@ public:
                     WriteToStderr("*** Initial query is missing ***\n");
                 }
 
-                if (const auto* status = context->getProcessListElement()) {
+                if (auto status = context->getProcessListElement()) {
                     const auto& info = status->getInfo();
                     WriteToStderr("*** Begin of the context query ***\n");
                     WriteToStderr(info.query.data(), info.query.size());

@@ -1,4 +1,4 @@
-#include <Common/config.h>
+#include "clickhouse_config.h"
 
 #if USE_AWS_S3
 

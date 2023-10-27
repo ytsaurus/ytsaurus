@@ -6,8 +6,9 @@
 
 #include <yt/yt/library/clickhouse_functions/public.h>
 
-#include <Common/ProfileEvents.h>
 #include <Common/COW.h>
+#include <Common/CurrentMetrics.h>
+#include <Common/ProfileEvents.h>
 
 #include <Interpreters/Context_fwd.h>
 
@@ -321,9 +322,9 @@ namespace CurrentMetrics {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const size_t Revision;
-extern const size_t VersionInteger;
-extern const size_t MemoryTracking;
+extern const Metric Revision;
+extern const Metric VersionInteger;
+extern const Metric MemoryTracking;
 
 ////////////////////////////////////////////////////////////////////////////////
 

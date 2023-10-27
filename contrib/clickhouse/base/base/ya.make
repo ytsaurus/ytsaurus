@@ -4,7 +4,6 @@ LIBRARY()
 
 LICENSE(
     Apache-2.0 AND
-    BSD-3-Clause AND
     BSL-1.0 AND
     MIT AND
     NTP
@@ -18,7 +17,6 @@ PEERDIR(
     contrib/libs/poco/Net
     contrib/libs/poco/Util
     contrib/restricted/cityhash-1.0.2
-    contrib/restricted/patched/replxx
     library/cpp/sanitizer/include
 )
 
@@ -46,7 +44,8 @@ ENDIF()
 CFLAGS(
     -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
     -DBOOST_ASIO_STANDALONE=1
-    -DHAS_RESERVED_IDENTIFIER
+    -DBOOST_TIMER_ENABLE_DEPRECATED=1
+    -DINCBIN_SILENCE_BITCODE_WARNING
     -DPOCO_ENABLE_CPP11
     -DPOCO_HAVE_FD_EPOLL
     -DPOCO_OS_FAMILY_UNIX
@@ -57,8 +56,6 @@ CFLAGS(
 
 SRCS(
     JSON.cpp
-    LineReader.cpp
-    ReplxxLineReader.cpp
     StringRef.cpp
     argsToConfig.cpp
     coverage.cpp
@@ -73,7 +70,6 @@ SRCS(
     phdr_cache.cpp
     preciseExp10.cpp
     safeExit.cpp
-    setTerminalEcho.cpp
     shift10.cpp
     sleep.cpp
     terminalColors.cpp

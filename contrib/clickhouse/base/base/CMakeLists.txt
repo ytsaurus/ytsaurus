@@ -14,7 +14,8 @@ target_compile_options(clickhouse-base-base PUBLIC
 target_compile_options(clickhouse-base-base PRIVATE
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
-  -DHAS_RESERVED_IDENTIFIER
+  -DBOOST_TIMER_ENABLE_DEPRECATED=1
+  -DINCBIN_SILENCE_BITCODE_WARNING
   -DPOCO_ENABLE_CPP11
   -DPOCO_HAVE_FD_EPOLL
   -DPOCO_OS_FAMILY_UNIX
@@ -39,13 +40,10 @@ target_link_libraries(clickhouse-base-base PUBLIC
   libs-poco-Net
   libs-poco-Util
   contrib-restricted-cityhash-1.0.2
-  restricted-patched-replxx
   cpp-sanitizer-include
 )
 target_sources(clickhouse-base-base PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/JSON.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/LineReader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/ReplxxLineReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/StringRef.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/argsToConfig.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/coverage.cpp
@@ -60,7 +58,6 @@ target_sources(clickhouse-base-base PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/phdr_cache.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/preciseExp10.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/safeExit.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/setTerminalEcho.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/shift10.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/sleep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/terminalColors.cpp

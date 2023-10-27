@@ -10,7 +10,6 @@ namespace DB
   * You can render it with:
   *  dot -T png < pipeline.dot > pipeline.png
   */
-
 template <typename Processors, typename Statuses>
 void printPipeline(const Processors & processors, const Statuses & statuses, WriteBuffer & out)
 {

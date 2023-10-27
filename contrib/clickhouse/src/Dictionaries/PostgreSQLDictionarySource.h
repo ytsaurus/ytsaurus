@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config_core.h"
+#include "clickhouse_config.h"
 #include "DictionaryStructure.h"
 #include "IDictionarySource.h"
 
@@ -8,8 +8,7 @@
 #include "ExternalQueryBuilder.h"
 #include <Core/Block.h>
 #include <Common/LocalDateTime.h>
-#include <Common/logger_useful.h>
-#error #include <Core/PostgreSQL/PoolWithFailover.h>
+#include <Core/PostgreSQL/PoolWithFailover.h>
 
 
 namespace DB

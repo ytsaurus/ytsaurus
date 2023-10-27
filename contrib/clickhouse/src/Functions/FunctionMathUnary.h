@@ -8,7 +8,7 @@
 #include <Functions/IFunction.h>
 #include <Functions/FunctionHelpers.h>
 
-#include "config_functions.h"
+#include "clickhouse_config.h"
 
 /** FastOps is a fast vector math library from Mikhail Parakhin, https://www.linkedin.com/in/mikhail-parakhin/
   * Enabled by default.

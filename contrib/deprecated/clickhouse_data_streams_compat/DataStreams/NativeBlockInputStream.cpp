@@ -41,7 +41,7 @@ NativeBlockInputStream::NativeBlockInputStream(ReadBuffer & istr_, UInt64 server
 {
     istr_concrete = typeid_cast<CompressedReadBufferFromFile *>(&istr);
     if (!istr_concrete)
-        throw Exception("When need to use index for NativeBlockInputStream, istr must be CompressedReadBufferFromFile.", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "When need to use index for NativeBlockInputStream, istr must be CompressedReadBufferFromFile.");
 
     if (index_block_it == index_block_end)
         return;
@@ -86,8 +86,11 @@ void NativeBlockInputStream::readData(const IDataType & type, ColumnPtr & column
     serialization->deserializeBinaryBulkWithMultipleStreams(column, rows, settings, state, nullptr);
 
     if (column->size() != rows)
-        throw Exception("Cannot read all data in NativeBlockInputStream. Rows read: " + toString(column->size()) + ". Rows expected: " + toString(rows) + ".",
-            ErrorCodes::CANNOT_READ_ALL_DATA);
+        throw Exception(
+            ErrorCodes::CANNOT_READ_ALL_DATA,
+            "Cannot read all data in NativeBlockInputStream. Rows read: {}. Rows expected: {}.",
+            toString(column->size()),
+            toString(rows));
 }
 
 
@@ -109,7 +112,7 @@ Block NativeBlockInputStream::readImpl()
     if (istr.eof())
     {
         if (use_index)
-            throw ParsingException("Input doesn't contain all data for index.", ErrorCodes::CANNOT_READ_ALL_DATA);
+            throw ParsingException(ErrorCodes::CANNOT_READ_ALL_DATA, "Input doesn't contain all data for index.");
 
         return res;
     }
@@ -155,9 +158,9 @@ Block NativeBlockInputStream::readImpl()
         {
             /// Index allows to do more checks.
             if (index_column_it->name != column.name)
-                throw Exception("Index points to column with wrong name: corrupted index or data", ErrorCodes::INCORRECT_INDEX);
+                throw Exception(ErrorCodes::INCORRECT_INDEX, "Index points to column with wrong name: corrupted index or data");
             if (index_column_it->type != type_name)
-                throw Exception("Index points to column with wrong type: corrupted index or data", ErrorCodes::INCORRECT_INDEX);
+                throw Exception(ErrorCodes::INCORRECT_INDEX, "Index points to column with wrong type: corrupted index or data");
         }
 
         /// Data
@@ -175,7 +178,7 @@ Block NativeBlockInputStream::readImpl()
             auto & header_column = header.getByName(column.name);
             if (!header_column.type->equals(*column.type))
             {
-                column.column = recursiveTypeConversion(column.column, column.type, header.getByPosition(i).type);
+                column.column = recursiveLowCardinalityTypeConversion(column.column, column.type, header.getByPosition(i).type);
                 column.type = header.getByPosition(i).type;
             }
         }
@@ -189,7 +192,7 @@ Block NativeBlockInputStream::readImpl()
     if (use_index)
     {
         if (index_column_it != index_block_it->columns.end())
-            throw Exception("Inconsistent index: not all columns were read", ErrorCodes::INCORRECT_INDEX);
+            throw Exception(ErrorCodes::INCORRECT_INDEX, "Inconsistent index: not all columns were read");
 
         ++index_block_it;
         if (index_block_it != index_block_end)
@@ -241,7 +244,7 @@ void IndexForNativeFormat::read(ReadBuffer & istr, const NameSet & required_colu
         readVarUInt(block.num_rows, istr);
 
         if (block.num_columns < required_columns.size())
-            throw Exception("Index contain less than required columns", ErrorCodes::INCORRECT_INDEX);
+            throw Exception(ErrorCodes::INCORRECT_INDEX, "Index contain less than required columns");
 
         for (size_t i = 0; i < block.num_columns; ++i)
         {
@@ -257,9 +260,9 @@ void IndexForNativeFormat::read(ReadBuffer & istr, const NameSet & required_colu
         }
 
         if (block.columns.size() < required_columns.size())
-            throw Exception("Index contain less than required columns", ErrorCodes::INCORRECT_INDEX);
+            throw Exception(ErrorCodes::INCORRECT_INDEX, "Index contain less than required columns");
         if (block.columns.size() > required_columns.size())
-            throw Exception("Index contain duplicate columns", ErrorCodes::INCORRECT_INDEX);
+            throw Exception(ErrorCodes::INCORRECT_INDEX, "Index contain duplicate columns");
 
         block.num_columns = block.columns.size();
     }

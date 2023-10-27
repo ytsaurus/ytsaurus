@@ -73,13 +73,17 @@ public:
     {
         if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
             throw Exception(
-                "Illegal type " + arguments[0]->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of first argument of function ,{}",
+                arguments[0]->getName(),
+                getName());
         }
         if (!isString(removeNullable(arguments[1]))) {
             throw Exception(
-                "Illegal type " + arguments[1]->getName() + " of second argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                "Illegal type {} of second argument of function {}",
+                arguments[1]->getName(),
+                getName());
         }
 
         if (arguments[0]->isNullable()) {

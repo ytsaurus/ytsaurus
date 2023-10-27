@@ -32,7 +32,7 @@ public:
     OutputPort * getTotalsPort() const { return totals_port; }
     OutputPort * getExtremesPort() const { return extremes_port; }
 
-    void setRowsBeforeLimitCounter(RowsBeforeLimitCounterPtr counter) { rows_before_limit.swap(counter); }
+    void setRowsBeforeLimitCounter(RowsBeforeLimitCounterPtr counter) override { rows_before_limit.swap(counter); }
 
     /// Implementation for methods from ISourceWithProgress.
 

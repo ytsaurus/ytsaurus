@@ -1,4 +1,4 @@
-#include "config_functions.h"
+#include "clickhouse_config.h"
 
 #if USE_H3
 

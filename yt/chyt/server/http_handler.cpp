@@ -78,12 +78,16 @@ public:
         }
     }
 
-    void customizeContext(DB::HTTPServerRequest & /* request */, DB::ContextMutablePtr context) override
+    void customizeContext(DB::HTTPServerRequest & /*request*/, DB::ContextMutablePtr context, DB::ReadBuffer & /*body*/) override
     {
         YT_VERIFY(TraceContext_);
 
         // For HTTP queries (which are always initial) query id is same as trace id.
-        context->getClientInfo().current_query_id = context->getClientInfo().initial_query_id = ToString(QueryId_);
+
+        auto queryId = ToString(QueryId_);
+        context->setInitialQueryId(queryId);
+        context->setCurrentQueryId(queryId);
+
         SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_, YqlOperationId_);
     }
 
@@ -263,7 +267,7 @@ public:
             }
         }
 
-        return std::make_unique<DB::NotFoundHandler>();
+        return std::make_unique<DB::NotFoundHandler>(std::vector<std::string>{});
     }
 
 private:

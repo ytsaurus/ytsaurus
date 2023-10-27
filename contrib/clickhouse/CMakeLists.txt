@@ -7,4 +7,5 @@
 
 
 add_subdirectory(base)
+add_subdirectory(contrib)
 add_subdirectory(src)

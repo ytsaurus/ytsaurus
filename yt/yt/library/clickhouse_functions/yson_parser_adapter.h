@@ -3,6 +3,7 @@
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/node.h>
 
+#include <Common/JSONParsers/ElementTypes.h>
 #include <Core/Types.h>
 
 namespace NYT::NClickHouseServer {
@@ -24,6 +25,30 @@ struct TYsonParserAdapter
         Element(const NYTree::INodePtr & node) : Node_(node) {}
         NYTree::INodePtr GetNode() const { return Node_; }
 
+        DB::ElementType type() const
+        {
+            switch (Node_->GetType()) {
+                case NYTree::ENodeType::String:
+                    return DB::ElementType::STRING;
+                case NYTree::ENodeType::Int64:
+                    return DB::ElementType::INT64;
+                case NYTree::ENodeType::Uint64:
+                    return DB::ElementType::UINT64;
+                case NYTree::ENodeType::Double:
+                    return DB::ElementType::DOUBLE;
+                case NYTree::ENodeType::Boolean:
+                    return DB::ElementType::BOOL;
+                case NYTree::ENodeType::Map:
+                    return DB::ElementType::OBJECT;
+                case NYTree::ENodeType::List:
+                    return DB::ElementType::ARRAY;
+                case NYTree::ENodeType::Entity:
+                    return DB::ElementType::NULL_VALUE;
+                case NYTree::ENodeType::Composite:
+                    // Should never appear during yson parsing.
+                    YT_ABORT();
+            }
+        }
         bool isInt64() const { return Node_->GetType() == NYTree::ENodeType::Int64; }
         bool isUInt64() const { return Node_->GetType() == NYTree::ENodeType::Uint64; }
         bool isDouble() const { return Node_->GetType() == NYTree::ENodeType::Double; }

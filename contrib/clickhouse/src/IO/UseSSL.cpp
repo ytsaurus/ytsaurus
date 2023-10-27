@@ -1,6 +1,6 @@
 #include "UseSSL.h"
 
-#include <Common/config.h>
+#include "clickhouse_config.h"
 
 #if USE_SSL
 #    include <Poco/Net/SSLManager.h>

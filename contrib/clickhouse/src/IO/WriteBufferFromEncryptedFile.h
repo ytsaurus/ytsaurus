@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Common/config.h>
+#include "clickhouse_config.h"
 #include <Common/assert_cast.h>
 
 #if USE_SSL

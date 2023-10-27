@@ -70,7 +70,7 @@ public:
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum /*processedStage*/,
         size_t /*maxBlockSize*/,
-        unsigned maxStreamCount) override
+        size_t maxStreamCount) override
     {
         NTracing::TChildTraceContextGuard traceContextGuard(
             QueryContext_->TraceContext,

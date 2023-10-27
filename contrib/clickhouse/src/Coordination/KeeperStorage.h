@@ -47,7 +47,7 @@ public:
 
         const auto & getData() const noexcept { return data; }
 
-        void addChild(StringRef child_path);
+        void addChild(StringRef child_path, bool update_size = true);
 
         void removeChild(StringRef child_path);
 
@@ -63,6 +63,8 @@ public:
         // copy only necessary information for preprocessing and digest calculation
         // (e.g. we don't need to copy list of children)
         void shallowCopy(const Node & other);
+
+        void recalculateSize();
 
     private:
         String data;
@@ -108,7 +110,7 @@ public:
     struct RequestForSession
     {
         int64_t session_id;
-        int64_t time;
+        int64_t time{0};
         Coordination::ZooKeeperRequestPtr request;
         int64_t zxid{0};
         std::optional<Digest> digest;
@@ -220,6 +222,7 @@ public:
     {
         explicit UncommittedState(KeeperStorage & storage_) : storage(storage_) { }
 
+        void addDelta(Delta new_delta);
         void addDeltas(std::vector<Delta> new_deltas);
         void commit(int64_t commit_zxid);
         void rollback(int64_t rollback_zxid);
@@ -307,6 +310,10 @@ public:
     };
 
     UncommittedState uncommitted_state{*this};
+
+    // Apply uncommitted state to another storage using only transactions
+    // with zxid > last_zxid
+    void applyUncommittedState(KeeperStorage & other, int64_t last_zxid);
 
     Coordination::Error commit(int64_t zxid);
 
@@ -429,6 +436,8 @@ public:
 
     void finalize();
 
+    bool isFinalized() const;
+
     /// Set of methods for creating snapshots
 
     /// Turn on snapshot mode, so data inside Container is not deleted, but replaced with new version.
@@ -468,6 +477,7 @@ public:
     void dumpWatchesByPath(WriteBufferFromOwnString & buf) const;
     void dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const;
 
+    void recalculateStats();
 private:
     void removeDigest(const Node & node, std::string_view path);
     void addDigest(const Node & node, std::string_view path);

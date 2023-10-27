@@ -743,12 +743,12 @@ class TestJoinAndIn(ClickHouseTestBase):
 
         with Clique(1) as clique:
             filters_with_expected_results = [
-                ('where not a.a = 0 or a.a in (select 0)', [{"count": 1}]),
-                ('where a.a not in (select 0)', [{"count": 0}]),
-                ('where (5 + (a.a in (select 0))) = 6', [{"count": 1}]),
-                ('prewhere a.a in (select 0)', [{"count": 1}]),
+                ("where not a.a = 0 or a.a in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
+                ("where a.a not in (select CAST(0, 'Nullable(Int64)'))", [{"count": 0}]),
+                ("where (5 + (a.a in (select CAST(0, 'Nullable(Int64)')))) = 6", [{"count": 1}]),
+                ("prewhere a.a in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
                 ('where (a.a, a.b) in "//tmp/t"', [{"count": 1}]),
-                ('where a.a global in (select 0)', [{"count": 1}]),
+                ("where a.a global in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
             ]
             for filter, expected in filters_with_expected_results:
                 query = '''select count(*) as count

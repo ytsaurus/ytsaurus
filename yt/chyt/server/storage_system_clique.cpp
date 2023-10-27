@@ -51,7 +51,7 @@ public:
         DB::ContextPtr /* context */,
         DB::QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
-        unsigned /* numStreams */) override
+        size_t /* numStreams */) override
     {
         auto nodes = Discovery_->List();
 

@@ -28,12 +28,12 @@
 #include <Common/MemoryTracker.h>
 #include <Common/SensitiveDataMasker.h>
 #include <Databases/DatabaseMemory.h>
-#include <Interpreters/AsynchronousMetrics.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
-#include <IO/IOThreadPool.h>
+#include <Interpreters/ServerAsynchronousMetrics.h>
+#include <IO/SharedThreadPools.h>
 #include <Storages/StorageMemory.h>
 #include <Storages/System/attachSystemTables.h>
 #include <Storages/System/attachSystemTablesImpl.h>
@@ -163,7 +163,7 @@ private:
 
     Poco::AutoPtr<Poco::Channel> LogChannel;
 
-    std::unique_ptr<DB::AsynchronousMetrics> AsynchronousMetrics_;
+    std::unique_ptr<DB::ServerAsynchronousMetrics> AsynchronousMetrics_;
 
     std::unique_ptr<Poco::ThreadPool> ServerPool_;
     std::vector<std::unique_ptr<DB::TCPServer>> Servers_;
@@ -193,7 +193,7 @@ private:
             Config_->MaxThreadPoolFreeSize,
             Config_->ThreadPoolQueueSize);
 
-        DB::IOThreadPool::initialize(
+        DB::getIOThreadPool().initialize(
             Config_->MaxIOThreadPoolSize,
             Config_->MaxIOThreadPoolFreeSize,
             Config_->IOThreadPoolQueueSize);
@@ -232,9 +232,10 @@ private:
         };
 
         // This object will periodically calculate asynchronous metrics.
-        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(
+        AsynchronousMetrics_ = std::make_unique<DB::ServerAsynchronousMetrics>(
             ServerContext_,
-            60 /*update_period_seconds*/,
+            /*update_period_seconds*/ 60,
+            /*heavy_metrics_update_period_seconds*/ 120,
             dummy_protocol_server_metric_func);
 
         YT_LOG_DEBUG("Asynchronous metrics set up");
@@ -336,13 +337,16 @@ private:
                 table->Database,
                 table->Name,
                 table->Engine);
+
+            // NB: settings.query_settings contains bool/size_t fields with no default initialization.
+            // {} here is to force a value (i.e. zero) initialization instead of a default initialization.
+            DB::SystemLogSettings settings{};
+            settings.engine = table->Engine;
+            settings.queue_settings.database = table->Database;
+            settings.queue_settings.table = table->Name;
+
             // NB: This is not a real QueryLog, it is needed only to create a table with proper query log structure.
-            auto queryLog = std::make_shared<DB::QueryLog>(
-                ServerContext_,
-                table->Database,
-                table->Name,
-                table->Engine,
-                /*flush_interval_milliseconds_*/ 42);  // flush_interval_milliseconds_ is not used, any value is OK.
+            auto queryLog = std::make_shared<DB::QueryLog>(ServerContext_, settings);
 
             // prepareTable is public in ISystemLog interface, but is overwritten as private in QueryLog.
             auto* systemLog = static_cast<DB::ISystemLog*>(queryLog.get());
@@ -386,7 +390,7 @@ private:
             httpParams->setKeepAliveTimeout(keepAliveTimeout);
 
             Servers_.emplace_back(std::make_unique<DB::HTTPServer>(
-                context(),
+                std::make_shared<DB::HTTPContext>(context()),
                 CreateHttpHandlerFactory(Host_, *this),
                 *ServerPool_,
                 socket,
@@ -410,19 +414,21 @@ private:
     void CollectSensors(NProfiling::ISensorWriter* writer) override
     {
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
-            const auto* name = CurrentMetrics::getName(index);
-            auto value = CurrentMetrics::values[index].load(std::memory_order::relaxed);
+            auto metric = CurrentMetrics::Metric(index);
+            const auto* name = CurrentMetrics::getName(metric);
+            auto value = CurrentMetrics::values[metric].load(std::memory_order::relaxed);
 
             writer->AddGauge("/current_metrics/" + CamelCaseToUnderscoreCase(TString(name)), value);
         }
 
-        for (const auto& [name, value] : AsynchronousMetrics_->getValues()) {
-            writer->AddGauge("/asynchronous_metrics/" + CamelCaseToUnderscoreCase(TString(name)), value);
+        for (const auto& [name, metric] : AsynchronousMetrics_->getValues()) {
+            writer->AddGauge("/asynchronous_metrics/" + CamelCaseToUnderscoreCase(TString(name)), metric.value);
         }
 
         for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
-            const auto* name = ProfileEvents::getName(index);
-            auto value = ProfileEvents::global_counters[index].load(std::memory_order::relaxed);
+            auto event = ProfileEvents::Event(index);
+            const auto* name = ProfileEvents::getName(event);
+            auto value = ProfileEvents::global_counters[event].load(std::memory_order::relaxed);
 
             writer->AddCounter("/global_profile_events/" + CamelCaseToUnderscoreCase(TString(name)), value);
         }

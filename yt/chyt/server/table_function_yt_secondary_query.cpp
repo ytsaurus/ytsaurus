@@ -55,16 +55,16 @@ public:
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
 
-        const char* err = "Table function 'ytSubquery' requires 1 parameter: table part to read";
+        constexpr auto err = "Table function 'ytSubquery' requires 1 parameter: table part to read";
 
         auto& funcArgs = typeid_cast<ASTFunction &>(*functionAst).children;
         if (funcArgs.size() != 1) {
-            throw Exception(err, ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
+            throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH, err);
         }
 
         auto& args = typeid_cast<ASTExpressionList &>(*funcArgs.at(0)).children;
         if (args.size() != 1) {
-            throw Exception(err, ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
+            throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH, err);
         }
 
         auto [argValue, _] = evaluateConstantExpression(args[0], context->getQueryContext());
@@ -78,7 +78,7 @@ public:
         subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
     }
 
-    ColumnsDescription getActualTableStructure(ContextPtr context) const override
+    ColumnsDescription getActualTableStructure(ContextPtr context, bool /*isInsertQuery*/) const override
     {
         auto* queryContext = GetQueryContext(context);
         return DB::ColumnsDescription(ToNamesAndTypesList(*subquerySpec.ReadSchema, queryContext->Settings->Composite));
@@ -88,7 +88,8 @@ public:
         const ASTPtr& /* functionAst */,
         ContextPtr context,
         const std::string& /* tableName */,
-        ColumnsDescription /* cached_columns */) const override
+        ColumnsDescription /* cachedColumns */,
+        bool /*isInsertQuery*/) const override
     {
         return Execute(context, std::move(subquerySpec));
     }

@@ -24,7 +24,7 @@
 #include <util/system/env.h>
 #include <util/system/hostname.h>
 
-#include <contrib/clickhouse/src/Common/config_version.h>
+#include <contrib/clickhouse/includes/configs/config_version.h>
 
 #include <util/system/thread.h>
 

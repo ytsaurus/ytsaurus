@@ -29,7 +29,7 @@ void SourceFromInputStream::init()
 void SourceFromInputStream::addTotalsPort()
 {
     if (totals_port)
-        throw Exception("Totals port was already added for SourceFromInputStream.", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Totals port was already added for SourceFromInputStream.");
 
     outputs.emplace_back(outputs.front().getHeader(), this);
     totals_port = &outputs.back();
@@ -38,7 +38,7 @@ void SourceFromInputStream::addTotalsPort()
 void SourceFromInputStream::addExtremesPort()
 {
     if (extremes_port)
-        throw Exception("Extremes port was already added for SourceFromInputStream.", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Extremes port was already added for SourceFromInputStream.");
 
     outputs.emplace_back(outputs.front().getHeader(), this);
     extremes_port = &outputs.back();
