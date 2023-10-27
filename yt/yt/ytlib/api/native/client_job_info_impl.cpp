@@ -967,7 +967,7 @@ static TQueryBuilder GetListJobsQueryBuilder(
         operationId.Parts64[1]));
 
     builder.AddWhereConjunct(Format(
-        "controller_state IN (%v) OR job_state IN (%v) "
+        "controller_state IN (%v) OR node_state IN (%v) "
         "OR ((NOT is_null(update_time)) AND update_time >= %v)",
         FinishedJobStatesString,
         FinishedJobStatesString,
@@ -989,11 +989,11 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     auto builder = GetListJobsQueryBuilder(operationId, options);
 
     auto jobTypeIndex = builder.AddSelectExpression("type", "job_type");
-    auto jobStateIndex = builder.AddSelectExpression("if(is_null(state), transient_state, state)", "job_state");
+    auto jobStateIndex = builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
     auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
     builder.AddGroupByExpression("job_type");
-    builder.AddGroupByExpression("job_state");
+    builder.AddGroupByExpression("node_state");
 
     TSelectRowsOptions selectRowsOptions;
     selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
@@ -1049,7 +1049,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto jobIdLoIndex = findColumnIndex("job_id_lo");
     auto operationIdHiIndex = findColumnIndex("operation_id_hi");
     auto typeIndex = findColumnIndex("job_type", "type");
-    auto stateIndex = findColumnIndex("job_state", "transient_state");
+    auto stateIndex = findColumnIndex("node_state", "transient_state");
     auto startTimeIndex = findColumnIndex("start_time");
     auto finishTimeIndex = findColumnIndex("finish_time");
     auto addressIndex = findColumnIndex("address");
@@ -1254,7 +1254,6 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("job_id_hi");
     builder.AddSelectExpression("job_id_lo");
     builder.AddSelectExpression("type", "job_type");
-    builder.AddSelectExpression("if(is_null(state), transient_state, state)", "job_state");
     builder.AddSelectExpression("start_time");
     builder.AddSelectExpression("finish_time");
     builder.AddSelectExpression("address");
@@ -1273,7 +1272,15 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("monitoring_descriptor");
     builder.AddSelectExpression("core_infos");
     builder.AddSelectExpression("job_cookie");
+    builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
     builder.AddSelectExpression("controller_state");
+    builder.AddSelectExpression(
+        Format(
+            "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
+            "   if(node_state IN (%v), node_state, controller_state), "
+            "if(is_null(node_state), controller_state, node_state))",
+            FinishedJobStatesString),
+        "job_state");
 
     if (options.WithStderr) {
         if (*options.WithStderr) {

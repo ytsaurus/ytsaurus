@@ -146,7 +146,7 @@ class TestListJobsBase(YTEnvSetup):
         self._tmpdir = create_tmpdir("list_jobs")
         self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
 
-    def restart_nodes_and_ca_and_wait_jobs_table(self):
+    def restart_services_and_wait_jobs_table(self, services):
         def get_user_slots_limit():
             return get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/user_slots")
 
@@ -154,7 +154,7 @@ class TestListJobsBase(YTEnvSetup):
 
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
-        with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
+        with Restarter(self.Env, services):
             pass
         clear_metadata_caches()
         wait_for_cells()
@@ -693,7 +693,7 @@ class TestListJobs(TestListJobsBase):
 
         op.suspend()
 
-        self.restart_nodes_and_ca_and_wait_jobs_table()
+        self.restart_services_and_wait_jobs_table([CONTROLLER_AGENTS_SERVICE, NODES_SERVICE])
 
         op.resume()
 
@@ -814,6 +814,39 @@ class TestListJobs(TestListJobsBase):
         assert res_job.get("controller_state") == "running"
         assert res_job.get("archive_state") == "running"
         assert not res_job.get("is_stale")
+
+    @authors("omgronny")
+    def test_consider_controller_state_in_archive_select(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+        )
+        (job_id,) = wait_breakpoint()
+
+        wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "running")
+
+        self.restart_services_and_wait_jobs_table([NODES_SERVICE])
+
+        release_breakpoint()
+        op.track()
+
+        wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "aborted")
+
+        res = checked_list_jobs(op.id)
+        res_job = [job for job in res["jobs"] if job["id"] == job_id][0]
+
+        assert res_job.get("controller_state") == "aborted"
+        assert res_job["archive_state"] == "running"
+
+        res = checked_list_jobs(op.id, state="aborted")
+        res_jobs = [job for job in res["jobs"] if job["id"] == job_id]
+        assert len(res_jobs) == 1
+        res_job = res_jobs[0]
+
+        assert res_job.get("controller_state") == "aborted"
+        assert res_job.get("archive_state") == "running"
+
+        len(checked_list_jobs(op.id, state="running")["jobs"]) == 0
 
     @authors("gritukan")
     def test_task_name(self):
