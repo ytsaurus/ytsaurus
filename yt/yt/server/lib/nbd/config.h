@@ -75,8 +75,8 @@ class TNbdServerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TIdsConfigPtr IdsConfig;
-    TUdsConfigPtr UdsConfig;
+    TIdsConfigPtr InternetDomainSocket;
+    TUdsConfigPtr UnixDomainSocket;
 
     REGISTER_YSON_STRUCT(TNbdServerConfig);
 

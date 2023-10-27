@@ -26,7 +26,7 @@ public:
 
     TString DebugString() const override
     {
-        return "Mememory Size " + ToString(GetTotalSize());
+        return Format("{Memory Size, %v}", GetTotalSize());
     }
 
     TFuture<TSharedRef> Read(

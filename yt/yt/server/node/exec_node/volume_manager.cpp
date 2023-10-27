@@ -1120,13 +1120,13 @@ private:
         TStringBuilder builder;
         auto timeout = nbdConfig->NbdClient->Timeout.Seconds();
 
-        if (nbdConfig->NbdServer->UdsConfig) {
-            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->NbdServer->UdsConfig->Path);
+        if (nbdConfig->NbdServer->UnixDomainSocket) {
+            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->NbdServer->UnixDomainSocket->Path);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         } else {
             auto port = 10809;
-            if (nbdConfig->NbdServer->IdsConfig) {
-                port = nbdConfig->NbdServer->IdsConfig->Port;
+            if (nbdConfig->NbdServer->InternetDomainSocket) {
+                port = nbdConfig->NbdServer->InternetDomainSocket->Port;
             }
             builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), port);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
@@ -2550,26 +2550,36 @@ private:
         TGuid tag,
         const TArtifactKey& layer)
     {
-        YT_LOG_DEBUG("Prepare NBD export (Tag: %v, Path: %v, ExportId: %v)",
-            tag,
-            layer.file_path(),
-            layer.nbd_export_id());
-
-        auto nbdServer = Bootstrap_->GetNbdServer();
-        if (!nbdServer) {
-            auto error = TError("NBD server is not present")
-                << TErrorAttribute("layer_path", layer.file_path())
-                << TErrorAttribute("export_id", layer.nbd_export_id());
-            YT_LOG_ERROR(error, "Failed to prepare NBD export");
-            return MakeFuture<void>(error);
-        }
-
-        // TODO(yuryalekseev): user
-        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-        auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
-
         auto future = VoidFuture;
         try {
+            THROW_ERROR_EXCEPTION_IF(!layer.has_filesystem(),
+                "NBD layer %v does not have filesystem",
+                layer.file_path());
+
+            THROW_ERROR_EXCEPTION_IF(!layer.has_nbd_export_id(),
+                "NBD layer %v does not have export id",
+                layer.file_path());
+
+            YT_LOG_DEBUG("Preparing NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
+                tag,
+                layer.nbd_export_id(),
+                layer.file_path(),
+                layer.filesystem());
+
+            auto nbdServer = Bootstrap_->GetNbdServer();
+            if (!nbdServer) {
+                auto error = TError("NBD server is not present")
+                    << TErrorAttribute("export_id", layer.nbd_export_id())
+                    << TErrorAttribute("path", layer.file_path())
+                    << TErrorAttribute("filesystem", layer.filesystem());
+                YT_LOG_ERROR(error, "Failed to prepare NBD export");
+                return MakeFuture<void>(error);
+            }
+
+            // TODO(yuryalekseev): user
+            auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+            auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
+
             auto device = CreateCypressFileBlockDevice(
                 layer,
                 std::move(client),
@@ -2646,29 +2656,18 @@ private:
         TGuid tag,
         const TArtifactKey& artifactKey)
     {
-        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_filesystem(),
-            "NBD layer %v does not have filesystem type",
-            artifactKey.file_path());
-
-        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_nbd_export_id(),
-            "NBD layer %v does not have export id",
-            artifactKey.file_path());
-
         YT_LOG_DEBUG("Creating NBD volume (Tag: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,
             artifactKey.nbd_export_id(),
-            artifactKey.data_source().path(),
+            artifactKey.file_path(),
             artifactKey.filesystem());
 
         if (!Bootstrap_->GetConfig()->ExecNode->NbdConfig) {
             auto error = TError("NBD is not configured")
-                << TErrorAttribute("file_path", artifactKey.file_path())
+                << TErrorAttribute("export_id", artifactKey.nbd_export_id())
+                << TErrorAttribute("path", artifactKey.file_path())
                 << TErrorAttribute("filesystem", artifactKey.filesystem());
-            YT_LOG_ERROR(error, "Failed to create NBD volume (Tag: %v, ExportId: %v, Path: %v, Filesytem: %v)",
-                tag,
-                artifactKey.nbd_export_id(),
-                artifactKey.data_source().path(),
-                artifactKey.filesystem());
+            YT_LOG_ERROR(error, "Failed to create NBD volume");
             THROW_ERROR_EXCEPTION(error);
         }
 
@@ -2687,7 +2686,7 @@ private:
             tag,
             volumeMeta.Id,
             artifactKey.nbd_export_id(),
-            artifactKey.data_source().path(),
+            artifactKey.file_path(),
             artifactKey.filesystem());
 
         return volume;

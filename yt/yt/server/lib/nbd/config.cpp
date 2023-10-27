@@ -39,9 +39,9 @@ void TUdsConfig::Register(TRegistrar registrar)
 
 void TNbdServerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("internet_domain_socket", &TThis::IdsConfig)
+    registrar.Parameter("internet_domain_socket", &TThis::InternetDomainSocket)
         .Default();
-    registrar.Parameter("unix_domain_socket", &TThis::UdsConfig)
+    registrar.Parameter("unix_domain_socket", &TThis::UnixDomainSocket)
         .Default();
 }
 

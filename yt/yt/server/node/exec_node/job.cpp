@@ -133,7 +133,7 @@ static const TString SlotIndexPattern("\%slot_index\%");
 
 namespace {
 
-TGuid CreateNbdExportId(TJobId jobId, int nbdExportIndex)
+TGuid MakeNbdExportId(TJobId jobId, int nbdExportIndex)
 {
     auto nbdExportId = jobId;
     nbdExportId.Parts32[0] = nbdExportIndex;
@@ -2567,11 +2567,11 @@ void TJob::InitializeArtifacts()
             LayerArtifactKeys_.emplace_back(layerKey);
         }
 
-        // Mark NBD layers.
+        // Mark NBD layers with NBD export ids.
         auto nbdExportCount = 0;
         for (auto& layer : LayerArtifactKeys_) {
             if (layer.has_filesystem()) {
-                auto nbdExportId = CreateNbdExportId(Id_, nbdExportCount);
+                auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
                 layer.set_nbd_export_id(ToString(nbdExportId));
                 ++nbdExportCount;
             }

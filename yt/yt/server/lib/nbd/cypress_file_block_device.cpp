@@ -32,9 +32,18 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TUserObject GetUserObject(const NYPath::TRichYPath& richPath, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
-static TString GetFilesystem(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
-static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& logger);
+static TUserObject GetUserObject(
+    const NYPath::TRichYPath& richPath,
+    NApi::NNative::IClientPtr client,
+    const NLogging::TLogger& logger);
+static TString GetFilesystem(
+    const TUserObject& userObject,
+    NApi::NNative::IClientPtr client,
+    const NLogging::TLogger& logger);
+static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
+    const TUserObject& userObject,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,9 +60,9 @@ public:
         IInvokerPtr invoker,
         const NLogging::TLogger& logger)
         : ExportId_(exportId)
-        , Config_(config)
-        , Client_(client)
-        , Invoker_(invoker)
+        , Config_(std::move(config))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
     {}
 
@@ -66,9 +75,9 @@ public:
         const NLogging::TLogger& logger)
         : ExportId_(exportId)
         , ChunkSpecs_(chunkSpecs)
-        , Config_(config)
-        , Client_(client)
-        , Invoker_(invoker)
+        , Config_(std::move(config))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
     {}
 
@@ -84,7 +93,7 @@ public:
 
     virtual TString DebugString() const override
     {
-        return "Cypress Path " + Config_->Path;
+        return Format("{Cypress Path, %v}", Config_->Path);
     }
 
     virtual TFuture<TSharedRef> Read(
@@ -93,17 +102,25 @@ public:
     {
         auto readId = TGuid::Create();
 
-        YT_LOG_DEBUG("Start read (Offset: %v, Length: %v, ReadId: %v)", offset, length, readId);
+        YT_LOG_DEBUG("Start read (Offset: %v, Length: %v, ReadId: %v)",
+            offset,
+            length,
+            readId);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)", offset, length, readId);
+            YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)",
+                offset,
+                length,
+                readId);
             return MakeFuture<TSharedRef>({});
         }
 
         auto readFuture = ReadFromChunks(Chunks_, offset, length, readId);
-
-        return readFuture.Apply(BIND([=, this](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
-            YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)", offset, length, readId);
+        return readFuture.Apply(BIND([=, Logger=Logger](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
+            YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)",
+                offset,
+                length,
+                readId);
 
             std::vector<TSharedRef> refs;
             for (const auto& blockReadResults : chunkReadResults) {
@@ -120,7 +137,6 @@ public:
         const TWriteOptions& /*options*/) override
     {
         THROW_ERROR_EXCEPTION("Writes are not supported");
-        return VoidFuture;
     }
 
     virtual TFuture<void> Flush() override
@@ -178,7 +194,7 @@ private:
 
             auto filesystem = GetFilesystem(userObject, Client_, Logger);
             if (filesystem != "ext4" && filesystem != "squashfs") {
-                THROW_ERROR_EXCEPTION("Invalid filesystem attribute %Qlv of file %Qlv",
+                THROW_ERROR_EXCEPTION("Invalid filesystem attribute %Qv of file %v",
                     filesystem,
                     userObject.GetPath());
             }
@@ -263,8 +279,7 @@ private:
         readBlocksOptions.ClientOptions.ReadSessionId = readId;
 
         auto readFuture = chunk.Reader->ReadBlocks(std::move(readBlocksOptions), blockIndexes);
-
-        return readFuture.Apply(BIND([=, this](const std::vector<NChunkClient::TBlock>& blocks) mutable {
+        return readFuture.Apply(BIND([=, Logger=Logger](const std::vector<NChunkClient::TBlock>& blocks) mutable {
             YT_VERIFY(blocks.size() == blockIndexes.size());
 
             std::vector<TSharedRef> refs;
@@ -272,7 +287,7 @@ private:
                 auto blockIndex = blockIndexes[i];
                 const auto& block = chunk.Blocks[blockIndex];
 
-                YT_VERIFY((i64)blocks[i].Data.size() == block.Size);
+                YT_VERIFY(std::ssize(blocks[i].Data) == block.Size);
                 YT_VERIFY(chunk.Offset <= block.Offset);
                 YT_VERIFY(block.Offset + block.Size <= chunk.Offset + chunk.Size);
 
@@ -309,7 +324,9 @@ private:
     template <typename T>
     void InitializeChunkStructs(const TUserObject& userObject, const T& chunkSpecs)
     {
-        YT_LOG_INFO("Initializing chunk structs (File: %v, ChunkSpecs: %v)", userObject.GetPath(), chunkSpecs.size());
+        YT_LOG_INFO("Initializing chunk structs (File: %v, ChunkSpecs: %v)",
+            userObject.GetPath(),
+            chunkSpecs.size());
 
         i64 offset = 0;
         for (auto& chunkSpec : chunkSpecs) {
@@ -323,14 +340,16 @@ private:
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 
             if (CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()) != NCompression::ECodec::None) {
-                THROW_ERROR_EXCEPTION("Compression codec %Qlv for filesystem image %Qlv is not supported",
+                THROW_ERROR_EXCEPTION("Compression codec %Qlv for filesystem image %v is not supported",
                     CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
                     userObject.GetPath());
             }
 
             chunk.Size = miscExt.uncompressed_data_size();
 
-            YT_LOG_INFO("Creating chunk reader (File: %v, Chunk: %v)", userObject.GetPath(), chunk.Index);
+            YT_LOG_INFO("Creating chunk reader (File: %v, Chunk: %v)",
+                userObject.GetPath(),
+                chunk.Index);
 
             auto readerConfig = New<TReplicationReaderConfig>();
             readerConfig->UseBlockCache = true;
@@ -340,17 +359,19 @@ private:
                 New<TRemoteReaderOptions>(),
                 ChunkReaderHost_,
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
-                {}
-            );
+                {} /* seedReplicas */);
 
-            YT_LOG_INFO("Created chunk reader (File: %v, Chunk: %v)", userObject.GetPath(), chunk.Index);
+            YT_LOG_INFO("Created chunk reader (File: %v, Chunk: %v)",
+                userObject.GetPath(),
+                chunk.Index);
 
             YT_LOG_INFO("Fetching chunk meta blocks extension (File: %v, Chunk: %v)",
                 userObject.GetPath(),
                 chunk.Index);
 
             std::vector<int> extensionTags = {TProtoExtensionTag<NFileClient::NProto::TBlocksExt>::Value};
-            chunk.Meta = WaitFor(chunk.Reader->GetMeta({}, std::nullopt, extensionTags)).ValueOrThrow();
+            chunk.Meta = WaitFor(chunk.Reader->GetMeta({}, std::nullopt, extensionTags))
+                .ValueOrThrow();
 
             auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(chunk.Meta->extensions());
 
@@ -367,25 +388,30 @@ private:
             FileSize_ += miscExt.uncompressed_data_size();
         }
 
-        YT_LOG_INFO("Initialized chunk structs (File: %v, ChunkSpecs: %v)", userObject.GetPath(), chunkSpecs.size());
+        YT_LOG_INFO("Initialized chunk structs (File: %v, ChunkSpecs: %v)",
+            userObject.GetPath(),
+            chunkSpecs.size());
     }
 
 private:
-    const TString& ExportId_;
-    std::optional<::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
+    const TString ExportId_;
+    const std::optional<::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
     const TCypressFileBlockDeviceConfigPtr Config_;
-    NApi::NNative::IClientPtr Client_;
-    IInvokerPtr Invoker_;
+    const NApi::NNative::IClientPtr Client_;
+    const IInvokerPtr Invoker_;
+    const NLogging::TLogger Logger;
     TChunkReaderHostPtr ChunkReaderHost_;
     std::vector<TChunk> Chunks_;
     i64 FileSize_ = 0;
-    const NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Fetch basic object attributes from cypress.
-static TUserObject GetUserObject(const NYPath::TRichYPath& richPath, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
+//! Fetch basic object attributes from Cypress.
+static TUserObject GetUserObject(
+    const NYPath::TRichYPath& richPath,
+    NApi::NNative::IClientPtr client,
+    const NLogging::TLogger& Logger)
 {
     YT_LOG_INFO("Fetching file basic attributes (File: %v)", richPath);
 
@@ -405,7 +431,7 @@ static TUserObject GetUserObject(const NYPath::TRichYPath& richPath, NApi::NNati
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Fetch object's filesystem attribute from cypress.
+//! Fetch object's filesystem attribute from Cypress.
 static TString GetFilesystem(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
 {
     YT_LOG_INFO("Fetching file filesystem attribute (File: %v)", userObject.GetPath());
@@ -437,8 +463,11 @@ static TString GetFilesystem(const TUserObject& userObject, NApi::NNative::IClie
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Fetch object's chunk specs from cypress.
-static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TUserObject& userObject, NApi::NNative::IClientPtr client, const NLogging::TLogger& Logger)
+//! Fetch object's chunk specs from Cypress.
+static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
+    const TUserObject& userObject,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& Logger)
 {
     YT_LOG_INFO("Fetching file chunk specs (File: %v)", userObject.GetPath());
 
@@ -460,7 +489,10 @@ static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TUserOb
 
     batchReq->AddRequest(req);
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching chunks for file %Qlv", userObject.GetPath());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error fetching chunks for file %Qlv",
+        userObject.GetPath());
 
     const auto& batchRsp = batchRspOrError.Value();
     const auto& rspOrError = batchRsp->GetResponse<NFileClient::TFileYPathProxy::TRspFetch>(0);
@@ -484,13 +516,17 @@ static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TUserOb
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TString& path, NApi::NNative::IClientPtr client, IInvokerPtr invoker, const NLogging::TLogger& Logger)
+std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
+    const TString& path,
+    const NApi::NNative::IClientPtr& client,
+    IInvokerPtr invoker,
+    const NLogging::TLogger& Logger)
 {
     NYPath::TRichYPath richPath{path};
 
     auto userObject = GetUserObject(richPath, client, Logger);
     if (userObject.Type != NCypressClient::EObjectType::File) {
-        THROW_ERROR_EXCEPTION("Invalid type of file %Qlv, expected %Qlv, but got %Qlv",
+        THROW_ERROR_EXCEPTION("Invalid type of file %Qlv: expected %Qlv, but got %Qlv",
             userObject.GetPath(),
             NCypressClient::EObjectType::File,
             userObject.Type);
@@ -512,11 +548,10 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TString& path,
         invoker,
         client->GetNativeConnection()->GetConfig()->MaxChunksPerFetch,
         client->GetNativeConnection()->GetConfig()->MaxChunksPerLocateRequest,
-        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /* tableIndex */) {
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             req->set_fetch_parity_replicas(true);
-            NCypressClient::SetTransactionId(req, NCypressClient::NullTransactionId);
         },
         Logger
     );
@@ -525,12 +560,14 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(const TString& path,
         userObject.ObjectId,
         userObject.ExternalCellTag,
         userObject.ChunkCount,
-        0
-    );
+        0 /* tableIndex */);
 
-    WaitFor(chunkSpecFetcher->Fetch()).ThrowOnError();
+    WaitFor(chunkSpecFetcher->Fetch())
+        .ThrowOnError();
 
-    YT_LOG_INFO("Fetched file chunk specs (File: %v, ChunkSpecs: %v)", userObject.GetPath(), chunkSpecFetcher->ChunkSpecs().size());
+    YT_LOG_INFO("Fetched file chunk specs (File: %v, ChunkSpecs: %v)",
+        userObject.GetPath(),
+        chunkSpecFetcher->ChunkSpecs().size());
 
     return chunkSpecFetcher->ChunkSpecs();
 }
@@ -544,7 +581,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     IInvokerPtr invoker,
     const NLogging::TLogger& logger)
 {
-    return New<TCypressFileBlockDevice>(exportId, exportConfig, client, invoker, logger);
+    return New<TCypressFileBlockDevice>(exportId, std::move(exportConfig), std::move(client), std::move(invoker), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -557,7 +594,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     IInvokerPtr invoker,
     const NLogging::TLogger& logger)
 {
-    return New<TCypressFileBlockDevice>(exportId, chunkSpecs, exportConfig, client, invoker, logger);
+    return New<TCypressFileBlockDevice>(exportId, chunkSpecs, std::move(exportConfig), std::move(client), std::move(invoker), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
