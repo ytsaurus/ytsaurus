@@ -37,6 +37,8 @@ struct TTable
     NTabletClient::TTableMountInfoPtr TableMountInfo;
 
     TTable(NYPath::TRichYPath path, const NYTree::IAttributeDictionaryPtr& attributes);
+
+    bool IsSortedDynamic() const;
 };
 
 TString ToString(const TTablePtr& table);

@@ -20,7 +20,10 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTracing;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,6 +200,11 @@ public:
 
                 if (SubquerySpec_.DataSourceDirectory->DataSources().front().GetType() == EDataSourceType::UnversionedTable) {
                     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
+                        if (FromProto<TTabletId>(chunkSpec.tablet_id()) != NullTabletId) {
+                            // In case of ordered dynamic tables, dynamic stores do not have misc ext.
+                            // NB: This seems to be the easiest way to check without dragging additional info into TDataSource/TSubquerySpec.
+                            continue;
+                        }
                         // It is crucial for better memory estimation.
                         YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(
                             chunkSpec.chunk_meta().extensions()));
