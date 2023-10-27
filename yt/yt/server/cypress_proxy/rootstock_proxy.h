@@ -17,4 +17,4 @@ NYTree::IYPathServicePtr CreateRootstockProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace  NYT::NCypressProxy
+} // namespace NYT::NCypressProxy

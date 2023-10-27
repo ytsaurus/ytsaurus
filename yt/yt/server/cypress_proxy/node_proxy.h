@@ -18,4 +18,4 @@ NYTree::IYPathServicePtr CreateNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace  NYT::NCypressProxy
+} // namespace NYT::NCypressProxy

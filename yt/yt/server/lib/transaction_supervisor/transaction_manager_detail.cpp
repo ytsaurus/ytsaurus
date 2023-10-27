@@ -13,13 +13,13 @@ bool IsInTransactionAction()
 
 TTransactionActionGuard::TTransactionActionGuard()
 {
-    YT_ASSERT(!InTransactionAction);
+    YT_VERIFY(!InTransactionAction);
     InTransactionAction = true;
 }
 
 TTransactionActionGuard::~TTransactionActionGuard()
 {
-    YT_ASSERT(InTransactionAction);
+    YT_VERIFY(InTransactionAction);
     InTransactionAction = false;
 }
 

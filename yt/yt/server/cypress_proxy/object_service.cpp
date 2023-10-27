@@ -165,7 +165,7 @@ private:
             }
         }
 
-        // TODO: Do something more smart when resolve cache will be implemented.
+        // TODO(h0pless): Do something more smart when resolve cache will be implemented.
         return false;
     }
 

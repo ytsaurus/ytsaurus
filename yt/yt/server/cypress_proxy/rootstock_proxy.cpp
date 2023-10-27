@@ -71,71 +71,67 @@ private:
     const TYPath Path_;
     const ISequoiaTransactionPtr Transaction_;
 
-    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
-};
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create)
+    {
+        if (GetTransactionId(context->RequestHeader())) {
+            THROW_ERROR_EXCEPTION("Rootstocks cannot be created in transaction");
+        }
 
-////////////////////////////////////////////////////////////////////////////////
+        auto type = CheckedEnumCast<EObjectType>(request->type());
 
-DEFINE_YPATH_SERVICE_METHOD(TRootstockProxy, Create)
-{
-    if (GetTransactionId(context->RequestHeader())) {
-        THROW_ERROR_EXCEPTION("Rootstocks cannot be created in transaction");
+        YT_VERIFY(type == EObjectType::Rootstock);
+
+        const auto& connection = Bootstrap_->GetNativeConnection();
+        const auto& rootstockCellTag = connection->GetPrimaryMasterCellTag();
+        auto attributes = FromProto(request->node_attributes());
+        auto scionCellTag = attributes->GetAndRemove<TCellTag>("scion_cell_tag");
+
+        auto rootstockId = Transaction_->GenerateObjectId(type, rootstockCellTag, /*sequoia*/ false);
+        auto scionId = Transaction_->GenerateObjectId(EObjectType::Scion, scionCellTag, /*sequoia*/ true);
+        attributes->Set("scion_id", scionId);
+
+        Transaction_->WriteRow(NRecords::TResolveNode{
+            .Key = {.Path = MangleSequoiaPath(Path_)},
+            .NodeId = scionId,
+        });
+        Transaction_->WriteRow(NRecords::TReverseResolveNode{
+            .Key = {.NodeId = scionId},
+            .Path = Path_,
+        });
+
+        NCypressClient::NProto::TReqCreateRootstock rootstockAction;
+        rootstockAction.mutable_request()->CopyFrom(*request);
+        rootstockAction.set_path(Path_);
+
+        auto* createRootstockRequest = rootstockAction.mutable_request();
+        ToProto(createRootstockRequest->mutable_hint_id(), rootstockId);
+        ToProto(createRootstockRequest->mutable_node_attributes(), *attributes);
+
+        Transaction_->AddTransactionAction(rootstockCellTag, MakeTransactionActionData(rootstockAction));
+
+        auto rootstockCellId = connection->GetMasterCellId(rootstockCellTag);
+        TTransactionCommitOptions commitOptions{
+            .CoordinatorCellId = rootstockCellId,
+            .Force2PC = true,
+            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+        };
+        WaitFor(Transaction_->Commit(commitOptions))
+            .ThrowOnError();
+
+        // After transaction commit, scion creation request is posted via Hive,
+        // so we sync secondary master with primary to make sure that scion is created.
+        // Without this sync first requests to Sequoia subtree may fail because of scion
+        // absence. Note that this is best effort since sync may fail.
+        // TODO(h0pless): Rethink it when syncs for Sequoia transactions will be implemented.
+        auto scionCellId = connection->GetMasterCellId(scionCellTag);
+        WaitFor(connection->SyncHiveCellWithOthers({scionCellId}, rootstockCellId))
+            .ThrowOnError();
+
+        ToProto(response->mutable_node_id(), rootstockId);
+        response->set_cell_tag(ToProto<int>(rootstockCellTag));
+        context->Reply();
     }
-
-    auto type = CheckedEnumCast<EObjectType>(request->type());
-
-    YT_VERIFY(type == EObjectType::Rootstock);
-
-    const auto& connection = Bootstrap_->GetNativeConnection();
-    const auto& rootstockCellTag = connection->GetPrimaryMasterCellTag();
-    auto attributes = FromProto(request->node_attributes());
-    auto scionCellTag = attributes->GetAndRemove<TCellTag>("scion_cell_tag");
-
-    auto rootstockId = Transaction_->GenerateObjectId(type, rootstockCellTag, /*sequoia*/ false);
-    auto scionId = Transaction_->GenerateObjectId(EObjectType::Scion, scionCellTag, /*sequoia*/ true);
-    attributes->Set("scion_id", scionId);
-
-    Transaction_->WriteRow(NRecords::TResolveNode{
-        .Key = {.Path = MangleSequoiaPath(Path_)},
-        .NodeId = scionId,
-    });
-    Transaction_->WriteRow(NRecords::TReverseResolveNode{
-        .Key = {.NodeId = scionId},
-        .Path = Path_,
-    });
-
-    NCypressClient::NProto::TReqCreateRootstock rootstockAction;
-    rootstockAction.mutable_request()->CopyFrom(*request);
-    rootstockAction.set_path(Path_);
-
-    auto* createRootstockRequest = rootstockAction.mutable_request();
-    ToProto(createRootstockRequest->mutable_hint_id(), rootstockId);
-    ToProto(createRootstockRequest->mutable_node_attributes(), *attributes);
-
-    Transaction_->AddTransactionAction(rootstockCellTag, MakeTransactionActionData(rootstockAction));
-
-    auto rootstockCellId = connection->GetMasterCellId(rootstockCellTag);
-    TTransactionCommitOptions commitOptions{
-        .CoordinatorCellId = rootstockCellId,
-        .Force2PC = true,
-        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-    };
-    WaitFor(Transaction_->Commit(commitOptions))
-        .ThrowOnError();
-
-    // After transaction commit, scion creation request is posted via Hive,
-    // so we sync secondary master with primary to make sure that scion is created.
-    // Without this sync first requests to Sequoia subtree may fail because of scion
-    // absence. Note that this is best effort since sync may fail.
-    // TODO(h0pless): Rethink it when syncs for Sequoia transactions will be implemented.
-    auto scionCellId = connection->GetMasterCellId(scionCellTag);
-    WaitFor(connection->SyncHiveCellWithOthers({scionCellId}, rootstockCellId))
-        .ThrowOnError();
-
-    ToProto(response->mutable_node_id(), rootstockId);
-    response->set_cell_tag(ToProto<int>(rootstockCellTag));
-    context->Reply();
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

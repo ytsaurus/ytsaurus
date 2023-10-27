@@ -303,6 +303,7 @@ public:
     void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (Initialized_) {
             return;
         }
