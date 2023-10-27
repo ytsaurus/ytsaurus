@@ -1999,15 +1999,28 @@ private:
             nodeYsonsPerTree[treeId].push_back(std::move(nodeYson));
         }
 
+        auto nodesInfoEventId = TGuid::Create();
         for (const auto& [treeId, nodeYsons] : nodeYsonsPerTree) {
-            LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
-                .Item("tree_id").Value(treeId)
-                .Item("nodes").DoMapFor(nodeYsons, [&] (TFluentMap fluent, const TYsonString& nodeYson) {
+            std::vector<TYsonString> splitNodeYsons;
+            TYsonMapFragmentBatcher nodesConsumer(&splitNodeYsons, Config_->MaxEventLogNodeBatchSize);
+            BuildYsonMapFragmentFluently(&nodesConsumer)
+                .DoFor(nodeYsons, [] (TFluentMap fluent, const TYsonString& nodeYson) {
                     fluent.Items(nodeYson);
                 });
+            nodesConsumer.Flush();
+
+            for (int batchIndex = 0; batchIndex < std::ssize(splitNodeYsons); ++batchIndex) {
+                const auto& batch = splitNodeYsons[batchIndex];
+                LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
+                    .Item("nodes_info_event_id").Value(nodesInfoEventId)
+                    .Item("nodes_batch_index").Value(batchIndex)
+                    .Item("tree_id").Value(treeId)
+                    .Item("nodes").BeginMap()
+                        .Items(batch)
+                    .EndMap();
+            }
         }
     }
-
 
     void OnMasterConnecting()
     {

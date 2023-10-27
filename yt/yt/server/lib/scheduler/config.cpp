@@ -1081,6 +1081,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("pool_trees_root", &TThis::PoolTreesRoot)
         .Default(PoolTreesRootCypressPath);
 
+    registrar.Parameter("max_event_log_node_batch_size", &TThis::MaxEventLogNodeBatchSize)
+        .Default(100);
+
     registrar.Parameter("validate_node_tags_period", &TThis::ValidateNodeTagsPeriod)
         .Default(TDuration::Seconds(30));
 

@@ -16,6 +16,7 @@ from yt.common import YtError
 from collections import defaultdict
 import time
 import builtins
+import math
 
 
 ##################################################################
@@ -316,6 +317,47 @@ class TestEventLog(YTEnvSetup):
 
         remove_pool_tree("treeA")
         remove_pool_tree("treeB")
+
+    @authors("omgronny")
+    def test_split_nodes_info_in_tree(self):
+        def read_latest_nodes_info_events(tree_id, events_count):
+            event_log = read_table("//sys/scheduler/event_log", verbose=False)
+            events = []
+            for event in event_log:
+                if event["event_type"] == "nodes_info":
+                    TestEventLog._check_keys(event, included_keys=["tree_id", "nodes"])
+                    if event["tree_id"] == tree_id:
+                        events.append(event)
+
+            return sorted(events, reverse=True, key=lambda event: event["timestamp"])[:events_count]
+
+        update_scheduler_config("nodes_info_logging_period", 500)
+
+        max_event_log_node_batch_size = 2
+        update_scheduler_config("max_event_log_node_batch_size", max_event_log_node_batch_size)
+
+        for _ in range(10):
+            run_sleeping_vanilla()
+
+        @wait_no_assert
+        def check_nodes_info():
+            batch_count = math.ceil(TestEventLog.NUM_NODES / max_event_log_node_batch_size)
+            nodes_infos = read_latest_nodes_info_events("default", batch_count)
+
+            assert len(nodes_infos) == batch_count
+            assert len(frozenset([event["nodes_info_event_id"] for event in nodes_infos])) == 1
+
+            nodes_batch_indices = []
+            total_nodes = 0
+            for nodes_info in nodes_infos:
+                nodes_batch_indices.append(nodes_info["nodes_batch_index"])
+                assert len(nodes_info["nodes"]) <= max_event_log_node_batch_size
+                assert nodes_info["tree_id"] == "default"
+                for node_info in nodes_info["nodes"].values():
+                    assert node_info["tree"] == "default"
+                    total_nodes += 1
+            assert total_nodes == TestEventLog.NUM_NODES
+            assert sorted(nodes_batch_indices) == list(range(len(nodes_infos)))
 
     @authors("ignat")
     def test_accumulated_usage(self):
