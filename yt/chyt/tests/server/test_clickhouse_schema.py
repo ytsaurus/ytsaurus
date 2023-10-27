@@ -12,7 +12,7 @@ import pytest
 class TestClickHouseSchema(ClickHouseTestBase):
     @authors("evgenstf")
     def test_int_types(self):
-        with Clique(5) as clique:
+        with Clique(1) as clique:
             create(
                 "table",
                 "//tmp/test_table",
@@ -367,3 +367,18 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 assert clique.make_query("select a from {} order by a nulls first".format(source)) == content
                 assert clique.make_query("select a from {} where isNull(a)".format(source)) == [{"a": None}]
                 assert clique.make_query("select a from {} where isNotNull(a)".format(source)) == [{"a": -1}, {"a": 42}]
+
+    # CHYT-981
+    @authors("dakovalkov")
+    def test_float_and_double(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "float"}], "optimize_for": "scan"})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "double"}], "optimize_for": "scan"})
+        write_table("//tmp/t1", [{"a": 1.0}])
+        write_table("//tmp/t2", [{"a": 2.0}])
+
+        with Clique(1) as clique:
+            assert self._strip_description(clique.make_query('describe concatYtTables("//tmp/t1", "//tmp/t2")')) == [
+                {"name": "a", "type": "Nullable(Float64)"},
+            ]
+
+            assert clique.make_query("select a from concatYtTables('//tmp/t1', '//tmp/t2') order by a") == [{"a": 1.0}, {"a": 2.0}]

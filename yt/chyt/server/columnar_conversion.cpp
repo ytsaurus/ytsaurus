@@ -219,17 +219,31 @@ auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn
 }
 
 template <class T>
+    requires
+        std::is_same_v<T, float> ||
+        std::is_same_v<T, double>
 DB::MutableColumnPtr ConvertFloatingPointYTColumnToCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
-    auto relevantValues = ytColumn.GetRelevantTypedValues<T>();
-
     auto chColumn = DB::ColumnVector<T>::create(ytColumn.ValueCount);
+    auto& chData = chColumn->getData();
 
-    ::memcpy(
-        chColumn->getData().data(),
-        relevantValues.Begin(),
-        sizeof (T) * ytColumn.ValueCount);
+    if (std::is_same_v<T, double> && ytColumn.Values->BitWidth == sizeof(float) * 8) {
+        // Need to convert float to double.
+        // TODO(dakovalkov): It's not optimal.
+        auto relevantValues = ytColumn.GetRelevantTypedValues<float>();
+
+        for (i64 index = 0; index < ytColumn.ValueCount; ++index) {
+            chData[index] = static_cast<double>(relevantValues[index]);
+        }
+    } else {
+        auto relevantValues = ytColumn.GetRelevantTypedValues<T>();
+
+        ::memcpy(
+            chData.data(),
+            relevantValues.Begin(),
+            sizeof (T) * ytColumn.ValueCount);
+    }
 
     return chColumn;
 }
