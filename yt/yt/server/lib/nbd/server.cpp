@@ -88,7 +88,7 @@ public:
         return true;
     }
 
-    virtual bool DeviceIsRegistered(const TString& name) override
+    virtual bool IsDeviceRegistered(const TString& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return NameToDevice_.contains(name);
@@ -120,7 +120,7 @@ private:
 
     IListenerPtr Listener_;
 
-    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
     THashMap<TString, IBlockDevicePtr> NameToDevice_;
 
 

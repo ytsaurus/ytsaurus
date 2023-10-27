@@ -2646,8 +2646,13 @@ private:
         TGuid tag,
         const TArtifactKey& artifactKey)
     {
-        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_filesystem(), "NBD layer %Qv doesn't have filesystem type", artifactKey.data_source().path());
-        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_nbd_export_id(), "NBD layer %Qv doesn't have export id", artifactKey.data_source().path());
+        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_filesystem(),
+            "NBD layer %v does not have filesystem type",
+            artifactKey.file_path());
+
+        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_nbd_export_id(),
+            "NBD layer %v does not have export id",
+            artifactKey.file_path());
 
         YT_LOG_DEBUG("Creating NBD volume (Tag: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,

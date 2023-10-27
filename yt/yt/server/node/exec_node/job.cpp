@@ -2196,8 +2196,8 @@ void TJob::CleanupNbdExports()
                 continue;
             }
 
-            if (nbdServer->DeviceIsRegistered(artifactKey.nbd_export_id())) {
-                YT_LOG_ERROR("NBD export %Qlv with path %Qlv is still unexpectedly registered, unregister it",
+            if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
+                YT_LOG_ERROR("NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
                     artifactKey.nbd_export_id(),
                     artifactKey.file_path());
                 nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
