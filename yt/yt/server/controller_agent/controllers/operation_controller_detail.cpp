@@ -10318,6 +10318,10 @@ bool TOperationControllerBase::IsCompleted() const
 
 TString TOperationControllerBase::WriteCoreDump() const
 {
+    // Save `this` explicitly to simplify debugging a core dump in GDB.
+    volatile auto this_ = this;
+    Y_UNUSED(this_);
+
     const auto& coreDumper = Host->GetCoreDumper();
     if (!coreDumper) {
         THROW_ERROR_EXCEPTION("Core dumper is not set up");
