@@ -81,10 +81,8 @@ lazy val `cluster` = (project in file("spark-cluster"))
   .settings(
     clusterSpytBuild := {
       val rootDirectory = baseDirectory.value.getParentFile
-      val assemblyFile = assembly.value // Forces build
-      makeLinkToBuildDirectory(assemblyFile, rootDirectory, assemblyFile.getName)
-      val zipFile = zip.value
-      makeLinkToBuildDirectory(zipFile, rootDirectory, zipFile.getName)
+      val files = Seq(assembly.value, zip.value)
+      makeLinksToBuildDirectory(files, rootDirectory)
       val versionValue = (ThisBuild / spytClusterVersion).value
       val baseConfigDir = (Compile / resourceDirectory).value
       val logger = streams.value.log
@@ -167,9 +165,7 @@ lazy val `data-source` = (project in file("data-source"))
       val files = Seq(
         assembly.value, zip.value, (`file-system` / assembly).value, (`spark-submit` / assembly).value
       )
-      files.foreach { file =>
-        makeLinkToBuildDirectory(file, baseDirectory.value.getParentFile, file.getName)
-      }
+      makeLinksToBuildDirectory(files, baseDirectory.value.getParentFile)
     },
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"

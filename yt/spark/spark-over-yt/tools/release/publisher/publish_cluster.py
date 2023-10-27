@@ -29,6 +29,9 @@ def upload_cluster(uploader: Client, versions: Versions, sources_path: str, publ
     spark_yt_launcher_jar = join(sources_path, 'spark-yt-launcher.jar')
     uploader.write_file(spark_yt_launcher_jar, f"{bin_remote_dir(versions)}/spark-yt-launcher.jar")
 
+    spark_extra_zip = join(sources_path, 'spark-extra.zip')
+    uploader.write_file(spark_extra_zip, f"{bin_remote_dir(versions)}/spark-extra.zip")
+
     uploader.link(f"{spark_remote_dir(versions)}/spark.tgz", f"{bin_remote_dir(versions)}/spark.tgz")
 
     conf_local_dir = join(sources_path, 'conf')

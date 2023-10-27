@@ -98,6 +98,10 @@ object SpytPlugin extends AutoPlugin {
       linkFile2.toFile
     }
 
+    def makeLinksToBuildDirectory(files: Seq[File], rootDirectory: File): Unit = {
+      files.foreach(file => makeLinkToBuildDirectory(file, rootDirectory, file.getName))
+    }
+
     def dumpYsonToConfBuildDirectory(config: YsonableConfig, rootDirectory: File, fileName: String): File = {
       val confDirectory = getBuildDirectory(rootDirectory) / "conf"
       confDirectory.mkdirs()
