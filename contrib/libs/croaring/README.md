@@ -82,16 +82,16 @@ Linux or macOS users might follow the following instructions if they have a rece
 
  1. Pull the library in a directory
     ```
-    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.2/roaring.c
-    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.2/roaring.h
-    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.2/roaring.hh
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.3/roaring.c
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.3/roaring.h
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.3/roaring.hh
     ```
  2. Create a new file named `demo.c` with this content:
     ```C
-        #include <stdio.h>
-        #include <stdlib.h>
-        #include "roaring.c"
-        int main() {
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include "roaring.c"
+    int main() {
         roaring_bitmap_t *r1 = roaring_bitmap_create();
         for (uint32_t i = 100; i < 1000; i++) roaring_bitmap_add(r1, i);
         printf("cardinality = %d\n", (int) roaring_bitmap_get_cardinality(r1));
@@ -104,14 +104,14 @@ Linux or macOS users might follow the following instructions if they have a rece
         printf("%zu \n", bitset_count(b));
         bitset_free(b);
         return EXIT_SUCCESS;
-        }
+    }
     ```
  2. Create a new file named `demo.cpp` with this content:
     ```C++
-        #include <iostream>
-        #include "roaring.hh"
-        #include "roaring.c"
-        int main() {
+    #include <iostream>
+    #include "roaring.hh"
+    #include "roaring.c"
+    int main() {
         roaring::Roaring r1;
         for (uint32_t i = 100; i < 1000; i++) {
             r1.add(i);
@@ -124,7 +124,7 @@ Linux or macOS users might follow the following instructions if they have a rece
         }
         std::cout << "cardinality = " << r2.cardinality() << std::endl;
         return 0;
-        }
+    }
     ```
  2. Compile
     ```
@@ -132,15 +132,15 @@ Linux or macOS users might follow the following instructions if they have a rece
     c++ -std=c++11 -o demopp demo.cpp
     ```
  3. `./demo`
-   ```
+    ```
     cardinality = 900
     1000 
-   ```
+    ```
  4. `./demopp`
-   ```
+    ```
     cardinality = 900
     cardinality = 900
-   ```
+    ```
 
 
 # Using as a CMake dependency
