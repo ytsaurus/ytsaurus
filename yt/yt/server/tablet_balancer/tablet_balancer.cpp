@@ -203,11 +203,6 @@ TTabletBalancer::TTabletBalancer(
     , WorkerPool_(CreateThreadPool(
         Config_->WorkerThreadPoolSize,
         "TabletBalancer"))
-    , ActionManager_(CreateActionManager(
-        Config_->TabletActionExpirationTimeout,
-        Config_->TabletActionPollingPeriod,
-        Bootstrap_->GetClient(),
-        Bootstrap_))
     , TableRegistry_(New<TTableRegistry>())
     , DynamicConfig_(TAtomicIntrusivePtr(New<TTabletBalancerDynamicConfig>()))
     , ParameterizedBalancingScheduler_(
@@ -216,6 +211,11 @@ TTabletBalancer::TTabletBalancer(
     , IterationIndex_(0)
     , PickPivotFailures(TabletBalancerProfiler.WithSparse().Counter("/pick_pivot_failures"))
 {
+    ActionManager_ = CreateActionManager(
+        DynamicConfig_.Acquire()->ActionManager,
+        Bootstrap_->GetClient(),
+        Bootstrap_);
+
     bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
@@ -487,6 +487,8 @@ void TTabletBalancer::OnDynamicConfigChanged(
     if (newPeriod != oldPeriod) {
         PollExecutor_->SetPeriod(newPeriod);
     }
+
+    ActionManager_->Reconfigure(newConfig->ActionManager);
 
     YT_LOG_DEBUG(
         "Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",

@@ -56,7 +56,6 @@ class TestStandaloneTabletBalancerBase:
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 100,
-                "tablet_action_polling_period": 100,
                 "parameterized_timeout_on_start": 0,
             },
             "election_manager": {

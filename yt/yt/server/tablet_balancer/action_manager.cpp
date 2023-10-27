@@ -1,5 +1,6 @@
 #include "action_manager.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "helpers.h"
 #include "private.h"
 #include "tablet_action.h"
@@ -41,8 +42,7 @@ class TActionManager
 {
 public:
     TActionManager(
-        TDuration actionExpirationTimeout,
-        TDuration pollingPeriod,
+        TActionManagerConfigPtr config,
         NApi::NNative::IClientPtr client,
         IBootstrap* bootstrap);
 
@@ -55,6 +55,8 @@ public:
     void Start(TTransactionId prerequisiteTransactionId) override;
     void Stop() override;
 
+    void Reconfigure(const TActionManagerConfigPtr& config) override;
+
 private:
     struct TBundleProfilingCounters
     {
@@ -62,21 +64,31 @@ private:
         NProfiling::TCounter FailedActions;
     };
 
-    const TDuration ExpirationTimeout_;
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
-    const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
 
-    THashMap<TString, std::vector<TActionDescriptor>> PendingActionDescriptors_;
+    TActionManagerConfigPtr Config_;
+    NConcurrency::TPeriodicExecutorPtr PollExecutor_;
+    NConcurrency::TPeriodicExecutorPtr CreateActionExecutor_;
+
+    THashMap<TString, std::deque<TActionDescriptor>> PendingActionDescriptors_;
     THashMap<TString, THashSet<TTabletActionPtr>> RunningActions_;
     THashMap<TString, std::deque<TTabletActionPtr>> FinishedActions_;
     THashMap<TString, TBundleProfilingCounters> ProfilingCounters_;
+
+    std::queue<std::pair<TString, TInstant>> BundlesWithPendingActions_;
 
     bool Started_ = false;
     TTransactionId PrerequisiteTransactionId_ = NullTransactionId;
 
     void Poll();
     void TryPoll();
+
+    int CreatePendingBundleActions(const TString& bundleName, int actionCountLimit);
+    void CreatePendingActions();
+    void TryCreatePendingActions();
+
+    int GetRunningActionCount() const;
 
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
     void MoveFinishedActionsFromRunningToFinished();
@@ -86,17 +98,20 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TActionManager::TActionManager(
-    TDuration actionExpirationTimeout,
-    TDuration pollingPeriod,
+    TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap)
-    : ExpirationTimeout_(actionExpirationTimeout)
-    , Client_(std::move(client))
+    : Client_(std::move(client))
     , Invoker_(bootstrap->GetControlInvoker())
+    , Config_(std::move(config))
     , PollExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TActionManager::TryPoll, MakeWeak(this)),
-        pollingPeriod))
+        Config_->TabletActionPollingPeriod))
+    , CreateActionExecutor_(New<TPeriodicExecutor>(
+        Invoker_,
+        BIND(&TActionManager::TryCreatePendingActions, MakeWeak(this)),
+        Config_->TabletActionPollingPeriod))
 { }
 
 void TActionManager::ScheduleActionCreation(const TString& bundleName, const TActionDescriptor& descriptor)
@@ -123,13 +138,99 @@ void TActionManager::CreateActions(const TString& bundleName)
         return;
     }
 
+    BundlesWithPendingActions_.emplace(bundleName, TInstant::Now() + Config_->TabletActionCreationTimeout);
+}
+
+void TActionManager::TryCreatePendingActions()
+{
+    TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("CreatePendingActions"));
+    try {
+        CreatePendingActions();
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to create pending actions");
+    }
+}
+
+void TActionManager::CreatePendingActions()
+{
+    auto runningActionCount = GetRunningActionCount();
+    if (BundlesWithPendingActions_.empty()) {
+        YT_LOG_DEBUG("No action to create in any bundle");
+        return;
+    }
+
+    if (runningActionCount > Config_->CreateActionBatchSizeLimit / 2) {
+        YT_LOG_DEBUG("Too many running actions, will not create more at the moment"
+            " (ActionCount: %v, SoftLimit: %v, HardLimit: %v)",
+            runningActionCount,
+            Config_->CreateActionBatchSizeLimit / 2,
+            Config_->CreateActionBatchSizeLimit);
+        return;
+    }
+
+    auto iterationStartTime = TInstant::Now();
+
+    YT_LOG_DEBUG("Started creating pending actions (IterationStartTime: %v,"
+        " PendingBundleCount: %v, ActionCreationTimeout: %v)",
+        iterationStartTime,
+        std::ssize(BundlesWithPendingActions_),
+        Config_->TabletActionCreationTimeout);
+
+    int actionCount = 0;
+    while (actionCount < Config_->CreateActionBatchSizeLimit && !BundlesWithPendingActions_.empty()) {
+        auto [bundleName, timeout] = BundlesWithPendingActions_.front();
+        if (timeout < iterationStartTime) {
+            YT_LOG_WARNING(
+                "Actions were dropped due to timeout (Bundle: %v, ActionCount: %v, Timeout: %v)",
+                bundleName,
+                std::ssize(PendingActionDescriptors_[bundleName]),
+                Config_->TabletActionCreationTimeout);
+
+            BundlesWithPendingActions_.pop();
+            EraseOrCrash(PendingActionDescriptors_, bundleName);
+            continue;
+        }
+
+        actionCount += CreatePendingBundleActions(bundleName, Config_->CreateActionBatchSizeLimit - actionCount);
+
+        if (PendingActionDescriptors_[bundleName].empty()) {
+            BundlesWithPendingActions_.pop();
+            EraseOrCrash(PendingActionDescriptors_, bundleName);
+        }
+    }
+
+    YT_LOG_DEBUG("Creating pending actions finished (ActionCount: %v, PendingBundleCount: %v)",
+        actionCount,
+        std::ssize(BundlesWithPendingActions_));
+}
+
+int TActionManager::GetRunningActionCount() const
+{
+    return std::accumulate(
+        RunningActions_.begin(),
+        RunningActions_.end(),
+        0,
+        [] (int x, const auto& pair) {
+            return x + std::ssize(pair.second);
+        });
+}
+
+int TActionManager::CreatePendingBundleActions(const TString& bundleName, int actionCountLimit)
+{
+    YT_LOG_DEBUG("Creating pending actions (Bundle: %v, ActionCountLimit: %v)",
+        bundleName,
+        actionCountLimit);
+
     auto proxy = CreateObjectServiceWriteProxy(Client_);
     auto batchReq = proxy.ExecuteBatch();
-    const auto& descriptors = PendingActionDescriptors_[bundleName];
+
+    auto& descriptors = PendingActionDescriptors_[bundleName];
+    actionCountLimit = std::min<int>(actionCountLimit, std::ssize(descriptors));
 
     std::vector<TFuture<NObjectClient::TObjectId>> futures;
-    for (const auto& descriptor : descriptors) {
-        auto attributes = MakeActionAttributes(descriptor);
+
+    for (int index = 0; index < actionCountLimit; ++index) {
+        auto attributes = MakeActionAttributes(descriptors[index]);
         YT_LOG_DEBUG("Creating tablet action (Attributes: %v, BundleName: %v)",
             ConvertToYsonString(attributes, EYsonFormat::Text),
             bundleName);
@@ -143,7 +244,7 @@ void TActionManager::CreateActions(const TString& bundleName)
         .ValueOrThrow();
 
     THashSet<TTabletActionPtr> runningActions;
-    for (int index = 0; index < std::ssize(descriptors); ++index) {
+    for (int index = 0; index < actionCountLimit; ++index) {
         auto rspOrError = responses[index];
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(
@@ -163,15 +264,20 @@ void TActionManager::CreateActions(const TString& bundleName)
         EmplaceOrCrash(runningActions, New<TTabletAction>(actionId, descriptors[index]));
     }
 
+    for (int index = 0; index < actionCountLimit; ++index) {
+        descriptors.pop_front();
+    }
+
+    int createdActionCount = std::ssize(runningActions);
     if (!runningActions.empty()) {
         GetOrCreateProfilingCounters(bundleName).RunningActions.Update(runningActions.size());
         EmplaceOrCrash(RunningActions_, bundleName, std::move(runningActions));
     }
 
-    EraseOrCrash(PendingActionDescriptors_, bundleName);
     YT_LOG_INFO("Created tablet actions for bundle (ActionCount: %v, BundleName: %v)",
-        std::ssize(runningActions),
+        createdActionCount,
         bundleName);
+    return createdActionCount;
 }
 
 bool TActionManager::HasUnfinishedActions(const TString& bundleName) const
@@ -227,6 +333,7 @@ void TActionManager::Start(TTransactionId prerequisiteTransactionId)
     PendingActionDescriptors_.clear();
 
     PollExecutor_->Start();
+    CreateActionExecutor_->Start();
 }
 
 void TActionManager::Stop()
@@ -239,8 +346,18 @@ void TActionManager::Stop()
     PrerequisiteTransactionId_ = NullTransactionId;
 
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
+    YT_UNUSED_FUTURE(CreateActionExecutor_->Stop());
 
     YT_LOG_INFO("Tablet action manager stopped");
+}
+
+void TActionManager::Reconfigure(const TActionManagerConfigPtr& config)
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    Config_ = config;
+    PollExecutor_->SetPeriod(Config_->TabletActionPollingPeriod);
+    CreateActionExecutor_->SetPeriod(Config_->TabletActionPollingPeriod);
 }
 
 void TActionManager::TryPoll()
@@ -385,21 +502,19 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
                 attributes->Set("tablet_count", descriptor.TabletCount);
             }
         });
-    attributes->Set("expiration_timeout", ExpirationTimeout_);
+    attributes->Set("expiration_timeout", Config_->TabletActionExpirationTimeout);
     return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IActionManagerPtr CreateActionManager(
-    TDuration actionExpirationTimeout,
-    TDuration pollingPeriod,
+    TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap)
 {
     return New<TActionManager>(
-        actionExpirationTimeout,
-        pollingPeriod,
+        std::move(config),
         std::move(client),
         bootstrap);
 }

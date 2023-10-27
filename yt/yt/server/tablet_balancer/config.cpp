@@ -19,10 +19,7 @@ void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(2));
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .Default(3);
-    registrar.Parameter("tablet_action_expiration_timeout", &TThis::TabletActionExpirationTimeout)
-        .Default(TDuration::Minutes(20));
-    registrar.Parameter("tablet_action_polling_period", &TThis::TabletActionPollingPeriod)
-        .Default(TDuration::Seconds(10));
+
     registrar.Parameter("parameterized_timeout_on_start", &TThis::ParameterizedTimeoutOnStart)
         .Default(TDuration::Minutes(10));
     registrar.Parameter("parameterized_timeout", &TThis::ParameterizedTimeout)
@@ -80,12 +77,28 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_actions_per_group", &TThis::MaxActionsPerGroup)
         .Default(300)
         .GreaterThan(0);
+    registrar.Parameter("action_manager", &TThis::ActionManager)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->Schedule.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Schedule cannot be empty");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TActionManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("create_action_batch_size_limit", &TThis::CreateActionBatchSizeLimit)
+        .Default(100);
+    registrar.Parameter("tablet_action_polling_period", &TThis::TabletActionPollingPeriod)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("tablet_action_creation_timeout", &TThis::TabletActionCreationTimeout)
+        .Default(TDuration::Minutes(5));
+    registrar.Parameter("tablet_action_expiration_timeout", &TThis::TabletActionExpirationTimeout)
+        .Default(TDuration::Minutes(20));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
