@@ -20,6 +20,7 @@
 
 #include <library/cpp/string_utils/base64/base64.h>
 
+#include <util/string/escape.h>
 #include <util/string/split.h>
 
 namespace NYT::NQueryTracker {
@@ -326,11 +327,12 @@ private:
         auto status = outputNode->GetChildOrThrow("status")->AsString()->GetValue();
         if (status == "ok") {
             auto dataNode = outputNode->GetChildOrThrow("data")->AsMap();
-            auto textNode = dataNode->GetChildOrThrow("text/plain")->AsString();
-            return textNode->GetValue();
+            return dataNode->GetChildValueOrThrow<TString>("text/plain");
         } else if (status == "error") {
-            auto error = outputNode->GetChildOrThrow("evalue")->AsString()->GetValue();
-            THROW_ERROR_EXCEPTION("Livy error: %v", error);
+            auto error = outputNode->GetChildValueOrThrow<TString>("evalue");
+            auto traceback = outputNode->GetChildValueOrThrow<std::vector<TString>>("traceback");
+            THROW_ERROR_EXCEPTION("Livy error: %v", error)
+                << TErrorAttribute("traceback", traceback);
         } else {
             THROW_ERROR_EXCEPTION("Unknown Livy query status: %v", status);
         }
@@ -343,7 +345,7 @@ private:
             "val df = spark.sql(\"%v\").limit(%v);"
             "val rows = GenericRowSerializer.dfToYTFormatWithBase64(df);"
             "println(rows.mkString(\"\\n\"))",
-            sqlQuery,
+            EscapeC(sqlQuery),
             Config_->RowCountLimit);
         auto dataNode = BuildYsonNodeFluently()
             .BeginMap()
