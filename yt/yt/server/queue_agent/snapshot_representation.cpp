@@ -3,8 +3,11 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 namespace NYT::NQueueAgent {
 
+using namespace NNet;
 using namespace NQueueClient;
 using namespace NYson;
 using namespace NYTree;
@@ -50,6 +53,7 @@ void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, TFluentAny fluent)
     if (!snapshot->Error.IsOK()) {
         fluent
             .BeginMap()
+                .Item("queue_agent_host").Value(GetLocalHostName())
                 .Item("error").Value(snapshot->Error)
             .EndMap();
         return;
@@ -57,6 +61,7 @@ void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, TFluentAny fluent)
 
     fluent
         .BeginMap()
+            .Item("queue_agent_host").Value(GetLocalHostName())
             .Item("family").Value(snapshot->Family)
             .Item("partition_count").Value(snapshot->PartitionCount)
             .Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson)
@@ -136,6 +141,7 @@ void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fl
     if (!snapshot->Error.IsOK()) {
         fluent
             .BeginMap()
+                .Item("queue_agent_host").Value(GetLocalHostName())
                 .Item("error").Value(snapshot->Error)
             .EndMap();
         return;
@@ -143,6 +149,7 @@ void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fl
 
     fluent
         .BeginMap()
+            .Item("queue_agent_host").Value(GetLocalHostName())
             .Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson)
             .Item("queues").DoMapFor(snapshot->SubSnapshots, [] (TFluentMap fluent, auto pair) {
                 const auto& queueRef = pair.first;
