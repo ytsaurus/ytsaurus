@@ -2262,7 +2262,6 @@ private:
         for (auto peerId : peerIds) {
             if (independent || peerId == cell->GetLeadingPeerId()) {
                 AbortPrerequisiteTransaction(cell, independent ? std::make_optional(peerId) : std::nullopt);
-                AbortCellSubtreeTransactions(cell, independent ? std::make_optional(peerId) : std::nullopt);
             }
         }
     }
@@ -2293,12 +2292,10 @@ private:
             for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 if (!cell->IsAlienPeer(peerId)) {
                     AbortPrerequisiteTransaction(cell, peerId);
-                    AbortCellSubtreeTransactions(cell, peerId);
                 }
             }
         } else {
             AbortPrerequisiteTransaction(cell, std::nullopt);
-            AbortCellSubtreeTransactions(cell, std::nullopt);
         }
     }
 
@@ -2373,18 +2370,6 @@ private:
             cell->GetId(),
             peerId,
             transaction->GetId());
-    }
-
-    void AbortCellSubtreeTransactions(TCellBase* cell, std::optional<int> peerId)
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto nodeProxy = FindCellNode(cell->GetId());
-        if (nodeProxy && peerId) {
-            nodeProxy = nodeProxy->FindChild(ToString(*peerId))->AsMap();
-        }
-        if (nodeProxy) {
-            cypressManager->AbortSubtreeTransactions(nodeProxy);
-        }
     }
 
     void AbortPrerequisiteTransaction(TCellBase* cell, std::optional<int> peerId)

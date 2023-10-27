@@ -229,6 +229,7 @@ public:
 
     TTransaction* StartUploadTransaction(
         TTransaction* parent,
+        std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<TString>& title,
@@ -239,7 +240,7 @@ public:
         return DoStartTransaction(
             /*upload*/ true,
             parent,
-            /*prerequisiteTransactions*/ {},
+            prerequisiteTransactions,
             replicatedToCellTags,
             timeout,
             /*deadline*/ std::nullopt,
@@ -1439,6 +1440,24 @@ public:
         return true;
     }
 
+    TTransaction* ValidatePrerequisiteTransaction(TTransactionId transactionId) override
+    {
+        auto* prerequisiteTransaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(prerequisiteTransaction)) {
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is missing",
+                transactionId);
+        }
+        if (prerequisiteTransaction->GetPersistentState() != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is in %Qlv state",
+                transactionId,
+                prerequisiteTransaction->GetPersistentState());
+        }
+
+        return prerequisiteTransaction;
+    }
+
     void CreateOrRefTimestampHolder(TTransactionId transactionId) override
     {
         if (auto it = TimestampHolderMap_.find(transactionId)) {
@@ -1704,24 +1723,6 @@ private:
             IsCypressTransactionType(transactionType),
             hintId);
         YT_VERIFY(transaction->GetId() == hintId);
-    }
-
-    TTransaction* ValidatePrerequisiteTransaction(TTransactionId transactionId)
-    {
-        auto* prerequisiteTransaction = FindTransaction(transactionId);
-        if (!IsObjectAlive(prerequisiteTransaction)) {
-            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: transaction %v is missing",
-                transactionId);
-        }
-        if (prerequisiteTransaction->GetPersistentState() != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: transaction %v is in %Qlv state",
-                transactionId,
-                prerequisiteTransaction->GetPersistentState());
-        }
-
-        return prerequisiteTransaction;
     }
 
     void HydraRegisterTransactionActions(
