@@ -378,7 +378,7 @@ TNodeYsonList TNodeManager::BuildNodeYsonList() const
         .ValueOrThrow();
 
     TNodeYsonList nodeYsons;
-    for (const auto& fragment : nodeYsonsFromShards) {
+    for (auto& fragment : nodeYsonsFromShards) {
         for (auto& nodeIdAndYson : fragment) {
             nodeYsons.push_back(std::move(nodeIdAndYson));
         }
