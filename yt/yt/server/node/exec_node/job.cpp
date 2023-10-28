@@ -1932,11 +1932,11 @@ void TJob::OnJobProxyPreparationTimeout()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Job proxy preparation timeout");
-
     YT_VERIFY(JobPhase_ >= NJobTrackerClient::EJobPhase::SpawningJobProxy);
 
     if (JobPhase_ == NJobTrackerClient::EJobPhase::PreparingJob) {
+        YT_LOG_INFO("Job proxy preparation timeout");
+
         Abort(TError(
             NExecNode::EErrorCode::JobProxyPreparationTimeout,
             "Failed to prepare job proxy within timeout, aborting job"));
