@@ -276,7 +276,7 @@ private:
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
 
-    using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, TInstant>;
+    using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, std::optional<TInstant>>;
     std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
     NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
     std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics_;

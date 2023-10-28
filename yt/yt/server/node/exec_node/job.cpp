@@ -272,9 +272,7 @@ void TJob::DoStart()
             }
 
             if (NeedGpu()) {
-                for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
-                    GpuStatistics_.emplace_back(TGpuStatistics{}, /*lastUpdateTime*/ now);
-                }
+                GpuStatistics_.resize(GpuSlots_.size());
             }
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
@@ -2873,7 +2871,13 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
             gpuInfo = it->second;
         }
 
-        auto period = gpuInfo.UpdateTime - slotStatisticsLastUpdateTime;
+        if (!slotStatisticsLastUpdateTime) {
+            YT_VERIFY(ExecTime_);
+
+            slotStatisticsLastUpdateTime = ExecTime_;
+        }
+
+        auto period = gpuInfo.UpdateTime - *slotStatisticsLastUpdateTime;
         slotStatistics.CumulativeUtilizationGpu += period.MilliSeconds() * gpuInfo.UtilizationGpuRate;
         if (gpuInfo.UtilizationGpuRate > 0) {
             slotStatistics.CumulativeLoad += period.MilliSeconds();
@@ -2881,7 +2885,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         slotStatistics.CumulativeUtilizationMemory += period.MilliSeconds() * gpuInfo.UtilizationMemoryRate;
         slotStatistics.CumulativeMemory += period.MilliSeconds() * gpuInfo.MemoryUsed;
         slotStatistics.CumulativeMemoryMBSec += static_cast<i64>(period.SecondsFloat() * gpuInfo.MemoryUsed / 1_MB);
-        slotStatistics.CumulativeUtilizationPower += period.MilliSeconds() * (gpuInfo.PowerDraw / gpuInfo.PowerLimit);
+        slotStatistics.CumulativeUtilizationPower += period.MilliSeconds() *
+            (gpuInfo.PowerLimit > 0
+                ? gpuInfo.PowerDraw / gpuInfo.PowerLimit
+                : 0.0);
         slotStatistics.CumulativePower += period.MilliSeconds() * gpuInfo.PowerDraw;
         slotStatistics.CumulativeUtilizationClocksSM += period.MilliSeconds() *
             (gpuInfo.ClocksMaxSM > 0
@@ -2896,15 +2903,15 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
                 static_cast<i64>((gpuInfo.UpdateTime - *gpuInfo.Stuck.LastTransitionTime).MilliSeconds()));
         }
 
-        slotStatisticsLastUpdateTime = gpuInfo.UpdateTime;
-
         YT_LOG_DEBUG(
             "Updated job GPU slot statistics "
             "(GpuInfo: %v, SlotStatistics: %v, SlotStatisticsLastUpdateTime: %v, Period: %v)",
             gpuInfo,
             slotStatistics,
-            slotStatisticsLastUpdateTime,
+            *slotStatisticsLastUpdateTime,
             period);
+
+        slotStatisticsLastUpdateTime = gpuInfo.UpdateTime;
 
         aggregatedGpuStatistics.CumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
         aggregatedGpuStatistics.CumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
