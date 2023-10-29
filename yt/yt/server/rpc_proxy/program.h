@@ -58,7 +58,6 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-        ConfigureAllocator();
 
         if (HandleSetsidOptions()) {
             return;
