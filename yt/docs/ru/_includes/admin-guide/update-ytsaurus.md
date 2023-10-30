@@ -97,9 +97,8 @@ $ kubectl describe ytsaurus -n <namespace>
 
 ### Инструкция
 
-1. Скачать чарт, на который необходимо обновиться: `helm pull oci://docker.io/ytsaurus/ytop-chart --version <new-version> --untar`
-2. Запустить обновление `helm upgrade ytsaurus --install ./ytop-chart`
-3. Проверить, что старые поды оператора удалились, а новые создались:
+1. Запустите обновление чарта `helm upgrade ytsaurus --install oci://docker.io/ytsaurus/ytop-chart --version <new-version>`
+2. Проверить, что старые поды оператора удалились, а новые создались:
 ```bash
 $ kubectl get pod -n <namespace>
 NAME                                                      READY   STATUS        RESTARTS   AGE

@@ -19,10 +19,9 @@
 ### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт: `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.4.1 --untar`.
-3. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`
-4. Установите оператор `helm install ytsaurus ytop-chart/`.
-5. Проверьте результат:
+2. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`
+3. Установите чарт `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version 0.4.1`.
+4. Проверьте результат:
 
 ```bash
 $ kubectl get pod
