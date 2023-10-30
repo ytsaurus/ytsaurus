@@ -13,7 +13,6 @@
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
-#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>

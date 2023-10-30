@@ -39,18 +39,6 @@ void BuildDynamicStoreSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShouldFetchChunkMetaFromSequoia(
-    TChunk* chunk,
-    bool fetchMetaFromSequoia);
-
-TFuture<void> FetchChunkMetasFromSequoia(
-    bool fetchAllMetaExtensions,
-    const THashSet<int>& extensionTags,
-    std::vector<NChunkClient::NProto::TChunkSpec*> chunkSpecs,
-    NCellMaster::TBootstrap* bootstrap);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkOwnerNodeProxy
     : public NCypressServer::TNontemplateCypressNodeProxyBase
 {

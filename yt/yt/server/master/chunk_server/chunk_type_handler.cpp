@@ -7,7 +7,6 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -68,16 +67,6 @@ private:
         chunkManager->DestroyChunk(chunk);
 
         TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
-    }
-
-    void DoDestroySequoiaObject(TChunk* chunk, const ISequoiaTransactionPtr& transaction) noexcept override
-    {
-        if (chunk->IsForeign()) {
-            return;
-        }
-
-        auto key = GetChunkMetaExtensionsKey(chunk->GetId());
-        transaction->DeleteRow(key);
     }
 
     void DoUnstageObject(TChunk* chunk, bool recursive) override

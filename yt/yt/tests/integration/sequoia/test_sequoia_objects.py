@@ -12,8 +12,6 @@ from yt_commands import (
 
 
 def sequoia_tables_empty():
-    if len(select_rows("* from [//sys/sequoia/chunk_meta_extensions]")) > 0:
-        return False
     if len(select_rows("* from [//sys/sequoia/chunk_replicas]")) > 0:
         return False
     if len(select_rows("* from [//sys/sequoia/location_replicas]")) > 0:

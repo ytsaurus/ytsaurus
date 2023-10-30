@@ -7,7 +7,6 @@
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
-#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/api/native/tablet_request_batcher.h>
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>

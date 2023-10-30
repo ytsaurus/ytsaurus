@@ -603,24 +603,6 @@ class YTEnvSetup(object):
         if cls.USE_SEQUOIA:
             yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia")
             yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000)
-            yt_commands.create(
-                "table",
-                "//sys/sequoia/chunk_meta_extensions",
-                attributes={
-                    "dynamic": True,
-                    "schema": [
-                        {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
-                        {"name": "id", "type": "string", "sort_order": "ascending"},
-                        {"name": "misc_ext", "type": "string"},
-                        {"name": "hunk_chunk_refs_ext", "type": "string"},
-                        {"name": "hunk_chunk_misc_ext", "type": "string"},
-                        {"name": "boundary_keys_ext", "type": "string"},
-                        {"name": "heavy_column_statistics_ext", "type": "string"},
-                    ],
-                    "tablet_cell_bundle": "sequoia",
-                    "account": "sequoia",
-                })
-            yt_commands.sync_mount_table("//sys/sequoia/chunk_meta_extensions")
 
             yt_commands.create(
                 "table",

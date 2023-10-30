@@ -58,7 +58,6 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
-#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>

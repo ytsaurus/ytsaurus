@@ -355,7 +355,6 @@ SRCS(
     security_client/proto/group_ypath.proto
     security_client/proto/user_ypath.proto
 
-    sequoia_client/chunk_meta_extensions.cpp
     sequoia_client/client.cpp
     sequoia_client/helpers.cpp
     sequoia_client/table_descriptor.cpp
@@ -485,12 +484,6 @@ SRCS(
     yql_client/config.cpp
 
     yql_client/proto/yql_service.proto
-)
-
-GENERATE_YT_RECORD(
-    sequoia_client/chunk_meta_extensions.yaml
-    OUTPUT_INCLUDES
-        yt/yt/ytlib/sequoia_client/public.h
 )
 
 GENERATE_YT_RECORD(

@@ -59,8 +59,6 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
-
 #include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 

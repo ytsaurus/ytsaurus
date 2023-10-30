@@ -46,7 +46,6 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
-#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -285,42 +284,6 @@ void BuildDynamicStoreSpec(
         ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
     }
     chunkSpec->set_row_index_is_absolute(true);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<void> FetchChunkMetasFromSequoia(
-    bool fetchAllMetaExtensions,
-    const THashSet<int>& extensionTags,
-    std::vector<NChunkClient::NProto::TChunkSpec*> chunkSpecs,
-    TBootstrap* bootstrap)
-{
-    TColumnFilter columnFilter;
-    if (!fetchAllMetaExtensions) {
-        columnFilter = GetChunkMetaExtensionsColumnFilter(extensionTags);
-    }
-
-    std::vector<NRecords::TChunkMetaExtensionsKey> keys;
-    for (const auto* chunkSpec : chunkSpecs) {
-        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
-        keys.push_back(GetChunkMetaExtensionsKey(chunkId));
-    }
-
-    auto client = bootstrap->GetSequoiaClient();
-    // TODO(babenko): capturing client is needed to ensure its in-flight requests get executed properly
-    return client
-        ->LookupRows(keys, columnFilter)
-        .Apply(BIND([keys = std::move(keys), chunkSpecs = std::move(chunkSpecs), client] (const std::vector<std::optional<NRecords::TChunkMetaExtensions>>& records) {
-            YT_VERIFY(records.size() == chunkSpecs.size());
-            for (int index = 0; index < std::ssize(records); ++index) {
-                const auto& record = records[index];
-                if (!record) {
-                    THROW_ERROR_EXCEPTION("Missing meta extensions for Sequoia chunk %v",
-                        FromProto<TChunkId>(chunkSpecs[index]->chunk_id()));
-                }
-                ToProto(chunkSpecs[index]->mutable_chunk_meta()->mutable_extensions(), *record);
-            }
-        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

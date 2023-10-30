@@ -1253,7 +1253,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
@@ -1355,7 +1354,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_listener.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/yql_client/config.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/chunk_replicas.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/location_replicas.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.cpp
@@ -1366,25 +1364,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
-)
-add_custom_command(
-  OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.h
-  DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  COMMAND
-  Python3::Interpreter
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.yaml
-  --output-root
-  ${CMAKE_BINARY_DIR}
-  --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.cpp
-  --output-include
-  yt/yt/ytlib/sequoia_client/public.h
 )
 add_custom_command(
   OUTPUT
