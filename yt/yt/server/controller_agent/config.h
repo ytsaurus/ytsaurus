@@ -501,6 +501,7 @@ public:
     i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
+    double CriticalNewPartitionDifferenceRatio;
 
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 

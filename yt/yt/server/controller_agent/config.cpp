@@ -468,6 +468,10 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
 
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
         .DefaultNew();
+
+    registrar.Parameter("critical_new_partition_difference_ratio", &TThis::CriticalNewPartitionDifferenceRatio)
+        .Default(10.0)
+        .GreaterThan(0.0);
 }
 
 void TRemoteCopyOperationOptions::Register(TRegistrar registrar)

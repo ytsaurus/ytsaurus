@@ -111,6 +111,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((CustomStatisticsLimitExceeded)               (31))
     ((BaseLayerProbeFailed)                        (33))
     ((MtnExperimentFailed)                         (34))
+    ((NewPartitionsCountIsSignificantlyLarger)     (36))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
