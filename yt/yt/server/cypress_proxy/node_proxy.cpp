@@ -229,24 +229,12 @@ protected:
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
 {
     // TODO(kvk1920): Optimize.
-
-    // NB: Some cases can be optimized via providing `GetBuiltinAttribute()`
-    // method (@id, @path, ...). Moreover, there is `GetBuiltinAttributeAsync()`
-    // for those attributes which have to be requested from appropriate master
-    // cell.
-    // But this approach is a bit complicated:
-    // we cannot afford sending multiple "get" request to master cell per one
-    // user "get" request since some mutation may occur between our requests to
-    // master cell. The naive workaround could be something like this:
-    //
-    // Before calling `ExecuteVerb()` in object service:
-    //      TMasterCellRequester requester;
-    // Here:
-    //      auto future = requester.GetAttribute(Id_, attributeName);
-    //      return future;
-    // After calling `ExecuteVerb()` in object service:
-    //      requester.ExecuteScheduledGetRequests();
-    // Does `TBatchAttributeFetcher` do exactly what is needed here?..
+    // NB: There are 3 kinds of attributes:
+    //  1. Already known (path, id);
+    //  2. Replicated to Sequoia tables;
+    //  3. Master-only.
+    // If request contains at least 1 attribute of 3d kind we can just redirect
+    // whole request to master.
 
     // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
     // for the same path we can get an error "no such node".
