@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 class SparkDefaultArguments(object):
+    SPARK_WORKER_MEMORY_OVERHEAD = "4G"
     SPARK_WORKER_TMPFS_LIMIT = "150G"
     SPARK_WORKER_SSD_LIMIT = None
     SPARK_MASTER_MEMORY_LIMIT = "6G"
@@ -629,8 +630,8 @@ def abort_spark_operations(spark_discovery, client):
         raise error
 
 
-def start_spark_cluster(worker_cores, worker_memory, worker_num,
-                        worker_cores_overhead=None, worker_memory_overhead=None,
+def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_overhead=None,
+                        worker_memory_overhead=SparkDefaultArguments.SPARK_WORKER_MEMORY_OVERHEAD,
                         worker_timeout=SparkDefaultArguments.SPARK_WORKER_TIMEOUT,
                         operation_alias=None, discovery_path=None, pool=None,
                         tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
