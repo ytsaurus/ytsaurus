@@ -13,7 +13,6 @@ namespace NYT::NSequoiaClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESequoiaTable,
-    (ChunkMetaExtensions)
     (ResolveNode)
     (ChunkReplicas)
     (LocationReplicas)
@@ -21,9 +20,6 @@ DEFINE_ENUM(ESequoiaTable,
 );
 
 namespace NRecords {
-
-struct TChunkMetaExtensionsKey;
-struct TChunkMetaExtensions;
 
 struct TResolveNode;
 struct TReverseResolveNode;
