@@ -611,6 +611,31 @@ ui64 GetEvaluatedColumnModulo(const TConstExpressionPtr& expr)
     return moduloExpansion;
 }
 
+TConstExpressionPtr TSelfifyRewriter::OnReference(const TReferenceExpression* reference)
+{
+    for (int index = 0; index < std::ssize(JoinClause->ForeignEquations); ++index) {
+        if (auto* foreignRefEq = JoinClause->ForeignEquations[index]->As<TReferenceExpression>()) {
+            const auto& mapping = JoinClause->Schema.Mapping;
+            auto it = std::find_if(mapping.begin(), mapping.end(), [&] (const TColumnDescriptor& desc) {
+                return desc.Name == foreignRefEq->ColumnName;
+            });
+
+            if (it == mapping.end()) {
+                continue;
+            }
+
+            if (JoinClause->Schema.Original->Columns()[it->Index].Name() == reference->ColumnName) {
+                const auto& self = JoinClause->SelfEquations[index];
+                YT_VERIFY(!self.Evaluated);
+
+                return self.Expression;
+            }
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("Reference in the foreign evaluated joined column failed to pair against a native expression");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
