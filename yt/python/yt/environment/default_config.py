@@ -6,7 +6,6 @@ def get_master_config():
     return yson.loads(b"""
 {
     enable_provision_lock = %false;
-    use_new_hydra = %true;
 
     timestamp_provider = {
         soft_backoff_time = 100;
@@ -530,10 +529,6 @@ def get_node_config():
             lock_transaction_timeout = 3000;
         };
 
-        hydra_manager = {
-            use_new_hydra = %true;
-        };
-
         table_config_manager = {
             update_period = 100;
         };
@@ -644,7 +639,6 @@ def get_chaos_node_config():
                         changelogs = {
                             lock_transaction_timeout = 3000;
                         };
-                        use_new_hydra = %true;
                         hive_manager = {
                             ping_period = 1000;
                             idle_post_period = 1000;
