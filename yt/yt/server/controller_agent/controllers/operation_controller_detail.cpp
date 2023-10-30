@@ -9615,7 +9615,8 @@ void TOperationControllerBase::InitUserJobSpec(
         // They may contain sensitive information that should not be persisted with a controller.
 
         // We add a single variable storing the whole secure vault and all top-level scalar values.
-        jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
+        jobSpec->add_environment(Format("%v=%v",
+            SecureVaultEnvPrefix,
             ConvertToYsonString(SecureVault, EYsonFormat::Text)));
 
         for (const auto& [key, node] : SecureVault->GetChildren()) {
@@ -9632,7 +9633,7 @@ void TOperationControllerBase::InitUserJobSpec(
                     break;
             }
             if (value) {
-                jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", key, *value));
+                jobSpec->add_environment(Format("%v_%v=%v", SecureVaultEnvPrefix, key, *value));
             }
         }
 

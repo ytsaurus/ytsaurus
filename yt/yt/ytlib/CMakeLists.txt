@@ -1163,6 +1163,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/output_order.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp

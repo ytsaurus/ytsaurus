@@ -37,6 +37,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
@@ -632,7 +634,9 @@ private:
             visibleEnvironment.reserve(Environment_.size());
 
             for (const auto& variable : Environment_) {
-                if (variable.StartsWith("YT_SECURE_VAULT") && !UserJobSpec_.enable_secure_vault_variables_in_job_shell()) {
+                if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
+                    !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+                {
                     continue;
                 }
                 if (variable.StartsWith("YT_")) {

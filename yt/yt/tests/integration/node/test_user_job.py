@@ -9,7 +9,7 @@ from yt_commands import (
     create_user, make_ace, start_transaction, lock,
     write_file, read_table,
     write_table, map, abort_op, run_sleeping_vanilla,
-    vanilla, run_test_vanilla, abort_job,
+    vanilla, run_test_vanilla, abort_job, get_job_spec,
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
@@ -1853,6 +1853,8 @@ class TestSecureVault(YTEnvSetup):
         "composite": {"token1": "SeNsItIvE", "token2": "InFo"},
     }
 
+    secure_values = ("42424243", "SeNsItIvE", "InFo")
+
     def run_map_with_secure_vault(self, spec=None):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1865,7 +1867,7 @@ class TestSecureVault(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec=merged_spec,
-            command="""
+            command=with_breakpoint("""
                 echo -e "{YT_SECURE_VAULT=$YT_SECURE_VAULT};"
                 echo -e "{YT_SECURE_VAULT_int64=$YT_SECURE_VAULT_int64};"
                 echo -e "{YT_SECURE_VAULT_uint64=$YT_SECURE_VAULT_uint64};"
@@ -1873,7 +1875,8 @@ class TestSecureVault(YTEnvSetup):
                 echo -e "{YT_SECURE_VAULT_boolean=$YT_SECURE_VAULT_boolean};"
                 echo -e "{YT_SECURE_VAULT_double=$YT_SECURE_VAULT_double};"
                 echo -e "{YT_SECURE_VAULT_composite=\\"$YT_SECURE_VAULT_composite\\"};"
-           """,
+                BREAKPOINT;
+           """),
         )
         return op
 
@@ -1894,17 +1897,31 @@ class TestSecureVault(YTEnvSetup):
         op = self.run_map_with_secure_vault()
         cypress_info = str(op.get_path() + "/@")
         scheduler_info = str(get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)))
+
+        wait_breakpoint()
+
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        job_spec_str = str(get_job_spec(job_id))
+        for value in self.secure_values:
+            assert job_spec_str.find(value) == -1
+
+        release_breakpoint()
+
         op.track()
 
         # Check that secure environment variables is neither presented in the Cypress node of the
         # operation nor in scheduler Orchid representation of the operation.
         for info in [cypress_info, scheduler_info]:
-            for sensible_text in ["42424243", "SeNsItIvE", "InFo"]:
-                assert info.find(sensible_text) == -1
+            for value in self.secure_values:
+                assert info.find(value) == -1
 
     @authors("ignat")
     def test_secure_vault_simple(self):
         op = self.run_map_with_secure_vault()
+        release_breakpoint()
         op.track()
         res = read_table("//tmp/t_out")
         self.check_content(res)
@@ -1912,9 +1929,14 @@ class TestSecureVault(YTEnvSetup):
     @authors("ignat")
     def test_secure_vault_with_revive(self):
         op = self.run_map_with_secure_vault()
+        wait_breakpoint()
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
+
+        release_breakpoint()
         op.track()
+
         res = read_table("//tmp/t_out")
         self.check_content(res)
 

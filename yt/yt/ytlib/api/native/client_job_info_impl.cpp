@@ -641,6 +641,9 @@ TYsonString TClient::DoGetJobSpec(
     const TGetJobSpecOptions& options)
 {
     auto jobSpec = FetchJobSpec(jobId, options.JobSpecSource, EPermissionSet(EPermissionSet::Read));
+
+    NControllerAgent::SanitizeJobSpec(&jobSpec);
+
     auto* jobSpecExt = jobSpec.MutableExtension(NControllerAgent::NProto::TJobSpecExt::job_spec_ext);
 
     if (options.OmitNodeDirectory) {

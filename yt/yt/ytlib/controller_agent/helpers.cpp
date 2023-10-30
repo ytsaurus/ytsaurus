@@ -358,4 +358,28 @@ TYsonString BuildBriefStatistics(const INodePtr& statistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SanitizeJobSpec(NProto::TJobSpec* jobSpec)
+{
+    if (!jobSpec->HasExtension(NProto::TJobSpecExt::job_spec_ext)) {
+        return;
+    }
+
+    auto* jobSpecExt = jobSpec->MutableExtension(NProto::TJobSpecExt::job_spec_ext);
+    if (!jobSpecExt->has_user_job_spec()) {
+        return;
+    }
+
+    auto* userJobSpec = jobSpecExt->mutable_user_job_spec();
+    auto environment = FromProto<std::vector<TString>>(userJobSpec->environment());
+
+    userJobSpec->clear_environment();
+    for (const auto& variable : environment) {
+        if (!variable.StartsWith(SecureVaultEnvPrefix)) {
+            userJobSpec->add_environment(variable);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
