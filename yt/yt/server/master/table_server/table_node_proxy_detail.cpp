@@ -1062,9 +1062,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             BuildYsonFluently(consumer)
                 .BeginMap()
-                .Item("index_id").Value(secondaryIndex->GetId())
-                .Item("table_path").Value(tablePath)
-                .Item("kind").Value(kind)
+                    .Item("index_id").Value(secondaryIndex->GetId())
+                    .Item("table_path").Value(tablePath)
+                    .Item("kind").Value(kind)
                 .EndMap();
 
             return true;

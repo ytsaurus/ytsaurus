@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/table_server/private.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -18,6 +19,10 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +45,9 @@ public:
     ETypeFlags GetFlags() const override
     {
         return
+            ETypeFlags::ReplicateCreate |
+            ETypeFlags::ReplicateDestroy |
+            ETypeFlags::ReplicateAttributes |
             ETypeFlags::Creatable |
             ETypeFlags::Removable;
     }
@@ -70,13 +78,19 @@ private:
     void DoZombifyObject(TSecondaryIndex* secondaryIndex) override
     {
         auto* table = secondaryIndex->GetTable();
-        auto* index_table = secondaryIndex->GetIndexTable();
+        auto* indexTable = secondaryIndex->GetIndexTable();
         if (table) {
+            YT_LOG_DEBUG("Drop index links from table due to index removal (IndexId: %v, TableId: %v)",
+                secondaryIndex->GetId(),
+                table->GetId());
             EraseOrCrash(table->MutableSecondaryIndices(), secondaryIndex);
             secondaryIndex->SetTable(nullptr);
         }
-        if (index_table) {
-            index_table->SetIndexTo(nullptr);
+        if (indexTable) {
+            YT_LOG_DEBUG("Drop index links from index table due to index removal (IndexId: %v, TableId: %v)",
+                secondaryIndex->GetId(),
+                indexTable->GetId());
+            indexTable->SetIndexTo(nullptr);
             secondaryIndex->SetIndexTable(nullptr);
         }
 
@@ -86,6 +100,14 @@ private:
     IObjectProxyPtr DoGetProxy(TSecondaryIndex* secondaryIndex, TTransaction* /*transaction*/) override
     {
         return CreateSecondaryIndexProxy(Bootstrap_, &Metadata_, secondaryIndex);
+    }
+
+    TCellTagList DoGetReplicationCellTags(const TSecondaryIndex* secondaryIndex) override
+    {
+        auto cellTag = secondaryIndex->GetExternalCellTag();
+        return cellTag == NObjectClient::NotReplicatedCellTagSentinel
+            ? TCellTagList{}
+            : TCellTagList{cellTag};
     }
 };
 

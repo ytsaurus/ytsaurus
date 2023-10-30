@@ -16,6 +16,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTableNode*, IndexTable);
     DEFINE_BYVAL_RW_PROPERTY(ESecondaryIndexKind, Kind);
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
 
 public:
     using TObject::TObject;

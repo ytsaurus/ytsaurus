@@ -4,7 +4,8 @@ from yt.common import wait
 
 from yt_commands import (
     authors, get, exists, remove, create_secondary_index, create_dynamic_table,
-    sync_create_cells, sync_mount_table, select_rows, insert_rows, sorted_dicts,
+    sync_create_cells, sync_mount_table, raises_yt_error, get_driver,
+    select_rows, insert_rows, sorted_dicts,
 )
 
 ##################################################################
@@ -35,8 +36,8 @@ INDEX_ON_VALUE_SCHEMA = [
 
 class TestSecondaryIndexBase(DynamicTablesBase):
     def _create_basic_tables(self, table_path="//tmp/table", index_table_path="//tmp/index_table", kind="full_sync"):
-        table_id = create_dynamic_table(table_path, PRIMARY_SCHEMA)
-        index_table_id = create_dynamic_table(index_table_path, INDEX_ON_VALUE_SCHEMA)
+        table_id = create_dynamic_table(table_path, PRIMARY_SCHEMA, external_cell_tag=11)
+        index_table_id = create_dynamic_table(index_table_path, INDEX_ON_VALUE_SCHEMA, external_cell_tag=11)
         index_id = create_secondary_index(
             table_path,
             index_table_path,
@@ -48,8 +49,6 @@ class TestSecondaryIndexBase(DynamicTablesBase):
 class TestSecondaryIndex(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_create_index(self):
-        sync_create_cells(1)
-
         table_id, index_table_id, index_id = self._create_basic_tables()
 
         assert get("#{}/@kind".format(index_id)) == "full_sync"
@@ -73,30 +72,33 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_secondary_index_delete_index(self):
-        sync_create_cells(1)
         _, _, index_id = self._create_basic_tables()
 
         remove(f"#{index_id}")
         assert not exists("//tmp/table/@secondary_indices")
         assert not exists("//tmp/index_table/@index_to")
+        if self.NUM_SECONDARY_MASTER_CELLS:
+            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
     def test_secondary_index_delete_primary_table(self):
-        sync_create_cells(1)
         _, _, index_id = self._create_basic_tables()
 
         remove("//tmp/table")
         assert not exists("//tmp/index_table/@index_to")
         wait(lambda: not exists(f"#{index_id}"))
+        if self.NUM_SECONDARY_MASTER_CELLS:
+            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
     def test_secondary_index_delete_index_table(self):
-        sync_create_cells(1)
         _, _, index_id = self._create_basic_tables()
 
         remove("//tmp/index_table")
         assert not exists("//tmp/table/@secondary_indices")
         wait(lambda: not exists(f"#{index_id}"))
+        if self.NUM_SECONDARY_MASTER_CELLS:
+            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
     def test_secondary_index_select_simple(self):
@@ -148,3 +150,16 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
         rows = select_rows("Alias.keyA, Alias.keyB, Alias.keyC, Alias.valueA, Alias.valueB, Alias.valueC "
                            "from [//tmp/table] Alias with index [//tmp/index_table]")
         assert sorted_dicts(rows) == sorted_dicts(aliased_table_rows)
+
+##################################################################
+
+
+class TestSecondaryIndexMulticell(TestSecondaryIndex):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    @authors("sabdenovch")
+    def test_secondary_index_different_cell_tags(self):
+        create_dynamic_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
+        create_dynamic_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=12)
+        with raises_yt_error("Table and index table external cell tags differ"):
+            create_secondary_index("//tmp/table", "//tmp/index_table")

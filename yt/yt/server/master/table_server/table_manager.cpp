@@ -768,6 +768,12 @@ public:
             THROW_ERROR_EXCEPTION("Index cannot have multiple primary tables");
         }
 
+        if (table->GetExternalCellTag() != indexTable->GetExternalCellTag()) {
+            THROW_ERROR_EXCEPTION("Table and index table external cell tags differ")
+                << TErrorAttribute("table_external_cell_tag", table->GetExternalCellTag())
+                << TErrorAttribute("index_table_external_cell_tag", indexTable->GetExternalCellTag());
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto secondaryIndexId = objectManager->GenerateId(EObjectType::SecondaryIndex, hintId);
 
@@ -779,6 +785,9 @@ public:
         secondaryIndex->SetKind(kind);
         secondaryIndex->SetTable(table);
         secondaryIndex->SetIndexTable(indexTable);
+        secondaryIndex->SetExternalCellTag(table->IsNative()
+            ? table->GetExternalCellTag()
+            : NotReplicatedCellTagSentinel);
 
         indexTable->SetIndexTo(secondaryIndex);
         InsertOrCrash(table->MutableSecondaryIndices(), secondaryIndex);

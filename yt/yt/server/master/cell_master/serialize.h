@@ -176,6 +176,7 @@ DEFINE_ENUM(EMasterReign,
     ((DisposalNodesLimit)                                           (2441))  // cherepashka
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
+    ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
 );
 
 ////////////////////////////////////////////////////////////////////////////////

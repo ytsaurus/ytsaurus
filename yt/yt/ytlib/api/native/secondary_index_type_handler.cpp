@@ -45,6 +45,17 @@ public:
         ResolveExternalTable(Client_, tablePath, &tableId, &tableCellTag);
         ResolveExternalTable(Client_, indexTablePath, &indexTableId, &indexTableCellTag);
 
+        if (CellTagFromId(tableId) != CellTagFromId(indexTableId)) {
+            THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
+                << TErrorAttribute("table_cell_tag", CellTagFromId(tableId))
+                << TErrorAttribute("index_table_cell_tag", CellTagFromId(indexTableId));
+        }
+        if (tableCellTag != indexTableCellTag) {
+            THROW_ERROR_EXCEPTION("Table and index table external cell tags differ")
+                << TErrorAttribute("table_external_cell_tag", tableCellTag)
+                << TErrorAttribute("index_table_external_cell_tag", indexTableCellTag);
+        }
+
         attributes->Set("table_id", tableId);
         attributes->Set("index_table_id", indexTableId);
 

@@ -401,19 +401,35 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
 {
     const auto& objectManager = this->GetBootstrap()->GetObjectManager();
 
-    if (auto* secondaryIndex = table->GetIndexTo()) {
-        secondaryIndex->SetIndexTable(nullptr);
-        objectManager->UnrefObject(secondaryIndex);
+    // Since the deletion and attribute alteration is replicated to the external cell,
+    // we must only unref it once - on the native cell.
+    if (table->IsNative()) {
+        if (auto* secondaryIndex = table->GetIndexTo()) {
+            secondaryIndex->SetIndexTable(nullptr);
+            int refCounter = objectManager->UnrefObject(secondaryIndex);
 
-        table->SetIndexTo(nullptr);
+            YT_LOG_ALERT_IF(refCounter > 0,
+                "Failed to drop secondary index upon index table removal (IndexTableId: %v, IndexId: %v, IndexRefCounter: %v)",
+                table->GetId(),
+                secondaryIndex->GetId(),
+                refCounter);
+
+            table->SetIndexTo(nullptr);
+        }
+
+        for (auto* secondaryIndex : table->SecondaryIndices()) {
+            secondaryIndex->SetTable(nullptr);
+            int refCounter = objectManager->UnrefObject(secondaryIndex);
+
+            YT_LOG_ALERT_IF(refCounter > 0,
+                "Failed to drop secondary index upon table removal (TableId: %v, IndexId: %v, IndexRefCounter: %v)",
+                table->GetId(),
+                secondaryIndex->GetId(),
+                refCounter);
+        }
+
+        table->MutableSecondaryIndices().clear();
     }
-
-    for (auto* secondaryIndex : table->SecondaryIndices()) {
-        secondaryIndex->SetTable(nullptr);
-        objectManager->UnrefObject(secondaryIndex);
-    }
-
-    table->MutableSecondaryIndices().clear();
 }
 
 template <class TImpl>
