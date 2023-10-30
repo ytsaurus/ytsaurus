@@ -47,6 +47,11 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
     Comparator = Schema->ToComparator();
 }
 
+bool TTable::IsSortedDynamic() const
+{
+    return Dynamic && Schema->IsSorted();
+}
+
 TString ToString(const TTablePtr& table)
 {
     return ToString(table->Path);
@@ -140,11 +145,6 @@ std::vector<TTablePtr> FetchTables(
                     path,
                     allowedTypes,
                     type);
-            }
-            if (attributes->Get<bool>("dynamic", false) && !attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
-                THROW_ERROR_EXCEPTION(
-                    "Table %Qv is an ordered dynamic table; they are not supported yet (CHYT-419)",
-                    path.GetPath());
             }
             if (attributes->Get<bool>("dynamic", false) &&
                 enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))

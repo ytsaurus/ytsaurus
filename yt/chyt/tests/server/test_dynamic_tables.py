@@ -89,6 +89,103 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                     {"value": "foo5"}
                 ]
 
+    @authors("achulkov2")
+    def test_simple_ordered_table(self):
+        create(
+            "table",
+            "//tmp/dt",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "data", "type": "string"},
+                ],
+                "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            },
+        )
+        sync_mount_table("//tmp/dt")
+
+        data = [{"data": f"foo{i}"} for i in range(10)]
+
+        for i in range(0, 2):
+            insert_rows("//tmp/dt", [data[i]])
+
+        sync_flush_table("//tmp/dt")
+
+        for i in range(2, 5):
+            insert_rows("//tmp/dt", [data[i]])
+
+        sync_flush_table("//tmp/dt")
+
+        for i in range(5, 10):
+            insert_rows("//tmp/dt", [data[i]])
+
+        # Two chunks + dynamic stores.
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            range_specifier = "{lower_limit={tablet_index=0; row_index=3};upper_limit={tablet_index=0; row_index=8}}"
+
+            assert clique.make_query("select * from `//tmp/dt` order by data") == data
+            assert clique.make_query("select * from `//tmp/dt` where data == 'foo7'") == [data[7]]
+            assert clique.make_query(f"select * from `<ranges=[{range_specifier}]>//tmp/dt` order by data") == data[3:8]
+
+            sync_unmount_table("//tmp/dt")
+            # Now everything is flushed. There is still an empty dynamic store though.
+
+            assert clique.make_query("select * from `//tmp/dt` order by data") == data
+            assert clique.make_query("select * from `//tmp/dt` where data == 'foo7'") == [data[7]]
+            assert clique.make_query(f"select * from `<ranges=[{range_specifier}]>//tmp/dt` order by data") == data[3:8]
+
+            sync_mount_table("//tmp/dt")
+
+            assert clique.make_query("select * from `//tmp/dt` order by data") == data
+            assert clique.make_query("select * from `//tmp/dt` where data == 'foo7'") == [data[7]]
+            assert clique.make_query(f"select * from `<ranges=[{range_specifier}]>//tmp/dt` order by data") == data[3:8]
+
+    @authors("achulkov2")
+    def test_ordered_table_concat(self):
+        schema = [
+            {"name": "data", "type": "string"},
+        ]
+
+        create(
+            "table",
+            "//tmp/dt",
+            attributes={
+                "dynamic": True,
+                "schema": schema,
+                "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            },
+        )
+        sync_mount_table("//tmp/dt")
+
+        data = [{"data": f"foo{i}"} for i in range(10)]
+
+        for i in range(0, 2):
+            insert_rows("//tmp/dt", [data[i]])
+
+        sync_flush_table("//tmp/dt")
+
+        for i in range(2, 5):
+            insert_rows("//tmp/dt", [data[i]])
+
+        sync_flush_table("//tmp/dt")
+
+        for i in range(5, 10):
+            insert_rows("//tmp/dt", [data[i]])
+
+        # Two chunks + dynamic stores.
+
+        create("table", "//tmp/st", attributes={"schema": schema}, force=True)
+        write_table("//tmp/st", data)
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            assert clique.make_query("select * from concatYtTables(`//tmp/dt`) order by data") == data
+            assert clique.make_query("select * from concatYtTables(`//tmp/dt`, `//tmp/dt`) order by data") == sorted(data * 2, key=lambda row: row["data"])
+            assert clique.make_query("select * from concatYtTables(`//tmp/dt`, `//tmp/st`) order by data") == sorted(data * 2, key=lambda row: row["data"])
+            assert clique.make_query("select * from concatYtTables(`//tmp/st`, `//tmp/dt`) order by data") == sorted(data * 2, key=lambda row: row["data"])
+
     # Tests below are obtained from similar already existing tests on dynamic tables.
 
     @authors("max42")
@@ -202,11 +299,15 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows
 
     @authors("dakovalkov")
-    def test_enable_dynamic_store_read(self):
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_enable_dynamic_store_read(self, sorted):
         schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64"},
             {"name": "value", "type": "string"},
         ]
+        if sorted:
+            schema[0]["sort_order"] = "ascending"
+
         rows = [{"key": i, "value": str(i)} for i in range(30)]
 
         create("table", "//tmp/t", attributes={"schema": schema}, force=True)
@@ -233,15 +334,15 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
         settings = {"chyt.dynamic_table.enable_dynamic_store_read": 0}
 
         with Clique(2, config_patch=self._get_config_patch()) as clique:
-            assert clique.make_query("select * from `//tmp/t`") == rows
-            assert clique.make_query("select * from `//tmp/t`", settings=settings) == rows
+            assert clique.make_query("select * from `//tmp/t` order by key") == rows
+            assert clique.make_query("select * from `//tmp/t` order by key", settings=settings) == rows
 
-            assert clique.make_query("select * from `//tmp/dyn_on`") == rows
-            assert clique.make_query("select * from `//tmp/dyn_on`", settings=settings) == []
+            assert clique.make_query("select * from `//tmp/dyn_on` order by key") == rows
+            assert clique.make_query("select * from `//tmp/dyn_on` order by key", settings=settings) == []
 
             with pytest.raises(YtError):
-                clique.make_query("select * from `//tmp/dyn_off`")
-            assert clique.make_query("select * from `//tmp/dyn_off`", settings=settings) == []
+                clique.make_query("select * from `//tmp/dyn_off` order by key")
+            assert clique.make_query("select * from `//tmp/dyn_off` order by key", settings=settings) == []
 
     @authors("dakovalkov")
     @pytest.mark.timeout(150)

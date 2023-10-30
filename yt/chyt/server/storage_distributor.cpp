@@ -819,8 +819,8 @@ public:
         // TODO(dakovalkov): CHYT-526
         if (Tables_.size() > 1) {
             for (const auto& table : Tables_) {
-                if (table->Dynamic) {
-                    THROW_ERROR_EXCEPTION("Reading multiple dynamic tables or dynamic table together with static table is not supported (CHYT-526)");
+                if (table->IsSortedDynamic()) {
+                    THROW_ERROR_EXCEPTION("Reading multiple sorted dynamic tables or a sorted dynamic table together with a static table is not supported (CHYT-526)");
                 }
             }
         }

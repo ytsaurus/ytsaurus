@@ -99,6 +99,7 @@ using namespace NYson;
 using namespace NLogging;
 
 using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,23 +356,23 @@ private:
     //! Fetch all tables and fill ResultStripes_.
     void FetchTables()
     {
-        int staticTableCount = 0;
-        int dynamicTableCount = 0;
+        int unversionedTableCount = 0;
+        int versionedTableCount = 0;
         for (const auto& table : InputTables_) {
-            if (table->Dynamic) {
-                ++dynamicTableCount;
+            if (table->IsSortedDynamic()) {
+                ++versionedTableCount;
             } else {
-                ++staticTableCount;
+                ++unversionedTableCount;
             }
         }
-        if (dynamicTableCount > 0 && staticTableCount > 0) {
-            THROW_ERROR_EXCEPTION("Reading static tables together with dynamic tables is not supported yet");
+        if (versionedTableCount > 0 && unversionedTableCount > 0) {
+            THROW_ERROR_EXCEPTION("Reading static or ordered dynamic tables together with sorted dynamic tables is not supported yet");
         }
 
         YT_LOG_INFO(
-            "Fetching input tables (StaticTableCount: %v, DynamicTableCount: %v)",
-            staticTableCount,
-            dynamicTableCount);
+            "Fetching input tables (UnversionedTableCount: %v, VersionedTableCount: %v)",
+            unversionedTableCount,
+            versionedTableCount);
 
         // We fetch table read spec for each table separately, put them into TableReadSpecs_ vector,
         // which will later be joined by JoinTableReadSpecs function.
@@ -393,7 +394,7 @@ private:
 
         // Fix slices for dynamic tables.
         for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
-            if (InputTables_[tableIndex]->Dynamic) {
+            if (InputTables_[tableIndex]->IsSortedDynamic()) {
                 CombineVersionedDataSlices(tableIndex);
             }
         }
@@ -507,7 +508,8 @@ private:
     {
         YT_LOG_DEBUG("Inferring dynamic table ranges from tablet pivot keys");
         for (const auto& inputTable : InputTables_) {
-            if (!inputTable->Dynamic) {
+            if (!inputTable->IsSortedDynamic()) {
+                // We do not need to infer ranges for static or ordered dynamic tables.
                 continue;
             }
             if (inputTable->Path.HasNontrivialRanges()) {
@@ -515,6 +517,7 @@ private:
                 YT_LOG_DEBUG("Skipping table as it already has non-trivial ranges (Table: %v)", inputTable->Path);
                 continue;
             }
+
             std::vector<TReadRange> ranges;
 
             const auto& tablets = inputTable->TableMountInfo->Tablets;
@@ -605,7 +608,8 @@ private:
 
     void AddTableForFetching(const TTablePtr& table, int tableIndex)
     {
-        if (table->Dynamic && QueryContext_->Settings->DynamicTable->FetchFromTablets &&
+        // TODO(achulkov2): Support ordered tables in tablet chunk spec fetcher?
+        if (table->IsSortedDynamic() && QueryContext_->Settings->DynamicTable->FetchFromTablets &&
             QueryContext_->Settings->Execution->TableReadLockMode == ETableReadLockMode::None &&
             table->TableMountInfo->MountedTablets.size() == table->TableMountInfo->Tablets.size())
         {
@@ -644,7 +648,7 @@ private:
             const auto& table = InputTables_[tableIndex];
             TableReadSpecs_[tableIndex].DataSourceDirectory = New<TDataSourceDirectory>();
             auto& dataSource = TableReadSpecs_[tableIndex].DataSourceDirectory->DataSources().emplace_back();
-            if (table->Dynamic) {
+            if (table->IsSortedDynamic()) {
                 dataSource = MakeVersionedDataSource(
                     /*path*/ std::nullopt,
                     table->Schema,
@@ -690,6 +694,7 @@ private:
         {
             chunkCount++;
             auto tableIndex = chunkSpec.table_index();
+
             // Table indices will be properly reassigned later by JoinTableReadSpecs.
             chunkSpec.set_table_index(0);
             TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
