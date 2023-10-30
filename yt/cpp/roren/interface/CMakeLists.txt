@@ -40,6 +40,7 @@ target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_par_do.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_timer_par_do.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/par_do_tree.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/coder.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/fns.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/input.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/output.cpp

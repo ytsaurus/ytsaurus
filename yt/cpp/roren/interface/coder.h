@@ -19,6 +19,8 @@ namespace NYT {
     namespace NTableClient {
         class TUnversionedRow;
     }  // namespace NYT::NTableClient
+
+    class TNode;
 }  // namespace NYT
 
 namespace NRoren {
@@ -164,6 +166,36 @@ private:
 };
 
 template <typename T>
+class TCoder<std::vector<T>>
+{
+public:
+    inline void Encode(IOutputStream* out, const std::vector<T>& value)
+    {
+        i64 size = value.size();
+        ::Save(out, size);
+        for (const auto& item : value) {
+            ItemCoder_.Encode(out, item);
+        }
+    }
+
+    inline void Decode(IInputStream* in, std::vector<T>& value)
+    {
+        i64 size;
+        ::Load(in, size);
+        value.clear();
+        value.reserve(size);
+        T item;
+        for (i64 i = 0; i < size; ++i) {
+            ItemCoder_.Decode(in, item);
+            value.push_back(std::move(item));
+        }
+    }
+
+private:
+    TCoder<T> ItemCoder_;
+};
+
+template <typename T>
 class TCoder<std::shared_ptr<T>>
 {
 public:
@@ -273,6 +305,14 @@ public:
 
     void Decode(IInputStream*, std::monostate&)
     { }
+};
+
+template <>
+class TCoder<NYT::TNode>
+{
+public:
+    void Encode(IOutputStream* out, const NYT::TNode& node);
+    void Decode(IInputStream* in, NYT::TNode& node);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,6 +21,7 @@ SRCS(
     private/stateful_timer_par_do.cpp
     private/par_do_tree.cpp
 
+    coder.cpp
     fns.cpp
     input.cpp
     output.cpp
