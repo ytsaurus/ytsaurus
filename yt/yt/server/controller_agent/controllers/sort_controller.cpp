@@ -3816,11 +3816,6 @@ private:
             return true;
         }
 
-        int salt = OperationId.Parts64[1] & 255;
-        if (salt < Spec->NewPartitionsHeuristicProbability) {
-            return true;
-        }
-
         return false;
     }
 
@@ -4723,11 +4718,6 @@ private:
 
         if (Spec->HasNontrivialReduceCombiner()) {
             return false;
-        }
-
-        int salt = OperationId.Parts64[1] & 255;
-        if (salt < Spec->NewPartitionsHeuristicProbability) {
-            return true;
         }
 
         return false;

@@ -1449,9 +1449,6 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .Default(0.7);
     registrar.Parameter("use_new_sorted_pool", &TThis::UseNewSortedPool)
         .Default(false);
-    registrar.Parameter("new_partitions_heuristic_probability", &TThis::NewPartitionsHeuristicProbability)
-        .Default(0)
-        .InRange(0, 256);
 
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
         NTableClient::ValidateSortColumns(spec->SortBy);

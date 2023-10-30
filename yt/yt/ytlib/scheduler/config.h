@@ -1673,8 +1673,6 @@ public:
 
     bool UseNewSortedPool;
 
-    int NewPartitionsHeuristicProbability;
-
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 
     static void Register(TRegistrar registrar);
