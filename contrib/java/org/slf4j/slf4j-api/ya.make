@@ -1,7 +1,7 @@
 JAVA_CONTRIB_PROXY()
 
 PEERDIR(
-    contrib/java/org/slf4j/slf4j-api/2.0.7
+    contrib/java/org/slf4j/slf4j-api/2.0.9
 )
 
 END()
@@ -63,4 +63,5 @@ RECURSE(
     2.0.0-alpha5
     1.5.11
     1.7.15
+    2.0.9
 )
