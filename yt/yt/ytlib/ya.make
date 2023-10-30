@@ -189,6 +189,7 @@ SRCS(
     chunk_pools/output_order.cpp
 
     controller_agent/helpers.cpp
+    controller_agent/public.cpp
 
     controller_agent/proto/controller_agent_service.proto
     controller_agent/proto/job_prober_service.proto

@@ -343,6 +343,9 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
         // Node directory is huge and useless when debugging.
         jobSpecExt->clear_input_node_directory();
     }
+
+    NControllerAgent::SanitizeJobSpec(&jobSpec);
+
     YT_LOG_DEBUG("Job spec:\n%v", jobSpec.DebugString());
 }
 
