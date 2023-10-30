@@ -10,7 +10,7 @@ import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{AtomicType, StructType}
 import org.apache.spark.sql.v2.YtUtils.bytesReadReporter
 import org.apache.spark.sql.v2.{YtReaderOptions, YtUtils}
 import org.apache.spark.util.SerializableConfiguration
@@ -54,7 +54,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     val arrowEnabledValue = YtReaderOptions.arrowEnabled(options, sqlConf)
     val optimizedForScanValue = YtReaderOptions.optimizedForScan(options)
     val readBatch = YtReaderOptions.canReadBatch(requiredSchema, optimizedForScanValue, arrowEnabledValue)
-    val returnBatch = YtReaderOptions.supportBatch(readBatch, requiredSchema, sqlConf)
+    val returnBatch = readBatch && YtReaderOptions.supportBatch(requiredSchema, sqlConf)
     val filterPushdownConfig = FilterPushdownConfig(sparkSession)
 
     val batchMaxSize = hadoopConf.ytConf(VectorizedCapacity)
@@ -133,6 +133,6 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   }
 
   override def supportBatch(sparkSession: SparkSession, dataSchema: StructType): Boolean = {
-    false
+    YtReaderOptions.supportBatch(dataSchema, sparkSession.sqlContext.conf)
   }
 }

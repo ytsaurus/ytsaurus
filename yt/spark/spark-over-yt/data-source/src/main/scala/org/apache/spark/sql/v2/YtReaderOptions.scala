@@ -26,14 +26,14 @@ object YtReaderOptions {
       !options.getYtConf(YtTableSparkSettings.KeyPartitioned).exists(identity)
   }
 
-  def supportBatch(canReadBatch: Boolean, resultSchema: StructType, conf: SQLConf): Boolean = {
-    canReadBatch && conf.wholeStageEnabled &&
+  def supportBatch(resultSchema: StructType, conf: SQLConf): Boolean = {
+    conf.wholeStageEnabled &&
       resultSchema.length <= conf.wholeStageMaxNumFields &&
       resultSchema.forall(_.dataType.isInstanceOf[AtomicType])
   }
 
   def supportBatch(dataSchema: StructType, options: Map[String, String], conf: SQLConf): Boolean = {
-    supportBatch(canReadBatch(dataSchema, options, conf), dataSchema, conf)
+    canReadBatch(dataSchema, options, conf) && supportBatch(dataSchema, conf)
   }
 
   private def arrowSchemaSupported(dataSchema: StructType): Boolean = {

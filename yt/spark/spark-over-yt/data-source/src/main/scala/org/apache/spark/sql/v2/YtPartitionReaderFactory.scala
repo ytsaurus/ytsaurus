@@ -48,7 +48,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   private val arrowEnabled: Boolean = YtReaderOptions.arrowEnabled(options, sqlConf)
   private val optimizedForScan: Boolean = YtReaderOptions.optimizedForScan(options)
   private val readBatch: Boolean = YtReaderOptions.canReadBatch(readDataSchema, optimizedForScan, arrowEnabled)
-  private val returnBatch: Boolean = YtReaderOptions.supportBatch(readBatch, resultSchema, sqlConf)
+  private val returnBatch: Boolean = readBatch && YtReaderOptions.supportBatch(resultSchema, sqlConf)
   private val batchMaxSize = sqlConf.ytConf(VectorizedCapacity)
 
   @transient private lazy val taskContext: ThreadLocal[TaskContext] = new ThreadLocal()
