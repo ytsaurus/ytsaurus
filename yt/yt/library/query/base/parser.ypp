@@ -89,6 +89,11 @@
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
 %token KwTransform "keyword `TRANSFORM`"
+%token KwCaseBegin "keyword `CASE`"
+%token KwCaseWhen "keyword `WHEN`"
+%token KwCaseThen "keyword `THEN`"
+%token KwCaseElse "keyword `ELSE`"
+%token KwCaseEnd "keyword `END`"
 
 %token KwFalse "keyword `TRUE`"
 %token KwTrue "keyword `FALSE`"
@@ -159,6 +164,9 @@
 %type <TExpressionList> comma-expr
 %type <TNullableExpressionList> transform-default-expr
 %type <TNullableExpressionList> join-predicate
+%type <TNullableExpressionList> case-default-expr
+%type <TWhenThenExpression> when-then-expr
+%type <TWhenThenExpressionList> when-then-expr-list
 
 %type <std::optional<TLiteralValue>> literal-value
 %type <std::optional<TLiteralValue>> const-value
@@ -637,6 +645,41 @@ atomic-expr
         {
             $$ = MakeExpression<TLiteralExpression>(head, @$, *$value);
         }
+    | KwCaseBegin expression[optionalOperand] when-then-expr-list[whenThenExpressions] case-default-expr[default] KwCaseEnd
+        {
+            $$ = MakeExpression<TCaseExpression>(head, @$, $optionalOperand, $whenThenExpressions, $default);
+        }
+    | KwCaseBegin when-then-expr-list[whenThenExpressions] case-default-expr[default] KwCaseEnd
+        {
+            $$ = MakeExpression<TCaseExpression>(head, @$, TNullableExpressionList{}, $whenThenExpressions, $default);
+        }
+;
+
+when-then-expr-list
+    : when-then-expr-list[list] when-then-expr[clause]
+        {
+            $$.swap($list);
+            $$.push_back($clause);
+        }
+    | when-then-expr[clause]
+        {
+            $$.push_back($clause);
+        }
+;
+
+when-then-expr
+    : KwCaseWhen expression[condition] KwCaseThen expression[result]
+        {
+            $$ = {std::move($condition), std::move($result)};
+        }
+;
+
+case-default-expr
+    : KwCaseElse expression[expr]
+        {
+            $$ = $expr;
+        }
+    | { }
 ;
 
 transform-default-expr

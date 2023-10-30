@@ -2107,6 +2107,127 @@ TCodegenExpression MakeCodegenTransformExpr(
     };
 }
 
+namespace NDetail {
+
+TCGValue MakeCodegenCaseExprRecursive(
+    Function* eqComparer,
+    Value* optionalOperand,
+    std::optional<EValueType> optionalOperandType,
+    Value* evaluatedCondition,
+    TRange<std::pair<size_t, size_t>> whenThenExpressionIds,
+    std::optional<size_t> defaultId,
+    EValueType resultType,
+    TCGExprContext& builder)
+{
+    if (whenThenExpressionIds.empty()) {
+        if (defaultId) {
+            auto result = CodegenFragment(builder, *defaultId);
+            YT_ASSERT(result.GetStaticType() == resultType);
+            return result;
+        }
+        return TCGValue::CreateNull(builder, resultType);
+    }
+
+    auto conditionId = whenThenExpressionIds.Front().first;
+    auto resultId = whenThenExpressionIds.Front().second;
+    auto condition = CodegenFragment(builder, conditionId);
+
+    Value* canJump = nullptr;
+    if (optionalOperand) {
+        YT_ASSERT(condition.GetStaticType() == *optionalOperandType);
+
+        condition.StoreToValue(builder, evaluatedCondition);
+        auto optionalOperandAndWhenAreEqual = builder->CreateCall(
+            eqComparer,
+            {optionalOperand, evaluatedCondition});
+        canJump = builder->CreateICmpEQ(
+            optionalOperandAndWhenAreEqual,
+            builder->getInt8(1),
+            "canJump");
+    } else {
+        YT_ASSERT(condition.GetStaticType() == EValueType::Boolean);
+
+        Value* predicateDataIsTrue = builder->CreateICmpEQ(
+            condition.GetTypedData(builder),
+            builder->getTrue());
+        canJump = builder->CreateAnd(
+            predicateDataIsTrue,
+            builder->CreateNot(condition.GetIsNull(builder)),
+            "canJump");
+    }
+
+    return CodegenIf<TCGExprContext, TCGValue>(
+        builder,
+        canJump,
+        [&] (TCGExprContext& builder) {
+            auto result = CodegenFragment(builder, resultId);
+            YT_ASSERT(result.GetStaticType() == resultType);
+            return result;
+        },
+        [&] (TCGExprContext& builder) {
+            return MakeCodegenCaseExprRecursive(
+                eqComparer,
+                optionalOperand,
+                optionalOperandType,
+                evaluatedCondition,
+                whenThenExpressionIds.Slice(1, whenThenExpressionIds.Size()),
+                defaultId,
+                resultType,
+                builder);
+        });
+}
+
+} // namespace NDetail
+
+TCodegenExpression MakeCodegenCaseExpr(
+    std::optional<size_t> optionalOperandId,
+    std::optional<EValueType> optionalOperandType,
+    std::vector<std::pair<size_t, size_t>> whenThenExpressionIds,
+    std::optional<size_t> defaultId,
+    EValueType resultType,
+    TComparerManagerPtr comparerManager)
+{
+    return [
+        =,
+        whenThenExpressionIds = std::move(whenThenExpressionIds),
+        comparerManager = std::move(comparerManager)
+    ] (TCGExprContext& builder) {
+        Function* eqComparer = nullptr;
+        if (optionalOperandId) {
+            eqComparer = comparerManager->GetEqComparer(
+                std::vector{*optionalOperandType},
+                builder.Module);
+        }
+
+        Value* optionalOperand = nullptr;
+        if (optionalOperandId) {
+            optionalOperand = builder->CreateAlignedAlloca(
+                TTypeBuilder<TPIValue>::Get(builder->getContext()),
+                8,
+                builder->getInt64(1),
+                "optionalOperand");
+            CodegenFragment(builder, *optionalOperandId)
+                .StoreToValue(builder, optionalOperand);
+        }
+
+        Value* evaluatedCondition = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "evaluatedCondition");
+
+        return NDetail::MakeCodegenCaseExprRecursive(
+            eqComparer,
+            optionalOperand,
+            optionalOperandType,
+            evaluatedCondition,
+            whenThenExpressionIds,
+            defaultId,
+            resultType,
+            builder);
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Operators
 //

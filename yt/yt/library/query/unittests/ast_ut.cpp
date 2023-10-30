@@ -107,6 +107,12 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("transform(a, (1, 2), (2, 3))");
     TestExpression("transform((a, b), ((1, 2), (2, 3)), (\"x\", \"y\"))");
     TestExpression("transform((a, b), ((1, 2), (2, 3)), (\"x\", \"y\"), a + 1)");
+    TestExpression("case when c1 then r1 end");
+    TestExpression("case when c1 then r1 when c2 then r2 end");
+    TestExpression("case when c1 then r1 when c2 then r2 else r3 end");
+    TestExpression("case x when c1 then r1 end");
+    TestExpression("case x when c1 then r1 when c2 then r2 end");
+    TestExpression("case x when c1 then r1 when c2 then r2 else r3 end");
     TestExpression("a * (b + c)");
     TestExpression("a * b + c");
     TestExpression("0");

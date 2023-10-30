@@ -149,6 +149,15 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             typedLhs->From == typedRhs->From &&
             typedLhs->To == typedRhs->To &&
             typedLhs->DefaultExpr == typedRhs->DefaultExpr;
+    } else if (const auto* typedLhs = lhs.As<TCaseExpression>()) {
+        const auto* typedRhs = rhs.As<TCaseExpression>();
+        if (!typedRhs) {
+            return false;
+        }
+        return
+            typedLhs->OptionalOperand == typedRhs->OptionalOperand &&
+            typedLhs->WhenThenExpressions == typedRhs->WhenThenExpressions &&
+            typedLhs->DefaultExpression == typedRhs->DefaultExpression;
     } else {
         YT_ABORT();
     }
@@ -288,6 +297,11 @@ std::vector<TStringBuf> GetKeywords()
     XX(between)
     XX(in)
     XX(transform)
+    XX(case)
+    XX(when)
+    XX(then)
+    XX(else)
+    XX(end)
     XX(false)
     XX(true)
 
@@ -499,6 +513,27 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool
         }
 
         builder->AppendChar(')');
+    } else if (auto* typedExpr = expr.As<TCaseExpression>()) {
+        builder->AppendString("CASE");
+
+        if (typedExpr->OptionalOperand) {
+            builder->AppendChar(' ');
+            FormatExpression(builder, *typedExpr->OptionalOperand, expandAliases);
+        }
+
+        for (auto& item : typedExpr->WhenThenExpressions) {
+            builder->AppendString(" WHEN ");
+            FormatExpression(builder, item.first, expandAliases);
+            builder->AppendString(" THEN ");
+            FormatExpression(builder, item.second, expandAliases);
+        }
+
+        if (typedExpr->DefaultExpression) {
+            builder->AppendString(" ELSE ");
+            FormatExpression(builder, *typedExpr->DefaultExpression, expandAliases);
+        }
+
+        builder->AppendString(" END");
     } else {
         YT_ABORT();
     }

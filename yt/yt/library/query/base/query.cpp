@@ -639,6 +639,20 @@ bool Compare(
             CHECK(transformLhs->Values[index] == transformRhs->Values[index]);
         }
         CHECK(Compare(transformLhs->DefaultExpression, lhsSchema, transformRhs->DefaultExpression, rhsSchema, maxIndex));
+    } else if (auto caseLhs = lhs->As<TCaseExpression>()) {
+        auto caseRhs = rhs->As<TCaseExpression>();
+        CHECK(caseRhs);
+
+        CHECK(Compare(caseLhs->OptionalOperand, lhsSchema, caseRhs->OptionalOperand, rhsSchema, maxIndex));
+
+        CHECK(caseLhs->WhenThenExpressions.size() == caseRhs->WhenThenExpressions.size());
+
+        for (size_t index = 0; index < caseLhs->WhenThenExpressions.size(); ++index) {
+            CHECK(Compare(caseLhs->WhenThenExpressions[index]->Condition, lhsSchema, caseRhs->WhenThenExpressions[index]->Condition, rhsSchema, maxIndex));
+            CHECK(Compare(caseLhs->WhenThenExpressions[index]->Result, lhsSchema, caseRhs->WhenThenExpressions[index]->Result, rhsSchema, maxIndex));
+        }
+
+        CHECK(Compare(caseLhs->DefaultExpression, lhsSchema, caseRhs->DefaultExpression, rhsSchema, maxIndex));
     } else {
         YT_ABORT();
     }
@@ -848,6 +862,19 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         if (transformExpr->DefaultExpression) {
             ToProto(proto->mutable_default_expression(), transformExpr->DefaultExpression);
         }
+    } else if (auto caseExpr = original->As<TCaseExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::Case));
+        auto* proto = serialized->MutableExtension(NProto::TCaseExpression::case_expression);
+
+        if (caseExpr->OptionalOperand) {
+            ToProto(proto->mutable_optional_operand(), caseExpr->OptionalOperand);
+        }
+
+        ToProto(proto->mutable_when_then_expressions(), caseExpr->WhenThenExpressions);
+
+        if (caseExpr->DefaultExpression) {
+            ToProto(proto->mutable_default_expression(), caseExpr->DefaultExpression);
+        }
     }
 }
 
@@ -969,6 +996,24 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             if (ext.has_default_expression()) {
                 FromProto(&result->DefaultExpression, ext.default_expression());
             }
+            *original = result;
+            return;
+        }
+
+        case EExpressionKind::Case: {
+            auto result = New<TCaseExpression>(GetWireType(type));
+            const auto& ext = serialized.GetExtension(NProto::TCaseExpression::case_expression);
+
+            if (ext.has_optional_operand()) {
+                FromProto(&result->OptionalOperand, ext.optional_operand());
+            }
+
+            FromProto(&result->WhenThenExpressions, ext.when_then_expressions());
+
+            if (ext.has_default_expression()) {
+                FromProto(&result->DefaultExpression, ext.default_expression());
+            }
+
             *original = result;
             return;
         }
@@ -1141,6 +1186,22 @@ void FromProto(TConstProjectClausePtr* original, const NProto::TProjectClause& s
     for (int i = 0; i < serialized.projections_size(); ++i) {
         result->AddProjection(FromProto<TNamedItem>(serialized.projections(i)));
     }
+    *original = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TWhenThenExpression* proto, const TWhenThenExpressionPtr& original)
+{
+    ToProto(proto->mutable_condition(), original->Condition);
+    ToProto(proto->mutable_result(), original->Result);
+}
+
+void FromProto(TWhenThenExpressionPtr* original, const NProto::TWhenThenExpression& serialized)
+{
+    auto result = New<TWhenThenExpression>();
+    FromProto(&result->Condition, serialized.condition());
+    FromProto(&result->Result, serialized.result());
     *original = result;
 }
 

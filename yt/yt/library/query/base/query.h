@@ -46,6 +46,7 @@ DEFINE_ENUM(EExpressionKind,
     ((In)         (6))
     ((Transform)  (7))
     ((Between)    (8))
+    ((Case)       (9))
 );
 
 struct TExpression
@@ -204,6 +205,29 @@ struct TTransformExpression
         TConstExpressionPtr defaultExpression);
 };
 
+struct TCaseExpression
+    : public TExpression
+{
+    TConstExpressionPtr OptionalOperand;
+    std::vector<TWhenThenExpressionPtr> WhenThenExpressions;
+    TConstExpressionPtr DefaultExpression;
+
+    explicit TCaseExpression(EValueType type)
+        : TExpression(type)
+    { }
+
+    TCaseExpression(
+        EValueType type,
+        TConstExpressionPtr optionalOperand,
+        std::vector<TWhenThenExpressionPtr> whenThenExpressions,
+        TConstExpressionPtr defaultExpression)
+        : TExpression(type)
+        , OptionalOperand(std::move(optionalOperand))
+        , WhenThenExpressions(std::move(whenThenExpressions))
+        , DefaultExpression(std::move(defaultExpression))
+    { }
+};
+
 void ThrowTypeMismatchError(
     EValueType lhsType,
     EValueType rhsType,
@@ -341,6 +365,22 @@ struct TProjectClause
 
 DEFINE_REFCOUNTED_TYPE(TProjectClause)
 
+struct TWhenThenExpression
+    : public TRefCounted
+{
+    TConstExpressionPtr Condition;
+    TConstExpressionPtr Result;
+
+    TWhenThenExpression() = default;
+
+    TWhenThenExpression(TConstExpressionPtr condition, TConstExpressionPtr result)
+        : Condition(std::move(condition))
+        , Result(std::move(result))
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TWhenThenExpression)
+
 // Front Query is not Coordinatable
 // IsMerge is always true for front Query and false for Bottom Query
 
@@ -448,6 +488,8 @@ struct TAbstractVisitor
             return Derived()->OnBetween(betweenExpr, args...);
         } else if (auto transformExpr = expr->template As<TTransformExpression>()) {
             return Derived()->OnTransform(transformExpr, args...);
+        } else if (auto caseExpr = expr->template As<TCaseExpression>()) {
+            return Derived()->OnCase(caseExpr, args...);
         }
         YT_ABORT();
     }
@@ -518,6 +560,13 @@ struct TVisitor
         }
     }
 
+    void OnCase(const TCaseExpression* caseExpr)
+    {
+        for (size_t i = 0; i < caseExpr->WhenThenExpressions.size(); ++i) {
+            Visit(caseExpr->WhenThenExpressions[i]->Condition);
+            Visit(caseExpr->WhenThenExpressions[i]->Result);
+        }
+    }
 };
 
 template <class TDerived>
@@ -653,6 +702,43 @@ struct TRewriter
             newDefaultExpression);
     }
 
+    TConstExpressionPtr OnCase(const TCaseExpression* caseExpr)
+    {
+        bool allEqual = true;
+
+        TConstExpressionPtr newOptionalOperand;
+        if (const auto& optionalOperand = caseExpr->OptionalOperand) {
+            newOptionalOperand = Visit(optionalOperand );
+            allEqual = allEqual && newOptionalOperand == optionalOperand;
+        }
+
+        std::vector<TWhenThenExpressionPtr> newWhenThenExpressions;
+        for (auto& caseClause : caseExpr->WhenThenExpressions) {
+            auto newCondition = Visit(caseClause->Condition);
+            allEqual = allEqual && newCondition == caseClause->Condition;
+
+            auto newResult = Visit(caseClause->Result);
+            allEqual = allEqual && newResult == caseClause->Result;
+
+            newWhenThenExpressions.emplace_back(New<TWhenThenExpression>(newCondition, newResult));
+        }
+
+        TConstExpressionPtr newDefault;
+        if (const auto& defaultExpression = caseExpr->DefaultExpression) {
+            newDefault = Visit(defaultExpression);
+            allEqual = allEqual && newDefault == defaultExpression;
+        }
+
+        if (allEqual) {
+            return caseExpr;
+        }
+
+        return New<TCaseExpression>(
+            caseExpr->GetWireType(),
+            std::move(newOptionalOperand),
+            std::move(newWhenThenExpressions),
+            newDefault);
+    }
 };
 
 template <class TDerived, class TNode, class... TArgs>
@@ -720,7 +806,8 @@ struct TAbstractExpressionPrinter
             expr->As<TReferenceExpression>() ||
             expr->As<TFunctionExpression>() ||
             expr->As<TUnaryOpExpression>() ||
-            expr->As<TTransformExpression>();
+            expr->As<TTransformExpression>() ||
+            expr->As<TCaseExpression>();
     }
 
     const TExpression* GetExpression(const TConstExpressionPtr& expr)
@@ -747,6 +834,32 @@ struct TAbstractExpressionPrinter
     {
         if (const auto& defaultExpression = transformExpr->DefaultExpression) {
             Builder->AppendString(", ");
+            Visit(defaultExpression, args...);
+        }
+    }
+
+    void OnOptionalOperand(const TCaseExpression* caseExpr, TArgs... args)
+    {
+        if (const auto& optionalOperand = caseExpr->OptionalOperand) {
+            Builder->AppendChar(' ');
+            Visit(optionalOperand, args...);
+        }
+    }
+
+    void OnWhenThenExpressions(const TCaseExpression* caseExpr, TArgs... args)
+    {
+        for (auto& caseClause : caseExpr->WhenThenExpressions) {
+            Builder->AppendString(" WHEN ");
+            Visit(caseClause->Condition, args...);
+            Builder->AppendString(" THEN ");
+            Visit(caseClause->Result, args...);
+        }
+    }
+
+    void OnDefaultExpression(const TCaseExpression* caseExpr, TArgs... args)
+    {
+        if (const auto& defaultExpression = caseExpr->DefaultExpression) {
+            Builder->AppendString(" ELSE ");
             Visit(defaultExpression, args...);
         }
     }
@@ -952,6 +1065,14 @@ struct TAbstractExpressionPrinter
         Builder->AppendChar(')');
     }
 
+    void OnCase(const TCaseExpression* caseExpr, TArgs... args)
+    {
+        Builder->AppendString("CASE");
+        Derived()->OnOptionalOperand(caseExpr, args...);
+        Derived()->OnWhenThenExpressions(caseExpr, args...);
+        Derived()->OnDefaultExpression(caseExpr, args...);
+        Builder->AppendString(" END");
+    }
 };
 
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original);

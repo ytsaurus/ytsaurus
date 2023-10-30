@@ -1707,6 +1707,64 @@ class TestQuery(YTEnvSetup):
                      (5, 3) and (5, 4),
                      (5, 5, 5) and (5, 6))""")
 
+    @authors("dtorilov")
+    def test_select_with_case_operator(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+            ],
+            [
+                {"a": 0, "b": 0},
+                {"a": 3, "b": 2},
+                {"a": 1, "b": 2},
+            ],
+            "scan",
+        )
+
+        requests = [
+            (
+                """
+                select case
+                    when a = 0 then 'aaa'
+                    when 15/a = 5 then 'bbb'
+                    else 'ccc'
+                end as m
+                from [//tmp/t]
+                order by m
+                limit 3
+                """,
+                [
+                    {"m": "aaa"},
+                    {"m": "bbb"},
+                    {"m": "ccc"},
+                ]
+            ),
+            (
+                """
+                select case a
+                    when 0 then b
+                    when 1 then b + b * b
+                    else 2
+                end as m
+                from [//tmp/t]
+                order by m
+                limit 3
+                """,
+                [
+                    {"m": 0},
+                    {"m": 2},
+                    {"m": 6},
+                ]
+            ),
+        ]
+
+        for query, expected in requests:
+            actual = select_rows(query)
+            assert expected == actual
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"

@@ -89,6 +89,17 @@ message TInExpression
     required bytes values = 2;
 }
 
+message TTransformExpression
+{
+    extend TExpression
+    {
+        optional TTransformExpression transform_expression = 109;
+    }
+    repeated TExpression arguments = 1;
+    required bytes values = 2;
+    optional TExpression default_expression = 3;
+}
+
 message TBetweenExpression
 {
     extend TExpression
@@ -99,14 +110,15 @@ message TBetweenExpression
     required bytes ranges = 2;
 }
 
-message TTransformExpression
+message TCaseExpression
 {
     extend TExpression
     {
-        optional TTransformExpression transform_expression = 109;
+        optional TCaseExpression case_expression = 111;
     }
-    repeated TExpression arguments = 1;
-    required bytes values = 2;
+
+    optional TExpression optional_operand = 1;
+    repeated TWhenThenExpression when_then_expressions = 2;
     optional TExpression default_expression = 3;
 }
 
@@ -179,6 +191,12 @@ message TOrderClause
 message TProjectClause
 {
     repeated TNamedItem projections = 1;
+}
+
+message TWhenThenExpression
+{
+    required TExpression condition = 1;
+    required TExpression result = 2;
 }
 
 message TQuery

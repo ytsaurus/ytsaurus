@@ -36,6 +36,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (InExpr)
     (BetweenExpr)
     (TransformExpr)
+    (CaseExpr)
 
     (NamedExpression)
     (AggregateItem)
@@ -137,14 +138,17 @@ struct TDebugInfo
     TConstExpressionPtr Expr;
     std::vector<size_t> Args;
     std::optional<size_t> ExtraArg;
+    std::optional<size_t> ExtraArg2;
 
     TDebugInfo(
         const TConstExpressionPtr& expr,
         const std::vector<size_t>& args,
-        const std::optional<size_t>& extraArg = std::nullopt)
+        const std::optional<size_t>& extraArg = std::nullopt,
+        const std::optional<size_t>& extraArg2 = std::nullopt)
         : Expr(expr)
         , Args(args)
         , ExtraArg(extraArg)
+        , ExtraArg2(extraArg2)
     { }
 
 };
@@ -199,6 +203,40 @@ struct TExpressionFragmentPrinter
     }
 
     void OnDefaultExpression(const TTransformExpression* /*transformExpr*/, size_t id)
+    {
+        const auto& defaultExpr = DebugExpressions[id].ExtraArg;
+        if (defaultExpr) {
+            Builder->AppendString(", ");
+            InferNameArg(*defaultExpr);
+        }
+    }
+
+    void OnOptionalOperand(const TCaseExpression* /*caseExpr*/, size_t id)
+    {
+        const auto& optionalOperand = DebugExpressions[id].ExtraArg2;
+        if (optionalOperand) {
+            Builder->AppendChar(' ');
+            InferNameArg(*optionalOperand);
+        }
+    }
+
+    void OnWhenThenExpressions(const TCaseExpression* /*caseExpr*/, size_t id)
+    {
+        YT_ASSERT(DebugExpressions[id].Args.size() % 2 == 0);
+
+        auto whenThenExpressionsLength = DebugExpressions[id].Args.size() / 2;
+        auto conditions = MakeRange(DebugExpressions[id].Args.data(), whenThenExpressionsLength);
+        auto results = MakeRange(DebugExpressions[id].Args.data() + whenThenExpressionsLength, whenThenExpressionsLength);
+
+        for (size_t index = 0; index < whenThenExpressionsLength; ++index) {
+            Builder->AppendString(" WHEN ");
+            InferNameArg(conditions[index]);
+            Builder->AppendString(" THEN ");
+            InferNameArg(results[index]);
+        }
+    }
+
+    void OnDefaultExpression(const TCaseExpression* /*caseExpr*/, size_t id)
     {
         const auto& defaultExpr = DebugExpressions[id].ExtraArg;
         if (defaultExpr) {
@@ -401,6 +439,12 @@ private:
 
     size_t Profile(
         const TTransformExpression* transformExpr,
+        const TTableSchemaPtr& schema,
+        TExpressionFragments* fragments,
+        bool isolated);
+
+    size_t Profile(
+        const TCaseExpression* caseExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isolated);
@@ -765,6 +809,102 @@ size_t TExpressionProfiler::Profile(
 }
 
 size_t TExpressionProfiler::Profile(
+    const TCaseExpression* caseExpr,
+    const TTableSchemaPtr& schema,
+    TExpressionFragments* fragments,
+    bool isolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<int>(EFoldingObjectType::CaseExpr));
+    id.AddInteger(static_cast<ui8>(caseExpr->GetWireType()));
+    id.AddBoolean(static_cast<bool>(caseExpr->OptionalOperand));
+    if (caseExpr->OptionalOperand) {
+        id.AddInteger(static_cast<ui8>(caseExpr->OptionalOperand->GetWireType()));
+    } else {
+        id.AddInteger(static_cast<ui8>(EValueType::Min));
+    }
+    id.AddInteger(caseExpr->WhenThenExpressions.size());
+    id.AddBoolean(static_cast<bool>(caseExpr->DefaultExpression));
+
+    std::optional<size_t> optionalOperandId;
+    if (caseExpr->OptionalOperand) {
+        optionalOperandId = Profile(caseExpr->OptionalOperand, schema, fragments, isolated);
+        id.AddInteger(*optionalOperandId);
+    }
+
+    std::vector<std::pair<size_t, size_t>> whenThenExpressionIds;
+    whenThenExpressionIds.reserve(caseExpr->WhenThenExpressions.size());
+    for (const auto& caseClause : caseExpr->WhenThenExpressions) {
+        size_t conditionId = Profile(caseClause->Condition, schema, fragments, isolated);
+        size_t resultId = Profile(caseClause->Result, schema, fragments, isolated);
+
+        whenThenExpressionIds.emplace_back(conditionId, resultId);
+
+        id.AddInteger(conditionId);
+        id.AddInteger(resultId);
+    }
+
+    std::optional<size_t> defaultExprId;
+    if (caseExpr->DefaultExpression) {
+        defaultExprId = Profile(caseExpr->DefaultExpression, schema, fragments, isolated);
+        id.AddInteger(*defaultExprId);
+    }
+
+    auto savedId = id;
+
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
+    }
+
+    Fold(savedId);
+    if (optionalOperandId) {
+        ++fragments->Items[*optionalOperandId].UseCount;
+    }
+
+    for (auto& [conditionId, resultId] : whenThenExpressionIds) {
+        ++fragments->Items[conditionId].UseCount;
+        ++fragments->Items[resultId].UseCount;
+    }
+
+    bool nullable = true;
+
+    if (defaultExprId) {
+        ++fragments->Items[*defaultExprId].UseCount;
+
+        nullable = false;
+        nullable |= fragments->Items[*defaultExprId].Nullable;
+    }
+
+    auto argIds = std::vector<size_t>();
+    argIds.reserve(caseExpr->WhenThenExpressions.size() * 2);
+    for (auto& [conditionId, _] : whenThenExpressionIds) {
+        argIds.push_back(conditionId);
+    }
+    for (auto& [_, resultId] : whenThenExpressionIds) {
+        argIds.push_back(resultId);
+    }
+    fragments->DebugInfos.emplace_back(caseExpr, argIds, defaultExprId, optionalOperandId);
+
+    std::optional<EValueType> optionalOperandType;
+    if (caseExpr->OptionalOperand) {
+        optionalOperandType = caseExpr->OptionalOperand->GetWireType();
+    }
+
+    fragments->Items.emplace_back(
+        MakeCodegenCaseExpr(
+            optionalOperandId,
+            optionalOperandType,
+            std::move(whenThenExpressionIds),
+            defaultExprId,
+            caseExpr->GetWireType(),
+            ComparerManager_),
+        caseExpr->GetWireType(),
+        nullable);
+
+    return fragments->Items.size() - 1;
+}
+
+size_t TExpressionProfiler::Profile(
     const TConstExpressionPtr& expr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
@@ -786,6 +926,8 @@ size_t TExpressionProfiler::Profile(
         return Profile(betweenExpr, schema, fragments, isolated);
     } else if (auto transformExpr = expr->As<TTransformExpression>()) {
         return Profile(transformExpr, schema, fragments, isolated);
+    } else if (auto caseExpr = expr->As<TCaseExpression>()) {
+        return Profile(caseExpr, schema, fragments, isolated);
     }
 
     YT_ABORT();

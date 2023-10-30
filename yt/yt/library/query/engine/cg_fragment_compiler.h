@@ -132,6 +132,14 @@ TCodegenExpression MakeCodegenTransformExpr(
     EValueType resultType,
     TComparerManagerPtr comparerManager);
 
+TCodegenExpression MakeCodegenCaseExpr(
+    std::optional<size_t> optionalOperandId,
+    std::optional<EValueType> optionalOperandType,
+    std::vector<std::pair<size_t, size_t>> whenThenExpressionIds,
+    std::optional<size_t> defaultId,
+    EValueType resultType,
+    TComparerManagerPtr comparerManager);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenEmptyOp(TCGOperatorContext& builder);

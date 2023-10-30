@@ -53,10 +53,16 @@ typedef TParser::token_type TToken;
     kw_true = 'true'i;
     kw_yson_false = '%false'i;
     kw_yson_true = '%true'i;
+    kw_case_begin = 'case'i;
+    kw_case_when = 'when'i;
+    kw_case_then = 'then'i;
+    kw_case_else = 'else'i;
+    kw_case_end = 'end'i;
 
     keyword = kw_select | kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_using | kw_group_by
         | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_is | kw_not
-        | kw_null | kw_between | kw_in | kw_transform | kw_false | kw_true | kw_yson_false | kw_yson_true;
+        | kw_null | kw_between | kw_in | kw_transform | kw_false | kw_true | kw_yson_false | kw_yson_true
+        | kw_case_begin | kw_case_when | kw_case_then | kw_case_end;
 
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
@@ -122,6 +128,11 @@ typedef TParser::token_type TToken;
         kw_true => { type = TToken::KwTrue; fbreak; };
         kw_yson_false => { type = TToken::KwFalse; fbreak; };
         kw_yson_true => { type = TToken::KwTrue; fbreak; };
+        kw_case_begin => { type = TToken::KwCaseBegin; fbreak; };
+        kw_case_when => { type = TToken::KwCaseWhen; fbreak; };
+        kw_case_then => { type = TToken::KwCaseThen; fbreak; };
+        kw_case_else => { type = TToken::KwCaseElse; fbreak; };
+        kw_case_end => { type = TToken::KwCaseEnd; fbreak; };
 
         identifier => {
             type = TToken::Identifier;

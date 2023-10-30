@@ -26,6 +26,7 @@ XX(TBinaryOpExpression)
 XX(TInExpression)
 XX(TBetweenExpression)
 XX(TTransformExpression)
+XX(TCaseExpression)
 
 #undef XX
 
@@ -35,6 +36,8 @@ using TExpressionList = std::vector<TExpressionPtr>;
 using TNullableExpressionList = std::optional<TExpressionList>;
 using TNullableIdentifierList = std::optional<TIdentifierList>;
 using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
+using TWhenThenExpression = std::pair<TExpressionList, TExpressionList>;
+using TWhenThenExpressionList = std::vector<TWhenThenExpression>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,6 +298,28 @@ struct TTransformExpression
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TCaseExpression
+    : public TExpression
+{
+    TNullableExpressionList OptionalOperand;
+    TWhenThenExpressionList WhenThenExpressions;
+    TNullableExpressionList DefaultExpression;
+
+    TCaseExpression(
+        const TSourceLocation& sourceLocation,
+        TNullableExpressionList optionalOperand,
+        TWhenThenExpressionList whenThenExpressions,
+        TNullableExpressionList defaultExpression)
+        : TExpression(sourceLocation)
+        , OptionalOperand(std::move(optionalOperand))
+        , WhenThenExpressions(std::move(whenThenExpressions))
+        , DefaultExpression(std::move(defaultExpression))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTableDescriptor
 {
     NYPath::TYPath Path;

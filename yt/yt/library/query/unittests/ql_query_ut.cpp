@@ -7563,6 +7563,351 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple("any={]", "Unexpected \"]\""),
         std::make_tuple("any=[}", "Unexpected \"}\""),
         std::make_tuple("any=[];[]", "Error occurred while parsing YSON")));
+class TQueryPrepareCaseTest
+    : public TQueryPrepareTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        const char*>> // error message
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TQueryPrepareCaseTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& errorMessage = std::get<1>(args);
+
+    ExpectPrepareThrowsWithDiagnostics(
+        query,
+        HasSubstr(errorMessage));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TQueryPrepareCaseTest,
+    TQueryPrepareCaseTest,
+    ::testing::Values(
+        std::make_tuple(
+            "case x when < 2 then x end as m from [//t]",
+            "Error while parsing query"),
+        std::make_tuple(
+            "case x else 1 end as m from [//t]",
+            "Error while parsing query"),
+        std::make_tuple(
+            "case x end as m from [//t]",
+            "Error while parsing query"),
+        std::make_tuple(
+            "case end as m from [//t]",
+            "Error while parsing query"),
+        std::make_tuple(
+            "case else 1 end as m from [//t]",
+            "Error while parsing query")));
+
+class TQueryEvaluateCaseTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        std::vector<TOwningRow>>> // result
+{ };
+
+TEST_P(TQueryEvaluateCaseTest, Simple)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=9",
+        "a=2;b=8",
+        "a=3;b=7",
+        "a=4;b=6",
+        "a=5;b=5",
+        "a=6;b=4",
+        "a=7;b=3",
+        "a=8;b=2",
+        "a=9;b=1"
+    };
+
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& result = std::get<1>(args);
+
+    Evaluate(query, split, source, ResultMatcher(result));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TQueryEvaluateCaseTest,
+    TQueryEvaluateCaseTest,
+    ::testing::Values(
+        std::make_tuple(
+            "case when a < b then a else b end as m from [//t]",
+            YsonToRows(
+                {"m=1", "m=2", "m=3", "m=4", "m=5", "m=4", "m=3", "m=2", "m=1",},
+                MakeSplit({{"m", EValueType::Int64},}))),
+        std::make_tuple(
+            "case when a in (2, 4) then 'a' else 'b' end as n from [//t] limit 4",
+            YsonToRows(
+                {"n=b", "n=a", "n=b", "n=a",},
+                MakeSplit({{"n", EValueType::String},}))),
+        std::make_tuple(
+            "case a when # then 'a' end as o from [//t]",
+            YsonToRows(
+                {"o=#", "o=#", "o=#", "o=#", "o=#", "o=#", "o=#", "o=#", "o=#",},
+                MakeSplit({{"o", EValueType::String},}))),
+        std::make_tuple(
+            "a, case when a = 1 then 'a' when a = 5 then 'b' else 'c' end as m from [//t]",
+            YsonToRows(
+                {"a=1;m=a", "a=2;m=c", "a=3;m=c", "a=4;m=c", "a=5;m=b", "a=6;m=c", "a=7;m=c", "a=8;m=c", "a=9;m=c",},
+                MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
+        std::make_tuple(
+            "a, case a when 1 then 'a' when 5 then 'b' else 'c' end as m from [//t]",
+            YsonToRows(
+                {"a=1;m=a", "a=2;m=c", "a=3;m=c", "a=4;m=c", "a=5;m=b", "a=6;m=c", "a=7;m=c", "a=8;m=c", "a=9;m=c",},
+                MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
+        std::make_tuple(
+            R"(a, case
+                when a = b - 2 then 'b - 2'
+                when a = b     then 'b'
+                when a = b + 2 then 'b + 2'
+                else                'a'
+            end as m from [//t])",
+            YsonToRows(
+                {"a=1;m=a", "a=2;m=a", "a=3;m=a", "a=4;m=\"b - 2\"", "a=5;m=b", "a=6;m=\"b + 2\"", "a=7;m=a", "a=8;m=a", "a=9;m=a",},
+                MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
+        std::make_tuple(
+            R"(a, case a
+                when b - 2 then 'b - 2'
+                when b     then 'b'
+                when b + 2 then 'b + 2'
+                else            'a'
+            end as m from [//t])",
+            YsonToRows(
+                {"a=1;m=a", "a=2;m=a", "a=3;m=a", "a=4;m=\"b - 2\"", "a=5;m=b", "a=6;m=\"b + 2\"", "a=7;m=a", "a=8;m=a", "a=9;m=a",},
+                MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
+        std::make_tuple(
+            R"(case
+                when a < b then 111
+                when a = b then 222
+                when a = b then 444
+                when a > b then 333
+                else            555
+            end as p from [//t])",
+            YsonToRows(
+                {"p=111", "p=111", "p=111", "p=111", "p=222", "p=333", "p=333", "p=333", "p=333",},
+                MakeSplit({{"p", EValueType::Int64},})))));
+
+TEST_F(TQueryEvaluateCaseTest, Lazy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    std::vector<TString> source = {
+        "a=0",
+        "a=3",
+        "a=1",
+    };
+
+    {
+        auto result = YsonToRows(std::vector<TString>{
+            "m=aaa",
+            "m=bbb",
+            "m=ccc",
+        }, MakeSplit({{"m", EValueType::String},}));
+
+        Evaluate(R"(
+            select case
+                when a = 0    then 'aaa'
+                when 15/a = 5 then 'bbb'
+                else               'ccc'
+            end as m from [//t]
+        )", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto result = YsonToRows(std::vector<TString>{
+            "m=#",
+            "m=5",
+            "m=15",
+        }, MakeSplit({{"m", EValueType::Int64}}));
+
+        Evaluate(R"(
+            select case
+                when boolean(#) then 0
+                when a = 0      then int64(#)
+                when a > 0      then 15 / a
+                else            -15 / a
+            end as m from [//t]
+        )", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto result = YsonToRows(std::vector<TString>{
+            "m=a",
+            "m=b",
+            "m=c",
+        }, MakeSplit({{"m", EValueType::String},}));
+
+        Evaluate(R"(
+            select case a * a
+                when 2 - 2     then 'a'
+                when (1+1+1)*a then 'b'
+                when a * a     then 'c'
+                else                numeric_to_string(1/a)
+            end as m from [//t]
+        )", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto result = YsonToRows(std::vector<TString>{
+            "m=a",
+            "m=b",
+            "m=c",
+        }, MakeSplit({{"m", EValueType::String},}));
+
+        Evaluate(R"(
+            select case a * a
+                when 2 - 2     then 'a'
+                when (1+1+1)*a then 'b'
+                when a * a     then 'c'
+                else                numeric_to_string(1/a)
+            end as m from [//t]
+        )", split, source, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateCaseTest, Complex)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+        {"b", EValueType::String},
+    });
+
+    std::vector<TString> source = {
+        "a=a;b=d",
+        "a=b;b=e",
+        "a=c;b=f",
+    };
+
+    {
+        auto result = YsonToRows(std::vector<TString>{
+            "m=ad",
+            "m=be",
+            "m=cf",
+        }, MakeSplit({{"m", EValueType::String},}));
+
+        Evaluate(R"(
+            select case a
+                when 'a' then
+                    case b
+                        when 'd' then concat(a, b)
+                        when 'e' then 'o'
+                        when 'f' then 'p'
+                    end
+                when 'b' then
+                    case b
+                        when 'd' then 'q'
+                        when 'e' then concat(a, b)
+                        when 'f' then 'r'
+                    end
+                when 'c' then
+                    case b
+                        when 'd' then 's'
+                        when 'e' then 't'
+                        when 'f' then concat(a, b)
+                    end
+            end as m from [//t]
+        )", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto result = YsonToRows(std::vector<TString>{
+            "m=ccc",
+            "m=bbb",
+            "m=aaa",
+        }, MakeSplit({{"m", EValueType::String}}));
+
+        Evaluate(R"(
+            select
+                lower(case a
+                    when 'a' then 'AAA'
+                    when 'b' then 'BBB'
+                    when 'c' then 'CCC'
+                end) as m
+            from [//t]
+            order by
+                case a
+                    when 'a' then 1
+                    when 'b' then 2
+                    when 'c' then 3
+                end desc
+            limit 3
+        )", split, source, ResultMatcher(result));
+    }
+}
+
+class TQueryEvaluateCaseWithIncorrectSemanticsTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        const char*>> // error message
+{ };
+
+INSTANTIATE_TEST_SUITE_P(
+    TQueryEvaluateCaseWithIncorrectSemanticsTest,
+    TQueryEvaluateCaseWithIncorrectSemanticsTest,
+    ::testing::Values(
+        std::make_tuple(
+            "case a when 'str' then a end as m from [//t]",
+            "Types mismatch in CASE WHEN expression"),
+        std::make_tuple(
+            "case a when a > 2 then a end as m from [//t]",
+            "Types mismatch in CASE WHEN expression"),
+        std::make_tuple(
+            "case when (a < b, 2) then a end as m from [//t]",
+            "Expression inside CASE WHEN should be scalar"),
+        std::make_tuple(
+            "case when a then a end as m from [//t]",
+            "Expression inside CASE WHEN should be boolean"),
+        std::make_tuple(
+            "case a when 2 then (1, 2) end as m from [//t]",
+            "Expression inside CASE THEN should be scalar"),
+        std::make_tuple(
+            "case when a > 1 then (1, 2) end as m from [//t]",
+            "Expression inside CASE THEN should be scalar"),
+        std::make_tuple(
+            "case a when 1 then 1 when 2 then '2' end as m from [//t]",
+            "Types mismatch in CASE THEN expression"),
+        std::make_tuple(
+            "case when a > 2 then 1 when a > 1 then '2' end as m from [//t]",
+            "Types mismatch in CASE THEN expression"),
+        std::make_tuple(
+            "case a when 1 then 1 else (1,2,3) end as m from [//t]",
+            "Expression inside CASE ELSE should be scalar"),
+        std::make_tuple(
+            "case a when 1 then 1 else '2' end as m from [//t]",
+            "Types mismatch in CASE ELSE expression"),
+        std::make_tuple(
+            "case when a > 1 then 1 else '2' end as m from [//t]",
+            "Types mismatch in CASE ELSE expression")));
+
+TEST_P(TQueryEvaluateCaseWithIncorrectSemanticsTest, Simple)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64},});
+    auto source = std::vector<TString>{};
+    auto result = std::vector<TOwningRow>{};
+
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& errorMessage = std::get<1>(args);
+
+    EXPECT_THROW_THAT(
+        Evaluate(query, split, source, ResultMatcher(result)),
+        HasSubstr(errorMessage));
+
+    SUCCEED();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

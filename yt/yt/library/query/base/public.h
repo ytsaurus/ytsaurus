@@ -26,6 +26,7 @@ class TColumnDescriptor;
 class TExpression;
 class TGroupClause;
 class TProjectClause;
+class TWhenThenExpression;
 class TJoinClause;
 class TQuery;
 class TQueryOptions;
@@ -55,6 +56,9 @@ using TConstOrderClausePtr = TIntrusivePtr<const TOrderClause>;
 
 DECLARE_REFCOUNTED_STRUCT(TProjectClause)
 using TConstProjectClausePtr = TIntrusivePtr<const TProjectClause>;
+
+DECLARE_REFCOUNTED_STRUCT(TWhenThenExpression)
+using TConstWhenThenExpressionPtr = TIntrusivePtr<const TWhenThenExpression>;
 
 DECLARE_REFCOUNTED_STRUCT(TBaseQuery)
 using TConstBaseQueryPtr = TIntrusivePtr<const TBaseQuery>;

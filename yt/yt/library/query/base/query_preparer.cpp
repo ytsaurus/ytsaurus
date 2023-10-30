@@ -58,6 +58,10 @@ void ExtractFunctionNames(
     std::vector<TString>* functions);
 
 void ExtractFunctionNames(
+    const NAst::TWhenThenExpressionList& exprs,
+    std::vector<TString>* functions);
+
+void ExtractFunctionNames(
     const NAst::TExpressionPtr& expr,
     std::vector<TString>* functions)
 {
@@ -76,6 +80,10 @@ void ExtractFunctionNames(
     } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
         ExtractFunctionNames(transformExpr->Expr, functions);
         ExtractFunctionNames(transformExpr->DefaultExpr, functions);
+    } else if (auto caseExpr = expr->As<NAst::TCaseExpression>()) {
+        ExtractFunctionNames(caseExpr->OptionalOperand, functions);
+        ExtractFunctionNames(caseExpr->WhenThenExpressions, functions);
+        ExtractFunctionNames(caseExpr->DefaultExpression, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -96,6 +104,18 @@ void ExtractFunctionNames(
 
     for (const auto& expr : *exprs) {
         ExtractFunctionNames(expr, functions);
+    }
+}
+
+void ExtractFunctionNames(
+    const NAst::TWhenThenExpressionList& whenThenExpressions,
+    std::vector<TString>* functions)
+{
+    CheckStackDepth();
+
+    for (const auto& [condition, result] : whenThenExpressions) {
+        ExtractFunctionNames(condition, functions);
+        ExtractFunctionNames(result, functions);
     }
 }
 
@@ -1567,6 +1587,9 @@ private:
     TUntypedExpression OnTransformOp(
         const NAst::TTransformExpression* transformExpr);
 
+    TUntypedExpression OnCaseOp(
+        const NAst::TCaseExpression* caseExpr);
+
 public:
     TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
@@ -1642,6 +1665,8 @@ TUntypedExpression TBuilderCtx::OnExpression(
         return OnBetweenOp(betweenExpr);
     } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
         return OnTransformOp(transformExpr);
+    } else if (auto caseExpr = expr->As<NAst::TCaseExpression>()) {
+        return OnCaseOp(caseExpr);
     }
 
     YT_ABORT();
@@ -2251,6 +2276,149 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
         return result;
     };
     return TUntypedExpression{TTypeSet({resultType}), std::move(generator), false};
+}
+
+TUntypedExpression TBuilderCtx::OnCaseOp(const NAst::TCaseExpression* caseExpr)
+{
+    auto source = caseExpr->GetSource(Source);
+
+    TUntypedExpression untypedOperand;
+    TTypeSet operandTypes;
+    bool hasOptionalOperand = false;
+    {
+        if (caseExpr->OptionalOperand) {
+            if (caseExpr->OptionalOperand->size() != 1) {
+                THROW_ERROR_EXCEPTION("Expression inside CASE should be scalar")
+                    << TErrorAttribute("source", source);
+            }
+
+            untypedOperand = OnExpression(caseExpr->OptionalOperand->front());
+            operandTypes = untypedOperand.FeasibleTypes;
+            hasOptionalOperand = true;
+        }
+    }
+
+    std::vector<TUntypedExpression> untypedConditions;
+    untypedConditions.reserve(caseExpr->WhenThenExpressions.size());
+    EValueType conditionType{};
+    std::optional<EValueType> operandType;
+    {
+        TTypeSet conditionTypes;
+        if (hasOptionalOperand) {
+            conditionTypes = operandTypes;
+        } else {
+            conditionTypes = TTypeSet({EValueType::Boolean});
+        }
+
+        for (auto& [condition, _] : caseExpr->WhenThenExpressions) {
+            if (condition.size() != 1) {
+                THROW_ERROR_EXCEPTION("Expression inside CASE WHEN should be scalar")
+                    << TErrorAttribute("source", source);
+            }
+
+            auto untypedExpression = OnExpression(condition.front());
+            if (!Unify(&conditionTypes, untypedExpression.FeasibleTypes)) {
+                if (hasOptionalOperand) {
+                    THROW_ERROR_EXCEPTION("Types mismatch in CASE WHEN expression")
+                        << TErrorAttribute("source", source)
+                        << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
+                        << TErrorAttribute("expected_type", ToString(conditionTypes));
+                } else {
+                    THROW_ERROR_EXCEPTION("Expression inside CASE WHEN should be boolean")
+                        << TErrorAttribute("source", source);
+                }
+            }
+
+            untypedConditions.push_back(std::move(untypedExpression));
+        }
+
+        conditionType = GetFrontWithCheck(conditionTypes, source);
+
+        if (hasOptionalOperand) {
+            operandType = conditionType;
+        }
+    }
+
+    std::vector<TUntypedExpression> untypedResults;
+    untypedResults.reserve(caseExpr->WhenThenExpressions.size());
+    TUntypedExpression untypedDefault{};
+    EValueType resultType{};
+    {
+        TTypeSet resultTypes({
+            EValueType::Null,
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+            EValueType::Boolean,
+            EValueType::String,
+            EValueType::Any});
+
+        for (auto& [_, result] : caseExpr->WhenThenExpressions) {
+            if (result.size() != 1) {
+                THROW_ERROR_EXCEPTION("Expression inside CASE THEN should be scalar")
+                    << TErrorAttribute("source", source);
+            }
+
+            auto untypedExpression = OnExpression(result.front());
+            if (!Unify(&resultTypes, untypedExpression.FeasibleTypes)) {
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN expression")
+                    << TErrorAttribute("source", source)
+                    << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
+                    << TErrorAttribute("expected_type", ToString(resultTypes));
+            }
+
+            untypedResults.push_back(std::move(untypedExpression));
+        }
+
+        if (caseExpr->DefaultExpression) {
+            if (caseExpr->DefaultExpression->size() != 1) {
+                THROW_ERROR_EXCEPTION("Expression inside CASE ELSE should be scalar")
+                    << TErrorAttribute("source", source);
+            }
+
+            untypedDefault = OnExpression(caseExpr->DefaultExpression->front());
+            if (!Unify(&resultTypes, untypedDefault.FeasibleTypes)) {
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE ELSE expression")
+                    << TErrorAttribute("source", source)
+                    << TErrorAttribute("actual_type", ToString(untypedDefault.FeasibleTypes))
+                    << TErrorAttribute("expected_type", ToString(resultTypes));
+            }
+        }
+
+        resultType = GetFrontWithCheck(resultTypes, source);
+    }
+
+    TConstExpressionPtr typedOptionalOperand;
+    std::vector<TWhenThenExpressionPtr> typedWhenThenExpressions;
+    typedWhenThenExpressions.reserve(caseExpr->WhenThenExpressions.size());
+    TConstExpressionPtr typedDefaultExpression;
+    {
+        if (hasOptionalOperand) {
+            typedOptionalOperand = untypedOperand.Generator(*operandType);
+        }
+
+        for (size_t index = 0; index < untypedConditions.size(); ++index) {
+            typedWhenThenExpressions.push_back(New<TWhenThenExpression>(
+                untypedConditions[index].Generator(conditionType),
+                untypedResults[index].Generator(resultType)));
+        }
+
+        if (caseExpr->DefaultExpression) {
+            typedDefaultExpression = untypedDefault.Generator(resultType);
+        }
+    }
+
+    auto result = New<TCaseExpression>(
+        resultType,
+        std::move(typedOptionalOperand),
+        std::move(typedWhenThenExpressions),
+        std::move(typedDefaultExpression));
+
+    TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
+        return result;
+    };
+
+    return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant=*/ false};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
