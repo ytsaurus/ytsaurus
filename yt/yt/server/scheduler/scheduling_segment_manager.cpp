@@ -415,7 +415,9 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
     TNonOwningOperationElementList bestOperationsToPreempt;
     double fairResourceAmount = 0.0;
     auto currentCandidate = assignedOperationElements.begin();
-    while (fairResourceAmount < neededDemand && currentCandidate != assignedOperationElements.end()) {
+    while (fairResourceAmount + NVectorHdrf::RatioComparisonPrecision < neededDemand &&
+        currentCandidate != assignedOperationElements.end())
+    {
         auto nextCandidate = std::next(currentCandidate);
 
         while (nextCandidate != assignedOperationElements.end()) {
@@ -434,7 +436,7 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
         ++currentCandidate;
     }
 
-    if (fairResourceAmount < neededDemand) {
+    if (fairResourceAmount + NVectorHdrf::RatioComparisonPrecision < neededDemand) {
         return {};
     }
 
