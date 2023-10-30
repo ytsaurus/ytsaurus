@@ -26,7 +26,6 @@ message TReqBeginUpload
     // may provide additional cells to replicate the transaction to.
     // This is useful, e.g., in implementing "concat" command.
     repeated int32 upload_transaction_secondary_cell_tags = 6;
-    repeated NYT.NProto.TGuid upload_prerequisite_transaction_ids = 13;
     optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 7;
     optional int32 schema_mode = 8; // ETableSchemaMode
     optional int32 optimize_for = 9; // EOptimizeFor

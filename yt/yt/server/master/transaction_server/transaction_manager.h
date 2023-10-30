@@ -58,7 +58,6 @@ struct ITransactionManager
         const NTransactionSupervisor::TTransactionAbortOptions& options) = 0;
     virtual TTransaction* StartUploadTransaction(
         TTransaction* parent,
-        std::vector<TTransaction*> prerequisiteTransactions,
         const NObjectClient::TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<TString>& title,
@@ -182,8 +181,6 @@ struct ITransactionManager
         NCypressTransactionClient::NProto::TRspAbortTransaction>;
     using TCtxAbortCypressTransactionPtr = TIntrusivePtr<TCtxAbortCypressTransaction>;
     virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
-
-    virtual TTransaction* ValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)
