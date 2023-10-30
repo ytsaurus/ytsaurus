@@ -1641,7 +1641,7 @@ protected:
                         nullptr))
                     .ValueOrThrow();
 
-                aggregatedStatistics.AddInnerStatistics(statistics);
+                aggregatedStatistics.AddInnerStatistics(std::move(statistics));
 
                 return pipe->GetReader();
             };
@@ -1663,7 +1663,7 @@ protected:
                 options,
                 profileCallback);
 
-            resultStatistics.AddInnerStatistics(aggregatedStatistics);
+            resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
             if (IsTimeDumpEnabled()) {
                 DumpTime(resultStatistics);

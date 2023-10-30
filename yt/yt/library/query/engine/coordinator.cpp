@@ -207,11 +207,11 @@ TQueryStatistics CoordinateAndExecute(
     for (int index = 0; index < std::ssize(subqueryHolders); ++index) {
         auto subqueryStatisticsOrError = WaitForFast(subqueryHolders[index].Get());
         if (subqueryStatisticsOrError.IsOK()) {
-            const auto& subqueryStatistics = subqueryStatisticsOrError.ValueOrThrow();
+            auto subqueryStatistics = std::move(subqueryStatisticsOrError).ValueOrThrow();
             YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
                 subqueries[index]->Id,
                 subqueryStatistics);
-            queryStatistics.AddInnerStatistics(subqueryStatistics);
+            queryStatistics.AddInnerStatistics(std::move(subqueryStatistics));
         } else {
             YT_LOG_DEBUG(subqueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
                 subqueries[index]->Id);
