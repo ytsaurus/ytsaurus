@@ -185,7 +185,7 @@ private:
             TResourceUsageUpdater,
             const NClusterNode::TJobResources&>
     //! Semantic requirement: TResourceUsageUpdater::operator() must return delta between
-    //! cumulative resource usages before and after the call to this function
+    //! cumulative resource usages before and after the call to this function.
     bool DoSetResourceUsage(
         const NClusterNode::TJobResources& resourceUsage,
         TStringBuf argumentName,

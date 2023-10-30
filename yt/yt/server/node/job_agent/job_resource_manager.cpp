@@ -947,7 +947,7 @@ private:
 
         THashMap<TGuid, TResourceHolder::TResourceHolderInfo> result;
 
-        for (auto resourceHolder : ResourceHolders_) {
+        for (const auto& resourceHolder : ResourceHolders_) {
             result.emplace(
                 resourceHolder->GetId(),
                 resourceHolder->BuildResourceHolderInfo());
@@ -1234,7 +1234,7 @@ void TResourceHolder::ReleaseCumulativeResources()
     DoSetResourceUsage(
         usedSlotResources,
         "NewResourceUsage",
-        [this] (const TJobResources& newResourceUsage) {
+        [&] (const TJobResources& newResourceUsage) {
             auto resourcesDelta = newResourceUsage - CumulativeResourceUsage();
 
             AdditionalResourceUsage_ = ZeroJobResources();
@@ -1293,7 +1293,7 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
     return DoSetResourceUsage(
         newResourceUsage,
         "NewResourceUsage",
-        [this] (const TJobResources& newResourceUsage) {
+        [&] (const TJobResources& newResourceUsage) {
             auto resourceDelta = newResourceUsage - BaseResourceUsage_;
             BaseResourceUsage_ = newResourceUsage;
 
@@ -1306,7 +1306,7 @@ bool TResourceHolder::UpdateAdditionalResourceUsage(TJobResources additionalReso
     return DoSetResourceUsage(
         additionalResourceUsageDelta,
         "ResourceUsageDelta",
-        [this] (const TJobResources& resourceUsageDelta) {
+        [&] (const TJobResources& resourceUsageDelta) {
             AdditionalResourceUsage_ += resourceUsageDelta;
 
             return resourceUsageDelta;
@@ -1377,7 +1377,7 @@ bool TResourceHolder::DoSetResourceUsage(
 
     YT_LOG_FATAL_IF(
         State_ != EResourcesState::Acquired,
-        "Resources should be setted only while resource is acquired (CurrentState: %v, %s: %v)",
+        "Resources should be setted only while resource is acquired (CurrentState: %v, %v: %v)",
         State_,
         argumentName,
         FormatResources(newResourceUsage));
