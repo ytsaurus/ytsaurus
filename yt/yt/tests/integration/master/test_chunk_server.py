@@ -532,6 +532,8 @@ class TestNodeLeaseTransactionTimeout(YTEnvSetup):
         sleep(4.0)
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "offline"
 
+        self.Env.start_nodes()
+
     @authors("danilalexeev")
     def test_auto_remove_pending_restart_simple(self):
         set("//sys/@config/node_tracker/pending_restart_lease_timeout", 1000)
