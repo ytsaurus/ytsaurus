@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/node/exec_node/helpers.h>
 
-#include <yt/yt/server/lib/job_agent/gpu_helpers.h>
+#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -136,7 +136,7 @@ TGpuManager::TGpuManager(
         shouldInitializeLayers = Config_->TestLayers;
     } else {
         try {
-            descriptors = NJobAgent::ListGpuDevices();
+            descriptors = ListGpuDevices();
         } catch (const std::exception& ex) {
             Error_ = TError(ex);
             descriptors = {};

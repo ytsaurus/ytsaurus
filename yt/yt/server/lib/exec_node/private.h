@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/server/lib/job_agent/private.h>
 
-namespace NYT::NJobAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline const NLogging::TLogger JobAgentServerLogger("JobAgent");
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+DECLARE_REFCOUNTED_STRUCT(IGpuInfoProvider)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecNode

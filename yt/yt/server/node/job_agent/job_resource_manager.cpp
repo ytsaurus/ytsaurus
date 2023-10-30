@@ -853,10 +853,10 @@ public:
     }
 
 private:
-    const TIntrusivePtr<const TJobControllerConfig> Config_;
+    const TIntrusivePtr<const NExecNode::TJobControllerConfig> Config_;
     IBootstrapBase* const Bootstrap_;
 
-    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_{New<TJobControllerDynamicConfig>()};
+    TAtomicIntrusivePtr<NExecNode::TJobControllerDynamicConfig> DynamicConfig_{New<NExecNode::TJobControllerDynamicConfig>()};
 
     TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
 

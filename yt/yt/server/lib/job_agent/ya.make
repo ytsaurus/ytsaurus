@@ -7,8 +7,6 @@ PROTO_NAMESPACE(yt)
 SRCS(
     config.cpp
     estimate_size_helpers.cpp
-    gpu_helpers.cpp
-    gpu_info_provider.cpp
     structs.cpp
 )
 
@@ -21,18 +19,9 @@ PEERDIR(
 )
 
 IF (NOT OPENSOURCE)
-    SRCS(
-        GLOBAL gpu_info_provider_impl.cpp
-    )
     PEERDIR(
         infra/rsm/nvgpumanager/api
     )
 ENDIF()
 
 END()
-
-IF (NOT OPENSOURCE)
-    RECURSE_FOR_TESTS(
-        unittests
-    )
-ENDIF()

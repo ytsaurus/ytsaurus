@@ -5,8 +5,6 @@
 #include "job.h"
 #include "slot.h"
 
-#include <yt/yt/server/lib/job_agent/public.h>
-
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/core/actions/public.h>

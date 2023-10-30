@@ -1,5 +1,5 @@
 #ifndef ESTIMATE_SIZE_HELPERS_INL_H_
-#error "Direct inclusion of this file is not allowed, include format.h"
+#error "Direct inclusion of this file is not allowed, include estimate_size_helpers.h"
 // For the sake of sane code completion.
 #include "estimate_size_helpers.h"
 #endif

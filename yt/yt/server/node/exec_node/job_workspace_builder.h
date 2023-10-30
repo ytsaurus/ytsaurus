@@ -48,7 +48,7 @@ struct TJobWorkspaceBuildingContext
     std::vector<TArtifact> Artifacts;
     std::vector<NContainers::TBind> Binds;
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
-    std::vector<NJobAgent::TShellCommandConfigPtr> SetupCommands;
+    std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
 
     bool NeedGpuCheck;

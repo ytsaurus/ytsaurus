@@ -307,7 +307,7 @@ public:
 
     TFuture<void> RunSetupCommands(
         TJobId jobId,
-        const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
+        const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
         const TString& user,
         const std::optional<std::vector<TDevice>>& devices,

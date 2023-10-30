@@ -5,6 +5,8 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 namespace NYT::NExecNode
 {
 

@@ -265,6 +265,52 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSlotManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool DisableJobsOnGpuCheckFailure;
+
+    //! Enables disk usage checks in periodic disk resources update.
+    bool CheckDiskSpaceLimit;
+
+    //! How to distribute cpu resources between 'common' and 'idle' slots.
+    double IdleCpuFraction;
+
+    bool EnableNumaNodeScheduling;
+
+    bool EnableJobEnvironmentResurrection;
+
+    //! Polymorphic job environment configuration.
+    NYTree::INodePtr JobEnvironment;
+
+    REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVolumeManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool EnableAsyncLayerRemoval;
+
+    //! For testing.
+    std::optional<TDuration> DelayAfterLayerImported;
+
+    REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserJobSensor
     : public NYTree::TYsonStruct
 {
@@ -316,6 +362,291 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THeartbeatReporterDynamicConfigBase
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Period between consequent heartbeats.
+    TDuration HeartbeatPeriod;
+
+    //! Random delay before first heartbeat.
+    TDuration HeartbeatSplay;
+
+    //! Start backoff for sending the next heartbeat after a failure.
+    TDuration FailedHeartbeatBackoffStartTime;
+
+    //! Maximum backoff for sending the next heartbeat after a failure.
+    TDuration FailedHeartbeatBackoffMaxTime;
+
+    //! Backoff multiplier for sending the next heartbeat after a failure.
+    double FailedHeartbeatBackoffMultiplier;
+
+    REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TControllerAgentConnectorDynamicConfig
+    : public THeartbeatReporterDynamicConfigBase
+{
+public:
+    TDuration GetJobSpecsTimeout;
+
+    TDuration TestHeartbeatDelay;
+
+    NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
+    TDuration RunningJobStatisticsSendingBackoff;
+
+    TDuration TotalConfirmationPeriod;
+
+    bool UseJobTrackerServiceToSettleJobs;
+
+    REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterConnectorDynamicConfig
+    : public THeartbeatReporterDynamicConfigBase
+{
+public:
+    //! Timeout of the exec node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
+    REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulerConnectorDynamicConfig
+    : public THeartbeatReporterDynamicConfigBase
+{
+public:
+    bool SendHeartbeatOnJobFinished;
+
+    REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EGpuInfoSourceType,
+    (NvGpuManager)
+    (NvidiaSmi)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGpuInfoSourceConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    EGpuInfoSourceType Type;
+    TString NvGpuManagerServiceAddress;
+    TString NvGpuManagerServiceName;
+    std::optional<TString> NvGpuManagerDevicesCgroupPath;
+    bool GpuIndexesFromNvidiaSmi;
+
+    REGISTER_YSON_STRUCT(TGpuInfoSourceConfig);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGpuManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+
+    TDuration HealthCheckTimeout;
+    TDuration HealthCheckPeriod;
+
+    TDuration HealthCheckFailureBackoff;
+
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
+
+    std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
+    std::optional<TString> DriverVersion;
+    TDuration DriverLayerFetchPeriod;
+    TDuration DriverLayerFetchPeriodSplay;
+
+    THashMap<TString, TString> CudaToolkitMinDriverVersion;
+
+    TGpuInfoSourceConfigPtr GpuInfoSource;
+
+    // TODO(eshcherbin): Extract test options to subconfig?
+    //! This is a special testing option.
+    //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
+    bool TestResource;
+    //! These options enable testing gpu layers and setup commands.
+    bool TestLayers;
+    bool TestSetupCommands;
+    bool TestExtraGpuCheckCommandFailure;
+    int TestGpuCount;
+    double TestUtilizationGpuRate;
+    TDuration TestGpuInfoUpdatePeriod;
+
+    REGISTER_YSON_STRUCT(TGpuManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGpuManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<TDuration> HealthCheckTimeout;
+    std::optional<TDuration> HealthCheckPeriod;
+    std::optional<TDuration> HealthCheckFailureBackoff;
+
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
+
+    std::optional<TDuration> DriverLayerFetchPeriod;
+
+    std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
+
+    TGpuInfoSourceConfigPtr GpuInfoSource;
+
+    REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TShellCommandConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Path;
+    std::vector<TString> Args;
+
+    REGISTER_YSON_STRUCT(TShellCommandConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TShellCommandConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobControllerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    NJobAgent::TResourceLimitsConfigPtr ResourceLimits;
+    TDuration WaitingJobsTimeout;
+
+    TDuration CpuOverdraftTimeout;
+    TDuration MemoryOverdraftTimeout;
+
+    TDuration ProfilingPeriod;
+
+    TDuration ResourceAdjustmentPeriod;
+
+    TDuration RecentlyRemovedJobsCleanPeriod;
+    TDuration RecentlyRemovedJobsStoreTimeout;
+
+    i64 FreeMemoryWatermark;
+
+    double CpuPerTabletSlot;
+
+    std::optional<double> CpuToVCpuFactor;
+    std::optional<TString> CpuModel;
+
+    //! Port set has higher priority than StartPort ans PortCount if it is specified.
+    int StartPort;
+    int PortCount;
+    std::optional<THashSet<int>> PortSet;
+
+    TGpuManagerConfigPtr GpuManager;
+
+    NJobAgent::TMappedMemoryControllerConfigPtr MappedMemoryController;
+
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
+    TString SetupCommandUser;
+
+    TDuration JobProxyBuildInfoUpdatePeriod;
+
+    bool DisableJobProxyProfiling;
+
+    TDuration UnknownOperationJobsRemovalDelay;
+
+    REGISTER_YSON_STRUCT(TJobControllerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobControllerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<TDuration> CpuOverdraftTimeout;
+    std::optional<double> CpuToVCpuFactor;
+    bool EnableCpuToVCpuFactor;
+    bool AccountMasterMemoryRequest;
+
+    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
+    std::optional<TDuration> MemoryOverdraftTimeout;
+
+    std::optional<TDuration> ProfilingPeriod;
+
+    std::optional<TDuration> ResourceAdjustmentPeriod;
+
+    std::optional<TDuration> RecentlyRemovedJobsCleanPeriod;
+    std::optional<TDuration> RecentlyRemovedJobsStoreTimeout;
+
+    std::optional<TDuration> JobProxyBuildInfoUpdatePeriod;
+
+    std::optional<bool> DisableJobProxyProfiling;
+
+    TGpuManagerDynamicConfigPtr GpuManager;
+
+    NJobProxy::TJobProxyDynamicConfigPtr JobProxy;
+
+    NJobAgent::TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
+
+    TDuration OperationInfosRequestPeriod;
+
+    std::optional<TDuration> UnknownOperationJobsRemovalDelay;
+
+    TDuration DisabledJobsInterruptionTimeout;
+
+    REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobControllerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNbdClientConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -352,7 +683,7 @@ class TExecNodeConfig
 {
 public:
     TSlotManagerConfigPtr SlotManager;
-    NJobAgent::TJobControllerConfigPtr JobController;
+    TJobControllerConfigPtr JobController;
     TJobReporterConfigPtr JobReporter;
 
     NLogging::TLogManagerConfigPtr JobProxyLogging;
@@ -436,133 +767,6 @@ DEFINE_REFCOUNTED_TYPE(TExecNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THeartbeatReporterDynamicConfigBase
-    : public NYTree::TYsonStruct
-{
-public:
-    //! Period between consequent heartbeats.
-    TDuration HeartbeatPeriod;
-
-    //! Random delay before first heartbeat.
-    TDuration HeartbeatSplay;
-
-    //! Start backoff for sending the next heartbeat after a failure.
-    TDuration FailedHeartbeatBackoffStartTime;
-
-    //! Maximum backoff for sending the next heartbeat after a failure.
-    TDuration FailedHeartbeatBackoffMaxTime;
-
-    //! Backoff multiplier for sending the next heartbeat after a failure.
-    double FailedHeartbeatBackoffMultiplier;
-
-    REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
-
-    static void Register(TRegistrar registrar);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchedulerConnectorDynamicConfig
-    : public THeartbeatReporterDynamicConfigBase
-{
-public:
-    bool SendHeartbeatOnJobFinished;
-
-    REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TControllerAgentConnectorDynamicConfig
-    : public THeartbeatReporterDynamicConfigBase
-{
-public:
-    TDuration GetJobSpecsTimeout;
-
-    TDuration TestHeartbeatDelay;
-
-    NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
-    TDuration RunningJobStatisticsSendingBackoff;
-
-    TDuration TotalConfirmationPeriod;
-
-    bool UseJobTrackerServiceToSettleJobs;
-
-    REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMasterConnectorDynamicConfig
-    : public THeartbeatReporterDynamicConfigBase
-{
-public:
-    //! Timeout of the exec node heartbeat RPC request.
-    TDuration HeartbeatTimeout;
-
-    REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSlotManagerDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    bool DisableJobsOnGpuCheckFailure;
-
-    //! Enables disk usage checks in periodic disk resources update.
-    bool CheckDiskSpaceLimit;
-
-    //! How to distribute cpu resources between 'common' and 'idle' slots.
-    double IdleCpuFraction;
-
-    bool EnableNumaNodeScheduling;
-
-    bool EnableJobEnvironmentResurrection;
-
-    //! Polymorphic job environment configuration.
-    NYTree::INodePtr JobEnvironment;
-
-    REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVolumeManagerDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    bool EnableAsyncLayerRemoval;
-
-    //! For testing.
-    std::optional<TDuration> DelayAfterLayerImported;
-
-    REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TExecNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -573,7 +777,7 @@ public:
 
     TVolumeManagerDynamicConfigPtr VolumeManager;
 
-    NJobAgent::TJobControllerDynamicConfigPtr JobController;
+    TJobControllerDynamicConfigPtr JobController;
 
     TJobReporterDynamicConfigPtr JobReporter;
 

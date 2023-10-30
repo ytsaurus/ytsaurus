@@ -18,13 +18,13 @@
 #include <util/string/split.h>
 #include <util/string/join.h>
 
-namespace NYT::NJobAgent {
+namespace NYT::NExecNode {
 
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = JobAgentServerLogger;
+static const auto& Logger = NJobAgent::JobAgentServerLogger;
 
 static const TString DevNvidiaPath("/dev/nvidia");
 static const TString DevPath("/dev");
@@ -153,4 +153,4 @@ TString GetDummyGpuDriverVersionString()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+} // namespace NYT::NExecNode

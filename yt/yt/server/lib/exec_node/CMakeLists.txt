@@ -32,6 +32,7 @@ target_link_libraries(server-lib-exec_node PUBLIC
   server-lib-job_proxy
   server-lib-nbd
   yt-library-containers
+  library-containers-cri
   server-lib-misc
   contrib-libs-protobuf
 )
@@ -41,8 +42,10 @@ target_proto_messages(server-lib-exec_node PRIVATE
 target_sources(server-lib-exec_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/job_report.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_info_provider.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
 )
 target_proto_addincls(server-lib-exec_node
   ./
@@ -51,6 +54,8 @@ target_proto_addincls(server-lib-exec_node
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
 )

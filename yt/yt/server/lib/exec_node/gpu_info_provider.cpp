@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NJobAgent {
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,4 +93,4 @@ Y_WEAK IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NJobAgent
+} // namespace NY::NExecNode

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/job_agent/config.h>
-#include <yt/yt/server/lib/job_agent/gpu_helpers.h>
-#include <yt/yt/server/lib/job_agent/gpu_info_provider.h>
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
+#include <yt/yt/server/lib/exec_node/gpu_info_provider.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
@@ -75,19 +75,19 @@ class TGpuManager
 public:
     TGpuManager(
         IBootstrap* bootstrap,
-        NJobAgent::TGpuManagerConfigPtr config);
+        TGpuManagerConfigPtr config);
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     int GetUsedGpuCount() const;
     const std::vector<TString>& GetGpuDevices() const;
-    THashMap<int, NJobAgent::TGpuInfo> GetGpuInfoMap() const;
+    THashMap<int, TGpuInfo> GetGpuInfoMap() const;
 
     TErrorOr<TGpuSlotPtr> AcquireGpuSlot();
 
     TErrorOr<std::vector<TGpuSlotPtr>> AcquireGpuSlots(int slotCount);
 
-    std::vector<NJobAgent::TShellCommandConfigPtr> GetSetupCommands();
+    std::vector<TShellCommandConfigPtr> GetSetupCommands();
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
     void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
 
@@ -97,8 +97,8 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-    const NJobAgent::TGpuManagerConfigPtr Config_;
-    TAtomicIntrusivePtr<NJobAgent::TGpuManagerDynamicConfig> DynamicConfig_;
+    const TGpuManagerConfigPtr Config_;
+    TAtomicIntrusivePtr<TGpuManagerDynamicConfig> DynamicConfig_;
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
     const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
@@ -107,7 +107,7 @@ private:
     std::vector<TString> GpuDevices_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<int, NJobAgent::TGpuInfo> HealthyGpuInfoMap_;
+    THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> LostGpuDeviceIndices_;
 
     THashSet<int> AcquiredGpuDeviceIndices_;
@@ -127,7 +127,7 @@ private:
     NHydra::TRevision DriverLayerRevision_ = 0;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
-    TAtomicIntrusivePtr<NJobAgent::IGpuInfoProvider> GpuInfoProvider_;
+    TAtomicIntrusivePtr<IGpuInfoProvider> GpuInfoProvider_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

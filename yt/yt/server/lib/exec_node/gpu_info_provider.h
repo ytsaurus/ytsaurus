@@ -5,7 +5,7 @@
 
 #include "config.h"
 
-namespace NYT::NJobAgent {
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,4 +64,4 @@ IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NJobAgent
+} // namespace NY::NExecNode

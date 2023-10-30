@@ -473,7 +473,7 @@ private:
 
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
 
-    std::vector<NJobAgent::TShellCommandConfigPtr> GetSetupCommands();
+    std::vector<TShellCommandConfigPtr> GetSetupCommands();
 
     NContainers::TRootFS MakeWritableRootFS();
 

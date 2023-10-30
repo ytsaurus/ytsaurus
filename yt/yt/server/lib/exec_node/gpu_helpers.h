@@ -6,7 +6,7 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
-namespace NYT::NJobAgent {
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,4 +36,4 @@ TString GetDummyGpuDriverVersionString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NJobAgent
+} // namespace NY::NExecNode
