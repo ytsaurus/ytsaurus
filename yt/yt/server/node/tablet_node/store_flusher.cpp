@@ -450,14 +450,14 @@ private:
                     .BeginList()
                         .DoFor(flushResult.StoresToAdd, [] (TFluentList fluent, const TAddStoreDescriptor& descriptor) {
                             fluent
-                                .Item().Value(FromProto<TGuid>(descriptor.store_id()));
+                                .Item().Value(FromProto<TStoreId>(descriptor.store_id()));
                         })
                     .EndList()
                 .Item("hunk_ids_to_add")
                     .BeginList()
                         .DoFor(flushResult.HunkChunksToAdd, [] (TFluentList fluent, const TAddHunkChunkDescriptor& descriptor) {
                             fluent
-                                .Item().Value(FromProto<TGuid>(descriptor.chunk_id()));
+                                .Item().Value(FromProto<TChunkId>(descriptor.chunk_id()));
                         })
                     .EndList()
                 .Item("trace_id").Value(traceId);
