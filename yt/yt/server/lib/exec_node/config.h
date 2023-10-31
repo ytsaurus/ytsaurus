@@ -666,8 +666,9 @@ class TNbdConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    TNbdClientConfigPtr NbdClient;
-    NNbd::TNbdServerConfigPtr NbdServer;
+    bool Enabled;
+    TNbdClientConfigPtr Client;
+    NNbd::TNbdServerConfigPtr Server;
 
     REGISTER_YSON_STRUCT(TNbdConfig);
 
@@ -756,7 +757,7 @@ public:
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
 
-    TNbdConfigPtr NbdConfig;
+    TNbdConfigPtr Nbd;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 
@@ -809,6 +810,10 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
 
     std::optional<int> StatisticsOutputTableCountLimit;
+
+    // NB(yuryalekseev): At the moment dynamic NBD config is used only to create
+    // NBD server during startup or to dynamically enable/disable creation of NBD volumes.
+    TNbdConfigPtr Nbd;
 
     REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 

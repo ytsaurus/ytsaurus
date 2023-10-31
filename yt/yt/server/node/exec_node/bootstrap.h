@@ -52,7 +52,9 @@ struct IBootstrap
 
     virtual NClusterNode::TClusterNodeDynamicConfigPtr GetDynamicConfig() const = 0;
 
-    virtual const NYT::NNbd::INbdServerPtr& GetNbdServer() const = 0;
+    virtual TNbdConfigPtr GetNbdConfig() const = 0;
+
+    virtual NYT::NNbd::INbdServerPtr GetNbdServer() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -106,7 +106,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     YT_VERIFY(artifactKey.has_filesystem());
     YT_VERIFY(artifactKey.has_nbd_export_id());
 
-    YT_LOG_INFO("Creating NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
+    YT_LOG_INFO("Creating NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id(),
@@ -137,7 +137,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
         std::move(invoker),
         Logger);
 
-    YT_LOG_INFO("Created NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
+    YT_LOG_INFO("Created NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id(),
@@ -1118,15 +1118,15 @@ private:
         };
 
         TStringBuilder builder;
-        auto timeout = nbdConfig->NbdClient->Timeout.Seconds();
+        auto timeout = nbdConfig->Client->Timeout.Seconds();
 
-        if (nbdConfig->NbdServer->UnixDomainSocket) {
-            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->NbdServer->UnixDomainSocket->Path);
+        if (nbdConfig->Server->UnixDomainSocket) {
+            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->Server->UnixDomainSocket->Path);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         } else {
             auto port = 10809;
-            if (nbdConfig->NbdServer->InternetDomainSocket) {
-                port = nbdConfig->NbdServer->InternetDomainSocket->Port;
+            if (nbdConfig->Server->InternetDomainSocket) {
+                port = nbdConfig->Server->InternetDomainSocket->Port;
             }
             builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), port);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
@@ -2662,7 +2662,10 @@ private:
             artifactKey.file_path(),
             artifactKey.filesystem());
 
-        if (!Bootstrap_->GetConfig()->ExecNode->NbdConfig) {
+        auto nbdConfig = Bootstrap_->GetNbdConfig();
+        auto nbdServer = Bootstrap_->GetNbdServer();
+
+        if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {
             auto error = TError("NBD is not configured")
                 << TErrorAttribute("export_id", artifactKey.nbd_export_id())
                 << TErrorAttribute("path", artifactKey.file_path())
@@ -2672,7 +2675,7 @@ private:
         }
 
         auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, artifactKey, Bootstrap_->GetConfig()->ExecNode->NbdConfig))
+        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, artifactKey, nbdConfig))
             .ValueOrThrow();
 
         auto volume = New<TNbdVolume>(
@@ -2680,7 +2683,7 @@ private:
             artifactKey,
             this,
             location,
-            Bootstrap_->GetNbdServer());
+            nbdServer);
 
         YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,

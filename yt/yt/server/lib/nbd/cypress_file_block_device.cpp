@@ -259,8 +259,8 @@ private:
         std::vector<int> blockIndexes;
         i64 blockOffsetWithinChunk = 0;
         // TODO(yuryalekseev): use lower bound
-        for (auto b = 0u; b < chunk.Blocks.size(); ++b) {
-            auto blockSize = chunk.Blocks[b].Size;
+        for (auto blockIndex = 0; blockIndex < std::ssize(chunk.Blocks); ++blockIndex) {
+            auto blockSize = chunk.Blocks[blockIndex].Size;
 
             i64 blockBegin = blockOffsetWithinChunk;
             i64 blockEnd = blockBegin + blockSize;
@@ -270,7 +270,7 @@ private:
                 continue;
             }
 
-            blockIndexes.push_back(b);
+            blockIndexes.push_back(blockIndex);
         }
 
         IChunkReader::TReadBlocksOptions readBlocksOptions;

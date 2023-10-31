@@ -725,9 +725,11 @@ void TNbdClientConfig::Register(TRegistrar registrar)
 
 void TNbdConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("nbd_client", &TThis::NbdClient)
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default();
+    registrar.Parameter("client", &TThis::Client)
         .DefaultNew();
-    registrar.Parameter("nbd_server", &TThis::NbdServer)
+    registrar.Parameter("server", &TThis::Server)
         .DefaultNew();
 }
 
@@ -835,7 +837,7 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("sensor_dump_timeout", &TThis::SensorDumpTimeout)
         .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("nbd", &TThis::NbdConfig)
+    registrar.Parameter("nbd", &TThis::Nbd)
         .Default();
 
     registrar.Preprocessor([] (TThis* config) {
@@ -904,6 +906,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
+        .Default();
+
+    registrar.Parameter("nbd", &TThis::Nbd)
         .Default();
 
     registrar.Preprocessor([] (TThis* config) {
