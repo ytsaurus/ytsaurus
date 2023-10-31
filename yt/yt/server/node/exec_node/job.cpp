@@ -1333,6 +1333,11 @@ void TJob::DoInterrupt(
                 << TErrorAttribute("abort_reason", EAbortReason::Preemption);
         }
 
+        if (interruptionReason == EInterruptReason::JobsDisabledOnNode) {
+            error = TError("Jobs disabled on node")
+                << error;
+        }
+
         Abort(error);
         return;
     }
