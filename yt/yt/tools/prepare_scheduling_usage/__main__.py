@@ -526,11 +526,7 @@ def add_expiration_timeout_to_attributes(attributes, expiration_timeout):
     return attributes
 
 
-def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
-    pools = TableInfo(row_type=PoolsRow)
-    tags = TableInfo(row_type=TagsRow)
-    table_info_per_category = {"pools_tables": pools, "tags": tags}
-
+def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout, table_info_per_category):
     reduce_by = ["cluster", "pool_tree", "pool_path", "operation_id"]
     sort_by = reduce_by + ["timestamp"]
 
@@ -587,11 +583,10 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration
 
     pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
     client.write_table(
-        pools.output_path,
+        table_info_per_category["pools_tables"].output_path,
         pool_paths_info,
         table_writer={"max_row_weight": 64 * 1024 * 1024},
     )
-    client.link(pools.output_path, pools.link_path, force=True)
 
     with client.TempTable() as temp_table:
         collect_tags_on_yt(
@@ -601,17 +596,28 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration
         )
 
         client.write_table(
-            tags.output_path,
+            table_info_per_category["tags"].output_path,
             aggregate_tags_for_ancestor_pools(client.read_table_structured(temp_table, TempTagsRow)),
             table_writer={"max_row_weight": 64 * 1024 * 1024},
         )
-        client.link(tags.output_path, tags.link_path, force=True)
+
+
+def update_latest_links(client, table_info_per_category):
+    for table_category, table_info in table_info_per_category.items():
+        category_dir, table_name = yt.ypath_split(table_info.output_path)
+        names_list = client.list(category_dir)
+        if "latest" in names_list:
+            names_list.remove("latest")
+        if table_name >= max(names_list):
+            client.link(table_info.output_path, table_info.link_path, force=True)
 
 
 def process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
+    table_info_per_category = {"pools_tables": TableInfo(row_type=PoolsRow), "tags": TableInfo(row_type=TagsRow)}
     client.remove(output_table, force=True)
     with client.Transaction():
-        do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout)
+        do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout, table_info_per_category)
+    update_latest_links(client, table_info_per_category)
 
 
 def main():
