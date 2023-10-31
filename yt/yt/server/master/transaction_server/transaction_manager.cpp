@@ -1143,20 +1143,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        PrepareTransactionAbort(transaction, options);
-    }
-
-    void PrepareTransactionAbort(TTransaction* transaction, const TTransactionAbortOptions& options)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto force = options.Force;
 
         auto state = transaction->GetTransientState();
-        if (state != ETransactionState::Active && !force) {
+        if (state != ETransactionState::Active && !options.Force) {
             transaction->ThrowInvalidState();
         }
-
         if (state != ETransactionState::Active) {
             return;
         }
@@ -1857,18 +1848,30 @@ private:
     {
         YT_VERIFY(HasHydraContext());
 
-        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
-        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
-
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         auto force = request->force();
 
+        auto state = transaction->GetPersistentState();
+        if (state != ETransactionState::Active && !force) {
+            transaction->ThrowInvalidState();
+        }
+
+        if (state != ETransactionState::Active) {
+            return;
+        }
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+        securityManager->ValidatePermission(transaction, EPermission::Write);
+
         TTransactionAbortOptions abortOptions{
             .Force = force,
         };
-        PrepareTransactionAbort(transaction, abortOptions);
         AbortTransaction(transaction, abortOptions);
     }
 
