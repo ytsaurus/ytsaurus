@@ -1233,6 +1233,7 @@ private:
     bool IsLegacyLivePreviewSuppressed = false;
 
     bool InputHasOrderedDynamicStores_ = false;
+    bool InputHasStaticTableWithHunks_ = false;
 
     std::atomic<bool> MemoryLimitExceeded_ = false;
 
