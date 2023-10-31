@@ -421,7 +421,7 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 
 void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("get_job_specs_timeout", &TThis::GetJobSpecsTimeout)
+    registrar.Parameter("settle_jobs_timeout", &TThis::SettleJobsTimeout)
         .Default(TDuration::Seconds(5));
 
     registrar.Parameter("test_heartbeat_delay", &TThis::TestHeartbeatDelay)

@@ -107,7 +107,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobSpecSe
 
     TJobSpecServiceProxy jobSpecServiceProxy(Channel_);
 
-    auto settleJobsTimeout = GetConfig()->GetJobSpecsTimeout;
+    auto settleJobsTimeout = GetConfig()->SettleJobsTimeout;
 
     jobSpecServiceProxy.SetDefaultTimeout(settleJobsTimeout);
     auto settleJobRequest = jobSpecServiceProxy.GetJobSpecs();
@@ -203,7 +203,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobTracke
 
     TJobTrackerServiceProxy jobTrackerServiceProxy(Channel_);
 
-    auto settleJobsTimeout = GetConfig()->GetJobSpecsTimeout;
+    auto settleJobsTimeout = GetConfig()->SettleJobsTimeout;
 
     jobTrackerServiceProxy.SetDefaultTimeout(settleJobsTimeout);
 
@@ -310,7 +310,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    YT_LOG_DEBUG("Set new controller agent heartbeat period (NewPeriod: %v)",
+    YT_LOG_DEBUG(
+        "Set new controller agent heartbeat period (NewPeriod: %v)",
         newConfig->HeartbeatPeriod);
 
     HeartbeatExecutor_->SetPeriod(newConfig->HeartbeatPeriod);

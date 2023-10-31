@@ -34,7 +34,6 @@ public:
         IBootstrap* bootstrap,
         const TString& id,
         IJobDirectoryManagerPtr jobDirectoryManager,
-        bool enableTmpfs,
         int slotCount,
         std::function<int(int)> slotIndexToUserId);
 
@@ -118,8 +117,8 @@ public:
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
+    const TSlotManagerConfigPtr SlotManagerStaticConfig_;
     const IJobDirectoryManagerPtr JobDirectoryManager_;
-    const bool EnableTmpfs_;
     const int SlotCount_;
 
     const std::function<int(int)> SlotIndexToUserId_;

@@ -65,14 +65,13 @@ TSlotLocation::TSlotLocation(
     IBootstrap* bootstrap,
     const TString& id,
     IJobDirectoryManagerPtr jobDirectoryManager,
-    bool enableTmpfs,
     int slotCount,
     std::function<int(int)> slotIndexToUserId)
     : TDiskLocation(config, id, ExecNodeLogger)
     , Config_(std::move(config))
     , Bootstrap_(bootstrap)
+    , SlotManagerStaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)
     , JobDirectoryManager_(std::move(jobDirectoryManager))
-    , EnableTmpfs_(enableTmpfs)
     , SlotCount_(slotCount)
     , SlotIndexToUserId_(slotIndexToUserId)
     , HeavyLocationQueue_(New<TActionQueue>(Format("HeavyIO:%v", id)))
@@ -87,11 +86,11 @@ TSlotLocation::TSlotLocation(
     , DiskResourcesUpdateExecutor_(New<TPeriodicExecutor>(
         HeavyInvoker_,
         BIND(&TSlotLocation::UpdateDiskResources, MakeWeak(this)),
-        Bootstrap_->GetConfig()->ExecNode->SlotManager->DiskResourcesUpdatePeriod))
+        SlotManagerStaticConfig_->DiskResourcesUpdatePeriod))
     , SlotLocationStatisticsUpdateExecutor_(New<TPeriodicExecutor>(
         HeavyLocationQueue_->GetInvoker(),
         BIND(&TSlotLocation::UpdateSlotLocationStatistics, MakeWeak(this)),
-        Bootstrap_->GetConfig()->ExecNode->SlotManager->SlotLocationStatisticsUpdatePeriod))
+        SlotManagerStaticConfig_->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
 {
     ExecNodeProfiler.WithPrefix("/job_directory/artifacts")
@@ -273,7 +272,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
                 << ex;
         }
 
-        if (!EnableTmpfs_) {
+        if (!SlotManagerStaticConfig_->EnableTmpfs) {
             continue;
         }
 
@@ -459,16 +458,16 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 
             auto copyFileStart = TInstant::Now().MicroSeconds();
 
-            if (Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableReadWriteCopy) {
+            if (SlotManagerStaticConfig_->EnableReadWriteCopy) {
                 ReadWriteCopySync(
                     sourceFile,
                     destinationFile,
-                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+                    SlotManagerStaticConfig_->FileCopyChunkSize);
             } else {
                 SendfileChunkedCopy(
                     sourceFile,
                     destinationFile,
-                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+                    SlotManagerStaticConfig_->FileCopyChunkSize);
             }
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {

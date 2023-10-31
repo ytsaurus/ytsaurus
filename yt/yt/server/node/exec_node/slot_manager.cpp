@@ -219,7 +219,6 @@ TFuture<void> TSlotManager::InitializeEnvironment()
                 Bootstrap_,
                 Format("slot%v", locationIndex),
                 JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
-                StaticConfig_->EnableTmpfs,
                 SlotCount_,
                 BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, JobEnvironment_)));
             ++locationIndex;

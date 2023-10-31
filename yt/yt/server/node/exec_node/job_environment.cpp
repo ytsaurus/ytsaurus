@@ -193,7 +193,7 @@ public:
     void OnDynamicConfigChanged(
         const TSlotManagerDynamicConfigPtr& /*oldConfig*/,
         const TSlotManagerDynamicConfigPtr& /*newConfig*/) override
-    { };
+    { }
 
 protected:
     struct TJobProxyProcess

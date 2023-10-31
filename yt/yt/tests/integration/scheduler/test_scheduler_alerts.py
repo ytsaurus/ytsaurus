@@ -191,7 +191,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
                 "controller_agent_connector": {
                     "heartbeat_period": 200,  # 200 msec
-                    "get_job_specs_timeout": 30000,  # 30 sec
+                    "settle_jobs_timeout": 30000,  # 30 sec
                 },
             },
         },

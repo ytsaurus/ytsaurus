@@ -392,7 +392,7 @@ class TControllerAgentConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    TDuration GetJobSpecsTimeout;
+    TDuration SettleJobsTimeout;
 
     TDuration TestHeartbeatDelay;
 

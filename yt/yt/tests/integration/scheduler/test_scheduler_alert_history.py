@@ -80,7 +80,7 @@ class TestSchedulerAlertHistoryBase(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
-                "controller_agent_connector": {"get_job_specs_timeout": 30000},  # 30 sec
+                "controller_agent_connector": {"settle_jobs_timeout": 30000},  # 30 sec
             }
         }
     }
