@@ -12,6 +12,7 @@ struct TAttributeValue
 {
     NYPath::TYPath Path;
     NYson::TYsonString Value;
+    bool IsEtc = false;
 };
 
 NYson::TYsonString MergeAttributes(

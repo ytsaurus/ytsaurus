@@ -140,7 +140,27 @@ TYsonString MergeAttributeValuesAsNodes(
     auto rootNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
     for (auto& attributeValue : attributeValues) {
         auto node = NYTree::ConvertToNode(attributeValue.Value);
-        if (attributeValue.Path.empty()) {
+        if (attributeValue.IsEtc) {
+            THROW_ERROR_EXCEPTION_UNLESS(node->GetType() == NYTree::ENodeType::Map, "Etc nodes must be maps");
+            auto parentNode = NYTree::FindNodeByYPath(rootNode, attributeValue.Path);
+            if (!parentNode) {
+                parentNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
+                SetNodeByYPath(rootNode, attributeValue.Path, parentNode, /*force*/true);
+            }
+            THROW_ERROR_EXCEPTION_UNLESS(parentNode->GetType() == NYTree::ENodeType::Map,
+                "Cannot merge etc node into non-map node %Qv",
+                attributeValue.Path);
+            auto parentMapNode = parentNode->AsMap();
+            auto mapNode = node->AsMap();
+            for (const auto& [name, child] : mapNode->GetChildren()) {
+                THROW_ERROR_EXCEPTION_IF(parentMapNode->FindChild(name),
+                    "Duplicate key %Qv in attribute %Qv",
+                    name,
+                    attributeValue.Path);
+                mapNode->RemoveChild(child);
+                parentMapNode->AddChild(name, child);
+            }
+        } else if (attributeValue.Path.empty()) {
             rootNode = node->AsMap();
         } else {
             RemoveEntitiesOnPath(rootNode, attributeValue.Path);
@@ -190,7 +210,11 @@ TYsonString MergeAttributes(
 
     auto expandedAttributeValues = ExpandWildcardValueLists(std::move(attributeValues), format);
 
-    if (HasPrefixes(expandedAttributeValues)) {
+    bool hasEtcs = std::any_of(attributeValues.begin(), attributeValues.end(), [] (const TAttributeValue& value) {
+        return value.IsEtc;
+    });
+
+    if (hasEtcs || HasPrefixes(expandedAttributeValues)) {
         return MergeAttributeValuesAsNodes(std::move(expandedAttributeValues), format);
     } else {
         return MergeAttributeValuesAsStrings(std::move(expandedAttributeValues), format);

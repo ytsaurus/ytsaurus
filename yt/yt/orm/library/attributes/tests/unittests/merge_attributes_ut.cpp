@@ -58,6 +58,39 @@ TEST(MergeAttributes, ListForwardNestedLists)
     EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
+TEST(MergeAttributes, EtcWithParent)
+{
+    using namespace std::literals;
+    NYson::TYsonString etc0YsonStringBuf{R"({"a"="c";})"sv};
+    NYson::TYsonString etc1YsonStringBuf{R"({"b"="d";})"sv};
+    NYson::TYsonString element0YsonStringBuf{R"({"etc"={"f"="g";};})"sv};
+    NYson::TYsonString element1YsonStringBuf{R"({"h"=17;})"sv};
+
+    auto mergedYsonString = MergeAttributes({
+            {.Path = "/etc", .Value = etc0YsonStringBuf, .IsEtc=true},
+            {.Path = "/etc", .Value = etc1YsonStringBuf, .IsEtc=true},
+            {.Path = "", .Value = element0YsonStringBuf},
+            {.Path = "/etc/i", .Value = element1YsonStringBuf},
+        }, NYson::EYsonFormat::Text);
+    NYson::TYsonString expectedYsonString{R"({"etc"={"a"="c";"b"="d";"f"="g";"i"={"h"=17;};};})"sv};
+    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+}
+
+TEST(MergeAttributes, Etc)
+{
+    using namespace std::literals;
+    NYson::TYsonString etc0YsonStringBuf{R"({"a"="c";})"sv};
+    NYson::TYsonString etc1YsonStringBuf{R"({"b"="d";})"sv};
+
+    auto mergedYsonString = MergeAttributes({
+            {.Path = "/etc", .Value = etc0YsonStringBuf, .IsEtc=true},
+            {.Path = "/etc", .Value = etc1YsonStringBuf, .IsEtc=true},
+        }, NYson::EYsonFormat::Text);
+    NYson::TYsonString expectedYsonString{R"({"etc"={"a"="c";"b"="d";};})"sv};
+    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
