@@ -5809,6 +5809,12 @@ void TOperationControllerBase::FetchInputTables()
         totalChunkCount,
         totalExtensionSize,
         GetMemoryUsage());
+
+    // TODO(galtsev): remove after YT-20281 is fixed
+    if (AnyOf(InputTables_, IsStaticTableWithHunks)) {
+        InputHasStaticTableWithHunks_ = true;
+        YT_LOG_INFO("Static tables with hunks found, disabling job splitting");
+    }
 }
 
 void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChunk)
@@ -10431,7 +10437,7 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
 
 bool TOperationControllerBase::CanInterruptJobs() const
 {
-    return Config->EnableJobInterrupts && !InputHasOrderedDynamicStores_;
+    return Config->EnableJobInterrupts && !InputHasOrderedDynamicStores_ && !InputHasStaticTableWithHunks_;
 }
 
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)
