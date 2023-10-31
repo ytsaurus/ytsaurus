@@ -496,6 +496,9 @@ private:
                     req->set_lock_mode(ToProto<int>(ELockMode::Exclusive));
                     req->set_upload_transaction_title(Format("Upload to %v", Path_));
                     req->set_upload_transaction_timeout(ToProto<i64>(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
+                    for (auto id : Options_.PrerequisiteTransactionIds) {
+                        ToProto(req->add_upload_prerequisite_transaction_ids(), id);
+                    }
                     GenerateMutationId(req);
                     SetTransactionId(req, Transaction_);
                     batchReq->AddRequest(req, "begin_upload");

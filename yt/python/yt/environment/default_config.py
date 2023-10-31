@@ -526,7 +526,7 @@ def get_node_config():
         };
 
         changelogs = {
-            lock_transaction_timeout = 3000;
+            lock_transaction_timeout = 10000;
         };
 
         table_config_manager = {
@@ -637,7 +637,7 @@ def get_chaos_node_config():
                     size = 4;
                     occupant = {
                         changelogs = {
-                            lock_transaction_timeout = 3000;
+                            lock_transaction_timeout = 10000;
                         };
                         hive_manager = {
                             ping_period = 1000;

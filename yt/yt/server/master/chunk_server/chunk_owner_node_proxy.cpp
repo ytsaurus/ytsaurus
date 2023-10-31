@@ -1560,8 +1560,17 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         chunkSchema,
         chunkSchemaId);
 
+    std::vector<TTransaction*> prerequisiteTransactions;
+    prerequisiteTransactions.reserve(request->upload_prerequisite_transaction_ids_size());
+    for (auto id : request->upload_prerequisite_transaction_ids()) {
+        auto transactionId = FromProto<TTransactionId>(id);
+        auto* transaction = transactionManager->ValidatePrerequisiteTransaction(transactionId);
+        prerequisiteTransactions.push_back(transaction);
+    }
+
     auto* uploadTransaction = transactionManager->StartUploadTransaction(
         /* parent */ Transaction_,
+        prerequisiteTransactions,
         replicatedToCellTags,
         uploadTransactionTimeout,
         uploadTransactionTitle,
