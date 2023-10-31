@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(2.2.1)
+VERSION(3.0.0)
 
 LICENSE(BSD-3-Clause)
 
@@ -17,7 +17,6 @@ PY_SRCS(
     cloudpickle/__init__.py
     cloudpickle/cloudpickle.py
     cloudpickle/cloudpickle_fast.py
-    cloudpickle/compat.py
 )
 
 RESOURCE_FILES(

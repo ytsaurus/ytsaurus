@@ -84,12 +84,13 @@ that pickles such constructs **by value**.
 Another case where the importability assumption is expected to break is when
 developing a module in a distributed execution environment: the worker
 processes may not have access to the said module, for example if they live on a
-different machine than the process in which the module is being developed.
-By itself, `cloudpickle` cannot detect such "locally importable" modules and
-switch to serialization by value; instead, it relies on its default mode,
-which is serialization by reference. However, since `cloudpickle 2.0.0`, one
-can explicitly specify modules for which serialization by value should be used,
-using the `register_pickle_by_value(module)`/`/unregister_pickle(module)` API:
+different machine than the process in which the module is being developed. By
+itself, `cloudpickle` cannot detect such "locally importable" modules and
+switch to serialization by value; instead, it relies on its default mode, which
+is serialization by reference. However, since `cloudpickle 2.0.0`, one can
+explicitly specify modules for which serialization by value should be used,
+using the
+`register_pickle_by_value(module)`/`/unregister_pickle_by_value(module)` API:
 
 ```python
 >>> import cloudpickle
@@ -130,14 +131,14 @@ Running the tests
 
   or alternatively for a specific environment:
 
-      tox -e py37
+      tox -e py312
 
 
-- With `py.test` to only run the tests for your current version of
+- With `pytest` to only run the tests for your current version of
   Python:
 
       pip install -r dev-requirements.txt
-      PYTHONPATH='.:tests' py.test
+      PYTHONPATH='.:tests' pytest
 
 History
 -------
