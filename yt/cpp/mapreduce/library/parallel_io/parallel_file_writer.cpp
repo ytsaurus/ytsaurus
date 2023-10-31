@@ -64,6 +64,8 @@ private:
 
     void ThreadWrite(int index, i64 start, i64 length);
 
+    void ThrowIfDead();
+
 private:
     struct IWriteTask
     {
@@ -143,6 +145,7 @@ private:
     TRichYPath Path_;
     TParallelFileWriterOptions Options_;
     IResourceLimiterPtr RamLimiter_;
+    bool AcquireRamForBuffers_;
     TMutex MutexForException_;
     std::exception_ptr Exception_ = nullptr;
     std::atomic<bool> HasException_ = false;
@@ -165,6 +168,7 @@ TParallelFileWriter::TParallelFileWriter(
     , Path_(path)
     , Options_(options)
     , RamLimiter_(options.RamLimiter_)
+    , AcquireRamForBuffers_(options.AcquireRamForBuffers_)
     , TmpPathPrefix_(Options_.TmpDirectory_
         ? *Options_.TmpDirectory_ + "/" + CreateGuidAsString()
         : Path_.Path_)
@@ -202,12 +206,21 @@ NThreading::TFuture<void> TParallelFileWriter::StartWriteTask(
 
         try {
             IFileWriterPtr writer = Transaction_->CreateFileWriter(filePath, TFileWriterOptions().WriterOptions(Options_.WriterOptions_.GetOrElse({})));
+            size_t lockSize = AcquireRamForBuffers_ ? writer->GetBufferMemoryUsage() : 0;
+            // Hard lock since it's acquired inside thread => may deadlock if not enough memory.
+            TResourceGuard writerGuard(RamLimiter_, lockSize, EResourceLimiterLockType::HARD);
             task->Write(writer, HasException_);
             writer->Finish();
         } catch (const std::exception& e) {
-            HasException_ = true;
             auto guard = Guard(MutexForException_);
+            HasException_ = true;
             Exception_ = std::current_exception();
+            try {
+                Transaction_->Abort();
+            } catch (...) {
+                // Never mind if tx is already dead - we won't commit it anyway => no data will be written.
+            }
+            Finished_ = true;
         }
 
         return;
@@ -224,6 +237,7 @@ TRichYPath TParallelFileWriter::CreateFilePath(const std::pair<size_t, size_t>& 
 
 void TParallelFileWriter::Write(TSharedRef blob)
 {
+    ThrowIfDead();
     Y_ENSURE(!Finished_, "Tried to push blob to already finished writer");
 
     auto blobId = NextBlobId_++;
@@ -244,6 +258,7 @@ void TParallelFileWriter::Write(TSharedRef blob)
 
 void TParallelFileWriter::WriteFile(const TString& fileName)
 {
+    ThrowIfDead();
     Y_ENSURE(!Finished_, "Tried to push file to already finished writer");
 
     auto blobId = NextBlobId_++;
@@ -264,6 +279,13 @@ void TParallelFileWriter::WriteFile(const TString& fileName)
             .Order = std::move(taskId)
         });
         Futures_.emplace_back(std::move(future));
+    }
+}
+
+void TParallelFileWriter::ThrowIfDead() {
+    if (HasException_) {
+        auto guard = Guard(MutexForException_);
+        std::rethrow_exception(Exception_);
     }
 }
 

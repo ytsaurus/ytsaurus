@@ -23,6 +23,8 @@ struct TParallelFileWriterOptions
 
     FLUENT_FIELD(IResourceLimiterPtr, RamLimiter);
 
+    FLUENT_FIELD_DEFAULT(bool, AcquireRamForBuffers, false);
+
     /// @brief Directory for temporary files. By default: directory of the output file.
     FLUENT_FIELD_OPTION(TYPath, TmpDirectory);
 
