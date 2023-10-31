@@ -408,8 +408,7 @@ private:
     {
         NApi::NNative::TConnectionOptions connectionOptions;
         auto blockCacheConfig = New<NChunkClient::TBlockCacheConfig>();
-        // TODO(yuryalekseev): Move capacity to some config
-        blockCacheConfig->CompressedData->Capacity = 512_MB;
+        blockCacheConfig->CompressedData->Capacity = nbdConfig->BlockCacheCompressedDataCapacity;
         connectionOptions.BlockCache = CreateClientBlockCache(
             std::move(blockCacheConfig),
             NChunkClient::EBlockType::CompressedData);

@@ -667,6 +667,7 @@ class TNbdConfig
 {
 public:
     bool Enabled;
+    i64 BlockCacheCompressedDataCapacity;
     TNbdClientConfigPtr Client;
     NNbd::TNbdServerConfigPtr Server;
 

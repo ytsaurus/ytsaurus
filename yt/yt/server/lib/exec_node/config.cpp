@@ -727,6 +727,8 @@ void TNbdConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default();
+    registrar.Parameter("block_cache_compressed_data_capacity", &TThis::BlockCacheCompressedDataCapacity)
+        .Default(512_MB);
     registrar.Parameter("client", &TThis::Client)
         .DefaultNew();
     registrar.Parameter("server", &TThis::Server)
