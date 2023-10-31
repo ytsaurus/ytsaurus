@@ -2835,6 +2835,21 @@ protected:
             MaxPartitionFactor);
     }
 
+    void SetAlertIfPartitionHeuristicsDifferSignificantly(int oldEstimation, int newEstimation) {
+        auto [min, max] = std::minmax(newEstimation, oldEstimation);
+        YT_VERIFY(min > 0);
+        const auto ratio = static_cast<double>(max) / static_cast<double>(min);
+        if (ratio >= Options->CriticalNewPartitionDifferenceRatio) {
+            SetOperationAlert(
+                EOperationAlertType::NewPartitionsCountIsSignificantlyLarger,
+                TError(
+                    "Partition count, estimated by the new partition heuristic, is significantly larger "
+                    "than old heuristic estimation. This may lead to inadequate number of partitions.")
+                    << TErrorAttribute("old_estimation", oldEstimation)
+                    << TErrorAttribute("new_estimation", newEstimation));
+        }
+    }
+
     // Partition progress.
 
     struct TPartitionProgress
@@ -3325,10 +3340,12 @@ private:
             partitionKeys = BuildPartitionKeysByPivotKeys();
         }
 
+        const auto legacyPartitionCount = partitionKeys.size() + 1;
         if (EnableNewPartitionsHeuristic()) {
             SuggestPartitionCountAndMaxPartitionFactor(partitionKeys.size() + 1);
+            SetAlertIfPartitionHeuristicsDifferSignificantly(legacyPartitionCount, PartitionCount);
         } else {
-            PartitionCount = partitionKeys.size() + 1;
+            PartitionCount = legacyPartitionCount;
             if (Spec->MaxPartitionFactor) {
                 MaxPartitionFactor = *Spec->MaxPartitionFactor;
             } else {
@@ -4227,6 +4244,7 @@ private:
             partitionKeys = BuildPartitionKeysByPivotKeys();
         }
 
+        auto legacyPartitionCount = SuggestPartitionCount();
         if (EnableNewPartitionsHeuristic()) {
             std::optional<int> forcedPartitionCount;
             if (usePivotKeys) {
@@ -4234,8 +4252,7 @@ private:
             }
             SuggestPartitionCountAndMaxPartitionFactor(forcedPartitionCount);
         } else {
-            PartitionCount = SuggestPartitionCount();
-            YT_LOG_INFO("Suggested partition count (PartitionCount: %v)", PartitionCount);
+            YT_LOG_INFO("Suggested partition count (PartitionCount: %v)", legacyPartitionCount);
         }
 
         Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
@@ -4249,21 +4266,27 @@ private:
             TotalEstimatedInputRowCount,
             InputCompressionRatio);
 
-        if (!EnableNewPartitionsHeuristic()) {
-            PartitionCount = AdjustPartitionCountToWriterBufferSize(
-                PartitionCount,
-                RootPartitionPoolJobSizeConstraints->GetJobCount(),
-                PartitionJobIOConfig->TableWriter);
-            if (usePivotKeys) {
-                PartitionCount = partitionKeys.size() + 1;
-            }
+        legacyPartitionCount = AdjustPartitionCountToWriterBufferSize(
+            legacyPartitionCount,
+            RootPartitionPoolJobSizeConstraints->GetJobCount(),
+            PartitionJobIOConfig->TableWriter);
+        if (usePivotKeys) {
+            legacyPartitionCount = partitionKeys.size() + 1;
+        }
 
+        if (!EnableNewPartitionsHeuristic()) {
             if (Spec->MaxPartitionFactor) {
                 MaxPartitionFactor = *Spec->MaxPartitionFactor;
             } else {
                 // Build a flat tree by default.
-                MaxPartitionFactor = PartitionCount;
+                MaxPartitionFactor = legacyPartitionCount;
             }
+        }
+
+        if (EnableNewPartitionsHeuristic()) {
+            SetAlertIfPartitionHeuristicsDifferSignificantly(legacyPartitionCount, PartitionCount);
+        } else {
+            PartitionCount = legacyPartitionCount;
         }
 
         YT_LOG_INFO("Adjusted partition count (PartitionCount: %v)", PartitionCount);
