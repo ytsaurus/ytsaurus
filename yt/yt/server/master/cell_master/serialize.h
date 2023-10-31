@@ -172,6 +172,7 @@ DEFINE_ENUM(EMasterReign,
     ((ConcatToSingleCellChunkOwner_23_1)                            (2357))  // shakurov
     ((AccountsProfilingInSecurityManager_23_1)                      (2358))  // vovamelnikov
     ((ReplicateAlienClusterRegistry_23_1)                           (2359))  // ponasenko-rs
+    ((FixTransientAbort_23_1)                                       (2360))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
