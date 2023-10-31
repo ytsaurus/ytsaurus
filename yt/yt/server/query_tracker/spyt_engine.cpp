@@ -43,6 +43,8 @@ public:
 
     std::optional<TString> ClientVersion;
 
+    THashMap<TString, TString> SparkConf;
+
     REGISTER_YSON_STRUCT(TSpytSettings);
 
     static void Register(TRegistrar registrar)
@@ -52,6 +54,8 @@ public:
         registrar.Parameter("discovery_path", &TThis::DiscoveryPath)
             .Default();
         registrar.Parameter("client_version", &TThis::ClientVersion)
+            .Default();
+        registrar.Parameter("spark_conf", &TThis::SparkConf)
             .Default();
     }
 };
@@ -249,17 +253,27 @@ private:
         return result;
     }
 
+    THashMap<TString, TString> GetSparkConf()
+    {
+        THashMap<TString, TString> sparkConf(Settings_->SparkConf);
+        auto versionInsert = sparkConf.emplace("spark.yt.version", GetClientVersion()).second;
+        if (!versionInsert) {
+            THROW_ERROR_EXCEPTION("Don't use 'spark.yt.version'. Use 'client_version' setting instead");
+        }
+        auto jarsInsert = sparkConf.emplace("spark.yt.jars", GetSpytFile("spark-yt-data-source.jar")).second;
+        auto pyFilesInsert = sparkConf.emplace("spark.yt.pyFiles", GetSpytFile("spyt.zip")).second;
+        if (!jarsInsert || !pyFilesInsert) {
+            THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.jars' and 'spark.yt.pyFiles' is forbidden");
+        }
+        return sparkConf;
+    }
+
     TString MakeSessionStartQueryData()
     {
         auto dataNode = BuildYsonNodeFluently()
             .BeginMap()
                 .Item("kind").Value("spark")
-                .Item("conf")
-                    .BeginMap()
-                        .Item("spark.yt.version").Value(GetClientVersion())
-                        .Item("spark.yt.jars").Value(GetSpytFile("spark-yt-data-source.jar"))
-                        .Item("spark.yt.pyFiles").Value(GetSpytFile("spyt.zip"))
-                    .EndMap()
+                .Item("conf").Value(GetSparkConf())
             .EndMap();
         return SerializeYsonToJson(dataNode);
     }
