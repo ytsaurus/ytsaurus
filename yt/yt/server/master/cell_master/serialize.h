@@ -131,6 +131,7 @@ DEFINE_ENUM(EMasterReign,
     ((ConcatToSingleCellChunkOwner_23_1)                            (2357))  // shakurov
     ((AccountsProfilingInSecurityManager_23_1)                      (2358))  // vovamelnikov
     ((ReplicateAlienClusterRegistry_23_1)                           (2359))  // ponasenko-rs
+    ((FixTransientAbort_23_1)                                       (2360))  // babenko
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
@@ -174,6 +175,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueAgentStageForChaos)                                      (2439))  // nadya73
     ((FixMergerStatistics)                                          (2440))  // aleksandra-zh
     ((DisposalNodesLimit)                                           (2441))  // cherepashka
+    ((FixTransientAbort_23_2)                                       (2442))  // babenko
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
