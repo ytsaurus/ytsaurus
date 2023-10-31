@@ -18,6 +18,8 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;
     repeated TJobStatus jobs = 5;
 
+    optional int64 sequence_number = 6 [default = -1];
+
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 8;
 
     // COMPAT(gritukan)

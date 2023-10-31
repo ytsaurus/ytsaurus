@@ -1691,6 +1691,7 @@ public:
                     job->Result() = jobStatus.result();
                     job->Error() = jobError;
                 }
+                job->SetSequenceNumber(request->sequence_number());
 
                 switch (state) {
                     case EJobState::Completed:
@@ -3503,6 +3504,32 @@ private:
         }
     }
 
+    void UpdateChunkRemovalLockedMap(TNode* node, THeartbeatSequenceNumber heartbeatSequenceNumber)
+    {
+        auto& awaitingChunkIds = node->AwaitingHeartbeatChunkIds();
+        auto& lockedChunkIds = ChunkReplicator_->RemovalLockedChunkIds();
+
+        while (!awaitingChunkIds.empty()) {
+            auto it = awaitingChunkIds.begin();
+            auto [sequenceNumber, chunkId] = *it;
+            if (sequenceNumber >= heartbeatSequenceNumber) {
+                break;
+            }
+            awaitingChunkIds.erase(it);
+
+            EraseOrCrash(lockedChunkIds, chunkId);
+            YT_LOG_DEBUG("Unlocked removing replicas for chunk (ChunkId: %v, SequenceNumber: %v < %v)",
+                chunkId,
+                sequenceNumber,
+                heartbeatSequenceNumber);
+
+            auto* chunk = FindChunk(chunkId);
+            if (IsObjectAlive(chunk)) {
+                ScheduleChunkRefresh(chunk);
+            }
+        }
+    }
+
     void ProcessIncrementalDataNodeHeartbeat(
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
@@ -3534,6 +3561,7 @@ private:
         counters.RemovedChunks.Increment(request->removed_chunks().size());
 
         ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+        UpdateChunkRemovalLockedMap(node, request->sequence_number());
 
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();

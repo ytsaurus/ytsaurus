@@ -673,6 +673,11 @@ def get_dynamic_node_config():
 {
     "%true" = {
         config_annotation = "default";
+        data_node = {
+            remove_chunk_job = {
+                wait_for_incremental_heartbeat_barrier = %false;
+            };
+        };
         exec_node = {
             abort_on_jobs_disabled = %true;
 

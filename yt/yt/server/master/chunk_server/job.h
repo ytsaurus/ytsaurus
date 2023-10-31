@@ -39,6 +39,8 @@ public:
     //! Failure reason (as reported by node).
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
+    DEFINE_BYVAL_RW_PROPERTY(THeartbeatSequenceNumber, SequenceNumber, InvalidHeartbeatSequenceNumber);
+
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
 
 public:

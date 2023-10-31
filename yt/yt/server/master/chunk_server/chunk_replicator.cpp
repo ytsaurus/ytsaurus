@@ -1314,6 +1314,18 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
             }
         }
     }
+
+    auto unlockChunks = [&] (const auto& chunkIds) {
+        for (auto chunkId : chunkIds) {
+            EraseOrCrash(RemovalLockedChunkIds_, chunkId);
+        }
+    };
+
+    unlockChunks(node->RemovalJobScheduledChunkIds());
+    node->RemovalJobScheduledChunkIds().clear();
+
+    unlockChunks(GetValues(node->AwaitingHeartbeatChunkIds()));
+    node->AwaitingHeartbeatChunkIds().clear();
 }
 
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
@@ -1518,6 +1530,9 @@ bool TChunkReplicator::TryScheduleRemovalJob(
         if (chunk->HasJobs()) {
             return true;
         }
+        if (RemovalLockedChunkIds_.contains(chunkIdWithIndexes.Id)) {
+            return true;
+        }
     }
 
     auto shardIndex = GetChunkShardIndex(chunkIdWithIndexes.Id);
@@ -1533,6 +1548,12 @@ bool TChunkReplicator::TryScheduleRemovalJob(
         chunkIdWithIndexes,
         location ? location->GetUuid() : InvalidChunkLocationUuid);
     context->ScheduleJob(job);
+
+    if (IsObjectAlive(chunk)) {
+        auto& jobScheduledChunkIds = context->GetNode()->RemovalJobScheduledChunkIds();
+        EmplaceOrCrash(jobScheduledChunkIds, chunkIdWithIndexes.Id);
+        EmplaceOrCrash(RemovalLockedChunkIds_, chunkIdWithIndexes.Id);
+    }
 
     YT_LOG_DEBUG("Removal job scheduled "
         "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v)",
@@ -2923,6 +2944,7 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
     buffer->AddGauge("/quorum_missing_chunk_count", QuorumMissingChunks_.size());
     buffer->AddGauge("/unsafely_placed_chunk_count", UnsafelyPlacedChunks_.size());
     buffer->AddGauge("/inconsistently_placed_chunk_count", InconsistentlyPlacedChunks_.size());
+    buffer->AddGauge("/removal_locked_chunk_ids", RemovalLockedChunkIds_.size());
 
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
         if (jobType >= NJobTrackerClient::FirstMasterJobType &&
@@ -2996,20 +3018,51 @@ void TChunkReplicator::RemoveChunkFromPullReplicationSet(const TJobPtr& job)
     UnrefChunkBeingPulled(replicationJob->GetTargetNodeId(), chunkId, targetMediumIndex);
 }
 
+void TChunkReplicator::MaybeUpdateChunkRemovalLock(const TJobPtr& job)
+{
+    if (job->GetType() != EJobType::RemoveChunk) {
+        return;
+    }
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    auto* node = nodeTracker->GetNodeByAddress(job->NodeAddress());
+    auto& jobScheduledChunkIds = node->RemovalJobScheduledChunkIds();
+    auto& awaitingChunkIds = node->AwaitingHeartbeatChunkIds();
+
+    const auto& chunkIdWithIndexes = job->GetChunkIdWithIndexes();
+    auto chunkId = chunkIdWithIndexes.Id;
+    auto it = jobScheduledChunkIds.find(chunkId);
+    if (it != jobScheduledChunkIds.end()) {
+        jobScheduledChunkIds.erase(it);
+
+        auto sequenceNumber = job->GetSequenceNumber();
+        awaitingChunkIds.emplace(sequenceNumber, chunkId);
+
+        YT_LOG_DEBUG("Chunk removal job lock sequence number updated"
+            " (ChunkId: %v, JobId: %v, SequenceNumber: %v)",
+            chunkId,
+            job->GetJobId(),
+            sequenceNumber);
+    }
+}
+
 void TChunkReplicator::OnJobCompleted(const TJobPtr& job)
 {
     RemoveChunkFromPullReplicationSet(job);
+    MaybeUpdateChunkRemovalLock(job);
 }
 
 void TChunkReplicator::OnJobAborted(const TJobPtr& job)
 {
     RemoveChunkFromPullReplicationSet(job);
+    MaybeUpdateChunkRemovalLock(job);
     TryRescheduleChunkRemoval(job);
 }
 
 void TChunkReplicator::OnJobFailed(const TJobPtr& job)
 {
     RemoveChunkFromPullReplicationSet(job);
+    MaybeUpdateChunkRemovalLock(job);
     TryRescheduleChunkRemoval(job);
 }
 

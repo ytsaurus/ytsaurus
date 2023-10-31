@@ -99,27 +99,6 @@ class TestChunkServer(YTEnvSetup):
                 return False
         return True
 
-    def _wait_for_replicas_removal(self, path, service_to_restart):
-        chunk_id = get_singular_chunk_id(path)
-        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) > 0)
-        node = get("#{0}/@stored_replicas".format(chunk_id))[0]
-
-        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
-
-        set(
-            "//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node),
-            0,
-        )
-
-        remove(path)
-        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) > 0)
-
-        with Restarter(self.Env, service_to_restart):
-            pass
-
-        remove("//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node))
-        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
-
     @authors("babenko")
     def test_decommission_regular1(self):
         create("table", "//tmp/t")
@@ -286,22 +265,6 @@ class TestChunkServer(YTEnvSetup):
             assert len(get("#{0}/@stored_replicas".format(chunk_id))) == MAX_RF
         finally:
             set("//sys/media/default/@config/max_replication_factor", old_max_rf)
-
-    @authors("aleksandra-zh")
-    @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
-    def test_chunk_replica_removal(self, service_to_restart):
-        create("table", "//tmp/t")
-        write_table("//tmp/t", {"a": "b"})
-
-        self._wait_for_replicas_removal("//tmp/t", service_to_restart)
-
-    @authors("aleksandra-zh")
-    @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
-    def test_journal_chunk_replica_removal(self, service_to_restart):
-        create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)])
-
-        self._wait_for_replicas_removal("//tmp/j", service_to_restart)
 
     @authors("gritukan")
     def test_disable_store_location(self):
@@ -716,6 +679,80 @@ class TestChunkServerMulticell(TestChunkServer):
                     assert get("{0}/@native_cell_tag".format(changelog_path)) == expected_cell_tag
                 for chunk_id in get("{0}/@chunk_ids".format(changelog_path)):
                     assert get("#{}/@native_cell_tag".format(chunk_id)) == expected_cell_tag
+
+
+##################################################################
+
+
+class TestChunkServerReplicaRemoval(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 8
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "disk_health_checker": {
+                "check_period": 1000,
+            },
+        },
+    }
+
+    def _wait_for_replicas_removal(self, path, service_to_restart):
+        chunk_id = get_singular_chunk_id(path)
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) > 0)
+        node = get("#{0}/@stored_replicas".format(chunk_id))[0]
+
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
+
+        set(
+            "//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node),
+            0,
+        )
+
+        remove(path)
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) > 0)
+
+        with Restarter(self.Env, service_to_restart):
+            pass
+
+        remove("//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node))
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
+
+    @authors("aleksandra-zh", "danilalexeev")
+    @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
+    @pytest.mark.parametrize("wait_for_barrier", [True, False])
+    def test_chunk_replica_removal(self, service_to_restart, wait_for_barrier):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "remove_chunk_job" : {
+                    "wait_for_incremental_heartbeat_barrier": wait_for_barrier,
+                }
+            }
+        })
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+
+        self._wait_for_replicas_removal("//tmp/t", service_to_restart)
+
+    @authors("aleksandra-zh", "danilalexeev")
+    @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
+    @pytest.mark.parametrize("wait_for_barrier", [True, False])
+    def test_journal_chunk_replica_removal(self, service_to_restart, wait_for_barrier):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "remove_chunk_job" : {
+                    "wait_for_incremental_heartbeat_barrier": wait_for_barrier,
+                }
+            }
+        })
+        create("journal", "//tmp/j")
+        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)])
+
+        self._wait_for_replicas_removal("//tmp/j", service_to_restart)
+
+
+class TestChunkServerReplicaRemovalMulticell(TestChunkServerReplicaRemoval):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1
 
 
 ##################################################################

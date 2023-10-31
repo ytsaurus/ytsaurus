@@ -96,6 +96,8 @@ message TReqIncrementalHeartbeat
 
     optional bool write_sessions_disabled = 5;
 
+    optional int64 sequence_number = 8 [default = 0];
+
     message TConfirmedReplicaAnnouncementRequest
     {
         required NYT.NProto.TGuid chunk_id = 1;

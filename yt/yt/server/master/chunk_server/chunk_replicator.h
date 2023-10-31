@@ -85,6 +85,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnsafelyPlacedChunks);
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, InconsistentlyPlacedChunks);
 
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TChunkId>, RemovalLockedChunkIds);
+
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(
         TChunkLocation* chunkLocation,
@@ -403,6 +405,7 @@ private:
         TNode* node,
         NChunkClient::TChunkIdWithIndex chunkIdWithIndex);
     void RemoveChunkFromPullReplicationSet(const TJobPtr& job);
+    void MaybeUpdateChunkRemovalLock(const TJobPtr& job);
     void UnrefChunkBeingPulled(
         TNodeId nodeId,
         TChunkId chunkId,

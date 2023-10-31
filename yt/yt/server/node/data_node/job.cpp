@@ -426,6 +426,7 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RemoveChunkJob)
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
@@ -434,6 +435,7 @@ private:
     const TRemoveChunkJobSpecExt JobSpecExt_;
 
     const TChunkId ChunkId_;
+    const TRemoveChunkJobDynamicConfigPtr DynamicConfig_;
 
     void DoRun() override
     {
@@ -466,14 +468,14 @@ private:
         WaitFor(chunkStore->RemoveChunk(chunk))
             .ThrowOnError();
 
-        // Wait for the removal notification to be delivered to master.
-        // Cf. YT-6532.
-        // Once we switch from push replication to pull, this code is likely
-        // to appear in TReplicateChunkJob as well.
-        YT_LOG_INFO("Waiting for heartbeat barrier");
-        const auto& masterConnector = Bootstrap_->GetMasterConnector();
-        WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(ChunkId_)))
-            .ThrowOnError();
+        if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {
+            // Wait for the removal notification to be delivered to master.
+            // Cf. YT-6532.
+            YT_LOG_INFO("Waiting for heartbeat barrier");
+            const auto& masterConnector = Bootstrap_->GetMasterConnector();
+            WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(ChunkId_)))
+                .ThrowOnError();
+        }
     }
 };
 

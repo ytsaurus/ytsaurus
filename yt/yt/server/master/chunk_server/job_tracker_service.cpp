@@ -81,10 +81,11 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
+        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v, SequenceNumber: %v",
             nodeId,
             node->GetDefaultAddress(),
-            FormatResourceUsage(resourceUsage, resourceLimits));
+            FormatResourceUsage(resourceUsage, resourceLimits),
+            request->sequence_number());
 
         if (!node->ReportedDataNodeHeartbeat()) {
             SyncWithUpstream();

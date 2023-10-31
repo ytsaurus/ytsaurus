@@ -221,6 +221,8 @@ public:
         req->SetTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
 
         req->set_node_id(ToProto<ui32>(nodeId));
+        req->set_sequence_number(SequenceNumber_);
+        ++SequenceNumber_;
 
         ComputeStatistics(req->mutable_statistics());
 
@@ -550,6 +552,9 @@ private:
 
     IInvokerPtr HeartbeatInvoker_;
 
+    using THeartbeatSequenceNumber = i64;
+    THeartbeatSequenceNumber SequenceNumber_ = 0;
+
     TDuration IncrementalHeartbeatPeriod_;
     TDuration IncrementalHeartbeatPeriodSplay_;
 
@@ -770,6 +775,8 @@ private:
             auto req = proxy.Heartbeat();
             req->SetTimeout(GetDynamicConfig()->JobHeartbeatTimeout);
 
+            auto sequenceNumber = SequenceNumber_++;
+            req->set_sequence_number(sequenceNumber);
             req->set_reports_heartbeats_to_all_peers(true);
 
             const auto& jobController = Bootstrap_->GetJobController();
@@ -783,15 +790,17 @@ private:
                     jobTrackerAddress);
             }
 
-            YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v, JobTrackerAddress: %v)",
+            YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v, JobTrackerAddress: %v, SequenceNumber: %v)",
                 FormatResourceUsage(req->resource_usage(), req->resource_limits()),
-                jobTrackerAddress);
+                jobTrackerAddress,
+                sequenceNumber);
 
             auto rspOrError = WaitFor(req->Invoke());
 
             if (rspOrError.IsOK()) {
-                YT_LOG_INFO("Successfully reported job heartbeat to master (JobTrackerAddress: %v)",
-                    jobTrackerAddress);
+                YT_LOG_INFO("Successfully reported job heartbeat to master (JobTrackerAddress: %v, SequenceNumber: %v)",
+                    jobTrackerAddress,
+                    sequenceNumber);
 
                 const auto& rsp = rspOrError.Value();
                 auto error = WaitFor(jobController->ProcessHeartbeatResponse(
@@ -800,11 +809,13 @@ private:
                 YT_LOG_FATAL_IF(
                     !error.IsOK(),
                     error,
-                    "Fail to process heartbeat response (JobTrackerAddress: %v)",
-                    jobTrackerAddress);
+                    "Fail to process heartbeat response (JobTrackerAddress: %v, SequenceNumber: %v)",
+                    jobTrackerAddress,
+                    sequenceNumber);
             } else {
-                YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (JobTrackerAddress: %v)",
-                    jobTrackerAddress);
+                YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (JobTrackerAddress: %v, SequenceNumber: %v)",
+                    jobTrackerAddress,
+                    sequenceNumber);
 
                 if (!outOfOrder) {
                     JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % JobTrackerAddresses_.size();

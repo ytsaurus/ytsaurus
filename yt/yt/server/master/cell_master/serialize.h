@@ -177,6 +177,7 @@ DEFINE_ENUM(EMasterReign,
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
+    ((RemoveChunkJobDynamicConfig)                                  (2502))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////

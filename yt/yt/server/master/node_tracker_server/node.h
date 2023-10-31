@@ -284,6 +284,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, NextDisposedLocationIndex);
     DEFINE_BYVAL_RW_PROPERTY(bool, DisposalTickScheduled);
 
+    using TSequenceNumberMap = std::multimap<NChunkServer::THeartbeatSequenceNumber, TChunkId>;
+    DEFINE_BYREF_RW_PROPERTY(TSequenceNumberMap, AwaitingHeartbeatChunkIds);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TChunkId>, RemovalJobScheduledChunkIds);
+
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
 

@@ -270,6 +270,9 @@ using TChunkRequisitionIndex = ui32;
 using TJobEpoch = int;
 constexpr TJobEpoch InvalidJobEpoch = -1;
 
+using THeartbeatSequenceNumber = i64;
+constexpr THeartbeatSequenceNumber InvalidHeartbeatSequenceNumber = -1;
+
 using TRefreshEpoch = int;
 constexpr TRefreshEpoch InvalidRefreshEpoch = -1;
 constexpr TRefreshEpoch NullRefreshEpoch = 0;

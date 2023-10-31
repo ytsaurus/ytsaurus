@@ -547,6 +547,14 @@ void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRemoveChunkJobDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("wait_for_incremental_heartbeat_barrier", &TThis::WaitForIncrementalHeartbeatBarrier)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("reader", &TThis::Reader)
@@ -948,6 +956,8 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
         .DefaultNew();
 
+    registrar.Parameter("remove_chunk_job", &TThis::RemoveChunkJob)
+        .DefaultNew();
     registrar.Parameter("replicate_chunk_job", &TThis::ReplicateChunkJob)
         .DefaultNew();
     registrar.Parameter("merge_chunks_job", &TThis::MergeChunksJob)
