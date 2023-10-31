@@ -1,6 +1,6 @@
 # Выступления на мероприятиях, публикации и семинары
 
-На этой странице собраны различные видеоматериалы и публикации, которые делались в разное время разработчиками {{product-name}}. 
+На этой странице собраны различные видеоматериалы и публикации, которые делались в разное время разработчиками {{product-name}}.
 
 ##  Конференции, публикации
 
@@ -33,7 +33,7 @@
 - **Материалы**: [YouTube](https://www.youtube.com/watch?v=Uv-IcGZSRpk), [slides](https://drive.google.com/file/d/1MvroDgNHSw4OeQR5D2XzZ2sLMRCaxigY/view)
 - **Докладчик**: Игнат Колесниченко
 
-### 2020: Erasure Coding at Scale 
+### 2020: Erasure Coding at Scale
 - **Мероприятие**: Hydra 2020
 - **Материалы**: [YouTube](https://www.youtube.com/watch?v=URAm-bbst-o), [slides](https://assets.ctfassets.net/oxjq45e8ilak/3xPcIZlk28eJfMuqmjQzLL/e94ada176f20dae5f117fe0221aa897c/Erasure_Coding_At_Scale.pdf)
 - **Докладчик**: Максим Бабенко
@@ -51,4 +51,3 @@
 - **Мероприятие**: Яндекс Изнутри 2016
 - **Автор**: Максим Бабенко
 - **Материалы**: [YouTube](https://www.youtube.com/watch?v=VQGfH0sZi18)
-
