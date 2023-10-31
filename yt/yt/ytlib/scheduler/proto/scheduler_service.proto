@@ -1,5 +1,9 @@
 package NYT.NScheduler.NProto;
 
+import "yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto";
+
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
@@ -110,5 +114,38 @@ message TReqUpdateOperationParameters
 
 message TRspUpdateOperationParameters
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Get allocation brief info.
+
+message TReqGetAllocationBriefInfo
+{
+    required NYT.NProto.TGuid allocation_id = 1;
+
+    message TRequestedInfo
+    {
+        optional bool operation_id = 1 [default = false];
+        optional bool operation_acl = 2 [default = false];
+        optional bool controller_agent_descriptor = 3 [default = false];
+        optional bool node_descriptor = 4 [default = false];
+    }
+
+    required TRequestedInfo requested_info = 2;
+}
+
+message TAllocationBriefInfo
+{
+    required NYT.NProto.TGuid allocation_id = 1;
+    optional NYT.NProto.TGuid operation_id = 2;
+    optional bytes operation_acl = 3;
+    optional NControllerAgent.NProto.TControllerAgentDescriptor controller_agent_descriptor = 4;
+    optional NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 5;
+}
+
+message TRspGetAllocationBriefInfo
+{
+    required TAllocationBriefInfo allocation_brief_info = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

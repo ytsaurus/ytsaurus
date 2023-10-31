@@ -3624,6 +3624,31 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
     OnJobCompleted(CreateAbandonedJobSummary(jobId));
 }
 
+void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDuration timeout)
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
+    YT_LOG_DEBUG("Interrupting job (JobId: %v, Timeout: %v)", jobId, timeout);
+
+    if (State != EControllerState::Running) {
+        THROW_ERROR_EXCEPTION(
+            "Operation %v is not running",
+            OperationId);
+    }
+
+    auto joblet = GetJobletOrThrow(jobId);
+
+    if (!joblet->JobInterruptible) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot interrupt job %v of type %Qlv "
+            "because it does not support interruption or \"interruption_signal\" is not set",
+            jobId,
+            joblet->JobType);
+    }
+
+    InterruptJob(jobId, EInterruptReason::UserRequest, timeout);
+}
+
 void TOperationControllerBase::BuildJobAttributes(
     const TJobletPtr& joblet,
     EJobState state,
@@ -8943,6 +8968,13 @@ void TOperationControllerBase::ZombifyOrchid()
     Orchid_.Store(BuildZombieOrchid());
 }
 
+const std::vector<NScheduler::TJobShellPtr>& TOperationControllerBase::GetJobShells() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Spec_->JobShells;
+}
+
 NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
 {
     return BuildYsonStringFluently<EYsonType::MapFragment>()
@@ -10442,7 +10474,7 @@ bool TOperationControllerBase::CanInterruptJobs() const
 
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
-    Host->InterruptJob(
+    InterruptJob(
         jobId,
         reason,
         /*timeout*/ TDuration::Zero());
@@ -10793,6 +10825,11 @@ void TOperationControllerBase::OnOperationReady() const
 bool TOperationControllerBase::ShouldProcessJobEvents() const
 {
     return State == EControllerState::Running || State == EControllerState::Failing;
+}
+
+void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout)
+{
+    Host->InterruptJob(jobId, interruptionReason, timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

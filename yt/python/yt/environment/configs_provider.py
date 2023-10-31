@@ -1296,6 +1296,7 @@ def _build_cluster_connection_config(yt_config,
         },
         "scheduler": {
             "retry_backoff_time": 100,
+            "use_scheduler_job_prober_service": False,
         },
         "node_directory_synchronizer": {
             "sync_period": 500,

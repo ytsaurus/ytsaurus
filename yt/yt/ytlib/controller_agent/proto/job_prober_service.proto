@@ -2,6 +2,8 @@ package NYT.NControllerAgent.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqAbandonJob
@@ -13,5 +15,32 @@ message TReqAbandonJob
 
 message TRspAbandonJob
 { }
+
+message TReqInterruptJob
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+
+    required NYT.NProto.TGuid operation_id = 2;
+    required NYT.NProto.TGuid job_id = 3;
+    required int64 timeout = 4;
+}
+
+message TRspInterruptJob
+{ }
+
+message TReqGetJobShellDescriptor
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+
+    required NYT.NProto.TGuid operation_id = 2;
+    required NYT.NProto.TGuid job_id = 3;
+    optional string shell_name = 4;
+}
+
+message TRspGetJobShellDescriptor
+{
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 1;
+    optional string subcontainer = 2;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

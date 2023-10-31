@@ -1366,7 +1366,7 @@ print row + table_index
         )
 
         jobs = wait_breakpoint()
-        interrupt_job(jobs[0])
+        op.interrupt_job(jobs[0])
         release_breakpoint()
         op.track()
 

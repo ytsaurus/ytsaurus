@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -126,7 +128,10 @@ public:
     void OnOperationFailed(const TOperationPtr& operation, const TError& error);
     void OnOperationSuspended(const TOperationPtr& operation, const TError& error);
     void OnOperationAgentUnregistered(const TOperationPtr& operation);
-    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds);
+    void OnOperationBannedInTentativeTree(
+        const TOperationPtr& operation,
+        const TString& treeId,
+        const std::vector<TJobId>& jobIds);
 
     TFuture<void> DumpInputContext(TJobId jobId, const NYPath::TYPath& path, const TString& user);
     TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId);
@@ -162,7 +167,10 @@ public:
         const TError& alert,
         std::optional<TDuration> timeout = {});
 
-    TFuture<void> ValidateOperationAccess(const TString& user, TOperationId operationId, NYTree::EPermissionSet permissions);
+    TFuture<void> ValidateOperationAccess(
+        const TString& user,
+        TOperationId operationId,
+        NYTree::EPermissionSet permissions);
 
     TFuture<void> ValidateJobShellAccess(
         const TString& user,
@@ -171,7 +179,13 @@ public:
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId) const;
 
+    TFuture<TOperationId> FindOperationIdByAllocationId(TAllocationId allocationId) const;
+
     const NRpc::IResponseKeeperPtr& GetOperationServiceResponseKeeper() const;
+
+    TAllocationBriefInfo GetAllocationBriefInfo(
+        TAllocationId allocationId,
+        TAllocationInfoToRequest requestedAllocationInfo) const;
 
 private:
     class TImpl;

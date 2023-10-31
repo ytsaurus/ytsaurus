@@ -178,6 +178,13 @@ private: \
         (jobId),
         false)
 
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        InterruptJobByUserRequest,
+        (TJobId jobId, TDuration timeout),
+        (jobId, timeout),
+        false)
+
     IMPLEMENT_SAFE_METHOD(void, UpdateMinNeededJobResources, (), (), true)
 
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
@@ -409,6 +416,9 @@ public:
     NYTree::IYPathServicePtr GetOrchid() const override;
 
     void ZombifyOrchid() final;
+
+    // Job shell options should never be changed in operation spec.
+    const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const override;
 
     TString WriteCoreDump() const override;
 
@@ -1484,6 +1494,8 @@ private:
     void OnOperationReady() const;
 
     bool ShouldProcessJobEvents() const;
+
+    void InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

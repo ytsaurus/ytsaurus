@@ -1,0 +1,16 @@
+package NYT.NControllerAgent.NProto;
+
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TControllerAgentDescriptor
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+    optional NNodeTrackerClient.NProto.TAddressMap addresses = 2;
+    optional string agent_id = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

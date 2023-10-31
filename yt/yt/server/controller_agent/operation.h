@@ -8,13 +8,16 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 #include <yt/yt/client/api/public.h>
 
-#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/client/security_client/acl.h>
 
 namespace NYT::NControllerAgent {
 
@@ -38,11 +41,16 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerHostPtr, Host);
     DEFINE_BYREF_RO_PROPERTY(std::vector<NScheduler::TExperimentAssignmentPtr>, ExperimentAssignments);
+    DEFINE_BYVAL_RW_PROPERTY(NScheduler::TJobShellOptionsMap, OptionsPerJobShell);
 
 public:
     explicit TOperation(const NProto::TOperationDescriptor& descriptor);
 
     const IOperationControllerPtr& GetControllerOrThrow() const;
+
+    void UpdateJobShellOptions(const NScheduler::TJobShellOptionsUpdeteMap& update);
+
+    std::optional<NScheduler::TJobShellInfo> GetJobShellInfo(const TString& jobShellName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperation)

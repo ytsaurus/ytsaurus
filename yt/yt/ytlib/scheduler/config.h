@@ -31,7 +31,7 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
-
+#include <yt/yt/core/misc/backoff_strategy_api.h>
 #include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/library/formats/format.h>
@@ -1880,7 +1880,7 @@ public:
     // to be able to revive old operations.
     std::vector<TString> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
-    THashMap<TString, TOperationJobShellRuntimeParametersPtr> OptionsPerJobShell;
+    TJobShellOptionsMap OptionsPerJobShell;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     NYTree::IMapNodePtr Annotations;
     TString ControllerAgentTag;
@@ -1926,7 +1926,7 @@ public:
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
-    THashMap<TString, std::optional<TOperationJobShellRuntimeParametersPtr>> OptionsPerJobShell;
+    TJobShellOptionsUpdeteMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
     std::optional<TString> ControllerAgentTag;
 
@@ -1960,6 +1960,8 @@ public:
     TDuration RpcTimeout;
     //! Timeout for acknowledgements for all RPC requests to schedulers.
     TDuration RpcAcknowledgementTimeout;
+
+    bool UseSchedulerJobProberService;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectionConfig);
 

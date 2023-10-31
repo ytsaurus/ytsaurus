@@ -1,5 +1,9 @@
 #include "public.h"
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -52,6 +56,21 @@ void SetupClusterConnectionDynamicConfigUpdate(
     EClusterConnectionDynamicConfigPolicy policy,
     const NYTree::INodePtr& staticClusterConnectionNode,
     NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<NScheduler::TAllocationBriefInfo> GetAllocationBriefInfo(
+    const NScheduler::TOperationServiceProxy& operationServiceProxy,
+    NScheduler::TAllocationId allocationId,
+    NScheduler::TAllocationInfoToRequest allocationInfoToRequest);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsRevivalError(const TError& error);
+
+TError CreateRevivalError(
+    NScheduler::TOperationId operationId,
+    NScheduler::TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -32,9 +32,9 @@ TJobId GenerateJobId(TCellTag tag, TNodeId nodeId)
         nodeId.Underlying());
 }
 
-TNodeId NodeIdFromJobId(TJobId jobId)
+TNodeId NodeIdFromAllocationId(TAllocationId allocationId)
 {
-    return TNodeId(jobId.Parts32[0]);
+    return TNodeId(allocationId.Parts32[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

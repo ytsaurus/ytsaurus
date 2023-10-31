@@ -10,29 +10,30 @@
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/tablet_client/public.h>
 
+#include <yt/yt/ytlib/controller_agent/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/transaction_client/public.h>
-
-#include <yt/yt/ytlib/security_client/public.h>
-
-#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_cache.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
+
+#include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/table_replica_ypath.h>
 #include <yt/yt/ytlib/tablet_client/master_tablet_service.h>
 
-#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
-#include <yt/yt/ytlib/object_client/object_service_cache.h>
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/library/query/base/ast.h>
 
@@ -1508,6 +1509,11 @@ private:
         NYTree::EPermissionSet permissions);
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
+        NScheduler::TJobId jobId,
+        NYTree::EPermissionSet permissions);
+    void ValidateOperationAccess(
+        NScheduler::TOperationId operationId,
+        const NSecurityClient::TSerializableAccessControlList& operationAcl,
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet permissions);
 

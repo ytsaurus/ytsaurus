@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -35,6 +37,17 @@ using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NFileClient;
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAllocationId AllocationIdFromJobId(TJobId jobId)
+{
+    // Job id is currently equal to allocation id.
+    return jobId;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,16 +115,17 @@ void SaveJobFiles(
 
     auto connection = client->GetNativeConnection();
 
-    NApi::ITransactionPtr transaction;
-    {
-        NApi::TTransactionStartOptions options;
+    auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Saving job files of operation %v", operationId));
-        options.Attributes = std::move(attributes);
 
-        transaction = WaitFor(client->StartTransaction(ETransactionType::Master, options))
+        NApi::TTransactionStartOptions options{
+            .Attributes = std::move(attributes)
+        };
+
+        return WaitFor(client->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
-    }
+    }();
 
     auto transactionId = transaction->GetId();
 
@@ -378,6 +392,56 @@ void SanitizeJobSpec(NProto::TJobSpec* jobSpec)
             userJobSpec->add_environment(variable);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TControllerAgentDescriptor::operator bool() const
+{
+    return Addresses && !std::empty(*Addresses);
+}
+
+void FromProto(
+    TControllerAgentDescriptor* controllerAgentDescriptor,
+    const NProto::TControllerAgentDescriptor& controllerAgentDescriptorProto)
+{
+    if (controllerAgentDescriptorProto.has_addresses()) {
+        controllerAgentDescriptor->Addresses = FromProto<NNodeTrackerClient::TAddressMap>(
+            controllerAgentDescriptorProto.addresses());
+    }
+    controllerAgentDescriptor->IncarnationId = NYT::FromProto<TIncarnationId>(
+        controllerAgentDescriptorProto.incarnation_id());
+    controllerAgentDescriptor->AgentId = NYT::FromProto<TAgentId>(
+        controllerAgentDescriptorProto.agent_id());
+}
+
+void ToProto(
+    NProto::TControllerAgentDescriptor* controllerAgentDescriptorProto,
+    const TControllerAgentDescriptor& controllerAgentDescriptor)
+{
+    if (controllerAgentDescriptor.Addresses) {
+        ToProto(
+            controllerAgentDescriptorProto->mutable_addresses(),
+            *controllerAgentDescriptor.Addresses);
+    }
+    ToProto(
+        controllerAgentDescriptorProto->mutable_incarnation_id(),
+        controllerAgentDescriptor.IncarnationId);
+    ToProto(
+        controllerAgentDescriptorProto->mutable_agent_id(),
+        controllerAgentDescriptor.AgentId);
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
+    TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "{Addresses: %v, IncarnationId: %v, AgentId: %v}",
+        controllerAgentDescriptor.Addresses,
+        controllerAgentDescriptor.IncarnationId,
+        controllerAgentDescriptor.AgentId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

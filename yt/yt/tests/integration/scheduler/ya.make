@@ -5,6 +5,7 @@ TEST_SRCS(
     test_get_job.py
     test_get_job_artifacts.py
     test_get_operation.py
+    test_job_probing.py
     test_list_jobs.py
     test_list_operations.py
     test_new_live_preview.py

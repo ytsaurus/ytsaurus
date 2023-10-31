@@ -113,6 +113,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
 using namespace NEventLog;
 using namespace NTransactionClient;
+using namespace NControllerAgent;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -559,6 +560,7 @@ public:
             .Run();
     }
 
+    // COMPAT(pogorelov)
     void DoValidateJobShellAccess(
         const TString& user,
         const TString& jobShellName,
@@ -571,35 +573,14 @@ public:
             jobShellName,
             jobShellOwners);
 
-        auto proxy = CreateObjectServiceReadProxy(
+        NControllerAgent::ValidateJobShellAccess(
             Bootstrap_->GetClient(),
-            EMasterChannelKind::Cache);
-        TMasterReadOptions readOptions;
-        readOptions.ReadFrom = EMasterChannelKind::Cache;
-
-        auto userClosure = GetSubjectClosure(
             user,
-            proxy,
-            Bootstrap_->GetClient()->GetNativeConnection(),
-            readOptions);
-
-        auto allowedSubjects = jobShellOwners;
-        allowedSubjects.push_back(RootUserName);
-        allowedSubjects.push_back(SuperusersGroupName);
-
-        for (const auto& allowedSubject : allowedSubjects) {
-            if (allowedSubject == user || userClosure.contains(allowedSubject)) {
-                return;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AuthorizationError,
-            "User %Qv is not allowed to run job shell %Qv",
-            user,
-            jobShellName);
+            jobShellName,
+            jobShellOwners);
     }
 
+    // COMPAT(pogorelov)
     TFuture<void> ValidateJobShellAccess(
         const TString& user,
         const TString& jobShellName,
@@ -1102,16 +1083,19 @@ public:
             .Run();
     }
 
+    // COMPAT(pogorelov)
     TFuture<void> DumpInputContext(TJobId jobId, const TYPath& path, const TString& user)
     {
         return NodeManager_->DumpJobInputContext(jobId, path, user);
     }
 
-    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId)
+    // COMPAT(pogorelov)
+    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId) const
     {
         return NodeManager_->GetJobNode(jobId);
     }
 
+    // COMPAT(pogorelov)
     TFuture<void> AbandonJob(TJobId jobId, const TString& user)
     {
         auto operationId = WaitFor(FindOperationIdByJobId(jobId))
@@ -1119,14 +1103,16 @@ public:
         if (!operationId) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::NoSuchJob,
-                "Job %v not found", jobId);
+                "Job %v not found",
+                jobId);
         }
 
         auto operation = FindOperation(operationId);
         if (!operation) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::NoSuchOperation,
-                "Operation %v not found", operationId);
+                "Operation %v not found",
+                operationId);
         }
 
         auto controller = operation->GetController();
@@ -1146,6 +1132,7 @@ public:
         return NodeManager_->AbandonJob(jobId);
     }
 
+    // COMPAT(pogorelov)
     TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
     {
         return NodeManager_->AbortJobByUserRequest(jobId, interruptTimeout, user);
@@ -1731,12 +1718,72 @@ public:
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId) const
     {
-        return NodeManager_->FindOperationIdByJobId(jobId);
+        return NodeManager_->FindOperationIdByAllocationId(AllocationIdFromJobId(jobId));
     }
 
     const IResponseKeeperPtr& GetOperationServiceResponseKeeper() const
     {
         return OperationServiceResponseKeeper_;
+    }
+
+    TAllocationBriefInfo GetAllocationBriefInfo(
+        TAllocationId allocationId,
+        TAllocationInfoToRequest requestedAllocationInfo) const
+    {
+        TAllocationBriefInfo result;
+        result.AllocationId = allocationId;
+
+        if (requestedAllocationInfo.NodeDescriptor) {
+            // JobId is currently equal to AllocationId.
+            result.NodeDescriptor = WaitFor(GetJobNode(TJobId(allocationId)))
+                .ValueOrThrow();
+        }
+
+        if (!requestedAllocationInfo.OperationId &&
+            !requestedAllocationInfo.OperationAcl &&
+            !requestedAllocationInfo.ControllerAgentDescriptor)
+        {
+            return result;
+        }
+
+        auto operationId = WaitFor(NodeManager_->FindOperationIdByAllocationId(allocationId))
+            .ValueOrThrow();
+
+        if (!operationId) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Allocation %v not found",
+                allocationId);
+        }
+
+        auto operation = GetOperationOrThrow(operationId);
+
+        if (requestedAllocationInfo.OperationId) {
+            result.OperationId = operationId;
+        }
+
+        if (requestedAllocationInfo.ControllerAgentDescriptor) {
+            const auto& controllerAgent = operation->GetController()->FindAgent();
+
+            if (!controllerAgent) {
+                THROW_ERROR_EXCEPTION(
+                    NScheduler::EErrorCode::AgentRevoked,
+                    "Agent of operation %v is revoked",
+                    operationId);
+            }
+
+            result.ControllerAgentDescriptor = NControllerAgent::TControllerAgentDescriptor{
+                .Addresses = controllerAgent->GetAgentAddresses(),
+                .IncarnationId = controllerAgent->GetIncarnationId(),
+                .AgentId = controllerAgent->GetId(),
+            };
+        }
+
+        if (requestedAllocationInfo.OperationAcl) {
+            result.OperationAcl = operation->GetRuntimeParameters()->Acl;
+        }
+
+        return result;
     }
 
 private:
@@ -1880,16 +1927,7 @@ private:
             result->Acl = *update->Acl;
         }
 
-        if (update->OptionsPerJobShell) {
-            result->OptionsPerJobShell = origin->OptionsPerJobShell;
-            for (const auto& [jobShellName, options] : update->OptionsPerJobShell) {
-                if (!options) {
-                    result->OptionsPerJobShell.erase(jobShellName);
-                } else {
-                    result->OptionsPerJobShell[jobShellName] = *options;
-                }
-            }
-        }
+        ApplyJobShellOptionsUpdate(&result->OptionsPerJobShell, update->OptionsPerJobShell);
 
         if (update->Annotations) {
             auto annotationsPatch = *update->Annotations;
@@ -3007,6 +3045,8 @@ private:
 
     void RegisterAssignedOperation(const TOperationPtr& operation)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto agent = operation->FindAgent();
         if (!agent || agent->GetState() != EControllerAgentState::Registered) {
             YT_LOG_INFO("Assigned agent is missing or not registered, operation returned to waiting for agent state (OperationId: %v)",
@@ -3780,6 +3820,8 @@ private:
 
     void AddOperationToTransientQueue(const TOperationPtr& operation)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         StateToTransientOperations_[operation->GetState()].push_back(operation);
 
         if (operation->GetState() == EOperationState::Orphaned) {
@@ -3797,6 +3839,8 @@ private:
 
     bool HandleWaitingForAgentOperation(const TOperationPtr& operation)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         auto agent = agentTracker->PickAgentForOperation(operation);
         if (!agent) {
@@ -3826,6 +3870,8 @@ private:
 
     void HandleOrphanedOperation(const TOperationPtr& operation)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto operationId = operation->GetId();
 
         auto codicilGuard = operation->MakeCodicilGuard();
@@ -3899,6 +3945,8 @@ private:
 
     void HandleOrphanedOperations()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (auto delay = Config_->TestingOptions->HandleOrphanedOperationsDelay) {
             TDelayedExecutor::WaitForDuration(*delay);
         }
@@ -4616,6 +4664,13 @@ TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId) const
 const IResponseKeeperPtr& TScheduler::GetOperationServiceResponseKeeper() const
 {
     return Impl_->GetOperationServiceResponseKeeper();
+}
+
+TAllocationBriefInfo TScheduler::GetAllocationBriefInfo(
+    TAllocationId allocationId,
+    TAllocationInfoToRequest requestedAllocationInfo) const
+{
+    return Impl_->GetAllocationBriefInfo(allocationId, requestedAllocationInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

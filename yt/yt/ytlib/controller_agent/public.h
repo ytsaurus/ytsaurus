@@ -4,9 +4,15 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NScheduler::TAllocationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +46,8 @@ class TQuerySpec;
 class TJobProfilerSpec;
 
 class TPartitionJobSpecExt;
+
+class TControllerAgentDescriptor;
 
 } // namespace NProto
 
@@ -133,6 +141,20 @@ YT_DEFINE_ERROR_ENUM(
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TString SecureVaultEnvPrefix;
+
+using TControllerEpoch = int;
+using TIncarnationId = TGuid;
+using TAgentId = TString;
+
+struct TControllerAgentDescriptor
+{
+    std::optional<NNodeTrackerClient::TAddressMap> Addresses;
+    TIncarnationId IncarnationId;
+
+    TAgentId AgentId;
+
+    operator bool() const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

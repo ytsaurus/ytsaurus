@@ -712,6 +712,9 @@ public:
                     .Run();
             }
         }
+
+        operation->UpdateJobShellOptions(update->OptionsPerJobShell);
+
         return VoidFuture;
     }
 
@@ -1297,7 +1300,7 @@ private:
             .ValueOrThrow();
 
         if (auto maybeDelay = Config_->TestingOptions->DelayInHandshake) {
-            YT_LOG_DEBUG("Sleeping before performing handshake (Timeout: %v)", *maybeDelay);
+            YT_LOG_DEBUG("Sleeping before performing handshake (Delay: %v)", *maybeDelay);
 
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }

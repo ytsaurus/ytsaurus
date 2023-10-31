@@ -19,6 +19,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NControllerAgent;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -311,7 +312,9 @@ void TNodeManager::ResumeOperationJobs(TOperationId operationId)
 
 TFuture<TNodeDescriptor> TNodeManager::GetJobNode(TJobId jobId)
 {
-    const auto& nodeShard = GetNodeShardByJobId(jobId);
+    const auto& nodeShard = GetNodeShardByAllocationId(
+        AllocationIdFromJobId(jobId));
+
     return BIND(&TNodeShard::GetJobNode, nodeShard, jobId)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();
@@ -319,7 +322,7 @@ TFuture<TNodeDescriptor> TNodeManager::GetJobNode(TJobId jobId)
 
 TFuture<void> TNodeManager::DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user)
 {
-    const auto& nodeShard = GetNodeShardByJobId(jobId);
+    const auto& nodeShard = GetNodeShardByAllocationId(jobId);
     return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();
@@ -327,7 +330,9 @@ TFuture<void> TNodeManager::DumpJobInputContext(TJobId jobId, const NYTree::TYPa
 
 TFuture<void> TNodeManager::AbandonJob(TJobId jobId)
 {
-    const auto& nodeShard = GetNodeShardByJobId(jobId);
+    const auto& nodeShard = GetNodeShardByAllocationId(
+        AllocationIdFromJobId(jobId));
+
     return BIND(&TNodeShard::AbandonJob, nodeShard, jobId)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();
@@ -335,7 +340,9 @@ TFuture<void> TNodeManager::AbandonJob(TJobId jobId)
 
 TFuture<void> TNodeManager::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
 {
-    const auto& nodeShard = GetNodeShardByJobId(jobId);
+    const auto& nodeShard = GetNodeShardByAllocationId(
+        AllocationIdFromJobId(jobId));
+
     return BIND(&TNodeShard::AbortJobByUserRequest, nodeShard, jobId, interruptTimeout, user)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();
@@ -387,10 +394,11 @@ TNodeYsonList TNodeManager::BuildNodeYsonList() const
     return nodeYsons;
 }
 
-TFuture<TOperationId> TNodeManager::FindOperationIdByJobId(TJobId jobId)
+TFuture<TOperationId> TNodeManager::FindOperationIdByAllocationId(TAllocationId allocationId)
 {
-    const auto& nodeShard = GetNodeShardByJobId(jobId);
-    return BIND(&TNodeShard::FindOperationIdByJobId, nodeShard, jobId)
+    const auto& nodeShard = GetNodeShardByAllocationId(allocationId);
+
+    return BIND(&TNodeShard::FindOperationIdByAllocationId, nodeShard, allocationId)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();
 }
@@ -569,9 +577,9 @@ const TNodeShardPtr& TNodeManager::GetNodeShard(NNodeTrackerClient::TNodeId node
     return NodeShards_[GetNodeShardId(nodeId)];
 }
 
-const TNodeShardPtr& TNodeManager::GetNodeShardByJobId(TJobId jobId) const
+const TNodeShardPtr& TNodeManager::GetNodeShardByAllocationId(TAllocationId allocationId) const
 {
-    auto nodeId = NodeIdFromJobId(jobId);
+    auto nodeId = NodeIdFromAllocationId(allocationId);
     return GetNodeShard(nodeId);
 }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -7,11 +9,6 @@
 #include <yt/yt/ytlib/scheduler/public.h>
 
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TAllocationId = TGuid;
-constexpr TAllocationId NullAllocationId{};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -225,9 +222,10 @@ struct TOperationControllerInitializeAttributes;
 
 struct TPreemptedFor;
 
-using TControllerEpoch = int;
-using TIncarnationId = TGuid;
-using TAgentId = TString;
+using TControllerEpoch = NControllerAgent::TControllerEpoch;
+using TIncarnationId = NControllerAgent::TIncarnationId;
+using TAgentId = NControllerAgent::TAgentId;
+using TControllerAgentDescriptor = NControllerAgent::TControllerAgentDescriptor;
 
 static constexpr TControllerEpoch InvalidControllerEpoch = -1;
 

@@ -1255,12 +1255,23 @@ class Operation(object):
             self.get_node(job_id)
         )
 
+    def get_node_version(self, node_address):
+        return get("//sys/cluster_nodes/{0}/@version".format(node_address))
+
     def get_job_node_orchid(self, job_id):
-        job_orchid_path = "//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs/{1}".format(
-            self.get_node(job_id), job_id
+        job_orchid_path = self.get_job_node_orchid_path(job_id) + "/exec_node/job_controller/active_jobs/{}".format(
+            job_id,
         )
 
         return get(job_orchid_path, verbose=False, driver=self._driver)
+
+    def interrupt_job(self, job_id, interruption_timeout=10000):
+
+        wait(lambda: self.get_job_node_orchid(job_id)["job_state"] == "running")
+
+        interrupt_job(job_id, interruption_timeout)
+
+        wait(lambda: self.get_job_node_orchid(job_id)["interrupted"])
 
     def get_job_phase(self, job_id):
         job_orchid = self.get_job_node_orchid(job_id)

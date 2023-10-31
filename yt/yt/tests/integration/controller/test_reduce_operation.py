@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, set, exists, insert_rows, alter_table, write_file, read_table, write_table, reduce,
-    erase, interrupt_job, sync_create_cells, sync_mount_table, sync_unmount_table,
+    erase, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, check_all_stderrs, assert_statistics, sorted_dicts,
     create_dynamic_table)
 
@@ -1907,7 +1907,7 @@ echo {v = 2} >&7
         )
 
         jobs = wait_breakpoint()
-        interrupt_job(jobs[0], interrupt_timeout=2000000)
+        op.interrupt_job(jobs[0], interruption_timeout=2000000)
         release_breakpoint()
 
         op.track()

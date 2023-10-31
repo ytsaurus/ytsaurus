@@ -1220,11 +1220,12 @@ TNodeYsonList TNodeShard::BuildNodeYsonList() const
     return nodeYsons;
 }
 
-TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId)
+TOperationId TNodeShard::FindOperationIdByAllocationId(TAllocationId allocationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto job = FindJob(jobId);
+    // COMPAT(pogorelov): JobId is currently equal to allocationId.
+    const auto& job = FindJob(TJobId(allocationId));
     if (job) {
         return job->GetOperationId();
     }
