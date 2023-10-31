@@ -47,12 +47,12 @@ public:
     {
         YT_LOG_INFO("Starting NBD server");
 
-        if (Config_->IdsConfig) {
+        if (Config_->InternetDomainSocket) {
             Listener_ = CreateListener(
-                TNetworkAddress::CreateIPv6Any(Config_->IdsConfig->Port),
+                TNetworkAddress::CreateIPv6Any(Config_->InternetDomainSocket->Port),
                 Poller_,
                 Poller_,
-                Config_->IdsConfig->MaxBacklogSize);
+                Config_->InternetDomainSocket->MaxBacklogSize);
             AcceptConnection();
         }
 
@@ -80,7 +80,7 @@ public:
 
         auto guard = WriterGuard(NameToDeviceLock_);
         if (NameToDevice_.erase(name) == 0) {
-            YT_LOG_INFO("Can't unregister unknown device (Name: %v)", name);
+            YT_LOG_INFO("Can not unregister unknown device (Name: %v)", name);
             return false;
         }
 
@@ -88,7 +88,7 @@ public:
         return true;
     }
 
-    virtual bool DeviceIsRegistered(const TString& name) override
+    virtual bool IsDeviceRegistered(const TString& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return NameToDevice_.contains(name);
@@ -120,7 +120,7 @@ private:
 
     IListenerPtr Listener_;
 
-    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
     THashMap<TString, IBlockDevicePtr> NameToDevice_;
 
 

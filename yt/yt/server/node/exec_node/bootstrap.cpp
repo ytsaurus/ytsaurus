@@ -113,26 +113,10 @@ public:
             GetConfig()->ExecNode->JobProxySolomonExporter,
             New<TSolomonRegistry>());
 
-        if (GetConfig()->ExecNode->NbdConfig) {
+        auto nbdConfig = GetNbdConfig();
+        if (nbdConfig && nbdConfig->Enabled) {
             NbdQueue_ = New<TActionQueue>("Nbd");
-
-            NApi::NNative::TConnectionOptions connectionOptions;
-            auto blockCacheConfig = New<NChunkClient::TBlockCacheConfig>();
-            // TODO(yuryalekseev): Move capacity to some config
-            blockCacheConfig->CompressedData->Capacity = 512_MB;
-            connectionOptions.BlockCache = CreateClientBlockCache(
-                std::move(blockCacheConfig),
-                NChunkClient::EBlockType::CompressedData);
-            connectionOptions.ConnectionInvoker = NbdQueue_->GetInvoker();
-            auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
-            connection->GetNodeDirectorySynchronizer()->Start();
-            connection->GetClusterDirectorySynchronizer()->Start();
-
-            NbdServer_ = CreateNbdServer(
-                GetConfig()->ExecNode->NbdConfig->NbdServerConfig,
-                std::move(connection),
-                NBus::TTcpDispatcher::Get()->GetXferPoller(),
-                NbdQueue_->GetInvoker());
+            NbdServer_ = CreateNbdServer(nbdConfig, NbdQueue_->GetInvoker());
         }
 
         if (GetConfig()->EnableFairThrottler) {
@@ -268,7 +252,16 @@ public:
         return DynamicConfig_;
     }
 
-    const NYT::NNbd::INbdServerPtr& GetNbdServer() const override
+    TNbdConfigPtr GetNbdConfig() const override
+    {
+        auto config = GetDynamicConfig()->ExecNode->Nbd;
+        if (!config) {
+            config = GetConfig()->ExecNode->Nbd;
+        }
+        return config;
+    }
+
+    NYT::NNbd::INbdServerPtr GetNbdServer() const override
     {
         return NbdServer_;
     }
@@ -395,6 +388,27 @@ private:
             default:
                 YT_ABORT();
         }
+    }
+
+    NNbd::INbdServerPtr CreateNbdServer(TNbdConfigPtr nbdConfig, IInvokerPtr invoker)
+    {
+        NApi::NNative::TConnectionOptions connectionOptions;
+        auto blockCacheConfig = New<NChunkClient::TBlockCacheConfig>();
+        // TODO(yuryalekseev): Move capacity to some config
+        blockCacheConfig->CompressedData->Capacity = 512_MB;
+        connectionOptions.BlockCache = CreateClientBlockCache(
+            std::move(blockCacheConfig),
+            NChunkClient::EBlockType::CompressedData);
+        connectionOptions.ConnectionInvoker = invoker;
+        auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
+        connection->GetNodeDirectorySynchronizer()->Start();
+        connection->GetClusterDirectorySynchronizer()->Start();
+
+        return NNbd::CreateNbdServer(
+            nbdConfig->Server,
+            std::move(connection),
+            NBus::TTcpDispatcher::Get()->GetXferPoller(),
+            std::move(invoker));
     }
 };
 

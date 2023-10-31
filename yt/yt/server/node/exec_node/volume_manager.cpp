@@ -74,6 +74,7 @@
 namespace NYT::NExecNode {
 
 using namespace NApi;
+using namespace NNbd;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NClusterNode;
@@ -96,8 +97,8 @@ static const TString MountSuffix = "mount";
 
 namespace {
 
-NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
-    const NDataNode::TArtifactKey& artifactKey,
+IBlockDevicePtr CreateCypressFileBlockDevice(
+    const TArtifactKey& artifactKey,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
     const NLogging::TLogger& Logger)
@@ -105,13 +106,13 @@ NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
     YT_VERIFY(artifactKey.has_filesystem());
     YT_VERIFY(artifactKey.has_nbd_export_id());
 
-    YT_LOG_INFO("Creating NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
+    YT_LOG_INFO("Creating NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs_size());
 
-    auto config = New<NNbd::TCypressFileBlockDeviceConfig>();
+    auto config = New<TCypressFileBlockDeviceConfig>();
     config->Path = artifactKey.file_path();
     if (config->Path.empty()) {
         THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
@@ -128,7 +129,7 @@ NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
             << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
     }
 
-    auto device = NNbd::CreateCypressFileBlockDevice(
+    auto device = CreateCypressFileBlockDevice(
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs(),
         std::move(config),
@@ -136,7 +137,7 @@ NNbd::IBlockDevicePtr CreateCypressFileBlockDevice(
         std::move(invoker),
         Logger);
 
-    YT_LOG_INFO("Created NBD cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
+    YT_LOG_INFO("Created NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.file_path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id(),
@@ -177,7 +178,7 @@ public:
     { }
 
     TFuture<IVolumeArtifactPtr> DownloadArtifact(
-        const NDataNode::TArtifactKey& key,
+        const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions) override
     {
         auto artifact = ChunkCache_->DownloadArtifact(key, artifactDownloadOptions);
@@ -1100,15 +1101,15 @@ private:
         };
 
         TStringBuilder builder;
-        auto timeout = nbdConfig->NbdClientConfig->Timeout.Seconds();
+        auto timeout = nbdConfig->Client->Timeout.Seconds();
 
-        if (nbdConfig->NbdServerConfig->UdsConfig) {
-            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->NbdServerConfig->UdsConfig->Path);
+        if (nbdConfig->Server->UnixDomainSocket) {
+            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->Server->UnixDomainSocket->Path);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         } else {
             auto port = 10809;
-            if (nbdConfig->NbdServerConfig->IdsConfig) {
-                port = nbdConfig->NbdServerConfig->IdsConfig->Port;
+            if (nbdConfig->Server->InternetDomainSocket) {
+                port = nbdConfig->Server->InternetDomainSocket->Port;
             }
             builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), port);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
@@ -2219,7 +2220,7 @@ public:
         const TArtifactKey& artifactKey,
         TPortoVolumeManagerPtr owner,
         TLayerLocationPtr location,
-        NNbd::INbdServerPtr nbdServer)
+        INbdServerPtr nbdServer)
         : VolumeMeta_(meta)
         , ArtifactKey_(artifactKey)
         , Owner_(std::move(owner))
@@ -2278,7 +2279,7 @@ private:
     const TArtifactKey ArtifactKey_;
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
-    const NNbd::INbdServerPtr NbdServer_;
+    const INbdServerPtr NbdServer_;
 
     TFuture<void> RemoveFuture_;
 };
@@ -2527,43 +2528,51 @@ private:
         TGuid tag,
         const TArtifactKey& layer)
     {
-        YT_LOG_DEBUG("Prepare NBD export (Tag: %v, Path: %v, ExportId: %v)",
-            tag,
-            layer.file_path(),
-            layer.nbd_export_id());
-
-        auto nbdServer = Bootstrap_->GetNbdServer();
-        if (!nbdServer) {
-            auto error = TError(
-                "No NBD server to register layer with path %Qv and export id %Qv",
-                layer.file_path(),
-                layer.nbd_export_id());
-            YT_LOG_ERROR(error, "Failed to prepare NBD export");
-            return MakeFuture<void>(error);
-        }
-
-        // TODO(yuryalekseev): user
-        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-        auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
-
+        auto future = VoidFuture;
         try {
+            THROW_ERROR_EXCEPTION_IF(!layer.has_filesystem(),
+                "NBD layer %v does not have filesystem",
+                layer.file_path());
+
+            THROW_ERROR_EXCEPTION_IF(!layer.has_nbd_export_id(),
+                "NBD layer %v does not have export id",
+                layer.file_path());
+
+            YT_LOG_DEBUG("Preparing NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
+                tag,
+                layer.nbd_export_id(),
+                layer.file_path(),
+                layer.filesystem());
+
+            auto nbdServer = Bootstrap_->GetNbdServer();
+            if (!nbdServer) {
+                auto error = TError("NBD server is not present")
+                    << TErrorAttribute("export_id", layer.nbd_export_id())
+                    << TErrorAttribute("path", layer.file_path())
+                    << TErrorAttribute("filesystem", layer.filesystem());
+                YT_LOG_ERROR(error, "Failed to prepare NBD export");
+                return MakeFuture<void>(error);
+            }
+
+            // TODO(yuryalekseev): user
+            auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+            auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
+
             auto device = CreateCypressFileBlockDevice(
                 layer,
                 std::move(client),
                 nbdServer->GetInvoker(),
                 nbdServer->GetLogger());
 
-            auto future = device->Initialize();
+            future = device->Initialize();
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
-            return future;
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             YT_LOG_ERROR(error, "Failed to create and register NBD export");
-            return MakeFuture<void>(error);
+            future = MakeFuture<void>(error);
         }
 
-        // We should never get here.
-        return VoidFuture;
+        return future;
     }
 
     //! Create NBD volumes.
@@ -2625,19 +2634,26 @@ private:
         TGuid tag,
         const TArtifactKey& artifactKey)
     {
-        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_filesystem(), "NBD layer %Qv doesn't have filesystem type", artifactKey.data_source().path());
-        THROW_ERROR_EXCEPTION_IF(!artifactKey.has_nbd_export_id(), "NBD layer %Qv doesn't have export id", artifactKey.data_source().path());
-
         YT_LOG_DEBUG("Creating NBD volume (Tag: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,
             artifactKey.nbd_export_id(),
-            artifactKey.data_source().path(),
+            artifactKey.file_path(),
             artifactKey.filesystem());
 
-        THROW_ERROR_EXCEPTION_IF(!Bootstrap_->GetConfig()->ExecNode->NbdConfig, "NBD config is not present in ExecNode config for file %Qv with filesystem %Qv", artifactKey.data_source().path(), artifactKey.filesystem());
+        auto nbdConfig = Bootstrap_->GetNbdConfig();
+        auto nbdServer = Bootstrap_->GetNbdServer();
+
+        if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {
+            auto error = TError("NBD is not configured")
+                << TErrorAttribute("export_id", artifactKey.nbd_export_id())
+                << TErrorAttribute("path", artifactKey.file_path())
+                << TErrorAttribute("filesystem", artifactKey.filesystem());
+            YT_LOG_ERROR(error, "Failed to create NBD volume");
+            THROW_ERROR_EXCEPTION(error);
+        }
 
         auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, artifactKey, Bootstrap_->GetConfig()->ExecNode->NbdConfig))
+        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, artifactKey, nbdConfig))
             .ValueOrThrow();
 
         auto volume = New<TNbdVolume>(
@@ -2645,13 +2661,13 @@ private:
             artifactKey,
             this,
             location,
-            Bootstrap_->GetNbdServer());
+            nbdServer);
 
         YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,
             volumeMeta.Id,
             artifactKey.nbd_export_id(),
-            artifactKey.data_source().path(),
+            artifactKey.file_path(),
             artifactKey.filesystem());
 
         return volume;
