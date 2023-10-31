@@ -346,4 +346,20 @@ IAttributeDictionaryPtr GetNetworkProject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsStaticTableWithHunks(TInputTablePtr table)
+{
+    if (!table->Dynamic) {
+        bool hunksPresent = AnyOf(table->Schema->Columns(), [] (const TColumnSchema& column) {
+            return column.MaxInlineHunkSize();
+        });
+        if (hunksPresent) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers

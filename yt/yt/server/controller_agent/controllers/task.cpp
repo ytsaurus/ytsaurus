@@ -698,7 +698,8 @@ void TTask::ScheduleJob(
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v)",
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, "
+        "Interruptible: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
         joblet->JobType,
@@ -719,7 +720,8 @@ void TTask::ScheduleJob(
         FormatResources(neededResources),
         joblet->CompetitionType,
         joblet->JobSpeculationTimeout,
-        media);
+        media,
+        joblet->JobInterruptible);
 
     SetStreamDescriptors(joblet);
 

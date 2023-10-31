@@ -1,4 +1,5 @@
 {
+  ".":"yt/github_toplevel",
   ".github/pull_request_template.md":"yt/github_toplevel/.github/pull_request_template.md",
   ".github/workflows/build-jobs.yaml":"yt/github_toplevel/.github/workflows/build-jobs.yaml",
   ".github/workflows/check-jobs.yaml":"yt/github_toplevel/.github/workflows/check-jobs.yaml",
@@ -36,6 +37,7 @@
   "cmake/llvm-tools.cmake":"",
   "cmake/protobuf.cmake":"",
   "conanfile.txt":"",
+  "connectors":"yt/connectors",
   "connectors/import.py":"yt/connectors/import.py",
   "connectors/pom.xml":"yt/connectors/pom.xml",
   "contrib/CMakeLists.txt":"",
@@ -589,6 +591,7 @@
   "yt/go/proto/core/tracing/tracing_ext.pb.go":"yt/github_toplevel/yt/go/proto/core/tracing/tracing_ext.pb.go",
   "yt/go/proto/core/yson/protobuf_interop.pb.go":"yt/github_toplevel/yt/go/proto/core/yson/protobuf_interop.pb.go",
   "yt/go/proto/core/ytree/attributes.pb.go":"yt/github_toplevel/yt/go/proto/core/ytree/attributes.pb.go",
+  "yt/java/type-info/src/test/resources":"library/cpp/type_info/test-data",
   "yt/java/type-info/src/test/resources/README.txt":"library/cpp/type_info/test-data/README.txt",
   "yt/java/type-info/src/test/resources/bad-types.txt":"library/cpp/type_info/test-data/bad-types.txt",
   "yt/java/type-info/src/test/resources/good-types.txt":"library/cpp/type_info/test-data/good-types.txt",
