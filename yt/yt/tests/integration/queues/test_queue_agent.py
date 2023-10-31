@@ -2335,6 +2335,15 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/crq/@queue_agent_stage", "value_under_tx", tx=tx)
 
+    def _add_chaos_queue_registration(self, queue):
+        insert_rows("//sys/queue_agents/consumer_registrations", [{
+            "queue_cluster": "primary",
+            "queue_path": queue,
+            "consumer_cluster": "primary",
+            "consumer_path": queue,
+            "vital": True,
+        }])
+
     @authors("nadya73")
     def test_chaos_queue_attributes(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -2342,6 +2351,7 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
 
         chaos_replicated_queue = "//tmp/crq"
         self._create_chaos_replicated_queue(chaos_replicated_queue)
+        self._add_chaos_queue_registration(chaos_replicated_queue)
 
         assert get("//tmp/crq/@queue_agent_stage") == "production"
 
@@ -2378,7 +2388,7 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         # Wait for consumer status to become available.
         wait(lambda: len(get(f"{chaos_consumer}/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
 
-        assert get(f"{chaos_consumer}/@queue_consumer_partitions").get(f"primary:{chaos_queue}")[0].get("unread_row_count") == 0
+        wait(lambda: get(f"{chaos_consumer}/@queue_consumer_partitions").get(f"primary:{chaos_queue}")[0].get("unread_row_count") == 0, ignore_exceptions=True)
 
         insert_rows(f"{chaos_queue}", [{"$tablet_index": 0, "data": "foo"}] * 5)
 
