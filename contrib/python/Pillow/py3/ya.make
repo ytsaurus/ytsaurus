@@ -12,9 +12,9 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(10.0.1)
+VERSION(10.1.0)
 
-ORIGINAL_SOURCE(mirror://pypi/P/Pillow/Pillow-10.0.1.tar.gz)
+ORIGINAL_SOURCE(mirror://pypi/P/Pillow/Pillow-10.1.0.tar.gz)
 
 PEERDIR(
     contrib/libs/freetype
@@ -49,7 +49,7 @@ CFLAGS(
     -DHAVE_LIBZ
     -DHAVE_OPENJPEG
     -DHAVE_WEBPMUX
-    -DPILLOW_VERSION=\"10.0.1\"
+    -DPILLOW_VERSION=\"10.1.0\"
 )
 
 IF (NOT OPENSOURCE)
