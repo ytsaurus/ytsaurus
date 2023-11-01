@@ -142,6 +142,11 @@ public:
         return std::make_unique<TEventLogTableConsumer>(std::move(valueConsumer));
     }
 
+    TEventLogManagerConfigPtr GetConfig() const
+    {
+        return Config_;
+    }
+
     void UpdateConfig(const TEventLogManagerConfigPtr& config)
     {
         Config_ = config;
@@ -211,6 +216,11 @@ TEventLogWriter::~TEventLogWriter()
 std::unique_ptr<IYsonConsumer> TEventLogWriter::CreateConsumer()
 {
     return Impl_->CreateConsumer();
+}
+
+TEventLogManagerConfigPtr TEventLogWriter::GetConfig() const
+{
+    return Impl_->GetConfig();
 }
 
 void TEventLogWriter::UpdateConfig(const TEventLogManagerConfigPtr& config)

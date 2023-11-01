@@ -74,6 +74,7 @@ class IEventLogWriter
 public:
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() = 0;
 
+    virtual TEventLogManagerConfigPtr GetConfig() const = 0;
     virtual void UpdateConfig(const TEventLogManagerConfigPtr& config) = 0;
 
     virtual TFuture<void> Close() = 0;
@@ -96,6 +97,8 @@ public:
     ~TEventLogWriter();
 
     std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() override;
+
+    TEventLogManagerConfigPtr GetConfig() const override;
 
     void UpdateConfig(const TEventLogManagerConfigPtr& config) override;
 
