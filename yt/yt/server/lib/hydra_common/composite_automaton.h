@@ -252,7 +252,8 @@ private:
 
 private:
     void DoSaveSnapshot(
-        const TSnapshotSaveContext& context,
+        NConcurrency::IAsyncOutputStreamPtr writer,
+        NLogging::TLogger logger,
         NConcurrency::EWaitForStrategy strategy,
         const std::function<void(TSaveContext&)>& callback);
     void DoLoadSnapshot(

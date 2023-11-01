@@ -43,8 +43,12 @@ const NLogging::TLogger& TSaveContext::GetLogger() const
 
 void TSaveContext::MakeCheckpoint()
 {
-    Output_.FlushBuffer();
     CheckpointableOutput_->MakeCheckpoint();
+}
+
+void TSaveContext::Flush()
+{
+    Output_.FlushBuffer();
 }
 
 IInvokerPtr TSaveContext::GetBackgroundInvoker() const

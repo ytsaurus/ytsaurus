@@ -36,6 +36,7 @@ public:
     const NLogging::TLogger& GetLogger() const;
 
     void MakeCheckpoint();
+    void Flush();
 
     IInvokerPtr GetBackgroundInvoker() const;
     int GetBackgroundParallelism() const;
