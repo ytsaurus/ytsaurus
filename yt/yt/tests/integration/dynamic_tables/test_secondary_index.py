@@ -4,8 +4,9 @@ from yt.common import wait
 
 from yt_commands import (
     authors, get, exists, remove, create_secondary_index, create_dynamic_table,
-    sync_create_cells, sync_mount_table, raises_yt_error, get_driver,
-    select_rows, insert_rows, sorted_dicts,
+    sync_create_cells, sync_mount_table, mount_table, get_driver,
+    select_rows, insert_rows,
+    sorted_dicts, raises_yt_error,
 )
 
 ##################################################################
@@ -150,6 +151,16 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
         rows = select_rows("Alias.keyA, Alias.keyB, Alias.keyC, Alias.valueA, Alias.valueB, Alias.valueC "
                            "from [//tmp/table] Alias with index [//tmp/index_table]")
         assert sorted_dicts(rows) == sorted_dicts(aliased_table_rows)
+
+    @authors("sabdenovch")
+    def test_secondary_index_illegal_create_on_mounted(self):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
+        create_dynamic_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=11)
+
+        mount_table("//tmp/table")
+        with raises_yt_error("Cannot create index on a mounted table"):
+            create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
 
 ##################################################################
 

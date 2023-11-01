@@ -761,17 +761,31 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (!indexTable->SecondaryIndices().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
-        }
-        if (indexTable->GetIndexTo()) {
-            THROW_ERROR_EXCEPTION("Index cannot have multiple primary tables");
-        }
+        auto validate = [&] {
+            if (!indexTable->SecondaryIndices().empty()) {
+                THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
+            }
+            if (indexTable->GetIndexTo()) {
+                THROW_ERROR_EXCEPTION("Index cannot have multiple primary tables");
+            }
 
-        if (table->GetExternalCellTag() != indexTable->GetExternalCellTag()) {
-            THROW_ERROR_EXCEPTION("Table and index table external cell tags differ")
-                << TErrorAttribute("table_external_cell_tag", table->GetExternalCellTag())
-                << TErrorAttribute("index_table_external_cell_tag", indexTable->GetExternalCellTag());
+            if (table->GetExternalCellTag() != indexTable->GetExternalCellTag()) {
+                THROW_ERROR_EXCEPTION("Table and index table external cell tags differ")
+                    << TErrorAttribute("table_external_cell_tag", table->GetExternalCellTag())
+                    << TErrorAttribute("index_table_external_cell_tag", indexTable->GetExternalCellTag());
+            }
+
+            table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
+        };
+
+        if (table->IsNative()) {
+            validate();
+        } else {
+            try {
+                validate();
+            } catch (const std::exception& err) {
+                YT_LOG_ALERT(err, "Index creation validation failed on the foreign cell");
+            }
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

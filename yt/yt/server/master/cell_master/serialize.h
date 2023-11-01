@@ -180,6 +180,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
     ((RemoveChunkJobDynamicConfig)                                  (2502))  // danilalexeev
+    ((SecondaryIndexUnmountedCheck)                                 (2503))  // sabdenovch
 );
 
 ////////////////////////////////////////////////////////////////////////////////
