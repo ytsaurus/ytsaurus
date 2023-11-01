@@ -4,6 +4,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/webassembly/api/function.h>
+
 #include <yt/yt/library/query/base/callbacks.h>
 
 #include <yt/yt/library/query/misc/objects_holder.h>
@@ -59,34 +61,35 @@ class TGroupHasher
 {
 public:
     // Intentionally implicit.
-    TGroupHasher(THasherFunction* ptr)
-        : Ptr_(ptr)
+    TGroupHasher(NWebAssembly::TCompartmentFunction<THasherFunction> hashser)
+        : Hasher_(hashser)
     { }
 
     ui64 operator () (const TPIValue* row) const
     {
-        return Ptr_(row);
+        return Hasher_(row);
     }
 
 private:
-    THasherFunction* Ptr_;
+    NWebAssembly::TCompartmentFunction<THasherFunction> Hasher_;
 };
 
 class TRowComparer
 {
 public:
     // Intentionally implicit.
-    TRowComparer(TComparerFunction* ptr)
-        : Ptr_(ptr)
+    TRowComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer)
+        : Comparer_(comparer)
     { }
 
-    bool operator () (const TPIValue* a, const TPIValue* b) const
+    bool operator () (const TPIValue* lhs, const TPIValue* rhs) const
     {
-        return a == b || a && b && Ptr_(a, b);
+        return (lhs == rhs) ||
+            (lhs && rhs && Comparer_(lhs, rhs));
     }
 
 private:
-    TComparerFunction* Ptr_;
+    NWebAssembly::TCompartmentFunction<TComparerFunction> Comparer_;
 };
 
 } // namespace NDetail
@@ -127,20 +130,16 @@ struct TMultiJoinParameters
 
 struct TMultiJoinClosure
 {
-    TRowBufferPtr Buffer;
-
     using THashJoinLookup = google::dense_hash_set<
         TPIValue*,
         NDetail::TGroupHasher,
         NDetail::TRowComparer>;  // + slot after row
 
-    std::vector<TPIValue*> PrimaryRows;
-
     struct TItem
     {
         TRowBufferPtr Buffer;
         size_t KeySize;
-        TComparerFunction* PrefixEqComparer;
+        NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
 
         THashJoinLookup Lookup;
         std::vector<TPIValue*> OrderedKeys;  // + slot after row
@@ -149,10 +148,14 @@ struct TMultiJoinClosure
         TItem(
             IMemoryChunkProviderPtr chunkProvider,
             size_t keySize,
-            TComparerFunction* prefixEqComparer,
-            THasherFunction* lookupHasher,
-            TComparerFunction* lookupEqComparer);
+            NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
+            NWebAssembly::TCompartmentFunction<THasherFunction> lookupHasher,
+            NWebAssembly::TCompartmentFunction<TComparerFunction> lookupEqComparer);
     };
+
+    TRowBufferPtr Buffer;
+
+    std::vector<TPIValue*> PrimaryRows;
 
     TCompactVector<TItem, 32> Items;
 
@@ -165,7 +168,7 @@ struct TMultiJoinClosure
 struct TGroupByClosure
 {
     TRowBufferPtr Buffer;
-    TComparerFunction* PrefixEqComparer;
+    NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
     TLookupRows Lookup;
     const TPIValue* LastKey = nullptr;
     std::vector<const TPIValue*> GroupedRows;
@@ -179,9 +182,9 @@ struct TGroupByClosure
 
     TGroupByClosure(
         IMemoryChunkProviderPtr chunkProvider,
-        TComparerFunction* prefixEqComparer,
-        THasherFunction* groupHasher,
-        TComparerFunction* groupComparer,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
+        NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
         int keySize,
         int valuesCount,
         bool checkNulls);
@@ -240,7 +243,7 @@ class TTopCollector
 public:
     TTopCollector(
         i64 limit,
-        TComparerFunction* comparer,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> comparer,
         size_t rowSize,
         IMemoryChunkProviderPtr memoryChunkProvider);
 
@@ -257,8 +260,8 @@ private:
     class TComparer
     {
     public:
-        explicit TComparer(TComparerFunction* ptr)
-            : Ptr_(ptr)
+        explicit TComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer)
+            : Comparer_(comparer)
         { }
 
         bool operator() (const std::pair<const TPIValue*, int>& lhs, const std::pair<const TPIValue*, int>& rhs) const
@@ -268,11 +271,11 @@ private:
 
         bool operator () (const TPIValue* a, const TPIValue* b) const
         {
-            return Ptr_(a, b);
+            return Comparer_(a, b);
         }
 
     private:
-        TComparerFunction* const Ptr_;
+        NWebAssembly::TCompartmentFunction<TComparerFunction> const Comparer_;
     };
 
     TComparer Comparer_;

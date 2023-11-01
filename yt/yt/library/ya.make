@@ -30,6 +30,7 @@ RECURSE(
     syncmap
     tracing
     vector_hdrf
+    webassembly
     oom
     xor_filter
 )

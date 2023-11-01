@@ -24,6 +24,7 @@ ADDINCL(
 
 PEERDIR(
     yt/yt/core
+    yt/yt/library/webassembly/api
     yt/yt/library/query/misc
     yt/yt/library/query/proto
     yt/yt/library/query/base

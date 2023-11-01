@@ -12,6 +12,7 @@ namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NWebAssembly;
 
 static const auto& Logger = QueryClientLogger;
 
@@ -26,7 +27,7 @@ struct TTopCollectorBufferTag
 
 TTopCollector::TTopCollector(
     i64 limit,
-    TComparerFunction* comparer,
+    TCompartmentFunction<TComparerFunction> comparer,
     size_t rowSize,
     IMemoryChunkProviderPtr memoryChunkProvider)
     : Comparer_(comparer)
@@ -141,9 +142,9 @@ std::vector<const TPIValue*> TTopCollector::GetRows() const
 TMultiJoinClosure::TItem::TItem(
     IMemoryChunkProviderPtr chunkProvider,
     size_t keySize,
-    TComparerFunction* prefixEqComparer,
-    THasherFunction* lookupHasher,
-    TComparerFunction* lookupEqComparer)
+    TCompartmentFunction<TComparerFunction> prefixEqComparer,
+    TCompartmentFunction<THasherFunction> lookupHasher,
+    TCompartmentFunction<TComparerFunction> lookupEqComparer)
     : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
     , KeySize(keySize)
     , PrefixEqComparer(prefixEqComparer)
@@ -157,9 +158,9 @@ TMultiJoinClosure::TItem::TItem(
 
 TGroupByClosure::TGroupByClosure(
     IMemoryChunkProviderPtr chunkProvider,
-    TComparerFunction* prefixEqComparer,
-    THasherFunction* groupHasher,
-    TComparerFunction* groupComparer,
+    TCompartmentFunction<TComparerFunction> prefixEqComparer,
+    TCompartmentFunction<THasherFunction> groupHasher,
+    TCompartmentFunction<TComparerFunction> groupComparer,
     int keySize,
     int valuesCount,
     bool checkNulls)
