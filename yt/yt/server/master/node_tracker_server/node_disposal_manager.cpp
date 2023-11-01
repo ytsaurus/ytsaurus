@@ -124,6 +124,7 @@ private:
 
     TPeriodicExecutorPtr NodeDisposalExecutor_;
     THashSet<TNodeId> NodesBeingDisposed_;
+    std::deque<TNodeId> NodesAwaitingForBeingDisposed_;
 
     void OnLeaderActive() override
     {
@@ -165,6 +166,9 @@ private:
         using NYT::Load;
 
         Load(context, NodesBeingDisposed_);
+        if (context.GetVersion() >= EMasterReign::DisposalNodesLimit) {
+            Load(context, NodesAwaitingForBeingDisposed_);
+        }
     }
 
     void Save(NCellMaster::TSaveContext& context) const
@@ -172,6 +176,7 @@ private:
         using NYT::Save;
 
         Save(context, NodesBeingDisposed_);
+        Save(context, NodesAwaitingForBeingDisposed_);
     }
 
     void Clear() override
@@ -181,6 +186,7 @@ private:
         TMasterAutomatonPart::Clear();
 
         NodesBeingDisposed_.clear();
+        NodesAwaitingForBeingDisposed_.clear();
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
@@ -380,7 +386,11 @@ private:
         nodeTracker->SetNodeLocalState(node, ENodeState::BeingDisposed);
         node->SetNextDisposedLocationIndex(0);
 
-        InsertOrCrash(NodesBeingDisposed_, node->GetId());
+        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesAwaitingDisposal) {
+            InsertOrCrash(NodesBeingDisposed_, node->GetId());
+        } else {
+            NodesAwaitingForBeingDisposed_.push_back(node->GetId());
+        }
     }
 
     void HydraDisposeLocation(TReqDisposeLocation* request)
@@ -446,6 +456,10 @@ private:
 
         DoFinishNodeDisposal(node);
         EraseOrCrash(NodesBeingDisposed_, node->GetId());
+        if (!NodesAwaitingForBeingDisposed_.empty()) {
+            InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
+            NodesAwaitingForBeingDisposed_.pop_front();
+        }
     }
 };
 

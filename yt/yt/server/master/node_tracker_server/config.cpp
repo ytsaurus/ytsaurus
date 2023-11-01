@@ -114,6 +114,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("reset_node_pending_restart_maintenance_period", &TThis::ResetNodePendingRestartMaintenancePeriod)
         .Default(TDuration::Seconds(2));
+
+    registrar.Parameter("max_nodes_awaiting_disposal", &TThis::MaxNodesAwaitingDisposal)
+        .Default(10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

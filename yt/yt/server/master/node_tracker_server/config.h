@@ -136,6 +136,8 @@ public:
 
     TDuration ResetNodePendingRestartMaintenancePeriod;
 
+    int MaxNodesAwaitingDisposal;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);
