@@ -1642,7 +1642,7 @@ TEST_P(TInferRangesTest, Stress)
             auto row = gen.GenerateRandomRow(schema->GetKeyColumnCount());
 
             // Evaluate predicate.
-            TUnversionedValue resultValue;
+            TUnversionedValue resultValue{};
             instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, row.Elements(), rowBuffer.Get());
 
             // Validate row in ranges.
