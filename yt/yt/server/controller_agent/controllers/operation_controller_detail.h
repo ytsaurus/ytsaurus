@@ -269,7 +269,7 @@ public:
 
     bool IsRunning() const override;
 
-    std::vector<TTestAllocGuard> TestHeap() const override;
+    std::vector<TTestAllocationGuard> TestHeap() const override;
 
     void SetProgressAttributesUpdated() override;
     bool ShouldUpdateProgressAttributes() const override;

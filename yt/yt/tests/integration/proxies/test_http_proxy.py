@@ -997,3 +997,30 @@ class TestHttpProxyHeapUsageStatistics(HttpProxyTestBase):
         wait(lambda: self.check_memory_usage(
             get(http_proxy_agent_orchid + "/heap_usage_statistics"),
             "read_table"))
+
+    @authors("ni-stoiko")
+    @pytest.mark.timeout(120)
+    def test_heap_usage_guages(self):
+        self.enable_allocation_tags("http_proxies")
+        time.sleep(1)
+
+        http_proxies = ls("//sys/http_proxies")
+        assert len(http_proxies) == 1
+
+        create("table", self.PATH)
+        write_table(f"<append=%true>{self.PATH}", [{"key": "x"}])
+
+        self._execute_command("GET", "read_table")
+
+        profiler = profiler_factory().at_http_proxy(http_proxies[0])
+        command_memory_usage_guage = profiler.gauge("heap_usage/command")
+        user_memory_usage_guage = profiler.gauge("heap_usage/user")
+
+        def check(statistics, tag, memory=5 * 1024 ** 2):
+            for stat in statistics:
+                if stat["tags"] and tag == stat["tags"]:
+                    return stat["value"] > memory
+            return False
+
+        wait(lambda: check(command_memory_usage_guage.get_all(), {"command": "read_table"}))
+        wait(lambda: check(user_memory_usage_guage.get_all(), {"user": self.USER}))

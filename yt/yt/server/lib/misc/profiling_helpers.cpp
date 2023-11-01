@@ -3,6 +3,7 @@
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -14,6 +15,7 @@
 
 namespace NYT {
 
+using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NYPath;
 using namespace NYson;
@@ -53,7 +55,7 @@ void TServiceProfilerGuard::Start(const TMethodCounters& counters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestAllocGuard::TTestAllocGuard(
+TTestAllocationGuard::TTestAllocationGuard(
         i64 allocationPartSize,
         std::function<void()> constructCallback,
         std::function<void()> destructCallback,
@@ -69,12 +71,12 @@ TTestAllocGuard::TTestAllocGuard(
     ConstructCallback_();
 }
 
-TTestAllocGuard::TTestAllocGuard(TTestAllocGuard&& other)
+TTestAllocationGuard::TTestAllocationGuard(TTestAllocationGuard&& other)
 {
     *this = std::move(other);
 }
 
-TTestAllocGuard& TTestAllocGuard::operator=(TTestAllocGuard&& other)
+TTestAllocationGuard& TTestAllocationGuard::operator=(TTestAllocationGuard&& other)
 {
     Raw_ = std::move(other.Raw_);
     Active_ = other.Active_;
@@ -88,7 +90,7 @@ TTestAllocGuard& TTestAllocGuard::operator=(TTestAllocGuard&& other)
     return *this;
 }
 
-TTestAllocGuard::~TTestAllocGuard()
+TTestAllocationGuard::~TTestAllocationGuard()
 {
     if (Active_) {
         Active_ = false;
@@ -99,7 +101,7 @@ TTestAllocGuard::~TTestAllocGuard()
             .Subscribe(BIND([
                     destruct = std::move(DestructCallback_),
                     raw = std::move(Raw_)
-                ] (const NYT::TErrorOr<void>& /*errorOrVoid*/) {
+                ] (const TErrorOr<void>& /*errorOrVoid*/) {
                     Y_UNUSED(raw);
                     destruct();
                 }));
@@ -108,7 +110,7 @@ TTestAllocGuard::~TTestAllocGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTestAllocGuard> MakeTestHeapAllocation(
+std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
     i64 AllocationSize,
     TDuration AllocationReleaseDelay,
     std::function<void()> constructCallback,
@@ -116,7 +118,7 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
     IInvokerPtr destructCallbackInvoker,
     i64 allocationPartSize)
 {
-    std::vector<TTestAllocGuard> testHeap;
+    std::vector<TTestAllocationGuard> testHeap;
 
     for (i64 i = 0; i < AllocationSize; i += allocationPartSize) {
         testHeap.emplace_back(
@@ -132,8 +134,12 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollectHeapUsageStatistics(IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList)
+void CollectHeapUsageStatistics(
+    IYsonConsumer* consumer,
+    const std::vector<TString>& memoryTagsList)
 {
+    YT_VERIFY(consumer);
+
     const auto memorySnapshot = GetMemoryUsageSnapshot();
     YT_VERIFY(memorySnapshot);
 
@@ -157,6 +163,59 @@ void CollectHeapUsageStatistics(IYsonConsumer* consumer, const std::vector<TStri
             });
 
     consumer->OnRaw(heapUsageStatistics.Finish());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THeapUsageProfiler::THeapUsageProfiler(
+    std::vector<TString> tags,
+    IInvokerPtr invoker,
+    std::optional<TDuration> updatePeriod,
+    NProfiling::TProfiler profiler)
+    : Profiler_(std::move(profiler))
+    , TagTypes_(std::move(tags))
+    , UpdateExecutor_(New<TPeriodicExecutor>(
+        std::move(invoker),
+        BIND(&THeapUsageProfiler::UpdateGauges, MakeWeak(this)),
+        std::move(updatePeriod)))
+{
+    UpdateExecutor_->Start();
+}
+
+void THeapUsageProfiler::UpdateGauges()
+{
+    const auto memorySnapshot = GetMemoryUsageSnapshot();
+    YT_VERIFY(memorySnapshot);
+
+    for (const auto& tagType : TagTypes_) {
+        auto& heapUsageMap = HeapUsageByType_.emplace(tagType, THashMap<TString, TGauge>{}).first->second;
+
+        for (const auto& [tag, usage] : memorySnapshot->GetUsage(tagType)) {
+            auto gauge = heapUsageMap.find(tag);
+
+            if (gauge.IsEnd()) {
+                auto pair = heapUsageMap.emplace(tag, Profiler_
+                    .WithTag(tagType, tag)
+                    .Gauge(tagType));
+                gauge = pair.first;
+            }
+
+            gauge->second.Update(usage);
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////
+
+THeapUsageProfilerPtr CreateHeapProfilerWithTags(
+    std::vector<TString>&& tags,
+    IInvokerPtr invoker,
+    std::optional<TDuration> updatePeriod)
+{
+    return New<THeapUsageProfiler>(
+        std::move(tags),
+        std::move(invoker),
+        std::move(updatePeriod));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

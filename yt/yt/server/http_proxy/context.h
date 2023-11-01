@@ -132,7 +132,7 @@ private:
     TFramingConfigPtr GetFramingConfig() const;
 
     void ProcessDelayBeforeCommandTestingOption();
-    void AllocateTestData(NTracing::TTraceContextPtr traceContext);
+    void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)

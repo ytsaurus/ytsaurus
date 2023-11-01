@@ -5,10 +5,10 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/misc/address_helpers.h>
-
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 #include <yt/yt/server/lib/cypress_registrar/config.h>
+
+#include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 

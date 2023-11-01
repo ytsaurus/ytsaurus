@@ -12,7 +12,6 @@
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
-#include <yt/yt/server/lib/misc/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
 
@@ -479,7 +478,7 @@ struct IOperationController
     virtual bool IsThrottling() const noexcept = 0;
 
     //! Produces allocations on heap for testing and returns container.
-    virtual std::vector<TTestAllocGuard> TestHeap() const = 0;
+    virtual std::vector<TTestAllocationGuard> TestHeap() const = 0;
 
     //! Returns the total resources that are additionally needed.
     /*!

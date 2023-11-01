@@ -25,6 +25,7 @@ DECLARE_REFCOUNTED_CLASS(TFormatConfig)
 DECLARE_REFCOUNTED_CLASS(TFormatManager)
 
 DECLARE_REFCOUNTED_CLASS(THeapProfilerTestingOptions)
+DECLARE_REFCOUNTED_CLASS(THeapUsageProfiler)
 
 class TServiceProfilerGuard;
 

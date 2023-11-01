@@ -419,14 +419,14 @@ void TOperationControllerBase::SleepInInitialize()
     }
 }
 
-std::vector<TTestAllocGuard> TOperationControllerBase::TestHeap() const
+std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
 {
     if (Spec_->TestingOperationOptions->AllocationSize.value_or(0) > 0) {
         auto Logger = ControllerLogger;
 
         constexpr i64 allocationPartSize = 1_MB;
 
-        std::vector<TTestAllocGuard> testHeap;
+        std::vector<TTestAllocationGuard> testHeap;
 
         std::function<void()> incrementer = [
                 operationId = ToString(OperationId),
