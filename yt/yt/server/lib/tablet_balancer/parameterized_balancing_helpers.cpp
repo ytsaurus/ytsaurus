@@ -172,9 +172,6 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
 
 void TParameterizedReassignSolver::Initialize()
 {
-    THROW_ERROR_EXCEPTION_IF(!Bundle_->AreAllCellsAssignedToPeers(),
-        "Not all cells are assigned to nodes");
-
     auto cells = Bundle_->GetAliveCells();
 
     Evaluator_ = NOrm::NQuery::CreateExpressionEvaluator(

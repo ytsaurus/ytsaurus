@@ -26,8 +26,6 @@ struct TTabletCellBundle final
     TTabletCellBundle(TString name);
 
     std::vector<TTabletCellPtr> GetAliveCells() const;
-
-    bool AreAllCellsAssignedToPeers() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellBundle)

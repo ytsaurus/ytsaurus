@@ -1,5 +1,7 @@
-#include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
+
+#include "private.h"
+#include "tablet_cell.h"
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
@@ -8,27 +10,25 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TabletBalancerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TTabletCellPtr> TTabletCellBundle::GetAliveCells() const
 {
     std::vector<TTabletCellPtr> cells;
     for (const auto& [id, cell] : TabletCells) {
         if (cell->IsAlive()) {
+            if (!cell->NodeAddress) {
+                YT_LOG_WARNING("Alive cell is not assigned to any node (CellId: %v)",
+                    id);
+                continue;
+            }
             cells.push_back(cell);
         }
     }
     return cells;
 }
-
-bool TTabletCellBundle::AreAllCellsAssignedToPeers() const
-{
-    for (const auto& [id, cell] : TabletCells) {
-        if (!cell->NodeAddress.has_value()) {
-            return false;
-        }
-    }
-    return true;
-}
-
 
 TTabletCellBundle::TTabletCellBundle(TString name)
     : Name(std::move(name))
