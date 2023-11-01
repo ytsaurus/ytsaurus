@@ -174,6 +174,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueAgentStageForChaos)                                      (2439))  // nadya73
     ((FixMergerStatistics)                                          (2440))  // aleksandra-zh
     ((DisposalNodesLimit)                                           (2441))  // cherepashka
+    ((FixTransientAbort_23_2)                                       (2442))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
