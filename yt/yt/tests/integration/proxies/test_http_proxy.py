@@ -919,22 +919,8 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestHttpProxyHeapUsageStatistics(HttpProxyTestBase):
+class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
-    DELTA_PROXY_CONFIG = {
-        "heap_profiler": {
-            "snapshot_update_period": 50,
-        },
-        "api": {
-            "testing": {
-                "heap_profiler": {
-                    "allocation_size": 50 * 1024 ** 2,
-                    "allocation_release_delay" : 120 * 1000,
-                },
-            },
-        },
-    }
-
     PATH = "//tmp/test"
     USER = "root"
     PARAMS = {"path": PATH, "output_format": "yson", }
@@ -978,6 +964,23 @@ class TestHttpProxyHeapUsageStatistics(HttpProxyTestBase):
         assert memory_usage["command"][command] > 5 * 1024 ** 2
 
         return True
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
+    DELTA_PROXY_CONFIG = {
+        "heap_profiler": {
+            "snapshot_update_period": 50,
+        },
+        "api": {
+            "testing": {
+                "heap_profiler": {
+                    "allocation_size": 50 * 1024 ** 2,
+                    "allocation_release_delay" : 120 * 1000,
+                },
+            },
+        },
+    }
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
@@ -1024,3 +1027,19 @@ class TestHttpProxyHeapUsageStatistics(HttpProxyTestBase):
 
         wait(lambda: check(command_memory_usage_guage.get_all(), {"command": "read_table"}))
         wait(lambda: check(user_memory_usage_guage.get_all(), {"user": self.USER}))
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
+    DELTA_PROXY_CONFIG = {
+        "heap_profiler": {
+            "snapshot_update_period": 50,
+        },
+    }
+
+    @authors("ni-stoiko")
+    def test_null_api_testing_options(self):
+        self.enable_allocation_tags("http_proxies")
+        create("table", self.PATH)
+        write_table(f"<append=%true>{self.PATH}", [{"key": "x"}])
+        self._execute_command("GET", "read_table")

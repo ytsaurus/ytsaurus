@@ -1042,17 +1042,19 @@ void TContext::ProcessDelayBeforeCommandTestingOption()
 
 void TContext::AllocateTestData(const TTraceContextPtr& traceContext)
 {
-    auto testingOptions = Api_->GetConfig()->TestingOptions->HeapProfiler;
+    auto testingOptions = Api_->GetConfig()->TestingOptions;
 
     if (!testingOptions || !traceContext) {
         return;
     }
 
-    if (testingOptions->AllocationSize) {
+    auto heapProfilerOptions = testingOptions->HeapProfiler;
+
+    if (heapProfilerOptions && heapProfilerOptions->AllocationSize) {
         auto guard = TCurrentTraceContextGuard(traceContext);
 
-        auto size = testingOptions->AllocationSize.value();
-        auto delay = testingOptions->AllocationReleaseDelay.value_or(TDuration::Zero());
+        auto size = heapProfilerOptions->AllocationSize.value();
+        auto delay = heapProfilerOptions->AllocationReleaseDelay.value_or(TDuration::Zero());
 
         MakeTestHeapAllocation(size, delay);
 
