@@ -196,7 +196,9 @@ private:
                 SetRequestOptions(createNodeOptions);
                 createNodeOptions.Recursive = true;
                 createNodeOptions.Attributes = Options_.AttributesOnCreation->Clone();
-                createNodeOptions.Attributes->MergeFrom(result->FindChild("user_attributes")->AsMap());
+                auto userAttributes = result->FindChild("user_attributes")->AsMap();
+                userAttributes->RemoveChild("maintenance_requests");
+                createNodeOptions.Attributes->MergeFrom(userAttributes);
                 createNodeOptions.Force = true;
 
                 auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, createNodeOptions));
