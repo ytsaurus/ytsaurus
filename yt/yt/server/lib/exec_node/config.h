@@ -679,6 +679,10 @@ public:
 
     bool AbortOnJobsDisabled;
 
+    bool AbortOnOperationWithVolumeFailed;
+
+    bool AbortOnOperationWithLayerFailed;
+
     bool TreatJobProxyFailureAsAbort;
 
     TUserJobMonitoringDynamicConfigPtr UserJobMonitoring;
