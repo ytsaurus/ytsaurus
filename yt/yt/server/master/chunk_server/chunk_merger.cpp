@@ -784,9 +784,6 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-
-    // buffer->AddGauge("/chunk_merger_nodes_being_merged", NodesBeingMerged_.size());
-
     for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
         auto* account = securityManager->FindAccount(accountId);
         TWithTagGuard tagGuard(buffer, "account_id", ToString(accountId));
@@ -984,6 +981,9 @@ void TChunkMerger::Clear()
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
     ConfigVersion_ = 0;
+
+    OldNodesBeingMerged_.reset();
+    NeedRestorePersistentStatistics_ = false;
 }
 
 void TChunkMerger::ResetTransientState()
@@ -1065,8 +1065,9 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
         return;
     }
 
-    EmplaceOrCrash(NodesBeingMerged_, chunkOwner->GetId(), chunkOwner->Account()->GetId());
-    IncrementPersistentTracker(chunkOwner->Account()->GetId());
+    auto accountId = chunkOwner->Account()->GetId();
+    EmplaceOrCrash(NodesBeingMerged_, chunkOwner->GetId(), accountId);
+    IncrementPersistentTracker(accountId);
 
     if (IsLeader()) {
         RegisterSessionTransient(chunkOwner);
@@ -2060,6 +2061,7 @@ void TChunkMerger::Save(NCellMaster::TSaveContext& context) const
     // Persist transactions so that we can commit them.
     Save(context, TransactionRotator_);
     Save(context, NodesBeingMerged_);
+    Save(context, NodesBeingMergedPerAccount_);
     Save(context, ConfigVersion_);
 }
 
@@ -2076,25 +2078,39 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
         OldNodesBeingMerged_ = std::make_unique<THashSet<TObjectId>>();
         Load(context, *OldNodesBeingMerged_);
     }
+    if (context.GetVersion() >= EMasterReign::FixMergerStatistics) {
+        Load(context, NodesBeingMergedPerAccount_);
+    }
+    NeedRestorePersistentStatistics_ = context.GetVersion() >= EMasterReign::ChunkMergerQueuesUsagePerAccount &&
+        context.GetVersion() < EMasterReign::FixMergerStatistics;
+
     Load(context, ConfigVersion_);
 }
 
 void TChunkMerger::OnAfterSnapshotLoaded()
 {
-    if (!OldNodesBeingMerged_) {
-        return;
-    }
-    NodesBeingMerged_.clear();
-    NodesBeingMergedPerAccount_.clear();
-    for (auto nodeId: *OldNodesBeingMerged_) {
-        auto* chunkOwner = FindChunkOwner(nodeId);
-        if (!chunkOwner) {
-            continue;
+    if (OldNodesBeingMerged_) {
+        NodesBeingMerged_.clear();
+        NodesBeingMergedPerAccount_.clear();
+        for (auto nodeId: *OldNodesBeingMerged_) {
+            auto* chunkOwner = FindChunkOwner(nodeId);
+            if (!chunkOwner) {
+                continue;
+            }
+
+            auto accountId = chunkOwner->Account()->GetId();
+            EmplaceOrCrash(NodesBeingMerged_, nodeId, accountId);
+            IncrementPersistentTracker(accountId);
         }
-        YT_VERIFY(NodesBeingMerged_.emplace(nodeId, chunkOwner->Account()->GetId()).second);
-        IncrementPersistentTracker(chunkOwner->Account()->GetId());
+        OldNodesBeingMerged_.reset();
     }
-    OldNodesBeingMerged_.reset();
+
+    if (NeedRestorePersistentStatistics_) {
+        NodesBeingMergedPerAccount_.clear();
+        for (const auto& [nodeId, accountId] : NodesBeingMerged_) {
+            IncrementPersistentTracker(accountId);
+        }
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2118,7 +2134,8 @@ void TChunkMerger::DecrementTracker(
                 QueuesUsage_.erase(it);
             }
         }
-        YT_LOG_ALERT("Chunk merger queues usage tracking is tainted, account %Qv seems to appear in queue negative times", accountId);
+        YT_LOG_ALERT("Chunk merger queues usage tracking is tainted, account seems to appear in queue negative times (AccountId: %v)",
+            accountId);
         return;
     }
 
@@ -2130,18 +2147,22 @@ void TChunkMerger::DecrementTracker(
 
 void TChunkMerger::IncrementPersistentTracker(TAccountId accountId)
 {
+    YT_VERIFY(HasHydraContext());
+
     ++(NodesBeingMergedPerAccount_[accountId]);
 }
 
 void TChunkMerger::DecrementPersistentTracker(TAccountId accountId)
 {
-    auto it = NodesBeingMergedPerAccount_.find(accountId);
+    YT_VERIFY(HasHydraContext());
 
+    auto it = NodesBeingMergedPerAccount_.find(accountId);
     if (it == NodesBeingMergedPerAccount_.end() || it->second <= 0) {
         if (it != NodesBeingMergedPerAccount_.end()) {
             NodesBeingMergedPerAccount_.erase(it);
         }
-        YT_LOG_ALERT("Chunk merger persistent queue usage tracking is tainted, account %Qv seems to appear in queue negative times", accountId);
+        YT_LOG_ALERT("Chunk merger persistent queue usage tracking is tainted, account seems to appear in queue negative times (AccountId: %v)",
+            accountId);
         return;
     }
 

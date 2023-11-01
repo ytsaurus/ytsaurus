@@ -172,6 +172,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkMergerModeUnderTransaction)                              (2437))  // cherepashka
     ((FixSystemTransactionReplication)                              (2438))  // h0pless
     ((QueueAgentStageForChaos)                                      (2439))  // nadya73
+    ((FixMergerStatistics)                                          (2440))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
