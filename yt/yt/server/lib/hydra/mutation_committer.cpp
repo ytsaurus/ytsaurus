@@ -66,13 +66,15 @@ TCommitterBase::TCommitterBase(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     TLogger logger,
-    TProfiler /*profiler*/)
+    TProfiler /*profiler*/,
+    IChangelogPtr changelog)
     : Config_(std::move(config))
     , Options_(options)
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
     , Logger(std::move(logger))
     , CellManager_(EpochContext_->CellManager)
+    , Changelog_(std::move(changelog))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(DecoratedAutomaton_);
@@ -105,6 +107,97 @@ TFuture<void> TCommitterBase::GetLastLoggedMutationFuture()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return LastLoggedMutationFuture_;
+}
+
+TErrorOr<IChangelogPtr> TCommitterBase::ExtractNextChangelog(TVersion version)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto changelogId = version.SegmentId;
+
+    while (!NextChangelogs_.empty() && NextChangelogs_.begin()->first < changelogId) {
+        NextChangelogs_.erase(NextChangelogs_.begin());
+    }
+
+    auto it = NextChangelogs_.find(changelogId);
+    if (it != NextChangelogs_.end()) {
+        auto changelog = it->second;
+        YT_LOG_INFO("Changelog found in next changelogs (Version: %v)", version);
+        NextChangelogs_.erase(it);
+        return changelog;
+    }
+
+    YT_LOG_INFO("Cannot find changelog in next changelogs, creating (Version: %v, Term: %v)",
+        version,
+        EpochContext_->Term);
+
+    auto openResult = WaitFor(EpochContext_->ChangelogStore->TryOpenChangelog(changelogId));
+    if (!openResult.IsOK()) {
+        LoggingFailed_.Fire(TError("Error opening changelog")
+            << TErrorAttribute("changelog_id", changelogId)
+            << openResult);
+        return openResult;
+    }
+
+    if (auto changelog = openResult.Value()) {
+        if (Changelog_) {
+            YT_LOG_INFO("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
+                Changelog_->GetId(),
+                changelogId);
+            // There is a verify above that checks that mutation has version N:0 if it is not the first changelog,
+            // so this should be valid as well.
+            YT_VERIFY(changelog->GetRecordCount() == 0);
+        }
+        return changelog;
+    }
+
+    YT_LOG_INFO("Cannot open changelog, creating (ChangelogId: %v, Term: %v)",
+        changelogId,
+        EpochContext_->Term);
+
+    auto createResultOrError = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, /*meta*/ {}, {.CreateWriterEagerly = true}));
+    if (!createResultOrError.IsOK()) {
+        LoggingFailed_.Fire(TError("Error creating changelog")
+            << TErrorAttribute("changelog_id", changelogId)
+            << createResultOrError);
+        return createResultOrError;
+    }
+
+    return createResultOrError.Value();
+}
+
+TError TCommitterBase::PrepareNextChangelog(TVersion version)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    YT_LOG_INFO("Preparing changelog (Version: %v)", version);
+
+    auto changelogId = version.SegmentId;
+    if (Changelog_) {
+        YT_VERIFY(Changelog_->GetId() < changelogId);
+
+        // We should somehow make sure that we start a new changelog with (N, 0).
+        // However we might be writing to an existing changelog (when committer joins a working quorum).
+        YT_VERIFY(version.RecordId == 0);
+    }
+
+    auto nextChangelogOrError = ExtractNextChangelog(version);
+    if (!nextChangelogOrError.IsOK()) {
+        return nextChangelogOrError;
+    }
+    if (Changelog_) {
+        CloseChangelog(Changelog_);
+    }
+    Changelog_ = nextChangelogOrError.Value();
+    return {};
+}
+
+void TCommitterBase::RegisterNextChangelog(int id, IChangelogPtr changelog)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    EmplaceOrCrash(NextChangelogs_, id, changelog);
+    YT_LOG_INFO("Changelog registered (ChangelogId: %v)", id);
 }
 
 void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
@@ -148,7 +241,8 @@ TLeaderCommitter::TLeaderCommitter(
         std::move(decoratedAutomaton),
         epochContext,
         std::move(logger),
-        profiler)
+        std::move(profiler),
+        std::move(changelog))
     , MutationDraftQueue_(std::move(mutationDraftQueue))
     , LeaderLease_(std::move(leaderLease))
     , FlushMutationsExecutor_(New<TPeriodicExecutor>(
@@ -171,7 +265,7 @@ TLeaderCommitter::TLeaderCommitter(
 {
     PeerStates_.assign(CellManager_->GetTotalPeerCount(), {-1, -1});
 
-    Changelog_ = std::move(changelog);
+    RegisterNextChangelog(Changelog_->GetId(), Changelog_);
 
     auto selfId = CellManager_->GetSelfPeerId();
     auto& selfState = PeerStates_[selfId];
@@ -353,6 +447,9 @@ void TLeaderCommitter::Stop()
         mutationDraft.Promise.TrySet(error);
     }
 
+    for (const auto& [id, changelog] : NextChangelogs_) {
+        CloseChangelog(changelog);
+    }
     CloseChangelog(Changelog_);
 
     MutationQueue_.clear();
@@ -916,36 +1013,39 @@ void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemo
     OnSnapshotReply(selfId);
 }
 
-void TLeaderCommitter::OnChangelogAcquired(const TError& error)
+void TLeaderCommitter::OnChangelogAcquired(const TErrorOr<IChangelogPtr>& changelogsOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!error.IsOK()) {
+    if (!changelogsOrError.IsOK()) {
         if (LastSnapshotInfo_) {
-            LastSnapshotInfo_->Promise.TrySet(error);
+            LastSnapshotInfo_->Promise.TrySet(changelogsOrError);
             LastSnapshotInfo_ = std::nullopt;
         }
-        YT_LOG_ERROR(error);
+        YT_LOG_ERROR(changelogsOrError);
         LoggingFailed_.Fire(TError("Error acquiring changelog")
-            << error);
+            << changelogsOrError);
         AcquiringChangelog_ = false;
         return;
     }
+    auto changelog = changelogsOrError.Value();
+    RegisterNextChangelog(changelog->GetId(), changelog);
 
     auto changelogId = NextLoggedVersion_.SegmentId + 1;
     YT_VERIFY(Changelog_);
     YT_VERIFY(changelogId == Changelog_->GetId() + 1);
 
-    auto changelogFuture = WaitFor(EpochContext_->ChangelogStore->OpenChangelog(changelogId, {.CreateWriterEagerly = true}));
-    if (!changelogFuture.IsOK()) {
+    auto oldChangelog = Changelog_;
+
+    auto newNextLoggedVersion = NextLoggedVersion_.Rotate();
+    auto preparationResult = PrepareNextChangelog(newNextLoggedVersion);
+    if (!preparationResult.IsOK()) {
         LoggingFailed_.Fire(TError("Error opening changelog")
             << TErrorAttribute("changelog_id", changelogId)
-            << changelogFuture);
+            << preparationResult);
         AcquiringChangelog_ = false;
         return;
     }
-
-    auto changelog = changelogFuture.ValueOrThrow();
 
     if (!LastSnapshotInfo_) {
         LastSnapshotInfo_ = TShapshotInfo{
@@ -968,10 +1068,8 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     LastSnapshotInfo_->Checksums.resize(CellManager_->GetTotalPeerCount());
     LastSnapshotInfo_->HasReply.resize(CellManager_->GetTotalPeerCount());
 
-    auto oldChangelog = Changelog_;
+    NextLoggedVersion_ = newNextLoggedVersion;
 
-    NextLoggedVersion_ = NextLoggedVersion_.Rotate();
-    Changelog_ = changelog;
     YT_VERIFY(Changelog_->GetRecordCount() == 0);
 
     AcquiringChangelog_ = false;
@@ -986,8 +1084,6 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
             << result);
         THROW_ERROR(result);
     }
-
-    CloseChangelog(oldChangelog);
 
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
@@ -1170,7 +1266,8 @@ TFollowerCommitter::TFollowerCommitter(
         std::move(decoratedAutomaton),
         epochContext,
         std::move(logger),
-        profiler)
+        std::move(profiler),
+        nullptr)
 { }
 
 i64 TFollowerCommitter::GetLoggedSequenceNumber() const
@@ -1323,93 +1420,6 @@ i64 TFollowerCommitter::GetExpectedSequenceNumber() const
     return LastAcceptedSequenceNumber_ + 1;
 }
 
-void TFollowerCommitter::RegisterNextChangelog(int id, IChangelogPtr changelog)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    InsertOrCrash(NextChangelogs_, std::make_pair(id, changelog));
-    YT_LOG_INFO("Changelog registered (ChangelogId: %v)", id);
-}
-
-IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto changelogId = version.SegmentId;
-
-    while (!NextChangelogs_.empty() && NextChangelogs_.begin()->first < changelogId) {
-        NextChangelogs_.erase(NextChangelogs_.begin());
-    }
-
-    auto it = NextChangelogs_.find(changelogId);
-    if (it != NextChangelogs_.end()) {
-        auto changelog = it->second;
-        YT_LOG_INFO("Changelog found in next changelogs (Version: %v)", version);
-        NextChangelogs_.erase(it);
-        return changelog;
-    }
-
-    YT_LOG_INFO("Cannot find changelog in next changelogs, creating (Version: %v, Term: %v)",
-        version,
-        EpochContext_->Term);
-
-    auto openResult = WaitFor(EpochContext_->ChangelogStore->TryOpenChangelog(changelogId));
-    if (!openResult.IsOK()) {
-        LoggingFailed_.Fire(TError("Error opening changelog")
-            << TErrorAttribute("changelog_id", changelogId)
-            << openResult);
-        openResult.ThrowOnError();
-    }
-
-    if (auto changelog = openResult.Value()) {
-        if (Changelog_) {
-            YT_LOG_INFO("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
-                Changelog_->GetId(),
-                changelogId);
-            // There is a verify above that checks that mutation has version N:0 if it is not the first changelog,
-            // so this should be valid as well.
-            YT_VERIFY(changelog->GetRecordCount() == 0);
-        }
-        return changelog;
-    }
-
-    YT_LOG_INFO("Cannot open changelog, creating (ChangelogId: %v, Term: %v)",
-        changelogId,
-        EpochContext_->Term);
-
-    auto createResult = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, /*meta*/ {}, {.CreateWriterEagerly = true}));
-    if (!createResult.IsOK()) {
-        LoggingFailed_.Fire(TError("Error creating changelog")
-            << TErrorAttribute("changelog_id", changelogId)
-            << createResult);
-        createResult.ThrowOnError();
-    }
-
-    return createResult.Value();
-}
-
-void TFollowerCommitter::PrepareNextChangelog(TVersion version)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    YT_LOG_INFO("Preparing changelog (Version: %v)", version);
-
-    auto changelogId = version.SegmentId;
-    if (Changelog_) {
-        YT_VERIFY(Changelog_->GetId() < changelogId);
-
-        // We should somehow make sure that we start a new changelog with (N, 0).
-        // However we might be writing to an existing changelog (when follower joins a working quorum).
-        YT_VERIFY(version.RecordId == 0);
-    }
-
-    auto nextChangelog = GetNextChangelog(version);
-    if (Changelog_) {
-        CloseChangelog(Changelog_);
-    }
-    Changelog_ = nextChangelog;
-}
-
 void TFollowerCommitter::LogMutations()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1437,7 +1447,13 @@ void TFollowerCommitter::LogMutations()
                 break;
             }
 
-            PrepareNextChangelog(version);
+            auto preparationResult = PrepareNextChangelog(version);
+            if (!preparationResult.IsOK()) {
+                LoggingFailed_.Fire(TError("Error opening changelog")
+                    << TErrorAttribute("version", ToString(version))
+                    << preparationResult);
+            }
+            preparationResult.ThrowOnError();
         }
 
         auto mutation = std::move(AcceptedMutations_.front());
@@ -1551,6 +1567,7 @@ void TFollowerCommitter::Stop()
     for (const auto& [id, changelog] : NextChangelogs_) {
         CloseChangelog(changelog);
     }
+    CloseChangelog(Changelog_);
 
     auto error = MakeStoppedError();
     CaughtUpPromise_.TrySet(error);

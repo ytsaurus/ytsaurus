@@ -27,7 +27,7 @@ public:
     TAcquireChangelogSession(
         TDistributedHydraManagerConfigPtr config,
         TEpochContextPtr epochContext,
-        i64 changelogId,
+        int changelogId,
         std::optional<TPeerPriority> priority,
         NLogging::TLogger logger)
         : Config_(std::move(config))
@@ -37,7 +37,7 @@ public:
         , Logger(std::move(logger))
     { }
 
-    TFuture<void> Run()
+    TFuture<IChangelogPtr> Run()
     {
         YT_LOG_INFO("Starting acquiring changelog (ChangelogId: %v, Priority: %v)",
             ChangelogId_,
@@ -45,20 +45,22 @@ public:
 
         DoAcquireChangelog();
 
-        return ChangelogPromise_;
+        return NewChangelogPromise_;
     }
 
 private:
     const TDistributedHydraManagerConfigPtr Config_;
     const TEpochContextPtr EpochContext_;
-    const i64 ChangelogId_;
+    const int ChangelogId_;
     const std::optional<TPeerPriority> Priority_;
     const NLogging::TLogger Logger;
 
     int SuccessCount_ = 0;
     bool LocalSucceeded_ = false;
 
-    const TPromise<void> ChangelogPromise_ = NewPromise<void>();
+    const TPromise<IChangelogPtr> NewChangelogPromise_ = NewPromise<IChangelogPtr>();
+
+    IChangelogPtr NewChangelog_;
 
     void DoAcquireChangelog()
     {
@@ -125,10 +127,14 @@ private:
 
         auto startChangelogId = std::max(currentChangelogId + 1, changelogId - Config_->MaxChangelogsToCreateDuringAcquisition);
         std::vector<TFuture<void>> futures;
-        for (int id = startChangelogId; id <= changelogId; ++id) {
+        for (int id = startChangelogId; id < changelogId; ++id) {
             futures.push_back(CreateAndCloseChangelog(id));
         }
 
+        futures.push_back(changelogStore->CreateChangelog(changelogId, /*meta*/ {}).Apply(
+            BIND([&, this, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
+                NewChangelog_ = changelog;
+            })));
         return AllSucceeded(std::move(futures));
     }
 
@@ -156,7 +162,7 @@ private:
     void OnLocalChangelogAcquired(const TError& error)
     {
         if (!error.IsOK()) {
-            ChangelogPromise_.TrySet(TError("Error acquiring local changelog") << error);
+            NewChangelogPromise_.TrySet(TError("Error acquiring local changelog") << error);
             return;
         }
 
@@ -169,7 +175,7 @@ private:
 
     void CheckQuorum()
     {
-        if (ChangelogPromise_.IsSet()) {
+        if (NewChangelogPromise_.IsSet()) {
             return;
         }
 
@@ -181,20 +187,21 @@ private:
             return;
         }
 
-        ChangelogPromise_.TrySet();
+        NewChangelogPromise_.TrySet(NewChangelog_);
     }
 
     void OnFailed(const TError& /*error*/)
     {
-        ChangelogPromise_.TrySet(TError("Not enough successful replies: %v out of %v",
+        NewChangelogPromise_.TrySet(TError("Not enough successful replies: %v out of %v",
             SuccessCount_,
-            EpochContext_->CellManager->GetTotalPeerCount()));
+            EpochContext_->CellManager->GetTotalPeerCount())
+            << TErrorAttribute("LocalChangelogAcquisitionSuccess", LocalSucceeded_));
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> RunChangelogAcquisition(
+TFuture<IChangelogPtr> RunChangelogAcquisition(
     TDistributedHydraManagerConfigPtr config,
     TEpochContextPtr epochContext,
     int changelogId,

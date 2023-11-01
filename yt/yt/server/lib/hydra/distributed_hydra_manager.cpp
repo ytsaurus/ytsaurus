@@ -1949,7 +1949,7 @@ private:
         }
     }
 
-    int AcquireChangelog()
+    IChangelogPtr AcquireChangelog()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1982,12 +1982,12 @@ private:
             newChangelogId,
             priority,
             newTerm);
-        WaitFor(RunChangelogAcquisition(Config_->Get(), ControlEpochContext_, newChangelogId, priority, Logger))
-            .ThrowOnError();
+        auto newChangelog = WaitFor(RunChangelogAcquisition(Config_->Get(), ControlEpochContext_, newChangelogId, priority, Logger))
+            .ValueOrThrow();
         YT_LOG_INFO("Changelog acquired (ChangelogId: %v)",
             newChangelogId);
 
-        return newChangelogId;
+        return newChangelog;
     }
 
     void OnElectionStartLeading(const NElection::TEpochContextPtr& electionEpochContext)
@@ -2047,8 +2047,7 @@ private:
             YT_LOG_INFO("Followers are in recovery");
 
             // TODO(aleksandra-zh): fix this when there are no changelogs.
-            auto changelogId = AcquireChangelog();
-            auto changelog = OpenChangelogOrThrow(changelogId);
+            auto newChangelog = AcquireChangelog();
 
             epochContext->LeaderCommitter = New<TLeaderCommitter>(
                 Config_,
@@ -2056,7 +2055,7 @@ private:
                 DecoratedAutomaton_,
                 LeaderLease_,
                 MutationDraftQueue_,
-                changelog,
+                newChangelog,
                 epochContext->ReachableState,
                 epochContext.Get(),
                 Logger,

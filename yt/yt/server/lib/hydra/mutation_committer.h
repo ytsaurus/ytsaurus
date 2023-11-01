@@ -6,6 +6,8 @@
 #include "mutation_context.h"
 #include "distributed_hydra_manager.h"
 
+#include <yt/yt/server/lib/hydra/changelog_acquisition.h>
+
 #include <yt/yt/ytlib/election/public.h>
 
 #include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
@@ -32,8 +34,8 @@ namespace NYT::NHydra {
 
 struct TMutationDraft
 {
-    NHydra::TMutationRequest Request;
-    TPromise<NHydra::TMutationResponse> Promise;
+    TMutationRequest Request;
+    TPromise<TMutationResponse> Promise;
     ui64 RandomSeed;
 };
 
@@ -51,37 +53,42 @@ public:
 
     TFuture<void> GetLastLoggedMutationFuture();
     TFuture<void> GetLastOffloadedMutationsFuture();
+    void RegisterNextChangelog(int id, IChangelogPtr changelog);
 
 protected:
     const TConfigWrapperPtr Config_;
-    const NHydra::TDistributedHydraManagerOptions Options_;
+    const TDistributedHydraManagerOptions Options_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
     const NLogging::TLogger Logger;
 
     const NElection::TCellManagerPtr CellManager_;
 
-    NHydra::NProto::TMutationHeader MutationHeader_;
+    NProto::TMutationHeader MutationHeader_;
     TFuture<void> LastLoggedMutationFuture_ = VoidFuture;
 
     TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
 
-    NHydra::IChangelogPtr Changelog_;
+    TCompactFlatMap<int, NHydra::IChangelogPtr, 4> NextChangelogs_;
+    IChangelogPtr Changelog_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TCommitterBase(
         TConfigWrapperPtr config,
-        const NHydra::TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TProfiler profiler);
+        NProfiling::TProfiler profiler,
+        IChangelogPtr changelog);
 
     TFuture<void> ScheduleApplyMutations(std::vector<TPendingMutationPtr> mutations);
 
-    void CloseChangelog(const NHydra::IChangelogPtr& changelog);
+    TErrorOr<IChangelogPtr> ExtractNextChangelog(TVersion version);
+    TError PrepareNextChangelog(TVersion version);
+    void CloseChangelog(const IChangelogPtr& changelog);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,11 +110,11 @@ class TLeaderCommitter
 public:
     TLeaderCommitter(
         TConfigWrapperPtr config,
-        const NHydra::TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderLeasePtr leaderLease,
         TMutationDraftQueuePtr mutationDraftQueue,
-        NHydra::IChangelogPtr changelog,
+        IChangelogPtr changelog,
         TReachableState reachableState,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
@@ -210,9 +217,9 @@ private:
     void MaybeCheckpoint();
     void Checkpoint();
     void UpdateSnapshotBuildDeadline();
-    void OnChangelogAcquired(const TError& result);
+    void OnChangelogAcquired(const TErrorOr<IChangelogPtr>& changelogsOrError);
 
-    void OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<NHydra::TRemoteSnapshotParams>& rspOrError);
+    void OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemoteSnapshotParams>& rspOrError);
     void OnSnapshotReply(int peerId);
     void OnSnapshotsComplete();
 };
@@ -231,7 +238,7 @@ class TFollowerCommitter
 public:
     TFollowerCommitter(
         TConfigWrapperPtr config,
-        const NHydra::TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
@@ -252,7 +259,7 @@ public:
     TFuture<TCommitMutationsResult> CommitMutations(i64 committedSequenceNumber);
 
     //! Forwards a given mutation to the leader via RPC.
-    TFuture<NHydra::TMutationResponse> Forward(NHydra::TMutationRequest&& request);
+    TFuture<TMutationResponse> Forward(TMutationRequest&& request);
 
     i64 GetLoggedSequenceNumber() const;
     i64 GetExpectedSequenceNumber() const;
@@ -261,8 +268,6 @@ public:
     void BuildMonitoring(NYTree::TFluentMap fluent);
 
     void CatchUp();
-
-    void RegisterNextChangelog(int id, NHydra::IChangelogPtr changelog);
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();
@@ -283,11 +288,6 @@ private:
     bool LoggingMutations_ = false;
 
     bool RecoveryComplete_ = true;
-
-    TCompactFlatMap<int, NHydra::IChangelogPtr, 4> NextChangelogs_;
-
-    NHydra::IChangelogPtr GetNextChangelog(TVersion version);
-    void PrepareNextChangelog(TVersion version);
 
     void CheckIfCaughtUp();
 

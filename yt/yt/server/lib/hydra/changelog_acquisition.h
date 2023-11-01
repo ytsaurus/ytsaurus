@@ -19,7 +19,7 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> RunChangelogAcquisition(
+TFuture<IChangelogPtr> RunChangelogAcquisition(
     NHydra::TDistributedHydraManagerConfigPtr config,
     TEpochContextPtr epochContext,
     int changelogId,
