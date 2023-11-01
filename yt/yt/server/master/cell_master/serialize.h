@@ -173,6 +173,7 @@ DEFINE_ENUM(EMasterReign,
     ((AccountsProfilingInSecurityManager_23_1)                      (2358))  // vovamelnikov
     ((ReplicateAlienClusterRegistry_23_1)                           (2359))  // ponasenko-rs
     ((FixTransientAbort_23_1)                                       (2360))  // babenko
+    ((ZombieACOs_23_1)                                              (2361))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
