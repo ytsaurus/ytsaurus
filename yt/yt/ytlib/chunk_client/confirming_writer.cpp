@@ -320,7 +320,7 @@ private:
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
 
-        auto fillRequest = [&] (auto req) {
+        auto fillRequest = [&] (const auto& req) {
             ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
             *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
             *req->mutable_chunk_meta() = *ChunkMeta_;
