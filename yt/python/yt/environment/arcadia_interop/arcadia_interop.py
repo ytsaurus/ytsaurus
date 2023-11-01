@@ -44,11 +44,11 @@ ALL_COMPONENTS = [
 
 
 def sudo_rmtree(path):
-    subprocess.check_call(["sudo", "rm", "-rf", path])
+    subprocess.check_call(["sudo", "-n", "rm", "-rf", path])
 
 
 def sudo_move(src_path, dst_path):
-    subprocess.check_call(["sudo", "mv", src_path, dst_path])
+    subprocess.check_call(["sudo", "-n", "mv", src_path, dst_path])
 
 
 def get_default_package_dir():
@@ -307,6 +307,11 @@ def save_sandbox(sandbox_path, output_subpath):
 
     output_path_dir = os.path.dirname(output_path)
     os.makedirs(output_path_dir)
+    try:
+        os.rename(sandbox_path, output_path)
+        return
+    except Exception:
+        pass
     sudo_move(sandbox_path, output_path_dir)
 
 
