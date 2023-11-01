@@ -697,6 +697,68 @@ TEST_F(TSortedDynamicRowKeyComparerTest, DifferentLength)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSingleLockSortedDynamicStoreReserializeConflictTest
+    : public TSingleLockSortedDynamicStoreTest
+    , public ::testing::WithParamInterface<std::tuple<ELockType, bool>>
+{
+public:
+    struct ParamSerializer
+    {
+        template <class ParamType>
+        std::string operator()(const testing::TestParamInfo<ParamType>& info) const
+        {
+            ELockType lockType = std::get<0>(info.param);
+            bool reserialize = std::get<1>(info.param);
+            return ToString(lockType) + (reserialize ? "With" : "Without") + "Reserialize";
+        }
+    };
+};
+
+TEST_P(TSingleLockSortedDynamicStoreReserializeConflictTest, Test)
+{
+    auto lockType = std::get<0>(GetParam());
+    auto reserialize = std::get<1>(GetParam());
+
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+    TLockMask lockMask;
+    lockMask.Set(PrimaryLockIndex, lockType);
+    auto row = BuildRow("key=1", false);
+    auto lockedRow = LockRow(transaction2.get(), BuildRow("key=1", false), true, lockMask);
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction1.get(), BuildRow("key=1;c=test2"), true));
+
+    auto transaction3 = StartTransaction();
+    auto transaction4 = StartTransaction();
+
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), lockedRow);
+    CommitTransaction(transaction2.get());
+    WriteRow(transaction2.get(), lockedRow, row);
+    CommitRow(transaction2.get(), lockedRow);
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test3"), true));
+
+    if (reserialize) {
+        ReserializeStore();
+    }
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction4.get(), BuildRow("key=1;c=test4"), true));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ConflictAfterReserialization,
+    TSingleLockSortedDynamicStoreReserializeConflictTest,
+    ::testing::Combine(
+        ::testing::Values(
+            ELockType::Exclusive,
+            ELockType::SharedStrong),
+        ::testing::Values(true, false)),
+    TSingleLockSortedDynamicStoreReserializeConflictTest::ParamSerializer());
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TSingleLockSortedDynamicStoreTest, Empty)
 {
     auto key = BuildKey("1");
@@ -1073,34 +1135,6 @@ TEST_F(TSingleLockSortedDynamicStoreTest, TwoReadLocks1)
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;c=test3"));
-}
-
-TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict2)
-{
-    auto key = BuildKey("1");
-
-    auto transaction1 = StartTransaction();
-    auto transaction2 = StartTransaction();
-    TLockMask lockMask;
-    lockMask.Set(PrimaryLockIndex, ELockType::SharedStrong);
-    auto row = BuildRow("key=1", false);
-    auto lockedRow = LockRow(transaction2.get(), BuildRow("key=1", false), true, lockMask);
-    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction1.get(), BuildRow("key=1;c=test2"), true));
-
-    auto transaction3 = StartTransaction();
-    auto transaction4 = StartTransaction();
-
-    PrepareTransaction(transaction2.get());
-    PrepareRow(transaction2.get(), lockedRow);
-    CommitTransaction(transaction2.get());
-    WriteRow(transaction2.get(), lockedRow, row);
-    CommitRow(transaction2.get(), lockedRow);
-
-    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test3"), true));
-
-    ReserializeStore();
-
-    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction4.get(), BuildRow("key=1;c=test4"), true));
 }
 
 TEST_F(TSingleLockSortedDynamicStoreTest, ReadNotBlocked)

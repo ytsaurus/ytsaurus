@@ -3,7 +3,8 @@ from yt_queue_agent_test_base import TestQueueAgentBase, ReplicatedObjectBase
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, RPC_PROXIES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry, create, wait, write_table, remove, exists)
+    ls, get, set, retry, create, wait, write_table, remove, exists, create_dynamic_table, sync_mount_table,
+    start_transaction, commit_transaction, insert_rows, delete_rows, lock_rows, build_snapshot)
 
 from yt_helpers import profiler_factory, master_exit_read_only_sync
 
@@ -11,6 +12,8 @@ from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
 import yatest.common
+
+from yt.common import YtError
 
 import datetime
 
@@ -212,6 +215,56 @@ class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
         self.restart_with_update(NODES_SERVICE, build_snapshots=False)
 
         wait_for_cells(cell_ids)
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("build_tablet_snapshots", [True, False])
+    @pytest.mark.parametrize("modification", ["insert", "delete", "lock_shared_strong", "lock_exclusive"])
+    @pytest.mark.parametrize("commit_wrt_restart", ["before", "after"])
+    def test_transactions(self, build_tablet_snapshots, modification, commit_wrt_restart):
+        cell_ids = sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "lock": "value_lock"}
+        ]
+
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(type="tablet")
+
+        m_tx = start_transaction(type="tablet")
+
+        if modification == "insert":
+            insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=m_tx)
+        elif modification == "delete":
+            delete_rows("//tmp/t", [{"key": 0}], tx=m_tx)
+        elif modification == "lock_shared_strong":
+            lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type="shared_strong", tx=m_tx)
+        elif modification == "lock_exclusive":
+            lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type="exclusive", tx=m_tx)
+        else:
+            assert False
+
+        if commit_wrt_restart == "before":
+            commit_transaction(m_tx)
+
+        if build_tablet_snapshots:
+            build_snapshot(cell_id=cell_ids[0])
+
+        self.restart_with_update(NODES_SERVICE, build_snapshots=False)
+        wait_for_cells(cell_ids)
+
+        if commit_wrt_restart == "after":
+            commit_transaction(m_tx)
+
+        insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx)
+
+        if build_tablet_snapshots and modification == "lock_exclusive" and commit_wrt_restart == "before":
+            commit_transaction(tx)
+        else:
+            with pytest.raises(YtError):
+                commit_transaction(tx)
 
 
 class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):

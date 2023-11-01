@@ -16,45 +16,6 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_NODES = 5
     NUM_CHAOS_NODES = 1
 
-    class CellsDisabled():
-        def __init__(self, clusters=[], tablet_bundles=[], chaos_bundles=[], area_ids=[]):
-            self._clusters = clusters
-            self._tablet_bundles = tablet_bundles
-            self._chaos_bundles = chaos_bundles
-            self._area_ids = area_ids
-
-        def __enter__(self):
-            self._set_tag_filters("invalid")
-            self._wait_for_cells("failed")
-
-        def __exit__(self, exc_type, exception, traceback):
-            self._set_tag_filters("")
-            self._wait_for_cells("good")
-
-        def _set_tag_filters(self, tag_filter):
-            for cluster in self._clusters:
-                driver = get_driver(cluster=cluster)
-                for bundle in self._tablet_bundles:
-                    set("//sys/tablet_cell_bundles/{0}/@node_tag_filter".format(bundle), tag_filter, driver=driver)
-                for bundle in self._chaos_bundles:
-                    set("//sys/chaos_cell_bundles/{0}/@node_tag_filter".format(bundle), tag_filter, driver=driver)
-                for area_id in self._area_ids:
-                    set("#{0}/@node_tag_filter".format(area_id), tag_filter, driver=driver)
-
-        def _wait_for_cells(self, state):
-            for cluster in self._clusters:
-                driver = get_driver(cluster=cluster)
-                for bundle in self._tablet_bundles:
-                    wait(lambda: get("//sys/tablet_cell_bundles/{0}/@health".format(bundle), driver=driver) == state)
-                for bundle in self._chaos_bundles:
-                    for cell in get("//sys/chaos_cell_bundles/{0}/@tablet_cell_ids".format(bundle), driver=driver):
-                        target = ["good"] if state == "good" else ["failed", "degraded"]
-                        wait(lambda: get("#{0}/@local_health".format(cell), driver=driver) in target)
-                for area_id in self._area_ids:
-                    for cell in get("#{0}/@cell_ids".format(area_id), driver=driver):
-                        target = ["good"] if state == "good" else ["failed", "degraded"]
-                        wait(lambda: get("#{0}/@local_health".format(cell), driver=driver) in target)
-
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 

@@ -53,6 +53,8 @@ struct TLockDescriptor
     // NB: Timestamps in this list are not monotone since transactions can be committed in
     // arbitrary order.
     std::atomic<TEditListHeader*> ReadLockRevisionList;
+
+    std::atomic<TEditListHeader*> ExclusiveLockRevisionList;
 };
 
 struct TSortedDynamicRowHeader
@@ -415,6 +417,17 @@ public:
     static void SetWriteRevisionList(TLockDescriptor& lock, TRevisionList list)
     {
         lock.WriteRevisionList = list.Header_;
+    }
+
+
+    static TRevisionList GetExclusiveLockRevisionList(const TLockDescriptor& lock)
+    {
+        return TRevisionList(lock.ExclusiveLockRevisionList);
+    }
+
+    static void SetExclusiveLockRevisionList(TLockDescriptor& lock, TRevisionList list)
+    {
+        lock.ExclusiveLockRevisionList = list.Header_;
     }
 
 

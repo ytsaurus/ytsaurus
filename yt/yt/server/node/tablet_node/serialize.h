@@ -44,6 +44,7 @@ DEFINE_ENUM(ETabletReign,
     ((FixRaceBetweenCompactionUnmount)             (100802)) // dave11ar
     ((InMemoryModeAndBundleInExperimentDescriptor) (100803)) // dave11ar
     ((RegisterTxActionsShouldPersistTx)            (100804)) // ifsmirnov
+    ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////
