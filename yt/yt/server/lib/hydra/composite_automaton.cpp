@@ -18,6 +18,7 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/checksum.h>
 
 #include <util/stream/buffered.h>
 
@@ -303,8 +304,11 @@ void TCompositeAutomaton::RegisterMethod(
 
 TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& context)
 {
+    auto writer = New<TChecksumAsyncOutput>(context.Writer);
+
     DoSaveSnapshot(
-        context,
+        writer,
+        context.Logger,
         // NB: Do not yield in sync part.
         EWaitForStrategy::Get,
         [&] (TSaveContext& context) {
@@ -312,6 +316,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
 
             int partCount = SyncSavers_.size() + AsyncSavers_.size();
             Save<i32>(context, partCount);
+            context.Flush();
 
             // Sort by (priority, name).
             auto syncSavers = SyncSavers_;
@@ -331,9 +336,13 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
                     descriptor.SnapshotVersion);
                 WritePartHeader(context, descriptor);
                 descriptor.Callback(context);
-                YT_LOG_INFO("Finished saving sync automaton part (Name: %v, Version: %v)",
+                // Wait for async writes to finish.
+                context.Flush();
+                YT_LOG_INFO("Finished saving sync automaton part (Name: %v, Version: %v, Checksum: %x)",
                     descriptor.Name,
-                    descriptor.SnapshotVersion);
+                    descriptor.SnapshotVersion,
+                    writer->GetChecksum());
+                writer->SetChecksum(0);
             }
         });
 
@@ -364,7 +373,8 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
     return
         BIND([=, this, this_ = MakeStrong(this), parts_ = GetParts()] () {
             DoSaveSnapshot(
-                context,
+                writer,
+                context.Logger,
                 // NB: Can yield in async part.
                 EWaitForStrategy::WaitFor,
                 [&] (TSaveContext& context) {
@@ -376,6 +386,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
                             descriptor.SnapshotVersion);
                         WritePartHeader(context, descriptor);
                         asyncCallbacks[index](context);
+                        context.Flush();
                         YT_LOG_INFO("Finished saving async automaton part (Name: %v, Version: %v)",
                             descriptor.Name,
                             descriptor.SnapshotVersion);
@@ -542,17 +553,18 @@ void TCompositeAutomaton::SetZeroState()
 }
 
 void TCompositeAutomaton::DoSaveSnapshot(
-    const TSnapshotSaveContext& context,
+    IAsyncOutputStreamPtr writer,
+    NLogging::TLogger logger,
     EWaitForStrategy strategy,
     const std::function<void(TSaveContext&)>& callback)
 {
     auto syncWriter = CreateBufferedCheckpointableSyncAdapter(
-        context.Writer,
+        writer,
         strategy,
         SnapshotSaveBufferSize);
     auto persistencContext = CreateSaveContext(
         syncWriter.get(),
-        context.Logger);
+        logger);
     callback(*persistencContext);
     persistencContext->Finish();
 }
