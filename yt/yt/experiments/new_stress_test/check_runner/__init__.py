@@ -8,7 +8,6 @@ import random
 import signal
 import threading
 import time
-import traceback as tb
 
 import yt.common as yt_common
 import yt.wrapper as yt
@@ -85,19 +84,6 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
     dir_name = str(int(datetime.datetime.now().timestamp()))
     path = base_path + "/" + dir_name
 
-    client = yt.YtClient(proxy=yt.http_helpers.get_proxy_url(), token=get_token())
-    client.config["ping_failed_mode"] = "pass"
-
-    client.create("map_node", path)
-
-    deadline = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout)
-    tx = client.Transaction(
-        deadline=deadline,
-        attributes={
-            "title": transaction_title,
-        })
-    logging.info(f"Running in directory {path} under transaction {tx.transaction_id}")
-
     timeout_handler = TimeoutHandler(timeout)
     timeout_handler.arm()
 
@@ -116,8 +102,14 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
         if success_attribute_set:
             return
 
-        client.set(path + "/@success", True)
-        _set_expiration_timeout(success_expiration_timeout)
+        try:
+            client.set(path + "/@success", True)
+            _set_expiration_timeout(success_expiration_timeout)
+        except Exception as e:
+            # Parent exception has been already logged by the caller, do not log it twice.
+            e.__context__ = None
+            logging.exception("Caught exception while reporting success")
+
         success_attribute_set = True
 
     def _report_failure(error_message):
@@ -125,9 +117,15 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
         if success_attribute_set:
             return
 
-        client.set(path + "/@success", False)
-        client.set(path + "/@error_message", error_message)
-        _set_expiration_timeout(failure_expiration_timeout)
+        try:
+            client.set(path + "/@success", False)
+            client.set(path + "/@error_message", error_message)
+            _set_expiration_timeout(failure_expiration_timeout)
+        except Exception as e:
+            # Parent exception has been already logged by the caller, do not log it twice.
+            e.__context__ = None
+            logging.exception("Caught exception while reporting failure")
+
         success_attribute_set = True
 
     main_pid = multiprocessing.current_process().pid
@@ -141,6 +139,20 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
             raise ProcessTerminatedError
 
     signal.signal(signal.SIGTERM, _sigterm_handler)
+
+    client = yt.YtClient(proxy=yt.http_helpers.get_proxy_url(), token=get_token())
+    client.config["ping_failed_mode"] = "interrupt_main"
+
+    client.create("map_node", path)
+
+    # Add a little slack so that timeout handler will be executed earlier and give cleaner error message.
+    deadline = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout + 120)
+    tx = client.Transaction(
+        deadline=deadline,
+        attributes={
+            "title": transaction_title,
+        })
+    logging.info(f"Running in directory {path} under transaction {tx.transaction_id}")
 
     try:
         with client.Transaction(transaction_id=tx.transaction_id):
@@ -156,8 +168,7 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
             except ProcessTerminatedError:
                 raise
             except Exception as e:
-                logging.info("Callback failed")
-                tb.print_exc()
+                logging.exception("Callback failed")
 
                 if hasattr(e, "error_message"):
                     error_message = e.error_message
@@ -169,14 +180,19 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
         logging.info("Committing transaction")
         tx.commit()
 
-        timeout_handler.disarm()
-
     except KeyboardInterrupt:
-        _report_failure(f"Timed out after {timeout} seconds")
-        raise
+        if tx.is_pinger_alive():
+            _report_failure(f"Timed out after {timeout} seconds")
+        else:
+            logging.error(f"Transaction {tx.transaction_id} was aborted or has expired")
+            _report_failure(f"Transaction {tx.transaction_id} was aborted or has expired")
     except ProcessTerminatedError:
         pass
+    except Exception:
+        logging.exception("Main function terminated")
     finally:
+        timeout_handler.disarm()
+
         children = multiprocessing.active_children()
         if children:
             logging.info("Terminating children")
