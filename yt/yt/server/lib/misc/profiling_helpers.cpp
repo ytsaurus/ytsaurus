@@ -55,7 +55,7 @@ void TServiceProfilerGuard::Start(const TMethodCounters& counters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestAllocGuard::TTestAllocGuard(
+TTestAllocationGuard::TTestAllocationGuard(
         i64 allocationPartSize,
         std::function<void()> constructCallback,
         std::function<void()> destructCallback,
@@ -71,12 +71,12 @@ TTestAllocGuard::TTestAllocGuard(
     ConstructCallback_();
 }
 
-TTestAllocGuard::TTestAllocGuard(TTestAllocGuard&& other)
+TTestAllocationGuard::TTestAllocationGuard(TTestAllocationGuard&& other)
 {
     *this = std::move(other);
 }
 
-TTestAllocGuard& TTestAllocGuard::operator=(TTestAllocGuard&& other)
+TTestAllocationGuard& TTestAllocationGuard::operator=(TTestAllocationGuard&& other)
 {
     Raw_ = std::move(other.Raw_);
     Active_ = other.Active_;
@@ -90,7 +90,7 @@ TTestAllocGuard& TTestAllocGuard::operator=(TTestAllocGuard&& other)
     return *this;
 }
 
-TTestAllocGuard::~TTestAllocGuard()
+TTestAllocationGuard::~TTestAllocationGuard()
 {
     if (Active_) {
         Active_ = false;
@@ -101,7 +101,7 @@ TTestAllocGuard::~TTestAllocGuard()
             .Subscribe(BIND([
                     destruct = std::move(DestructCallback_),
                     raw = std::move(Raw_)
-                ] (const NYT::TErrorOr<void>& /*errorOrVoid*/) {
+                ] (const TErrorOr<void>& /*errorOrVoid*/) {
                     Y_UNUSED(raw);
                     destruct();
                 }));
@@ -110,7 +110,7 @@ TTestAllocGuard::~TTestAllocGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTestAllocGuard> MakeTestHeapAllocation(
+std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
     i64 AllocationSize,
     TDuration AllocationReleaseDelay,
     std::function<void()> constructCallback,
@@ -118,7 +118,7 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
     IInvokerPtr destructCallbackInvoker,
     i64 allocationPartSize)
 {
-    std::vector<TTestAllocGuard> testHeap;
+    std::vector<TTestAllocationGuard> testHeap;
 
     for (i64 i = 0; i < AllocationSize; i += allocationPartSize) {
         testHeap.emplace_back(
@@ -138,6 +138,8 @@ void CollectHeapUsageStatistics(
     IYsonConsumer* consumer,
     const std::vector<TString>& memoryTagsList)
 {
+    YT_VERIFY(consumer);
+
     const auto memorySnapshot = GetMemoryUsageSnapshot();
     YT_VERIFY(memorySnapshot);
 

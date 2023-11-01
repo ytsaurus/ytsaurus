@@ -838,7 +838,7 @@ private:
         return AuthenticatedClientCache_->Get(identity, options);
     }
 
-    void AllocateTestData(TTraceContextPtr traceContext)
+    void AllocateTestData(const TTraceContextPtr& traceContext)
     {
         if (!traceContext) {
             return;

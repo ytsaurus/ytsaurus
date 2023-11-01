@@ -222,7 +222,7 @@ public:
         }));
     }
 
-    std::vector<TTestAllocGuard> TestHeap() const override
+    std::vector<TTestAllocationGuard> TestHeap() const override
     {
         return Underlying_->TestHeap();
     }

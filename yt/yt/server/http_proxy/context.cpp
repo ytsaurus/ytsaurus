@@ -1040,7 +1040,7 @@ void TContext::ProcessDelayBeforeCommandTestingOption()
     TDelayedExecutor::WaitForDuration(commandDelayOptions.Delay);
 }
 
-void TContext::AllocateTestData(TTraceContextPtr traceContext)
+void TContext::AllocateTestData(const TTraceContextPtr& traceContext)
 {
     auto testingOptions = Api_->GetConfig()->TestingOptions->HeapProfiler;
 
