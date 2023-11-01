@@ -77,6 +77,20 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/make_list.cpp
+    NAME make_list
+    SYMBOLS
+        make_list
+)
+
+LLVM_BC(
+    udf/make_entity.cpp
+    NAME make_entity
+    SYMBOLS
+        make_entity
+)
+
+LLVM_BC(
     udf/str_conv.cpp
     NAME str_conv
     SYMBOLS
