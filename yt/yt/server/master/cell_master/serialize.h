@@ -131,6 +131,8 @@ DEFINE_ENUM(EMasterReign,
     ((ConcatToSingleCellChunkOwner_23_1)                            (2357))  // shakurov
     ((AccountsProfilingInSecurityManager_23_1)                      (2358))  // vovamelnikov
     ((ReplicateAlienClusterRegistry_23_1)                           (2359))  // ponasenko-rs
+    ((FixTransientAbort_23_1)                                       (2360))  // babenko
+    ((ZombieACOs_23_1)                                              (2361))  // shakurov
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
@@ -175,6 +177,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixMergerStatistics)                                          (2440))  // aleksandra-zh
     ((DisposalNodesLimit)                                           (2441))  // cherepashka
     ((FixTransientAbort_23_2)                                       (2442))  // babenko
+    ((ZombieACOs)                                                   (2443))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

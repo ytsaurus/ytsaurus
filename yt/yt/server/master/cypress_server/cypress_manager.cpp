@@ -2690,11 +2690,17 @@ private:
 
         AccessControlObjectNamespaceMap_.LoadValues(context);
         for (auto [id, object] : AccessControlObjectNamespaceMap_) {
+            if (!IsObjectAlive(object)) {
+                continue;
+            }
             RegisterAccessControlObjectNamespace(object);
         }
 
         AccessControlObjectMap_.LoadValues(context);
         for (auto [id, object] : AccessControlObjectMap_) {
+            if (!IsObjectAlive(object)) {
+                continue;
+            }
             object->Namespace()->RegisterMember(object);
         }
 
