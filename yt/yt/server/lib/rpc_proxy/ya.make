@@ -7,6 +7,7 @@ SRCS(
     api_service.cpp
     config.cpp
     format_row_stream.cpp
+    profilers.cpp
     helpers.cpp
     proxy_coordinator.cpp
     security_manager.cpp

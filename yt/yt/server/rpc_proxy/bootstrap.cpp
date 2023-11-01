@@ -7,6 +7,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
+#include <yt/yt/server/lib/rpc_proxy/profilers.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
@@ -320,6 +321,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/rpc_proxy",
         CreateVirtualNode(ApiService_->CreateOrchidService()));
+
+    RpcProxyHeapUsageProfiler_ = New<TRpcProxyHeapUsageProfiler>(
+        GetControlInvoker(),
+        Config_->HeapProfiler->SnapshotUpdatePeriod);
 }
 
 void TBootstrap::OnDynamicConfigChanged(

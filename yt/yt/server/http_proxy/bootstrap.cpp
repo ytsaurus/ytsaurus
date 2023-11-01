@@ -10,6 +10,7 @@
 #include "zookeeper_bootstrap_proxy.h"
 
 #include <yt/yt/server/http_proxy/clickhouse/handler.h>
+#include <yt/yt/server/http_proxy/profilers.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -266,6 +267,10 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         orchidRoot,
         "/http_proxy",
         CreateVirtualNode(Api_->CreateOrchidService()));
+
+    HttpProxyHeapUsageProfiler_ = New<THttpProxyHeapUsageProfiler>(
+        GetControlInvoker(),
+        Config_->HeapProfiler->SnapshotUpdatePeriod);
 }
 
 TBootstrap::~TBootstrap() = default;

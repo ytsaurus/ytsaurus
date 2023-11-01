@@ -1,6 +1,10 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/tracing/public.h>
 
@@ -104,7 +108,40 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollectHeapUsageStatistics(NYson::IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList);
+void CollectHeapUsageStatistics(
+    NYson::IYsonConsumer* consumer,
+    const std::vector<TString>& memoryTagsList);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THeapUsageProfiler
+    : public TRefCounted
+{
+public:
+    THeapUsageProfiler(
+        std::vector<TString> tags,
+        IInvokerPtr invoker,
+        std::optional<TDuration> updatePeriod,
+        NProfiling::TProfiler profiler = NProfiling::TProfiler{"/heap_usage/"});
+
+private:
+    NProfiling::TProfiler Profiler_;
+    const std::vector<TString> TagTypes_;
+    THashMap<TString, THashMap<TString, NProfiling::TGauge>> HeapUsageByType_;
+
+    const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
+
+    void UpdateGauges();
+};
+
+DEFINE_REFCOUNTED_TYPE(THeapUsageProfiler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+THeapUsageProfilerPtr CreateHeapProfilerWithTags(
+    std::vector<TString>&& tags,
+    IInvokerPtr invoker,
+    std::optional<TDuration> updatePeriod);
 
 ////////////////////////////////////////////////////////////////////////////////
 

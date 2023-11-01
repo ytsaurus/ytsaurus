@@ -14,7 +14,7 @@ from yt_commands import (
     set_account_disk_space_limit, create_dynamic_table, execute_command, Operation, raises_yt_error,
     discover_proxies)
 
-from yt_helpers import write_log_barrier, read_structured_log, read_structured_log_single_entry
+from yt_helpers import write_log_barrier, read_structured_log, read_structured_log_single_entry, profiler_factory
 
 from yt_type_helpers import make_schema
 
@@ -1159,8 +1159,6 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
         },
     }
 
-    USER = "u"
-
     def enable_allocation_tags(self, proxy):
         set(f"//sys/{proxy}/@config", {
             "api": {
@@ -1169,7 +1167,16 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
         })
         wait(lambda: get(f"//sys/{proxy}/@config")["api"]["enable_allocation_tags"])
 
-    def check_memory_usage(self, memory_usage):
+    def prepare_allocation(self, proxy, user):
+        self.enable_allocation_tags(proxy)
+        create_user(user)
+        wait(lambda: exists(f"//sys/users/{user}"))
+
+        self._create_simple_table("//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True, authenticated_user=user)
+        self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True, authenticated_user=user)
+        map(in_="//tmp/t_in", out="//tmp/t_out", track=True, mapper_command="cat", authenticated_user=user)
+
+    def check_memory_usage(self, memory_usage, user):
         tags = ["user", "rpc"]
         if not memory_usage or len(memory_usage) < len(tags):
             return False
@@ -1179,10 +1186,10 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
             if not memory_usage[tag]:
                 return False
 
-        if self.USER not in memory_usage["user"].keys():
+        if user not in memory_usage["user"].keys():
             return False
 
-        if memory_usage["user"][self.USER] < 5 * 1024 ** 2:
+        if memory_usage["user"][user] < 5 * 1024 ** 2:
             return False
 
         rpc_total_usage = 0
@@ -1202,17 +1209,64 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
     def test_heap_usage_statistics(self):
-        self.enable_allocation_tags("rpc_proxies")
-        create_user(self.USER)
-        time.sleep(1)
+        user = "u1"
+        self.prepare_allocation("rpc_proxies", user)
 
         rpc_proxies = ls("//sys/rpc_proxies")
         assert len(rpc_proxies) == 1
         rpc_proxy_agent_orchid = f"//sys/rpc_proxies/{rpc_proxies[0]}/orchid/rpc_proxy"
 
-        self._create_simple_table("//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True, authenticated_user=self.USER)
-        self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True, authenticated_user=self.USER)
-        map(in_="//tmp/t_in", out="//tmp/t_out", track=True, mapper_command="cat", authenticated_user=self.USER)
+        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/heap_usage_statistics"), user))
 
-        time.sleep(1)
-        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/heap_usage_statistics")))
+    @authors("ni-stoiko")
+    @pytest.mark.timeout(120)
+    def test_heap_usage_guage(self):
+        user = "u2"
+        self.prepare_allocation("rpc_proxies", user)
+
+        rpc_proxies = ls("//sys/rpc_proxies")
+        assert len(rpc_proxies) == 1
+
+        profiler = profiler_factory().at_rpc_proxy(rpc_proxies[0])
+        rpc_memory_usage_guage = profiler.gauge("heap_usage/rpc")
+        user_memory_usage_guage = profiler.gauge("heap_usage/user")
+
+        def check(statistics, tag, memory=5 * 1024 ** 2):
+            for stat in statistics:
+                if stat["tags"] and tag == stat["tags"]:
+                    return stat["value"] > memory
+            return False
+
+        """ Example for rpc tag.
+        [
+            {'tags': {'rpc': 'ModifyRows'}, 'value': 16908288},
+            {'tags': {'rpc': 'UnmountTable'}, 'value': 15851520},
+            {'tags': {'rpc': 'ListNode'}, 'value': 116244480},
+            {'tags': {}, 'value': 2759430144},
+            {'tags': {'rpc': 'PingTransaction'}, 'value': 12681216},
+            {'tags': {'rpc': 'CreateObject'}, 'value': 22192128},
+            {'tags': {'rpc': 'StartTransaction'}, 'value': 29589504},
+            {'tags': {'rpc': 'StartOperation'}, 'value': 15851520},
+            {'tags': {'rpc': 'GetNode'}, 'value': 2420207616},
+            {'tags': {'rpc': 'GetTableMountInfo'}, 'value': 28532736},
+            {'tags': {'rpc': 'CreateNode'}, 'value': 33816576},
+            {'tags': {'rpc': 'CommitTransaction'}, 'value': 22192128},
+            {'tags': {'rpc': 'MountTable'}, 'value': 25362432}
+        ]
+        """
+        wait(lambda: check(rpc_memory_usage_guage.get_all(), {"rpc": "CreateObject"}))
+        wait(lambda: check(rpc_memory_usage_guage.get_all(), {"rpc": "CreateNode"}))
+        wait(lambda: check(rpc_memory_usage_guage.get_all(), {"rpc": "ListNode"}))
+        wait(lambda: check(rpc_memory_usage_guage.get_all(), {"rpc": "ModifyRows"}))
+        wait(lambda: check(rpc_memory_usage_guage.get_all(), {"rpc": "MountTable"}))
+        wait(lambda: check(rpc_memory_usage_guage.get_all(), {"rpc": "StartOperation"}))
+        wait(lambda: check(rpc_memory_usage_guage.get_all(), {"rpc": "StartTransaction"}))
+
+        """ Example for user tag.
+        [
+            {'tags': {}, 'value': 883458048},
+            {'tags': {'user': 'root'}, 'value': 832733184},
+            {'tags': {'user': 'u2'}, 'value': 50724864}
+        ]
+        """
+        wait(lambda: check(user_memory_usage_guage.get_all(), {"user": user}))

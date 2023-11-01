@@ -3,6 +3,7 @@
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -14,6 +15,7 @@
 
 namespace NYT {
 
+using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NYPath;
 using namespace NYson;
@@ -132,7 +134,9 @@ std::vector<TTestAllocGuard> MakeTestHeapAllocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollectHeapUsageStatistics(IYsonConsumer* consumer, const std::vector<TString>& memoryTagsList)
+void CollectHeapUsageStatistics(
+    IYsonConsumer* consumer,
+    const std::vector<TString>& memoryTagsList)
 {
     const auto memorySnapshot = GetMemoryUsageSnapshot();
     YT_VERIFY(memorySnapshot);
@@ -157,6 +161,59 @@ void CollectHeapUsageStatistics(IYsonConsumer* consumer, const std::vector<TStri
             });
 
     consumer->OnRaw(heapUsageStatistics.Finish());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THeapUsageProfiler::THeapUsageProfiler(
+    std::vector<TString> tags,
+    IInvokerPtr invoker,
+    std::optional<TDuration> updatePeriod,
+    NProfiling::TProfiler profiler)
+    : Profiler_(std::move(profiler))
+    , TagTypes_(std::move(tags))
+    , UpdateExecutor_(New<TPeriodicExecutor>(
+        std::move(invoker),
+        BIND(&THeapUsageProfiler::UpdateGauges, MakeWeak(this)),
+        std::move(updatePeriod)))
+{
+    UpdateExecutor_->Start();
+}
+
+void THeapUsageProfiler::UpdateGauges()
+{
+    const auto memorySnapshot = GetMemoryUsageSnapshot();
+    YT_VERIFY(memorySnapshot);
+
+    for (const auto& tagType : TagTypes_) {
+        auto& heapUsageMap = HeapUsageByType_.emplace(tagType, THashMap<TString, TGauge>{}).first->second;
+
+        for (const auto& [tag, usage] : memorySnapshot->GetUsage(tagType)) {
+            auto gauge = heapUsageMap.find(tag);
+
+            if (gauge.IsEnd()) {
+                auto pair = heapUsageMap.emplace(tag, Profiler_
+                    .WithTag(tagType, tag)
+                    .Gauge(tagType));
+                gauge = pair.first;
+            }
+
+            gauge->second.Update(usage);
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////
+
+THeapUsageProfilerPtr CreateHeapProfilerWithTags(
+    std::vector<TString>&& tags,
+    IInvokerPtr invoker,
+    std::optional<TDuration> updatePeriod)
+{
+    return New<THeapUsageProfiler>(
+        std::move(tags),
+        std::move(invoker),
+        std::move(updatePeriod));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

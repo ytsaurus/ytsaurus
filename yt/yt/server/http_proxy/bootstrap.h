@@ -102,6 +102,8 @@ private:
 
     IDynamicConfigManagerPtr DynamicConfigManager_;
 
+    THttpProxyHeapUsageProfilerPtr HttpProxyHeapUsageProfiler_;
+
     NRpc::IServerPtr RpcServer_;
 
     NHttp::IServerPtr ApiHttpServer_;

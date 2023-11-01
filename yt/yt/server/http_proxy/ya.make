@@ -17,6 +17,7 @@ SRCS(
     compression.cpp
     framing.cpp
     config.cpp
+    profilers.cpp
     zookeeper_bootstrap_proxy.cpp
 
     clickhouse/discovery_cache.cpp
