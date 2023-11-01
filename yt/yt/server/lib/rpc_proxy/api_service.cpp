@@ -618,7 +618,10 @@ public:
             config->ClientCache,
             Connection_))
         , ControlInvoker_(std::move(controlInvoker))
-        , HeapProfilerTestingOptions_(config->TestingOptions->HeapProfiler)
+        , HeapProfilerTestingOptions_(
+            config->TestingOptions
+            ? config->TestingOptions->HeapProfiler
+            : nullptr)
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -840,7 +843,7 @@ private:
 
     void AllocateTestData(const TTraceContextPtr& traceContext)
     {
-        if (!traceContext) {
+        if (!HeapProfilerTestingOptions_ || !traceContext) {
             return;
         }
 

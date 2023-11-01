@@ -64,7 +64,7 @@ void TApiServiceConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("testing", &TThis::TestingOptions)
-        .DefaultNew();
+        .Default();
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClientCache->Capacity = DefaultClientCacheCapacity;

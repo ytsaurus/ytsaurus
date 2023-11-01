@@ -1139,23 +1139,12 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
+class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
     NUM_RPC_PROXIES = 1
 
     DELTA_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 20,
-        },
-    }
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "api_service": {
-            "testing": {
-                "heap_profiler": {
-                    "allocation_size": 20 * 1024 ** 2,
-                    "allocation_release_delay" : 120 * 1000,
-                },
-            },
         },
     }
 
@@ -1205,6 +1194,23 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
         assert user_total_usage == rpc_total_usage
 
         return True
+
+
+##################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "testing": {
+                "heap_profiler": {
+                    "allocation_size": 20 * 1024 ** 2,
+                    "allocation_release_delay" : 120 * 1000,
+                },
+            },
+        },
+    }
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
@@ -1270,3 +1276,13 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyBase):
         ]
         """
         wait(lambda: check(user_memory_usage_guage.get_all(), {"user": user}))
+
+
+##################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
+    @authors("ni-stoiko")
+    def test_null_api_testing_options(self):
+        self.prepare_allocation("rpc_proxies", "user")
