@@ -1757,7 +1757,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             std::ssize(node->ChunksBeingPulled()) < maxPullReplicationJobs;
     };
 
-    THashMap<TChunkId, std::pair<int, int>> pullChunkIdToStuff;
+    THashMap<TChunkId, std::vector<std::pair<int, int>>> pullChunkIdToStuff;
     std::vector<TEphemeralObjectPtr<TChunk>> pullChunks;
     auto& queues = node->ChunkPullReplicationQueues();
     for (int priority = 0; priority < std::ssize(queues); ++priority) {
@@ -1776,7 +1776,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             }
 
             pullChunks.emplace_back(chunk);
-            EmplaceOrCrash(pullChunkIdToStuff, chunkId, std::make_pair(priority, desiredReplica.ReplicaIndex));
+            pullChunkIdToStuff[chunkId].emplace_back(priority, desiredReplica.ReplicaIndex);
         }
     }
 
@@ -1785,56 +1785,58 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     // Move CRP-enabled chunks from pull to push queues.
     for (const auto& [chunkId, replicasOrError] : pullReplicas) {
         TForbidContextSwitchGuard guard;
-        auto [priority, index] = GetOrCrash(pullChunkIdToStuff, chunkId);
-        TChunkIdWithIndex chunkIdWithIndex(chunkId, index);
 
-        auto& queue = node->ChunkPullReplicationQueues()[priority];
-        auto it = queue.find(chunkIdWithIndex);
-        if (it == queue.end()) {
-            ++misscheduledReplicationJobs;
-            continue;
-        }
+        for (auto [priority, index] : GetOrCrash(pullChunkIdToStuff, chunkId)) {
+            TChunkIdWithIndex chunkIdWithIndex(chunkId, index);
 
-        auto* chunk = chunkManager->FindChunk(chunkId);
-        if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
-            queue.erase(it);
-            ++misscheduledReplicationJobs;
-            continue;
-        }
+            auto& queue = node->ChunkPullReplicationQueues()[priority];
+            auto it = queue.find(chunkIdWithIndex);
+            if (it == queue.end()) {
+                ++misscheduledReplicationJobs;
+                continue;
+            }
 
-        if (!replicasOrError.IsOK()) {
-            queue.erase(it);
-            ++misscheduledReplicationJobs;
-            ScheduleChunkRefresh(chunk);
-            continue;
-        }
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
+                queue.erase(it);
+                ++misscheduledReplicationJobs;
+                continue;
+            }
 
-        auto desiredReplica = it->first;
-        auto& mediumIndexSet = it->second;
+            if (!replicasOrError.IsOK()) {
+                queue.erase(it);
+                ++misscheduledReplicationJobs;
+                ScheduleChunkRefresh(chunk);
+                continue;
+            }
 
-        for (const auto& replica : replicasOrError.Value()) {
-            auto* pushNode = GetChunkLocationNode(replica);
-            for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
-                if (mediumIndexSet.test(mediumIndex)) {
-                    if (pushNode->GetTargetReplicationNodeId(chunkId, mediumIndex) != InvalidNodeId) {
-                        // Replication is already planned with another node as a destination.
-                        continue;
+            auto desiredReplica = it->first;
+            auto& mediumIndexSet = it->second;
+
+            for (const auto& replica : replicasOrError.Value()) {
+                auto* pushNode = GetChunkLocationNode(replica);
+                for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
+                    if (mediumIndexSet.test(mediumIndex)) {
+                        if (pushNode->GetTargetReplicationNodeId(chunkId, mediumIndex) != InvalidNodeId) {
+                            // Replication is already planned with another node as a destination.
+                            continue;
+                        }
+
+                        if (desiredReplica.ReplicaIndex != replica.GetReplicaIndex()) {
+                            continue;
+                        }
+
+                        TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+                        pushNode->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
+                        pushNode->AddTargetReplicationNodeId(chunkId, mediumIndex, node);
+
+                        node->RefChunkBeingPulled(chunkId, mediumIndex);
                     }
-
-                    if (desiredReplica.ReplicaIndex != replica.GetReplicaIndex()) {
-                        continue;
-                    }
-
-                    TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
-                    pushNode->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
-                    pushNode->AddTargetReplicationNodeId(chunkId, mediumIndex, node);
-
-                    node->RefChunkBeingPulled(chunkId, mediumIndex);
                 }
             }
-        }
 
-        queue.erase(it);
+            queue.erase(it);
+        }
     }
 
     THashMap<TChunkId, std::vector<std::pair<int, int>>> chunkIdToStuff;
