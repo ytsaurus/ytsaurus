@@ -944,7 +944,7 @@ public:
             UpdateLimitsExecutor_->SetPeriod(config->LimitUpdatePeriod);
         }
         if (oldConfig->LeaderUpdatePeriod != config->LeaderUpdatePeriod) {
-            UpdateLeaderExecutor_->SetPeriod(config->LimitUpdatePeriod);
+            UpdateLeaderExecutor_->SetPeriod(config->LeaderUpdatePeriod);
         }
 
         DistributedThrottlerService_->Reconfigure(config);
