@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -26,6 +28,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NCypressClient;
+using namespace NHiveClient;
 using namespace NObjectClient;
 using namespace NQueueClient;
 using namespace NRpc;
@@ -712,22 +715,22 @@ DEFINE_REFCOUNTED_TYPE(TQueueExportTask)
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueueExporter::TQueueExporter(
-    NNative::IClientPtr client,
+    TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     const TLogger& logger)
-    : Client_(std::move(client))
+    : ClientDirectory_(std::move(clientDirectory))
     , Invoker_(std::move(invoker))
     , Logger(logger)
 { }
 
 TFuture<void> TQueueExporter::RunExportIteration(
-    TYPath queue,
+    const TCrossClusterReference& queue,
     const TQueueStaticExportConfig& exportConfig)
 {
     auto exportTask = New<TQueueExportTask>(
-        Client_,
+        ClientDirectory_->GetClientOrThrow(queue.Cluster),
         Invoker_,
-        std::move(queue),
+        queue.Path,
         exportConfig,
         Logger);
     return exportTask->Run();

@@ -24,16 +24,16 @@ public:
     TQueueExporter() = default;
 
     explicit TQueueExporter(
-        NApi::NNative::IClientPtr client,
+        NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger);
 
     TFuture<void> RunExportIteration(
-        NYPath::TYPath queue,
+        const NQueueClient::TCrossClusterReference& queue,
         const NQueueClient::TQueueStaticExportConfig& config);
 
 private:
-    const NApi::NNative::IClientPtr Client_;
+    const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
 
     const NLogging::TLogger Logger;

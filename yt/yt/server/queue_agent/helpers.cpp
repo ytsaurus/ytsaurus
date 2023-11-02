@@ -153,6 +153,11 @@ NApi::NNative::IClientPtr TQueueAgentClientDirectory::GetClientOrThrow(const TSt
     return ClientDirectory_->GetClientOrThrow(cluster);
 }
 
+TClientDirectoryPtr TQueueAgentClientDirectory::GetUnderlyingClientDirectory() const
+{
+    return ClientDirectory_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::NNative::IClientPtr AssertNativeClient(const NApi::IClientPtr& client)

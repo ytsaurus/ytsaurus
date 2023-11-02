@@ -65,6 +65,8 @@ public:
     //! NB: Each path must contain a cluster.
     NApi::IClientPtr GetFederatedClient(const std::vector<NYPath::TRichYPath>& replicas);
 
+    NHiveClient::TClientDirectoryPtr GetUnderlyingClientDirectory() const;
+
 private:
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     THashMap<TString, NApi::IClientPtr> FederatedClients_;
