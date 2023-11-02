@@ -202,7 +202,7 @@ void SetAsyncSignalHandler(int signum, TAutoPtr<TEventHandler> handler) {
 
         // If we read non-null here it means that we have a concurrent thread
         // unlocking the lock establishing strongly HB with us.
-        // next line is sequenced before lock call thus relaxed is enough here.
+        // Next line is sequenced before lock call thus relaxed is enough here.
         currentHandler = SIGNALS_HANDLER.load(std::memory_order::relaxed);
 
         if (currentHandler == nullptr) {
