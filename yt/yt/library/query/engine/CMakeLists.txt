@@ -195,9 +195,10 @@ target_link_libraries(library-query-engine PUBLIC
   yt-library-codegen
   library-webassembly-api
   library-webassembly-engine
+  library-query-base
+  library-query-engine_api
   library-query-misc
   library-query-proto
-  library-query-base
   yt-yt-client
   cpp-yt-memory
   cpp-xdelta3-state
@@ -236,9 +237,10 @@ target_link_libraries(library-query-engine.global PUBLIC
   yt-library-codegen
   library-webassembly-api
   library-webassembly-engine
+  library-query-base
+  library-query-engine_api
   library-query-misc
   library-query-proto
-  library-query-base
   yt-yt-client
   cpp-yt-memory
   cpp-xdelta3-state

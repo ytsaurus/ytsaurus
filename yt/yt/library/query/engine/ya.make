@@ -34,9 +34,10 @@ PEERDIR(
     yt/yt/library/codegen
     yt/yt/library/webassembly/api
     yt/yt/library/webassembly/engine
+    yt/yt/library/query/base
+    yt/yt/library/query/engine_api
     yt/yt/library/query/misc
     yt/yt/library/query/proto
-    yt/yt/library/query/base
     yt/yt/client
     library/cpp/yt/memory
     library/cpp/xdelta3/state
@@ -288,4 +289,3 @@ LLVM_BC(
 )
 
 END()
-

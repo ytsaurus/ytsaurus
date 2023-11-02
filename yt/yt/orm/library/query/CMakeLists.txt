@@ -15,9 +15,8 @@ target_link_libraries(orm-library-query PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  library-query-engine
   orm-library-attributes
-  yt-yt-ytlib
+  library-query-engine
   yt-yt-core
   yt-yt-client
 )

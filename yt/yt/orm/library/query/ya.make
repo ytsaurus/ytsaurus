@@ -12,11 +12,10 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/library/query/engine
-
     yt/yt/orm/library/attributes
 
-    yt/yt/ytlib
+    yt/yt/library/query/engine
+
     yt/yt/core
     yt/yt/client
 )

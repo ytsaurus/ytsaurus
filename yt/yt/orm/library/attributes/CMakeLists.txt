@@ -17,7 +17,6 @@ target_link_libraries(orm-library-attributes PUBLIC
   yutil
   yt-yt-core
   yt-yt-client
-  yt-yt-ytlib
 )
 target_sources(orm-library-attributes PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/attribute_path.cpp
