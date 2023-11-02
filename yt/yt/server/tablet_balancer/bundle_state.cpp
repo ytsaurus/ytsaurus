@@ -400,23 +400,20 @@ void TBundleState::DoFetchStatistics(const IListNodePtr& nodeStatistics)
 
     Bundle_->NodeStatistics.clear();
 
-    if (IsParameterizedBalancingEnabled()) {
-        if (!nodeStatistics) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to get node statistics because node fetch "
-                "failed earlier during the current iteration");
-        }
+    if (!nodeStatistics) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to get node statistics because node fetch "
+            "failed earlier during the current iteration");
+    }
 
-        THROW_ERROR_EXCEPTION_UNLESS(Bundle_->AreAllCellsAssignedToPeers(),
-            "Not all cells are assigned to nodes");
-
-        THashSet<TNodeAddress> addresses;
-        for (const auto& [id, cell] : Bundle_->TabletCells) {
+    THashSet<TNodeAddress> addresses;
+    for (const auto& [id, cell] : Bundle_->TabletCells) {
+        if (cell->NodeAddress) {
             addresses.insert(*cell->NodeAddress);
         }
-
-        Bundle_->NodeStatistics = GetNodeStatistics(nodeStatistics, addresses);
     }
+
+    Bundle_->NodeStatistics = GetNodeStatistics(nodeStatistics, addresses);
 }
 
 TBundleState::TTabletCellInfo TBundleState::TabletCellInfoFromAttributes(
