@@ -126,6 +126,11 @@ def _get_result_or_raise(response, family):
     if "result" in response:
         return response["result"]
 
+    if "code" in response and "message" in response:
+        raise YtError(response["message"], attributes={"error": response})
+
+    # TODO(gudqeit): "error" and "to_print" fields are deprecated and are no longer in use.
+    # Remove code below when all controllers are updated.
     if "error" in response:
         if "to_print" in response:
             raise YtError(response["to_print"], attributes={"error": response["error"]})

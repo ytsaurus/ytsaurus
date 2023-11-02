@@ -151,11 +151,19 @@ func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
 	}
 }
 
+// TODO(gudqeit): old CLI clients rely on "to_print" field to print appropriate message in case of error.
+// Introduce better way to return error message and remove this wrapper.
+type legacyErrorWrapper struct {
+	*yterrors.Error
+	ToPrint string `yson:"to_print,omitempty" json:"-"`
+}
+
 func (a HTTPAPI) replyWithError(w http.ResponseWriter, err error) {
-	a.reply(w, http.StatusBadRequest, map[string]any{
-		"to_print": err.Error(),
-		"error":    yterrors.FromError(err),
-	})
+	apiError := legacyErrorWrapper{
+		Error:   yterrors.FromError(err).(*yterrors.Error),
+		ToPrint: err.Error(),
+	}
+	a.reply(w, http.StatusBadRequest, apiError)
 }
 
 func (a HTTPAPI) replyOK(w http.ResponseWriter, result any) {
