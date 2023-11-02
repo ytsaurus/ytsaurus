@@ -136,7 +136,7 @@ def copy(source_path, destination_path,
          preserve_account=None, preserve_owner=None, preserve_acl=None,
          preserve_expiration_time=None, preserve_expiration_timeout=None,
          preserve_creation_time=None, preserve_modification_time=None,
-         pessimistic_quota_check=None, client=None):
+         pessimistic_quota_check=None, enable_cross_cell_copying=None, client=None):
     """Copies Cypress node.
 
     :param source_path: source path.
@@ -155,6 +155,7 @@ def copy(source_path, destination_path,
     :param bool preserve_modification_time: preserve modification time.
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
+    :param bool enable_cross_cell_copying: enable cross cell copying.
 
     .. seealso:: `copy in the docs <https://ytsaurus.tech/docs/en/api/commands#copy>`_
     """
@@ -174,6 +175,7 @@ def copy(source_path, destination_path,
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
+    set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
     return make_formatted_request("copy", params, format=None, client=client)
 
 
@@ -182,7 +184,7 @@ def move(source_path, destination_path,
          preserve_account=None, preserve_owner=None,
          preserve_expiration_time=None, preserve_expiration_timeout=None,
          preserve_creation_time=None, preserve_modification_time=None,
-         pessimistic_quota_check=None, client=None):
+         pessimistic_quota_check=None, enable_cross_cell_copying=None, client=None):
     """Moves (renames) Cypress node.
 
     :param source_path: source path.
@@ -198,6 +200,7 @@ def move(source_path, destination_path,
     :param bool preserve_modification_time: preserve modification time.
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
+    :param bool enable_cross_cell_copying: enable cross cell copying.
 
     .. seealso:: `move in the docs <https://ytsaurus.tech/docs/en/api/commands#move>`_
     """
@@ -214,6 +217,7 @@ def move(source_path, destination_path,
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
+    set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
     return make_formatted_request("move", params, format=None, client=client)
 
 

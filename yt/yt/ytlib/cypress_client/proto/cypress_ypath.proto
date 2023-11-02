@@ -71,6 +71,7 @@ message TReqCopy
     optional bool ignore_existing = 8 [default = false];
     optional bool lock_existing = 13 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
+    optional bool enable_cross_cell_copying = 15 [default = true];
 
     reserved 1;
 }
@@ -128,6 +129,7 @@ message TReqEndCopy
     optional bool ignore_existing = 8 [default = false];
     optional bool lock_existing = 15 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
+    optional bool enable_cross_cell_copying = 18 [default = true];
 
     required int32 mode = 1; // ENodeCloneMode
     optional bool inplace = 12;

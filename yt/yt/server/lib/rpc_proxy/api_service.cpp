@@ -1961,6 +1961,9 @@ private:
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
         }
+        if (request->has_enable_cross_cell_copying()) {
+            options.EnableCrossCellCopying = request->enable_cross_cell_copying();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -2022,6 +2025,9 @@ private:
         }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
+        }
+        if (request->has_enable_cross_cell_copying()) {
+            options.EnableCrossCellCopying = request->enable_cross_cell_copying();
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
