@@ -868,10 +868,8 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
 
     auto dynamicConfig = DynamicConfig_.Acquire();
     bool pickReshardPivotKeys = dynamicConfig->PickReshardPivotKeys;
-    auto slicingAccuracy = dynamicConfig->ReshardSlicingAccuracy;
     bool enableVerboseLogging = dynamicConfig->EnableReshardVerboseLogging ||
         bundleState->GetBundle()->Config->EnableVerboseLogging;
-    auto minDesiredTabletSize = dynamicConfig->MinDesiredTabletSize;
 
     for (const auto& table : tables) {
         if (actionLimitExceeded) {
@@ -893,7 +891,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             BIND(
                 MergeSplitTabletsOfTable,
                 std::move(tablets),
-                minDesiredTabletSize,
+                dynamicConfig->MinDesiredTabletSize,
                 pickReshardPivotKeys,
                 Logger)
             .AsyncVia(WorkerPool_->GetInvoker())
@@ -912,7 +910,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                         table,
                         firstTabletIndex,
                         lastTabletIndex,
-                        slicingAccuracy,
+                        dynamicConfig->ReshardSlicingAccuracy,
                         enableVerboseLogging);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex,
@@ -928,6 +926,21 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                         descriptor.CorrelationId);
 
                     PickPivotFailures.Increment(1);
+
+                    if (dynamicConfig->CancelActionIfPickPivotKeysFails) {
+                        YT_LOG_DEBUG(ex,
+                            "Cancelled tablet action creation because pick pivot keys failed "
+                            "(TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v, "
+                            "TabletIndexes: %v-%v, CorrelationId: %v)",
+                            descriptor.Tablets,
+                            descriptor.TabletCount,
+                            descriptor.DataSize,
+                            table->Id,
+                            firstTabletIndex,
+                            lastTabletIndex,
+                            descriptor.CorrelationId);
+                        continue;
+                    }
                 }
             }
 
