@@ -190,7 +190,7 @@ bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJ
         return false;
     }
 
-    if (lhs.CountByPoolTree.size() != lhs.CountByPoolTree.size()) {
+    if (lhs.CountByPoolTree.size() != rhs.CountByPoolTree.size()) {
         return false;
     }
 
