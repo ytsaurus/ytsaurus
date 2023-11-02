@@ -42,6 +42,11 @@ public:
         const DB::SelectQueryInfo& queryInfo,
         const NLogging::TLogger& logger);
 
+    //! TQueryAnalyzer should be prepared before CreateSecondaryQuery,
+    //! GetOptimizedQueryProcessingStage and Analyze methods are called.
+    void Prepare();
+
+    //! Prepare method should be called before CreateSecondaryQuery.
     TSecondaryQuery CreateSecondaryQuery(
         const TRange<TSubquery>& subqueries,
         TSubquerySpec specTemplate,
@@ -49,8 +54,10 @@ public:
         int subqueryIndex,
         bool isLastSubquery);
 
+    //! Prepare method should be called before GetOptimizedQueryProcessingStage.
     DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage() const;
 
+    //! Prepare method should be called before Analyze.
     TQueryAnalysisResult Analyze() const;
 
     bool HasJoinWithTwoTables() const;
@@ -77,6 +84,8 @@ private:
     bool TwoYTTableJoin_ = false;
     //! If the query has in operator with subquery or table.
     bool HasInOperator_ = false;
+
+    bool Prepared_ = false;
 
     int KeyColumnCount_ = 0;
     bool JoinedByKeyColumns_ = false;

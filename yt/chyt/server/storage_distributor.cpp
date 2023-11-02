@@ -586,6 +586,7 @@ private:
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
 
         QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger);
+        QueryAnalyzer_->Prepare();
         QueryAnalysisResult_.emplace(QueryAnalyzer_->Analyze());
 
         auto input = FetchInput(
@@ -990,6 +991,7 @@ public:
         // Try to process query up to advanced stages.
         if (executionSettings->OptimizeQueryProcessingStage) {
             TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
+            analyzer.Prepare();
             return analyzer.GetOptimizedQueryProcessingStage();
         }
 

@@ -830,3 +830,22 @@ class TestJoinAndIn(ClickHouseTestBase):
                         on a.a = b.a
                     having count in (select 1)'''
             assert clique.make_query(query) == [{"count": 1}]
+
+    @authors("gudqeit")
+    def test_join_for_unsorted_tables(self):
+        schema = [{"name": "a", "type": "int64"}]
+        create("table", "//tmp/t1", attributes={"schema": schema})
+        write_table("//tmp/t1", [{"a": 1}])
+        create("table", "//tmp/t2", attributes={"schema": schema})
+        write_table("//tmp/t2", [{"a": 1}])
+
+        with Clique(1) as clique:
+            query = '''select * from "//tmp/t1" as a
+                       join "//tmp/t2" as b
+                       on a.a = b.a
+                    '''
+            settings = {"chyt.execution.join_policy": "local"}
+            assert clique.make_query(query, settings=settings) == [{"a": 1, "b.a": 1}]
+
+            with raises_yt_error(QueryFailedError):
+                assert clique.make_query(query)

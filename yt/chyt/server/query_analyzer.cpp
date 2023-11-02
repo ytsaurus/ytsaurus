@@ -277,18 +277,6 @@ TQueryAnalyzer::TQueryAnalyzer(
     , Logger(logger)
 {
     ParseQuery();
-
-    const auto& settings = StorageContext_->Settings;
-
-    bool needSortedPool = (TwoYTTableJoin_ && !CrossJoin_) || RightOrFullJoin_;
-    bool filterJoinedTableBySortedKey = settings->Execution->FilterJoinedSubqueryBySortKey && Join_ && !CrossJoin_;
-
-    if (needSortedPool || filterJoinedTableBySortedKey) {
-        InferSortedJoinKeyColumns(needSortedPool);
-    }
-    if (settings->Execution->OptimizeQueryProcessingStage) {
-        OptimizeQueryProcessingStage();
-    }
 }
 
 void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
@@ -626,6 +614,11 @@ void TQueryAnalyzer::ParseQuery()
 
 DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage() const
 {
+    if (!Prepared_) {
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetOptimizedQueryProcessingStage method is already called; "
+            "this is a bug; please, file an issue in CHYT queue");
+    }
+
     if (!OptimizedQueryProcessingStage_) {
         const auto& settings = StorageContext_->Settings;
         if (!settings->Execution->OptimizeQueryProcessingStage) {
@@ -735,6 +728,11 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 {
+    if (!Prepared_) {
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but Analyze method is already called; "
+            "this is a bug; please, file an issue in CHYT queue");
+    }
+
     const auto& settings = StorageContext_->Settings;
 
     TQueryAnalysisResult result;
@@ -791,6 +789,11 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
     int subqueryIndex,
     bool isLastSubquery)
 {
+    if (!Prepared_) {
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but CreateSecondaryQuery method is already called; "
+            "this is a bug; please, file an issue in CHYT queue");
+    }
+
     auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
 
     i64 totalRowCount = 0;
@@ -1060,6 +1063,27 @@ bool TQueryAnalyzer::HasGlobalJoin() const
 bool TQueryAnalyzer::HasInOperator() const
 {
     return HasInOperator_;
+}
+
+void TQueryAnalyzer::Prepare()
+{
+    if (Prepared_) {
+        return;
+    }
+
+    const auto& settings = StorageContext_->Settings;
+
+    bool needSortedPool = (TwoYTTableJoin_ && !CrossJoin_) || RightOrFullJoin_;
+    bool filterJoinedTableBySortedKey = settings->Execution->FilterJoinedSubqueryBySortKey && Join_ && !CrossJoin_;
+
+    if (needSortedPool || filterJoinedTableBySortedKey) {
+        InferSortedJoinKeyColumns(needSortedPool);
+    }
+    if (settings->Execution->OptimizeQueryProcessingStage) {
+        OptimizeQueryProcessingStage();
+    }
+
+    Prepared_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
