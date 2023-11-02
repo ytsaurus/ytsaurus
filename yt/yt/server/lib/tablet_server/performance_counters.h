@@ -22,8 +22,8 @@ namespace NYT::NTabletServer {
     XX(static_chunk_row_lookup_data_weight,     StaticChunkRowLookupDataWeight) \
     XX(compaction_data_weight,                  CompactionDataWeight) \
     XX(partitioning_data_weight,                PartitioningDataWeight) \
-    XX(lookup_error,                            LookupErrorCount) \
-    XX(write_error,                             WriteErrorCount)
+    XX(lookup_error,                            LookupError) \
+    XX(write_error,                             WriteError)
 
 struct TTabletPerformanceCounters
 {

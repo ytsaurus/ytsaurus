@@ -1091,11 +1091,11 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
     auto dataWeight = GetDataWeight(row);
     if (isDelete) {
-        ++PerformanceCounters_->DynamicRowDeleteCount;
+        PerformanceCounters_->DynamicRowDelete.Counter.fetch_add(1, std::memory_order::relaxed);
     } else {
-        ++PerformanceCounters_->DynamicRowWriteCount;
+        PerformanceCounters_->DynamicRowWrite.Counter.fetch_add(1, std::memory_order::relaxed);
     }
-    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
+    PerformanceCounters_->DynamicRowWriteDataWeight.Counter.fetch_add(dataWeight, std::memory_order::relaxed);
     ++context->RowCount;
     context->DataWeight += dataWeight;
 
@@ -1170,8 +1170,8 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
     OnDynamicMemoryUsageUpdated();
 
     auto dataWeight = GetDataWeight(row);
-    ++PerformanceCounters_->DynamicRowWriteCount;
-    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
+    PerformanceCounters_->DynamicRowWrite.Counter.fetch_add(1, std::memory_order::relaxed);
+    PerformanceCounters_->DynamicRowWriteDataWeight.Counter.fetch_add(dataWeight, std::memory_order::relaxed);
     ++context->RowCount;
     context->DataWeight += dataWeight;
 

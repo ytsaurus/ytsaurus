@@ -800,6 +800,18 @@ void TOverloadControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStatisticsReporterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("table_path", &TThis::TablePath)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slots", &TThis::Slots)
@@ -853,6 +865,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("overload_controller", &TThis::OverloadController)
+        .DefaultNew();
+
+    registrar.Parameter("statistics_reporter", &TThis::StatisticsReporter)
         .DefaultNew();
 }
 

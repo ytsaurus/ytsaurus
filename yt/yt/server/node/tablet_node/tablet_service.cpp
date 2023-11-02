@@ -277,7 +277,7 @@ private:
                 reader.get(),
                 params);
         } catch (const std::exception&) {
-            ++tabletSnapshot->PerformanceCounters->WriteErrorCount;
+            tabletSnapshot->PerformanceCounters->WriteError.Counter.fetch_add(1, std::memory_order::relaxed);
             throw;
         }
 

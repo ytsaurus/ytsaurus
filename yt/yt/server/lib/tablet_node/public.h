@@ -260,6 +260,7 @@ DECLARE_REFCOUNTED_CLASS(THunkStoreWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TServiceMethod)
 DECLARE_REFCOUNTED_CLASS(TOverloadTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TOverloadControllerConfig)
+DECLARE_REFCOUNTED_CLASS(TStatisticsReporterConfig)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;

@@ -12,6 +12,7 @@
 #include "security_manager.h"
 #include "slot_manager.h"
 #include "sorted_dynamic_comparer.h"
+#include "statistics_reporter.h"
 #include "store_compactor.h"
 #include "store_flusher.h"
 #include "store_rotator.h"
@@ -283,6 +284,7 @@ public:
 
         RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
+        StatisticsReporter_ = New<TStatisticsReporter>(this);
         StoreCompactor_ = CreateStoreCompactor(this);
         StoreFlusher_ = CreateStoreFlusher(this);
         StoreRotator_ = CreateStoreRotator(this);
@@ -338,6 +340,7 @@ public:
         StoreFlusher_->Start();
         StoreTrimmer_->Start();
         HunkChunkSweeper_->Start();
+        StatisticsReporter_->Start();
         BackingStoreCleaner_->Start();
         LsmInterop_->Start();
         HintManager_->Start();
@@ -545,12 +548,13 @@ private:
     IStoreTrimmerPtr StoreTrimmer_;
     IHunkChunkSweeperPtr HunkChunkSweeper_;
     IPartitionBalancerPtr PartitionBalancer_;
+    TStatisticsReporterPtr StatisticsReporter_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
     TOverloadControllerPtr OverloadController_;
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         if (!GetConfig()->EnableFairThrottler) {
@@ -572,6 +576,8 @@ private:
         ReconfigureQueryAgent(bundleConfig, newConfig);
 
         OverloadController_->Reconfigure(newConfig->TabletNode->OverloadController);
+
+        StatisticsReporter_->Reconfigure(oldConfig, newConfig);
     }
 
     void OnBundleDynamicConfigChanged(

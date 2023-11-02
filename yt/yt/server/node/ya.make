@@ -138,6 +138,7 @@ SRCS(
     tablet_node/sorted_dynamic_comparer.cpp
     tablet_node/sorted_dynamic_store.cpp
     tablet_node/sorted_store_manager.cpp
+    tablet_node/statistics_reporter.cpp
     tablet_node/store.cpp
     tablet_node/store_compactor.cpp
     tablet_node/store_detail.cpp

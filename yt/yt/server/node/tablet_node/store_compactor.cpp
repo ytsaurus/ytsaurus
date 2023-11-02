@@ -1620,8 +1620,9 @@ private:
                 for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
-                tabletSnapshot->PerformanceCounters->PartitioningDataWeight +=
-                    writer->GetDataStatistics().data_weight();
+                tabletSnapshot->PerformanceCounters->PartitioningDataWeight.Counter.fetch_add(
+                    writer->GetDataStatistics().data_weight(),
+                    std::memory_order::relaxed);
             }
 
             YT_LOG_INFO("Eden partitioning completed "
@@ -2006,8 +2007,9 @@ private:
             for (const auto& chunkSpec : compactionResult.StoreWriter->GetWrittenChunkSpecs()) {
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
-            tabletSnapshot->PerformanceCounters->CompactionDataWeight +=
-                compactionResult.StoreWriter->GetDataStatistics().data_weight();
+            tabletSnapshot->PerformanceCounters->CompactionDataWeight.Counter.fetch_add(
+                compactionResult.StoreWriter->GetDataStatistics().data_weight(),
+                std::memory_order::relaxed);
 
             i64 outputTotalDataWeight = 0;
             for (const auto& statistics : finalizeResult.WriterStatistics) {
