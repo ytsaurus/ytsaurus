@@ -60,7 +60,7 @@ lazy val `spark-fork` = (project in file("spark-fork"))
 
 lazy val `cluster` = (project in file("spark-cluster"))
   .configs(IntegrationTest)
-  .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
+  .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test", `spark-patch`)
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= logging,
@@ -75,7 +75,8 @@ lazy val `cluster` = (project in file("spark-cluster"))
     zipMapping ++= Seq(
       (`data-source` / sourceDirectory).value / "main" / "spark-extra" / "bin" -> "",
       (`data-source` / sourceDirectory).value / "main" / "spark-extra" / "conf" -> "",
-      (`file-system` / assembly).value -> "jars"
+      (`file-system` / assembly).value -> "jars",
+      (`spark-patch` / Compile / packageBin).value -> "jars",
     ),
   )
   .settings(
@@ -260,6 +261,16 @@ lazy val maintenance = (project in file("maintenance"))
   .dependsOn(`data-source`)
   .settings(
     libraryDependencies ++= ytsaurusClient ++ sparkRuntime ++ circe ++ logging
+  )
+
+lazy val `spark-patch` = (project in file("spark-patch"))
+  .settings(
+    libraryDependencies ++= spark,
+    artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
+      artifact.name + "." + artifact.extension
+    },
+    Compile / packageBin / packageOptions +=
+      Package.ManifestAttributes(new java.util.jar.Attributes.Name("PreMain-Class") -> "tech.ytsaurus.spyt.patch.SparkPatchAgent")
   )
 
 // benchmark and test ----

@@ -42,8 +42,9 @@ trait SparkLauncher {
     }
   }
 
-  private def sparkHome: String = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
-  private def livyHome: String = new File(env("LIVY_HOME", "./livy")).getAbsolutePath
+  private val sparkHome: String = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
+  private val livyHome: String = new File(env("LIVY_HOME", "./livy")).getAbsolutePath
+  private val sparkPatchAgentOpt = Seq(s"-javaagent:$sparkHome/jars/spark-yt-spark-patch.jar")
 
   private def prepareSparkConf(): Unit = {
     copyToSparkConfIfExists("metrics.properties")
@@ -116,7 +117,7 @@ trait SparkLauncher {
       masterClass,
       config.memory,
       namedArgs = Map("host" -> ytHostnameOrIpAddress),
-      systemProperties = commonJavaOpts ++ reverseProxyUrlProp.toSeq
+      systemProperties = commonJavaOpts ++ reverseProxyUrlProp.toSeq ++ sparkPatchAgentOpt
     )
     val address = readAddressOrDie("master", config.startTimeout, thread)
     MasterService("Master", address, thread)
@@ -134,7 +135,7 @@ trait SparkLauncher {
         "host" -> ytHostnameOrIpAddress
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}"),
-      systemProperties = commonJavaOpts
+      systemProperties = commonJavaOpts ++ sparkPatchAgentOpt
     )
     val address = readAddressOrDie("worker", config.startTimeout, thread)
 
