@@ -32,7 +32,9 @@ void TIdsConfig::Register(TRegistrar registrar)
 void TUdsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path)
-        .Default();
+        .Default("/tmp/nbd.sock");
+    registrar.Parameter("max_backlog_size", &TThis::MaxBacklogSize)
+        .Default(1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,16 @@ void TNbdServerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("unix_domain_socket", &TThis::UnixDomainSocket)
         .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->InternetDomainSocket && config->UnixDomainSocket) {
+            THROW_ERROR_EXCEPTION("\"internet_domain_socket\" and \"unix_domain_socket\" cannot be both present");
+        }
+
+        if (!config->InternetDomainSocket && !config->UnixDomainSocket) {
+            THROW_ERROR_EXCEPTION("\"internet_domain_socket\" and \"unix_domain_socket\" cannot be both missing");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

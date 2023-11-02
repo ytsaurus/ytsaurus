@@ -61,6 +61,7 @@ class TUdsConfig
 {
 public:
     TString Path;
+    int MaxBacklogSize;
 
     REGISTER_YSON_STRUCT(TUdsConfig);
 

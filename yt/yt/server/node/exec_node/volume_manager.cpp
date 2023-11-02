@@ -1121,7 +1121,7 @@ private:
         auto timeout = nbdConfig->Client->Timeout.Seconds();
 
         if (nbdConfig->Server->UnixDomainSocket) {
-            builder.AppendFormat("unix+tcp://%v/?", nbdConfig->Server->UnixDomainSocket->Path);
+            builder.AppendFormat("unix+tcp:%v?", nbdConfig->Server->UnixDomainSocket->Path);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         } else {
             auto port = 10809;

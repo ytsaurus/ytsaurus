@@ -5,7 +5,6 @@
 #include "protocol.h"
 
 #include <yt/yt/core/net/address.h>
-
 #include <yt/yt/core/net/connection.h>
 #include <yt/yt/core/net/listener.h>
 
@@ -47,13 +46,40 @@ public:
     {
         YT_LOG_INFO("Starting NBD server");
 
-        if (Config_->InternetDomainSocket) {
+        try {
+            int maxBacklogSize = 0;
+            TNetworkAddress address;
+
+            if (Config_->UnixDomainSocket) {
+                maxBacklogSize = Config_->UnixDomainSocket->MaxBacklogSize;
+                address = TNetworkAddress::CreateUnixDomainSocketAddress(Config_->UnixDomainSocket->Path);
+
+                // Delete unix domain socket prior to binding.
+                if (unlink(Config_->UnixDomainSocket->Path.c_str()) == -1 && LastSystemError() != ENOENT) {
+                    THROW_ERROR_EXCEPTION(
+                        "Failed to remove unix domain socket %v",
+                        address)
+                    << TError::FromSystem();
+                }
+            } else if (Config_->InternetDomainSocket) {
+                maxBacklogSize = Config_->InternetDomainSocket->MaxBacklogSize;
+                address = TNetworkAddress::CreateIPv6Any(Config_->InternetDomainSocket->Port);
+            } else {
+                THROW_ERROR_EXCEPTION("NBD server config must contain socket section");
+            }
+
+            YT_LOG_INFO("Creating listener (Address: %v)", address);
+
             Listener_ = CreateListener(
-                TNetworkAddress::CreateIPv6Any(Config_->InternetDomainSocket->Port),
+                address,
                 Poller_,
                 Poller_,
-                Config_->InternetDomainSocket->MaxBacklogSize);
+                maxBacklogSize);
+
             AcceptConnection();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to start NBD server");
+            throw;
         }
 
         YT_LOG_INFO("Started NBD server");
