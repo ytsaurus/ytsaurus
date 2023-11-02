@@ -245,9 +245,9 @@ size_t TParallelFileReader::DoReadWithCallback(void* ptr, size_t size, DoReadCal
     if (curIdx <= size) {
         return curIdx;
     } else {
-        size_t prevIdx = curIdx - curBlob->Size();
         Y_ABORT_UNLESS(!BatchTail_);
         Y_ABORT_UNLESS(curBlob.has_value());
+        size_t prevIdx = curIdx - curBlob->Size();
 
         BatchTail_ = curBlob->SubBlob(size - prevIdx, curBlob->Size());
 
