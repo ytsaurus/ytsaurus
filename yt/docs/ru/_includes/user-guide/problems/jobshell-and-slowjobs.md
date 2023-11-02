@@ -11,7 +11,7 @@
 Подробное описание запуска Job Shell:
 
 ```bash
-yt --proxy cluster-name run-job-shell fcebe6b9-e06ab2e1-3fe0384-d0b66453
+$ yt --proxy cluster-name run-job-shell fcebe6b9-e06ab2e1-3fe0384-d0b66453
 Use ^F to terminate shell.
 
 Job environment:
