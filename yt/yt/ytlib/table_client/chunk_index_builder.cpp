@@ -273,7 +273,7 @@ private:
                 }
             }
 
-            auto paddingSize =
+            i64 paddingSize =
                 THashTableChunkIndexFormatDetail::SectorSize - (buffer - sectorStart) - sizeof(TChecksum);
             YT_VERIFY(paddingSize >= 0);
             WriteZeroes(buffer, paddingSize);
