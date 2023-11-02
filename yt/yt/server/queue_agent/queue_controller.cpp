@@ -313,7 +313,7 @@ public:
                 BIND(&TOrderedDynamicTableController::Export, MakeWeak(this)),
                 /*interval*/ std::nullopt))
         , QueueExporter_(New<TQueueExporter>(
-            ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster),
+            ClientDirectory_->GetUnderlyingClientDirectory(),
             Invoker_,
             Logger))
     {
@@ -438,7 +438,7 @@ private:
         }
 
         auto exportError = WaitFor(QueueExporter_->RunExportIteration(
-            QueueRef_.Path,
+            QueueRef_,
             *staticExportConfig));
         if (!exportError.IsOK()) {
             YT_LOG_ERROR(exportError, "Failed to perform static export for queue");
