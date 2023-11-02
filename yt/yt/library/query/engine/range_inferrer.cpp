@@ -373,7 +373,7 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
                 return TDivisors{value};
             } else if (binaryOp->Opcode == EBinaryOp::RightShift) {
                 TUnversionedValue value = literal->Value;
-                value.Data.Uint64 = 1 << value.Data.Uint64;
+                value.Data.Uint64 = static_cast<ui64>(1) << value.Data.Uint64;
                 value.Id = 0;
                 return TDivisors{value};
             }
