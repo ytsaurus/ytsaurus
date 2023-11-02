@@ -883,7 +883,7 @@ type OpletStatus struct {
 }
 
 func (oplet *Oplet) Status() (s OpletStatus, err error) {
-	s.State = GetOpState(oplet.ytOpStrawberrySpeclet, oplet.infoState)
+	s.State = GetOpState(oplet.strawberrySpeclet, oplet.infoState)
 	s.Creator = oplet.persistentState.Creator
 	s.Stage = oplet.ytOpStrawberrySpeclet.StageOrDefault()
 	s.CreationTime = getYSONTimePointerOrNil(oplet.infoState.CreationTime)
@@ -916,7 +916,7 @@ func (oplet *Oplet) Status() (s OpletStatus, err error) {
 		}
 	}
 
-	ctlAttributes, err := oplet.c.GetOpBriefAttributes(oplet.ytOpControllerSpeclet)
+	ctlAttributes, err := oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet)
 	if err != nil {
 		return
 	}

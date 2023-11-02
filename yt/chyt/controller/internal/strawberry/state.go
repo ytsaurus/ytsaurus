@@ -81,10 +81,11 @@ func GetOpState(speclet Speclet, infoState InfoState) OperationState {
 
 // GetOpBriefAttributes returns map with strawberry attributes, which can be requested from API.
 func GetOpBriefAttributes(
+	specletYson yson.RawValue,
 	persistentState PersistentState,
 	infoState InfoState,
 ) (map[string]any, error) {
-	speclet, err := ParseSpeclet(persistentState.YTOpSpeclet)
+	speclet, err := ParseSpeclet(specletYson)
 	if err != nil {
 		return nil, err
 	}

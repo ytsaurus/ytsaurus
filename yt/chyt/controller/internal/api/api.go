@@ -415,36 +415,41 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 		attributesToList = []string{
 			"strawberry_persistent_state",
 			"strawberry_info_state",
+			"value",
 		}
 	}
 
-	var ops []struct {
-		Alias           string                     `yson:",value"`
+	var ops map[string]struct {
 		InfoState       strawberry.InfoState       `yson:"strawberry_info_state,attr"`
 		PersistentState strawberry.PersistentState `yson:"strawberry_persistent_state,attr"`
+		Speclet         struct {
+			Value yson.RawValue `yson:"value,attr"`
+		} `yson:"speclet"`
 	}
-	err := a.ytc.ListNode(
+
+	err := a.ytc.GetNode(
 		ctx,
 		a.cfg.AgentInfo.StrawberryRoot,
 		&ops,
-		&yt.ListNodeOptions{Attributes: attributesToList})
+		&yt.GetNodeOptions{Attributes: attributesToList})
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]AliasWithAttrs, len(ops))
-	for i, op := range ops {
+	result := make([]AliasWithAttrs, 0, len(ops))
+	for alias, op := range ops {
 		var resultAttrs map[string]any
 
 		if len(attributes) != 0 {
 			strawberryAttrs, err := strawberry.GetOpBriefAttributes(
+				op.Speclet.Value,
 				op.PersistentState,
 				op.InfoState)
 			if err != nil {
 				return nil, err
 			}
 
-			speclet, err := a.ctl.ParseSpeclet(op.PersistentState.YTOpSpeclet)
+			speclet, err := a.ctl.ParseSpeclet(op.Speclet.Value)
 			if err != nil {
 				return nil, err
 			}
@@ -474,10 +479,10 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 			}
 		}
 
-		result[i] = AliasWithAttrs{
-			Alias: op.Alias,
+		result = append(result, AliasWithAttrs{
+			Alias: alias,
 			Attrs: resultAttrs,
-		}
+		})
 	}
 
 	return result, nil

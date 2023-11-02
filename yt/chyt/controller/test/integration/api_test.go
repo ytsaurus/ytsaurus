@@ -809,3 +809,93 @@ func TestHTTPAPISetInt64ValueUsingJSONFormat(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resultWithOption["result"])
 }
+
+func checkStateWithStatus(
+	t *testing.T,
+	c *helpers.RequestClient,
+	alias string,
+	expected strawberry.OperationState,
+) {
+	t.Helper()
+
+	r := c.MakePostRequest("status", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+	var statusResult map[string]strawberry.OpletStatus
+	require.NoError(t, yson.Unmarshal(r.Body, &statusResult))
+	require.Equal(t, expected, statusResult["result"].State)
+}
+
+func checkStateWithList(
+	t *testing.T,
+	c *helpers.RequestClient,
+	alias string,
+	expected strawberry.OperationState,
+) {
+	t.Helper()
+
+	r := c.MakePostRequest("list", api.RequestParams{
+		Params: map[string]any{
+			"attributes": []string{"state"},
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+	var listResult map[string][]yson.ValueWithAttrs
+	require.NoError(t, yson.Unmarshal(r.Body, &listResult))
+	require.Contains(t, listResult["result"], yson.ValueWithAttrs{
+		Value: alias,
+		Attrs: map[string]any{
+			"state": string(expected),
+		},
+	})
+}
+
+func TestHTTPAPIStateAfterStartAndStop(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	pool := guid.New().String()
+	_, err := env.YT.CreateObject(env.Ctx, yt.NodeSchedulerPool, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name":      pool,
+			"pool_tree": "default",
+		},
+	})
+	require.NoError(t, err)
+
+	r = c.MakePostRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "pool",
+			"value": pool,
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("start", api.RequestParams{
+		Params: map[string]any{
+			"alias":     alias,
+			"untracked": false,
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	checkStateWithList(t, c, alias, strawberry.StateActive)
+	checkStateWithStatus(t, c, alias, strawberry.StateActive)
+
+	r = c.MakePostRequest("stop", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	checkStateWithList(t, c, alias, strawberry.StateInactive)
+	checkStateWithStatus(t, c, alias, strawberry.StateInactive)
+}
