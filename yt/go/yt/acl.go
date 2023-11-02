@@ -6,15 +6,16 @@ import "golang.org/x/xerrors"
 type Permission = string
 
 const (
-	PermissionRead           Permission = "read"
-	PermissionWrite          Permission = "write"
-	PermissionUse            Permission = "use"
-	PermissionAdminister     Permission = "administer"
-	PermissionCreate         Permission = "create"
-	PermissionRemove         Permission = "remove"
-	PermissionMount          Permission = "mount"
-	PermissionManage         Permission = "manage"
-	PermissionModifyChildren Permission = "modify_children"
+	PermissionRead                  Permission = "read"
+	PermissionWrite                 Permission = "write"
+	PermissionUse                   Permission = "use"
+	PermissionAdminister            Permission = "administer"
+	PermissionCreate                Permission = "create"
+	PermissionRemove                Permission = "remove"
+	PermissionMount                 Permission = "mount"
+	PermissionManage                Permission = "manage"
+	PermissionModifyChildren        Permission = "modify_children"
+	PermissionRegisterQueueConsumer Permission = "register_queue_consumer"
 )
 
 type SecurityAction string
@@ -59,6 +60,8 @@ func ConvertPermissionType(typ *Permission) (*int32, error) {
 		ret = 0x0800
 	case PermissionModifyChildren:
 		ret = 0x1000
+	case PermissionRegisterQueueConsumer:
+		ret = 0x0010
 	default:
 		return nil, xerrors.Errorf("unexpected permission type %q", *typ)
 	}
