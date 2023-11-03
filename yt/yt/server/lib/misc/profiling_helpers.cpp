@@ -189,18 +189,26 @@ void THeapUsageProfiler::UpdateGauges()
 
     for (const auto& tagType : TagTypes_) {
         auto& heapUsageMap = HeapUsageByType_.emplace(tagType, THashMap<TString, TGauge>{}).first->second;
+        const auto& snapshotSlice = memorySnapshot->GetUsage(tagType);
 
-        for (const auto& [tag, usage] : memorySnapshot->GetUsage(tagType)) {
+        for (auto &[tag, gauge] : heapUsageMap) {
+            if (const auto& iter = snapshotSlice.find(tag)) {
+                gauge.Update(iter->second);
+            } else {
+                gauge.Update(0.0);
+            }
+        }
+
+        for (const auto& [tag, usage] : snapshotSlice) {
             auto gauge = heapUsageMap.find(tag);
 
             if (gauge.IsEnd()) {
-                auto pair = heapUsageMap.emplace(tag, Profiler_
+                gauge = heapUsageMap.emplace(tag, Profiler_
                     .WithTag(tagType, tag)
-                    .Gauge(tagType));
-                gauge = pair.first;
+                    .Gauge(tagType))
+                    .first;
+                gauge->second.Update(usage);
             }
-
-            gauge->second.Update(usage);
         }
     }
 }

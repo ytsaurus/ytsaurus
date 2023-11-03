@@ -1282,6 +1282,50 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestRpcProxyEliminateHeapUsage(TestRpcProxyHeapUsageStatisticsBase):
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "testing": {
+                "heap_profiler": {
+                    "allocation_size": 20 * 1024 ** 2,
+                    "allocation_release_delay" : 20 * 1000,
+                },
+            },
+        },
+    }
+
+    @authors("ni-stoiko")
+    def test_eliminate_usage(self):
+        user = "u3"
+        self.prepare_allocation("rpc_proxies", user)
+
+        rpc_proxies = ls("//sys/rpc_proxies")
+        assert len(rpc_proxies) == 1
+
+        def get_usage(path, tag):
+            profiler = profiler_factory().at_rpc_proxy(rpc_proxies[0])
+            statistics = profiler.gauge(path).get_all()
+
+            for stat in statistics:
+                if stat["tags"] and tag == stat["tags"]:
+                    return stat["value"]
+            return -1
+
+        wait(lambda: get_usage("heap_usage/rpc", {"rpc": "StartTransaction"}) > 5 * 1024 ** 2)
+        wait(lambda: get_usage("heap_usage/rpc", {"rpc": "ModifyRows"}) > 5 * 1024 ** 2)
+        wait(lambda: get_usage("heap_usage/user", {"user": user}) > 5 * 1024 ** 2)
+
+        time.sleep(30)
+
+        wait(lambda: abs(get_usage("heap_usage/rpc", {"rpc": "StartTransaction"})) < 0.1)
+        wait(lambda: abs(get_usage("heap_usage/rpc", {"rpc": "ModifyRows"})) < 0.1)
+        wait(lambda: abs(get_usage("heap_usage/user", {"user": user})) < 0.1)
+
+
+##################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
     @authors("ni-stoiko")
     def test_null_api_testing_options(self):
