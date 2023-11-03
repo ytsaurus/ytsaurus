@@ -402,7 +402,7 @@ ORDER BY gpu_limit DESC;
   ))
   -- Прочитать таблицы с определенным суффиксом:
   SELECT * FROM ytTables((
-    SELECT path + '/suffix' FROM ytListNodes('//tmp/dir')
+    SELECT concat(path, '/suffix') FROM ytListNodes('//tmp/dir')
   ))
   ```
 
