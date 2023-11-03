@@ -107,13 +107,13 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     YT_VERIFY(artifactKey.has_nbd_export_id());
 
     YT_LOG_INFO("Creating NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
-        artifactKey.file_path(),
+        artifactKey.data_source().path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs_size());
 
     auto config = New<TCypressFileBlockDeviceConfig>();
-    config->Path = artifactKey.file_path();
+    config->Path = artifactKey.data_source().path();
     if (config->Path.empty()) {
         THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
             << TErrorAttribute("type_name", artifactKey.GetTypeName())
@@ -124,7 +124,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     if (artifactKey.filesystem() != "ext4" && artifactKey.filesystem() != "squashfs") {
         THROW_ERROR_EXCEPTION("Unexpected filesystem for filesystem layer")
             << TErrorAttribute("type_name", artifactKey.GetTypeName())
-            << TErrorAttribute("file_path", artifactKey.file_path())
+            << TErrorAttribute("file_path", artifactKey.data_source().path())
             << TErrorAttribute("filesystem", artifactKey.filesystem())
             << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
     }
@@ -138,7 +138,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
         Logger);
 
     YT_LOG_INFO("Created NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
-        artifactKey.file_path(),
+        artifactKey.data_source().path(),
         artifactKey.filesystem(),
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs_size());
@@ -1138,7 +1138,7 @@ private:
         TVolumeMeta volumeMeta;
         volumeMeta.set_type(ToProto<int>(EVolumeType::Nbd));
         volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
-        volumeMeta.add_layer_paths("nbd:" + artifactKey.file_path());
+        volumeMeta.add_layer_paths("nbd:" + artifactKey.data_source().path());
 
         return DoCreateVolume(
             tag,
@@ -2265,7 +2265,7 @@ public:
         YT_LOG_DEBUG("Removing NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
             volumeId,
             ArtifactKey_.nbd_export_id(),
-            ArtifactKey_.file_path());
+            ArtifactKey_.data_source().path());
 
         // At first remove volume, then unregister export.
         auto future = Location_->RemoveVolume(VolumeMeta_.Id);
@@ -2273,7 +2273,7 @@ public:
             YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
                 volumeId,
                 layer.nbd_export_id(),
-                layer.file_path());
+                layer.data_source().path());
 
             nbdServer->TryUnregisterDevice(layer.nbd_export_id());
         }));
@@ -2554,23 +2554,23 @@ private:
         try {
             THROW_ERROR_EXCEPTION_IF(!layer.has_filesystem(),
                 "NBD layer %v does not have filesystem",
-                layer.file_path());
+                layer.data_source().path());
 
             THROW_ERROR_EXCEPTION_IF(!layer.has_nbd_export_id(),
                 "NBD layer %v does not have export id",
-                layer.file_path());
+                layer.data_source().path());
 
             YT_LOG_DEBUG("Preparing NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
                 tag,
                 layer.nbd_export_id(),
-                layer.file_path(),
+                layer.data_source().path(),
                 layer.filesystem());
 
             auto nbdServer = Bootstrap_->GetNbdServer();
             if (!nbdServer) {
                 auto error = TError("NBD server is not present")
                     << TErrorAttribute("export_id", layer.nbd_export_id())
-                    << TErrorAttribute("path", layer.file_path())
+                    << TErrorAttribute("path", layer.data_source().path())
                     << TErrorAttribute("filesystem", layer.filesystem());
                 YT_LOG_ERROR(error, "Failed to prepare NBD export");
                 return MakeFuture<void>(error);
@@ -2659,7 +2659,7 @@ private:
         YT_LOG_DEBUG("Creating NBD volume (Tag: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,
             artifactKey.nbd_export_id(),
-            artifactKey.file_path(),
+            artifactKey.data_source().path(),
             artifactKey.filesystem());
 
         auto nbdConfig = Bootstrap_->GetNbdConfig();
@@ -2668,7 +2668,7 @@ private:
         if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {
             auto error = TError("NBD is not configured")
                 << TErrorAttribute("export_id", artifactKey.nbd_export_id())
-                << TErrorAttribute("path", artifactKey.file_path())
+                << TErrorAttribute("path", artifactKey.data_source().path())
                 << TErrorAttribute("filesystem", artifactKey.filesystem());
             YT_LOG_ERROR(error, "Failed to create NBD volume");
             THROW_ERROR_EXCEPTION(error);
@@ -2689,7 +2689,7 @@ private:
             tag,
             volumeMeta.Id,
             artifactKey.nbd_export_id(),
-            artifactKey.file_path(),
+            artifactKey.data_source().path(),
             artifactKey.filesystem());
 
         return volume;

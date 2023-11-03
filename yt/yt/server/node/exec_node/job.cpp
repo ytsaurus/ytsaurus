@@ -2202,7 +2202,7 @@ void TJob::CleanupNbdExports()
             if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
                 YT_LOG_ERROR("NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
                     artifactKey.nbd_export_id(),
-                    artifactKey.file_path());
+                    artifactKey.data_source().path());
                 nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
             }
         }
