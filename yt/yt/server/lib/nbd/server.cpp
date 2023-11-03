@@ -76,6 +76,8 @@ public:
                 Poller_,
                 maxBacklogSize);
 
+            YT_LOG_INFO("Created listener (Address: %v)", address);
+
             AcceptConnection();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Failed to start NBD server");

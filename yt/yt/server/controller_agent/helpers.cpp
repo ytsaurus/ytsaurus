@@ -201,7 +201,6 @@ void BuildFileSpec(
         switch (file.Type) {
             case EObjectType::File:
                 descriptor->set_filesystem(*file.Filesystem);
-                descriptor->set_file_path(ToString(file.Path));
                 break;
             default:
                 YT_ABORT();
