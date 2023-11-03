@@ -45,16 +45,21 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
     auto queryTrackerConfig = Connection_->GetConfig()->QueryTracker;
     if (ssize(options.Files) > queryTrackerConfig->MaxQueryFileCount) {
         THROW_ERROR_EXCEPTION("Too many files: limit is %v, actual count is %v",
-            queryTrackerConfig->MaxQueryFileCount, options.Files.size());
+            queryTrackerConfig->MaxQueryFileCount,
+            options.Files.size());
     }
     for (const auto& file : options.Files) {
         if (ssize(file->Name) > queryTrackerConfig->MaxQueryFileNameSizeBytes) {
             THROW_ERROR_EXCEPTION("Too large file %v name: limit is %v, actual size is %v",
-                file->Name, queryTrackerConfig->MaxQueryFileNameSizeBytes, file->Name.size());
+                file->Name,
+                queryTrackerConfig->MaxQueryFileNameSizeBytes,
+                file->Name.size());
         }
         if (ssize(file->Content) > queryTrackerConfig->MaxQueryFileContentSizeBytes) {
             THROW_ERROR_EXCEPTION("Too large file %v content: limit is %v, actual size is %v",
-                file->Name, queryTrackerConfig->MaxQueryFileContentSizeBytes, file->Content.size());
+                file->Name,
+                queryTrackerConfig->MaxQueryFileContentSizeBytes,
+                file->Content.size());
         }
     }
 

@@ -168,7 +168,7 @@ private:
             std::vector<NYqlPlugin::TQueryFile> files;
             files.reserve(yqlRequest.files_size());
             for (const auto& file : yqlRequest.files()) {
-                files.push_back(NYqlPlugin::TQueryFile {
+                files.push_back(NYqlPlugin::TQueryFile{
                     .Name = file.name(),
                     .Content = file.content(),
                     .Type = static_cast<EQueryFileContentType>(file.type()),

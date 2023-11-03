@@ -30,9 +30,9 @@ class TQueryTrackerConnectionConfig
 public:
     THashMap<TString, TQueryTrackerStageConfigPtr> Stages;
 
-    int MaxQueryFileCount;
-    int MaxQueryFileNameSizeBytes;
-    int MaxQueryFileContentSizeBytes;
+    i64 MaxQueryFileCount;
+    i64 MaxQueryFileNameSizeBytes;
+    i64 MaxQueryFileContentSizeBytes;
 
     REGISTER_YSON_STRUCT(TQueryTrackerConnectionConfig);
 
