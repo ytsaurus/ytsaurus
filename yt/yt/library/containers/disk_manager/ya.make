@@ -13,13 +13,7 @@ SRCS(
 )
 
 IF (NOT OPENSOURCE)
-    SRCS(
-        GLOBAL disk_manager_proxy_impl.cpp
-    )
-
-    PEERDIR(
-        infra/diskmanager/proto
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()

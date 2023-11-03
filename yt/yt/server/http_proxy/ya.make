@@ -33,13 +33,7 @@ IF (OPENSOURCE)
         library/cpp/blockcodecs/core
     )
 ELSE()
-    SRCS(compression_yandex.cpp)
-
-    PEERDIR(
-        library/cpp/streams/lzop
-        library/cpp/streams/lz
-        library/cpp/blockcodecs
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 PEERDIR(

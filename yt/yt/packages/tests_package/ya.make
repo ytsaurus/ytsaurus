@@ -10,9 +10,7 @@ PEERDIR(
 )
     
 IF (NOT OPENSOURCE)
-    PEERDIR(
-        contrib/tools/logrotate
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()

@@ -15,16 +15,7 @@ PEERDIR(
 )
 
 IF(NOT OPENSOURCE)
-    SRCS(
-        GLOBAL tvm_service_yandex.cpp
-    )
-
-    PEERDIR(
-        library/cpp/tvmauth
-        library/cpp/tvmauth/client
-        library/cpp/tvmauth/client/misc/api/dynamic_dst
-        yt/yt/library/tvm
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()

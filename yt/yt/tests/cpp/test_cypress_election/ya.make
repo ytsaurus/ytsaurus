@@ -22,7 +22,7 @@ TAG(ya:huge_logs)
 
 # remove after YT-19477
 IF (OPENSOURCE)
-  TAG(ya:not_autocheck)
+    TAG(ya:not_autocheck)
 ENDIF()
 
 IF (YT_TEAMCITY)

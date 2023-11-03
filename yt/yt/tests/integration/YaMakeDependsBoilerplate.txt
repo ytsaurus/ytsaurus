@@ -18,9 +18,7 @@ DEPENDS(
 )
 
 IF (NOT OPENSOURCE)
-    DEPENDS(
-        passport/infra/daemons/tvmtool/cmd
-    )
+    INCLUDE(YaMakeDependsNonOpensource.txt)
 ENDIF()
 
 DEPENDS(

@@ -14,9 +14,7 @@ EXPLICIT_DATA()
 DATA(arcadia/yt/yt/tests/cpp/test_rpc_api/config.yson)
 
 IF(NOT OPENSOURCE)
-    SRCS(
-        test_rpc_api_tvm.cpp
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)

@@ -19,9 +19,7 @@ PEERDIR(
 )
 
 IF (NOT OPENSOURCE)
-    PEERDIR(
-        infra/rsm/nvgpumanager/api
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()

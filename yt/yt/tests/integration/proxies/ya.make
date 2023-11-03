@@ -21,15 +21,7 @@ PEERDIR(
 )
 
 IF (NOT OPENSOURCE)
-    PEERDIR(
-        library/python/tvmauth
-        yt/yt/tests/integration/helpers
-    )
-
-    TEST_SRCS(
-        test_proxy_heap_profile.py
-        test_yandex_auth.py
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()

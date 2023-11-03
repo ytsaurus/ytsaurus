@@ -24,13 +24,7 @@ DEPENDS(
 EXPLICIT_DATA()
 
 IF (NOT OPENSOURCE)
-    SRCS(
-        volume_manager_ut.cpp
-    )
-
-    DEPENDS(
-        yt/go/tar2squash
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 TAG(

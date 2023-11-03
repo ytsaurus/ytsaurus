@@ -24,15 +24,7 @@ PEERDIR(
 )
 
 IF (NOT OPENSOURCE)
-    SRCS(
-        GLOBAL gpu_info_provider_impl.cpp
-    )
-    BUNDLE(
-        yt/go/tar2squash
-    )
-    RESOURCE(
-        tar2squash /tar2squash
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()

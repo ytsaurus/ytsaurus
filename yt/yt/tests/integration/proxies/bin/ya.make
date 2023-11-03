@@ -7,9 +7,7 @@ DEPENDS(
 )
 
 IF (NOT OPENSOURCE)
-    DEPENDS(
-        passport/infra/daemons/tvmtool/cmd
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)

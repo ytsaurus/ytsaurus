@@ -15,11 +15,7 @@ PEERDIR(
 EXPLICIT_DATA()
 
 IF(NOT OPENSOURCE)
-    DATA(arcadia/library/cpp/tvmauth/client/ut/files)
-
-    SRCS(
-        tvm_ut.cpp
-    )
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()
