@@ -1,6 +1,7 @@
 #!/bin/bash -eu
 
-export SOURCE_ROOT="$(pwd)"
+export SCRIPT_DIR="$(dirname "$0")"
+export SOURCE_ROOT="$(cd "$SCRIPT_DIR/../../../" && pwd)"
 export BUILD_ROOT="$(realpath ../build)"
 export PYTHON_ROOT="$(realpath ../python)"
 export VIRTUALENV_PATH="$(realpath ../venv)"

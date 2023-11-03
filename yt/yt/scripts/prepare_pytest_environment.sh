@@ -1,4 +1,7 @@
-export SOURCE_ROOT="$(pwd)/ytsaurus"
+#!/bin/bash -eu
+
+export SCRIPT_DIR="$(dirname "$0")"
+export SOURCE_ROOT="$(cd "$SCRIPT_DIR/../../../" && pwd)"
 export BUILD_ROOT="$(realpath ../build)"
 export PYTHON_ROOT="$(realpath ../python)"
 export VIRTUALENV_PATH="$(realpath ../venv)"
@@ -10,7 +13,7 @@ mkdir "$PYTHON_ROOT"
 
 pip3 install -e ${SOURCE_ROOT}/yt/python/packages
 
-${SOURCE_ROOT}/yt/python/packages/yt_setup/generate_python_proto.py \
+generate_python_proto \
     --source-root "$SOURCE_ROOT" \
     --output "$PYTHON_ROOT"
 
