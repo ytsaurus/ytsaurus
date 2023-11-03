@@ -211,13 +211,13 @@ INITIAL_TABLE_INFOS = {
             ("state", "string"),
             ("authenticated_user", "string"),
             ("operation_type", "string"),
-            ("progress", "any", "controller_agent"),
+            ("progress", "any", {"lock": "controller_agent"}),
             ("provided_spec", "any"),
             ("spec", "any"),
             ("full_spec", "any"),
             ("experiment_assignments", "any"),
             ("experiment_assignment_names", "any"),
-            ("brief_progress", "any", "controller_agent"),
+            ("brief_progress", "any", {"lock": "controller_agent"}),
             ("brief_spec", "any"),
             ("start_time", "int64"),
             ("finish_time", "int64"),
@@ -348,6 +348,65 @@ TRANSFORMS[48] = [
             ],
             default_lock="operations_cleaner",
             attributes={"atomicity": "none"})),
+]
+
+TRANSFORMS[49] = [
+    Conversion(
+        "job_specs",
+        table_info=TableInfo(
+            [
+                ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+            ], [
+                ("spec", "string", {"max_inline_hunk_size": 64}),
+                ("spec_version", "int64"),
+                ("type", "string"),
+            ],
+            get_pivot_keys=get_default_pivots,
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+    Conversion(
+        "stderrs",
+        table_info=TableInfo(
+            [
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("stderr", "string", {"max_inline_hunk_size": 512}),
+            ],
+            get_pivot_keys=get_default_pivots,
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+    Conversion(
+        "job_profiles",
+        table_info=TableInfo(
+            [
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+                ("part_index", "int64"),
+            ], [
+                ("profile_type", "string"),
+                ("profile_blob", "string", {"max_inline_hunk_size": 64}),
+                ("profiling_probability", "double"),
+            ],
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
 ]
 
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp

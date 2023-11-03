@@ -82,13 +82,16 @@ class TableInfo(object):
 
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None,
                  default_lock=None, optimize_for="scan", attributes={}):
-        def make_column(name, type_name, lock=default_lock, key=False):
+        def make_column(name, type_name, attributes={}, key=False):
             result = {
                 "name": name,
                 "type": type_name,
             }
+            lock = attributes.get("lock", default_lock)
             if not key and lock is not None:
                 result["lock"] = lock
+            if "max_inline_hunk_size" in attributes:
+                result["max_inline_hunk_size"] = attributes["max_inline_hunk_size"]
             return result
 
         def make_key_column(name, type_name, expression=None):
