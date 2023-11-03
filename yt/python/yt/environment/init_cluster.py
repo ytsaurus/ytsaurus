@@ -397,7 +397,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
             get_values = []
             for rsp in rsps:
                 assert rsp.is_ok()
-                get_values.append(rsp.get_value())
+                get_values.append(rsp.get_result())
             if all(value == "creation_committed" for value in get_values):
                 break
 
