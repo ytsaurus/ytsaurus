@@ -5244,9 +5244,7 @@ private:
             builder.AppendFormat("[%v] in (", column);
             JoinToString(&builder, chunkIds.begin(), chunkIds.end(), formatter, ", ");
             builder.AppendChar(')');
-            auto filter = builder.Flush();
-            fprintf(stderr, "DoGetSequoiaChunkReplicas: %s\n", filter.c_str());
-            return filter;
+            return builder.Flush();
         };
 
         return Bootstrap_
