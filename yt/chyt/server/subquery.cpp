@@ -1062,9 +1062,9 @@ std::vector<TSubquery> BuildThreadSubqueries(
             auto fullStripeList = New<TChunkStripeList>();
             fullStripeList->Stripes.resize(inputStripeList->Stripes.size());
             for (auto& stripe : subquery.StripeList->Stripes) {
-                size_t operandIndex = stripe->GetInputStreamIndex();
+                int operandIndex = stripe->GetInputStreamIndex();
                 YT_VERIFY(operandIndex >= 0);
-                YT_VERIFY(operandIndex < fullStripeList->Stripes.size());
+                YT_VERIFY(operandIndex < std::ssize(fullStripeList->Stripes));
                 YT_VERIFY(!fullStripeList->Stripes[operandIndex]);
                 fullStripeList->Stripes[operandIndex] = std::move(stripe);
                 AccountStripeInList(fullStripeList->Stripes[operandIndex], fullStripeList);
