@@ -9,12 +9,8 @@ namespace NYT::NSecurityClient {
 void TPermissionCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("master_read_options", &TThis::MasterReadOptions)
-        .DefaultCtor([] {
-            auto options = New<NApi::TSerializableMasterReadOptions>();
-            options->ReadFrom = NApi::EMasterChannelKind::Cache;
-            options->CacheStickyGroupSize = 1;
-            return options;
-        });
+        .DefaultNew();
+
     registrar.Parameter("refresh_user", &TThis::RefreshUser)
         // COMPAT(babenko): separate user
         .Default(RootUserName);
@@ -27,6 +23,9 @@ void TPermissionCacheConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Preprocessor([] (TThis* config) {
+        config->MasterReadOptions->ReadFrom = NApi::EMasterChannelKind::Cache;
+        config->MasterReadOptions->CacheStickyGroupSize = 1;
+
         config->ExpireAfterAccessTime = TDuration::Minutes(5);
         config->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(3);
         config->RefreshTime = TDuration::Minutes(1);
