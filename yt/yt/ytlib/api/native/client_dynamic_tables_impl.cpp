@@ -304,7 +304,7 @@ private:
 
 using TStickyTableMountInfoCachePtr = TIntrusivePtr<TStickyTableMountInfoCache>;
 
-void TransformWithIndexStatement(NAst::TAstHead* head, const TStickyTableMountInfoCachePtr& cache)
+void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCachePtr cache)
 {
     auto& query = std::get<NAst::TQuery>(head->Ast);
     if (!query.WithIndex) {

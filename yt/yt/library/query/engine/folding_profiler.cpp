@@ -1118,7 +1118,7 @@ void TQueryProfiler::Profile(
                 intermediateSlot,
                 newFinalSlot);
 
-             intermediateSlot = dummySlot;
+            intermediateSlot = dummySlot;
         } else if (mergeMode) {
             intermediateSlot = MakeCodegenMergeOp(
                 codegenSource,
@@ -1126,7 +1126,7 @@ void TQueryProfiler::Profile(
                 intermediateSlot,
                 newFinalSlot);
 
-             newFinalSlot = dummySlot;
+            newFinalSlot = dummySlot;
         }
 
         size_t keySize = groupClause->GroupItems.size();
@@ -1455,7 +1455,6 @@ void TQueryProfiler::Profile(
 
                 // (join key... , other columns...)
                 auto projectClause = New<TProjectClause>();
-                std::vector<TConstExpressionPtr> joinKeyExprs;
 
                 for (const auto& column : foreignEquations) {
                     projectClause->AddProjection(column, InferName(column));
