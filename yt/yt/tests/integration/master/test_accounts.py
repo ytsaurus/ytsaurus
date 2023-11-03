@@ -2323,12 +2323,13 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             set("//tmp/t/@account", self._root_account_name)
 
+        # NB: "resource_limits" should be in attributes since we requested them
+        # as superuser.
         root_attributes = get("//sys/accounts/{0}/@".format(self._root_account_name))
         for attribute in [
             "resource_usage",
             "committed_resource_usage",
             "multicell_statistics",
-            "resource_limits",
             "upper_resource_limits",
             "own_resource_limits",
             "violated_resource_limits",

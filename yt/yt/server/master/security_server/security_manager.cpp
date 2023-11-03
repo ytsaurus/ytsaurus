@@ -3203,6 +3203,8 @@ private:
             TableMountInformerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
             TableMountInformerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
+
+        InitializeRootAccount();
     }
 
     struct TAccountResourceUsage
@@ -3704,6 +3706,14 @@ private:
         return builtin;
     }
 
+    void InitializeRootAccount()
+    {
+        if (EnsureBuiltinAccountInitialized(RootAccount_, RootAccountId_, RootAccountName)) {
+            RootAccount_->ClusterResourceLimits() = TClusterResourceLimits::Infinity();
+        }
+        RootAccount_->SetAllowChildrenLimitOvercommit(true);
+    }
+
     void InitBuiltins()
     {
         // Groups
@@ -3831,10 +3841,7 @@ private:
 
         // Accounts
         // root, infinite resources, not meant to be used
-        if (EnsureBuiltinAccountInitialized(RootAccount_, RootAccountId_, RootAccountName)) {
-            RootAccount_->ClusterResourceLimits() = TClusterResourceLimits::Infinity();
-        }
-        RootAccount_->SetAllowChildrenLimitOvercommit(true);
+        InitializeRootAccount();
 
         auto defaultResources = TClusterResourceLimits()
             .SetNodeCount(TLimit64(100'000))

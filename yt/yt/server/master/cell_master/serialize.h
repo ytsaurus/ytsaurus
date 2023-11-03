@@ -178,11 +178,13 @@ DEFINE_ENUM(EMasterReign,
     ((DisposalNodesLimit)                                           (2441))  // cherepashka
     ((FixTransientAbort_23_2)                                       (2442))  // babenko
     ((ZombieACOs)                                                   (2443))  // shakurov
+    ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
     ((RemoveChunkJobDynamicConfig)                                  (2502))  // danilalexeev
     ((SecondaryIndexUnmountedCheck)                                 (2503))  // sabdenovch
+    ((ReinitializeRootResourceLimits)                               (2504))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
