@@ -203,7 +203,7 @@ PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
 PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
 ```
 
-## Работа с Кипарисом 
+## Работа с Кипарисом
 
 Подробную информацию про дерево метаинформации можно найти в статье [Кипарис](../../user-guide/storage/cypress.md).
 
@@ -320,11 +320,11 @@ PARAMETERS { "path" = "//tmp/table" }
 ```bash
 PARAMETERS { "path" = "//tmp/node" }
 INPUT {
-INPUT   "my_integer" = 4 ;
-INPUT   "my_double" = 2.718281828 ;
-INPUT   "map" = { "a" = 1 ; "b" = 2 } ;
-INPUT   "list" = [ 1, 2, 3 ]
-INPUT }
+    "my_integer" = 4 ;
+    "my_double" = 2.718281828 ;
+    "map" = { "a" = 1 ; "b" = 2 } ;
+    "list" = [ 1, 2, 3 ]
+}
 ```
 
 ### multiset_attributes
@@ -355,9 +355,9 @@ INPUT }
 ```bash
 PARAMETERS { "path" = "//tmp/node/@" }
 INPUT {
-INPUT   "attribute1" = 4 ;
-INPUT   "attribute2" = "attribute2 value";
-INPUT }
+    "attribute1" = 4 ;
+    "attribute2" = "attribute2 value";
+}
 ```
 
 ### get { #get }
@@ -391,11 +391,11 @@ INPUT }
 ```bash
 PARAMETERS { "path" = "//tmp/node" }
 OUTPUT {
-OUTPUT   "my_integer" = 4 ;
-OUTPUT   "my_double" = 2.718281828 ;
-OUTPUT   "map" = { "a" = 1 ; "b" = 2 } ;
-OUTPUT   "list" = [ 1, 2, 3 ]
-OUTPUT }
+    "my_integer" = 4 ;
+    "my_double" = 2.718281828 ;
+    "map" = { "a" = 1 ; "b" = 2 } ;
+    "list" = [ 1, 2, 3 ]
+}
 ```
 
 ### list { #list }
@@ -428,11 +428,11 @@ OUTPUT }
 ```bash
 PARAMETERS { "path" = "//tmp/node" }
 OUTPUT [
-OUTPUT   "home" ;
-OUTPUT   "sys" ;
-OUTPUT   "statbox" ;
-OUTPUT   "tmp"
-OUTPUT ]
+    "home" ;
+    "sys" ;
+    "statbox" ;
+    "tmp"
+]
 ```
 
 ### lock
@@ -556,9 +556,9 @@ PARAMETERS { "path" = "//tmp/node" }
 
 ```bash
 PARAMETERS {
-PARAMETERS   "source_path" = "//tmp/from" ;
-PARAMETER    "destination_path" = "//tmp/to" ;
-PARAMETERS }
+    "source_path" = "//tmp/from" ;
+    "destination_path" = "//tmp/to" ;
+}
 OUTPUT "0-4-191-6c07cd58"
 ```
 
@@ -593,9 +593,9 @@ OUTPUT "0-4-191-6c07cd58"
 
 ```bash
 PARAMETERS {
-PARAMETERS   "source_path" = "//tmp/from" ;
-PARAMETER    "destination_path" = "//tmp/to" ;
-PARAMETERS }
+    "source_path" = "//tmp/from" ;
+    "destination_path" = "//tmp/to" ;
+}
 ```
 
 ### link { #link }
@@ -631,9 +631,9 @@ PARAMETERS }
 
 ```bash
 PARAMETERS {
-PARAMETERS   "target_path" = "//tmp/from" ;
-PARAMETER    "link_path" = "//tmp/to" ;
-PARAMETERS }
+    "target_path" = "//tmp/from" ;
+    "link_path" = "//tmp/to" ;
+}
 OUTPUT "0-4-191-6c07cd58"
 ```
 
@@ -664,8 +664,8 @@ OUTPUT "0-4-191-6c07cd58"
 
 ```bash
 PARAMETERS {
-PARAMETERS   "path" = "//tmp/my_table/@_format" ;
-PARAMETERS }
+    "path" = "//tmp/my_table/@_format" ;
+}
 ```
 
 ### concatenate { #concatenate }
@@ -695,9 +695,9 @@ PARAMETERS }
 
 ```bash
 PARAMETERS {
-PARAMETERS   "source_paths" = ["//tmp/file1"; "//tmp/file2"];
-PARAMETERS   "destination_path" = "//tmp/file";
-PARAMETERS }
+    "source_paths" = ["//tmp/file1"; "//tmp/file2"];
+    "destination_path" = "//tmp/file";
+}
 ```
 
 ## Работа с контролем доступа { #access-control }
@@ -737,9 +737,9 @@ PARAMETERS }
 
 ```bash
 PARAMETERS {
-PARAMETERS   "group" = "admins";
-PARAMETERS   "member": "devs";
-PARAMETERS   }
+    "group" = "admins";
+    "member" = "devs";
+}
 ```
 
 ### remove_member
@@ -769,9 +769,9 @@ PARAMETERS   }
 
 ```bash
 PARAMETERS {
-PARAMETERS   "group" = "admins";
-PARAMETERS   "member": "devs";
-PARAMETERS }
+    "group" = "admins";
+    "member" = "devs";
+}
 ```
 
 ### check_permission
@@ -802,10 +802,11 @@ PARAMETERS }
 Пример:
 
 ```bash
-PARAMETERS { "path" = "//sys/accounts/statbox";
-PARAMETERS   "permission": "use";
-PARAMETERS   "user": "vasya";
-PARAMETERS }
+PARAMETERS {
+    "path" = "//sys/accounts/statbox";
+    "permission" = "use";
+    "user" = "vasya";
+}
 ```
 
 ## Работа с файлами { #files }
@@ -929,10 +930,10 @@ OUTPUT this is sample file content
 
 ```bash
 PARAMETERS {
-PARAMETERS   "path" = "//tmp/file";
-PARAMETERS   "md5" = "a3dcb4d229de6fde0db5686dee47145d";
-PARAMETERS   "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
-PARAMETERS }
+    "path" = "//tmp/file";
+    "md5" = "a3dcb4d229de6fde0db5686dee47145d";
+    "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
+}
 OUTPUT "//tmp/yt_wrapper/file_storage/new_cache/5d/a3dcb4d229de6fde0db5686dee47145d"
 ```
 
@@ -964,9 +965,9 @@ OUTPUT "//tmp/yt_wrapper/file_storage/new_cache/5d/a3dcb4d229de6fde0db5686dee471
 
 ```bash
 PARAMETERS {
-PARAMETERS   "md5" = "a3dcb4d229de6fde0db5686dee47145d";
-PARAMETERS   "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
-PARAMETERS }
+    "md5" = "a3dcb4d229de6fde0db5686dee47145d";
+    "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
+}
 OUTPUT "//tmp/yt_wrapper/file_storage/new_cache/5d/a3dcb4d229de6fde0db5686dee47145d"
 ```
 
@@ -1015,9 +1016,9 @@ OUTPUT "//tmp/yt_wrapper/file_storage/new_cache/5d/a3dcb4d229de6fde0db5686dee471
 
 ```bash
 PARAMETERS {
-PARAMETERS   "path" = "//tmp/node" ;
-PARAMETERS   "table_writer" = { "codec_id" = "gzip" };
-PARAMETERS }
+    "path" = "//tmp/node" ;
+    "table_writer" = { "codec_id" = "gzip" };
+}
 INPUT { "id" = 1; "value" = 1.125; };
 INPUT { "id" = 2; "value" = 2.000; };
 INPUT { "id" = 3; "value" = 3.850; };
@@ -1154,6 +1155,7 @@ OUTPUT { "key" = 2; "value" = "world; };
 | `update`     | Нет    | `false`                   | Если выставлено `false`, колонки, которые отсутствуют во входных данных, будут записаны со значением `Null` (перезаписывая текущее значение в таблице). Если выставлено `true`, такие колонки сохранят своё предыдущее значение в таблице. |
 | `aggregate`  | Нет    | `false`                   | Если выставлено `false`, [агрегирующие колонки](../../user-guide/dynamic-tables/sorted-dynamic-tables.md#aggr_columns) перезатерты новым значением. Если выставлено `true`, такие колонки применят дельту из входных данных. |
 | `atomicity`  | Нет    | `full`                    | Поддерживаются значения `none` и `full`. Если выставлено `none`, запись будет происходить на каждом таблете, независимо от других. Если выставлено`full`, будут записаны либо все переданные строки, либо ничего. [Подробнее](../../user-guide/dynamic-tables/sorted-dynamic-tables.md). |
+| `require-sync-replica` | Нет | true             | Опция имеет смысл только в случае репликации. Если выставлено в `true`, то вставка произойдёт только при наличии у таблицы синхронной реплики. Если выставлено в `false`, то наличие синхронной реплики необязательно. |
 
 Входные данные:
 
@@ -1228,7 +1230,7 @@ Shared-блокировка может быть взята из множеств
 
 При использовании блокировок на чтение (в отличие от блокировок на запись) одна строка может быть заблокирована из множества разных транзакций. Таким образом, при непрерывном потоке транзакций, берущих shared-блокировку на некоторую строку, строка будет заблокирована постоянно, и модифицировать её не получится. Этот эффект называется `write starvation`. В случае write-write конфликтов такого быть не может, так как берется `exclusive lock`, который отпускается каждый раз при завершении транзакции с записью.
 
-Для ослабления эффекта `write starvation` можно понижать изоляцию shared-блокировок. Для этого можно указывать режим блокировки `weak` или `strong`. Режим `weak` отличается тем, что в момент завершения транзакции не запоминаются временные метки, до которых строки были заблокированы разделяемыми блокировками. На практике это означает, что не блокируется запись, которая происходит в транзакции, пересекающейся по времени с данной, но завершение которой происходит позже. При этом если завершение write-транзакции произошло раньше, то транзакция с shared-блокировкой не будет применена. В режиме `weak` shared-блокировка становится асимметричной. 
+Для ослабления эффекта `write starvation` можно понижать изоляцию shared-блокировок. Для этого можно указывать режим блокировки `weak` или `strong`. Режим `weak` отличается тем, что в момент завершения транзакции не запоминаются временные метки, до которых строки были заблокированы разделяемыми блокировками. На практике это означает, что не блокируется запись, которая происходит в транзакции, пересекающейся по времени с данной, но завершение которой происходит позже. При этом если завершение write-транзакции произошло раньше, то транзакция с shared-блокировкой не будет применена. В режиме `weak` shared-блокировка становится асимметричной.
 
 Входные данные:
 
@@ -1555,8 +1557,8 @@ PARAMETERS { "path" = "//home/user/table"; "schema" = [{"name" = "key"; type = "
 ```bash
 PARAMETERS { "path" = "//home/user/table"; }
 OUTPUT [
-OUTPUT     "11-22-33-44";
-OUTPUT ]
+    "11-22-33-44";
+]
 ```
 
  ### alter_table
@@ -1663,18 +1665,18 @@ PARAMETERS { "replica_id" = "730e-8611b-3ff02c5-f647333f"; "enabled" = %true; }
 
 ```bash
 PARAMETERS {
-PARAMETERS   "paths" = ["//tmp/table1{a,b,c}"; "//tmp/table2{a,b,c}"];
-PARAMETERS   "transaction_id" = "1234-abcd-abcd-7890"
-PARAMETERS }
+    "paths" = ["//tmp/table1{a,b,c}"; "//tmp/table2{a,b,c}"];
+    "transaction_id" = "1234-abcd-abcd-7890"
+}
 OUTPUT {
-OUTPUT    "column_data_weights" = {
-OUTPUT        "a" = 8124;
-OUTPUT        "b" = 124241241;
-OUTPUT        "c" = 3121414;
-OUTPUT    };
-OUTPUT    "legacy_chunks_data_weight" = 100242;
-OUTPUT    "timestamp_total_weight" = 50056;
-OUTPUT }
+    "column_data_weights" = {
+        "a" = 8124;
+        "b" = 124241241;
+        "c" = 3121414;
+    };
+    "legacy_chunks_data_weight" = 100242;
+    "timestamp_total_weight" = 50056;
+}
 ```
 
 ## Запуск операций
@@ -1712,11 +1714,11 @@ OUTPUT }
 
 ```bash
 PARAMETERS {  "operation_type" = "map_reduce";
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out"
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+        "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+        "output_table_path" = "//tmp/table_out"
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -1751,11 +1753,11 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out"
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+        "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+        "output_table_path" = "//tmp/table_out"
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -1788,10 +1790,10 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "table_path" = "//tmp/table[#0:#500]" ;
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+        "table_path" = "//tmp/table[#0:#500]" ;
+    }
+}
 OUTPUT "3f9e62-ce8d2965-6350842b-3e4628d2"
 ```
 
@@ -1826,14 +1828,14 @@ OUTPUT "3f9e62-ce8d2965-6350842b-3e4628d2"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "mapper" = {
-PARAMETERS          "command" = "cat"
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_paths" = [ "//tmp/table_out" ]
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "mapper" = {
+          "command" = "cat"
+      } ;
+      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_paths" = [ "//tmp/table_out" ]
+    }
+}
 OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 ```
 
@@ -1869,14 +1871,14 @@ OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "reducer" = {
-PARAMETERS          "command" = "cat" ;
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_paths" = [ "//tmp/table_out" ] ;
-PARAMETERS      "reduce_by"          = [ "my_key" ] ;
-PARAMETERS }
+    "spec" = {
+      "reducer" = {
+          "command" = "cat" ;
+      } ;
+      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_paths" = [ "//tmp/table_out" ] ;
+      "reduce_by"          = [ "my_key" ] ;
+}
 OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 ```
 
@@ -1884,7 +1886,7 @@ OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 
 {% note warning "Внимание" %}
 
-В будущих версиях поддержка операции Join Reduce будет отключена. Вместо операции Join Reduce необходимо использовать операцию [Reduce](../../user-guide/data-processing/operations/reduce.md) с опцией `enable_key_guarantee`. 
+В будущих версиях поддержка операции Join Reduce будет отключена. Вместо операции Join Reduce необходимо использовать операцию [Reduce](../../user-guide/data-processing/operations/reduce.md) с опцией `enable_key_guarantee`.
 
 {% endnote %}
 
@@ -1917,14 +1919,13 @@ OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "reducer" = {
-PARAMETERS          "command" = "cat" ;
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_paths" = [ "//tmp/table_out" ] ;
-PARAMETERS      "join_by"          = [ "my_key" ] ;
-PARAMETERS }
+    "spec" = {
+        "reducer" = { "command" = "cat" } ;
+        "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
+        "output_table_paths" = [ "//tmp/table_out" ] ;
+        "join_by"          = [ "my_key" ] ;
+    }
+}
 OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 ```
 
@@ -1959,12 +1960,12 @@ OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out" ;
-PARAMETERS      "sort_by"           = [ "mykey" ];
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_path" = "//tmp/table_out" ;
+      "sort_by"           = [ "mykey" ];
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -2002,18 +2003,18 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "mapper" = {
-PARAMETERS          "command" = "cat"
-PARAMETERS      } ;
-PARAMETERS      "reducer" = {
-PARAMETERS          "command" = "cat" ;
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out" ;
-PARAMETERS      "reduce_by" = [ "my_key" ] ;
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "mapper" = {
+          "command" = "cat"
+      } ;
+      "reducer" = {
+          "command" = "cat"
+      } ;
+      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_path" = "//tmp/table_out" ;
+      "reduce_by" = [ "my_key" ] ;
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -2048,12 +2049,12 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out" ;
-PARAMETERS      "cluster_name"           = <cluster-name>;
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_path" = "//tmp/table_out" ;
+      "cluster_name" = <cluster-name>;
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -2069,7 +2070,7 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 
 {% note warning "Внимание" %}
 
-Данная команда может создавать значительную нагрузку на кластер, не используйте её в процессах без согласования с администратором. 
+Данная команда может создавать значительную нагрузку на кластер, не используйте её в процессах без согласования с администратором.
 
 {% endnote %}
 
@@ -2121,51 +2122,51 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```bash
 PARAMETERS { }
 OUTPUT {
-OUTPUT     "operations" = [
-OUTPUT         {
-OUTPUT             "id" = "7001208d-fef089b3-3fe03e8-453d99a1";
-OUTPUT             "type" = "remote-copy";
-OUTPUT             "state" = "initializing";
-OUTPUT             "authenticated_user" = "user-name";
-OUTPUT             "brief_progress" = {};
-OUTPUT             "brief_spec" = {
-OUTPUT                 ...
-OUTPUT             };
-OUTPUT             "start_time" = "2018-02-06T11:06:34.200591Z";
-OUTPUT             "suspended" = %false;
-OUTPUT             "weight" = 1.;
-OUTPUT         };
-OUTPUT     ];
-OUTPUT     "incomplete" = %true;
-OUTPUT     "pool_counts" = {
-OUTPUT         "pool-counts-example" = 2;
-OUTPUT         "user-name-1" = 2;
-OUTPUT         ...
-OUTPUT     };
-OUTPUT     "user_counts" = {
-OUTPUT         "yql" = 52;
-OUTPUT         "user-name-1" = 2;
-OUTPUT     };
-OUTPUT     "state_counts" = {
-OUTPUT         "materializing" = 10;
-OUTPUT         "pending" = 763;
-OUTPUT         "running" = 1848;
-OUTPUT         "completed" = 6654;
-OUTPUT         "aborted" = 37;
-OUTPUT         "failed" = 98;
-OUTPUT     };
-OUTPUT     "type_counts" = {
-OUTPUT         "map" = 4294;
-OUTPUT         "merge" = 1337;
-OUTPUT         "erase" = 97;
-OUTPUT         "sort" = 1126;
-OUTPUT         "reduce" = 886;
-OUTPUT         "map_reduce" = 1609;
-OUTPUT         "remote-copy" = 24;
-OUTPUT         "join_reduce" = 37;
-OUTPUT     };
-OUTPUT     "failed_jobs_count" = 109;
-OUTPUT }
+      "operations" = [
+          {
+              "id" = "7001208d-fef089b3-3fe03e8-453d99a1";
+              "type" = "remote-copy";
+              "state" = "initializing";
+              "authenticated_user" = "user-name";
+              "brief_progress" = {};
+              "brief_spec" = {
+                  ...
+              };
+              "start_time" = "2018-02-06T11:06:34.200591Z";
+              "suspended" = %false;
+              "weight" = 1.;
+          };
+      ];
+      "incomplete" = %true;
+      "pool_counts" = {
+          "pool-counts-example" = 2;
+          "user-name-1" = 2;
+          ...
+      };
+      "user_counts" = {
+          "yql" = 52;
+          "user-name-1" = 2;
+      };
+      "state_counts" = {
+          "materializing" = 10;
+          "pending" = 763;
+          "running" = 1848;
+          "completed" = 6654;
+          "aborted" = 37;
+          "failed" = 98;
+      };
+      "type_counts" = {
+          "map" = 4294;
+          "merge" = 1337;
+          "erase" = 97;
+          "sort" = 1126;
+          "reduce" = 886;
+          "map_reduce" = 1609;
+          "remote-copy" = 24;
+          "join_reduce" = 37;
+      };
+      "failed_jobs_count" = 109;
+}
 ```
 
 ### get_operation { #get_operation }
@@ -2216,10 +2217,10 @@ OUTPUT }
 Пример:
 
 ```bash
-PARAMETERS {  "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; attributes = [ "state" ] }
+PARAMETERS {  "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; attributes = [ "state" ] }
 OUTPUT {
-OUTPUT     "state" = "running";
-OUTPUT }
+    "state" = "running";
+}
 ```
 
 ### abort_operation
@@ -2247,7 +2248,7 @@ OUTPUT }
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### complete_operation
@@ -2275,7 +2276,7 @@ PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### suspend_operation
@@ -2305,7 +2306,7 @@ PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### resume_operation
@@ -2334,7 +2335,7 @@ PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### update_operation_parameters { #update_operation_parameters }
@@ -2376,7 +2377,7 @@ PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 Пример:
 
 ```bash
-PARAMETERS {"`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"physical" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
+PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"physical" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
 ```
 
 ## Работа с джобами
@@ -2435,23 +2436,23 @@ PARAMETERS {"`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters"
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3"; "`job_id`" = "f11ae559-a0375703-3fe0384-8f1"}
+PARAMETERS { "operation_id" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3"; "job_id" = "f11ae559-a0375703-3fe0384-8f1"}
 OUTPUT {
-OUTPUT     "`operation_id`" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3";
-OUTPUT     "`job_id`" = "f11ae559-a0375703-3fe0384-8f1";
-OUTPUT     "state" = "completed";
-OUTPUT     "start_time" = "2018-02-06T09:37:02.858492Z";
-OUTPUT     "finish_time" = "2018-02-06T09:42:19.185525Z";
-OUTPUT     "address" = "<cluster-name>:9012";
-OUTPUT     "statistics" = {
-OUTPUT         "data" = {
-OUTPUT              ...
-OUTPUT         };
-OUTPUT     };
-OUTPUT     "events" = [
-OUTPUT         ...
-OUTPUT     ];
-OUTPUT }
+      "operation_id" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3";
+      "job_id" = "f11ae559-a0375703-3fe0384-8f1";
+      "state" = "completed";
+      "start_time" = "2018-02-06T09:37:02.858492Z";
+      "finish_time" = "2018-02-06T09:42:19.185525Z";
+      "address" = "<cluster-name>:9012";
+      "statistics" = {
+          "data" = {
+               ...
+          };
+      };
+      "events" = [
+          ...
+      ];
+}
 ```
 
 
@@ -2516,55 +2517,55 @@ OUTPUT }
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "4505e8eb-28fa88e2-3fe03e8-c6fcd8fa"; }
+PARAMETERS { "operation_id" = "4505e8eb-28fa88e2-3fe03e8-c6fcd8fa"; }
 OUTPUT {
-OUTPUT     "jobs" = [
-OUTPUT         {
-OUTPUT             "id" = "55aff293-7ef14284-3fe0384-3e07";
-OUTPUT             "type" = "map";
-OUTPUT             "state" = "failed";
-OUTPUT             "address" = "fb-sas2-0511-sas-yt-prod-portovm-14323.gencfg-c.host-name.net:9012";
-OUTPUT             "start_time" = "2018-05-05T00:41:27.433832Z";
-OUTPUT             "finish_time" = "2018-05-05T00:49:04.288196Z";
-OUTPUT             "fail_context_size" = 973230u;
-OUTPUT             "error" = {
-OUTPUT                 "code" = 1205;
-OUTPUT                 "message" = "User job failed";
-OUTPUT                 ...
-OUTPUT             };
-OUTPUT             ...
-OUTPUT         };
-OUTPUT         ...
-OUTPUT         {
-OUTPUT             "id" = "69ae20a7-887b25ab-3fe0384-3cff";
-OUTPUT             "type" = "map";
-OUTPUT             "state" = "running";
-OUTPUT             "address" = "fb-sas2-0101-sas-yt-prod-portovm-14323.gencfg-c.host-name.net:9012";
-OUTPUT             "start_time" = "2018-05-07T13:04:03.339873Z";
-OUTPUT             "progress" = 0.;
-OUTPUT             "brief_statistics" = <
-OUTPUT                 "timestamp" = "2018-05-07T13:04:08.431740Z";
-OUTPUT             > {
-OUTPUT                 "processed_input_compressed_data_size" = 0;
-OUTPUT                 "processed_input_data_weight" = 0;
-OUTPUT                 "processed_output_uncompressed_data_size" = 0;
-OUTPUT                 "processed_output_compressed_data_size" = 0;
-OUTPUT                 "processed_input_uncompressed_data_size" = 0;
-OUTPUT                 "processed_input_row_count" = 0;
-OUTPUT             };
-OUTPUT         };
-OUTPUT     ];
-OUTPUT     "cypress_job_count" = 200;
-OUTPUT     "scheduler_job_count" = 208;
-OUTPUT     "archive_job_count" = #;
-OUTPUT     "type_counts" = {
-OUTPUT         "map" = 408;
-OUTPUT     };
-OUTPUT     "state_counts" = {
-OUTPUT         "running" = 208;
-OUTPUT         "failed" = 200;
-OUTPUT     };
-OUTPUT }
+      "jobs" = [
+          {
+              "id" = "55aff293-7ef14284-3fe0384-3e07";
+              "type" = "map";
+              "state" = "failed";
+              "address" = "hostname.net:9012";
+              "start_time" = "2018-05-05T00:41:27.433832Z";
+              "finish_time" = "2018-05-05T00:49:04.288196Z";
+              "fail_context_size" = 973230u;
+              "error" = {
+                  "code" = 1205;
+                  "message" = "User job failed";
+                  ...
+              };
+              ...
+          };
+          ...
+          {
+              "id" = "69ae20a7-887b25ab-3fe0384-3cff";
+              "type" = "map";
+              "state" = "running";
+              "address" = "hostname.net:9012";
+              "start_time" = "2018-05-07T13:04:03.339873Z";
+              "progress" = 0.;
+              "brief_statistics" = <
+                  "timestamp" = "2018-05-07T13:04:08.431740Z";
+              > {
+                  "processed_input_compressed_data_size" = 0;
+                  "processed_input_data_weight" = 0;
+                  "processed_output_uncompressed_data_size" = 0;
+                  "processed_output_compressed_data_size" = 0;
+                  "processed_input_uncompressed_data_size" = 0;
+                  "processed_input_row_count" = 0;
+              };
+          };
+      ];
+      "cypress_job_count" = 200;
+      "scheduler_job_count" = 208;
+      "archive_job_count" = #;
+      "type_counts" = {
+          "map" = 408;
+      };
+      "state_counts" = {
+          "running" = 208;
+          "failed" = 200;
+      };
+}
 ```
 
 ### signal_job
@@ -2593,7 +2594,7 @@ OUTPUT }
 Пример:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "signal_name" = "SIGUSR1" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "signal_name" = "SIGUSR1" }
 ```
 
 ### abandon_job
@@ -2621,7 +2622,7 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "signal_name" = "S
 Пример:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
 ### abort_job
@@ -2650,7 +2651,7 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 Пример:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
 {% if audience == internal %}
@@ -2688,7 +2689,7 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 Пример:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
 {% endif %}
@@ -2720,7 +2721,7 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 Пример:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "path" = "//tmp/input_context" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "path" = "//tmp/input_context" }
 ```
 
 ### get_job_input { #get_job_input }
@@ -2749,7 +2750,7 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "path" = "//tmp/in
 Пример:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
 ```
 
 ### get_job_fail_context { #get_job_fail_context }
@@ -2779,7 +2780,7 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
 ```
 
 ### get_job_stderr { #job_stderr }
@@ -2809,7 +2810,7 @@ PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" 
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff }
 ```
 
 ## Прочее
@@ -2889,27 +2890,27 @@ OUTPUT { "path" = "<ranges=[{lower_limit={row_index=1};upper_limit={row_index=2}
 
 ```bash
 PARAMETERS {
-PARAMETERS    "requests" = [
-PARAMETERS      {
-PARAMETERS        "command" = "set";
-PARAMETERS        "parameters" = {"path" = "//tmp/a"};
-PARAMETERS        "input" = "value_a";
-PARAMETERS      };
-PARAMETERS      {
-PARAMETERS        "command" = "get";
-PARAMETERS        "parameters" = {"path" = "//tmp/b"};
-PARAMETERS      };
-PARAMETERS      {
-PARAMETERS        "command" = "get";
-PARAMETERS        "parameters" = {"path" = "//nonexisting"};
-PARAMETERS      };
-PARAMETERS    ];
-PARAMETERS }
+    "requests" = [
+      {
+        "command" = "set";
+        "parameters" = {"path" = "//tmp/a"};
+        "input" = "value_a";
+      };
+      {
+        "command" = "get";
+        "parameters" = {"path" = "//tmp/b"};
+      };
+      {
+        "command" = "get";
+        "parameters" = {"path" = "//nonexisting"};
+      };
+    ];
+}
 OUTPUT [
-OUTPUT   { };
-OUTPUT   { output = "value_b"; };
-OUTPUT   { error = {...} };
-OUTPUT ]
+    { };
+    { output = "value_b"; };
+    { error = {...} };
+]
 ```
 
 ### get_supported_features
@@ -2944,12 +2945,12 @@ OUTPUT ]
 ```bash
 PARAMETERS { }
 OUTPUT {
-OUTPUT   "features" = {
-OUTPUT     "primitive_types" = ["int8"; "int16"; ... ];
-OUTPUT     "erasure_codecs" = ["lrc_12_2_2"; "reed_solomon_6_3"; ... ];
-OUTPUT     "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
-OUTPUT   };
-OUTPUT }
+    "features" = {
+      "primitive_types" = ["int8"; "int16"; ... ];
+      "erasure_codecs" = ["lrc_12_2_2"; "reed_solomon_6_3"; ... ];
+      "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
+    };
+}
 ```
 
 ### generate_timestamp
@@ -2977,6 +2978,6 @@ OUTPUT }
 ```bash
 PARAMETERS { }
 OUTPUT {
-OUTPUT   "timestamp" = 1723665447133469427u;
-OUTPUT }
+    "timestamp" = 1723665447133469427u;
+}
 ```
