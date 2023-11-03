@@ -166,7 +166,7 @@ public:
     bool IsOperationRegistered(TOperationId operationId) const noexcept;
     bool AreNewJobsForbiddenForOperation(TOperationId operationId) const noexcept;
 
-    int GetOnGoingHeartbeatsCount() const noexcept;
+    int GetOnGoingHeartbeatCount() const noexcept;
 
     void RegisterAgent(
         TAgentId id,

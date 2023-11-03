@@ -1447,7 +1447,7 @@ bool TNodeShard::AreNewJobsForbiddenForOperation(const TOperationId operationId)
     return operationState.ForbidNewJobs;
 }
 
-int TNodeShard::GetOnGoingHeartbeatsCount() const noexcept
+int TNodeShard::GetOnGoingHeartbeatCount() const noexcept
 {
     return ConcurrentHeartbeatCount_;
 }

@@ -3520,8 +3520,8 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
             YT_ABORT();
         } else {
             auto error = TError(
-                "User %Qv is not a superuser but tried to crash controller agent using testing options in spec. "
-                "This incident will be reported.",
+                "User %Qv is not a superuser but tried to crash controller agent using testing options in spec; "
+                "this incident will be reported",
                 AuthenticatedUser);
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);

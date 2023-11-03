@@ -550,7 +550,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         },
     };
 
-    auto heartbeatProperties = WaitFor(BIND(
+    auto heartbeatCounters = WaitFor(BIND(
         &TJobTracker::DoProcessHeartbeat,
         Unretained(this),
         Passed(std::move(heartbeatProcessingContext)))
@@ -558,7 +558,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         .Run())
     .ValueOrThrow();
 
-    ProfileHeartbeatProperties(heartbeatProperties);
+    ProfileHeartbeatProperties(heartbeatCounters);
 
     context->Reply();
 }
@@ -751,22 +751,22 @@ void TJobTracker::AccountEnqueuedControllerEvent(int delta)
     HeartbeatEnqueuedControllerEvents_.Update(newValue);
 }
 
-void TJobTracker::ProfileHeartbeatProperties(const THeartbeatProperties& heartbeatProperties)
+void TJobTracker::ProfileHeartbeatProperties(const THeartbeatCounters& heartbeatCounters)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ReceivedRunningJobCount_.Increment(heartbeatProperties.RunningJobCount);
-    ReceivedStaleRunningJobCount_.Increment(heartbeatProperties.StaleRunningJobCount);
-    ReceivedFinishedJobCount_.Increment(heartbeatProperties.FinishedJobCount);
-    ReceivedDuplicatedFinishedJobCount_.Increment(heartbeatProperties.DuplicatedFinishedJobCount);
-    ReceivedUnknownJobCount_.Increment(heartbeatProperties.UnknownJobCount);
-    UnconfirmedJobCount_.Increment(heartbeatProperties.UnconfirmedJobCount);
-    ConfirmedJobCount_.Increment(heartbeatProperties.ConfirmedJobCount);
-    VanishedJobAbortCount_.Increment(heartbeatProperties.VanishedJobAbortCount);
-    JobAbortRequestCount_.Increment(heartbeatProperties.JobAbortRequestCount);
-    JobReleaseRequestCount_.Increment(heartbeatProperties.JobReleaseRequestCount);
-    JobInterruptionRequestCount_.Increment(heartbeatProperties.JobInterruptionRequestCount);
-    JobFailureRequestCount_.Increment(heartbeatProperties.JobFailureRequestCount);
+    ReceivedRunningJobCount_.Increment(heartbeatCounters.RunningJobCount);
+    ReceivedStaleRunningJobCount_.Increment(heartbeatCounters.StaleRunningJobCount);
+    ReceivedFinishedJobCount_.Increment(heartbeatCounters.FinishedJobCount);
+    ReceivedDuplicatedFinishedJobCount_.Increment(heartbeatCounters.DuplicatedFinishedJobCount);
+    ReceivedUnknownJobCount_.Increment(heartbeatCounters.UnknownJobCount);
+    UnconfirmedJobCount_.Increment(heartbeatCounters.UnconfirmedJobCount);
+    ConfirmedJobCount_.Increment(heartbeatCounters.ConfirmedJobCount);
+    VanishedJobAbortCount_.Increment(heartbeatCounters.VanishedJobAbortCount);
+    JobAbortRequestCount_.Increment(heartbeatCounters.JobAbortRequestCount);
+    JobReleaseRequestCount_.Increment(heartbeatCounters.JobReleaseRequestCount);
+    JobInterruptionRequestCount_.Increment(heartbeatCounters.JobInterruptionRequestCount);
+    JobFailureRequestCount_.Increment(heartbeatCounters.JobFailureRequestCount);
 }
 
 IInvokerPtr TJobTracker::GetInvoker() const
@@ -839,7 +839,7 @@ void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecN
         BIND([oldExecNodesToDestroy = std::move(newExecNodes)] {}));
 }
 
-TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
+TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
     THeartbeatProcessingContext heartbeatProcessingContext)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -869,7 +869,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
 
     auto& nodeJobs = nodeInfo.Jobs;
 
-    THeartbeatProperties heartbeatProperties{};
+    THeartbeatCounters heartbeatCounters{};
 
     // NB(pogorelov): As checked before, incarnation id did not change from the previous heartbeat,
     // so job life time of job operations must be still controlled by agent.
@@ -895,7 +895,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
 
         AbortJobs(std::move(jobsToAbort), EAbortReason::Unconfirmed);
 
-        heartbeatProperties.UnconfirmedJobCount = std::ssize(heartbeatProcessingContext.Request.UnconfirmedJobIds);
+        heartbeatCounters.UnconfirmedJobCount = std::ssize(heartbeatProcessingContext.Request.UnconfirmedJobIds);
     }
 
     THashSet<TJobId> jobsToSkip;
@@ -908,7 +908,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
             "Request node to abort job (JobId: %v)",
             jobId);
         NProto::ToProto(response->add_jobs_to_abort(), TJobToAbort{jobId, abortReason});
-        ++heartbeatProperties.JobAbortRequestCount;
+        ++heartbeatCounters.JobAbortRequestCount;
     }
 
     nodeJobs.JobsToAbort.clear();
@@ -929,7 +929,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
                 jobId,
                 releaseFlags);
             ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, releaseFlags});
-            ++heartbeatProperties.JobReleaseRequestCount;
+            ++heartbeatCounters.JobReleaseRequestCount;
         }
 
         for (auto jobId : releasedJobs) {
@@ -953,7 +953,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
 
             ToProto(response->add_unknown_operation_ids(), operationId);
 
-            ++heartbeatProperties.UnknownOperationCount;
+            ++heartbeatCounters.UnknownOperationCount;
 
             continue;
         }
@@ -1001,7 +1001,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
             if (auto jobIt = nodeJobs.Jobs.find(jobId); jobIt != std::end(nodeJobs.Jobs)) {
                 auto& jobInfo = jobIt->second;
 
-                if (bool shouldProcessEvent = HandleJobInfo(jobInfo, response, jobId, newJobStage, Logger, heartbeatProperties)) {
+                if (bool shouldProcessEvent = HandleJobInfo(jobInfo, response, jobId, newJobStage, Logger, heartbeatCounters)) {
                     acceptJobSummaryForOperationControllerProcessing();
                 }
 
@@ -1033,11 +1033,11 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
 
                 auto& jobInfo = jobIt->second;
 
-                HandleJobInfo(jobInfo, response, jobId, newJobStage, Logger, heartbeatProperties);
+                HandleJobInfo(jobInfo, response, jobId, newJobStage, Logger, heartbeatCounters);
 
                 acceptJobSummaryForOperationControllerProcessing();
 
-                ++heartbeatProperties.ConfirmedJobCount;
+                ++heartbeatCounters.ConfirmedJobCount;
 
                 continue;
             }
@@ -1049,15 +1049,15 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
                 shouldAbortJob ? "abort" : "remove",
                 jobSummary->State);
 
-            ++heartbeatProperties.UnknownJobCount;
+            ++heartbeatCounters.UnknownJobCount;
 
             // Remove or abort unknown job.
             if (shouldAbortJob) {
-                ++heartbeatProperties.JobAbortRequestCount;
+                ++heartbeatCounters.JobAbortRequestCount;
                 NProto::ToProto(response->add_jobs_to_abort(), TJobToAbort{jobId, EAbortReason::Unknown});
                 ReportUnknownJobInArchive(jobId, operationId, nodeInfo.NodeAddress);
             } else {
-                ++heartbeatProperties.JobReleaseRequestCount;
+                ++heartbeatCounters.JobReleaseRequestCount;
                 ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId});
             }
         }
@@ -1125,7 +1125,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
                 jobInfo.OperationId,
                 jobStatus.VanishedSince);
 
-            ++heartbeatProperties.VanishedJobAbortCount;
+            ++heartbeatCounters.VanishedJobAbortCount;
 
             jobIdsToAbort[jobInfo.OperationId].push_back(jobId);
         }
@@ -1149,7 +1149,7 @@ TJobTracker::THeartbeatProperties TJobTracker::DoProcessHeartbeat(
         ToProto(response->add_jobs_to_confirm(), TJobToConfirm{jobId});
     }
 
-    return heartbeatProperties;
+    return heartbeatCounters;
 }
 
 bool TJobTracker::IsJobRunning(const TJobInfo& jobInfo) const
@@ -1165,16 +1165,16 @@ bool TJobTracker::HandleJobInfo(
     TJobId jobId,
     EJobStage newJobStage,
     const NLogging::TLogger& Logger,
-    THeartbeatProperties& heartbeatProperties)
+    THeartbeatCounters& heartbeatCounters)
 {
     return Visit(
         jobInfo.Status,
         [&] (const TRunningJobStatus& jobStatus) {
-            HandleRunningJobInfo(jobInfo, response, jobStatus, jobId, newJobStage, Logger, heartbeatProperties);
+            HandleRunningJobInfo(jobInfo, response, jobStatus, jobId, newJobStage, Logger, heartbeatCounters);
             return true;
         },
         [&] (const TFinishedJobStatus& jobStatus) {
-            HandleFinishedJobInfo(jobInfo, response, jobStatus, jobId, newJobStage, Logger, heartbeatProperties);
+            HandleFinishedJobInfo(jobInfo, response, jobStatus, jobId, newJobStage, Logger, heartbeatCounters);
             return false;
         });
 }
@@ -1186,27 +1186,27 @@ void TJobTracker::HandleRunningJobInfo(
     TJobId jobId,
     EJobStage newJobStage,
     const NLogging::TLogger& Logger,
-    THeartbeatProperties& heartbeatProperties)
+    THeartbeatCounters& heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (newJobStage == EJobStage::Running) {
-        ++heartbeatProperties.RunningJobCount;
+        ++heartbeatCounters.RunningJobCount;
         Visit(
             jobStatus.RequestedActionInfo,
             [] (TNoActionRequested) {},
             [&] (const TInterruptionRequestOptions& requestOptions) {
-                ProcessInterruptionRequest(response, requestOptions, jobId, Logger, heartbeatProperties);
+                ProcessInterruptionRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
             },
             [&] (const TFailureRequestOptions& requestOptions) {
-                ProcessFailureRequest(response, requestOptions, jobId, Logger, heartbeatProperties);
+                ProcessFailureRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
             });
         return;
     }
 
     YT_VERIFY(newJobStage == EJobStage::Finished);
 
-    ++heartbeatProperties.FinishedJobCount;
+    ++heartbeatCounters.FinishedJobCount;
 
     Visit(
         jobStatus.RequestedActionInfo,
@@ -1236,12 +1236,12 @@ void TJobTracker::HandleFinishedJobInfo(
     TJobId jobId,
     EJobStage newJobStage,
     const NLogging::TLogger& Logger,
-    THeartbeatProperties& heartbeatProperties)
+    THeartbeatCounters& heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (newJobStage < EJobStage::Finished) {
-        ++heartbeatProperties.StaleRunningJobCount;
+        ++heartbeatCounters.StaleRunningJobCount;
 
         YT_LOG_DEBUG(
             "Stale job info received (CurrentJobStage: %v, ReceivedJobState: %v)",
@@ -1251,7 +1251,7 @@ void TJobTracker::HandleFinishedJobInfo(
         return;
     }
 
-    ++heartbeatProperties.DuplicatedFinishedJobCount;
+    ++heartbeatCounters.DuplicatedFinishedJobCount;
 
     ToProto(
         response->add_jobs_to_store(),
@@ -1268,7 +1268,7 @@ void TJobTracker::ProcessInterruptionRequest(
     const TInterruptionRequestOptions& requestOptions,
     TJobId jobId,
     const NLogging::TLogger& Logger,
-    THeartbeatProperties& heartbeatProperties)
+    THeartbeatCounters& heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1277,7 +1277,7 @@ void TJobTracker::ProcessInterruptionRequest(
         requestOptions.Reason,
         requestOptions.Timeout);
 
-    ++heartbeatProperties.JobInterruptionRequestCount;
+    ++heartbeatCounters.JobInterruptionRequestCount;
 
     auto* protoJobToInterrupt = response->add_jobs_to_interrupt();
     ToProto(protoJobToInterrupt->mutable_job_id(), jobId);
@@ -1290,13 +1290,13 @@ void TJobTracker::ProcessFailureRequest(
     const TFailureRequestOptions& /*requestOptions*/,
     TJobId jobId,
     const NLogging::TLogger& Logger,
-    THeartbeatProperties& heartbeatProperties)
+    THeartbeatCounters& heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_DEBUG("Request node to fail job");
 
-    ++heartbeatProperties.JobFailureRequestCount;
+    ++heartbeatCounters.JobFailureRequestCount;
 
     auto* protoJobToFail = response->add_jobs_to_fail();
     ToProto(protoJobToFail->mutable_job_id(), jobId);
@@ -1812,7 +1812,7 @@ TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const 
     }
 }
 
-void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, std::optional<TGuid> maybeNodeRegistrationId)
+void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, TGuid maybeNodeRegistrationId)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1831,7 +1831,7 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, std
     const auto& nodeInfo = nodeIt->second;
 
     if (maybeNodeRegistrationId) {
-        if (*maybeNodeRegistrationId != nodeInfo.RegistrationId) {
+        if (maybeNodeRegistrationId != nodeInfo.RegistrationId) {
             YT_LOG_DEBUG("Node unregistration skiped because of registration id mismatch "
                 "(NodeId: %v, OldRegistrationId: %v, OldAddress: %v, ActualRegistrationId: %v, ActualAddress: %v)",
                 nodeId,

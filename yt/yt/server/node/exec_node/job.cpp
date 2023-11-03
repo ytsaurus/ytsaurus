@@ -500,9 +500,9 @@ void TJob::Terminate(EJobState finalState, TError error)
         auto timeout = DynamicConfig_->WaitingForJobCleanupTimeout.value_or(
             Config_->WaitingForJobCleanupTimeout);
 
-        SetJobPhase(EJobPhase::WaitingCleanup);
+        SetJobPhase(EJobPhase::WaitingForCleanup);
         Finalize(finalState, std::move(error));
-        YT_LOG_DEBUG("Waiting for job cleanup (Timeout: %v)", timeout);
+        YT_LOG_INFO("Waiting for job cleanup (Timeout: %v)", timeout);
         TDelayedExecutor::Submit(
             BIND(&TJob::OnWaitingForCleanupTimeout, MakeStrong(this))
                 .Via(Invoker_),
@@ -518,8 +518,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::Created:
             doTerminate();
             Cleanup();
-
-            return;
+            break;
 
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::DownloadingArtifacts:
@@ -534,17 +533,16 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::RunningExtraGpuCheckCommand:
             doTerminate();
             StopJobProxy();
-
-            return;
+            break;
 
         default:
-            YT_LOG_DEBUG(
+            YT_LOG_INFO(
                 "Cannot terminate job (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
 
             YT_VERIFY(IsFinished());
-            return;
+            break;
     }
 }
 
@@ -555,10 +553,10 @@ void TJob::Finalize(TError error)
     TForbidContextSwitchGuard guard;
 
     if (!Finalize(
-            /*finalJobState*/ std::nullopt,
-            std::move(error),
-            /*jobResultExtension*/ std::nullopt,
-            /*byJobProxyCompletion*/ false))
+        /*finalJobState*/ std::nullopt,
+        std::move(error),
+        /*jobResultExtension*/ std::nullopt,
+        /*byJobProxyCompletion*/ false))
     {
         return;
     }
@@ -589,7 +587,7 @@ bool TJob::Finalize(
         return false;
     }
 
-    YT_LOG_DEBUG("Finalizing job (FinalState: %v)", finalJobState);
+    YT_LOG_INFO("Finalizing job (FinalState: %v)", finalJobState);
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
@@ -1394,7 +1392,7 @@ void TJob::DoFail(std::optional<TError> error)
 
     if (JobPhase_ != EJobPhase::Running) {
         if (!error) {
-            error = TError("Fail job that is not running");
+            error = TError("Failing job that is not running");
         }
 
         Terminate(EJobState::Failed, std::move(*error));
@@ -1646,7 +1644,7 @@ bool TJob::HandleFinishingPhase()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     switch (JobPhase_) {
-        case EJobPhase::WaitingCleanup:
+        case EJobPhase::WaitingForCleanup:
             Cleanup();
             return true;
 
@@ -1972,7 +1970,7 @@ void TJob::OnWaitingForCleanupTimeout()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ == EJobPhase::WaitingCleanup) {
+    if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = DynamicConfig_->WaitingForJobCleanupTimeout.value_or(
             Config_->WaitingForJobCleanupTimeout);
 

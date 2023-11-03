@@ -45,29 +45,20 @@ public:
         const NClusterNode::TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap);
 
-    void Start();
-
-    bool IsStarted() const noexcept;
-
-    void Abort(const TError& error);
-
     NJobTrackerClient::TJobId GetId() const noexcept override;
-
     NJobAgent::EJobType GetType() const;
-
     bool IsUrgent() const;
-
     const TString& GetJobTrackerAddress() const;
 
+    bool IsStarted() const noexcept;
     NJobAgent::EJobState GetState() const;
-
-    NClusterNode::TJobResources GetResourceUsage() const;
-
-    NJobTrackerClient::NProto::TJobResult GetResult() const;
-
     TInstant GetStartTime() const;
-
+    NClusterNode::TJobResources GetResourceUsage() const;
+    NJobTrackerClient::NProto::TJobResult GetResult() const;
     TBriefJobInfo GetBriefInfo() const;
+
+    void Start();
+    void Abort(const TError& error);
 
 protected:
     IBootstrap* const Bootstrap_;
@@ -81,31 +72,24 @@ protected:
     const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
 
     const TInstant StartTime_;
-
     bool Started_ = false;
-
     NJobAgent::EJobState JobState_ = NJobAgent::EJobState::Waiting;
 
     TFuture<void> JobFuture_;
-
     NJobTrackerClient::NProto::TJobResult Result_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     virtual void DoRun() = 0;
-
-    virtual TFuture<void> ReleaseCumulativeResources();
-
     void GuardedRun();
 
     void SetCompleted();
-
     void SetFailed(const TError& error);
-
     void SetAborted(const TError& error);
 
-    IChunkPtr FindLocalChunk(TChunkId chunkId, int mediumIndex);
+    virtual TFuture<void> ReleaseCumulativeResources();
 
+    IChunkPtr FindLocalChunk(TChunkId chunkId, int mediumIndex);
     IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex);
 
 private:

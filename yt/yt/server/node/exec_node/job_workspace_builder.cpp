@@ -56,7 +56,7 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction()
     auto jobPhase = Context_.Job->GetPhase();
 
     switch (jobPhase) {
-        case EJobPhase::WaitingCleanup:
+        case EJobPhase::WaitingForCleanup:
         case EJobPhase::Cleanup:
         case EJobPhase::Finished:
             YT_LOG_DEBUG(
