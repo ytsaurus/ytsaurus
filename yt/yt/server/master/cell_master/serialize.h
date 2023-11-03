@@ -178,6 +178,7 @@ DEFINE_ENUM(EMasterReign,
     ((DisposalNodesLimit)                                           (2441))  // cherepashka
     ((FixTransientAbort_23_2)                                       (2442))  // babenko
     ((ZombieACOs)                                                   (2443))  // shakurov
+    ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
