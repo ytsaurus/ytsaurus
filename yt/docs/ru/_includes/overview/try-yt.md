@@ -50,14 +50,14 @@ ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0  
 Создайте пространство имён для запуска кластера. Создайте секрет, содержащий логин, пароль и токен администратора кластера.
 ```
 kubectl create namespace <namespace>
-kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace> 
+kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace>
 ```
 
 Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.4.0/cluster_v1_demo.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
 
 Необходимо прописать гарантии или лимиты ресурсов в секции `execNodes`, указанные значения будут отражены в конфигурации нод, и будут видны планировщику. Для надёжного хранения данных, обязательно выделите персистентные тома.
 
-Для доступа к UI {{product-name}} можно использовать тип сервиса LoadBalancer либо отдельно настроить балансировщик для обслуживания HTTP запросов. На данный момент UI {{product-name}} не имеет встроенной возможности работать по протоколу HTTPS. 
+Для доступа к UI {{product-name}} можно использовать тип сервиса LoadBalancer либо отдельно настроить балансировщик для обслуживания HTTP запросов. На данный момент UI {{product-name}} не имеет встроенной возможности работать по протоколу HTTPS.
 
 Для запуска приложений использующих кластер, используйте тот же кластер Kubernetes. В качестве адреса кластера подставьте адрес сервиса http proxy - `http-proxies.<namespace>.svc.cluster.local`.
 
@@ -137,12 +137,12 @@ Password: password
 
 По второй ссылке можно подключиться к кластеру из командной строки и python client:
 ```bash
-export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}' 
+export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
 export YT_TOKEN=password
 export YT_PROXY=192.168.49.2:30228
 
 echo '{a=b}' | yt write-table //home/t1 --format yson
-yt map cat --src //home/t1 --dst //home/t2 --format json 
+yt map cat --src //home/t1 --dst //home/t2 --format json
 ```
 
 #### Удаление кластера
@@ -153,14 +153,3 @@ yt map cat --src //home/t1 --dst //home/t2 --format json
 kubectl delete -f cluster_v1_minikube.yaml
 ```
 
-## Настройка экспорта метрик в Prometheus
-
-Установите prometheus-operator с помощью [инструкции](https://github.com/prometheus-operator/prometheus-operator#quickstart).
-
-Сервисы для мониторинга создаются оператором YTsaurus автоматически. 
-Для того чтобы начать собирать метрики необходимо:
-
-- создать [ServiceMonitor](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml);
-- создать [сервисный аккаунт](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml);
-- выдать созданному аккаунту [роль](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml);
-- [создать ресурс Prometheus](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
