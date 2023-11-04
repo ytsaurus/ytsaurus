@@ -1832,6 +1832,52 @@ done
         assert exists("//tmp/stderr_table1")
         assert exists("//tmp/core_table1")
 
+    @authors("galtsev")
+    @pytest.mark.parametrize("hunks", [True, False])
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_interrupts_disabled_for_static_table_with_hunks(self, hunks, optimize_for):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
+
+        if hunks:
+            schema[1]["max_inline_hunk_size"] = 10
+
+        create("table", "//tmp/t_in", attributes={
+            "optimize_for": optimize_for,
+            "schema": schema,
+        })
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": 0, "value": "0"}, {"key": 2, "value": "z" * 100}]
+        write_table("//tmp/t_in", rows)
+
+        def run_map():
+            op = map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"mapper": {"format": "json"}},
+                command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+                track=False,
+            )
+
+            jobs = wait_breakpoint()
+            interrupt_job(jobs[0])
+            release_breakpoint()
+            op.track()
+
+        if hunks:
+            with pytest.raises(YtError, match="Error interrupting job"):
+                run_map()
+        else:
+            run_map()
+
+            assert read_table("//tmp/t_out") == rows
+
 
 ##################################################################
 
