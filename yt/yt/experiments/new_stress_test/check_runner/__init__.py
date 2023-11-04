@@ -85,7 +85,6 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
     path = base_path + "/" + dir_name
 
     timeout_handler = TimeoutHandler(timeout)
-    timeout_handler.arm()
 
     success_attribute_set = False
 
@@ -143,18 +142,24 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
     client = yt.YtClient(proxy=yt.http_helpers.get_proxy_url(), token=get_token())
     client.config["ping_failed_mode"] = "interrupt_main"
 
-    client.create("map_node", path)
-
-    # Add a little slack so that timeout handler will be executed earlier and give cleaner error message.
-    deadline = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout + 120)
-    tx = client.Transaction(
-        deadline=deadline,
-        attributes={
-            "title": transaction_title,
-        })
-    logging.info(f"Running in directory {path} under transaction {tx.transaction_id}")
 
     try:
+        timeout_handler.arm()
+
+        logging.info(f"Initializing instance {path}")
+
+        client.create("map_node", path)
+
+        # Add a little slack so that timeout handler will be executed earlier and give cleaner error message.
+        deadline = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout + 120)
+        tx = client.Transaction(
+            deadline=deadline,
+            attributes={
+                "title": transaction_title,
+            })
+
+        logging.info(f"Running in directory {path} under transaction {tx.transaction_id}")
+
         with client.Transaction(transaction_id=tx.transaction_id):
             client.lock(path, mode="shared")
 
@@ -181,7 +186,7 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
         tx.commit()
 
     except KeyboardInterrupt:
-        if tx.is_pinger_alive():
+        if "tx" not in locals() or tx.is_pinger_alive():
             _report_failure(f"Timed out after {timeout} seconds")
         else:
             logging.error(f"Transaction {tx.transaction_id} was aborted or has expired")

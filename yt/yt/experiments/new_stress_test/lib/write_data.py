@@ -1,5 +1,6 @@
 from .job_base import JobBase
 from .logger import logger
+from .helpers import run_operation_and_wrap_error
 
 import yt.wrapper as yt
 import yt.yson as yson
@@ -60,11 +61,13 @@ def write_data(schema, iter_table, table, aggregate, update, spec):
         op_spec["scheduling_options_per_pool_tree"] = {
             "physical": {"resource_limits": {"user_slots": spec.get_write_user_slot_count()}}}
     with yt.TempTable() as tmp_table:
-        yt.run_map(
+        op = yt.run_map(
             WriterMapper(schema, table, aggregate, update, spec),
             iter_table,
             tmp_table,
-            spec=op_spec)
+            spec=op_spec,
+            sync=False)
+        run_operation_and_wrap_error(op, "Write")
     writing_completed.set()
 
 @yt.aggregator
@@ -304,11 +307,18 @@ class DeleterMapper(JobBase):
 def delete_data(iter_deletion_table, table, spec):
     logger.info("Deleting data from dynamic table")
 
+    op_spec={
+        "job_count": spec.size.job_count,
+        "title": "Delete data from dynamic table"}
+    if spec.get_write_user_slot_count() is not None:
+        op_spec["scheduling_options_per_pool_tree"] = {
+            "physical": {"resource_limits": {"user_slots": spec.get_write_user_slot_count()}}}
+
     with yt.TempTable() as tmp_table:
-        yt.run_map(
+        op = yt.run_map(
             DeleterMapper(table, spec),
             iter_deletion_table,
             tmp_table,
-            spec={
-                "job_count": spec.size.job_count,
-                "title": "Delete data from dynamic table"})
+            spec=op_spec,
+            sync=False)
+        run_operation_and_wrap_error(op, "Delete")

@@ -27,13 +27,23 @@ class ProcessRunner:
                         logger.pid = current_process().pid
                         logger.func = func.__name__
                         func(*args, **kwargs)
+                        logger.info("Function finished successfully")
                     except YtError as e:
                         # Some YtError-s are not picklable, so we transfer them as dict
                         # and store a flag to preserve the type.
-                        queue.put((1, e.simplify()))
+                        logger.info("Caught error %s", str(e))
+                        logger.info("Putting YtError to queue")
+                        try:
+                            queue.put((1, e.simplify()), block=False)
+                        except Exception as e:
+                            logger.exception("Failed to put YtError to queue")
+                            raise
+                        logger.info("Put YtError to queue")
                         raise
                     except Exception as e:
+                        logger.info("Putting regular exception to queue")
                         queue.put((0, e))
+                        logger.info("Put regular exception to queue")
                         raise
 
                 queue = Queue()
