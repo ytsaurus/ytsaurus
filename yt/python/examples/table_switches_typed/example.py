@@ -26,6 +26,7 @@ class RowIndexRow:
     row_index: schema.Int64
 
 
+# NB: job_count is set to 1, so it is guaranteed that all rows will be processed by the same map job.
 @yt.wrapper.aggregator
 class Mapper(yt.wrapper.TypedJob):
     def __call__(self, rows: RowIterator[ValueRow]) \
@@ -77,6 +78,10 @@ def main():
         Mapper(),
         inputs,
         outputs,
+        spec={
+            # Only for example purposes, do not use in production.
+            "job_count": 1,
+        },
     )
     # В первую таблицу попадают чётные суммы.
     assert list(client.read_table_structured(output1, SumRow)) == [SumRow(sum=4), SumRow(sum=0)]

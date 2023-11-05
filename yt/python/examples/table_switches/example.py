@@ -7,6 +7,7 @@ import yt.wrapper
 import yt.yson
 
 
+# NB: job_count is set to 1, so it is guaranteed that all rows will be processed by the same map job.
 @yt.wrapper.aggregator
 @yt.wrapper.with_context
 def mapper_with_iterator(rows, context):
@@ -73,6 +74,10 @@ def main():
         inputs,
         outputs,
         format=yt.wrapper.YsonFormat(control_attributes_mode="iterator"),
+        spec={
+            # Only for example purposes, do not use in production.
+            "job_count": 1,
+        },
     )
     # В первую таблицу попадают чётные суммы.
     assert list(client.read_table(output1)) == [{"sum": 4}, {"sum": 0}]
