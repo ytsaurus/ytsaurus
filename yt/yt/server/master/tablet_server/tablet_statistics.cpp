@@ -216,32 +216,6 @@ bool operator != (const TTabletCellStatisticsBase& lhs, const TTabletCellStatist
     return !(lhs == rhs);
 }
 
-TTabletCellStatistics& operator += (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
-{
-    static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
-    return lhs;
-}
-
-TTabletCellStatistics operator + (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
-{
-    auto result = lhs;
-    result += rhs;
-    return result;
-}
-
-TTabletCellStatistics& operator -= (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
-{
-    static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
-    return lhs;
-}
-
-TTabletCellStatistics operator - (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
-{
-    auto result = lhs;
-    result -= rhs;
-    return result;
-}
-
 TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;

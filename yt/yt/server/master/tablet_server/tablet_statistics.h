@@ -87,12 +87,6 @@ TTabletCellStatisticsBase  operator -  (const TTabletCellStatisticsBase& lhs, co
 bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 bool operator != (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 
-TTabletCellStatistics& operator += (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-TTabletCellStatistics  operator +  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-
-TTabletCellStatistics& operator -= (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-TTabletCellStatistics  operator -  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-
 TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
 TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
