@@ -3456,6 +3456,49 @@ private:
         DoMountTablets(table, serializedTableSettings, assignment, freeze);
     }
 
+    TReqMountTablet PrepareMountRequestStem(
+        TTablet* tablet,
+        const TSerializedTableSettings& serializedTableSettings)
+    {
+        const auto* table = tablet->GetTable();
+
+        TReqMountTablet req;
+        auto& reqEssential = *req.mutable_essential_content();
+
+        reqEssential.set_path(table->GetMountPath());
+        ToProto(req.mutable_tablet_id(), tablet->GetId());
+        ToProto(req.mutable_table_id(), table->GetId());
+
+        ToProto(reqEssential.mutable_schema_id(), table->GetSchema()->GetId());
+        ToProto(reqEssential.mutable_schema(), *table->GetSchema()->AsTableSchema());
+
+        FillTableSettings(req.mutable_replicatable_content(), serializedTableSettings);
+
+        const auto& allTablets = table->Tablets();
+        int tabletIndex = tablet->GetIndex();
+        if (table->IsSorted() && !table->IsReplicated()) {
+            ToProto(reqEssential.mutable_pivot_key(), tablet->GetPivotKey());
+            ToProto(reqEssential.mutable_next_pivot_key(), tablet->GetIndex() + 1 == std::ssize(allTablets)
+                ? MaxKey()
+                : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey());
+        } else if (!table->IsSorted()) {
+            auto lower = tabletIndex == 0
+                ? EmptyKey()
+                : MakeUnversionedOwningRow(tablet->GetIndex());
+            auto upper = tabletIndex + 1 == std::ssize(allTablets)
+                ? MaxKey()
+                : MakeUnversionedOwningRow(tablet->GetIndex() + 1);
+            ToProto(reqEssential.mutable_pivot_key(), lower);
+            ToProto(reqEssential.mutable_next_pivot_key(), upper);
+        }
+
+        reqEssential.set_atomicity(ToProto<int>(table->GetAtomicity()));
+        reqEssential.set_commit_ordering(ToProto<int>(table->GetCommitOrdering()));
+        ToProto(reqEssential.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
+
+        return req;
+    }
+
     void DoMountTablets(
         TTabletOwnerBase* table,
         const TSerializedTabletOwnerSettings& serializedTableSettings,
@@ -3617,42 +3660,20 @@ private:
         int preloadPendingStoreCount = 0;
 
         {
-            TReqMountTablet req;
-
-            req.set_retained_timestamp(tablet->GetRetainedTimestamp());
-            req.set_path(table->GetMountPath());
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            req.set_mount_revision(tablet->Servant().GetMountRevision());
-            ToProto(req.mutable_table_id(), table->GetId());
+            auto req = PrepareMountRequestStem(tablet, serializedTableSettings);
+            auto& reqReplicatable = *req.mutable_replicatable_content();
+            // NB: essential content must be filled in PrepareMountRequestStem.
 
             MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &req);
 
-            ToProto(req.mutable_schema_id(), table->GetSchema()->GetId());
-            ToProto(req.mutable_schema(), *table->GetSchema()->AsTableSchema());
-
-            if (table->IsSorted() && !table->IsReplicated()) {
-                ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
-                ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == std::ssize(allTablets)
-                    ? MaxKey()
-                    : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey());
-            } else if (!table->IsSorted()) {
-                auto lower = tabletIndex == 0
-                    ? EmptyKey()
-                    : MakeUnversionedOwningRow(tablet->GetIndex());
-                auto upper = tabletIndex + 1 == std::ssize(allTablets)
-                    ? MaxKey()
-                    : MakeUnversionedOwningRow(tablet->GetIndex() + 1);
-                ToProto(req.mutable_pivot_key(), lower);
-                ToProto(req.mutable_next_pivot_key(), upper);
-            }
+            reqReplicatable.set_retained_timestamp(tablet->GetRetainedTimestamp());
             if (!table->IsPhysicallySorted()) {
-                req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
+                reqReplicatable.set_trimmed_row_count(tablet->GetTrimmedRowCount());
             }
-            FillTableSettings(&req, serializedTableSettings);
-            req.set_atomicity(ToProto<int>(table->GetAtomicity()));
-            req.set_commit_ordering(ToProto<int>(table->GetCommitOrdering()));
+
+            req.set_mount_revision(tablet->Servant().GetMountRevision());
             req.set_freeze(freeze);
-            ToProto(req.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
+
             if (table->IsReplicated()) {
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
@@ -3694,14 +3715,14 @@ private:
             }
             for (const auto* chunkOrView : chunksOrViews) {
                 if (IsHunkChunk(tablet, chunkOrView)) {
-                    FillHunkChunkDescriptor(chunkOrView->AsChunk(), req.add_hunk_chunks());
+                    FillHunkChunkDescriptor(chunkOrView->AsChunk(), reqReplicatable.add_hunk_chunks());
                 } else {
-                    FillStoreDescriptor(table, chunkOrView, req.add_stores(), &startingRowIndex);
+                    FillStoreDescriptor(table, chunkOrView, reqReplicatable.add_stores(), &startingRowIndex);
                 }
             }
 
             for (auto [transactionId, lock] : table->DynamicTableLocks()) {
-                auto* protoLock = req.add_locks();
+                auto* protoLock = reqReplicatable.add_locks();
                 ToProto(protoLock->mutable_transaction_id(), transactionId);
                 protoLock->set_timestamp(lock.Timestamp);
             }
@@ -3722,7 +3743,7 @@ private:
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                 cumulativeDataWeight += tablet->GetChunkList(contentType)->Statistics().LogicalDataWeight;
             }
-            req.set_cumulative_data_weight(cumulativeDataWeight);
+            reqReplicatable.set_cumulative_data_weight(cumulativeDataWeight);
 
             YT_LOG_DEBUG("Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                 "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v, "

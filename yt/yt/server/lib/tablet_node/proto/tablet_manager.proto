@@ -90,34 +90,65 @@ message TTableSettings
     optional bytes experiments = 10; // YSON-serialized
 }
 
+//! Parts of tablet content that are only sent from master during mount.
+message TEssentialTabletContent
+{
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 1;
+    optional NYT.NProto.TGuid schema_id = 2;
+    optional bytes pivot_key = 3;
+    optional bytes next_pivot_key = 4;
+    required int32 atomicity = 5; // EAtomicity
+    required int32 commit_ordering = 6; // ECommitOrdering
+    optional NYT.NProto.TGuid upstream_replica_id = 7;
+    optional string path = 8;
+}
+
+//! Parts of tablet content that are sent from master during initial mount
+//! and also replicated during smooth movement.
+message TReplicatableTabletContent
+{
+    repeated TAddStoreDescriptor stores = 1;
+    repeated TAddHunkChunkDescriptor hunk_chunks = 2;
+    required int64 trimmed_row_count = 3;
+    repeated TLockDescriptor locks = 4;
+    optional uint64 retained_timestamp = 5;
+    optional int64 cumulative_data_weight = 6;
+    required TTableSettings table_settings = 7;
+}
+
 message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
     required NYT.NProto.TGuid master_avenue_endpoint_id = 30;
-    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
-    optional NYT.NProto.TGuid schema_id = 26;
-    repeated TAddStoreDescriptor stores = 4;
-    repeated TAddHunkChunkDescriptor hunk_chunks = 24;
-    optional bytes pivot_key = 5;
-    optional bytes next_pivot_key = 6;
-    required TTableSettings table_settings = 25;
-    required int32 atomicity = 10; // EAtomicity
-    required int32 commit_ordering = 15; // ECommitOrdering
     required uint64 mount_revision = 11;
-    required int64 trimmed_row_count = 12;
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
-    optional NYT.NProto.TGuid upstream_replica_id = 18;
-    optional string path = 19;
-    repeated TLockDescriptor locks = 20;
-    optional uint64 retained_timestamp = 21;
     repeated NYT.NProto.TGuid dynamic_store_ids = 22;
     optional TMountHint mount_hint = 23;
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 28;
-    optional int64 cumulative_data_weight = 29;
+
+    required TEssentialTabletContent essential_content = 31;
+    required TReplicatableTabletContent replicatable_content = 32;
 
     reserved 7, 8, 16, 17, 27;
+
+    // COMPAT(ifsmirnov): drop when 23.3 is deployed.
+    optional NYT.NTableClient.NProto.TTableSchemaExt schema_deprecated = 2;
+    optional NYT.NProto.TGuid schema_id_deprecated = 26;
+    repeated TAddStoreDescriptor stores_deprecated = 4;
+    repeated TAddHunkChunkDescriptor hunk_chunks_deprecated = 24;
+    optional bytes pivot_key_deprecated = 5;
+    optional bytes next_pivot_key_deprecated = 6;
+    optional TTableSettings table_settings_deprecated = 25;
+    optional int32 atomicity_deprecated = 10; // EAtomicity
+    optional int32 commit_ordering_deprecated = 15; // ECommitOrdering
+    optional int64 trimmed_row_count_deprecated = 12;
+    optional NYT.NProto.TGuid upstream_replica_id_deprecated = 18;
+    optional string path_deprecated = 19;
+    repeated TLockDescriptor locks_deprecated = 20;
+    optional uint64 retained_timestamp_deprecated = 21;
+    optional int64 cumulative_data_weight_deprecated = 29;
 }
 
 message TReqUnmountTablet

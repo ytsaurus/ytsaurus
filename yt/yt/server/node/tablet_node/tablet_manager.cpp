@@ -1080,26 +1080,39 @@ private:
 
     void HydraMountTablet(TReqMountTablet* request)
     {
+        // COMPAT(ifsmirnov)
+        #define GET_FROM_ESSENTIAL(field_name) \
+            (request->has_essential_content() \
+                ? request->essential_content().field_name() \
+                : request->field_name ## _deprecated())
+
+        #define GET_FROM_REPLICATABLE(field_name) \
+            (request->has_replicatable_content() \
+                ? request->replicatable_content().field_name() \
+                : request->field_name ## _deprecated())
+
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
         auto masterAvenueEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
-        const auto& path = request->path();
-        auto schemaId = FromProto<TObjectId>(request->schema_id());
-        auto schema = FromProto<TTableSchemaPtr>(request->schema());
-        auto pivotKey = request->has_pivot_key() ? FromProto<TLegacyOwningKey>(request->pivot_key()) : TLegacyOwningKey();
-        auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TLegacyOwningKey>(request->next_pivot_key()) : TLegacyOwningKey();
-        auto rawSettings = DeserializeTableSettings(request, tabletId);
-        auto atomicity = FromProto<EAtomicity>(request->atomicity());
-        auto commitOrdering = FromProto<ECommitOrdering>(request->commit_ordering());
+        const auto& path = GET_FROM_ESSENTIAL(path);
+        auto schemaId = FromProto<TObjectId>(GET_FROM_ESSENTIAL(schema_id));
+        auto schema = FromProto<TTableSchemaPtr>(GET_FROM_ESSENTIAL(schema));
+        auto pivotKey = GET_FROM_ESSENTIAL(has_pivot_key) ? FromProto<TLegacyOwningKey>(GET_FROM_ESSENTIAL(pivot_key)) : TLegacyOwningKey();
+        auto nextPivotKey = GET_FROM_ESSENTIAL(has_next_pivot_key) ? FromProto<TLegacyOwningKey>(GET_FROM_ESSENTIAL(next_pivot_key)) : TLegacyOwningKey();
+        auto rawSettings = request->has_essential_content()
+            ? DeserializeTableSettings(&request->replicatable_content(), tabletId)
+            : DeserializeTableSettings(request, tabletId);
+        auto atomicity = FromProto<EAtomicity>(GET_FROM_ESSENTIAL(atomicity));
+        auto commitOrdering = FromProto<ECommitOrdering>(GET_FROM_ESSENTIAL(commit_ordering));
         bool freeze = request->freeze();
-        auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
+        auto upstreamReplicaId = FromProto<TTableReplicaId>(GET_FROM_ESSENTIAL(upstream_replica_id));
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
-        auto retainedTimestamp = request->has_retained_timestamp()
-            ? FromProto<TTimestamp>(request->retained_timestamp())
+        auto retainedTimestamp = GET_FROM_REPLICATABLE(has_retained_timestamp)
+            ? FromProto<TTimestamp>(GET_FROM_REPLICATABLE(retained_timestamp))
             : MinTimestamp;
         const auto& mountHint = request->mount_hint();
-        auto cumulativeDataWeight = request->cumulative_data_weight();
+        auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1166,15 +1179,15 @@ private:
         SetTableConfigErrors(tablet, configErrors);
 
         if (tablet->IsPhysicallyOrdered()) {
-            tablet->SetTrimmedRowCount(request->trimmed_row_count());
+            tablet->SetTrimmedRowCount(GET_FROM_REPLICATABLE(trimmed_row_count));
         }
 
         PopulateDynamicStoreIdPool(tablet, request);
 
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Mount(
-            MakeRange(request->stores()),
-            MakeRange(request->hunk_chunks()),
+            MakeRange(GET_FROM_REPLICATABLE(stores)),
+            MakeRange(GET_FROM_REPLICATABLE(hunk_chunks)),
             /*createDynamicStore*/ !freeze,
             mountHint);
 
@@ -1197,8 +1210,8 @@ private:
             mountRevision,
             pivotKey,
             nextPivotKey,
-            request->stores_size(),
-            request->hunk_chunks_size(),
+            GET_FROM_REPLICATABLE(stores).size(),
+            GET_FROM_REPLICATABLE(hunk_chunks).size(),
             tablet->IsPhysicallySorted() ? std::make_optional(tablet->PartitionList().size()) : std::nullopt,
             tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTotalRowCount()),
             tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTrimmedRowCount()),
@@ -1227,7 +1240,7 @@ private:
 
         const auto& lockManager = tablet->GetLockManager();
 
-        for (const auto& lock : request->locks()) {
+        for (const auto& lock : GET_FROM_REPLICATABLE(locks)) {
             auto transactionId = FromProto<TTabletId>(lock.transaction_id());
             auto lockTimestamp = static_cast<TTimestamp>(lock.timestamp());
             lockManager->Lock(lockTimestamp, transactionId, true);
@@ -1246,6 +1259,9 @@ private:
         if (!IsRecovery()) {
             StartTabletEpoch(tablet);
         }
+
+        #undef GET_FROM_ESSENTIAL
+        #undef GET_FROM_REPLICATABLE
     }
 
     void HydraUnmountTablet(TReqUnmountTablet* request)
@@ -4026,7 +4042,16 @@ private:
     template <class TRequest>
     TRawTableSettings DeserializeTableSettings(TRequest* request, TTabletId tabletId)
     {
-        const auto& tableSettings = request->table_settings();
+        // COMPAT(ifsmirnov)
+        auto extractTableSettings = [&] () -> const auto& {
+            if constexpr (requires { request->table_settings(); }) {
+                return request->table_settings();
+            } else {
+                return request->table_settings_deprecated();
+            }
+        };
+        const auto& tableSettings = extractTableSettings();
+
         auto extraMountConfigAttributes = tableSettings.has_extra_mount_config_attributes()
             ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
             : nullptr;
