@@ -200,7 +200,7 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         job->Abort(error);
 
-        if (job->GetPhase() < EJobPhase::WaitingCleanup) {
+        if (job->GetPhase() < EJobPhase::WaitingForCleanup) {
             THROW_ERROR_EXCEPTION("Failed to abort job %v", jobId)
                 << TErrorAttribute("job_state", job->GetState())
                 << TErrorAttribute("job_phase", job->GetPhase());

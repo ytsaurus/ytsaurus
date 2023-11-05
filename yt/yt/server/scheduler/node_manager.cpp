@@ -517,7 +517,7 @@ int TNodeManager::GetOngoingHeartbeatsCount() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto futures = ExecuteInNodeShards([] (const TNodeShardPtr& nodeShard) {
-        return nodeShard->GetOnGoingHeartbeatsCount();
+        return nodeShard->GetOnGoingHeartbeatCount();
     });
 
     auto future = AllSucceeded(std::move(futures));

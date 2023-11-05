@@ -32,7 +32,7 @@ DEFINE_ENUM(EJobPhase,
     ((Running)                      ( 40))
     ((FinalizingJobProxy)           ( 50))
     ((RunningExtraGpuCheckCommand)  ( 55))
-    ((WaitingCleanup)               ( 60))
+    ((WaitingForCleanup)            ( 60))
     ((Cleanup)                      ( 70))
     ((Finished)                     ( 80))
 );

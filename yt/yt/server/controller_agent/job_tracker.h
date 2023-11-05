@@ -175,6 +175,23 @@ private:
 
     NYTree::IYPathServicePtr OrchidService_;
 
+    struct THeartbeatCounters
+    {
+        int UnknownOperationCount = 0;
+        int RunningJobCount = 0;
+        int StaleRunningJobCount = 0;
+        int FinishedJobCount = 0;
+        int DuplicatedFinishedJobCount = 0;
+        int UnknownJobCount = 0;
+        int UnconfirmedJobCount = 0;
+        int ConfirmedJobCount = 0;
+        int VanishedJobAbortCount = 0;
+        int JobAbortRequestCount = 0;
+        int JobReleaseRequestCount = 0;
+        int JobInterruptionRequestCount = 0;
+        int JobFailureRequestCount = 0;
+    };
+
     IInvokerPtr GetInvoker() const;
     IInvokerPtr TryGetCancelableInvoker() const;
     IInvokerPtr GetCancelableInvoker() const;
@@ -188,23 +205,7 @@ private:
 
     void ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request);
     void AccountEnqueuedControllerEvent(int delta);
-    struct THeartbeatProperties
-    {
-        int UnknownOperationCount;
-        int RunningJobCount;
-        int StaleRunningJobCount;
-        int FinishedJobCount;
-        int DuplicatedFinishedJobCount;
-        int UnknownJobCount;
-        int UnconfirmedJobCount;
-        int ConfirmedJobCount;
-        int VanishedJobAbortCount;
-        int JobAbortRequestCount;
-        int JobReleaseRequestCount;
-        int JobInterruptionRequestCount;
-        int JobFailureRequestCount;
-    };
-    void ProfileHeartbeatProperties(const THeartbeatProperties& heartbeatProperties);
+    void ProfileHeartbeatProperties(const THeartbeatCounters& heartbeatCounters);
 
     struct THeartbeatRequest
     {
@@ -222,7 +223,7 @@ private:
         TIncarnationId IncarnationId;
         THeartbeatRequest Request;
     };
-    THeartbeatProperties DoProcessHeartbeat(
+    THeartbeatCounters DoProcessHeartbeat(
         THeartbeatProcessingContext heartbeatProcessingContext);
 
     bool IsJobRunning(const TJobInfo& jobInfo) const;
@@ -233,7 +234,7 @@ private:
         TJobId jobId,
         EJobStage newJobStage,
         const NLogging::TLogger& Logger,
-        THeartbeatProperties& heartbeatProperties);
+        THeartbeatCounters& heartbeatCounters);
 
     void HandleRunningJobInfo(
         TJobInfo& jobInfo,
@@ -242,7 +243,7 @@ private:
         TJobId jobId,
         EJobStage newJobStage,
         const NLogging::TLogger& Logger,
-        THeartbeatProperties& heartbeatProperties);
+        THeartbeatCounters& heartbeatCounters);
     void HandleFinishedJobInfo(
         TJobInfo& jobInfo,
         TCtxHeartbeat::TTypedResponse* response,
@@ -250,21 +251,21 @@ private:
         TJobId jobId,
         EJobStage newJobStage,
         const NLogging::TLogger& Logger,
-        THeartbeatProperties& heartbeatProperties);
+        THeartbeatCounters& heartbeatCounters);
 
     void ProcessInterruptionRequest(
         TJobTracker::TCtxHeartbeat::TTypedResponse* response,
         const TInterruptionRequestOptions& requestOptions,
         TJobId jobId,
         const NLogging::TLogger& Logger,
-        THeartbeatProperties& heartbeatProperties);
+        THeartbeatCounters& heartbeatCounters);
 
     void ProcessFailureRequest(
         TJobTracker::TCtxHeartbeat::TTypedResponse* response,
         const TFailureRequestOptions& requestOptions,
         TJobId jobId,
         const NLogging::TLogger& Logger,
-        THeartbeatProperties& heartbeatProperties);
+        THeartbeatCounters& heartbeatCounters);
 
     void DoRegisterOperation(
         TOperationId operationId,
@@ -318,7 +319,7 @@ private:
     void UnregisterNode(
         TNodeId nodeId,
         const TString& nodeAddress,
-        std::optional<TGuid> maybeRegistrationId = std::nullopt);
+        TGuid maybeRegistrationId = {});
 
     TNodeInfo* FindNodeInfo(TNodeId nodeId);
 
