@@ -244,13 +244,10 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
             lambda: mount_table("//tmp/t", freeze=False),
             lambda: mount_table("//tmp/t", freeze=True),
             lambda: unmount_table("//tmp/t", force=False),
+            lambda: unmount_table("//tmp/t", force=True),
             lambda: freeze_table("//tmp/t"),
             lambda: unfreeze_table("//tmp/t"),
             _force_create_table,
-
-            # NB. Forced unmount can currently lead to alerts. See explanation at
-            # master/tablet_manager.cpp::HydraOnTabletMounted.
-            #  lambda: unmount_table("//tmp/t", force=True),
         ]
 
         random.seed(1234)

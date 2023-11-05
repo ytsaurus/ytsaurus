@@ -5048,8 +5048,9 @@ private:
         }
     }
 
-    TTabletServant* GetServantForStateTransition(
+    TTabletServant* FindServantForStateTransition(
         TTabletBase* tablet,
+        TRevision mountRevision,
         TCellId senderId,
         bool senderIsCell,
         TStringBuf changeType)
@@ -5066,19 +5067,41 @@ private:
 
         auto* servant = &tablet->Servant();
 
+        // This condition may be false if the tablet was forcefully unmounted.
+        if (servant->GetMountRevision() != mountRevision) {
+            // COMPAT(ifsmirnov): remove when 23.3 is deployed.
+            // This should not happen unless masters are updated before nodes.
+            if (!mountRevision) {
+                YT_LOG_ALERT("%v notification received without mount revision "
+                    "(TabletId: %v, SenderId: %v)",
+                    tablet->GetId(),
+                    senderId);
+            } else {
+                YT_LOG_WARNING("%v notification received by a tablet with wrong mount revision, ignored "
+                    "(TabletId: %v, ExpectedMountRevision: %v, RequestMountRevision: %v, SenderId: %v)",
+                    tablet->GetId(),
+                    servant->GetMountRevision(),
+                    mountRevision,
+                    senderId);
+                return nullptr;
+            }
+        }
+
         auto expectedSenderId = senderIsCell
             ? GetObjectId(tablet->Servant().GetCell())
             : tablet->GetNodeEndpointId();
 
+        // This condition should never be violated given that mount revision check passed.
         if (senderId != expectedSenderId) {
             YT_LOG_ALERT(
                 "%v notification received from unexpected sender, ignored "
-                "(TabletId: %v, State: %v, SenderId: %v, TabletCellId: %v)",
+                "(TabletId: %v, State: %v, SenderId: %v, TabletCellId: %v, MountRevision: %v)",
                 changeType,
                 tablet->GetId(),
                 tablet->GetState(),
                 senderId,
-                GetObjectId(tablet->Servant().GetCell()));
+                GetObjectId(tablet->Servant().GetCell()),
+                servant->GetMountRevision());
             return nullptr;
         }
 
@@ -5091,17 +5114,17 @@ private:
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
 
         auto frozen = response->frozen();
-        OnTabletMounted(tabletId, frozen);
+        OnTabletMounted(tabletId, frozen, response->mount_revision());
     }
 
     void HydraOnHunkTabletMounted(NProto::TRspMountHunkTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::HunkTablet);
-        OnTabletMounted(tabletId, /*frozen*/ false);
+        OnTabletMounted(tabletId, /*frozen*/ false, response->mount_revision());
     }
 
-    void OnTabletMounted(TTabletId tabletId, bool frozen)
+    void OnTabletMounted(TTabletId tabletId, bool frozen, TRevision mountRevision)
     {
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet)) {
@@ -5109,8 +5132,9 @@ private:
         }
 
         auto senderId = GetHiveMutationSenderId();
-        auto* servant = GetServantForStateTransition(
+        auto* servant = FindServantForStateTransition(
             tablet,
+            mountRevision,
             senderId,
             /*senderIsCell*/ true,
             "Mounted");
@@ -5121,14 +5145,6 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                // NB. This (and similar in HydraOnTabletXxx) alerts can actually occur. Consider the case:
-                // - initially, the tablet is mounted
-                // - the tablet is being frozen, master sends TReqFreezeTablet, the response is delayed
-                // - the tablet is being forcefully unmounted
-                // - the tablet is being mounted again
-                // - TRspFreezeTablet finally arrives while the tablet is in mounting state
-                // However, forced unmount should be done for this to happen, and only superusers
-                // have the permission for it.
                 YT_LOG_ALERT("Mounted notification received for a tablet in wrong state, ignored (TabletId: %v, State: %v)",
                     tabletId,
                     state);
@@ -5167,8 +5183,9 @@ private:
         }
 
         auto senderId = GetHiveMutationSenderId();
-        auto* servant = GetServantForStateTransition(
+        auto* servant = FindServantForStateTransition(
             tablet,
+            response->mount_revision(),
             senderId,
             /*senderIsCell*/ true,
             "Unmounted");
@@ -5223,8 +5240,9 @@ private:
         }
 
         auto senderId = GetHiveMutationSenderId();
-        auto* servant = GetServantForStateTransition(
+        auto* servant = FindServantForStateTransition(
             tablet,
+            response->mount_revision(),
             senderId,
             /*senderIsCell*/ false,
             "Frozen");
@@ -5272,8 +5290,9 @@ private:
         }
 
         auto senderId = GetHiveMutationSenderId();
-        auto* servant = GetServantForStateTransition(
+        auto* servant = FindServantForStateTransition(
             tablet,
+            response->mount_revision(),
             senderId,
             /*senderIsCell*/ false,
             "Unfrozen");

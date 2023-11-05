@@ -1250,6 +1250,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
+            response.set_mount_revision(tablet->GetMountRevision());
             PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
         }
 
@@ -1487,6 +1488,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
+        response.set_mount_revision(tablet->GetMountRevision());
         PostMasterMessage(tablet, response);
     }
 
@@ -1687,6 +1689,7 @@ private:
                 if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Acquire()) {
                     ToProto(response.mutable_replication_progress(), *replicationProgress);
                 }
+                response.set_mount_revision(tablet->GetMountRevision());
 
                 if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
                     Slot_->UnregisterTabletAvenue(masterEndpointId);
@@ -1726,6 +1729,7 @@ private:
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
+                response.set_mount_revision(tablet->GetMountRevision());
                 PostMasterMessage(tablet, response);
                 break;
             }

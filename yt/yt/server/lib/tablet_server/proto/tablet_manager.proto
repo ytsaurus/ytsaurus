@@ -58,6 +58,7 @@ message TRspMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required bool frozen = 2;
+    required uint64 mount_revision = 3;
 }
 
 message TRspUnmountTablet
@@ -65,17 +66,20 @@ message TRspUnmountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     optional NYT.NTabletNode.NProto.TMountHint mount_hint = 2;
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 3;
+    required uint64 mount_revision = 4;
 }
 
 message TRspFreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     optional NYT.NTabletNode.NProto.TMountHint mount_hint = 2;
+    required uint64 mount_revision = 3;
 }
 
 message TRspUnfreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
 }
 
 message TRspLockTablet
@@ -252,11 +256,13 @@ message TReqUpdateTabletCellBundleResourceUsage
 message TRspMountHunkTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
 }
 
 message TRspUnmountHunkTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
 }
 
 message TReqUpdateHunkTabletStores
