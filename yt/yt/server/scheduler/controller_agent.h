@@ -24,7 +24,7 @@ namespace NYT::NScheduler {
 
 using TStartedJobSummary = NControllerAgent::TStartedJobSummary;
 using TFinishedJobSummary = NControllerAgent::TFinishedJobSummary;
-using TAbortedBySchedulerJobSummary = NControllerAgent::TAbortedBySchedulerJobSummary;
+using TAbortedAllocationSummary = NControllerAgent::TAbortedAllocationSummary;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +60,7 @@ void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobReques
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSchedulerToAgentJobEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TAbortedBySchedulerJobSummary>>;
+using TSchedulerToAgentAbortedAllocationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TAbortedAllocationSummary>>;
 using TSchedulerToAgentOperationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>;
 using TScheduleJobRequestOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>;
 
@@ -140,7 +140,7 @@ public:
     TMessageQueueInbox* GetRunningJobStatisticsUpdatesInbox();
     TMessageQueueInbox* GetScheduleJobResponsesInbox();
 
-    const TSchedulerToAgentJobEventOutboxPtr& GetJobEventsOutbox();
+    const TSchedulerToAgentAbortedAllocationEventOutboxPtr& GetAbortedAllocationEventsOutbox();
     const TSchedulerToAgentOperationEventOutboxPtr& GetOperationEventsOutbox();
     const TScheduleJobRequestOutboxPtr& GetScheduleJobRequestsOutbox();
 
@@ -172,7 +172,7 @@ private:
     std::unique_ptr<TMessageQueueInbox> RunningJobStatisticsUpdatesInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleJobResponsesInbox_;
 
-    TSchedulerToAgentJobEventOutboxPtr JobEventsOutbox_;
+    TSchedulerToAgentAbortedAllocationEventOutboxPtr AbortedAllocationEventsOutbox_;
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
     TScheduleJobRequestOutboxPtr ScheduleJobRequestsOutbox_;
 

@@ -126,7 +126,9 @@ struct TAbortedJobSummary
     inline static constexpr EJobState ExpectedState = EJobState::Aborted;
 };
 
-std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJobSummary&& eventSummary, const NLogging::TLogger& Logger);
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    TAbortedAllocationSummary&& eventSummary);
 
 struct TFailedJobSummary
     : public TJobSummary
@@ -155,18 +157,18 @@ struct TRunningJobSummary
     inline static constexpr EJobState ExpectedState = EJobState::Running;
 };
 
-struct TAbortedBySchedulerJobSummary
+struct TAbortedAllocationSummary
 {
     TOperationId OperationId;
-    TJobId Id;
+    TAllocationId Id;
     TInstant FinishTime;
-    std::optional<EAbortReason> AbortReason;
+    EAbortReason AbortReason;
     TError Error;
     bool Scheduled;
 };
 
-void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* proto, const TAbortedBySchedulerJobSummary& summary);
-void FromProto(TAbortedBySchedulerJobSummary* summary, NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent);
+void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedAllocationEvent* proto, const TAbortedAllocationSummary& summary);
+void FromProto(TAbortedAllocationSummary* summary, NScheduler::NProto::TSchedulerToAgentAbortedAllocationEvent* protoEvent);
 
 std::unique_ptr<TJobSummary> ParseJobSummary(
     NProto::TJobStatus* const status,

@@ -204,7 +204,7 @@ struct IOperationController
         const TJobPtr& job,
         const TError& error,
         bool scheduled,
-        std::optional<EAbortReason> abortReason) = 0;
+        EAbortReason abortReason) = 0;
 
     //! Called to proxy abandon job request to the controller agent.
     /*!

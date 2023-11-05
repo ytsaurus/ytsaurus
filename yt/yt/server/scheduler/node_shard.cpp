@@ -658,7 +658,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
                 job->GetId(),
                 job->GetOperationId());
 
-            OnJobAborted(job, error);
+            OnJobAborted(job, error, EAbortReason::NodeWithZeroUserSlots);
         }
     }
 
@@ -992,7 +992,11 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
     return errors;
 }
 
-void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abortError, bool controllerTerminated)
+void TNodeShard::AbortOperationJobs(
+    TOperationId operationId,
+    const TError& abortError,
+    EAbortReason abortReason,
+    bool controllerTerminated)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1012,7 +1016,7 @@ void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abor
     auto jobs = operationState->Jobs;
     for (const auto& [jobId, job] : jobs) {
         YT_LOG_DEBUG(abortError, "Aborting job (JobId: %v, OperationId: %v)", jobId, operationId);
-        OnJobAborted(job, abortError);
+        OnJobAborted(job, abortError, abortReason);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -1179,7 +1183,7 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
     }
 }
 
-void TNodeShard::AbortJob(TJobId jobId, const TError& error)
+void TNodeShard::AbortJob(TJobId jobId, const TError& error, EAbortReason abortReason)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
@@ -1194,16 +1198,16 @@ void TNodeShard::AbortJob(TJobId jobId, const TError& error)
         jobId,
         job->GetOperationId());
 
-    OnJobAborted(job, error);
+    OnJobAborted(job, error, abortReason);
 }
 
-void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error)
+void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     for (auto jobId : jobIds) {
-        AbortJob(jobId, error);
+        AbortJob(jobId, error, abortReason);
     }
 }
 
@@ -1661,7 +1665,7 @@ void TNodeShard::DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason rea
     auto error = TError("All jobs on the node were aborted by scheduler")
         << TErrorAttribute("abort_reason", reason);
     for (const auto& job : jobs) {
-        OnJobAborted(job, error);
+        OnJobAborted(job, error, reason);
     }
 }
 
@@ -1798,7 +1802,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             << TErrorAttribute("abort_reason", EAbortReason::Vanished);
         for (const auto& job : missingJobs) {
             YT_LOG_DEBUG("Aborting vanished job (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
-            OnJobAborted(job, error, /*abortReason*/ std::nullopt, /*sendEventToAgent*/ false);
+            OnJobAborted(job, error, EAbortReason::Vanished);
         }
     }
 }
@@ -2256,8 +2260,7 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
 void TNodeShard::OnJobAborted(
     const TJobPtr& job,
     const TError& error,
-    std::optional<EAbortReason> abortReason,
-    bool sendEventToAgent)
+    EAbortReason abortReason)
 {
     YT_VERIFY(!error.IsOK());
 
@@ -2270,12 +2273,9 @@ void TNodeShard::OnJobAborted(
 
     SetFinishedState(job);
 
-    // TODO(pogorelov): Remove this flag and make agent wait for job result even when allocation is aborted.
-    if (sendEventToAgent) {
-        if (auto* operationState = FindOperationState(job->GetOperationId())) {
-            const auto& controller = operationState->Controller;
-            controller->OnJobAborted(job, error, /*scheduled*/ true, abortReason);
-        }
+    if (auto* operationState = FindOperationState(job->GetOperationId())) {
+        const auto& controller = operationState->Controller;
+        controller->OnJobAborted(job, error, /*scheduled*/ true, abortReason);
     }
 
     UnregisterJob(job);
@@ -2308,7 +2308,7 @@ void TNodeShard::SubmitJobsToStrategy()
                 &jobsToAbort);
 
             for (auto jobId : jobsToAbort) {
-                AbortJob(jobId, TError("Aborting job by strategy request"));
+                AbortJob(jobId, TError("Aborting job by strategy request"), EAbortReason::SchedulingOther);
             }
 
             std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;

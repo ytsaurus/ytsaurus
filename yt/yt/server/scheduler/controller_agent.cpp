@@ -116,7 +116,7 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "schedule_job_responses"),
         MessageOffloadInvoker_);
-    JobEventsOutbox_ = New<TMessageQueueOutbox<TAbortedBySchedulerJobSummary>>(
+    AbortedAllocationEventsOutbox_ = New<TMessageQueueOutbox<TAbortedAllocationSummary>>(
         SchedulerLogger.WithTag("Kind: SchedulerToAgentJobs, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
@@ -153,9 +153,9 @@ TMessageQueueInbox* TControllerAgent::GetScheduleJobResponsesInbox()
     return ScheduleJobResponsesInbox_.get();
 }
 
-const TSchedulerToAgentJobEventOutboxPtr& TControllerAgent::GetJobEventsOutbox()
+const TSchedulerToAgentAbortedAllocationEventOutboxPtr& TControllerAgent::GetAbortedAllocationEventsOutbox()
 {
-    return JobEventsOutbox_;
+    return AbortedAllocationEventsOutbox_;
 }
 
 const TSchedulerToAgentOperationEventOutboxPtr& TControllerAgent::GetOperationEventsOutbox()

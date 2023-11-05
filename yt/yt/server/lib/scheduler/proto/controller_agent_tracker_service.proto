@@ -79,17 +79,17 @@ message TAgentToSchedulerRunningJobStatistics
     required int64 preemptible_progress_time = 2;
 }
 
-message TSchedulerToAgentAbortedJobEvent
+message TSchedulerToAgentAbortedAllocationEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
-    required NYT.NProto.TGuid job_id = 2;
+    required NYT.NProto.TGuid allocation_id = 2;
 
     required NYT.NProto.TError error = 3;
+    required int32 abort_reason = 6;
 
     required bool scheduled = 4;
 
     optional uint64 finish_time = 5;
-    optional int32 abort_reason = 6;
 }
 
 message TSchedulerToAgentOperationEvent
@@ -183,7 +183,7 @@ message TReqHeartbeat
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
     required TAgentToSchedulerRunningJobStatisticsUpdatesOutbox agent_to_scheduler_running_job_statistics_updates = 15;
 
-    required TEventQueueInbox scheduler_to_agent_aborted_job_events = 10;
+    required TEventQueueInbox scheduler_to_agent_aborted_allocation_events = 10;
     required TEventQueueInbox scheduler_to_agent_operation_events = 11;
     required TEventQueueInbox scheduler_to_agent_schedule_job_requests = 12;
 
@@ -193,10 +193,10 @@ message TReqHeartbeat
 
 message TRspHeartbeat
 {
-    message TSchedulerToAgentAbortedJobEventsOutbox
+    message TSchedulerToAgentAbortedAllocationEventsOutbox
     {
         required int64 first_item_id = 1;
-        repeated TSchedulerToAgentAbortedJobEvent items = 2;
+        repeated TSchedulerToAgentAbortedAllocationEvent items = 2;
     }
 
     message TSchedulerToAgentOperationEventsOutbox
@@ -215,13 +215,12 @@ message TRspHeartbeat
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
     required TEventQueueInbox agent_to_scheduler_running_job_statistics_updates = 11;
 
-    required TSchedulerToAgentAbortedJobEventsOutbox scheduler_to_agent_aborted_job_events = 4;
+    required TSchedulerToAgentAbortedAllocationEventsOutbox scheduler_to_agent_aborted_allocation_events = 4;
     required TSchedulerToAgentOperationEventsOutbox scheduler_to_agent_operation_events = 5;
 
     repeated NYT.NProto.TGuid operation_ids_to_unregister = 8;
 
     optional int32 operation_archive_version = 9;
-    reserved 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

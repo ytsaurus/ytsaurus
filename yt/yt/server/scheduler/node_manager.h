@@ -73,7 +73,11 @@ public:
 
     TError HandleNodesAttributes(const NYTree::IListNodePtr& nodeList);
 
-    void AbortOperationJobs(TOperationId operationId, const TError& error, bool terminated);
+    void AbortOperationJobs(
+        TOperationId operationId,
+        const TError& error,
+        EAbortReason abortReason,
+        bool terminated);
     void ResumeOperationJobs(TOperationId operationId);
 
     TFuture<NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId);
@@ -82,7 +86,7 @@ public:
     TFuture<void> AbandonJob(TJobId jobId);
     TFuture<void> AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
-    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
+    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
 
     TNodeYsonList BuildNodeYsonList() const;
 

@@ -654,10 +654,10 @@ public:
 
                 YT_LOG_DEBUG("Handling job events outbox");
 
-                agent->GetJobEventsOutbox()->HandleStatus(
-                    request->scheduler_to_agent_aborted_job_events());
-                agent->GetJobEventsOutbox()->BuildOutcoming(
-                    response->mutable_scheduler_to_agent_aborted_job_events(),
+                agent->GetAbortedAllocationEventsOutbox()->HandleStatus(
+                    request->scheduler_to_agent_aborted_allocation_events());
+                agent->GetAbortedAllocationEventsOutbox()->BuildOutcoming(
+                    response->mutable_scheduler_to_agent_aborted_allocation_events(),
                     config->MaxMessageJobEventCount);
 
                 YT_LOG_DEBUG("Job events outbox handled");

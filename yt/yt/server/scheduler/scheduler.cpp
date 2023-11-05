@@ -936,7 +936,7 @@ public:
 
         auto error = TError("Job was in banned tentative pool tree")
             << TErrorAttribute("abort_reason", EAbortReason::BannedInTentativeTree);
-        NodeManager_->AbortJobs(jobIds, error);
+        NodeManager_->AbortJobs(jobIds, error, EAbortReason::BannedInTentativeTree);
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationBannedInTree)
             .Item("operation_id").Value(operation->GetId())
@@ -3095,9 +3095,9 @@ private:
             operation->GetId());
     }
 
-    void AbortOperationJobs(const TOperationPtr& operation, const TError& error, bool terminated)
+    void AbortOperationJobs(const TOperationPtr& operation, const TError& error, EAbortReason abortReason, bool terminated)
     {
-        NodeManager_->AbortOperationJobs(operation->GetId(), error, terminated);
+        NodeManager_->AbortOperationJobs(operation->GetId(), error, abortReason, terminated);
 
         YT_LOG_INFO(error,
             "All operations jobs aborted at scheduler (OperationId: %v)",
@@ -3205,7 +3205,11 @@ private:
         operation->SetSuspended(false);
 
         // The operation may still have running jobs (e.g. those started speculatively).
-        AbortOperationJobs(operation, TError("Operation completed"), /* terminated */ true);
+        AbortOperationJobs(
+            operation,
+            TError("Operation completed"),
+            EAbortReason::OperationCompleted,
+            /*terminated*/ true);
 
         TOperationProgress operationProgress;
         try {
@@ -3350,6 +3354,7 @@ private:
                 operation,
                 error
                     << TErrorAttribute("abort_reason", EAbortReason::Suspended),
+                EAbortReason::Suspended,
                 /* terminated */ false);
         }
 
@@ -3450,11 +3455,18 @@ private:
         operation->SetStateAndEnqueueEvent(intermediateState);
         operation->SetSuspended(false);
 
+        YT_VERIFY(finalState == EOperationState::Aborted || finalState == EOperationState::Failed);
+        auto jobAbortReason = finalState == EOperationState::Aborted
+            ? EAbortReason::OperationAborted
+            : EAbortReason::OperationFailed;
+
         AbortOperationJobs(
             operation,
             TError("Operation terminated")
                 << TErrorAttribute("state", initialState)
+                << TErrorAttribute("abort_reason", jobAbortReason)
                 << error,
+            jobAbortReason,
             /* terminated */ true);
 
         // First flush: ensure that all stderrs are attached and the

@@ -286,13 +286,17 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
     return {};
 }
 
-void TNodeManager::AbortOperationJobs(TOperationId operationId, const TError& error, bool terminated)
+void TNodeManager::AbortOperationJobs(
+    TOperationId operationId,
+    const TError& error,
+    EAbortReason abortReason,
+    bool terminated)
 {
     std::vector<TFuture<void>> abortFutures;
     for (const auto& nodeShard : NodeShards_) {
         abortFutures.push_back(BIND(&TNodeShard::AbortOperationJobs, nodeShard)
             .AsyncVia(nodeShard->GetInvoker())
-            .Run(operationId, error, terminated));
+            .Run(operationId, error, abortReason, terminated));
     }
     WaitFor(AllSucceeded(abortFutures))
         .ThrowOnError();
@@ -348,7 +352,7 @@ TFuture<void> TNodeManager::AbortJobByUserRequest(TJobId jobId, std::optional<TD
         .Run();
 }
 
-void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error)
+void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason)
 {
     std::vector<std::vector<TJobId>> jobIdsPerShard(NodeShards_.size());
     for (auto jobId : jobIds) {
@@ -366,7 +370,8 @@ void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& er
             &TNodeShard::AbortJobs,
             nodeShard,
             Passed(std::move(jobIdsPerShard[shardId])),
-            error));
+            error,
+            abortReason));
     }
 }
 

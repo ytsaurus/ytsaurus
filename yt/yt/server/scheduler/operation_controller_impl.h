@@ -46,7 +46,7 @@ public:
         const TJobPtr& job,
         const TError& error,
         bool scheduled,
-        std::optional<EAbortReason> abortReason) override;
+        EAbortReason abortReason) override;
 
     TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) override;
 
@@ -96,7 +96,7 @@ private:
 
     std::atomic<TControllerEpoch> Epoch_;
 
-    TSchedulerToAgentJobEventOutboxPtr JobEventsOutbox_;
+    TSchedulerToAgentAbortedAllocationEventOutboxPtr AbortedAllocationEventsOutbox_;
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
     TScheduleJobRequestOutboxPtr ScheduleJobRequestsOutbox_;
 
@@ -108,10 +108,9 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    bool ShouldSkipJobEvent(TJobId jobId, TControllerEpoch jobEpoch) const;
-    bool ShouldSkipJobEvent(const TJobPtr& job) const;
+    bool ShouldSkipAllocationAbortEvent(TAllocationId allocationId, TControllerEpoch allocationEpoch) const;
 
-    bool EnqueueAbortedJobEvent(TAbortedBySchedulerJobSummary&& summary);
+    bool EnqueueAbortedAllocationEvent(TAbortedAllocationSummary&& summary);
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);
     void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event);
 
@@ -122,12 +121,12 @@ private:
 
     void ProcessControllerAgentError(const TError& error);
 
-    void OnJobAborted(
-        TJobId jobId,
+    void OnAllocationAborted(
+        TAllocationId allocationId,
         const TError& error,
         const bool scheduled,
-        std::optional<EAbortReason> abortReason,
-        TControllerEpoch jobEpoch);
+        EAbortReason abortReason,
+        TControllerEpoch allocationEpoch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
