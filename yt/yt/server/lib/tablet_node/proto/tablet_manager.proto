@@ -168,13 +168,15 @@ message TReqUnlockTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
-    required uint64 mount_revision = 3;
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 4;
     optional int32 update_mode = 5 [default = 1]; // EUpdateMode [default = Append]
     optional int64 commit_timestamp = 6;
 
     // For overwrite mode.
     repeated NYT.NProto.TGuid dynamic_store_ids = 7;
+
+    // COMPAT(ifsmirnov): remove when 23.3 is deployed (NoMountRevisionCheckInBulkInsert reign).
+    required uint64 mount_revision = 3;
 }
 
 message TReqSetBackupCheckpoint

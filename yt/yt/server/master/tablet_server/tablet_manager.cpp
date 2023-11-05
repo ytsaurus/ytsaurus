@@ -1599,7 +1599,6 @@ public:
             TReqUnlockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_transaction_id(), transaction->GetId());
-            req.set_mount_revision(tablet->Servant().GetMountRevision());
             req.set_commit_timestamp(static_cast<i64>(
                 transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
             req.set_update_mode(ToProto<int>(updateMode));

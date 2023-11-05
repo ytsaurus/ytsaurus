@@ -185,6 +185,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveChunkJobDynamicConfig)                                  (2502))  // danilalexeev
     ((SecondaryIndexUnmountedCheck)                                 (2503))  // sabdenovch
     ((ReinitializeRootResourceLimits)                               (2504))  // kvk1920
+    ((NoMountRevisionCheckInBulkInsert)                             (2505))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

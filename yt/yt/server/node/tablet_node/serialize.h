@@ -45,6 +45,8 @@ DEFINE_ENUM(ETabletReign,
     ((InMemoryModeAndBundleInExperimentDescriptor) (100803)) // dave11ar
     ((RegisterTxActionsShouldPersistTx)            (100804)) // ifsmirnov
     ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
+    // 23.3 starts here.
+    ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

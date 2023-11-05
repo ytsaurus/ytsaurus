@@ -1527,10 +1527,13 @@ private:
         }
 
         // COMPAT(ifsmirnov)
-        if (request->has_mount_revision() && request->mount_revision() != 0) {
-            auto mountRevision = request->mount_revision();
-            if (mountRevision != tablet->GetMountRevision()) {
-                return;
+        const auto* context = GetCurrentMutationContext();
+        if (static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::NoMountRevisionCheckInBulkInsert) {
+            if (request->has_mount_revision() && request->mount_revision() != 0) {
+                auto mountRevision = request->mount_revision();
+                if (mountRevision != tablet->GetMountRevision()) {
+                    return;
+                }
             }
         }
 
