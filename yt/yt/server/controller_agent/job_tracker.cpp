@@ -1236,20 +1236,6 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
         }
     }
 
-    {
-        THashMap<TOperationId, std::vector<TAbortedAllocationSummary>> groppedAbortedAllocations;
-        for (auto& [allocationId, abortedAllocationSummary] : nodeJobs.AbortedAllocations) {
-            YT_LOG_DEBUG(
-                "Abort allocation that has not active jobs in operation controller"
-                " (AllocationId: %v, OperationId: %v, AbortReason: %v)",
-                allocationId,
-                abortedAllocationSummary.OperationId,
-                abortedAllocationSummary.AbortReason);
-            groppedAbortedAllocations[abortedAllocationSummary.OperationId].push_back(
-                std::move(abortedAllocationSummary));
-        }
-    }
-
     YT_VERIFY(std::empty(nodeJobs.AbortedAllocations));
     nodeJobs.AbortedAllocations = std::move(revivingJobsAbortedAllocations);
 
