@@ -237,7 +237,7 @@ class OperationAclBuilder(AclBuilderBase):
         super(OperationAclBuilder, self).__init__(spec_builder, attribute="acl", possible_permissions=["read", "manage"])
 
     def end_acl(self):
-        self._end_acl()
+        return self._end_acl()
 
 
 class IntermediateDataAclBuilder(AclBuilderBase):
@@ -247,7 +247,7 @@ class IntermediateDataAclBuilder(AclBuilderBase):
         super(IntermediateDataAclBuilder, self).__init__(spec_builder, attribute="intermediate_data_acl")
 
     def end_intermediate_data_acl(self):
-        self._end_acl()
+        return self._end_acl()
 
 
 class JobIOSpecBuilderBase(object):
