@@ -1967,8 +1967,8 @@ class SortSpecBuilder(SpecBuilder):
         return _set_spec_value(self, "input_table_paths", paths)
 
     @spec_option("The path of the output table")
-    def output_table_path(self, size):
-        return _set_spec_value(self, "output_table_path", size)
+    def output_table_path(self, path):
+        return _set_spec_value(self, "output_table_path", path)
 
     @spec_option("The approximate count of partition jobs")
     def partition_job_count(self, count):
