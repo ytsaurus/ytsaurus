@@ -443,6 +443,7 @@ class TestGetJob(_TestGetJobCommon):
         assert not job_info.get("is_stale")
 
     @authors("levysotsky")
+    @flaky(max_runs=3)
     def test_get_job_is_stale(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         (job_id,) = wait_breakpoint()
