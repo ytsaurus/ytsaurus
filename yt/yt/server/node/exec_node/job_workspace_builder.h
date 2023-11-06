@@ -50,6 +50,7 @@ struct TJobWorkspaceBuildingContext
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
+    NContainers::NCri::TCriAuthConfigPtr DockerAuth;
 
     bool NeedGpuCheck;
     std::optional<TString> GpuCheckBinaryPath;

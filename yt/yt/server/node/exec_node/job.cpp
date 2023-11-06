@@ -23,6 +23,8 @@
 
 #include <yt/yt/library/containers/public.h>
 
+#include <yt/yt/library/containers/cri/config.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/io/io_tracker.h>
@@ -128,6 +130,8 @@ using NCypressClient::EObjectType;
 static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
 static const TString SlotIndexPattern("\%slot_index\%");
+
+static constexpr TStringBuf DockerAuthEnvPrefix("YT_SECURE_VAULT_docker_auth=");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1780,6 +1784,7 @@ void TJob::RunWithWorkspaceBuilder()
         .LayerArtifactKeys = LayerArtifactKeys_,
         .SetupCommands = GetSetupCommands(),
         .DockerImage = DockerImage_,
+        .DockerAuth = BuildDockerAuthConfig(),
 
         .NeedGpuCheck = NeedsGpuCheck(),
         .GpuCheckBinaryPath = UserJobSpec_
@@ -2490,6 +2495,20 @@ TJobProxyConfigPtr TJob::CreateConfig()
     proxyConfig->StatisticsOutputTableCountLimit = DynamicConfig_->StatisticsOutputTableCountLimit;
 
     return proxyConfig;
+}
+
+NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
+{
+    if (UserJobSpec_ && UserJobSpec_->environment_size()) {
+        for (const auto& var : UserJobSpec_->environment()) {
+            if (var.StartsWith(DockerAuthEnvPrefix)) {
+                auto ysonConfig = TYsonString(var.substr(DockerAuthEnvPrefix.length()));
+                return ConvertTo<NCri::TCriAuthConfigPtr>(ysonConfig);
+            }
+        }
+    }
+
+    return nullptr;
 }
 
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
