@@ -2639,7 +2639,6 @@ class TestConsecutiveJobAborts(YTEnvSetup):
                 },
             },
             "slot_manager": {
-                "max_consecutive_gpu_job_failures": 2,
                 "job_environment": {
                     "type": "porto",
                 },
@@ -2651,6 +2650,7 @@ class TestConsecutiveJobAborts(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "slot_manager": {
+                    "max_consecutive_gpu_job_failures": 2,
                     "max_consecutive_job_aborts": 2,
                 },
             },

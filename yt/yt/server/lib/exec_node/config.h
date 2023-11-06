@@ -243,8 +243,6 @@ public:
 
     TDuration SlotLocationStatisticsUpdatePeriod;
 
-    int MaxConsecutiveGpuJobFailures;
-
     //! Default medium used to run jobs without disk requests.
     TString DefaultMediumName;
 
@@ -276,6 +274,8 @@ public:
     bool EnableNumaNodeScheduling;
 
     bool EnableJobEnvironmentResurrection;
+
+    int MaxConsecutiveGpuJobFailures;
 
     int MaxConsecutiveJobAborts;
 

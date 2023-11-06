@@ -703,12 +703,12 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
                 ConsecutiveFailedGpuJobCount_ = 0;
             }
 
-            if (ConsecutiveFailedGpuJobCount_ > StaticConfig_->MaxConsecutiveGpuJobFailures) {
+            if (ConsecutiveFailedGpuJobCount_ > dynamicConfig->MaxConsecutiveGpuJobFailures) {
                 if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures].IsOK()) {
                     auto delay = dynamicConfig->DisableJobsTimeout + RandomDuration(dynamicConfig->DisableJobsTimeout);
 
                     auto error = TError("Too many consecutive GPU job failures")
-                        << TErrorAttribute("max_consecutive_aborts", StaticConfig_->MaxConsecutiveGpuJobFailures);
+                        << TErrorAttribute("max_consecutive_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures);
                     YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
                     Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = error;
 
