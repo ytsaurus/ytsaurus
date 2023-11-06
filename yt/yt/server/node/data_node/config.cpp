@@ -675,8 +675,8 @@ void TJournalManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobControllerDynamicConfig::Register(TRegistrar registrar) {
-    // Make it greater than interrupt preemption timeout.
+void TJobControllerDynamicConfig::Register(TRegistrar registrar)
+{
     registrar.Parameter("waiting_jobs_timeout", &TThis::WaitingJobsTimeout)
         .Default(TDuration::Seconds(30));
 

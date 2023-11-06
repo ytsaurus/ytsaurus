@@ -243,11 +243,7 @@ public:
 
     TDuration SlotLocationStatisticsUpdatePeriod;
 
-    int MaxConsecutiveJobAborts;
-
     int MaxConsecutiveGpuJobFailures;
-
-    TDuration DisableJobsTimeout;
 
     //! Default medium used to run jobs without disk requests.
     TString DefaultMediumName;
@@ -280,6 +276,10 @@ public:
     bool EnableNumaNodeScheduling;
 
     bool EnableJobEnvironmentResurrection;
+
+    int MaxConsecutiveJobAborts;
+
+    TDuration DisableJobsTimeout;
 
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;

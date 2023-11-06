@@ -2640,9 +2640,18 @@ class TestConsecutiveJobAborts(YTEnvSetup):
             },
             "slot_manager": {
                 "max_consecutive_gpu_job_failures": 2,
-                "max_consecutive_job_aborts": 2,
                 "job_environment": {
                     "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "max_consecutive_job_aborts": 2,
                 },
             },
         },

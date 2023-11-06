@@ -160,13 +160,8 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("slot_location_statistics_update_period", &TThis::SlotLocationStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("max_consecutive_job_aborts", &TThis::MaxConsecutiveJobAborts)
-        .Alias("max_consecutive_aborts")
-        .Default(500);
     registrar.Parameter("max_consecutive_gpu_job_failures", &TThis::MaxConsecutiveGpuJobFailures)
         .Default(50);
-    registrar.Parameter("disable_jobs_timeout", &TThis::DisableJobsTimeout)
-        .Default(TDuration::Minutes(10));
 
     registrar.Parameter("default_medium_name", &TThis::DefaultMediumName)
         .Default(NChunkClient::DefaultSlotsMediumName);
@@ -207,6 +202,12 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
         .Default(false);
+
+    registrar.Parameter("max_consecutive_job_aborts", &TThis::MaxConsecutiveJobAborts)
+        .Alias("max_consecutive_aborts")
+        .Default(500);
+    registrar.Parameter("disable_jobs_timeout", &TThis::DisableJobsTimeout)
+        .Default(TDuration::Minutes(10));
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
