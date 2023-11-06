@@ -1,5 +1,7 @@
 JAVA_CONTRIB(junit-4.13.2)
 
+LICENSE(EPL-1.0)
+
 PEERDIR(
     contrib/java/org/hamcrest/hamcrest-core/1.3
 )
