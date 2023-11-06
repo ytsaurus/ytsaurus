@@ -166,9 +166,9 @@ private: \
         true)
     IMPLEMENT_SAFE_METHOD(
         void,
-        OnJobAbortedEventReceivedFromScheduler,
-        (TAbortedBySchedulerJobSummary&& abortedJobSummary),
-        (std::move(abortedJobSummary)),
+        OnAllocationAborted,
+        (TAbortedAllocationSummary&& abortedAllocationSummary),
+        (std::move(abortedAllocationSummary)),
         true)
 
     IMPLEMENT_SAFE_METHOD(

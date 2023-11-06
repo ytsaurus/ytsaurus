@@ -25,7 +25,7 @@ struct TCompletedJobSummary;
 struct TAbortedJobSummary;
 struct TFailedJobSummary;
 struct TRunningJobSummary;
-struct TAbortedBySchedulerJobSummary;
+struct TAbortedAllocationSummary;
 struct TFinishedJobSummary;
 
 DECLARE_REFCOUNTED_CLASS(TLegacyProgressCounter)

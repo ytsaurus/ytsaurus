@@ -1412,7 +1412,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     result.RevivedJobs.reserve(std::size(JobletMap));
 
-    for (const auto& [jobId, joblet] : JobletMap) {
+    for (const auto& [_, joblet] : JobletMap) {
         result.RevivedJobs.push_back({
             joblet->JobId,
             joblet->StartTime,
@@ -1449,8 +1449,8 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
     jobsToRelease.reserve(std::size(JobletMap));
 
     auto now = TInstant::Now();
-    for (const auto& [jobId, joblet] : JobletMap) {
-        auto jobSummary = TAbortedJobSummary(jobId, abortReason);
+    for (const auto& [_, joblet] : JobletMap) {
+        auto jobSummary = TAbortedJobSummary(joblet->JobId, abortReason);
         jobSummary.FinishTime = now;
         UpdateJobletFromSummary(jobSummary, joblet);
         LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
@@ -1464,10 +1464,10 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
         }
 
         Host->AbortJob(
-            jobId,
+            joblet->JobId,
             abortReason);
 
-        jobsToRelease.push_back({jobId, {}});
+        jobsToRelease.push_back({joblet->JobId, {}});
     }
     JobletMap.clear();
 
@@ -3468,21 +3468,27 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     }
 }
 
-void TOperationControllerBase::SafeOnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& abortedJobSummary)
+void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary)
 {
-    YT_LOG_DEBUG("Aborting job by scheduler request (JobId: %v)", abortedJobSummary.Id);
+    YT_LOG_DEBUG(
+        "Allocation aborted event processing (JobId: %v)",
+        abortedAllocationSummary.Id);
 
-    if (!FindJoblet(abortedJobSummary.Id)) {
-        YT_LOG_DEBUG("Joblet is not found, looks like job has been abandoned, ignore job event (JobId: %v)", abortedJobSummary.Id);
+    // Allocation id is currently equal to job id.
+    const auto& joblet = FindJoblet(abortedAllocationSummary.Id);
+    if (!joblet) {
+        YT_LOG_DEBUG(
+            "Joblet is not found, ignore allocation aborted event (AllocationId: %v)",
+            abortedAllocationSummary.Id);
 
         return;
     }
 
     Host->AbortJob(
-        abortedJobSummary.Id,
-        abortedJobSummary.AbortReason.value_or(EAbortReason::Unknown));
+        joblet->JobId,
+        abortedAllocationSummary.AbortReason);
 
-    auto jobSummary = CreateAbortedJobSummary(std::move(abortedJobSummary), Logger);
+    auto jobSummary = CreateAbortedJobSummary(joblet->JobId, std::move(abortedAllocationSummary));
     OnJobAborted(std::move(jobSummary));
 }
 
@@ -5113,7 +5119,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     bool hasJobsToFail = false;
 
     auto jobletMapCopy = JobletMap;
-    for (const auto& [jobId, joblet] : jobletMapCopy) {
+    for (const auto& [_, joblet] : jobletMapCopy) {
         switch (joblet->JobType) {
             // TODO(ignat): YT-11247, add helper with list of job types with user code.
             case EJobType::Map:
@@ -5125,10 +5131,10 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
             case EJobType::PartitionReduce:
             case EJobType::Vanilla:
                 hasJobsToFail = true;
-                Host->FailJob(jobId);
+                Host->FailJob(joblet->JobId);
                 break;
             default:
-                AbortJob(jobId, EAbortReason::OperationFailed);
+                AbortJob(joblet->JobId, EAbortReason::OperationFailed);
         }
     }
 
@@ -8571,7 +8577,7 @@ void TOperationControllerBase::ReleaseChunkTrees(
 
 void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
 {
-    YT_VERIFY(JobletMap.emplace(joblet->JobId, joblet).second);
+    EmplaceOrCrash(JobletMap, joblet->JobId, joblet);
 }
 
 TJobletPtr TOperationControllerBase::FindJoblet(TJobId jobId) const
@@ -8665,15 +8671,18 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
     UnregisterJobForMonitoring(joblet);
-    YT_VERIFY(JobletMap.erase(joblet->JobId) == 1);
+
+    auto allocationJobletIt = GetIteratorOrCrash(JobletMap, joblet->JobId);
+    YT_VERIFY(joblet == allocationJobletIt->second);
+    JobletMap.erase(allocationJobletIt);
 }
 
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
 {
     std::vector<TJobId> jobIds;
-    for (const auto& [jobId, joblet] : JobletMap) {
+    for (const auto& [_, joblet] : JobletMap) {
         if (joblet->TreeId == treeId) {
-            jobIds.push_back(jobId);
+            jobIds.push_back(joblet->JobId);
         }
     }
     return jobIds;
@@ -8941,11 +8950,10 @@ NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
 {
     return BuildYsonStringFluently<EYsonType::MapFragment>()
         .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
-            auto jobId = pair.first;
             const auto& joblet = pair.second;
 
             if (joblet->IsStarted()) {
-                fluent.Item(ToString(jobId)).BeginMap()
+                fluent.Item(ToString(joblet->JobId)).BeginMap()
                     .Do([&] (TFluentMap fluent) {
                         BuildJobAttributes(
                             joblet,
@@ -10768,7 +10776,7 @@ void TOperationControllerBase::OnOperationReady() const
     revivedJobs.reserve(std::size(JobletMap));
 
     for (const auto& [jobId, joblet] : JobletMap) {
-        revivedJobs.push_back({jobId, joblet->NodeDescriptor.Address});
+        revivedJobs.push_back({joblet->JobId, joblet->NodeDescriptor.Address});
     }
 
     YT_LOG_DEBUG("Register operation in job controller (JobCount: %v)", std::size(revivedJobs));

@@ -1148,7 +1148,7 @@ private:
     TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResponsesOutbox_;
     TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
 
-    std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
+    std::unique_ptr<TMessageQueueInbox> AbortedAllocationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleJobRequestsInbox_;
 
@@ -1347,8 +1347,8 @@ private:
             ControllerAgentProfiler.WithTag("queue", "running_job_statistics"),
             Bootstrap_->GetControlInvoker());
 
-        JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
+        AbortedAllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
+            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentAbortedAllocations, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "job_events"),
             JobEventsInvoker_);
@@ -1441,7 +1441,7 @@ private:
         ScheduleJobResponsesOutbox_.Reset();
         RunningJobStatisticsUpdatesOutbox_.Reset();
 
-        JobEventsInbox_.reset();
+        AbortedAllocationEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleJobRequestsInbox_.reset();
     }
@@ -1552,7 +1552,7 @@ private:
             Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
 
         auto error = WaitFor(BIND([&, request] {
-                JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_aborted_job_events());
+                AbortedAllocationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_aborted_allocation_events());
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
@@ -1664,7 +1664,7 @@ private:
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
         RunningJobStatisticsUpdatesOutbox_->HandleStatus(rsp->agent_to_scheduler_running_job_statistics_updates());
 
-        HandleJobEvents(rsp);
+        HandleAbortedAllocationEvents(rsp);
         HandleOperationEvents(rsp);
 
         if (rsp->has_exec_nodes()) {
@@ -1918,42 +1918,44 @@ private:
         HandleScheduleJobRequests(rsp, req->GetRequestId(), GetExecNodeDescriptors({}));
     }
 
-    void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
+    void HandleAbortedAllocationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
-        auto jobSummariesPerOperationIdOrError = WaitFor(BIND([this, rsp] {
-                THashMap<TOperationId, std::vector<TAbortedBySchedulerJobSummary>> jobSummariesPerOperationId;
+        auto abortedAllocationSummariesPerOperationIdOrError = WaitFor(BIND([this, rsp] {
+                THashMap<TOperationId, std::vector<TAbortedAllocationSummary>> abortedAllocationSummariesPerOperationId;
+                abortedAllocationSummariesPerOperationId.reserve(rsp->scheduler_to_agent_aborted_allocation_events().items_size());
 
-                JobEventsInbox_->HandleIncoming<TAbortedBySchedulerJobSummary>(
-                    rsp->mutable_scheduler_to_agent_aborted_job_events(),
-                    [&] (TAbortedBySchedulerJobSummary&& jobSummary) {
-                        jobSummariesPerOperationId[jobSummary.OperationId].push_back(std::move(jobSummary));
+                AbortedAllocationEventsInbox_->HandleIncoming<TAbortedAllocationSummary>(
+                    rsp->mutable_scheduler_to_agent_aborted_allocation_events(),
+                    [&] (TAbortedAllocationSummary&& abortedAllocationSummary) {
+                        abortedAllocationSummariesPerOperationId[abortedAllocationSummary.OperationId].push_back(
+                            std::move(abortedAllocationSummary));
                     });
 
-                return jobSummariesPerOperationId;
+                return abortedAllocationSummariesPerOperationId;
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
 
-        YT_LOG_FATAL_IF(
-            !jobSummariesPerOperationIdOrError.IsOK(),
-            jobSummariesPerOperationIdOrError,
+        YT_LOG_FATAL_UNLESS(
+            abortedAllocationSummariesPerOperationIdOrError.IsOK(),
+            abortedAllocationSummariesPerOperationIdOrError,
             "Failed to parse scheduler message");
 
-        auto jobSummariesPerOperationId = std::move(jobSummariesPerOperationIdOrError.Value());
+        auto abortedAllocationSummariesPerOperationId = std::move(abortedAllocationSummariesPerOperationIdOrError.Value());
 
-        for (auto& [operationId, jobSummaries] : jobSummariesPerOperationId) {
+        for (auto& [operationId, abortedAllocationSummaries] : abortedAllocationSummariesPerOperationId) {
             auto operation = this->FindOperation(operationId);
             if (!operation) {
+                YT_LOG_DEBUG(
+                    "Skip allocation abort events since operation is not running (OperationId: %v, AbortedAllocationCount: %v)",
+                    operationId,
+                    std::size(abortedAllocationSummaries));
                 continue;
             }
 
-            auto controller = operation->GetController();
-            controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
-                BIND([rsp, controller, jobSummaries = std::move(jobSummaries)] () mutable {
-                    for (auto& jobSummary : jobSummaries) {
-                        controller->OnJobAbortedEventReceivedFromScheduler(std::move(jobSummary));
-                    }
-                }));
+            const auto& jobTrackerOperationHandler = operation->GetHost()->GetJobTrackerOperationHandler();
+
+            jobTrackerOperationHandler->OnAllocationsAborted(std::move(abortedAllocationSummaries));
         }
     }
 

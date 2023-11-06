@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h>
 
@@ -51,7 +52,6 @@ public:
     TJobTrackerOperationHandlerPtr RegisterOperation(
         TOperationId operationId,
         TWeakPtr<IOperationController> operationController);
-
     void UnregisterOperation(TOperationId operationId);
 
     void UpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes);
@@ -156,6 +156,7 @@ private:
         THashMap<TJobId, TJobToConfirmInfo> JobsToConfirm;
         THashMap<TJobId, TReleaseJobFlags> JobsToRelease;
         THashMap<TJobId, EAbortReason> JobsToAbort;
+        THashMap<TAllocationId, TAbortedAllocationSummary> AbortedAllocations;
     };
 
     struct TNodeInfo
@@ -228,28 +229,39 @@ private:
 
     bool IsJobRunning(const TJobInfo& jobInfo) const;
 
-    bool HandleJobInfo(
+    struct TJobsToProcessInOperationController
+    {
+        std::vector<std::unique_ptr<TJobSummary>> JobSummaries;
+        std::vector<TJobToAbort> JobsToAbort;
+    };
+    void HandleJobInfo(
         TJobInfo& jobInfo,
+        TNodeJobs& nodeJobs,
+        TOperationInfo& operationInfo,
+        TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
-        TJobId jobId,
-        EJobStage newJobStage,
+        std::unique_ptr<TJobSummary> jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);
 
     void HandleRunningJobInfo(
         TJobInfo& jobInfo,
+        TNodeJobs& nodeJobs,
+        TOperationInfo& operationInfo,
+        TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
         const TRunningJobStatus& jobStatus,
-        TJobId jobId,
-        EJobStage newJobStage,
+        std::unique_ptr<TJobSummary> jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);
     void HandleFinishedJobInfo(
         TJobInfo& jobInfo,
+        TNodeJobs& nodeJobs,
+        TOperationInfo& operationInfo,
+        TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
         const TFinishedJobStatus& jobStatus,
-        TJobId jobId,
-        EJobStage newJobStage,
+        std::unique_ptr<TJobSummary> jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);
 
@@ -311,7 +323,10 @@ private:
         TJobId jobId,
         TOperationId operationId);
 
-    void ReportUnknownJobInArchive(TJobId jobId, TOperationId operationId, const TString& nodeAddress);
+    void ReportUnknownJobInArchive(
+        TJobId jobId,
+        TOperationId operationId,
+        const TString& nodeAddress);
 
     TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
     TNodeInfo& RegisterNode(TNodeId nodeId, TString nodeAddress);
@@ -323,12 +338,19 @@ private:
 
     TNodeInfo* FindNodeInfo(TNodeId nodeId);
 
-    void OnNodeHeartbeatLeaseExpired(TGuid registrationId, TNodeId nodeId, const TString& nodeAddress);
+    void OnNodeHeartbeatLeaseExpired(
+        TGuid registrationId,
+        TNodeId nodeId,
+        const TString& nodeAddress);
+
+    void OnAllocationsAborted(
+        TOperationId operationId,
+        std::vector<TAbortedAllocationSummary> abortedAllocations);
 
     const TString& GetNodeAddressForLogging(TNodeId nodeId);
 
-    using TOperationIdToJobIds = THashMap<TOperationId, std::vector<TJobId>>;
-    void AbortJobs(TOperationIdToJobIds operationIdToJobIds, EAbortReason abortReason) const;
+    using TGrouppedJobsToAbort = THashMap<TOperationId, std::vector<TJobToAbort>>;
+    void AbortJobs(TGrouppedJobsToAbort jobsToAbort) const;
 
     void AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs);
 
@@ -362,21 +384,19 @@ public:
         TOperationId operationId);
 
     void RegisterJob(TStartedJobInfo jobInfo);
-
     void ReviveJobs(std::vector<TStartedJobInfo> jobs);
-
     void ReleaseJobs(std::vector<TJobToRelease> jobs);
 
     void RequestJobAbortion(
         TJobId jobId,
         EAbortReason reason);
-
     void RequestJobInterruption(
         TJobId jobId,
         EInterruptReason reason,
         TDuration timeout);
-
     void RequestJobFailure(TJobId jobId);
+
+    void OnAllocationsAborted(std::vector<TAbortedAllocationSummary> abortedAllocations);
 
 private:
     TJobTracker* const JobTracker_;

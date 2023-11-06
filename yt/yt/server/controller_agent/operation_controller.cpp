@@ -382,9 +382,9 @@ public:
         return DoExecuteGuarded(&IOperationController::GetMinNeededJobResources);
     }
 
-    void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) override
+    void OnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary) override
     {
-        return DoExecuteGuarded(&IOperationControllerSchedulerHost::OnJobAbortedEventReceivedFromScheduler, std::move(eventSummary));
+        return DoExecuteGuarded(&IOperationControllerSchedulerHost::OnAllocationAborted, std::move(abortedAllocationSummary));
     }
 
     void AbandonJob(TJobId jobId) override

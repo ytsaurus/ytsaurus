@@ -206,6 +206,11 @@ void TOperationControllerHost::SetJobTrackerOperationHandler(TJobTrackerOperatio
     YT_VERIFY(!std::exchange(JobTrackerOperationHandler_, jobTrackerOperationHandler));
 }
 
+const TJobTrackerOperationHandlerPtr& TOperationControllerHost::GetJobTrackerOperationHandler() const
+{
+    return JobTrackerOperationHandler_;
+}
+
 void TOperationControllerHost::Disconnect(const TError& error)
 {
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));

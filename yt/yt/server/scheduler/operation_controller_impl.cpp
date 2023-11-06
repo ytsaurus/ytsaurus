@@ -83,7 +83,7 @@ void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent, TCo
 
     Epoch_.store(epoch);
 
-    JobEventsOutbox_ = agent->GetJobEventsOutbox();
+    AbortedAllocationEventsOutbox_ = agent->GetAbortedAllocationEventsOutbox();
     OperationEventsOutbox_ = agent->GetOperationEventsOutbox();
     ScheduleJobRequestsOutbox_ = agent->GetScheduleJobRequestsOutbox();
 }
@@ -454,44 +454,45 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
     return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
 }
 
-void TOperationControllerImpl::OnJobAborted(
-    TJobId jobId,
+void TOperationControllerImpl::OnAllocationAborted(
+    TAllocationId allocationId,
     const TError& error,
     bool scheduled,
-    std::optional<EAbortReason> abortReason,
-    TControllerEpoch jobEpoch)
+    EAbortReason abortReason,
+    TControllerEpoch allocationEpoch)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (ShouldSkipJobEvent(jobId, jobEpoch)) {
+    if (ShouldSkipAllocationAbortEvent(allocationId, allocationEpoch)) {
         return;
     }
 
-    TAbortedBySchedulerJobSummary eventSummary{
+    TAbortedAllocationSummary eventSummary{
         .OperationId = OperationId_,
-        .Id = jobId,
+        .Id = allocationId,
         .FinishTime = TInstant::Now(),
         .AbortReason = abortReason,
         .Error = std::move(error).Truncate(),
         .Scheduled = scheduled,
     };
 
-    auto result = EnqueueAbortedJobEvent(std::move(eventSummary));
-    YT_LOG_TRACE("%v abort notification %v (JobId: %v)",
-        scheduled ? "Job" : "Nonscheduled job",
+    auto result = EnqueueAbortedAllocationEvent(std::move(eventSummary));
+    YT_LOG_TRACE(
+        "%v abort notification %v (AllocationId: %v)",
+        scheduled ? "Allocation" : "Nonscheduled allocation",
         result ? "enqueued" : "dropped",
-        jobId);
+        allocationId);
 }
 
 void TOperationControllerImpl::OnJobAborted(
     const TJobPtr& job,
     const TError& error,
     bool scheduled,
-    std::optional<EAbortReason> abortReason)
+    EAbortReason abortReason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    OnJobAborted(job->GetId(), error, scheduled, abortReason, job->GetControllerEpoch());
+    OnAllocationAborted(AllocationIdFromJobId(job->GetId()), error, scheduled, abortReason, job->GetControllerEpoch());
 }
 
 void TOperationControllerImpl::OnNonscheduledJobAborted(
@@ -501,7 +502,7 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    OnJobAborted(jobId, TError{}, false, abortReason, jobEpoch);
+    OnAllocationAborted(AllocationIdFromJobId(jobId), TError{}, false, abortReason, jobEpoch);
 }
 
 TFuture<void> TOperationControllerImpl::AbandonJob(TOperationId operationId, TJobId jobId)
@@ -750,29 +751,27 @@ EPreemptionMode TOperationControllerImpl::GetPreemptionMode() const
     return PreemptionMode_;
 }
 
-bool TOperationControllerImpl::ShouldSkipJobEvent(TJobId jobId, TControllerEpoch jobEpoch) const
+bool TOperationControllerImpl::ShouldSkipAllocationAbortEvent(
+    TAllocationId allocationId,
+    TControllerEpoch allocationEpoch) const
 {
     auto currentEpoch = Epoch_.load();
-    if (jobEpoch != currentEpoch) {
-        YT_LOG_DEBUG("Job abort notification skipped since controller epoch mismatch (JobId: %v, JobEpoch: %v, CurrentEpoch: %v)",
-            jobId,
-            jobEpoch,
+    if (allocationEpoch != currentEpoch) {
+        YT_LOG_DEBUG(
+            "Allocation abort notification skipped since controller epoch mismatch (AllocationId: %v, AllocationEpoch: %v, CurrentEpoch: %v)",
+            allocationId,
+            allocationEpoch,
             currentEpoch);
         return true;
     }
     return false;
 }
 
-bool TOperationControllerImpl::ShouldSkipJobEvent(const TJobPtr& job) const
-{
-    return ShouldSkipJobEvent(job->GetId(), job->GetControllerEpoch());
-}
-
-bool TOperationControllerImpl::EnqueueAbortedJobEvent(TAbortedBySchedulerJobSummary&& summary)
+bool TOperationControllerImpl::EnqueueAbortedAllocationEvent(TAbortedAllocationSummary&& summary)
 {
     auto guard = Guard(SpinLock_);
     if (IncarnationId_) {
-        JobEventsOutbox_->Enqueue(std::move(summary));
+        AbortedAllocationEventsOutbox_->Enqueue(std::move(summary));
         return true;
     } else {
         // All job notifications must be dropped after agent disconnection.

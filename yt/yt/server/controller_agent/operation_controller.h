@@ -173,6 +173,8 @@ struct IOperationControllerHost
 {
     virtual void Disconnect(const TError& error) = 0;
 
+    virtual const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const = 0;
+
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) = 0;
     virtual void FailJob(TJobId jobId) = 0;
     virtual void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) = 0;
@@ -330,11 +332,10 @@ struct IOperationControllerSchedulerHost
      */
     virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
-    //! Called when scheduler aborts job.
     /*!
      *  \note Invoker affinity: cancellable Controller invoker
      */
-    virtual void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) = 0;
+    virtual void OnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary) = 0;
 
     //! Called by a scheduler when user comes with abandon job request.
     /*!

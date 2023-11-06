@@ -37,6 +37,11 @@ TNodeId NodeIdFromJobId(TJobId jobId)
     return TNodeId(jobId.Parts32[0]);
 }
 
+TNodeId NodeIdFromAllocationId(TAllocationId allocationId)
+{
+    return TNodeId(allocationId.Parts32[0]);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSerializableAccessControlList MakeOperationArtifactAcl(const TSerializableAccessControlList& acl)

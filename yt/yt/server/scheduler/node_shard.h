@@ -122,7 +122,11 @@ public:
     void RemoveMissingNodes(const std::vector<TString>& nodeAddresses);
     std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
-    void AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool controllerTerminated);
+    void AbortOperationJobs(
+        TOperationId operationId,
+        const TError& abortError,
+        EAbortReason abortReason,
+        bool controllerTerminated);
     void ResumeOperationJobs(TOperationId operationId);
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId);
@@ -131,8 +135,8 @@ public:
     void AbandonJob(TJobId jobId);
     void AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
-    void AbortJob(TJobId jobId, const TError& error);
-    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
+    void AbortJob(TJobId jobId, const TError& error, EAbortReason abortReason);
+    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
 
     TNodeYsonList BuildNodeYsonList() const;
 
@@ -377,8 +381,7 @@ private:
     void OnJobAborted(
         const TJobPtr& job,
         const TError& error,
-        std::optional<EAbortReason> abortReason = std::nullopt,
-        bool sendEventToAgent = true);
+        EAbortReason abortReason);
     template <class TJobStatus>
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void DoAbandonJob(const TJobPtr& job);

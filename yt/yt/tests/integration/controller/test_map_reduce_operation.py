@@ -59,6 +59,9 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
                     "enable_table_index_if_has_trivial_mapper": True,
                 }
             },
+            "job_tracker": {
+                "node_disconnection_timeout": 2000,
+            },
         }
     }
 
@@ -763,7 +766,7 @@ print "x={0}\ty={1}".format(x, y)
             if c.attributes["requisition"][0]["account"] == "intermediate"
         ]
 
-    def _ban_nodes_with_intermediate_chunks(self):
+    def _ban_nodes_with_intermediate_chunks(self, op):
         intermediate_chunk_ids = self._find_intermediate_chunks()
         assert len(intermediate_chunk_ids) == 1
         intermediate_chunk_id = intermediate_chunk_ids[0]
@@ -775,9 +778,12 @@ print "x={0}\ty={1}".format(x, y)
         ban_node(node_id, "node with intermediate chunk")
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node_id)) == "offline")
 
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        wait(lambda: not exists("//sys/controller_agents/instances/{}/orchid/controller_agent/job_tracker/nodes/{}".format(
+            controller_agent_address, node_id)))
         return [node_id]
 
-    def _abort_single_job_if_running(self, op, job_id):
+    def _abort_single_job_if_running_after_node_ban(self, op, job_id):
         jobs = op.get_running_jobs().keys()
         if len(jobs) > 0:
             assert len(jobs) == 1
@@ -812,14 +818,14 @@ print "x={0}\ty={1}".format(x, y)
 
         first_reduce_job = wait_breakpoint()[0]
 
-        self._ban_nodes_with_intermediate_chunks()
+        self._ban_nodes_with_intermediate_chunks(op)
 
         # We abort reducer and restarted job will fail
         # due to unavailable intermediate chunk.
         # This will lead to a lost map job.
         # It can happen that running job was on banned node,
         # so we must check that we are aborting the right job.
-        self._abort_single_job_if_running(op, first_reduce_job)
+        self._abort_single_job_if_running_after_node_ban(op, first_reduce_job)
 
         release_breakpoint()
         op.track()
@@ -865,7 +871,7 @@ print "x={0}\ty={1}".format(x, y)
         # We wait for the first reducer to start (the second one is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
-        banned_nodes = self._ban_nodes_with_intermediate_chunks()
+        banned_nodes = self._ban_nodes_with_intermediate_chunks(op)
 
         # The first reducer will probably complete successfully, but the second one
         # must fail due to unavailable intermediate chunk.
@@ -3100,8 +3106,8 @@ done
 
         first_reduce_job = wait_breakpoint()[0]
 
-        assert self._ban_nodes_with_intermediate_chunks() != []
-        self._abort_single_job_if_running(op, first_reduce_job)
+        assert self._ban_nodes_with_intermediate_chunks(op) != []
+        self._abort_single_job_if_running_after_node_ban(op, first_reduce_job)
 
         release_breakpoint()
         op.track()
@@ -3159,8 +3165,8 @@ done
 
         first_reduce_job = wait_breakpoint()[0]
 
-        assert self._ban_nodes_with_intermediate_chunks() != []
-        self._abort_single_job_if_running(op, first_reduce_job)
+        assert self._ban_nodes_with_intermediate_chunks(op) != []
+        self._abort_single_job_if_running_after_node_ban(op, first_reduce_job)
 
         release_breakpoint()
         op.track()
@@ -3307,6 +3313,9 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
                 "spec_template": {
                     "enable_table_index_if_has_trivial_mapper": True,
                 },
+            },
+            "job_tracker": {
+                "node_disconnection_timeout": 2000,
             },
         }
     }

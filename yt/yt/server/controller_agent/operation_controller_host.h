@@ -97,6 +97,7 @@ public:
         TBootstrap* bootstrap);
 
     void SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler);
+    const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const override;
 
     void Disconnect(const TError& error) override;
 

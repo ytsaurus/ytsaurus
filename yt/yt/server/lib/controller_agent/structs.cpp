@@ -48,18 +48,6 @@ EAbortReason GetAbortReason(const TError& resultError, const TLogger& Logger)
     }
 }
 
-void JobEventsCommonPartToProto(auto* proto, const auto& summary)
-{
-    ToProto(proto->mutable_operation_id(), summary.OperationId);
-    ToProto(proto->mutable_job_id(), summary.Id);
-}
-
-void JobEventsCommonPartFromProto(auto* summary, auto* protoEvent)
-{
-    summary->OperationId = FromProto<TOperationId>(protoEvent->operation_id());
-    summary->Id = FromProto<TJobId>(protoEvent->job_id());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -256,17 +244,11 @@ TAbortedJobSummary::TAbortedJobSummary(NProto::TJobStatus* status, const NLoggin
     }
 }
 
-std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJobSummary&& eventSummary, const TLogger& Logger)
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    TAbortedAllocationSummary&& eventSummary)
 {
-    auto abortReason = [&] {
-        if (eventSummary.AbortReason) {
-            return *eventSummary.AbortReason;
-        }
-
-        return GetAbortReason(eventSummary.Error, Logger);
-    }();
-
-    TAbortedJobSummary summary{eventSummary.Id, abortReason};
+    TAbortedJobSummary summary{jobId, eventSummary.AbortReason};
 
     summary.FinishTime = eventSummary.FinishTime;
 
@@ -304,26 +286,31 @@ TRunningJobSummary::TRunningJobSummary(NProto::TJobStatus* status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent, const TAbortedBySchedulerJobSummary& abortedJobSummary)
+void ToProto(
+    NScheduler::NProto::TSchedulerToAgentAbortedAllocationEvent* protoEvent,
+    const TAbortedAllocationSummary& abortedAllocationSummary)
 {
-    JobEventsCommonPartToProto(protoEvent, abortedJobSummary);
-    protoEvent->set_finish_time(ToProto<ui64>(abortedJobSummary.FinishTime));
-    if (abortedJobSummary.AbortReason) {
-        protoEvent->set_abort_reason(static_cast<int>(*abortedJobSummary.AbortReason));
-    }
-    ToProto(protoEvent->mutable_error(), abortedJobSummary.Error);
-    protoEvent->set_scheduled(abortedJobSummary.Scheduled);
+    ToProto(protoEvent->mutable_operation_id(), abortedAllocationSummary.OperationId);
+    ToProto(protoEvent->mutable_allocation_id(), abortedAllocationSummary.Id);
+
+    protoEvent->set_finish_time(ToProto<ui64>(abortedAllocationSummary.FinishTime));
+    protoEvent->set_abort_reason(static_cast<int>(abortedAllocationSummary.AbortReason));
+    ToProto(protoEvent->mutable_error(), abortedAllocationSummary.Error);
+    protoEvent->set_scheduled(abortedAllocationSummary.Scheduled);
 }
 
-void FromProto(TAbortedBySchedulerJobSummary* abortedJobSummary, NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent)
+void FromProto(
+    TAbortedAllocationSummary* abortedAllocationSummary,
+    NScheduler::NProto::TSchedulerToAgentAbortedAllocationEvent* protoEvent)
 {
-    JobEventsCommonPartFromProto(abortedJobSummary, protoEvent);
-    abortedJobSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
-    if (protoEvent->has_abort_reason()) {
-        abortedJobSummary->AbortReason = CheckedEnumCast<EAbortReason>(protoEvent->abort_reason());
-    }
-    abortedJobSummary->Error = FromProto<TError>(protoEvent->error());
-    abortedJobSummary->Scheduled = protoEvent->scheduled();
+    abortedAllocationSummary->OperationId = FromProto<TOperationId>(protoEvent->operation_id());
+    abortedAllocationSummary->Id = FromProto<TAllocationId>(protoEvent->allocation_id());
+
+    abortedAllocationSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
+    abortedAllocationSummary->AbortReason = CheckedEnumCast<EAbortReason>(protoEvent->abort_reason());
+
+    abortedAllocationSummary->Error = FromProto<TError>(protoEvent->error());
+    abortedAllocationSummary->Scheduled = protoEvent->scheduled();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
