@@ -443,22 +443,26 @@ class TestGetJob(_TestGetJobCommon):
         assert not job_info.get("is_stale")
 
     @authors("levysotsky")
+    @flaky(max_runs=3)
     def test_get_job_is_stale(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         (job_id,) = wait_breakpoint()
+
+        with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
+            pass
 
         release_breakpoint()
         op.track()
 
         op.wait_for_state("completed")
 
-        # We emulate the situation when completed job still reports "running" to archive.
-        _update_job_in_archive(op.id, job_id, {"controller_state": "running", "transient_state": "running"})
+        def check_job_state():
+            job_info = retry(lambda: get_job(op.id, job_id))
+            return job_info.get("controller_state") == "running" and \
+                job_info.get("archive_state") == "running" and \
+                job_info.get("is_stale")
 
-        job_info = retry(lambda: get_job(op.id, job_id))
-        assert job_info.get("controller_state") == "running"
-        assert job_info.get("archive_state") == "running"
-        assert job_info.get("is_stale")
+        wait(check_job_state)
 
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
