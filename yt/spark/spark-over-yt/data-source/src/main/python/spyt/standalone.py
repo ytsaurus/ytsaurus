@@ -485,13 +485,13 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SOLOMON_PUSH_PORT"] = "27099"
     environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = str(enablers.enable_preference_ipv6)
     environment["SPARK_YT_TCP_PROXY_ENABLED"] = str(enablers.enable_tcp_proxy)
+    environment["SPARK_YT_RPC_JOB_PROXY_ENABLED"] = str(rpc_job_proxy)
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
 
     tvm_enabled = enablers.enable_mtn and bool(tvm_id) and bool(tvm_secret)
     worker_environment = {
         "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
-        "SPARK_YT_RPC_JOB_PROXY_ENABLED": str(rpc_job_proxy),
     }
     worker_environment = update(environment, worker_environment)
     livy_environment = {
@@ -520,7 +520,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         "layer_paths": config["layer_paths"],
         "environment": environment,
         "memory_reserve_factor": 1.0,
-        "tmpfs_path": "tmpfs"
+        "tmpfs_path": "tmpfs",
+        "enable_rpc_proxy_in_job_proxy": rpc_job_proxy,
     }
 
     worker_file_paths = copy.copy(common_task_spec["file_paths"])
@@ -546,7 +547,6 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     worker_task_spec = copy.deepcopy(common_task_spec)
     worker_task_spec["environment"] = worker_environment
-    worker_task_spec["enable_rpc_proxy_in_job_proxy"] = rpc_job_proxy
     worker_task_spec["rpc_proxy_worker_thread_pool_size"] = rpc_job_proxy_thread_pool_size
     if ssd_limit:
         worker_task_spec["disk_request"] = {
