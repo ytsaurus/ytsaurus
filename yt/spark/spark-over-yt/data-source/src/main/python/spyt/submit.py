@@ -75,12 +75,15 @@ def launch_gateway(memory="512m",
     gateway.proc = proc
     return gateway
 
+
 def _spyt_path():
     import spyt
     return spyt.__path__[0]
 
+
 def _list_path(path):
     return [os.path.join(path, name) for name in os.listdir(path)]
+
 
 def _submit_classpath():
     spark_home = _find_spark_home()
@@ -182,26 +185,26 @@ class SubmissionStatus(Enum):
     @staticmethod
     def is_final(status):
         return (
-                status is SubmissionStatus.FINISHED or
-                status is SubmissionStatus.UNKNOWN or
-                status is SubmissionStatus.KILLED or
-                status is SubmissionStatus.FAILED or
-                status is SubmissionStatus.ERROR
+            status is SubmissionStatus.FINISHED or
+            status is SubmissionStatus.UNKNOWN or
+            status is SubmissionStatus.KILLED or
+            status is SubmissionStatus.FAILED or
+            status is SubmissionStatus.ERROR
         )
 
     @staticmethod
     def is_success(status):
         return (
-                status is SubmissionStatus.FINISHED
+            status is SubmissionStatus.FINISHED
         )
 
     @staticmethod
     def is_failure(status):
         return (
-                status is SubmissionStatus.UNKNOWN or
-                status is SubmissionStatus.KILLED or
-                status is SubmissionStatus.FAILED or
-                status is SubmissionStatus.ERROR
+            status is SubmissionStatus.UNKNOWN or
+            status is SubmissionStatus.KILLED or
+            status is SubmissionStatus.FAILED or
+            status is SubmissionStatus.ERROR
         )
 
 
@@ -221,30 +224,30 @@ class ApplicationStatus(Enum):
     @staticmethod
     def is_final(status):
         return (
-                status is ApplicationStatus.FINISHED or
-                status is ApplicationStatus.UNKNOWN or
-                status is ApplicationStatus.KILLED or
-                status is ApplicationStatus.FAILED
+            status is ApplicationStatus.FINISHED or
+            status is ApplicationStatus.UNKNOWN or
+            status is ApplicationStatus.KILLED or
+            status is ApplicationStatus.FAILED
         )
 
     @staticmethod
     def is_success(status):
         return (
-                status is ApplicationStatus.FINISHED
+            status is ApplicationStatus.FINISHED
         )
 
     @staticmethod
     def is_failure(status):
         return (
-                status is ApplicationStatus.UNKNOWN or
-                status is ApplicationStatus.KILLED or
-                status is ApplicationStatus.FAILED
+            status is ApplicationStatus.UNKNOWN or
+            status is ApplicationStatus.KILLED or
+            status is ApplicationStatus.FAILED
         )
 
     @staticmethod
     def is_waiting(status):
         return (
-                status is ApplicationStatus.WAITING
+            status is ApplicationStatus.WAITING
         )
 
 

@@ -14,7 +14,7 @@ from spyt.standalone import Worker, start_spark_cluster, find_spark_cluster, Spa
 from spyt import utils as spark_utils
 
 
-def main():
+def main(raw_args=None):
     parser = spark_utils.get_default_arg_parser(description="Spark Launch")
 
     parser.add_argument("--worker-cores", required=True, type=int)
@@ -170,7 +170,7 @@ def main():
     subgroup.add_argument('--livy-driver-memory', required=False, default="768m")
     subgroup.add_argument('--livy-max-sessions', required=False, default=3, type=int)
 
-    args, unknown_args = spark_utils.parse_args(parser)
+    args, unknown_args = spark_utils.parse_args(parser, raw_args=raw_args)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
 

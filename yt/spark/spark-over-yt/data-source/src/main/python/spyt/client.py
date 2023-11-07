@@ -3,22 +3,21 @@ import os
 import sys
 from contextlib import contextmanager
 
-from py4j.protocol import Py4JError
-
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
 
-from yt.wrapper import YtClient, get
-from yt.wrapper.http_helpers import get_token, get_user_name
-
-logger = logging.getLogger(__name__)
+from yt.wrapper import YtClient  # noqa: E402
+from yt.wrapper.http_helpers import get_token, get_user_name  # noqa: E402
 
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
-    SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool
+    SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool  # noqa: E402
 from .conf import read_remote_conf, read_global_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility, \
-    read_cluster_conf, SELF_VERSION
-from .enabler import set_enablers, set_except_enablers, get_enablers_list
-from .standalone import wrap_cached_jar
+    read_cluster_conf, SELF_VERSION  # noqa: E402
+from .enabler import set_enablers, set_except_enablers, get_enablers_list  # noqa: E402
+from .standalone import wrap_cached_jar  # noqa: E402
+
+
+logger = logging.getLogger(__name__)
 
 
 class Defaults(object):
@@ -182,7 +181,7 @@ class Environment(object):
     @staticmethod
     def unset_python_path():
         if Environment.IS_CLUSTER_PYTHON_PATH:
-            del(os.environ["PYSPARK_PYTHON"])
+            del (os.environ["PYSPARK_PYTHON"])
             Environment.IS_CLUSTER_PYTHON_PATH = False
 
 
@@ -320,8 +319,8 @@ def connect(num_executors=5,
 
 def _shs_url(discovery_path, spark):
     discovery_path = discovery_path or \
-                     spark.conf.get("spark.yt.master.discoveryPath", default=None) or \
-                     os.getenv("SPARK_BASE_DISCOVERY_PATH")
+        spark.conf.get("spark.yt.master.discoveryPath", default=None) or \
+        os.getenv("SPARK_BASE_DISCOVERY_PATH")
     client = yt_client(spark)
     if discovery_path is not None:
         discovery = SparkDiscovery(discovery_path=discovery_path)
@@ -406,8 +405,7 @@ def _try_with_safe_finally(try_func, finally_func):
     except Exception as e:
         logger.error("Unexpected error {}".format(e.message))
         exception = e
-    finally:
-        return finally_func(cache_exception(exception))
+    return finally_func(cache_exception(exception))
 
 
 def _raise_first(*exceptions):

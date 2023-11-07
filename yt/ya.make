@@ -10,6 +10,7 @@ RECURSE(
     docs
     docker
     systest
+    spark/spark-over-yt
 )
 
 

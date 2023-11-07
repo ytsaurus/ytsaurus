@@ -12,7 +12,7 @@ from spyt.standalone import raw_submit
 from spyt import utils as spark_utils
 
 
-def main():
+def main(raw_args=None):
     parser = spark_utils.get_default_arg_parser(description="Spark Submit")
     parser.add_argument("--spyt-version", required=False)
     parser.add_argument("--python-version", required=False)
@@ -21,7 +21,7 @@ def main():
                         dest='local_files', action='store_false')
     parser.set_defaults(local_source=True)
 
-    args, unknown_args = spark_utils.parse_args(parser)
+    args, unknown_args = spark_utils.parse_args(parser, raw_args=raw_args)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token(), config={"remote_temp_files_directory": "//tmp/spyt"})
 

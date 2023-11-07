@@ -8,13 +8,13 @@ import subprocess
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
 
-from yt.wrapper import YPath
-from yt.wrapper.cypress_commands import list as yt_list, create, exists
-from yt.wrapper.errors import YtHttpResponseError
-from yt.wrapper.http_helpers import get_user_name
-from yt.wrapper.operation_commands import get_operation_url
-from yt.yson.convert import yson_to_json
-from spyt.conf import is_supported_cluster_minor_version
+from yt.wrapper import YPath  # noqa: E402
+from yt.wrapper.cypress_commands import list as yt_list, create, exists  # noqa: E402
+from yt.wrapper.errors import YtHttpResponseError  # noqa: E402
+from yt.wrapper.http_helpers import get_user_name  # noqa: E402
+from yt.wrapper.operation_commands import get_operation_url  # noqa: E402
+from yt.yson.convert import yson_to_json  # noqa: E402
+from spyt.conf import is_supported_cluster_minor_version  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -66,14 +66,14 @@ class SparkDiscovery(object):
     def getOption(path, client=None):
         try:
             return SparkDiscovery.get(path, client)
-        except YtHttpResponseError as _:
+        except YtHttpResponseError:
             return None
 
     @staticmethod
     def getOptions(path, client=None):
         try:
             return SparkDiscovery.getAll(path, client)
-        except YtHttpResponseError as _:
+        except YtHttpResponseError:
             return []
 
     def create(self, client):
@@ -285,26 +285,29 @@ def get_default_arg_parser(**kwargs):
     return parser
 
 
-def parse_args(parser=None, parser_arguments=None):
+def parse_args(parser=None, parser_arguments=None, raw_args=None):
     parser_arguments = parser_arguments or {}
     parser = parser or get_default_arg_parser(**parser_arguments)
-    args, unknown_args = parser.parse_known_args()
+    args, unknown_args = parser.parse_known_args(args=raw_args)
     args.discovery_path = args.discovery_path or args.discovery_dir or default_discovery_dir()
     return args, unknown_args
+
 
 # backward compatibility
 def tuple(element_types):
     from .types import tuple_type
     return tuple_type(element_types)
 
+
 def spark_home():
     spark_home = os.environ.get("SPARK_HOME")
     if spark_home is None:
         try:
             spark_home = subprocess.check_output("find_spark_home.py").strip().decode("utf-8")
-        except:
+        except Exception:
             raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
     return spark_home
+
 
 def call_get_proxy_address_url(**kwargs):
     # COMPAT(atokarew): replace this with get_proxy_address_url when compatibility with python wrapper <= 0.13.4 and spark cluster >= 1.73.0 is not important.
@@ -317,6 +320,7 @@ def call_get_proxy_address_url(**kwargs):
     if result.startswith('http://'):
         result = result[7:]
     return result
+
 
 def parse_bool(flag):
     return flag is not None and flag.lower() == 'true'

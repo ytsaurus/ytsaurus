@@ -62,10 +62,12 @@ class SpytEnablers(object):
 
 SPARK_DEFAULTS = SpytEnablers().get_spark_conf()
 
+
 def safe_get(d, key):
     if d is None:
         return None
     return d.get(key)
+
 
 def set_enablers(spark_conf, spark_conf_args, spark_cluster_conf, enablers):
     for name in enablers:
@@ -75,6 +77,7 @@ def set_enablers(spark_conf, spark_conf_args, spark_cluster_conf, enablers):
         enable = ((enable_app.lower() == "true") and (enable_cluster.lower() == "true"))
         spark_conf.set(name, str(enable))
 
+
 def set_except_enablers(spark_conf, conf_patch, enablers):
     if conf_patch is None:
         return
@@ -82,8 +85,10 @@ def set_except_enablers(spark_conf, conf_patch, enablers):
         if k not in enablers:
             spark_conf.set(k, v)
 
+
 def parse_enablers(conf):
     return [x.strip() for x in conf.get("spark.yt.enablers", "").split(",") if len(x.strip()) > 0]
+
 
 def get_enablers_list(spark_cluster_conf):
     return parse_enablers(spark_cluster_conf) + parse_enablers(SPARK_DEFAULTS)

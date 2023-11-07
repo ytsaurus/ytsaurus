@@ -4,30 +4,36 @@ import logging
 import os
 import re
 import subprocess
-import uuid
 
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
 
-from yt.wrapper.common import update_inplace, update
-from yt.wrapper.cypress_commands import exists, copy as cypress_copy
-from yt.wrapper.acl_commands import check_permission
-from yt.wrapper.file_commands import upload_file_to_cache
-from yt.wrapper.http_helpers import get_token, get_user_name
-from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state, \
-    abort_operation, get_operation_state
-from yt.wrapper.run_operation_commands import run_operation
-from yt.wrapper.spec_builders import VanillaSpecBuilder
+from yt.wrapper.common import update_inplace, update  # noqa: E402
+from yt.wrapper.cypress_commands import exists, copy as cypress_copy  # noqa: E402
+from yt.wrapper.acl_commands import check_permission  # noqa: E402
+from yt.wrapper.file_commands import upload_file_to_cache  # noqa: E402
+from yt.wrapper.http_helpers import get_token, get_user_name  # noqa: E402
+from yt.wrapper.operation_commands import TimeWatcher, \
+    abort_operation, get_operation_state  # noqa: E402
+from yt.wrapper.run_operation_commands import run_operation  # noqa: E402
+from yt.wrapper.spec_builders import VanillaSpecBuilder  # noqa: E402
+
+try:
+    from yt.wrapper.operation_commands import process_operation_unsuccessful_finish_state
+except Exception:
+    # COMPAT(alex-shishkin): For ytsaurus-client <= 0.13.7
+    from yt.wrapper.operation_commands \
+        import process_operation_unsuccesful_finish_state as process_operation_unsuccessful_finish_state
 
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
     latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
-    worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config
+    worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config  # noqa: E402
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster, call_get_proxy_address_url, \
-    parse_bool
-from .enabler import SpytEnablers
-from .version import __version__
+    parse_bool  # noqa: E402
+from .enabler import SpytEnablers  # noqa: E402
+from .version import __version__  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -131,12 +137,13 @@ def _parse_memory(memory_str):
         unit = unit + "b"
     return value * units[unit]
 
+
 def _wait_op_start(op, operation_path, client):
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
         if state.is_running() and exists(operation_path, client=client):
             return op
         elif state.is_unsuccessfully_finished():
-            process_operation_unsuccesful_finish_state(op, op.get_error(state))
+            process_operation_unsuccessful_finish_state(op, op.get_error(state))
         else:
             op.printer(state)
 
@@ -220,7 +227,8 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
     if local_files:
         remote_paths = {}
         new_spark_args = []
-        local_files_pattern = "[A-Za-z0-9]+:\/[^,]+(,[A-Za-z0-9]+:\/[^,]+)*" # Matches "FS:/..." path sequence
+        # Matches "FS:/..." path sequence
+        local_files_pattern = "[A-Za-z0-9]+:\/[^,]+(,[A-Za-z0-9]+:\/[^,]+)*"  # noqa: W605
         for spark_arg in spark_args:
             is_file_list = re.fullmatch(local_files_pattern, spark_arg)
             if not is_file_list:
@@ -230,13 +238,13 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
             new_file_list = []
             for single_file in file_list:
                 if single_file.startswith('local:/'):
-                    local_file_path = single_file[7:] # Drops prefix
+                    local_file_path = single_file[7:]  # Drops prefix
                     if local_file_path not in remote_paths:
                         _, file_extension = os.path.splitext(local_file_path)
                         destination = upload_file_to_cache(local_file_path, client=client)
                         destination_ext = "{}{}".format(destination, file_extension)
                         if file_extension != "":
-                            cypress_copy(destination, destination_ext, ignore_existing=True, client=client) # Extension is necessary
+                            cypress_copy(destination, destination_ext, ignore_existing=True, client=client)  # Extension is necessary
                         else:
                             logger.warn("%s has no extension. Usually such files are unacceptable")
                         logger.info("%s has been uploaded to YT as %s", local_file_path, destination_ext)
@@ -346,7 +354,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                cluster_log_level, job_types, rpc_job_proxy_thread_pool_size,
                                driver_op_resources=None, driver_op_discovery_script=None,
                                extra_metrics_enabled=True, autoscaler_enabled=False, rpc_job_proxy=False):
-    if job_types == [] or job_types == None:
+    if job_types == [] or job_types is None:
         job_types = ['master', 'history', 'worker']
 
     if ssd_limit:
@@ -724,8 +732,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     current_operation_id = SparkDiscovery.getOption(
         spark_discovery.operation(), client=client)
 
-    if current_operation_id is not None and get_operation_state(
-        current_operation_id, client=client).is_running():
+    if current_operation_id is not None and get_operation_state(current_operation_id, client=client).is_running():
         if abort_existing:
             abort_spark_operations(spark_discovery, client)
         else:

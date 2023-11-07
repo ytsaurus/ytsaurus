@@ -7,8 +7,11 @@ with open(ver_path) as ver_file:
     exec(ver_file.read())
 
 SCRIPTS_PATH = convert_path('deps/bin')
-scripts = [os.path.join(SCRIPTS_PATH, x) for x in os.listdir(SCRIPTS_PATH)
-           if os.path.isfile(os.path.join(SCRIPTS_PATH, x))]
+script_names = [
+    'spark-discovery-yt', 'spark-launch-yt', 'spark-manage-yt', 'spark-shell-yt',
+    'spark-submit-yt', 'spyt_cli.py',
+]
+scripts = [os.path.join(SCRIPTS_PATH, x) for x in script_names]
 
 with open("README.md") as f:
     long_description = f.read()

@@ -3,9 +3,9 @@ import logging
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
 
-from yt.wrapper import get, YPath, list as yt_list, exists
-from yt.wrapper.common import update_inplace
-from .version import __scala_version__
+from yt.wrapper import get, YPath, list as yt_list, exists  # noqa: E402
+from yt.wrapper.common import update_inplace  # noqa: E402
+from .version import __scala_version__  # noqa: E402
 
 SPARK_BASE_PATH = YPath("//home/spark")
 
@@ -37,8 +37,8 @@ def validate_cluster_version(spark_cluster_version, client=None):
 
 
 def is_supported_cluster_minor_version(spark_cluster_version, required_version):
-    return get_version_tuple(_get_spark_cluster_minor_version(spark_cluster_version)) >= \
-           get_version_tuple(required_version)
+    cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
+    return get_version_tuple(cluster_minor_version) >= get_version_tuple(required_version)
 
 
 def get_version_tuple(version):
@@ -99,7 +99,6 @@ def validate_ssd_config(ssd_limit, ssd_account):
         raise RuntimeError("Ssd account must be provided to use ssd limit, please add --ssd-account option")
 
 
-
 def get_available_cluster_versions(client=None):
     subdirs = yt_list(CONF_BASE_PATH.join(RELEASES_SUBDIR), client=client)
     return [x for x in subdirs if x != "spark-launch-conf"]
@@ -117,7 +116,7 @@ def read_remote_conf(global_conf, cluster_version, client=None):
     version_conf_path = _get_version_conf_path(cluster_version)
     version_conf = get(version_conf_path, client=client)
     version_conf["cluster_version"] = cluster_version
-    return update_inplace(global_conf, version_conf) # TODO(alex-shishkin): Might cause undefined behaviour
+    return update_inplace(global_conf, version_conf)  # TODO(alex-shishkin): Might cause undefined behaviour
 
 
 def read_cluster_conf(path=None, client=None):
