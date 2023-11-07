@@ -185,13 +185,13 @@ private:
             : Server_(std::move(server))
             , Connection_(std::move(connection))
             , Logger(Server_->Logger.WithTag("ConnectionId: %v", TGuid::Create()))
-            , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->Invoker_, /*maxConcurrentInvocations*/ 1))
+            , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
         { }
 
         void Run()
         {
             BIND(&TConnectionHandler::FiberMain, MakeStrong(this))
-                .AsyncVia(Server_->Invoker_)
+                .AsyncVia(Server_->GetInvoker())
                 .Run();
         }
 

@@ -526,7 +526,7 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
 
     auto userObject = GetUserObject(richPath, client, Logger);
     if (userObject.Type != NCypressClient::EObjectType::File) {
-        THROW_ERROR_EXCEPTION("Invalid type of file %Qlv: expected %Qlv, but got %Qlv",
+        THROW_ERROR_EXCEPTION("Invalid type of file %v: expected %Qlv, but got %Qlv",
             userObject.GetPath(),
             NCypressClient::EObjectType::File,
             userObject.Type);
@@ -534,7 +534,7 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
 
     auto filesystem = GetFilesystem(userObject, client, Logger);
     if (filesystem != "ext4" && filesystem != "squashfs") {
-        THROW_ERROR_EXCEPTION("Invalid filesystem attribute %Qlv of file %Qlv",
+        THROW_ERROR_EXCEPTION("Invalid filesystem attribute %Qv of file %v",
             filesystem,
             userObject.GetPath());
     }
@@ -581,7 +581,12 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     IInvokerPtr invoker,
     const NLogging::TLogger& logger)
 {
-    return New<TCypressFileBlockDevice>(exportId, std::move(exportConfig), std::move(client), std::move(invoker), logger);
+    return New<TCypressFileBlockDevice>(
+        exportId,
+        std::move(exportConfig),
+        std::move(client),
+        std::move(invoker),
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,7 +599,13 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     IInvokerPtr invoker,
     const NLogging::TLogger& logger)
 {
-    return New<TCypressFileBlockDevice>(exportId, chunkSpecs, std::move(exportConfig), std::move(client), std::move(invoker), logger);
+    return New<TCypressFileBlockDevice>(
+        exportId,
+        chunkSpecs,
+        std::move(exportConfig),
+        std::move(client),
+        std::move(invoker),
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
