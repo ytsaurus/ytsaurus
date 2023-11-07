@@ -13,6 +13,8 @@
 
 #include <util/generic/algorithm.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NObjectClient;
@@ -27,10 +29,10 @@ namespace NDetail {
 
 NCellMaster::TBootstrap* Bootstrap;
 
-thread_local bool InAutomatonThread;
+YT_THREAD_LOCAL(bool) InAutomatonThread;
 
 // This context is shared between automaton thread and local read threads.
-thread_local TEpochContextPtr EpochContext;
+YT_THREAD_LOCAL(TEpochContextPtr) EpochContext;
 
 struct TEpochRefCounterShard
 {
@@ -42,11 +44,11 @@ static_assert(IsPowerOf2(EpochRefCounterShardCount), "EpochRefCounterShardCount 
 
 std::array<TEpochRefCounterShard, EpochRefCounterShardCount> EpochRefCounterShards_;
 
-thread_local bool InTeardownFlag;
-thread_local int InMutationCounter;
+YT_THREAD_LOCAL(bool) InTeardownFlag;
+YT_THREAD_LOCAL(int) InMutationCounter;
 
-thread_local std::vector<TObject*> ObjectsWithScheduledUnref;
-thread_local std::vector<TObject*> ObjectsWithScheduledWeakUnref;
+YT_THREAD_LOCAL(std::vector<TObject*>) ObjectsWithScheduledUnref;
+YT_THREAD_LOCAL(std::vector<TObject*>) ObjectsWithScheduledWeakUnref;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,16 +79,16 @@ void DoFlushObjectUnrefs()
 {
     const auto& objectManager = Bootstrap->GetObjectManager();
     while (
-        !ObjectsWithScheduledUnref.empty() ||
-        !ObjectsWithScheduledWeakUnref.empty())
+        !GetTlsRef(ObjectsWithScheduledUnref).empty() ||
+        !GetTlsRef(ObjectsWithScheduledWeakUnref).empty())
     {
-        auto objectsWithScheduledUnref = std::move(ObjectsWithScheduledUnref);
+        auto objectsWithScheduledUnref = std::move(GetTlsRef(ObjectsWithScheduledUnref));
         Sort(objectsWithScheduledUnref, TObjectIdComparer());
         for (auto* object : objectsWithScheduledUnref) {
             objectManager->UnrefObject(object);
         }
 
-        auto objectsWithScheduledWeakUnref = std::move(ObjectsWithScheduledWeakUnref);
+        auto objectsWithScheduledWeakUnref = std::move(GetTlsRef(ObjectsWithScheduledWeakUnref));
         Sort(objectsWithScheduledWeakUnref, TObjectIdComparer());
         for (auto* object : objectsWithScheduledWeakUnref) {
             objectManager->WeakUnrefObject(object);
@@ -109,7 +111,7 @@ int TEpochRefCounter::GetValue() const
     auto* shard = &NDetail::EpochRefCounterShards_[ShardIndex_];
     auto guard = Guard(shard->Lock);
 
-    return Epoch_ == NDetail::EpochContext->CurrentEpoch
+    return Epoch_ == GetTlsRef(NDetail::EpochContext)->CurrentEpoch
         ? Value_
         : 0;
 }
@@ -394,7 +396,7 @@ void TStrongObjectPtrContext::Unref(TObject* object)
 {
     YT_VERIFY(IsInMutation() || NDetail::IsInTeardown());
     if (IsInMutation()) {
-        NDetail::ObjectsWithScheduledUnref.push_back(object);
+        GetTlsRef(NDetail::ObjectsWithScheduledUnref).push_back(object);
     }
 }
 
@@ -410,7 +412,7 @@ void TWeakObjectPtrContext::Unref(TObject* object)
 {
     YT_VERIFY(IsInMutation() || NDetail::IsInTeardown());
     if (IsInMutation()) {
-        NDetail::ObjectsWithScheduledWeakUnref.push_back(object);
+        GetTlsRef(NDetail::ObjectsWithScheduledWeakUnref).push_back(object);
     }
 }
 
@@ -418,11 +420,12 @@ void TWeakObjectPtrContext::Unref(TObject* object)
 
 TEphemeralObjectPtrContext TEphemeralObjectPtrContext::Capture()
 {
-    YT_VERIFY(NDetail::EpochContext->EphemeralPtrUnrefInvoker);
+    auto& epochContext = GetTlsRef(NDetail::EpochContext);
+    YT_VERIFY(epochContext->EphemeralPtrUnrefInvoker);
     return {
         NDetail::Bootstrap->GetObjectManager(),
-        NDetail::EpochContext->CurrentEpoch,
-        NDetail::EpochContext->EphemeralPtrUnrefInvoker
+        epochContext->CurrentEpoch,
+        epochContext->EphemeralPtrUnrefInvoker
     };
 }
 
@@ -431,7 +434,7 @@ bool TEphemeralObjectPtrContext::IsCurrent() const
     return
         NDetail::IsInAutomatonThread() &&
         ObjectManager == NDetail::Bootstrap->GetObjectManager() &&
-        Epoch == NDetail::EpochContext->CurrentEpoch;
+        Epoch == GetTlsRef(NDetail::EpochContext)->CurrentEpoch;
 }
 
 void TEphemeralObjectPtrContext::Ref(TObject* object)
@@ -442,7 +445,7 @@ void TEphemeralObjectPtrContext::Ref(TObject* object)
 
 void TEphemeralObjectPtrContext::Unref(TObject* object)
 {
-    if (auto epochContext = NDetail::EpochContext) {
+    if (auto epochContext = GetTlsRef(NDetail::EpochContext)) {
         if (Epoch != epochContext->CurrentEpoch) {
             return;
         }
@@ -458,27 +461,33 @@ void BeginEpoch()
 {
     NDetail::VerifyAutomatonThreadAffinity();
 
-    YT_VERIFY(NDetail::EpochContext->CurrentEpoch == TEpoch());
+    auto& epochContext = GetTlsRef(NDetail::EpochContext);
 
-    NDetail::EpochContext->EphemeralPtrUnrefInvoker = NDetail::Bootstrap
+    YT_VERIFY(epochContext->CurrentEpoch == TEpoch());
+
+    epochContext->EphemeralPtrUnrefInvoker = NDetail::Bootstrap
         ->GetHydraFacade()
         ->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::EphemeralPtrUnref);
-    NDetail::EpochContext->CurrentEpoch = ++NDetail::EpochContext->CurrentEpochCounter;
+    epochContext->CurrentEpoch = ++epochContext->CurrentEpochCounter;
 }
 
 void EndEpoch()
 {
     NDetail::VerifyAutomatonThreadAffinity();
 
-    NDetail::EpochContext->EphemeralPtrUnrefInvoker.Reset();
-    NDetail::EpochContext->CurrentEpoch = TEpoch();
+    auto& epochContext = GetTlsRef(NDetail::EpochContext);
+
+    epochContext->EphemeralPtrUnrefInvoker.Reset();
+    epochContext->CurrentEpoch = TEpoch();
 }
 
 TEpoch GetCurrentEpoch()
 {
     NDetail::AssertPersistentStateRead();
 
-    return NDetail::EpochContext->CurrentEpoch;
+    auto& epochContext = GetTlsRef(NDetail::EpochContext);
+
+    return epochContext->CurrentEpoch;
 }
 
 void SetupMasterBootstrap(NCellMaster::TBootstrap* bootstrap)
@@ -497,16 +506,18 @@ void SetupAutomatonThread()
 
 void SetupEpochContext(TEpochContextPtr epochContext)
 {
-    YT_VERIFY(!NDetail::EpochContext);
+    auto& epochContextRef = GetTlsRef(NDetail::EpochContext);
 
-    NDetail::EpochContext = std::move(epochContext);
+    YT_VERIFY(!epochContextRef);
+
+    epochContextRef = std::move(epochContext);
 }
 
 void ResetAll()
 {
     NDetail::Bootstrap = nullptr;
     NDetail::InAutomatonThread = false;
-    NDetail::EpochContext = nullptr;
+    GetTlsRef(NDetail::EpochContext) = nullptr;
 }
 
 void BeginMutation()
@@ -515,8 +526,8 @@ void BeginMutation()
     YT_ASSERT(!NDetail::IsInTeardown());
 
     if (++NDetail::InMutationCounter == 1) {
-        YT_VERIFY(NDetail::ObjectsWithScheduledUnref.empty());
-        YT_VERIFY(NDetail::ObjectsWithScheduledWeakUnref.empty());
+        YT_VERIFY(GetTlsRef(NDetail::ObjectsWithScheduledUnref).empty());
+        YT_VERIFY(GetTlsRef(NDetail::ObjectsWithScheduledWeakUnref).empty());
     }
 }
 

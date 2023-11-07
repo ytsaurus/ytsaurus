@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/rpc/message.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NHydra {
 
 using namespace NRpc;
@@ -119,7 +121,7 @@ bool TMutationContext::GetResponseKeeperSuppressed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static thread_local TMutationContext* CurrentMutationContextSlot;
+static YT_THREAD_LOCAL(TMutationContext*) CurrentMutationContextSlot;
 
 TMutationContext* TryGetCurrentMutationContext()
 {

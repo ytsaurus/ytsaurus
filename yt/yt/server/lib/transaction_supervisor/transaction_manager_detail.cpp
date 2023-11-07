@@ -2,9 +2,11 @@
 
 #include <yt/yt/core/concurrency/fls.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NTransactionSupervisor {
 
-thread_local bool InTransactionAction;
+YT_THREAD_LOCAL(bool) InTransactionAction;
 
 bool IsInTransactionAction()
 {

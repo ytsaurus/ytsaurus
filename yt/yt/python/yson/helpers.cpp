@@ -55,8 +55,9 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
     } else if (PyBytes_Check(obj.ptr())) {
         return Py::Bytes(PyObject_Bytes(*obj), true);
     } else {
-        thread_local auto YsonStringProxyClass = PyObjectPtr(FindYsonTypeClass("YsonStringProxy"));
-        if (YsonStringProxyClass && PyObject_IsInstance(obj.ptr(), YsonStringProxyClass.get())) {
+        YT_THREAD_LOCAL(auto) YsonStringProxyClass = PyObjectPtr(FindYsonTypeClass("YsonStringProxy"));
+        auto& ysonStringProxyClass = GetTlsRef(YsonStringProxyClass);
+        if (ysonStringProxyClass && PyObject_IsInstance(obj.ptr(), ysonStringProxyClass.get())) {
             return Py::Bytes(obj.getAttr("_bytes"));
         }
     }

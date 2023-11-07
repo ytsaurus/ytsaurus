@@ -14,6 +14,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/record_descriptor.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NSequoiaServer {
 
 using namespace NApi::NNative;
@@ -138,16 +140,16 @@ ISequoiaContextPtr CreateSequoiaContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-thread_local ISequoiaContextPtr SequoiaContext;
+YT_THREAD_LOCAL(ISequoiaContextPtr) SequoiaContext;
 
 void SetSequoiaContext(ISequoiaContextPtr context)
 {
-    SequoiaContext = std::move(context);
+    GetTlsRef(SequoiaContext) = std::move(context);
 }
 
 const ISequoiaContextPtr& GetSequoiaContext()
 {
-    return SequoiaContext;
+    return GetTlsRef(SequoiaContext);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,8 +161,9 @@ TSequoiaContextGuard::TSequoiaContextGuard(ISequoiaContextPtr context)
 
 TSequoiaContextGuard::~TSequoiaContextGuard()
 {
-    if (SequoiaContext) {
-        SequoiaContext->SubmitRows();
+    auto& sequoiaContext = GetTlsRef(SequoiaContext);
+    if (sequoiaContext) {
+        sequoiaContext->SubmitRows();
     }
 
     SetSequoiaContext(/*context*/ nullptr);

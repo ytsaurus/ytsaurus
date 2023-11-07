@@ -2,13 +2,15 @@
 
 #include <structmember.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
 {
-    thread_local PyObject* deepcopyFunction = nullptr;
+    YT_THREAD_LOCAL(PyObject*) deepcopyFunction = nullptr;
     if (!deepcopyFunction) {
         auto copyModule = Py::Object(PyImport_ImportModule("copy"), /* owned */ true);
         if (copyModule.ptr() == nullptr) {

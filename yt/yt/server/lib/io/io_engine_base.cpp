@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NIO {
 
 using namespace NConcurrency;
@@ -107,21 +109,24 @@ void TIOEngineSensors::UpdateKernelStatistics()
 {
     constexpr auto UpdatePeriod = TDuration::Seconds(1);
 
-    static thread_local std::optional<TInstant> LastUpdateInstant;
-    static thread_local TTaskDiskStatistics LastStatistics;
+    static YT_THREAD_LOCAL(std::optional<TInstant>) LastUpdateInstant;
+    static YT_THREAD_LOCAL(TTaskDiskStatistics) LastStatistics;
+
+    auto& lastStatistics = GetTlsRef(LastStatistics);
+    auto& lastUpdateInstant = GetTlsRef(LastUpdateInstant);
 
     auto now = TInstant::Now();
-    if (!LastUpdateInstant || (now - *LastUpdateInstant) > UpdatePeriod) {
-        if (LastUpdateInstant) {
+    if (!lastUpdateInstant || (now - *lastUpdateInstant) > UpdatePeriod) {
+        if (lastUpdateInstant) {
             auto current = GetSelfThreadTaskDiskStatistics();
 
-            KernelReadBytesCounter.Increment(current.ReadBytes - LastStatistics.ReadBytes);
-            KernelWrittenBytesCounter.Increment(current.WriteBytes - LastStatistics.WriteBytes);
+            KernelReadBytesCounter.Increment(current.ReadBytes - lastStatistics.ReadBytes);
+            KernelWrittenBytesCounter.Increment(current.WriteBytes - lastStatistics.WriteBytes);
 
-            LastStatistics = current;
+            lastStatistics = current;
         }
 
-        LastUpdateInstant = now;
+        lastUpdateInstant = now;
     }
 }
 

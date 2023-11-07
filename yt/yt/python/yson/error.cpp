@@ -2,6 +2,8 @@
 
 #include <yt/yt/python/common/helpers.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,7 +15,7 @@ Py::Exception CreateYsonError(const TString& message, const TError& error)
 
 Py::Exception CreateYsonError(const TString& message, TContext* context)
 {
-    thread_local PyObject* ysonErrorClass = nullptr;
+    YT_THREAD_LOCAL(PyObject*) ysonErrorClass = nullptr;
     if (!ysonErrorClass) {
         auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), /* owned */ true);
         ysonErrorClass = PyObject_GetAttrString(ysonModule.ptr(), "YsonError");
