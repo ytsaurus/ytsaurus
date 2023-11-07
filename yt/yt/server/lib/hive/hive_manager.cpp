@@ -134,6 +134,7 @@ public:
         , HydraManager_(std::move(hydraManager))
     {
         auto profiler = HiveServerProfiler
+            .WithGlobal()
             .WithSparse()
             .WithTag("cell_id", ToString(selfCellId));
 
@@ -1265,6 +1266,7 @@ private:
         auto it = PerCellSyncTimeCounter_.find(cellId);
         if (it == PerCellSyncTimeCounter_.end()) {
             auto profiler = HiveServerProfiler
+                .WithGlobal()
                 .WithSparse()
                 .WithTag("cell_id", ToString(SelfCellId_))
                 .WithTag("source_cell_id", ToString(cellId));
