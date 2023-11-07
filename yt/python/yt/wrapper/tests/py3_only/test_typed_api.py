@@ -517,7 +517,8 @@ class TestTypedApi(object):
 
     @authors("levysotsky")
     @pytest.mark.parametrize("trivial_mapper", [True, False])
-    def test_basic_map_reduce(self, trivial_mapper):
+    @pytest.mark.parametrize("with_reduce_combiner", [True, False])
+    def test_basic_map_reduce(self, trivial_mapper, with_reduce_combiner):
         input_table = "//tmp/input"
         output_table = "//tmp/output"
         yt.remove(input_table, force=True)
@@ -527,10 +528,14 @@ class TestTypedApi(object):
         yt.run_map_reduce(
             mapper=IdentityMapper() if not trivial_mapper else None,
             reducer=IdentityReducer(),
+            reduce_combiner=IdentityReducer() if with_reduce_combiner else None,
             source_table=input_table,
             destination_table=output_table,
             reduce_by=["int32_field"],
-            spec={"max_failed_job_count": 1},
+            spec={
+                "force_reduce_combiners": with_reduce_combiner,
+                "max_failed_job_count": 1,
+            },
         )
         read_rows = list(yt.read_table(output_table))
         assert read_rows == ROW_DICTS
