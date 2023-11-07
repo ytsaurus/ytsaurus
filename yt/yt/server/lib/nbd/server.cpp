@@ -59,7 +59,7 @@ public:
                     THROW_ERROR_EXCEPTION(
                         "Failed to remove unix domain socket %v",
                         address)
-                    << TError::FromSystem();
+                        << TError::FromSystem();
                 }
             } else if (Config_->InternetDomainSocket) {
                 maxBacklogSize = Config_->InternetDomainSocket->MaxBacklogSize;
