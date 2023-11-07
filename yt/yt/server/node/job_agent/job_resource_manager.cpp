@@ -211,6 +211,18 @@ public:
         ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
         #undef XX
 
+        const auto& flavors = Bootstrap_->GetConfig()->Flavors;
+
+        if (std::find(flavors.begin(), flavors.end(), ENodeFlavor::Data) == flavors.end()) {
+            result.MergeSlots = 0;
+            result.RemovalSlots = 0;
+            result.ReplicationSlots = 0;
+            result.RepairSlots = 0;
+            result.SealSlots = 0;
+            result.AutotomySlots = 0;
+            result.ReincarnationSlots = 0;
+        }
+
         if (Bootstrap_->IsExecNode()) {
             const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
             auto slotManager = execNodeBootstrap->GetSlotManager();
