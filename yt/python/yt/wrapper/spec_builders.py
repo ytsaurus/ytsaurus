@@ -2202,6 +2202,8 @@ class VanillaSpecBuilder(SpecBuilder):
                 client=client,
                 requires_format=False,
             )
+
+        spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
     def supports_user_job_spec(self):
