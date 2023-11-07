@@ -899,3 +899,54 @@ func TestHTTPAPIStateAfterStartAndStop(t *testing.T) {
 	checkStateWithList(t, c, alias, strawberry.StateInactive)
 	checkStateWithStatus(t, c, alias, strawberry.StateInactive)
 }
+
+func TestHTTPAPICreateAndStart(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+
+	pool := guid.New().String()
+	nonExistingPool := guid.New().String()
+	_, err := env.YT.CreateObject(env.Ctx, yt.NodeSchedulerPool, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name":      pool,
+			"pool_tree": "default",
+		},
+	})
+	require.NoError(t, err)
+
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"speclet_options": map[string]any{
+				"pool": nonExistingPool,
+			},
+		},
+	})
+	require.Equal(t, http.StatusBadRequest, r.StatusCode)
+
+	r = c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"speclet_options": map[string]any{
+				"active": true,
+				"pool":   pool,
+			},
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var speclet map[string]any
+	err = env.YT.GetNode(env.Ctx, env.StrawberryRoot.JoinChild(alias, "speclet"), &speclet, nil)
+	require.NoError(t, err)
+	require.Equal(t,
+		map[string]any{
+			"family": "sleep",
+			"stage":  "test_stage",
+			"active": true,
+			"pool":   pool,
+		},
+		speclet)
+}

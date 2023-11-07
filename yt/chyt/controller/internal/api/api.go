@@ -209,11 +209,35 @@ func (a *API) getOplet(
 // because we can not create an access control object node in transactions.
 // Anyway, it's guaranteed that in such state the Create command can be retried
 // and that this state can be completely removed via Remove command.
-func (a *API) Create(ctx context.Context, alias string) error {
+func (a *API) Create(
+	ctx context.Context,
+	alias string,
+	specletOptions map[string]any,
+) error {
 	// It's not necessary to check an operation existence, but we do it to provide better error messages.
 	if err := a.CheckExistence(ctx, alias, false /*shouldExist*/); err != nil {
 		return err
 	}
+
+	if specletOptions != nil {
+		pool, poolIsSet := specletOptions["pool"]
+
+		if active, ok := specletOptions["active"]; ok {
+			if err := validateBool(active); err != nil {
+				return err
+			}
+			if active.(bool) && !poolIsSet {
+				return yterrors.Err("can't start operation, pool is not set")
+			}
+		}
+
+		if poolIsSet {
+			if err := a.validatePoolOption(ctx, pool); err != nil {
+				return err
+			}
+		}
+	}
+
 	user, err := getUser(ctx)
 	if err != nil {
 		a.l.Error("failed to get user", log.Error(err))
@@ -284,16 +308,21 @@ func (a *API) Create(ctx context.Context, alias string) error {
 	}
 
 	// Create "speclet" node.
+	speclet := map[string]any{
+		"family": a.ctl.Family(),
+		"stage":  a.cfg.AgentInfo.Stage,
+	}
+	for key, value := range specletOptions {
+		speclet[key] = value
+	}
+
 	_, err = a.ytc.CreateNode(
 		ctx,
 		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet"),
 		yt.NodeDocument,
 		&yt.CreateNodeOptions{
 			Attributes: map[string]any{
-				"value": map[string]any{
-					"family": a.ctl.Family(),
-					"stage":  a.cfg.AgentInfo.Stage,
-				},
+				"value": speclet,
 			},
 			TransactionOptions: txOptions,
 		})

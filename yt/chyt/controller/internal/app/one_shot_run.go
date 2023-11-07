@@ -63,7 +63,7 @@ func (runner *OneShotRunner) Run(alias string, specletYson yson.RawValue) error 
 	}
 	a := api.NewAPI(runner.ytc, apiConfig, runner.c, runner.l)
 	ctx := auth.WithRequester(runner.ctx, "root")
-	if err := a.Create(ctx, alias); err != nil {
+	if err := a.Create(ctx, alias, nil); err != nil {
 		return err
 	}
 	var speclet map[string]any

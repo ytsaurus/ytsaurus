@@ -55,17 +55,31 @@ func (a HTTPAPI) HandleList(w http.ResponseWriter, r *http.Request, params map[s
 	a.replyOK(w, aliases)
 }
 
+var SpecletOptionsParameter = CmdParameter{
+	Name:        "speclet_options",
+	Type:        TypeAny,
+	Description: "speclet options in yson format",
+	Validator:   validateSpecletOptions,
+}
+
 var CreateCmdDescriptor = CmdDescriptor{
-	Name:        "create",
-	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Name: "create",
+	Parameters: []CmdParameter{
+		AliasParameter.AsExplicit(),
+		SpecletOptionsParameter,
+	},
 	Description: "create a new strawberry operation",
 	Handler:     HTTPAPI.HandleCreate,
 }
 
 func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
+	var specletOptions map[string]any
+	if value, ok := params["speclet_options"]; ok {
+		specletOptions = value.(map[string]any)
+	}
 
-	err := a.api.Create(r.Context(), alias)
+	err := a.api.Create(r.Context(), alias, specletOptions)
 	if err != nil {
 		a.replyWithError(w, err)
 		return
