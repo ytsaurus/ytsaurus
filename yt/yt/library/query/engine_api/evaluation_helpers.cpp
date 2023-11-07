@@ -6,8 +6,6 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
-#include <yt/yt/client/query_client/query_statistics.h>
-
 namespace NYT::NQueryClient {
 
 using namespace NConcurrency;

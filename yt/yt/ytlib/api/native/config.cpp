@@ -192,6 +192,13 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(1000000);
 
+    registrar.Parameter("distributed_query_session_ping_period", &TThis::DistributedQuerySessionPingPeriod)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("distributed_query_session_retention_time", &TThis::DistributedQuerySessionRetentionTime)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("distributed_query_session_control_rpc_timeout", &TThis::DistributedQuerySessionControlRpcTimeout)
+        .Default(TDuration::Seconds(5));
+
     registrar.Parameter("column_evaluator_cache", &TThis::ColumnEvaluatorCache)
         .DefaultNew();
 

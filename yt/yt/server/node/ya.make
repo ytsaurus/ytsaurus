@@ -90,6 +90,7 @@ SRCS(
     query_agent/multiread_request_queue_provider.cpp
     query_agent/query_executor.cpp
     query_agent/query_service.cpp
+    query_agent/session.cpp
 
     tablet_node/automaton.cpp
     tablet_node/backing_store_cleaner.cpp

@@ -272,3 +272,37 @@ message TRspGetOrderedTabletSafeTrimRowCount
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateSessionInstance
+{
+    required NYT.NProto.TGuid session_id = 1;
+    required int64 retention_time = 2;
+}
+
+message TRspCreateSessionInstance
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingSessionInstance
+{
+    required NYT.NProto.TGuid session_id = 1;
+    repeated string nodes_with_propagated_session = 2;
+}
+
+message TRspPingSessionInstance
+{
+    repeated string nodes_to_propagate_session_onto = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCloseSessionInstance
+{
+    required NYT.NProto.TGuid session_id = 1;
+}
+
+message TRspCloseSessionInstance
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

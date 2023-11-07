@@ -26,6 +26,10 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, FetchTabletStores);
     DEFINE_RPC_PROXY_METHOD(NProto, FetchTableRows);
     DEFINE_RPC_PROXY_METHOD(NProto, GetOrderedTabletSafeTrimRowCount);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, CreateSessionInstance);
+    DEFINE_RPC_PROXY_METHOD(NProto, PingSessionInstance);
+    DEFINE_RPC_PROXY_METHOD(NProto, CloseSessionInstance);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

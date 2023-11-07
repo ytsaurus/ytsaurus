@@ -212,6 +212,10 @@ public:
     i64 DefaultInputRowLimit;
     i64 DefaultOutputRowLimit;
 
+    TDuration DistributedQuerySessionPingPeriod;
+    TDuration DistributedQuerySessionRetentionTime;
+    TDuration DistributedQuerySessionControlRpcTimeout;
+
     TDuration WriteRowsTimeout;
     NCompression::ECodec WriteRowsRequestCodec;
     int MaxRowsPerWriteRequest;

@@ -2,6 +2,7 @@
 #include "query_service.h"
 #include "public.h"
 #include "private.h"
+#include "session.h"
 #include "helpers.h"
 #include "multiread_request_queue_provider.h"
 
@@ -37,6 +38,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -65,10 +68,10 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
+#include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/tls_cache.h>
-#include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -95,6 +98,9 @@ using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::NProto::TMiscExt;
+using NYT::ToProto;
+using NYT::FromProto;
+using NQueryClient::TSessionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,6 +330,9 @@ public:
             Bootstrap_
                 ->GetMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::Query))
+        , SessionManager_(CreateNewSessionManager(
+            bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag),
+            QueryAgentLogger))
         , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -348,6 +357,12 @@ public:
             .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOrderedTabletSafeTrimRowCount)
             .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateSessionInstance)
+            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSessionInstance)
+            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CloseSessionInstance)
+            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
@@ -363,12 +378,12 @@ private:
     const IMemoryUsageTrackerPtr MemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
     const IRequestQueueProviderPtr MultireadRequestQueueProvider = CreateMultireadRequestQueueProvider();
+    const ISessionManagerPtr SessionManager_;
 
     std::atomic<bool> RejectUponThrottlerOverdraft_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/byte_size");
-
 
     IInvokerPtr GetExecuteInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
     {
@@ -1930,6 +1945,47 @@ private:
     {
         RejectUponThrottlerOverdraft_.store(
             newConfig->QueryAgent->RejectUponThrottlerOverdraft.value_or(Config_->RejectUponThrottlerOverdraft));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateSessionInstance)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto retentionTime = FromProto<TDuration>(request->retention_time());
+
+        auto session = SessionManager_->GetOrCreate(
+            sessionId,
+            retentionTime);
+
+        context->SuppressMissingRequestInfoCheck();
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, PingSessionInstance)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto weakSession = SessionManager_->GetOrThrow(sessionId);
+
+        auto session = weakSession.Lock();
+        session->RenewLease();
+
+        auto propagated = FromProto<std::vector<TString>>(request->nodes_with_propagated_session());
+        session->FulfillPropagationRequests(propagated);
+        ToProto(response->mutable_nodes_to_propagate_session_onto(), session->CopyPropagationRequests());
+
+        context->SuppressMissingRequestInfoCheck();
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CloseSessionInstance)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+
+        if (SessionManager_->InvalidateIfExists(sessionId)) {
+            YT_LOG_INFO("Distributed query session closed remotely (SessionId: %v)", sessionId);
+        }
+
+        context->SuppressMissingRequestInfoCheck();
+        context->Reply();
     }
 };
 
