@@ -130,6 +130,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 builder.builder.clusters,
                 builder.builder.preferredClusterName,
                 builder.builder.proxyRole,
+                builder.builder.proxyNetworkName,
                 builder.auth,
                 rpcClientFactory,
                 builder.builder.configuration.getRpcOptions(),
@@ -266,6 +267,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 List<YtCluster> clusters,
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
+                @Nullable String proxyNetworkName,
                 YTsaurusClientAuth auth,
                 RpcClientFactory rpcClientFactory,
                 RpcOptions options,
@@ -292,6 +294,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                                     .setDataCenterName(curCluster.getName())
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
+                                    .setNetworkName(proxyNetworkName)
                                     .setToken(auth.getToken().orElse(null))
                                     .setOptions(options)
                                     .setClientFactory(rpcClientFactory)
@@ -514,6 +517,9 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         String preferredClusterName;
         @Nullable
         String proxyRole;
+        @Nullable
+        String proxyNetworkName;
+
         List<YtCluster> clusters = new ArrayList<>();
 
         boolean enableValidation = true;
@@ -637,6 +643,17 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          */
         public TBuilder setProxyRole(@Nullable String proxyRole) {
             this.proxyRole = proxyRole;
+            return self();
+        }
+
+        /**
+         * Set proxy network name to use.
+         *
+         * <p>
+         * If no proxy network name is specified default network name will be used.
+         */
+        public TBuilder setProxyNetworkName(@Nullable String proxyNetworkName) {
+            this.proxyNetworkName = proxyNetworkName;
             return self();
         }
 

@@ -285,7 +285,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 httpClient,
                 Objects.requireNonNull(httpBuilder.balancerAddress),
                 httpBuilder.role,
-                httpBuilder.token
+                httpBuilder.token,
+                httpBuilder.networkName
         );
 
         executorService = httpBuilder.eventLoop;
@@ -410,6 +411,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         EventLoopGroup eventLoop;
         @Nullable
         Random random;
+        @Nullable
+        String networkName;
 
         T setDataCenterName(String dataCenterName) {
             this.dataCenterName = dataCenterName;
@@ -449,6 +452,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
         T setToken(@Nullable String token) {
             this.token = token;
+            //noinspection unchecked
+            return (T) this;
+        }
+
+        T setNetworkName(@Nullable String networkName) {
+            this.networkName = networkName;
             //noinspection unchecked
             return (T) this;
         }
@@ -812,11 +821,15 @@ class HttpProxyGetter implements ProxyGetter {
     @Nullable
     String token;
 
-    HttpProxyGetter(HttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token) {
+    @Nullable
+    String networkName;
+
+    HttpProxyGetter(HttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token, @Nullable String networkName) {
         this.httpClient = httpClient;
         this.balancerHost = balancerHost;
         this.role = role;
         this.token = token;
+        this.networkName = networkName;
     }
 
     @Override
@@ -824,6 +837,9 @@ class HttpProxyGetter implements ProxyGetter {
         String discoverProxiesUrl = String.format("http://%s/api/v4/discover_proxies?type=rpc", balancerHost);
         if (role != null) {
             discoverProxiesUrl += "&role=" + role;
+        }
+        if (networkName != null) {
+            discoverProxiesUrl += "&network_name=" + networkName;
         }
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(discoverProxiesUrl))
                 .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
