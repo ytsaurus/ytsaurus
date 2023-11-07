@@ -1482,6 +1482,9 @@ class YTEnvSetup(object):
                 "enable_everywhere": self.ENABLE_STANDALONE_TABLET_BALANCER,
                 "schedule": "1",
                 "min_desired_tablet_size": 0,
+                "action_manager": {
+                    "tablet_action_polling_period": 100,
+                }
             }
 
             yt_commands.set(

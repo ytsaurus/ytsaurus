@@ -19,6 +19,7 @@ struct IBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TStandaloneTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TActionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerServerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)

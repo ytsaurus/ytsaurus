@@ -26,8 +26,6 @@ public:
 
     i64 WorkerThreadPoolSize;
 
-    TDuration TabletActionExpirationTimeout;
-    TDuration TabletActionPollingPeriod;
     TDuration ParameterizedTimeoutOnStart;
     TDuration ParameterizedTimeout;
 
@@ -72,12 +70,32 @@ public:
 
     int MaxActionsPerGroup;
 
+    TActionManagerConfigPtr ActionManager;
+
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletBalancerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TActionManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int CreateActionBatchSizeLimit;
+    TDuration TabletActionPollingPeriod;
+    TDuration TabletActionCreationTimeout;
+    TDuration TabletActionExpirationTimeout;
+
+    REGISTER_YSON_STRUCT(TActionManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TActionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

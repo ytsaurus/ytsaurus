@@ -27,6 +27,8 @@ struct IActionManager
 
     virtual void Start(NTransactionClient::TTransactionId prerequisiteTransactionId) = 0;
     virtual void Stop() = 0;
+
+    virtual void Reconfigure(const TActionManagerConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IActionManager)
@@ -34,8 +36,7 @@ DEFINE_REFCOUNTED_TYPE(IActionManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IActionManagerPtr CreateActionManager(
-    TDuration actionExpirationTimeout,
-    TDuration pollingPeriod,
+    TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap);
 
