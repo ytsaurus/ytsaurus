@@ -18,7 +18,7 @@ public:
     virtual std::string getName() const override;
 
 protected:
-    virtual void transform(DB::Chunk & chunk) override;
+    virtual void transform(DB::Chunk& chunk) override;
 
 private:
     NLogging::TLogger Logger;

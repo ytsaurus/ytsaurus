@@ -462,7 +462,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         pathsToFetchFromCache.reserve(pathsToFetch.size());
         pathsToFetchUnderTx.reserve(pathsToFetch.size());
 
-        for (auto & path : pathsToFetch) {
+        for (auto& path : pathsToFetch) {
             if (SnapshotLocks.contains(path)) {
                 pathsToFetchUnderTx.push_back(std::move(path));
             } else {

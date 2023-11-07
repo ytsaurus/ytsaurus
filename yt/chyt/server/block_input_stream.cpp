@@ -88,7 +88,7 @@ TClientChunkReadOptions CreateChunkReadOptions(const TString& user)
 
 // TODO(dakovalkov): executePrewhereActions does not exists any more
 // Analog of the method from MergeTreeBaseSelectBlockInputStream::executePrewhereActions from CH.
-void ExecutePrewhereActions(DB::Block& block, const DB::ExpressionActionsPtr & prewhereActions)
+void ExecutePrewhereActions(DB::Block& block, const DB::ExpressionActionsPtr& prewhereActions)
 {
     prewhereActions->execute(block);
     if (!block) {
@@ -98,8 +98,8 @@ void ExecutePrewhereActions(DB::Block& block, const DB::ExpressionActionsPtr & p
 
 DB::Block FilterRowsByPrewhereInfo(
     DB::Block&& blockToFilter,
-    const DB::ExpressionActionsPtr & prewhereActions,
-    const std::string & prewhereColumnName)
+    const DB::ExpressionActionsPtr& prewhereActions,
+    const std::string& prewhereColumnName)
 {
     auto columnsWithTypeAndName = blockToFilter.getColumnsWithTypeAndName();
 

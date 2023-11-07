@@ -50,7 +50,7 @@ public:
         return "YT";
     }
 
-    void parseArguments(const ASTPtr & functionAst, ContextPtr context) override
+    void parseArguments(const ASTPtr& functionAst, ContextPtr context) override
     {
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;

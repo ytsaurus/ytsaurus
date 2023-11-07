@@ -10,8 +10,8 @@
 
 namespace DB
 {
-    void registerStorageMemory(StorageFactory & factory);
-    void registerStorageBuffer(StorageFactory & factory);
+    void registerStorageMemory(StorageFactory& factory);
+    void registerStorageBuffer(StorageFactory& factory);
 }
 
 namespace NYT::NClickHouseServer {

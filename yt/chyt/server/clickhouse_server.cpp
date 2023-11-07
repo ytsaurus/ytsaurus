@@ -277,7 +277,7 @@ private:
 
         YT_LOG_DEBUG("Setting up access manager");
 
-        DB::AccessControl & accessControl = ServerContext_->getAccessControl();
+        DB::AccessControl& accessControl = ServerContext_->getAccessControl();
 
         auto accessStorage = std::make_unique<DB::MemoryAccessStorage>(
             "access" /*storage_name*/,

@@ -234,7 +234,7 @@ DB::Pipe CreateRemoteSource(
         asyncRead,
         asyncQuerySending);
 
-    pipe.addSimpleTransform([&] (const DB::Block & header) {
+    pipe.addSimpleTransform([&] (const DB::Block& header) {
         return std::make_shared<TLoggingTransform>(
             header,
             queryContext->Logger.WithTag("RemoteQueryId: %v, RemoteNode: %v",
@@ -530,7 +530,7 @@ public:
             DB::QueryPipelineBuilder::unitePipelines(std::move(pipelines), {}));
         result->addTransform(std::make_shared<DB::ResizeProcessor>(DB::Block(), Pipes_.size(), 1));
         result->setSinks(
-            [=, this] (const DB::Block & header, DB::QueryPipelineBuilder::StreamType) mutable -> DB::ProcessorPtr {
+            [=, this] (const DB::Block& header, DB::QueryPipelineBuilder::StreamType) mutable -> DB::ProcessorPtr {
                 return std::make_shared<TSink>(Logger, header, std::move(commitCallback));
             });
 

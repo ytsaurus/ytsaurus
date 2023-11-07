@@ -36,8 +36,8 @@ public:
     { }
 
     void handleRequest(
-        DB::HTTPServerRequest & /* request */,
-        DB::HTTPServerResponse & response) override
+        DB::HTTPServerRequest& /* request */,
+        DB::HTTPServerResponse& response) override
     {
         try {
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
@@ -78,7 +78,7 @@ public:
         }
     }
 
-    void customizeContext(DB::HTTPServerRequest & /*request*/, DB::ContextMutablePtr context, DB::ReadBuffer & /*body*/) override
+    void customizeContext(DB::HTTPServerRequest& /*request*/, DB::ContextMutablePtr context, DB::ReadBuffer& /*body*/) override
     {
         YT_VERIFY(TraceContext_);
 

@@ -279,8 +279,8 @@ using MutableColumnPtr = COW<IColumn>::MutablePtr;
 
 
 // TODO(max42): get rid of this!
-void registerStorageMemory(StorageFactory & factory);
-void registerStorageBuffer(StorageFactory & factory);
+void registerStorageMemory(StorageFactory& factory);
+void registerStorageBuffer(StorageFactory& factory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
