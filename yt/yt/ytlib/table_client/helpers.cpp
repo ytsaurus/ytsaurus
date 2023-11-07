@@ -802,12 +802,12 @@ void FromProto(
     FromProto(&statistics->ColumnMaxValues, protoStatisticsExt.column_max_values());
     FromProto(&statistics->ColumnNonNullValueCounts, protoStatisticsExt.column_non_null_value_counts());
 
-    if (protoStatisticsExt.has_chunk_row_count()) {
-        YT_VERIFY(protoStatisticsExt.chunk_row_count() == chunkRowCount);
-        statistics->ChunkRowCount = protoStatisticsExt.chunk_row_count();
-    } else {
-        statistics->ChunkRowCount = chunkRowCount;
+    // COMPAT(dakovalkov): Value statistics in chunks written by 23.2+ may be incorrectly merged
+    // by 23.1 version. Ignore value statistics from such chunks, because it doesn't make sense.
+    if (!protoStatisticsExt.has_chunk_row_count() || protoStatisticsExt.chunk_row_count() != chunkRowCount) {
+        statistics->ClearValueStatistics();
     }
+    statistics->ChunkRowCount = chunkRowCount;
     statistics->LegacyChunkRowCount = 0;
 }
 
