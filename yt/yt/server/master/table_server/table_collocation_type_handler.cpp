@@ -4,6 +4,9 @@
 #include "table_manager.h"
 #include "table_node.h"
 
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -89,11 +92,15 @@ private:
 
     TCellTagList DoGetReplicationCellTags(const TTableCollocation* collocation) override
     {
-        // NB: Cell tag may be invalid here only if creation has failed.
-        auto cellTag = collocation->GetExternalCellTag();
-        return cellTag == InvalidCellTag
-            ? TCellTagList{}
-            : TCellTagList{cellTag};
+        if (Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicateTableCollocations) {
+            // NB: Cell tag may be invalid here only if creation has failed.
+            auto cellTag = collocation->GetExternalCellTag();
+            return cellTag == InvalidCellTag
+                ? TCellTagList{}
+                : TCellTagList{cellTag};
+        } else {
+            return EmptyCellTags();
+        }
     }
 };
 

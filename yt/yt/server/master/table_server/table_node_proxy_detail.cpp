@@ -1483,6 +1483,21 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
                 break;
             }
 
+            if (!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicateTableCollocations) {
+                auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+                if (primaryCellTag != table->GetNativeCellTag()) {
+                    // TODO(akozhikhov): Support portals with collocation.
+                    THROW_ERROR_EXCEPTION("Unexpected native cell tag for table %v: found %v, expected %v",
+                        table->GetId(),
+                        table->GetNativeCellTag(),
+                        primaryCellTag);
+                }
+
+                if (!Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
+                    return true;
+                }
+            }
+
             const auto& tableManager = Bootstrap_->GetTableManager();
             auto* collocation = tableManager->GetTableCollocationOrThrow(collocationId);
             tableManager->AddTableToCollocation(

@@ -753,9 +753,11 @@ public:
 
             auto tableExternalCellTag = table->GetExternalCellTag();
             if (externalCellTag != InvalidCellTag && externalCellTag != tableExternalCellTag) {
-                THROW_ERROR_EXCEPTION("Collocated tables must have same external cell tag, found %v and %v",
-                    externalCellTag,
-                    tableExternalCellTag);
+                if (Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicateTableCollocations) {
+                    THROW_ERROR_EXCEPTION("Collocated tables must have same external cell tag, found %v and %v",
+                        externalCellTag,
+                        tableExternalCellTag);
+                }
             }
             externalCellTag = tableExternalCellTag;
         }
@@ -837,9 +839,11 @@ public:
         }
 
         if (collocation->GetExternalCellTag() != table->GetExternalCellTag()) {
-            THROW_ERROR_EXCEPTION("Collocated tables must have same external cell tag, found %v and %v",
-                collocation->GetExternalCellTag(),
-                table->GetExternalCellTag());
+            if (Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicateTableCollocations) {
+                THROW_ERROR_EXCEPTION("Collocated tables must have same external cell tag, found %v and %v",
+                    collocation->GetExternalCellTag(),
+                    table->GetExternalCellTag());
+            }
         }
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();

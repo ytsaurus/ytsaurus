@@ -2732,6 +2732,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_collocated_replicated_tables(self):
+        # TODO(akozhikhov): Fix with new Rtt service.
+        if self.is_multicell():
+            return
+
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         self._create_cells()
 
         self._create_replicated_table(
