@@ -371,6 +371,23 @@ private:
 
     void CreateNode(EObjectType type, TObjectId id, const TYPath& path)
     {
+        auto [parentPath, childKey] = DirNameAndBaseName(path);
+        Transaction_->WriteRow(NRecords::TResolveNode{
+            .Key = {.Path = MangleSequoiaPath(path)},
+            .NodeId = id,
+        });
+        Transaction_->WriteRow(NRecords::TReverseResolveNode{
+            .Key = {.NodeId = id},
+            .Path = path,
+        });
+        Transaction_->WriteRow(NRecords::TChildrenNodes{
+            .Key = {
+                .ParentPath = MangleSequoiaPath(parentPath),
+                .ChildKey = TString(childKey),
+            },
+            .ChildId = id,
+        });
+
         NCypressServer::NProto::TReqCreateNode createNodeRequest;
         createNodeRequest.set_type(ToProto<int>(type));
         ToProto(createNodeRequest.mutable_node_id(), id);
@@ -387,15 +404,30 @@ private:
         Transaction_->AddTransactionAction(CellTagFromId(parentId), MakeTransactionActionData(attachChildRequest));
     }
 
+    TObjectId CreateSequential(
+        TObjectId parentId,
+        const TYPath& parentPath,
+        const std::vector<TYPathBuf>& childKeys,
+        std::function<TCellTag(TYPathBuf)> cellTagCallback)
+    {
+        auto childPath = parentPath;
+        for (const auto& childKey : childKeys) {
+            auto cellTag = cellTagCallback(childKey);
+            childPath = YPathJoin(childPath, childKey);
+            auto childId = Transaction_->GenerateObjectId(EObjectType::SequoiaMapNode, cellTag, /*sequoia*/ true);
+            CreateNode(EObjectType::SequoiaMapNode, childId, childPath);
+            AttachChild(parentId, childId, TYPath(childKey));
+            parentId = childId;
+        }
+        return parentId;
+    }
+
     void ValidateCreateOptions(
         const TCtxCreatePtr& context,
         const TReqCreate* request)
     {
         if (request->force()) {
             THROW_ERROR_EXCEPTION("Create with \"force\" flag is not supported in Sequoia yet");
-        }
-        if (request->recursive()) {
-            THROW_ERROR_EXCEPTION("Create with \"recursive\" flag is not supported in Sequoia yet");
         }
         if (request->ignore_existing()) {
             THROW_ERROR_EXCEPTION("Create with \"ignore_existing\" flag is not supported in Sequoia yet");
@@ -442,8 +474,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
             "%v already exists",
             Path_);
     }
-    if (std::ssize(pathTokens) > 1) {
-        // TODO(kvk1920): Support recursive node creation.
+    if (!request->recursive() && std::ssize(pathTokens) > 1) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
             "Node %v has no child with key %Qv",
@@ -451,12 +482,8 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
             pathTokens[0]);
     }
 
-    auto childKey = TYPath(pathTokens[0]);
-
     const auto& parentPath = Path_;
     auto parentId = Id_;
-    // NB: May differ from original path due to path rewrites.
-    auto childPath = YPathJoin(parentPath, childKey);
 
     auto parentCellTag = CellTagFromId(parentId);
 
@@ -473,39 +500,36 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
         THROW_ERROR_EXCEPTION("In Sequoia nodes can be created on primary cell only");
     }
 
-    // Generate new object id.
-    auto childId = Transaction_->GenerateObjectId(type, childCellTag, /*sequoia*/ true);
-
     // Acquire shared lock on parent node.
     NRecords::TResolveNodeKey parentKey{
         .Path = MangleSequoiaPath(parentPath),
     };
     Transaction_->LockRow(parentKey, ELockType::SharedStrong);
 
-    // Store new node in resolve tables with exclusive lock.
-    Transaction_->WriteRow(NRecords::TResolveNode{
-        .Key = {.Path = MangleSequoiaPath(childPath)},
-        .NodeId = childId,
-    });
-    Transaction_->WriteRow(NRecords::TReverseResolveNode{
-        .Key = {.NodeId = childId},
-        .Path = childPath,
-    });
-    Transaction_->WriteRow(NRecords::TChildrenNodes{
-        .Key = {
-            .ParentPath = MangleSequoiaPath(parentPath),
-            .ChildKey = childKey,
-        },
-        .ChildId = childId,
-    });
+    TYPathBuf childKey = pathTokens.back();
+    pathTokens.pop_back();
+
+    parentId = CreateSequential(
+        parentId,
+        parentPath,
+        pathTokens,
+        [&] (TYPathBuf /*childKey*/) {
+            return childCellTag;
+        });
+
+    // NB: May differ from original path due to path rewrites.
+    auto childPath = parentPath + unresolvedSuffix;
+
+    // Generate new object id.
+    auto childId = Transaction_->GenerateObjectId(type, childCellTag, /*sequoia*/ true);
 
     // Create child on destination cell.
     CreateNode(type, childId, childPath);
     // Attach child on parent cell.
-    AttachChild(parentId, childId, childKey);
+    AttachChild(parentId, childId, TYPath(childKey));
 
     WaitFor(Transaction_->Commit({
-            .CoordinatorCellId = GetObjectCellId(parentId),
+            .CoordinatorCellId = GetObjectCellId(Id_),
             .Force2PC = true,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
         }))
