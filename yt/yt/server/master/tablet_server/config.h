@@ -301,6 +301,9 @@ public:
     // COMPAT(ifsmirnov)
     bool UseAvenues;
 
+    // COMPAT(akozhikhov)
+    bool ReplicateTableCollocations;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);
