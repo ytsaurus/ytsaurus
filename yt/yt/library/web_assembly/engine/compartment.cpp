@@ -1,4 +1,4 @@
-#include <yt/yt/library/webassembly/api/compartment.h>
+#include <yt/yt/library/web_assembly/api/compartment.h>
 
 namespace NYT::NWebAssembly {
 
@@ -15,7 +15,7 @@ std::unique_ptr<IWebAssemblyCompartment> CreateBaseImage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static thread_local TWebAssemblyCompartment* CurrentCompartment = nullptr;
+static thread_local IWebAssemblyCompartment* CurrentCompartment;
 
 IWebAssemblyCompartment* GetCurrentCompartment()
 {
@@ -24,7 +24,7 @@ IWebAssemblyCompartment* GetCurrentCompartment()
 
 void SetCurrentCompartment(IWebAssemblyCompartment* compartment)
 {
-    CurrentCompartment = static_cast<TWebAssemblyCompartment*>(compartment);
+    CurrentCompartment = compartment;
 }
 
 bool HasCurrentCompartment()

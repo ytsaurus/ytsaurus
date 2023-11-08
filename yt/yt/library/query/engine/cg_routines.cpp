@@ -1,8 +1,8 @@
 #include "cg_routines.h"
 #include "cg_types.h"
 
-#include <yt/yt/library/webassembly/api/compartment.h>
-#include <yt/yt/library/webassembly/api/function.h>
+#include <yt/yt/library/web_assembly/api/compartment.h>
+#include <yt/yt/library/web_assembly/api/function.h>
 
 #include <yt/yt/library/query/base/private.h>
 
@@ -167,10 +167,10 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    TUnversionedRowsConsumer consumeRowsFunctionPtr)
+    TUnversionedRowsConsumer consumeRowsFunction)
 {
     auto* compartment = GetCurrentCompartment();
-    auto consumeRows = PrepareFunction(compartment, consumeRowsFunctionPtr);
+    auto consumeRows = PrepareFunction(compartment, consumeRowsFunction);
 
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing scan helper");
@@ -395,17 +395,17 @@ void MultiJoinOpHelper(
     TMultiJoinParameters* parameters,
     TJoinComparers* comparersOffsets,
     void** collectRowsClosure,
-    void (*collectRowsFunctionPtr)(
+    void (*collectRowsFunction)(
         void** closure,
         TMultiJoinClosure* joinClosure,
         TExpressionContext* context),
     void** consumeRowsClosure,
-    TRowsConsumer consumeRowsFunctionPtr)
+    TRowsConsumer consumeRowsFunction)
 {
     auto comparers = NDetail::MakeJoinComparersCallbacks(MakeRange(comparersOffsets, parameters->Items.size()));
     auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunctionPtr);
-    auto consumeRows = PrepareFunction(compartment, consumeRowsFunctionPtr);
+    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
+    auto consumeRows = PrepareFunction(compartment, consumeRowsFunction);
 
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing multijoin helper");
@@ -796,26 +796,26 @@ using TGroupCollector = void(*)(void** closure, TGroupByClosure* groupByClosure,
 
 void GroupOpHelper(
     TExecutionContext* context,
-    TComparerFunction* prefixEqComparerFunctionPtr,
-    THasherFunction* groupHasherFunctionPtr,
-    TComparerFunction* groupComparerFunctionPtr,
+    TComparerFunction* prefixEqComparerFunction,
+    THasherFunction* groupHasherFunction,
+    TComparerFunction* groupComparerFunction,
     int keySize,
     int valuesCount,
     bool checkNulls,
     void** collectRowsClosure,
-    TGroupCollector collectRowsFunctionPtr,
+    TGroupCollector collectRowsFunction,
     void** boundaryConsumeRowsClosure,
-    TRowsConsumer boundaryConsumeRowsFunctionPtr,
+    TRowsConsumer boundaryConsumeRowsFunction,
     void** innerConsumeRowsClosure,
-    TRowsConsumer innerConsumeRowsFunctionPtr)
+    TRowsConsumer innerConsumeRowsFunction)
 {
     auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunctionPtr);
-    auto prefixEqComparer = PrepareFunction(compartment, prefixEqComparerFunctionPtr);
-    auto groupHasher = PrepareFunction(compartment, groupHasherFunctionPtr);
-    auto groupComparer = PrepareFunction(compartment, groupComparerFunctionPtr);
-    auto boundaryConsumeRows = PrepareFunction(compartment, boundaryConsumeRowsFunctionPtr);
-    auto innerConsumeRows = PrepareFunction(compartment, innerConsumeRowsFunctionPtr);
+    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
+    auto prefixEqComparer = PrepareFunction(compartment, prefixEqComparerFunction);
+    auto groupHasher = PrepareFunction(compartment, groupHasherFunction);
+    auto groupComparer = PrepareFunction(compartment, groupComparerFunction);
+    auto boundaryConsumeRows = PrepareFunction(compartment, boundaryConsumeRowsFunction);
+    auto innerConsumeRows = PrepareFunction(compartment, innerConsumeRowsFunction);
 
     TGroupByClosure closure(
         context->MemoryChunkProvider,
@@ -906,7 +906,6 @@ void GroupOpHelper(
     closure.ProcessSegment();
 
     YT_VERIFY(closure.GroupedRows.empty());
-
 }
 
 using TGroupTotalsCollector = void(*)(void** closure, TExpressionContext* context);
@@ -914,11 +913,11 @@ using TGroupTotalsCollector = void(*)(void** closure, TExpressionContext* contex
 void GroupTotalsOpHelper(
     TExecutionContext* /*context*/,
     void** collectRowsClosure,
-    TGroupTotalsCollector collectRowsFunctionPtr)
+    TGroupTotalsCollector collectRowsFunction)
 {
     auto buffer = New<TRowBuffer>(TIntermediateBufferTag());
     auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunctionPtr);
+    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
     collectRows(collectRowsClosure, buffer.Get());
 }
 
@@ -940,17 +939,17 @@ void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
 
 void OrderOpHelper(
     TExecutionContext* context,
-    TComparerFunction* comparerFunctionPtr,
+    TComparerFunction* comparerFunction,
     void** collectRowsClosure,
-    void (*collectRowsFunctionPtr)(void** closure, TTopCollector* topCollector),
+    void (*collectRowsFunction)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    TRowsConsumer consumeRowsFunctionPtr,
+    TRowsConsumer consumeRowsFunction,
     size_t rowSize)
 {
     auto* compartment = GetCurrentCompartment();
-    auto comparer = PrepareFunction(compartment, comparerFunctionPtr);
-    auto collectRows = PrepareFunction(compartment, collectRowsFunctionPtr);
-    auto consumeRows = PrepareFunction(compartment, consumeRowsFunctionPtr);
+    auto comparer = PrepareFunction(compartment, comparerFunction);
+    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
+    auto consumeRows = PrepareFunction(compartment, consumeRowsFunction);
 
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing order helper");
@@ -985,10 +984,10 @@ void WriteOpHelper(
     TExecutionContext* context,
     size_t rowSize,
     void** collectRowsClosure,
-    void (*collectRowsFunctionPtr)(void** closure, TWriteOpClosure* writeOpClosure))
+    void (*collectRowsFunction)(void** closure, TWriteOpClosure* writeOpClosure))
 {
     auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunctionPtr);
+    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
 
     TWriteOpClosure closure(context->MemoryChunkProvider);
     closure.RowSize = rowSize;
@@ -1036,17 +1035,17 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 TPIValue* LookupInRowset(
-    TComparerFunction* comparerFunctionPtr,
-    THasherFunction* hasherFunctionPtr,
-    TComparerFunction* eqComparerFunctionPtr,
+    TComparerFunction* comparerFunction,
+    THasherFunction* hasherFunction,
+    TComparerFunction* eqComparerFunction,
     TPIValue* key,
     TSharedRange<TRange<TPIValue>>* rowset,
     std::unique_ptr<TLookupRows>* lookupTable)
 {
     auto* compartment = GetCurrentCompartment();
-    auto comparer = PrepareFunction(compartment, comparerFunctionPtr);
-    auto hasher = PrepareFunction(compartment, hasherFunctionPtr);
-    auto eqComparer = PrepareFunction(compartment, eqComparerFunctionPtr);
+    auto comparer = PrepareFunction(compartment, comparerFunction);
+    auto hasher = PrepareFunction(compartment, hasherFunction);
+    auto eqComparer = PrepareFunction(compartment, eqComparerFunction);
 
     if (rowset->Size() < 32) {
         auto found = std::lower_bound(

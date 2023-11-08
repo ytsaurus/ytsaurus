@@ -193,8 +193,8 @@ target_link_libraries(library-query-engine PUBLIC
   yutil
   yt-yt-core
   yt-library-codegen
-  library-webassembly-api
-  library-webassembly-engine
+  library-web_assembly-api
+  library-web_assembly-engine
   library-query-base
   library-query-engine_api
   library-query-misc
@@ -214,7 +214,7 @@ target_sources(library-query-engine PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_cg.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/position_independent_value_caller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/webassembly_type_builder.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/web_assembly_type_builder.cpp
 )
 
 add_global_library_for(library-query-engine.global library-query-engine)
@@ -235,8 +235,8 @@ target_link_libraries(library-query-engine.global PUBLIC
   yutil
   yt-yt-core
   yt-library-codegen
-  library-webassembly-api
-  library-webassembly-engine
+  library-web_assembly-api
+  library-web_assembly-engine
   library-query-base
   library-query-engine_api
   library-query-misc

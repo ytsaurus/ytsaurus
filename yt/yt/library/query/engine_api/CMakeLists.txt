@@ -22,7 +22,7 @@ target_link_libraries(library-query-engine_api PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  library-webassembly-api
+  library-web_assembly-api
   library-query-misc
   library-query-proto
   library-query-base

@@ -4,7 +4,7 @@
 
 #include "public.h"
 
-#include <yt/yt/library/webassembly/api/function.h>
+#include <yt/yt/library/web_assembly/api/function.h>
 
 #include <yt/yt/library/query/base/callbacks.h>
 

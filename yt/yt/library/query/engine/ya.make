@@ -20,7 +20,7 @@ SRCS(
     GLOBAL range_inferrer.cpp
     position_independent_value_caller.cpp
     GLOBAL new_range_inferrer.cpp
-    webassembly_type_builder.cpp
+    web_assembly_type_builder.cpp
 )
 
 ADDINCL(
@@ -32,8 +32,8 @@ ADDINCL(
 PEERDIR(
     yt/yt/core
     yt/yt/library/codegen
-    yt/yt/library/webassembly/api
-    yt/yt/library/webassembly/engine
+    yt/yt/library/web_assembly/api
+    yt/yt/library/web_assembly/engine
     yt/yt/library/query/base
     yt/yt/library/query/engine_api
     yt/yt/library/query/misc

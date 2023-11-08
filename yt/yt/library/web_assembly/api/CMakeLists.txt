@@ -7,18 +7,18 @@
 
 
 
-add_library(library-webassembly-api)
-target_compile_options(library-webassembly-api PRIVATE
+add_library(library-web_assembly-api)
+target_compile_options(library-web_assembly-api PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(library-webassembly-api PUBLIC
+target_link_libraries(library-web_assembly-api PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
-target_sources(library-webassembly-api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/webassembly/api/compartment.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/webassembly/api/function.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/webassembly/api/type_builder.cpp
+target_sources(library-web_assembly-api PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/compartment.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/function.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/type_builder.cpp
 )

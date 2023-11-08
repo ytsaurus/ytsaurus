@@ -1,4 +1,4 @@
-#include <yt/yt/library/webassembly/api/function.h>
+#include <yt/yt/library/web_assembly/api/function.h>
 
 namespace NYT::NWebAssembly {
 

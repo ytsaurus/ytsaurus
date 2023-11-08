@@ -1,7 +1,6 @@
-
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
-#include <yt/yt/library/webassembly/api/type_builder.h>
+#include <yt/yt/library/web_assembly/api/type_builder.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 
@@ -10,11 +9,11 @@ namespace NYT::NWebAssembly {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define XX(signature, type) \
-template <> \
-EWebAssemblyValueType InferType< signature >() \
-{ \
-    return type; \
-}
+    template <> \
+    EWebAssemblyValueType InferType< signature >() \
+    { \
+        return type; \
+    }
 
     XX(bool, EWebAssemblyValueType::Int32)
     XX(char, EWebAssemblyValueType::Int32)
