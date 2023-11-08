@@ -217,8 +217,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("add_perf_counters_to_tablets_attribute", &TThis::AddPerfCountersToTabletsAttribute)
         .Default(true);
 
-    registrar.Parameter("use_avenues", &TThis::UseAvenues)
-        .Default(false);
+    registrar.Parameter("replicate_table_collocations", &TThis::ReplicateTableCollocations)
+        .Default(true)
+        .DontSerializeDefault();
 
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
