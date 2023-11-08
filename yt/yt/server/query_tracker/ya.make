@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    alert_manager.cpp
     bootstrap.cpp
     chyt_engine.cpp
     config.cpp
@@ -38,6 +39,7 @@ PEERDIR(
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
 
+    yt/yt/ytlib
     yt/yt/ytlib/query_tracker_client
 )
 

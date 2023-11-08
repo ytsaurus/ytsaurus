@@ -288,6 +288,7 @@ TRANSFORMS[3] = [
     ),
 ]
 
+# NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
@@ -295,6 +296,11 @@ MIGRATION = Migration(
     transforms=TRANSFORMS,
     actions=ACTIONS,
 )
+
+
+def get_latest_version():
+    """ Get latest version of the query tracker state migration """
+    return MIGRATION.get_latest_version()
 
 
 def build_arguments_parser():

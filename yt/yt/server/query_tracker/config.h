@@ -20,6 +20,21 @@ namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAlertManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration AlertCollectionPeriod;
+
+    REGISTER_YSON_STRUCT(TAlertManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAlertManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEngineConfigBase
     : public NYTree::TYsonStruct
 {
@@ -111,6 +126,7 @@ public:
     TDuration ActiveQueryLeaseTimeout;
     TDuration ActiveQueryPingPeriod;
     TDuration QueryFinishBackoff;
+    TDuration HealthCheckPeriod;
 
     TEngineConfigBasePtr MockEngine;
     TQLEngineConfigPtr QlEngine;
@@ -131,6 +147,7 @@ class TQueryTrackerServerConfig
     : public TNativeServerConfig
 {
 public:
+    int MinRequiredStateVersion;
     bool AbortOnUnrecognizedOptions;
 
     TString User;
@@ -159,6 +176,7 @@ class TQueryTrackerServerDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
 public:
+    TAlertManagerDynamicConfigPtr AlertManager;
     TQueryTrackerDynamicConfigPtr QueryTracker;
 
     REGISTER_YSON_STRUCT(TQueryTrackerServerDynamicConfig);

@@ -31,6 +31,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   yt-ytlib-query_tracker_client
 )
 target_sources(yt-server-query_tracker PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/alert_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/chyt_engine.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/config.cpp

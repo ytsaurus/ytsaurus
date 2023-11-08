@@ -17,10 +17,28 @@ using NQueryTrackerClient::TQueryId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const NLogging::TLogger AlertManagerLogger("AlertManager");
 inline const NLogging::TLogger QueryTrackerLogger("QueryTracker");
 inline const NProfiling::TProfiler QueryTrackerProfiler = NProfiling::TProfiler("/query_tracker").WithGlobal();
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace NAlerts {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_ERROR_ENUM(
+    ((QueryTrackerInvalidState)            (40000))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NAlerts
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TAlertManager)
+DECLARE_REFCOUNTED_CLASS(TAlertManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TQueryTracker)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerDynamicConfig)

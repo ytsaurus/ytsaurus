@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "alert_manager.h"
 #include "query_tracker.h"
 #include "config.h"
 #include "private.h"
@@ -148,6 +149,8 @@ void TBootstrap::DoRun()
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
+    AlertManager_ = New<TAlertManager>(ControlInvoker_);
+
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
@@ -164,6 +167,10 @@ void TBootstrap::DoRun()
         &MonitoringManager_,
         &orchidRoot);
 
+    SetNodeByYPath(
+        orchidRoot,
+        "/alerts",
+        CreateVirtualNode(AlertManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
         "/config",
@@ -200,7 +207,11 @@ void TBootstrap::DoRun()
         SelfAddress_,
         ControlInvoker_,
         NativeClient_,
-        Config_->Root);
+        Config_->Root,
+        Config_->MinRequiredStateVersion);
+
+    AlertManager_->SubscribePopulateAlerts(BIND(&IQueryTracker::PopulateAlerts, QueryTracker_));
+    AlertManager_->Start();
 
     QueryTracker_->Start();
 
@@ -253,6 +264,11 @@ void TBootstrap::CreateStateTablesIfNeeded()
     createTable(NQueryTrackerClient::NRecords::TFinishedQueryDescriptor::Get()->GetSchema(), "finished_queries");
     createTable(NQueryTrackerClient::NRecords::TFinishedQueryByStartTimeDescriptor::Get()->GetSchema(), "finished_queries_by_start_time");
     createTable(NQueryTrackerClient::NRecords::TFinishedQueryResultDescriptor::Get()->GetSchema(), "finished_query_results");
+
+    WaitFor(NativeClient_->SetNode(
+        Config_->Root + "/@version",
+        ConvertToYsonString(Config_->MinRequiredStateVersion)))
+        .ThrowOnError();
 }
 
 void TBootstrap::UpdateCypressNode()
@@ -290,6 +306,9 @@ void TBootstrap::OnDynamicConfigChanged(
 {
     ReconfigureNativeSingletons(Config_, newConfig);
 
+    if (AlertManager_) {
+        AlertManager_->OnDynamicConfigChanged(newConfig->AlertManager);
+    }
     if (QueryTracker_) {
         QueryTracker_->OnDynamicConfigChanged(newConfig->QueryTracker);
     }

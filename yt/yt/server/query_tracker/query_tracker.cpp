@@ -21,6 +21,7 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/core/ypath/public.h>
 
@@ -58,12 +59,15 @@ public:
         TString selfAddress,
         IInvokerPtr controlInvoker,
         IClientPtr stateClient,
-        TYPath stateRoot)
+        TYPath stateRoot,
+        int minRequiredStateVersion)
         : SelfAddress_(std::move(selfAddress))
         , ControlInvoker_(std::move(controlInvoker))
         , StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
+        , MinRequiredStateVersion_(minRequiredStateVersion)
         , AcquisitionExecutor_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryTracker::AcquireQueries, MakeWeak(this))))
+        , HealthCheckExecutor_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryTracker::OnHealthCheck, MakeWeak(this)), config->HealthCheckPeriod))
     {
         Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Ql] = CreateQlEngine(StateClient_, StateRoot_);
@@ -77,6 +81,7 @@ public:
     void Start() override
     {
         AcquisitionExecutor_->Start();
+        HealthCheckExecutor_->Start();
     }
 
     void OnDynamicConfigChanged(const TQueryTrackerDynamicConfigPtr& config) override
@@ -90,14 +95,26 @@ public:
         Engines_[EQueryEngine::Spyt]->OnDynamicConfigChanged(config->SpytEngine);
     }
 
+    void PopulateAlerts(std::vector<TError>* alerts) const override
+    {
+        WaitFor(
+            BIND(&TQueryTracker::DoPopulateAlerts, MakeStrong(this), alerts)
+            .AsyncVia(ControlInvoker_)
+            .Run())
+            .ThrowOnError();
+    }
+
 private:
+    std::vector<TError> Alerts_;
     TQueryTrackerDynamicConfigPtr Config_;
     TString SelfAddress_;
     IInvokerPtr ControlInvoker_;
     IClientPtr StateClient_;
     TYPath StateRoot_;
+    const int MinRequiredStateVersion_;
 
     TPeriodicExecutorPtr AcquisitionExecutor_;
+    TPeriodicExecutorPtr HealthCheckExecutor_;
 
     THashMap<EQueryEngine, IQueryEnginePtr> Engines_;
 
@@ -108,6 +125,34 @@ private:
     };
 
     THashMap<TQueryId, TAcquiredQuery> AcquiredQueries_;
+
+    void DoPopulateAlerts(std::vector<TError>* alerts) const
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
+    }
+
+    void OnHealthCheck()
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        YT_LOG_INFO("Requesting query tracker state version");
+        auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version");
+        auto rspOrError = WaitFor(asyncResult);
+        if (!rspOrError.IsOK()) {
+            auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Failed getting state version") << rspOrError;
+            Alerts_ = {alert};
+        } else {
+            int stateVersion = ConvertTo<int>(rspOrError.Value());
+            if (stateVersion < MinRequiredStateVersion_) {
+                auto alert =TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
+                    << TErrorAttribute("version", stateVersion)
+                    << TErrorAttribute("min_required_version", MinRequiredStateVersion_);
+                Alerts_ = {alert};
+            }
+        }
+     }
 
     void AcquireQueries()
     {
@@ -568,14 +613,16 @@ IQueryTrackerPtr CreateQueryTracker(
     TString selfAddress,
     IInvokerPtr controlInvoker,
     IClientPtr stateClient,
-    TYPath stateRoot)
+    TYPath stateRoot,
+    int minRequiredStateVersion)
 {
     return New<TQueryTracker>(
         std::move(config),
         std::move(selfAddress),
         std::move(controlInvoker),
         std::move(stateClient),
-        std::move(stateRoot));
+        std::move(stateRoot),
+        minRequiredStateVersion);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
