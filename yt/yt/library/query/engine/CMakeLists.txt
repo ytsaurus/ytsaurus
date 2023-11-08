@@ -162,6 +162,18 @@ get_built_tool_path(
   tools/rescompiler/bin
   rescompiler
 )
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
 
 add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
@@ -240,6 +252,8 @@ target_sources(library-query-engine.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/4ea047f29359e3ff85a43c2543e4ce0b.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/f4f5f9a1dc189a93c6482fc5d1bf55fb.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/0680164b1b2d7a3009f45ca5fe358052.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/0c0a10846744d25c634d768a9768b1ff.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/43c6ac9a1f19fedb26644012aee30ed4.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/3cdfaa942527999ed18a33f359e2cf3e.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/60ad550d891a29805e726874c57ef36a.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/223c93075db70d4bf4537276bcbff515.cpp
@@ -370,6 +384,60 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/make_map.cpp.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_map_merged.bc
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_optimized.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_merged.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_optimized.bc
+  -O2
+  -globalopt
+  -globaldce
+  -internalize
+  -internalize-public-api-list=make_list
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/make_list.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/make_list.cpp.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_merged.bc
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_optimized.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_merged.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_optimized.bc
+  -O2
+  -globalopt
+  -globaldce
+  -internalize
+  -internalize-public-api-list=make_entity
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/make_entity.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/make_entity.cpp.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_merged.bc
 )
 add_custom_command(
   OUTPUT
@@ -1092,6 +1160,20 @@ llvm_compile_cxx(library-query-engine.global
   -emit-llvm
 )
 llvm_compile_cxx(library-query-engine.global
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/make_list.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/make_list.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+llvm_compile_cxx(library-query-engine.global
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/make_entity.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/make_entity.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+llvm_compile_cxx(library-query-engine.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/str_conv.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/str_conv.cpp.bc
   ${CLANGPLUSPLUS}
@@ -1174,6 +1256,20 @@ resources(library-query-engine.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_map_optimized.bc
   KEYS
   /llvm_bc/make_map
+)
+resources(library-query-engine.global
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/0c0a10846744d25c634d768a9768b1ff.cpp
+  INPUTS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_optimized.bc
+  KEYS
+  /llvm_bc/make_list
+)
+resources(library-query-engine.global
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/43c6ac9a1f19fedb26644012aee30ed4.cpp
+  INPUTS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_optimized.bc
+  KEYS
+  /llvm_bc/make_entity
 )
 resources(library-query-engine.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/3cdfaa942527999ed18a33f359e2cf3e.cpp

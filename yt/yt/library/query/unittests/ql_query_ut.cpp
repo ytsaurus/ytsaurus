@@ -6599,6 +6599,28 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
     EvaluateExpectingError("make_map(1, 1) as x FROM [//t]", split, source);
 }
 
+TEST_F(TQueryEvaluateTest, MakeList)
+{
+    auto split = MakeSplit({{"v_any", EValueType::Any}, {"v_null", EValueType::Any}});
+    auto source = std::vector<TString>{"v_any={hello=world}"};
+
+    auto resultSplit = MakeSplit({{"x", EValueType::Any}});
+    auto result = YsonToRows({"x=[1;2u;%true;3.14;abc;{hello=world};#]"}, resultSplit);
+
+    Evaluate("make_list(1, 2u, %true, 3.14, 'abc', v_any, v_null) as x FROM [//t]", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, MakeEntity)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64}});
+    auto source = std::vector<TString>{"a=42"};
+
+    auto resultSplit = MakeSplit({{"x", EValueType::Any}});
+    auto result = YsonToRows({"x=[#]"}, resultSplit);
+
+    Evaluate("make_list(make_entity()) as x FROM [//t]", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, DecimalExpr)
 {
     auto split = MakeSplit({

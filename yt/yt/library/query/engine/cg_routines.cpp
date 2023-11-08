@@ -1616,6 +1616,8 @@ TFingerprint GetFarmFingerprint(const TValue* begin, const TValue* end)
     return GetFarmFingerprint(asPIRange.Begin(), asPIRange.Begin() + asPIRange.Size());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 extern "C" void MakeMap(
     TExpressionContext* context,
     TValue* result,
@@ -1681,7 +1683,60 @@ extern "C" void MakeMap(
     CapturePIValue(context, piResult.GetPIValue());
 }
 
-////////////////////////////////////////////////////////////////////////////////
+extern "C" void MakeList(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* args,
+    int argCount)
+{
+    auto piResult = BorrowFromNonPI(result);
+
+    auto argumentRange = TRange<TValue>(args, static_cast<size_t>(argCount));
+    auto piArgs = BorrowFromNonPI(argumentRange);
+
+    TString resultYson;
+    TStringOutput output(resultYson);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+    for (int index = 0; index < argCount; ++index) {
+        const auto& valueArg = piArgs[index];
+
+        writer.OnListItem();
+
+        switch (valueArg.Type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(valueArg.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(valueArg.Data.Uint64);
+                break;
+            case EValueType::Double:
+                writer.OnDoubleScalar(valueArg.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(valueArg.Data.Boolean);
+                break;
+            case EValueType::String:
+                writer.OnStringScalar(valueArg.AsStringBuf());
+                break;
+            case EValueType::Any:
+                writer.OnRaw(valueArg.AsStringBuf());
+                break;
+            case EValueType::Null:
+                writer.OnEntity();
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value #%v",
+                    valueArg.Type,
+                    index);
+        }
+    }
+    writer.OnEndList();
+
+    MakePositionIndependentAnyValue(piResult.GetPIValue(), resultYson);
+    CapturePIValue(context, piResult.GetPIValue());
+}
 
 template <ENodeType NodeType, typename TElement, typename TValue>
 bool ListContainsImpl(const INodePtr& node, const TValue& value)
@@ -2100,6 +2155,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AnyToBoolean);
     REGISTER_ROUTINE(AnyToString);
     REGISTER_ROUTINE(MakeMap);
+    REGISTER_ROUTINE(MakeList);
     REGISTER_ROUTINE(ListContains);
     REGISTER_ROUTINE(AnyToYsonString);
     REGISTER_ROUTINE(NumericToString);

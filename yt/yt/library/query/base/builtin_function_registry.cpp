@@ -90,6 +90,28 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "make_map");
 
     builder->RegisterFunction(
+        "make_list",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        std::vector<TType>{},
+        TUnionType{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Boolean,
+            EValueType::Double,
+            EValueType::String,
+            EValueType::Any,
+        },
+        EValueType::Any,
+        "make_list");
+
+    builder->RegisterFunction(
+        "make_entity",
+        std::vector<TType>{},
+        EValueType::Any,
+        "make_entity",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterFunction(
         "numeric_to_string",
         std::vector<TType>{
             TUnionType{
