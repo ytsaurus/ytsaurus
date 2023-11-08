@@ -203,7 +203,7 @@ private:
         const IInvokerPtr ResponseInvoker_;
 
         IBlockDevicePtr Device_;
-        bool Abort_ = false;
+        std::atomic<bool> Abort_ = false;
 
 
         void FiberMain()
@@ -588,8 +588,12 @@ private:
 
         void WriteBuffer(const TSharedRef& buffer)
         {
-            WaitFor(Connection_->Write(buffer))
-                .ThrowOnError();
+            auto error = WaitFor(Connection_->Write(buffer));
+            if (!error.IsOK()) {
+                // WriteBuffer might be called asynchronously so abort connection gracefully (don't throw).
+                YT_LOG_WARNING(error, "Failed to write buffer, aborting connection");
+                Abort_ = true;
+            }
         }
 
         TSharedRef ReadBuffer(size_t size)
