@@ -1194,7 +1194,9 @@ private:
 
         if (auto lastTimestampIt = LastSerializedCommitTimestamps_.find(cellTag)) {
             if (commitTimestamp <= lastTimestampIt->second) {
-                YT_LOG_ALERT("The clock has gone back (CellTag: %v, LastSerializedCommitTimestamp: %v, CommitTimestamp: %v)",
+                // TODO(ponasenko-rs): Remove condition after YT-20361.
+                YT_LOG_ALERT_IF(transaction->GetPrepareTimestamp() != NullTimestamp,
+                    "The clock has gone back (CellTag: %v, LastSerializedCommitTimestamp: %v, CommitTimestamp: %v)",
                     cellTag,
                     lastTimestampIt->second,
                     commitTimestamp);
