@@ -95,6 +95,8 @@ type Oplet struct {
 
 	// specletYson is a full unparsed speclet from a speclet cypress node.
 	specletYson yson.RawValue
+	// specletModificationTime is a modification time of the speclet cypress node.
+	specletModificationTime yson.Time
 	// strawberrySpeclet is a parsed part of the specletYson with general options.
 	strawberrySpeclet Speclet
 	// controllerSpeclet is a parsed part of the specletYson with controller specific options.
@@ -104,6 +106,9 @@ type Oplet struct {
 	ytOpStrawberrySpeclet Speclet
 	// ytOpControllerSpeclet is a parsed part of the persistentState.ytOpSpeclet with controller specific options.
 	ytOpControllerSpeclet any
+
+	// strawberryStateModificationTime is a modification time of the strawberry cypress node.
+	strawberryStateModificationTime yson.Time
 
 	// flushedPersistentState is the last flushed persistentState. It is used to detect an external
 	// state change in the cypress and a local change of persistentState. It would be enough to
@@ -453,18 +458,20 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	// Collect full attributes of the node.
 
 	var node struct {
-		PersistentState PersistentState `yson:"strawberry_persistent_state,attr"`
-		Revision        yt.Revision     `yson:"revision,attr"`
-		CreationTime    yson.Time       `yson:"creation_time,attr"`
-		Speclet         *struct {
-			Value    yson.RawValue `yson:"value,attr"`
-			Revision yt.Revision   `yson:"revision,attr"`
+		PersistentState  PersistentState `yson:"strawberry_persistent_state,attr"`
+		Revision         yt.Revision     `yson:"revision,attr"`
+		CreationTime     yson.Time       `yson:"creation_time,attr"`
+		ModificationTime yson.Time       `yson:"modification_time,attr"`
+		Speclet          *struct {
+			Value            yson.RawValue `yson:"value,attr"`
+			ModificationTime yson.Time     `yson:"modification_time,attr"`
+			Revision         yt.Revision   `yson:"revision,attr"`
 		} `yson:"speclet"`
 	}
 
 	// Keep in sync with structure above.
 	attributes := []string{
-		"strawberry_persistent_state", "revision", "creation_time", "value",
+		"strawberry_persistent_state", "revision", "creation_time", "modification_time", "value",
 	}
 
 	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode, &node, &yt.GetNodeOptions{Attributes: attributes})
@@ -553,6 +560,8 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 
 	oplet.specletYson = node.Speclet.Value
 	oplet.persistentState.SpecletRevision = node.Speclet.Revision
+	oplet.strawberryStateModificationTime = node.ModificationTime
+	oplet.specletModificationTime = node.Speclet.ModificationTime
 	oplet.strawberrySpeclet = strawberrySpeclet
 	oplet.controllerSpeclet = controllerSpeclet
 	oplet.infoState.CreationTime = node.CreationTime
@@ -864,52 +873,60 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 	}
 }
 
-type OpletStatus struct {
-	Status           string               `yson:"status" json:"status"`
-	SpecletDiff      map[string]FieldDiff `yson:"speclet_diff,omitempty" json:"speclet_diff,omitempty"`
-	OperationURL     string               `yson:"operation_url,omitempty" json:"operation_url,omitempty"`
-	OperationState   yt.OperationState    `yson:"yt_operation_state,omitempty" json:"yt_operation_state,omitempty"`
-	OperationID      yt.OperationID       `yson:"operation_id,omitempty" json:"operation_id,omitempty"`
-	State            OperationState       `yson:"state" json:"state"`
-	Creator          string               `yson:"creator,omitempty" json:"creator,omitempty"`
-	Pool             string               `yson:"pool,omitempty" json:"pool,omitempty"`
-	Stage            string               `yson:"stage" json:"stage"`
-	CreationTime     *yson.Time           `yson:"creation_time,omitempty" json:"creation_time,omitempty"`
-	StartTime        *yson.Time           `yson:"start_time,omitempty" json:"start_time,omitempty"`
-	FinishTime       *yson.Time           `yson:"finish_time,omitempty" json:"finish_time,omitempty"`
-	IncarnationIndex int                  `yson:"incarnation_index" json:"incarnation_index"`
-	CtlAttributes    map[string]any       `yson:"ctl_attributes" json:"ctl_attributes"`
-	Error            string               `yson:"error,omitempty" json:"error,omitempty"`
+type YTOperationBriefInfo struct {
+	ID         yt.OperationID    `yson:"id,omitempty" json:"id,omitempty"`
+	URL        string            `yson:"url,omitempty" json:"url,omitempty"`
+	State      yt.OperationState `yson:"state,omitempty" json:"state,omitempty"`
+	StartTime  *yson.Time        `yson:"start_time,omitempty" json:"start_time,omitempty"`
+	FinishTime *yson.Time        `yson:"finish_time,omitempty" json:"finish_time,omitempty"`
 }
 
-func (oplet *Oplet) Status() (s OpletStatus, err error) {
-	s.State = GetOpState(oplet.strawberrySpeclet, oplet.infoState)
-	s.Creator = oplet.persistentState.Creator
-	s.Stage = oplet.ytOpStrawberrySpeclet.StageOrDefault()
-	s.CreationTime = getYSONTimePointerOrNil(oplet.infoState.CreationTime)
-	s.StartTime = getYSONTimePointerOrNil(oplet.infoState.YTOpStartTime)
-	s.FinishTime = getYSONTimePointerOrNil(oplet.infoState.YTOpFinishTime)
-	s.IncarnationIndex = oplet.persistentState.IncarnationIndex
+type OpletBriefInfo struct {
+	Status                          OperationStatus      `yson:"status" json:"status"`
+	SpecletDiff                     map[string]FieldDiff `yson:"speclet_diff,omitempty" json:"speclet_diff,omitempty"`
+	YTOperation                     YTOperationBriefInfo `yson:"yt_operation,omitempty" json:"yt_operation,omitempty"`
+	Creator                         string               `yson:"creator,omitempty" json:"creator,omitempty"`
+	Pool                            string               `yson:"pool,omitempty" json:"pool,omitempty"`
+	Stage                           string               `yson:"stage" json:"stage"`
+	CreationTime                    *yson.Time           `yson:"creation_time,omitempty" json:"creation_time,omitempty"`
+	StrawberryStateModificationTime yson.Time            `yson:"strawberry_state_modification_time,omitempty" json:"strawberry_state_modification_time,omitempty"`
+	SpecletModificationTime         yson.Time            `yson:"speclet_modification_time,omitempty" json:"speclet_modification_time,omitempty"`
+	IncarnationIndex                int                  `yson:"incarnation_index" json:"incarnation_index"`
+	CtlAttributes                   map[string]any       `yson:"ctl_attributes" json:"ctl_attributes"`
+	StatusReason                    string               `yson:"status_reason" json:"status_reason"`
+	Error                           string               `yson:"error,omitempty" json:"error,omitempty"`
+}
+
+func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo, err error) {
+	briefInfo.Status = GetOpStatus(oplet.strawberrySpeclet, oplet.infoState)
+	briefInfo.Creator = oplet.persistentState.Creator
+	briefInfo.Stage = oplet.strawberrySpeclet.StageOrDefault()
+	briefInfo.CreationTime = getYSONTimePointerOrNil(oplet.infoState.CreationTime)
+	briefInfo.StrawberryStateModificationTime = oplet.strawberryStateModificationTime
+	briefInfo.SpecletModificationTime = oplet.specletModificationTime
+	briefInfo.IncarnationIndex = oplet.persistentState.IncarnationIndex
 	if oplet.persistentState.YTOpPool != nil {
-		s.Pool = *oplet.persistentState.YTOpPool
+		briefInfo.Pool = *oplet.persistentState.YTOpPool
 	}
 
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
-		s.OperationURL = operationStringURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID)
-		s.OperationState = oplet.persistentState.YTOpState
-		s.OperationID = oplet.persistentState.YTOpID
+		briefInfo.YTOperation.URL = operationStringURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID)
+		briefInfo.YTOperation.State = oplet.persistentState.YTOpState
+		briefInfo.YTOperation.ID = oplet.persistentState.YTOpID
+		briefInfo.YTOperation.StartTime = getYSONTimePointerOrNil(oplet.infoState.YTOpStartTime)
+		briefInfo.YTOperation.FinishTime = getYSONTimePointerOrNil(oplet.infoState.YTOpFinishTime)
 
 		if oplet.strawberrySpeclet.ActiveOrDefault() {
 			if !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
-				s.SpecletDiff = specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
+				briefInfo.SpecletDiff = specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
 			}
 			if !reflect.DeepEqual(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions) {
 				diff := specletDiff(oplet.ytOpStrawberrySpeclet.RestartRequiredOptions, oplet.strawberrySpeclet.RestartRequiredOptions)
-				if s.SpecletDiff == nil {
-					s.SpecletDiff = diff
+				if briefInfo.SpecletDiff == nil {
+					briefInfo.SpecletDiff = diff
 				} else {
 					for key, fieldDiff := range diff {
-						s.SpecletDiff[key] = fieldDiff
+						briefInfo.SpecletDiff[key] = fieldDiff
 					}
 				}
 			}
@@ -920,29 +937,29 @@ func (oplet *Oplet) Status() (s OpletStatus, err error) {
 	if err != nil {
 		return
 	}
-	s.CtlAttributes = ctlAttributes
+	briefInfo.CtlAttributes = ctlAttributes
 
 	if oplet.infoState.Error != nil {
-		s.Error = *oplet.infoState.Error
+		briefInfo.Error = *oplet.infoState.Error
 	}
 
 	if ok, reason := oplet.needsAbort(); ok {
-		s.Status = "Waiting for abort: " + reason
+		briefInfo.StatusReason = "Waiting for abort: " + reason
 		return
 	}
 	if ok, reason := oplet.needsRestart(); ok {
-		s.Status = "Waiting for restart: " + reason
+		briefInfo.StatusReason = "Waiting for restart: " + reason
 		return
 	}
 	if ok, reason := oplet.needsUpdateOpParameters(); ok {
-		s.Status = "Waiting for update op parameters: " + reason
+		briefInfo.StatusReason = "Waiting for update op parameters: " + reason
 		return
 	}
-	if len(s.SpecletDiff) > 0 {
-		s.Status = "Speclet changed; operation should be restarted manually"
+	if len(briefInfo.SpecletDiff) > 0 {
+		briefInfo.StatusReason = "Speclet changed; operation should be restarted manually"
 		return
 	}
 
-	s.Status = "Ok"
+	briefInfo.StatusReason = "Ok"
 	return
 }

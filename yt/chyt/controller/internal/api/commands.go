@@ -126,23 +126,31 @@ func (a HTTPAPI) HandleExists(w http.ResponseWriter, r *http.Request, params map
 	a.replyOK(w, ok)
 }
 
+// COMPAT(gudqeit)
 var StatusCmdDescriptor = CmdDescriptor{
 	Name:        "status",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
 	Description: "show strawberry operation status",
-	Handler:     HTTPAPI.HandleStatus,
+	Handler:     HTTPAPI.HandleGetBriefInfo,
 }
 
-func (a HTTPAPI) HandleStatus(w http.ResponseWriter, r *http.Request, params map[string]any) {
+var GetBriefInfoCmdDescriptor = CmdDescriptor{
+	Name:        "get_brief_info",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Description: "show strawberry operation brief info",
+	Handler:     HTTPAPI.HandleGetBriefInfo,
+}
+
+func (a HTTPAPI) HandleGetBriefInfo(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 
-	status, err := a.api.Status(r.Context(), alias)
+	briefInfo, err := a.api.GetBriefInfo(r.Context(), alias)
 	if err != nil {
 		a.replyWithError(w, err)
 		return
 	}
 
-	a.replyOK(w, status)
+	a.replyOK(w, briefInfo)
 }
 
 var KeyParameter = CmdParameter{
@@ -326,12 +334,12 @@ func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request, params map[
 		a.replyWithError(w, err)
 		return
 	}
-	status, err := a.api.Status(r.Context(), alias)
+	briefInfo, err := a.api.GetBriefInfo(r.Context(), alias)
 	if err != nil {
 		a.replyWithError(w, err)
 		return
 	}
-	a.replyOK(w, status)
+	a.replyOK(w, briefInfo)
 }
 
 var StopCmdDescriptor = CmdDescriptor{
@@ -375,6 +383,7 @@ var AllCommands = []CmdDescriptor{
 	RemoveCmdDescriptor,
 	ExistsCmdDescriptor,
 	StatusCmdDescriptor,
+	GetBriefInfoCmdDescriptor,
 	GetOptionCmdDescriptor,
 	SetOptionCmdDescriptor,
 	RemoveOptionCmdDescriptor,

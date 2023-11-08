@@ -395,7 +395,7 @@ func TestHTTPAPIList(t *testing.T) {
 	})
 }
 
-func TestHTTPAPIStatus(t *testing.T) {
+func TestHTTPAPIGetBriefInfo(t *testing.T) {
 	t.Parallel()
 
 	_, c := helpers.PrepareAPI(t)
@@ -406,15 +406,15 @@ func TestHTTPAPIStatus(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakePostRequest("status", api.RequestParams{
+	r = c.MakePostRequest("get_brief_info", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	var result map[string]strawberry.OpletStatus
+	var result map[string]strawberry.OpletBriefInfo
 	err := yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
-	require.Equal(t, "Ok", result["result"].Status)
+	require.Equal(t, "Ok", result["result"].StatusReason)
 
 	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
@@ -425,14 +425,14 @@ func TestHTTPAPIStatus(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakePostRequest("status", api.RequestParams{
+	r = c.MakePostRequest("get_brief_info", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	err = yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(result["result"].Status, "Waiting for restart"))
+	require.True(t, strings.HasPrefix(result["result"].StatusReason, "Waiting for restart"))
 	require.Equal(t, result["result"].Creator, "root")
 }
 
@@ -811,34 +811,34 @@ func TestHTTPAPISetInt64ValueUsingJSONFormat(t *testing.T) {
 	require.Equal(t, int64(1), resultWithOption["result"])
 }
 
-func checkStateWithStatus(
+func checkStatusFromGetBriefInfoCommand(
 	t *testing.T,
 	c *helpers.RequestClient,
 	alias string,
-	expected strawberry.OperationState,
+	expected strawberry.OperationStatus,
 ) {
 	t.Helper()
 
-	r := c.MakePostRequest("status", api.RequestParams{
+	r := c.MakePostRequest("get_brief_info", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
-	var statusResult map[string]strawberry.OpletStatus
+	var statusResult map[string]strawberry.OpletBriefInfo
 	require.NoError(t, yson.Unmarshal(r.Body, &statusResult))
-	require.Equal(t, expected, statusResult["result"].State)
+	require.Equal(t, expected, statusResult["result"].Status)
 }
 
-func checkStateWithList(
+func checkStatusFromListCommand(
 	t *testing.T,
 	c *helpers.RequestClient,
 	alias string,
-	expected strawberry.OperationState,
+	expected strawberry.OperationStatus,
 ) {
 	t.Helper()
 
 	r := c.MakePostRequest("list", api.RequestParams{
 		Params: map[string]any{
-			"attributes": []string{"state"},
+			"attributes": []string{"status"},
 		},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -847,7 +847,7 @@ func checkStateWithList(
 	require.Contains(t, listResult["result"], yson.ValueWithAttrs{
 		Value: alias,
 		Attrs: map[string]any{
-			"state": string(expected),
+			"status": string(expected),
 		},
 	})
 }
@@ -889,16 +889,16 @@ func TestHTTPAPIStateAfterStartAndStop(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	checkStateWithList(t, c, alias, strawberry.StateActive)
-	checkStateWithStatus(t, c, alias, strawberry.StateActive)
+	checkStatusFromListCommand(t, c, alias, strawberry.StateActive)
+	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StateActive)
 
 	r = c.MakePostRequest("stop", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	checkStateWithList(t, c, alias, strawberry.StateInactive)
-	checkStateWithStatus(t, c, alias, strawberry.StateInactive)
+	checkStatusFromListCommand(t, c, alias, strawberry.StateInactive)
+	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StateInactive)
 }
 
 func TestHTTPAPICreateAndStart(t *testing.T) {

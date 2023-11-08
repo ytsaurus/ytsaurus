@@ -367,25 +367,25 @@ func (a *API) Exists(ctx context.Context, alias string) (bool, error) {
 	return a.ytc.NodeExists(ctx, a.cfg.AgentInfo.StrawberryRoot.Child(alias), nil)
 }
 
-func (a *API) Status(ctx context.Context, alias string) (strawberry.OpletStatus, error) {
+func (a *API) GetBriefInfo(ctx context.Context, alias string) (strawberry.OpletBriefInfo, error) {
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
-		return strawberry.OpletStatus{}, err
+		return strawberry.OpletBriefInfo{}, err
 	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
-		return strawberry.OpletStatus{}, err
+		return strawberry.OpletBriefInfo{}, err
 	}
 
 	oplet, err := a.getOplet(ctx, alias, nil, a.cfg.AgentInfo)
 	if err != nil {
-		return strawberry.OpletStatus{}, err
+		return strawberry.OpletBriefInfo{}, err
 	}
 	if err := oplet.LoadInfoState(ctx); err != nil {
-		return strawberry.OpletStatus{}, err
+		return strawberry.OpletBriefInfo{}, err
 	}
 	if err := oplet.CheckOperationLiveness(ctx); err != nil {
-		return strawberry.OpletStatus{}, err
+		return strawberry.OpletBriefInfo{}, err
 	}
-	return oplet.Status()
+	return oplet.GetBriefInfo()
 }
 
 func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err error) {
@@ -442,15 +442,18 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 		attributesToList = []string{
 			"strawberry_persistent_state",
 			"strawberry_info_state",
+			"modification_time",
 			"value",
 		}
 	}
 
 	var ops map[string]struct {
-		InfoState       strawberry.InfoState       `yson:"strawberry_info_state,attr"`
-		PersistentState strawberry.PersistentState `yson:"strawberry_persistent_state,attr"`
-		Speclet         struct {
-			Value yson.RawValue `yson:"value,attr"`
+		InfoState        strawberry.InfoState       `yson:"strawberry_info_state,attr"`
+		PersistentState  strawberry.PersistentState `yson:"strawberry_persistent_state,attr"`
+		ModificationTime yson.Time                  `yson:"modification_time,attr"`
+		Speclet          struct {
+			Value            yson.RawValue `yson:"value,attr"`
+			ModificationTime yson.Time     `yson:"modification_time,attr"`
 		} `yson:"speclet"`
 	}
 
@@ -485,9 +488,25 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 				return nil, err
 			}
 
+			nodeAttrs := map[string]any{
+				"strawberry_state_modification_time": op.ModificationTime,
+				"speclet_modification_time":          op.Speclet.ModificationTime,
+			}
+
 			// Sanity check.
+			existingAttrs := make(map[string]bool)
 			for attr := range strawberryAttrs {
-				if _, ok := ctlAttrs[attr]; ok {
+				existingAttrs[attr] = true
+			}
+			for attr := range ctlAttrs {
+				if existingAttrs[attr] {
+					return nil, fmt.Errorf("this is a bug, attribute %v is duplicated", attr)
+				} else {
+					existingAttrs[attr] = true
+				}
+			}
+			for attr := range nodeAttrs {
+				if existingAttrs[attr] {
 					return nil, fmt.Errorf("this is a bug, attribute %v is duplicated", attr)
 				}
 			}
@@ -497,6 +516,8 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 				if value, ok := strawberryAttrs[attr]; ok {
 					resultAttrs[attr] = value
 				} else if value, ok := ctlAttrs[attr]; ok {
+					resultAttrs[attr] = value
+				} else if value, ok := nodeAttrs[attr]; ok {
 					resultAttrs[attr] = value
 				} else {
 					return nil, yterrors.Err(

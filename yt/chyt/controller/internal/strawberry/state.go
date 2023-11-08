@@ -61,15 +61,15 @@ type InfoState struct {
 	YTOpFinishTime yson.Time `yson:"yt_op_finish_time,omitempty"`
 }
 
-type OperationState string
+type OperationStatus string
 
 const (
-	StateActive   OperationState = "active"
-	StateInactive OperationState = "inactive"
-	StateBroken   OperationState = "broken"
+	StateActive   OperationStatus = "active"
+	StateInactive OperationStatus = "inactive"
+	StateBroken   OperationStatus = "broken"
 )
 
-func GetOpState(speclet Speclet, infoState InfoState) OperationState {
+func GetOpStatus(speclet Speclet, infoState InfoState) OperationStatus {
 	if infoState.Error != nil {
 		return StateBroken
 	}
@@ -90,12 +90,12 @@ func GetOpBriefAttributes(
 		return nil, err
 	}
 	return map[string]any{
-		"creator":       persistentState.Creator,
-		"operation_id":  persistentState.YTOpID,
-		"creation_time": getYSONTimePointerOrNil(infoState.CreationTime),
-		"start_time":    getYSONTimePointerOrNil(infoState.YTOpStartTime),
-		"finish_time":   getYSONTimePointerOrNil(infoState.YTOpFinishTime),
-		"state":         GetOpState(speclet, infoState),
-		"stage":         speclet.Stage,
+		"creator":                  persistentState.Creator,
+		"yt_operation_id":          persistentState.YTOpID,
+		"creation_time":            getYSONTimePointerOrNil(infoState.CreationTime),
+		"yt_operation_start_time":  getYSONTimePointerOrNil(infoState.YTOpStartTime),
+		"yt_operation_finish_time": getYSONTimePointerOrNil(infoState.YTOpFinishTime),
+		"status":                   GetOpStatus(speclet, infoState),
+		"stage":                    speclet.Stage,
 	}, nil
 }
