@@ -48,6 +48,7 @@ DEFINE_ENUM(ETabletReign,
     // 23.3 starts here.
     ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
     ((SharedWriteLocks)                            (100901)) // ponasenko-rs
+    ((TabletPrerequisites)                         (100902)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

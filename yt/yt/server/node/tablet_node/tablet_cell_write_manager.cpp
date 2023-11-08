@@ -15,6 +15,8 @@
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 
+#include <yt/yt/server/lib/lease_server/lease_manager.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -36,7 +38,9 @@ using namespace NChaosClient;
 using namespace NClusterNode;
 using namespace NCompression;
 using namespace NHydra;
+using namespace NLeaseServer;
 using namespace NLogging;
+using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
@@ -163,6 +167,18 @@ public:
                 .ThrowOnError();
         }
 
+        auto throwPrerequisitesError = [&] (const TError& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                error,
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed")
+        };
+
+        auto error = WaitForFast(Host_->IssueLeases(params.PrerequisiteTransactionIds));
+        if (!error.IsOK()) {
+            throwPrerequisitesError(error);
+        }
+
         // Due to possible row blocking, serving the request may involve a number of write attempts.
         // Each attempt causes a mutation to be enqueued to Hydra.
         // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
@@ -195,6 +211,16 @@ public:
                     /*transient*/ true);
                 ValidateTransactionActive(transaction);
 
+                try {
+                    auto leaseManager = GetLeaseManager();
+                    for (auto transactionId : params.PrerequisiteTransactionIds) {
+                        auto* lease = leaseManager->GetLeaseOrThrow(transactionId);
+                        transaction->TransientLeaseGuards().push_back(lease->GetTransientLeaseGuard());
+                    }
+                } catch (const std::exception& ex) {
+                    throwPrerequisitesError(TError(ex));
+                }
+
                 if (params.Generation > transaction->GetTransientGeneration()) {
                     // Promote transaction transient generation and clear the transaction transient state.
                     // In particular, we abort all rows that were prelocked or locked by the previous batches of our generation,
@@ -220,6 +246,13 @@ public:
                 updateReplicationProgress = tablet->GetReplicationCardId() && !params.Versioned;
             } else {
                 YT_VERIFY(atomicity == EAtomicity::None);
+
+                auto leaseManager = GetLeaseManager();
+                for (auto transactionId : params.PrerequisiteTransactionIds) {
+                    auto* lease = leaseManager->GetLeaseOrThrow(transactionId);
+                    Y_UNUSED(lease->GetTransientLeaseGuard());
+                }
+
                 if (transactionManager->GetDecommission()) {
                     THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
                 }
@@ -312,6 +345,8 @@ public:
                 }
 
                 ToProto(hydraRequest.mutable_sync_replica_ids(), params.SyncReplicaIds);
+                ToProto(hydraRequest.mutable_prerequisite_transaction_ids(), params.PrerequisiteTransactionIds);
+
                 NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
 
                 auto mutation = CreateMutation(HydraManager_, hydraRequest);
@@ -326,7 +361,8 @@ public:
                     lockless,
                     writeRecord,
                     identity,
-                    updateReplicationProgress));
+                    updateReplicationProgress,
+                    params.PrerequisiteTransactionIds));
                 mutation->SetCurrentTraceContext();
                 commitResult = mutation->Commit().As<void>();
 
@@ -413,6 +449,7 @@ private:
         const TTransactionWriteRecord& writeRecord,
         const NRpc::TAuthenticationIdentity& identity,
         bool updateReplicationProgress,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds,
         TMutationContext* /*context*/) noexcept
     {
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -476,14 +513,21 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
+                auto leaseManager = GetLeaseManager();
+                for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
+                    auto* lease = leaseManager->GetLease(prerequisiteTransactionId);
+                    transaction->PersistentLeaseGuards().push_back(lease->GetPersistentLeaseGuard(/*force*/ true));
+                }
+
                 YT_LOG_DEBUG(
                     "Performing atomic write as leader (TabletId: %v, TransactionId: %v, BatchGeneration: %x, "
-                    "TransientGeneration: %x, PersistentGeneration: %x)",
+                    "TransientGeneration: %x, PersistentGeneration: %x, PrerequisiteTransactionIds: %v)",
                     writeRecord.TabletId,
                     transactionId,
                     generation,
                     transaction->GetTransientGeneration(),
-                    transaction->GetPersistentGeneration());
+                    transaction->GetPersistentGeneration(),
+                    prerequisiteTransactionIds);
 
                 // Monotonicity of persistent generations is ensured by the early finish in #Write whenever the
                 // current batch is obsolete.
@@ -564,6 +608,7 @@ private:
         if (request->has_hunk_chunks_info()) {
             hunkChunksInfo = FromProto<THunkChunksInfo>(request->hunk_chunks_info());
         }
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = Host_->FindTablet(tabletId);
@@ -624,12 +669,20 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
+                auto leaseManager = GetLeaseManager();
+                for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
+                    auto* lease = leaseManager->GetLease(prerequisiteTransactionId);
+                    transaction->PersistentLeaseGuards().push_back(lease->GetPersistentLeaseGuard(/*force*/ true));
+                }
+
                 YT_LOG_DEBUG(
-                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v, BatchGeneration: %x, PersistentGeneration: %x)",
+                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v, "
+                    "BatchGeneration: %x, PersistentGeneration: %x, PrerequisiteTransactionIds: %v)",
                     tabletId,
                     transactionId,
                     generation,
-                    transaction->GetPersistentGeneration());
+                    transaction->GetPersistentGeneration(),
+                    prerequisiteTransactionIds);
 
                 // This invariant holds during recovery.
                 YT_VERIFY(transaction->GetPersistentGeneration() == transaction->GetTransientGeneration());
@@ -908,6 +961,8 @@ private:
             UnlockTablet(tablet, ETabletLockType::TransientTransaction);
         }
         transaction->TransientAffectedTabletIds().clear();
+
+        transaction->TransientLeaseGuards().clear();
     }
 
     void ValidateClientTimestamp(TTransactionId transactionId)

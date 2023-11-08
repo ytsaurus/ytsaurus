@@ -63,6 +63,9 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("transaction_type_to_method_whitelist", &TThis::TransactionTypeToMethodWhitelist)
         .Default(defaultWhitelist);
 
+    registrar.Parameter("throw_on_lease_revocation", &TThis::ThrowOnLeaseRevokation)
+        .Default(false);
+
     // COMPAT(gritukan): This is an emergency button to restore old master transactions
     // behavior.
     registrar.Parameter("ignore_cypress_transactions", &TThis::IgnoreCypressTransactions)

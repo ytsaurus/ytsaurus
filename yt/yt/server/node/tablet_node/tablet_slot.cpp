@@ -93,6 +93,7 @@ using namespace NElection;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
+using namespace NLeaseServer;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityServer;
@@ -315,6 +316,11 @@ public:
     const ITransactionSupervisorPtr& GetTransactionSupervisor() override
     {
         return Occupant_->GetTransactionSupervisor();
+    }
+
+    const ILeaseManagerPtr& GetLeaseManager() override
+    {
+        return Occupant_->GetLeaseManager();
     }
 
     TTabletManagerPtr GetTabletManager() override

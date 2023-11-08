@@ -334,7 +334,12 @@ void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& re
 void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest& request)
 {
     auto it = IdMap_.find(request.TransactionId);
-    YT_VERIFY(it != IdMap_.end());
+    if (it == IdMap_.end()) {
+        YT_LOG_DEBUG("Requested to unregister non-existent transaction lease, ignored (TransactionId: %v)",
+            request.TransactionId);
+        return;
+    }
+
     auto* descriptor = &it->second;
     if (!descriptor->TimedOut) {
         UnregisterDeadline(descriptor);

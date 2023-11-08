@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/client/table_client/public.h>
@@ -23,6 +25,8 @@ struct ITabletCellWriteManagerHost
     virtual TTabletNodeDynamicConfigPtr GetDynamicConfig() const = 0;
 
     virtual TCellId GetCellId() const = 0;
+
+    virtual TFuture<void> IssueLeases(const std::vector<NLeaseServer::TLeaseId>& leaseIds) = 0;
 
     //! This method is called whenever a (sorted) tablet row is being unlocked.
     virtual void OnTabletRowUnlocked(TTablet* tablet) = 0;
@@ -66,6 +70,8 @@ struct TTabletCellWriteParams
     TSyncReplicaIdList SyncReplicaIds;
 
     std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
+
+    std::vector<TTransactionId> PrerequisiteTransactionIds;
 };
 
 //! A component containing tablet write logic: dynamic store writing,

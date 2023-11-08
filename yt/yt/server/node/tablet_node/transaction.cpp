@@ -1,9 +1,12 @@
 #include "transaction.h"
+
 #include "automaton.h"
 #include "sorted_dynamic_store.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+
+#include <yt/yt/server/lib/lease_server/lease_manager.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
@@ -20,6 +23,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NHiveServer;
+using namespace NLeaseServer;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -112,6 +116,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, AuthenticationIdentity_.UserTag);
     Save(context, CommitTimestampClusterTag_);
     Save(context, TabletsToUpdateReplicationProgress_);
+    Save(context, PersistentLeaseGuards_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -156,6 +161,11 @@ void TTransaction::Load(TLoadContext& context)
         Load(context, CompatSerializationForced_);
     }
     Load(context, TabletsToUpdateReplicationProgress_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= ETabletReign::TabletPrerequisites) {
+        Load(context, PersistentLeaseGuards_);
+    }
 }
 
 void TTransaction::AsyncLoad(TLoadContext& context)

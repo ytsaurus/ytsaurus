@@ -21,6 +21,8 @@ struct TTabletCommitOptions
 {
     NTabletClient::TTableReplicaId UpstreamReplicaId;
     NChaosClient::TReplicationCardPtr ReplicationCard;
+
+    std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

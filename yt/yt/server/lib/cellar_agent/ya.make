@@ -16,6 +16,7 @@ SRCS(
 PEERDIR(
     yt/yt/ytlib
     yt/yt/server/lib/hive
+    yt/yt/server/lib/lease_server
     yt/yt/server/lib/transaction_supervisor
 )
 

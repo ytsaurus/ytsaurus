@@ -7,6 +7,9 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/lease_client/lease_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
@@ -25,6 +28,8 @@ namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
+using namespace NLeaseClient;
+using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NQueryClient;
@@ -146,6 +151,86 @@ void TClient::DoUnlockHunkStore(
         tabletId,
         /*lock*/ false,
         options);
+}
+
+void TClient::DoIssueLease(
+    TCellId cellId,
+    TObjectId leaseId,
+    const TIssueLeaseOptions& options)
+{
+    const auto& cellDirectorySynchronizer = Connection_->GetCellDirectorySynchronizer();
+    WaitFor(cellDirectorySynchronizer->Sync())
+        .ThrowOnError();
+
+    auto channel = GetCellChannelOrThrow(cellId);
+    TLeaseServiceProxy proxy(std::move(channel));
+    auto req = proxy.IssueLease();
+    req->SetTimeout(options.Timeout);
+    ToProto(req->mutable_lease_id(), leaseId);
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoRevokeLease(
+    TCellId cellId,
+    TObjectId leaseId,
+    bool force,
+    const TRevokeLeaseOptions& options)
+{
+    const auto& cellDirectorySynchronizer = Connection_->GetCellDirectorySynchronizer();
+    WaitFor(cellDirectorySynchronizer->Sync())
+        .ThrowOnError();
+
+    auto channel = GetCellChannelOrThrow(cellId);
+    TLeaseServiceProxy proxy(std::move(channel));
+    auto req = proxy.RevokeLease();
+    req->SetTimeout(options.Timeout);
+    ToProto(req->mutable_lease_id(), leaseId);
+    req->set_force(force);
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoReferenceLease(
+    TCellId cellId,
+    TObjectId leaseId,
+    bool persistent,
+    bool force,
+    const TReferenceLeaseOptions& options)
+{
+    const auto& cellDirectorySynchronizer = Connection_->GetCellDirectorySynchronizer();
+    WaitFor(cellDirectorySynchronizer->Sync())
+        .ThrowOnError();
+
+    auto channel = GetCellChannelOrThrow(cellId);
+    TLeaseServiceProxy proxy(std::move(channel));
+    auto req = proxy.ReferenceLease();
+    req->SetTimeout(options.Timeout);
+    ToProto(req->mutable_lease_id(), leaseId);
+    req->set_persistent(persistent);
+    req->set_force(force);
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoUnreferenceLease(
+    TCellId cellId,
+    TObjectId leaseId,
+    bool persistent,
+    const TUnreferenceLeaseOptions& options)
+{
+    const auto& cellDirectorySynchronizer = Connection_->GetCellDirectorySynchronizer();
+    WaitFor(cellDirectorySynchronizer->Sync())
+        .ThrowOnError();
+
+    auto channel = GetCellChannelOrThrow(cellId);
+    TLeaseServiceProxy proxy(std::move(channel));
+    auto req = proxy.UnreferenceLease();
+    req->SetTimeout(options.Timeout);
+    ToProto(req->mutable_lease_id(), leaseId);
+    req->set_persistent(persistent);
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 void TClient::DoToggleHunkStoreLock(

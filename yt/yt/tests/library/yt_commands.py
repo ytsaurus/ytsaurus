@@ -3149,6 +3149,37 @@ def unlock_hunk_store(path, tablet_index, store_id, locker_tablet_id="1-1-1-1", 
         params["driver"] = kwargs.pop("driver")
     return execute_command("unlock_hunk_store", params, parse_yson=True)
 
+def issue_lease(cell_id, lease_id, **kwargs):
+    params = {}
+    params["cell_id"] = cell_id
+    params["lease_id"] = lease_id
+    return execute_command("issue_lease", params, parse_yson=True)
+
+
+def revoke_lease(cell_id, lease_id, force=False, **kwargs):
+    params = {}
+    params["cell_id"] = cell_id
+    params["lease_id"] = lease_id
+    params["force"] = force
+    return execute_command("revoke_lease", params, parse_yson=True)
+
+
+def reference_lease(cell_id, lease_id, persistent=True, force=False, **kwargs):
+    params = {}
+    params["cell_id"] = cell_id
+    params["lease_id"] = lease_id
+    params["persistent"] = persistent
+    params["force"] = force
+    return execute_command("reference_lease", params, parse_yson=True)
+
+
+def unreference_lease(cell_id, lease_id, persistent=True, **kwargs):
+    params = {}
+    params["cell_id"] = cell_id
+    params["lease_id"] = lease_id
+    params["persistent"] = persistent
+    return execute_command("unreference_lease", params, parse_yson=True)
+
 
 def sync_control_chunk_replicator(enabled):
     print_debug("Setting chunk replicator state to", enabled)

@@ -58,6 +58,7 @@ public:
     void AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/) override;
     const IBackupManagerPtr& GetBackupManager() const override;
     TCellId GetCellId() const override;
+    TFuture<void> IssueLeases(const std::vector<NLeaseServer::TLeaseId>& leaseIds) override;
     TTabletNodeDynamicConfigPtr GetDynamicConfig() const override;
     NHydra::ISimpleHydraManagerPtr GetHydraManager() const override;
 

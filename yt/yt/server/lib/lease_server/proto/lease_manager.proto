@@ -1,0 +1,36 @@
+package NYT.NLeaseServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterLease
+{
+    required NYT.NProto.TGuid lease_id = 1;
+}
+
+message TReqRevokeLease
+{
+    required NYT.NProto.TGuid lease_id = 1;
+    required bool force = 2;
+}
+
+message TReqConfirmLeaseRevocation
+{
+    required NYT.NProto.TGuid lease_id = 1;
+}
+
+message TReqRemoveLeases
+{
+    repeated NYT.NProto.TGuid lease_ids = 1;
+}
+
+// Used for testing purposes.
+message TReqToggleLeaseRefCounter
+{
+    required NYT.NProto.TGuid lease_id = 1;
+    required bool reference = 2;
+    optional bool force = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

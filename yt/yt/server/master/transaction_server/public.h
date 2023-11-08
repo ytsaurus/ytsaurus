@@ -20,6 +20,9 @@ using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterT
 using TReqReplicateTransactions = NTransactionClient::NProto::TReqReplicateTransactions;
 using TRspReplicateTransactions = NTransactionClient::NProto::TRspReplicateTransactions;
 
+using TReqIssueLeases = NTransactionClient::NProto::TReqIssueLeases;
+using TRspIssueLeases = NTransactionClient::NProto::TRspIssueLeases;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,6 +43,17 @@ DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithBoomerangs)
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 
 using TBoomerangWaveId = TGuid;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETransactionLeasesState,
+    // Transaction is active: new leases can be issued.
+    ((Active)                (0))
+    // Leases that were already issued are revoking, new leases cannot be issued.
+    ((Revoking)              (1))
+    // Leases are revoked and new leases cannot be issued.
+    ((Revoked)               (2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

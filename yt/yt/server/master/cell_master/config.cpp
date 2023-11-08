@@ -32,6 +32,8 @@
 
 #include <yt/yt/server/lib/election/config.h>
 
+#include <yt/yt/server/lib/lease_server/config.h>
+
 #include <yt/yt/server/lib/timestamp_server/config.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/config.h>
@@ -224,6 +226,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("timestamp_provider", &TThis::TimestampProvider);
     registrar.Parameter("discovery_server", &TThis::DiscoveryServer)
         .Default();
+    registrar.Parameter("lease_manager", &TThis::LeaseManager)
+        .DefaultNew();
     registrar.Parameter("transaction_supervisor", &TThis::TransactionSupervisor)
         .DefaultNew();
     registrar.Parameter("multicell_manager", &TThis::MulticellManager)

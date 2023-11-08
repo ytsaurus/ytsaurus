@@ -103,4 +103,68 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIssueLeaseCommand
+    : public TTypedCommand<NApi::TIssueLeaseOptions>
+{
+public:
+    TIssueLeaseCommand();
+
+private:
+    NHydra::TCellId CellId_;
+    NObjectClient::TObjectId LeaseId_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRevokeLeaseCommand
+    : public TTypedCommand<NApi::TRevokeLeaseOptions>
+{
+public:
+    TRevokeLeaseCommand();
+
+private:
+    NHydra::TCellId CellId_;
+    NObjectClient::TObjectId LeaseId_;
+    bool Force_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReferenceLeaseCommand
+    : public TTypedCommand<NApi::TReferenceLeaseOptions>
+{
+public:
+    TReferenceLeaseCommand();
+
+private:
+    NHydra::TCellId CellId_;
+    NObjectClient::TObjectId LeaseId_;
+    bool Persistent_;
+    bool Force_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnreferenceLeaseCommand
+    : public TTypedCommand<NApi::TUnreferenceLeaseOptions>
+{
+public:
+    TUnreferenceLeaseCommand();
+
+private:
+    NHydra::TCellId CellId_;
+    NObjectClient::TObjectId LeaseId_;
+    bool Persistent_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

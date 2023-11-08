@@ -141,4 +141,85 @@ void TGetConnectionConfigCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TIssueLeaseCommand::TIssueLeaseCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+    RegisterParameter("lease_id", LeaseId_);
+}
+
+void TIssueLeaseCommand::DoExecute(ICommandContextPtr context)
+{
+    auto internalClient = context->GetInternalClientOrThrow();
+
+    WaitFor(internalClient->IssueLease(CellId_, LeaseId_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRevokeLeaseCommand::TRevokeLeaseCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+    RegisterParameter("lease_id", LeaseId_);
+    RegisterParameter("force", Force_)
+        .Default(false);
+}
+
+void TRevokeLeaseCommand::DoExecute(ICommandContextPtr context)
+{
+    auto internalClient = context->GetInternalClientOrThrow();
+
+    WaitFor(internalClient->RevokeLease(CellId_, LeaseId_, Force_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReferenceLeaseCommand::TReferenceLeaseCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+    RegisterParameter("lease_id", LeaseId_);
+    RegisterParameter("persistent", Persistent_);
+    RegisterParameter("force", Force_);
+}
+
+void TReferenceLeaseCommand::DoExecute(ICommandContextPtr context)
+{
+    auto internalClient = context->GetInternalClientOrThrow();
+
+    WaitFor(internalClient->ReferenceLease(
+        CellId_,
+        LeaseId_,
+        Persistent_,
+        Force_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnreferenceLeaseCommand::TUnreferenceLeaseCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+    RegisterParameter("lease_id", LeaseId_);
+    RegisterParameter("persistent", Persistent_);
+}
+
+void TUnreferenceLeaseCommand::DoExecute(ICommandContextPtr context)
+{
+    auto internalClient = context->GetInternalClientOrThrow();
+
+    WaitFor(internalClient->UnreferenceLease(CellId_, LeaseId_, Persistent_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

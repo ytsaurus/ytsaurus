@@ -49,6 +49,7 @@ RECURSE(
     io
     job_agent
     job_proxy
+    lease_server
     logging
     lsm
     misc

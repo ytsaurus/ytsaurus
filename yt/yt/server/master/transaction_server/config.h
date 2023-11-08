@@ -66,6 +66,9 @@ public:
     // COMPAT(h0pless): This is a panic button in case new types cause issues for users.
     bool EnableDedicatedTypesForSystemTransactions;
 
+    // Testing option.
+    bool ThrowOnLeaseRevokation;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

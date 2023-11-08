@@ -14,6 +14,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NHydra;
+using namespace NLeaseServer;
 using namespace NTableClient;
 using namespace NCypressClient;
 using namespace NTabletClient;
@@ -213,6 +214,11 @@ const IBackupManagerPtr& TSimpleTabletManager::GetBackupManager() const
 TCellId TSimpleTabletManager::GetCellId() const
 {
     return NullCellId;
+}
+
+TFuture<void> TSimpleTabletManager::IssueLeases(const std::vector<TLeaseId>& /*leaseIds*/)
+{
+    return VoidFuture;
 }
 
 TTabletNodeDynamicConfigPtr TSimpleTabletManager::GetDynamicConfig() const

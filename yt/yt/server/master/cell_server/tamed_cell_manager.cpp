@@ -1,3 +1,5 @@
+#include "tamed_cell_manager.h"
+
 #include "bundle_node_tracker.h"
 #include "config.h"
 #include "private.h"
@@ -843,7 +845,7 @@ public:
 
                 // Decommission cell on node.
                 if (force) {
-                    OnCellDecommissionedOnNode(cell);
+                    OnCellDecommissionedOnNode(cell, /*forceRemove*/ true);
                 }
 
                 break;
@@ -852,7 +854,7 @@ public:
             case ECellLifeStage::DecommissioningOnMaster:
             case ECellLifeStage::DecommissioningOnNode:
                 if (force) {
-                    OnCellDecommissionedOnNode(cell);
+                    OnCellDecommissionedOnNode(cell, /*forceRemove*/ true);
                 }
 
                 break;
@@ -875,7 +877,7 @@ public:
         }
 
         if (cell->GetCellarType() == ECellarType::Chaos) {
-            OnCellDecommissionedOnNode(cell);
+            OnCellDecommissionedOnNode(cell, /*force*/ false);
             return;
         }
 
@@ -899,7 +901,7 @@ public:
             return;
         }
         DecommissionCell(cell);
-        OnCellDecommissionedOnNode(cell);
+        OnCellDecommissionedOnNode(cell, /*force*/ false);
     }
 
     void HydraUpdatePeerCount(TReqUpdatePeerCount* request)
@@ -950,13 +952,37 @@ public:
         if (!IsObjectAlive(cell)) {
             return;
         }
-        OnCellDecommissionedOnNode(cell);
+        OnCellDecommissionedOnNode(cell, /*forceRemove*/ false);
     }
 
-    void OnCellDecommissionedOnNode(TCellBase* cell)
+    void OnCellDecommissionedOnNode(TCellBase* cell, bool forceRemove)
     {
         if (cell->IsDecommissionCompleted()) {
             return;
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        auto leaseTransactionIds = cell->LeaseTransactionIds();
+        if (!leaseTransactionIds.empty() && !forceRemove) {
+            YT_LOG_ALERT("Tablet cell has lease transactions after decommission on node "
+                "(CellId: %v, LeaseTransactionCount: %v, SomeLeaseTransactionId: %v)",
+                cell->GetId(),
+                leaseTransactionIds.size(),
+                *leaseTransactionIds.begin());
+        }
+
+        for (auto transactionId : leaseTransactionIds) {
+            auto* transaction = transactionManager->FindTransaction(transactionId);
+            if (!transaction) {
+                YT_LOG_ALERT("Tablet cell has unknown lease transaction, ignored "
+                    "(CellId: %v, TransactionId: %v)",
+                    cell->GetId(),
+                    transactionId);
+                continue;
+            }
+
+            transactionManager->UnregisterTransactionLease(transaction, cell);
         }
 
         cell->SetCellLifeStage(ECellLifeStage::Decommissioned);

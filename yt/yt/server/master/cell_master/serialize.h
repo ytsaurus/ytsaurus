@@ -200,6 +200,7 @@ DEFINE_ENUM(EMasterReign,
     ((ConfigurablePoolNameValidationRegex)                          (2509))  // renadeen
     ((ChunkReincarnatorTestingUtilities)                            (2510))  // kvk1920
     ((SecondaryIndexForbidsPortal)                                  (2511))  // sabdenovch
+    ((TabletPrerequisites)                                          (2512))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

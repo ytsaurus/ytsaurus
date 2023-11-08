@@ -72,6 +72,12 @@ struct ISimpleHydraManager
      */
     virtual TEpochId GetAutomatonEpochId() const = 0;
 
+    //! Returns current term (#InvalidTerm if none), as viewed by the automaton thread.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual int GetAutomatonTerm() const = 0;
+
     //! Applies changes to Hydra config.
     /*!
      *  \note Thread affinity: AutomatonThread
@@ -148,12 +154,6 @@ struct IHydraManager
      *  \note Thread affinity: any
      */
     virtual TVersion GetAutomatonVersion() const = 0;
-
-    //! Returns current term (#InvalidTerm if none), as viewed by the automaton thread.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
-    virtual int GetAutomatonTerm() const = 0;
 
     //! Returns a wrapper invoker used for accessing the automaton.
     /*!

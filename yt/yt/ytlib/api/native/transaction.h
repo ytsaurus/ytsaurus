@@ -22,6 +22,8 @@ struct ITransaction
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)
 
+////////////////////////////////////////////////////////////////////////////////
+
 ITransactionPtr CreateTransaction(
     IClientPtr client,
     NTransactionClient::TTransactionPtr transaction,

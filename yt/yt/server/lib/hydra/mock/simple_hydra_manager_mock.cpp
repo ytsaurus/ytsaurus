@@ -219,6 +219,11 @@ TEpochId TSimpleHydraManagerMock::GetAutomatonEpochId() const
     return EpochId_;
 }
 
+int TSimpleHydraManagerMock::GetAutomatonTerm() const
+{
+    return 42;
+}
+
 TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() const
 {
     return CancelableContext;

@@ -1,8 +1,9 @@
 package NYT.NTransactionSupervisor.NProto;
 
-import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
+
+import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

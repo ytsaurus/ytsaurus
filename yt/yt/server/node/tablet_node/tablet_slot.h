@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/server/lib/security_server/public.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -81,6 +83,8 @@ struct ITabletSlot
 
     virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
 
+    virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() = 0;
+
     virtual TTabletManagerPtr GetTabletManager() = 0;
     virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;
 
@@ -108,6 +112,8 @@ struct ITabletSlot
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)
+
+////////////////////////////////////////////////////////////////////////////////
 
 ITabletSlotPtr CreateTabletSlot(
     int slotIndex,

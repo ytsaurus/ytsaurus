@@ -734,6 +734,32 @@ public:
         const TGetOrderedTabletSafeTrimRowCountOptions& options),
         (requests, options))
 
+    IMPLEMENT_METHOD(void, IssueLease, (
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        const TIssueLeaseOptions& options),
+        (cellId, leaseId, options))
+    IMPLEMENT_METHOD(void, RevokeLease, (
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        bool force,
+        const TRevokeLeaseOptions& options),
+        (cellId, leaseId, force, options))
+
+    IMPLEMENT_METHOD(void, ReferenceLease, (
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        bool persistent,
+        bool force,
+        const TReferenceLeaseOptions& options),
+        (cellId, leaseId, persistent, force, options))
+    IMPLEMENT_METHOD(void, UnreferenceLease, (
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        bool persistent,
+        const TUnreferenceLeaseOptions& options),
+        (cellId, leaseId, persistent, options))
+
     IMPLEMENT_METHOD(void, SetUserPassword, (
         const TString& user,
         const TString& currentPasswordSha256,
@@ -1737,6 +1763,26 @@ private:
         NTabletClient::TTabletId lockerTabletId,
         bool lock,
         const TTimeoutOptions& options);
+    void DoIssueLease(
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        const TIssueLeaseOptions& options);
+    void DoRevokeLease(
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        bool force,
+        const TRevokeLeaseOptions& options);
+    void DoReferenceLease(
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        bool persistent,
+        bool force,
+        const TReferenceLeaseOptions& options);
+    void DoUnreferenceLease(
+        NHydra::TCellId cellId,
+        NObjectClient::TObjectId leaseId,
+        bool persistent,
+        const TUnreferenceLeaseOptions& options);
     std::vector<TErrorOr<i64>> DoGetOrderedTabletSafeTrimRowCount(
         const std::vector<TGetOrderedTabletSafeTrimRowCountRequest>& requests,
         const TGetOrderedTabletSafeTrimRowCountOptions& options);

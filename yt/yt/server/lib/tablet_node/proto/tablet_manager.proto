@@ -282,6 +282,7 @@ message TReqWriteRows
     optional string user_tag = 15;
     optional bool update_replication_progress = 17;
     optional NYT.NTabletClient.NProto.THunkChunksInfo hunk_chunks_info = 20;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 21;
 }
 
 message TReqWriteDelayedRows

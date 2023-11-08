@@ -104,6 +104,9 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, RecursiveLockCount_);
     Save(context, NativeCommitMutationRevision_);
     Save(context, IsCypressTransaction_);
+    Save(context, GetTransactionLeasesState());
+    Save(context, LeaseCellIds_);
+    Save(context, SuccessorTransactionLeaseCount_);
     Save(context, AccountResourceUsageLeases_);
     Save(context, IsSequoiaTransaction_);
     Save(context, SequoiaWriteSet_);
@@ -149,6 +152,13 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::CypressTransactions) {
         Load(context, IsCypressTransaction_);
+    }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::TabletPrerequisites) {
+        SetTransactionLeasesState(Load<ETransactionLeasesState>(context));
+        Load(context, LeaseCellIds_);
+        Load(context, SuccessorTransactionLeaseCount_);
     }
 
     Load(context, AccountResourceUsageLeases_);
@@ -261,7 +271,49 @@ void TTransaction::DecrementRecursiveLockCount()
         RecursiveLockCount_);
 }
 
+void TTransaction::SetTransactionLeasesState(ETransactionLeasesState newState)
+{
+    LeasesState_ = newState;
+
+    if (newState == ETransactionLeasesState::Revoking) {
+        if (!LeasesRevokedPromise_) {
+            LeasesRevokedPromise_ = NewPromise<void>();
+        }
+        if (SuccessorTransactionLeaseCount_ == 0) {
+            SetTransactionLeasesState(ETransactionLeasesState::Revoked);
+        }
+    } else if (newState == ETransactionLeasesState::Revoked) {
+        // May happen during snapshot load.
+        if (!LeasesRevokedPromise_) {
+            LeasesRevokedPromise_ = NewPromise<void>();
+        }
+        LeasesRevokedPromise_.TrySet();
+    }
+}
+
+ETransactionLeasesState TTransaction::GetTransactionLeasesState() const
+{
+    return LeasesState_;
+}
+
+void TTransaction::SetSuccessorTransactionLeaseCount(int newLeaseCount)
+{
+    SuccessorTransactionLeaseCount_ = newLeaseCount;
+    if (SuccessorTransactionLeaseCount_ == 0 &&
+        LeasesState_ == ETransactionLeasesState::Revoking)
+    {
+        SetTransactionLeasesState(ETransactionLeasesState::Revoked);
+    }
+}
+
+int TTransaction::GetSuccessorTransactionLeaseCount() const
+{
+    return SuccessorTransactionLeaseCount_;
+}
+
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TFluent>
 void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpParents)
@@ -304,6 +356,8 @@ void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpP
             })
         .EndMap();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 

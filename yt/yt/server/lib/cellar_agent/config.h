@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -95,6 +97,8 @@ public:
     NElection::TDistributedElectionManagerConfigPtr ElectionManager;
 
     NHiveServer::THiveManagerConfigPtr HiveManager;
+
+    NLeaseServer::TLeaseManagerConfigPtr LeaseManager;
 
     NTransactionSupervisor::TTransactionSupervisorConfigPtr TransactionSupervisor;
 

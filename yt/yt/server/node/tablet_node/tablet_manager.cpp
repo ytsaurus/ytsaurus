@@ -1,4 +1,5 @@
 #include "tablet_manager.h"
+
 #include "private.h"
 #include "automaton.h"
 #include "bootstrap.h"
@@ -44,6 +45,8 @@
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/server/lib/lease_server/lease_manager.h>
+
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -74,6 +77,7 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -122,6 +126,7 @@ using namespace NChaosClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NHydra;
+using namespace NLeaseServer;
 using namespace NClusterNode;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
@@ -986,6 +991,11 @@ private:
                 auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
                 avenueDirectory->UpdateEndpoint(masterEndpointId, masterCellId);
             }
+        }
+
+        // COMPAT(gritukan): Remove it after ETabletReign::TabletPrerequisites.
+        if (CellLifeStage_ == ETabletCellLifeStage::DecommissioningOnNode || Suspending_) {
+            Slot_->GetLeaseManager()->SetDecommission(/*decommission*/ true);
         }
     }
 
@@ -3254,6 +3264,7 @@ private:
 
         Slot_->GetTransactionManager()->SetDecommission(suspend);
         Slot_->GetTransactionSupervisor()->SetDecommission(suspend);
+        Slot_->GetLeaseManager()->SetDecommission(suspend);
     }
 
     void PostTabletCellSuspensionToggledMessage(bool suspended)
@@ -3278,22 +3289,22 @@ private:
             return;
         }
 
+        auto transactionManagerDecommissioned = Slot_->GetTransactionManager()->IsDecommissioned();
+        auto transactionSupervisorDecommissioned = Slot_->GetTransactionSupervisor()->IsDecommissioned();
+        auto leaseManagerDecommissioned = Slot_->GetLeaseManager()->IsFullyDecommissioned();
+
         YT_LOG_INFO("Checking if tablet cell is decommissioned "
-            "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v)",
-            CellLifeStage_,
-            TabletMap_.empty(),
-            Slot_->GetTransactionManager()->IsDecommissioned(),
-            Slot_->GetTransactionSupervisor()->IsDecommissioned());
+            "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissined: %v, "
+            "TransactionSupervisorDecommissioned: %v, LeaseManagerDecommissioned: %v)",
+            transactionManagerDecommissioned,
+            transactionSupervisorDecommissioned,
+            leaseManagerDecommissioned);
 
-        if (!TabletMap_.empty()) {
-            return;
-        }
-
-        if (!Slot_->GetTransactionManager()->IsDecommissioned()) {
-            return;
-        }
-
-        if (!Slot_->GetTransactionSupervisor()->IsDecommissioned()) {
+        if (!TabletMap_.empty() ||
+            !transactionManagerDecommissioned ||
+            !transactionSupervisorDecommissioned ||
+            !leaseManagerDecommissioned)
+        {
             return;
         }
 
@@ -3324,18 +3335,27 @@ private:
             return;
         }
 
+        auto transactionManagerDecommissioned = Slot_->GetTransactionManager()->IsDecommissioned();
+        auto transactionSupervisorDecommissioned = Slot_->GetTransactionSupervisor()->IsDecommissioned();
+        auto leaseManagerDecommissioned = Slot_->GetLeaseManager()->IsFullyDecommissioned();
+
         YT_LOG_INFO(
             "Checking if tablet cell is suspended"
-            "(TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v)",
-            Slot_->GetTransactionManager()->IsDecommissioned(),
-            Slot_->GetTransactionSupervisor()->IsDecommissioned());
+            "(TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v, "
+            "LeaseManagerDecommissioned: %v)",
+            transactionManagerDecommissioned,
+            transactionSupervisorDecommissioned,
+            leaseManagerDecommissioned);
 
-        if (Slot_->GetTransactionManager()->IsDecommissioned() &&
-            Slot_->GetTransactionSupervisor()->IsDecommissioned())
+        if (!transactionManagerDecommissioned ||
+            !transactionSupervisorDecommissioned ||
+            !leaseManagerDecommissioned)
         {
-            CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellSuspended())
-                ->CommitAndLog(Logger);
+            return;
         }
+
+        CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellSuspended())
+            ->CommitAndLog(Logger);
     }
 
     void HydraOnTabletCellSuspended(TReqOnTabletCellSuspended* /*request*/)
@@ -3457,6 +3477,41 @@ private:
         return false;
     }
 
+    TFuture<void> IssueLeases(const std::vector<TLeaseId>& leaseIds) override
+    {
+        THashMap<TCellTag, std::vector<TLeaseId>> cellTagToLeaseIds;
+
+        auto leaseManager = GetLeaseManager();
+        for (auto leaseId : leaseIds) {
+            if (!leaseManager->FindLease(leaseId)) {
+                auto cellTag = CellTagFromId(leaseId);
+                cellTagToLeaseIds[cellTag].push_back(leaseId);
+            }
+        }
+
+        const auto& connection = Bootstrap_->GetConnection();
+        const auto& hiveManager = Slot_->GetHiveManager();
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(cellTagToLeaseIds.size());
+        for (const auto& [cellTag, leaseIds] : cellTagToLeaseIds) {
+            auto cellId = connection->GetMasterCellId(cellTag);
+            auto masterChannel = connection->GetMasterChannelOrThrow(
+                EMasterChannelKind::Leader,
+                cellTag);
+            TTransactionServiceProxy proxy(std::move(masterChannel));
+            auto req = proxy.IssueLeases();
+            ToProto(req->mutable_transaction_ids(), leaseIds);
+            ToProto(req->mutable_cell_id(), GetCellId());
+
+            auto future = req->Invoke().AsVoid().Apply(BIND([=] {
+                return hiveManager->SyncWith(cellId, /*enableBatching*/ true);
+            }));
+            futures.push_back(std::move(future));
+        }
+
+        return AllSucceeded(std::move(futures));
+    }
 
     void SetTabletOrphaned(std::unique_ptr<TTablet> tabletHolder)
     {
