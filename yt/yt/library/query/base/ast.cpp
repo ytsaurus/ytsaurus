@@ -521,7 +521,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool
             FormatExpression(builder, *typedExpr->OptionalOperand, expandAliases);
         }
 
-        for (auto& item : typedExpr->WhenThenExpressions) {
+        for (const auto& item : typedExpr->WhenThenExpressions) {
             builder->AppendString(" WHEN ");
             FormatExpression(builder, item.first, expandAliases);
             builder->AppendString(" THEN ");

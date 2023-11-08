@@ -562,9 +562,9 @@ struct TVisitor
 
     void OnCase(const TCaseExpression* caseExpr)
     {
-        for (size_t i = 0; i < caseExpr->WhenThenExpressions.size(); ++i) {
-            Visit(caseExpr->WhenThenExpressions[i]->Condition);
-            Visit(caseExpr->WhenThenExpressions[i]->Result);
+        for (const auto& whenThenExpression : caseExpr->WhenThenExpressions) {
+            Visit(whenThenExpression->Condition);
+            Visit(whenThenExpression->Result);
         }
     }
 };
@@ -848,7 +848,7 @@ struct TAbstractExpressionPrinter
 
     void OnWhenThenExpressions(const TCaseExpression* caseExpr, TArgs... args)
     {
-        for (auto& caseClause : caseExpr->WhenThenExpressions) {
+        for (const auto& caseClause : caseExpr->WhenThenExpressions) {
             Builder->AppendString(" WHEN ");
             Visit(caseClause->Condition, args...);
             Builder->AppendString(" THEN ");
