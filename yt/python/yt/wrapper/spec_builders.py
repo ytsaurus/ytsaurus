@@ -720,7 +720,7 @@ class UserJobSpecBuilder(object):
         self._spec_patch = update(spec, self._spec_patch)
 
     def _supports_row_index(self, operation_type):
-        return self._job_type != "reducer" or operation_type != "map_reduce"
+        return (self._job_type != "reducer" and self._job_type != "reduce_combiner") or operation_type != "map_reduce"
 
     @staticmethod
     def _set_control_attribute(job_io_spec, key, value):
