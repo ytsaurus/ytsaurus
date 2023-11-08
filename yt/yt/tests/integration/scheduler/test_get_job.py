@@ -5,6 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     create_pool, insert_rows,
+    update_controller_agent_config,
     lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, sync_create_cells, raises_yt_error)
 
 import yt_error_codes
@@ -17,6 +18,7 @@ from flaky import flaky
 
 import pytest
 import builtins
+import time
 import datetime
 from copy import deepcopy
 
@@ -443,8 +445,10 @@ class TestGetJob(_TestGetJobCommon):
         assert not job_info.get("is_stale")
 
     @authors("levysotsky")
-    @flaky(max_runs=3)
     def test_get_job_is_stale(self):
+        update_controller_agent_config("snapshot_period", 1000000)
+        time.sleep(1)
+
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         (job_id,) = wait_breakpoint()
 
@@ -456,13 +460,13 @@ class TestGetJob(_TestGetJobCommon):
 
         op.wait_for_state("completed")
 
+        @wait_no_assert
         def check_job_state():
             job_info = retry(lambda: get_job(op.id, job_id))
-            return job_info.get("controller_state") == "running" and \
-                job_info.get("archive_state") == "running" and \
-                job_info.get("is_stale")
 
-        wait(check_job_state)
+            assert job_info.get("controller_state") == "running"
+            assert job_info.get("archive_state") == "running"
+            assert job_info.get("is_stale")
 
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
