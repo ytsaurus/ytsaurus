@@ -2,7 +2,7 @@ JAVA_CONTRIB(hamcrest-core-1.3)
 
 LICENSE(BSD-2-Clause)
 
-JAR_RESOURCE(53100555)
-SRC_RESOURCE(53100556)
+LOCAL_JAR(org.hamcrest-hamcrest-core-1.3.jar)
+LOCAL_SOURCES_JAR(org.hamcrest-hamcrest-core-1.3-sources.jar)
 
 END()

@@ -6,7 +6,7 @@ PEERDIR(
     contrib/java/org/hamcrest/hamcrest-core/1.3
 )
 
-JAR_RESOURCE(56663369)
-SRC_RESOURCE(56663370)
+LOCAL_JAR(junit-junit-4.12.jar)
+LOCAL_SOURCES_JAR(junit-junit-4.12-sources.jar)
 
 END()
