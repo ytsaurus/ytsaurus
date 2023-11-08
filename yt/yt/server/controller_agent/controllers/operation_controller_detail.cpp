@@ -8662,13 +8662,24 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobFor
 std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMonitoringDescriptor()
 {
     ++MonitoredUserJobAttemptCount_;
-    if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->MaxMonitoredUserJobsPerOperation) {
+    if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->ExtendedMaxMonitoredUserJobsPerOperation) {
         SetOperationAlert(
             EOperationAlertType::UserJobMonitoringLimited,
             TError("Limit of monitored user jobs per operation reached, some jobs may be not monitored")
-                << TErrorAttribute("limit_per_operation", Config->UserJobMonitoring->MaxMonitoredUserJobsPerOperation));
+                << TErrorAttribute("operation_type", OperationType)
+                << TErrorAttribute("limit_per_operation", Config->UserJobMonitoring->ExtendedMaxMonitoredUserJobsPerOperation));
         return {};
     }
+    if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation &&
+        !GetOrDefault(Config->UserJobMonitoring->EnableExtendedMaxMonitoredUserJobsPerOperation, OperationType))
+    {
+        YT_LOG_DEBUG("Limit of monitored user jobs per operation reached "
+            "(OperationType: %v, LimitPerOperation: %v)",
+            OperationType,
+            Config->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation);
+        return {};
+    }
+
     auto descriptor = Host->TryAcquireJobMonitoringDescriptor(OperationId);
     if (!descriptor) {
         SetOperationAlert(

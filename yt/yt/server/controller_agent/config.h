@@ -616,7 +616,11 @@ class TUserJobMonitoringConfig
     : public NYTree::TYsonStruct
 {
 public:
-    int MaxMonitoredUserJobsPerOperation;
+    int DefaultMaxMonitoredUserJobsPerOperation;
+    int ExtendedMaxMonitoredUserJobsPerOperation;
+
+    THashMap<EOperationType, bool> EnableExtendedMaxMonitoredUserJobsPerOperation;
+
     int MaxMonitoredUserJobsPerAgent;
 
     REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);

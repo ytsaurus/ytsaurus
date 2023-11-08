@@ -1446,6 +1446,14 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         }
     }
 
+    if (options.WithMonitoringDescriptor) {
+        if (*options.WithMonitoringDescriptor) {
+            builder.AddWhereConjunct("not is_null(monitoring_descriptor)");
+        } else {
+            builder.AddWhereConjunct("is_null(monitoring_descriptor)");
+        }
+    }
+
     if (options.TaskName) {
         builder.AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
     }

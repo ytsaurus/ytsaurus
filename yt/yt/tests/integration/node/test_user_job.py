@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_buil
 from yt_commands import (
     authors, print_debug, wait, wait_no_assert,
     wait_breakpoint, release_breakpoint, with_breakpoint,
-    events_on_fs, create, create_pool,
+    events_on_fs, create, create_pool, create_table,
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
     write_file, read_table,
@@ -2041,7 +2041,7 @@ class TestSecureVault(YTEnvSetup):
 class TestUserJobMonitoring(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     NUM_MASTERS = 1
-    NUM_NODES = 1
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_PORTO = True
 
@@ -2133,12 +2133,65 @@ class TestUserJobMonitoring(YTEnvSetup):
         expected_job_descriptor = "{}/0".format(incarnation_id)
         assert descriptor == expected_job_descriptor
 
+        jobs_with_descriptor = list_jobs(op.id, with_monitoring_descriptor=True)
+        assert len(jobs_with_descriptor) == len(list_jobs(op.id))
+        assert any(job["monitoring_descriptor"] == expected_job_descriptor for job in jobs_with_descriptor["jobs"])
+
         for _ in range(10):
             time.sleep(0.5)
             assert profiler.get(
                 "user_job/gpu/utilization_power",
                 {"job_descriptor": expected_job_descriptor, "gpu_slot": "0"},
                 postprocessor=float) == 0
+
+    @authors("omgronny")
+    def test_basic_map_operation(self):
+        update_controller_agent_config(
+            "user_job_monitoring/default_max_monitored_user_jobs_per_operation", 2)
+
+        create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+        create_table("//tmp/t_out")
+        op = map(
+            in_=["//tmp/t_in"],
+            out=["//tmp/t_out"],
+            spec={
+                "mapper": {
+                    "monitoring": {
+                        "enable": True,
+                    },
+                },
+                "max_failed_job_count": 0,
+            },
+            track=False,
+            command=with_breakpoint("BREAKPOINT; for (( c=1; c>0; c++ )); do : ; done"),
+        )
+        job_id, = wait_breakpoint()
+        release_breakpoint()
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
+
+        expected_time = 10 * 1000  # 10 seconds.
+        job_info = get_job(op.id, job_id)
+        node = job_info["address"]
+        descriptor = job_info["monitoring_descriptor"]
+
+        profiler = profiler_factory().at_node(node)
+
+        cpu_user_counter = profiler.counter("user_job/cpu/user", tags={"job_descriptor": descriptor})
+        wait(lambda: cpu_user_counter.get_delta() >= expected_time)
+
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+            controller_agent_address
+        )
+        incarnation_id = get("{}/incarnation_id".format(controller_agent_orchid))
+        expected_job_descriptor = "{}/0".format(incarnation_id)
+        assert descriptor == expected_job_descriptor
+
+        jobs_with_descriptor = list_jobs(op.id, with_monitoring_descriptor=True)
+        assert len(jobs_with_descriptor) == len(list_jobs(op.id))
+        assert any(job["monitoring_descriptor"] == expected_job_descriptor for job in jobs_with_descriptor["jobs"])
 
     @authors("levysotsky")
     def test_limits(self):
