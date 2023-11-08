@@ -505,9 +505,19 @@ void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)
 
 void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("max_monitored_user_jobs_per_operation", &TThis::MaxMonitoredUserJobsPerOperation)
-        .Default(20)
+    registrar.Parameter("default_max_monitored_user_jobs_per_operation", &TThis::DefaultMaxMonitoredUserJobsPerOperation)
+        .Default(5)
         .GreaterThanOrEqual(0);
+
+    registrar.Parameter("extended_max_monitored_user_jobs_per_operation", &TThis::ExtendedMaxMonitoredUserJobsPerOperation)
+        .Alias("max_monitored_user_jobs_per_operation")
+        .Default(200)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("enable_extended_max_monitored_user_jobs_per_operation", &TThis::EnableExtendedMaxMonitoredUserJobsPerOperation)
+        .Default({
+            {EOperationType::Vanilla, true},
+        });
 
     registrar.Parameter("max_monitored_user_jobs_per_agent", &TThis::MaxMonitoredUserJobsPerAgent)
         .Default(1'000)
