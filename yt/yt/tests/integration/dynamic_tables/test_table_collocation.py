@@ -38,6 +38,8 @@ class TestReplicatedTablesCollocationBase(DynamicTablesBase):
 class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
     @authors("akozhikhov")
     def test_table_collocation_creation_errors(self):
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         sync_create_cells(1)
         id0 = self._create_replicated_table("//tmp/t0", external_cell_tag=11)
 
@@ -79,6 +81,8 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 
     @authors("akozhikhov")
     def test_table_collocation_attributes(self):
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         sync_create_cells(1)
         table0 = "//tmp/t0"
         table1 = "//tmp/t1"
@@ -113,6 +117,8 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 
     @authors("akozhikhov")
     def test_table_collocation_removal_1(self):
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         sync_create_cells(1)
         table0 = "//tmp/t0"
         table1 = "//tmp/t1"
@@ -129,15 +135,13 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         assert exists("#{}".format(collocation_id))
         assert get("{}/@replication_collocation_table_paths".format(table1)) == list(collocated_tables.keys())
         if self.NUM_SECONDARY_MASTER_CELLS:
-            assert exists("#{}".format(collocation_id), driver=get_driver(1))
-            assert get("#{}/@replication_collocation_id".format(collocated_tables[table1]), driver=get_driver(1)) == \
-                collocation_id
+            assert not exists("#{}".format(collocation_id), driver=get_driver(1))
+            assert not exists("#{}/@replication_collocation_id".format(collocated_tables[table1]), driver=get_driver(1))
 
         collocated_tables[table2] = self._create_replicated_table(table2, external_cell_tag=11)
         set("{}/@replication_collocation_id".format(table2), collocation_id)
         if self.NUM_SECONDARY_MASTER_CELLS:
-            assert get("#{}/@replication_collocation_id".format(collocated_tables[table2]), driver=get_driver(1)) == \
-                collocation_id
+            assert not exists("#{}/@replication_collocation_id".format(collocated_tables[table2]), driver=get_driver(1))
 
         remove("#{}".format(collocation_id))
         assert not exists("#{}".format(collocation_id))
@@ -149,6 +153,8 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 
     @authors("akozhikhov")
     def test_table_collocation_removal_2(self):
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         sync_create_cells(1)
         table0 = "//tmp/t0"
         table1 = "//tmp/t1"
@@ -168,6 +174,8 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 
     @authors("akozhikhov")
     def test_table_collocation_removal_3(self):
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         sync_create_cells(1)
         table0 = "//tmp/t0"
         collocated_tables = {
@@ -191,6 +199,8 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
 
     @authors("akozhikhov")
     def test_table_collocation_multicell(self):
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         sync_create_cells(1)
         table0 = "//tmp/t0"
         table1 = "//tmp/t1"
@@ -199,17 +209,19 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
             table1: self._create_replicated_table(table1, external_cell_tag=12),
         }
 
-        with raises_yt_error("same external cell tag"):
-            create_table_collocation(table_ids=list(collocated_tables.values()))
-
-        collocation_id = create_table_collocation(table_ids=[collocated_tables[table0]])
-        assert get("#{}/@table_ids".format(collocation_id), driver=get_driver(1)) == \
+        collocation_id = create_table_collocation(table_ids=list(collocated_tables.values()))
+        assert not exists("#{}".format(collocation_id), driver=get_driver(1))
+        assert not get("#{}/@table_ids".format(collocation_id)) == \
             [collocated_tables[table0]]
-        assert get("#{}/@replication_collocation_table_paths".format(collocated_tables[table0]), driver=get_driver(1)) == \
-            ["#{}".format(collocated_tables[table0])]
 
-        with raises_yt_error("same external cell tag"):
-            set("{}/@replication_collocation_id".format(table1), collocation_id)
+        assert not exists("#{}/@replication_collocation_table_paths".format(collocated_tables[table0]), driver=get_driver(1))
+        assert_items_equal(get("#{}/@replication_collocation_table_paths".format(collocated_tables[table0])),
+                           [table0, table1])
+
+        assert exists("#{}".format(collocation_id))
+        assert not exists("#{}".format(collocation_id), driver=get_driver(1))
+        remove("#{}".format(collocation_id))
+        assert not exists("#{}".format(collocation_id))
 
 
 ##################################################################
@@ -222,6 +234,8 @@ class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase)
     @authors("akozhikhov")
     @pytest.mark.parametrize("external_cell_tag", [10, 11, 12])
     def test_portal_error(self, external_cell_tag):
+        set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+
         sync_create_cells(1)
 
         if external_cell_tag == 10:
@@ -241,11 +255,7 @@ class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase)
             create_table_collocation(table_ids=[id1])
 
         collocation_id = create_table_collocation(table_paths=["//sys/t"])
-        if external_cell_tag == 11:
-            with raises_yt_error("Unexpected native cell tag"):
-                set("//tmp/t/@replication_collocation_id", collocation_id)
-        else:
-            with raises_yt_error("No such table collocation"):
-                set("//tmp/t/@replication_collocation_id", collocation_id)
+        with raises_yt_error("Unexpected native cell tag"):
+            set("//tmp/t/@replication_collocation_id", collocation_id)
 
         remove("//sys/t")
