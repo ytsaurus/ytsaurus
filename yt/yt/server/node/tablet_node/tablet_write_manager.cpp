@@ -341,11 +341,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // NB: Some keys may be both prelocked and referenced in write log
-        // in different generations, so we abort all locks and then relock
-        // records in write log again. See YT-18097 for better explanation
-        // of possible problem.
-
         if (!Tablet_->GetStoreManager()) {
             // NB: OnStopLeading can be called prior to OnAfterSnapshotLoaded.
             // In this case, tablet does not have store manager initialized and
@@ -360,21 +355,14 @@ public:
             return;
         }
 
+        // TODO: Some keys may be both prelocked and referenced in write log
+        // in different generations, so this code is incorrect if tablet write
+        // retries are enabled.
         AbortPrelockedRows(transaction);
-        AbortLockedRows(transaction);
 
         // If transaction is transient, it is going to be removed, so we drop its write states.
         if (transaction->GetTransient()) {
             EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
-        }
-
-        if (const auto& writeState = FindTransactionPersistentWriteState(transaction->GetId())) {
-            for (const auto& writeRecord : writeState->LockedWriteLog) {
-                LockRows(transaction, writeRecord, /*relock*/ true);
-            }
-            if (writeState->RowsPrepared) {
-                PrepareLockedRows(transaction);
-            }
         }
     }
 
@@ -1049,11 +1037,10 @@ private:
 
     void LockRows(
         TTransaction* transaction,
-        const TTransactionWriteRecord& writeRecord,
-        bool relock = false)
+        const TTransactionWriteRecord& writeRecord)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(HasHydraContext() || relock);
+        YT_VERIFY(HasHydraContext());
 
         auto reader = CreateWireProtocolReader(writeRecord.Data);
         auto context = CreateWriteContext(transaction);
