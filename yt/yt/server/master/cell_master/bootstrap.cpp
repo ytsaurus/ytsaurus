@@ -845,9 +845,7 @@ void TBootstrap::DoInitialize()
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
-    ResponseKeeperManager_ = CreateResponseKeeperManager(
-        this,
-        CreatePersistentResponseKeeper(Logger, /*profiler*/ {}));
+    ResponseKeeperManager_ = CreateResponseKeeperManager(this);
 
     ObjectManager_ = CreateObjectManager(this);
 

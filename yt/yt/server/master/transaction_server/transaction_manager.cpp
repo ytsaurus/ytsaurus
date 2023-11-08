@@ -25,6 +25,7 @@
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
 
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 
@@ -1252,6 +1253,8 @@ public:
             responseFuture = DoCommitTransaction(
                 transactionId,
                 prerequisiteTransactionIds,
+                context->GetMutationId(),
+                context->IsRetry(),
                 /*prepareError*/ {});
         } else {
             responseFuture = readyEvent.Apply(
@@ -1259,7 +1262,9 @@ public:
                     &TTransactionManager::DoCommitTransaction,
                     MakeStrong(this),
                     transactionId,
-                    prerequisiteTransactionIds)
+                    prerequisiteTransactionIds,
+                    context->GetMutationId(),
+                    context->IsRetry())
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
@@ -1280,9 +1285,13 @@ public:
             return false;
         }
 
-        const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        if (responseKeeper->TryReplyFrom(context)) {
-            return true;
+        const auto& mutationId = context->GetMutationId();
+        if (mutationId) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            if (auto result = responseKeeper->FindRequest(mutationId, context->IsRetry())) {
+                context->ReplyFrom(std::move(result));
+                return true;
+            }
         }
 
         auto participantCellIds = FromProto<std::vector<TCellId>>(request.participant_cell_ids());
@@ -1314,6 +1323,8 @@ public:
             responseFuture = DoCommitTransaction(
                 transactionId,
                 prerequisiteTransactionIds,
+                mutationId,
+                context->IsRetry(),
                 /*prepareError*/ {});
         } else {
             responseFuture = readyEvent.Apply(
@@ -1321,7 +1332,9 @@ public:
                     &TTransactionManager::DoCommitTransaction,
                     MakeStrong(this),
                     transactionId,
-                    prerequisiteTransactionIds)
+                    prerequisiteTransactionIds,
+                    mutationId,
+                    context->IsRetry())
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
@@ -1332,6 +1345,8 @@ public:
     TFuture<TSharedRefArray> DoCommitTransaction(
         TTransactionId transactionId,
         std::vector<TTransactionId> prerequisiteTransactionIds,
+        NRpc::TMutationId mutationId,
+        bool isRetry,
         const TError& prepareError)
     {
         if (!prepareError.IsOK()) {
@@ -1347,13 +1362,17 @@ public:
                 &TTransactionManager::OnCommitTimestampGenerated,
                 MakeStrong(this),
                 transactionId,
-                prerequisiteTransactionIds)
+                prerequisiteTransactionIds,
+                std::move(mutationId),
+                isRetry)
                 .AsyncVia(EpochAutomatonInvoker_));
     }
 
     TFuture<TSharedRefArray> OnCommitTimestampGenerated(
         TTransactionId transactionId,
         std::vector<TTransactionId> prerequisiteTransactionIds,
+        NRpc::TMutationId mutationId,
+        bool isRetry,
         const TErrorOr<TTimestamp>& timestampOrError)
     {
         if (!timestampOrError.IsOK()) {
@@ -1375,6 +1394,7 @@ public:
         WriteAuthenticationIdentityToProto(&request, NRpc::GetCurrentAuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetMutationId(mutationId, isRetry);
         mutation->SetCurrentTraceContext();
         return mutation->Commit().Apply(BIND([=] (const TMutationResponse& rsp) {
             return rsp.Data;
@@ -1413,9 +1433,13 @@ public:
             return false;
         }
 
-        const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        if (responseKeeper->TryReplyFrom(context)) {
-            return true;
+        const auto& mutationId = context->GetMutationId();
+        if (mutationId) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            if (auto result = responseKeeper->FindRequest(mutationId, context->IsRetry())) {
+                context->ReplyFrom(std::move(result));
+                return true;
+            }
         }
 
         NProto::TReqAbortCypressTransaction req;
@@ -1424,6 +1448,7 @@ public:
         WriteAuthenticationIdentityToProto(&req, NRpc::GetCurrentAuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, req);
+        mutation->SetMutationId(mutationId, context->IsRetry());
         mutation->SetCurrentTraceContext();
         mutation->CommitAndReply(context);
         return true;

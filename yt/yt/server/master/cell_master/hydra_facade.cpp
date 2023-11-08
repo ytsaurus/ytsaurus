@@ -107,9 +107,7 @@ public:
 
         TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
 
-        ResponseKeeper_ = CreateResponseKeeper(
-            Config_->HydraManager->ResponseKeeper,
-            GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+        ResponseKeeper_ = CreatePersistentResponseKeeper(
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 
@@ -197,7 +195,7 @@ public:
         return HydraManager_;
     }
 
-    const IResponseKeeperPtr& GetResponseKeeper() const override
+    const IPersistentResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
     }
@@ -308,7 +306,7 @@ private:
 
     TActionQueuePtr TransactionTrackerQueue_;
 
-    IResponseKeeperPtr ResponseKeeper_;
+    IPersistentResponseKeeperPtr ResponseKeeper_;
 
     ILocalHydraJanitorPtr LocalJanitor_;
 

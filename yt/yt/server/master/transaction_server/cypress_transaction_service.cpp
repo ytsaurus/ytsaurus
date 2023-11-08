@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
+
 #include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
@@ -93,9 +95,12 @@ private:
             transactionId,
             prerequisiteTransactionIds);
 
-        const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        if (responseKeeper->TryReplyFrom(context)) {
-            return;
+        if (context->GetMutationId()) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            if (auto result = responseKeeper->FindRequest(context->GetMutationId(), context->IsRetry())) {
+                context->ReplyFrom(std::move(result));
+                return;
+            }
         }
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -113,9 +118,12 @@ private:
             transactionId,
             force);
 
-        const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        if (responseKeeper->TryReplyFrom(context)) {
-            return;
+        if (context->GetMutationId()) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            if (auto result = responseKeeper->FindRequest(context->GetMutationId(), context->IsRetry())) {
+                context->ReplyFrom(std::move(result));
+                return;
+            }
         }
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
