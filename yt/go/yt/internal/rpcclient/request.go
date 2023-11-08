@@ -32,8 +32,16 @@ func (r *CreateNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *CreateNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *CreateNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CreateNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 type CreateObjectRequest struct {
@@ -106,8 +114,16 @@ func (r *RemoveNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *RemoveNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *RemoveNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *RemoveNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*GetNodeRequest)(nil)
@@ -162,8 +178,16 @@ func (r *SetNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *SetNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *SetNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *SetNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*MultisetAttributesRequest)(nil)
@@ -190,8 +214,16 @@ func (r *MultisetAttributesRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *MultisetAttributesRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *MultisetAttributesRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *MultisetAttributesRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*ListNodeRequest)(nil)
@@ -247,8 +279,16 @@ func (r *CopyNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *CopyNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *CopyNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CopyNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*MoveNodeRequest)(nil)
@@ -277,8 +317,16 @@ func (r *MoveNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *MoveNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *MoveNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *MoveNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*LinkNodeRequest)(nil)
@@ -307,8 +355,16 @@ func (r *LinkNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *LinkNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *LinkNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *LinkNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*StartTxRequest)(nil)
@@ -478,8 +534,16 @@ func (r PutFileToCacheRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *PutFileToCacheRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *PutFileToCacheRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *PutFileToCacheRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ ReadRetryRequest = (*GetFileFromCacheRequest)(nil)
@@ -577,8 +641,16 @@ func (r *StartOperationRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *StartOperationRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *StartOperationRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *StartOperationRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 type AbortOperationRequest struct {
@@ -780,8 +852,16 @@ func (r AddMemberRequest) Path() (string, bool) {
 	return "", false
 }
 
+func (r *AddMemberRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *AddMemberRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *AddMemberRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*RemoveMemberRequest)(nil)
@@ -805,8 +885,16 @@ func (r RemoveMemberRequest) Path() (string, bool) {
 	return "", false
 }
 
+func (r *RemoveMemberRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *RemoveMemberRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *RemoveMemberRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 type AddMaintenanceRequest struct {
@@ -875,8 +963,16 @@ func (r TransferAccountResourcesRequest) Path() (string, bool) {
 	return "", false
 }
 
+func (r *TransferAccountResourcesRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *TransferAccountResourcesRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *TransferAccountResourcesRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*TransferPoolResourcesRequest)(nil)
@@ -902,8 +998,16 @@ func (r TransferPoolResourcesRequest) Path() (string, bool) {
 	return "", false
 }
 
+func (r *TransferPoolResourcesRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *TransferPoolResourcesRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *TransferPoolResourcesRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ ReadRetryRequest = (*CheckPermissionRequest)(nil)
@@ -1036,8 +1140,16 @@ func (r *LockNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *LockNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *LockNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *LockNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*UnlockNodeRequest)(nil)
@@ -1065,8 +1177,16 @@ func (r *UnlockNodeRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
+func (r *UnlockNodeRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *UnlockNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *UnlockNodeRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*SelectRowsRequest)(nil)
@@ -1220,8 +1340,16 @@ func (r MountTableRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *MountTableRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *MountTableRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *MountTableRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*UnmountTableRequest)(nil)
@@ -1244,8 +1372,16 @@ func (r UnmountTableRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *UnmountTableRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *UnmountTableRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *UnmountTableRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*RemountTableRequest)(nil)
@@ -1268,8 +1404,16 @@ func (r RemountTableRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *RemountTableRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *RemountTableRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *RemountTableRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*ReshardTableRequest)(nil)
@@ -1292,8 +1436,16 @@ func (r ReshardTableRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *ReshardTableRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *ReshardTableRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *ReshardTableRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*AlterTableRequest)(nil)
@@ -1316,8 +1468,16 @@ func (r AlterTableRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *AlterTableRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *AlterTableRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *AlterTableRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*FreezeTableRequest)(nil)
@@ -1340,8 +1500,16 @@ func (r FreezeTableRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *FreezeTableRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *FreezeTableRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *FreezeTableRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ MutatingRequest = (*UnfreezeTableRequest)(nil)
@@ -1364,8 +1532,16 @@ func (r UnfreezeTableRequest) Path() (string, bool) {
 	return r.GetPath(), true
 }
 
+func (r *UnfreezeTableRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
 func (r *UnfreezeTableRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *UnfreezeTableRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 type AlterTableReplicaRequest struct {

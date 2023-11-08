@@ -74,12 +74,13 @@ func emit(f file, out io.Writer) error {
 			write("if options == nil {")
 			write("options = &yt.%sOptions{}", m.name)
 			write("}")
+			write("optionsCopy := *options")
 			write("return &%sParams{", m.name)
 			write("Verb(%q),", m.httpVerb)
 			for i := 0; i < len(m.httpParams); i++ {
 				write("%s,", m.params[i].name)
 			}
-			write("options,")
+			write("&optionsCopy,")
 			write("}")
 			write("}")
 			write("")

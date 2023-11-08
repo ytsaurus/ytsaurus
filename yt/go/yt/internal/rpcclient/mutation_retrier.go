@@ -20,7 +20,9 @@ type MutationRetrier struct {
 }
 
 type MutatingRequest interface {
+	HasMutatingOptions() bool
 	SetMutatingOptions(opts *yt.MutatingOptions)
+	SetRetry(retry bool)
 }
 
 func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
@@ -29,14 +31,16 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 		return invoke(ctx, call, rsp, opts...)
 	}
 
-	mutOpts := &yt.MutatingOptions{
-		MutationID: yt.MutationID(guid.New()),
-		Retry:      false,
+	if !req.HasMutatingOptions() {
+		req.SetMutatingOptions(
+			&yt.MutatingOptions{
+				MutationID: yt.MutationID(guid.New()),
+				Retry:      false,
+			},
+		)
 	}
 
 	for i := 0; ; i++ {
-		req.SetMutatingOptions(mutOpts)
-
 		err = invoke(ctx, call, rsp, opts...)
 		if err == nil || !isNetError(err) {
 			return
@@ -48,7 +52,7 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 		default:
 		}
 
-		mutOpts.Retry = true
+		req.SetRetry(true)
 
 		b := call.Backoff.NextBackOff()
 		if b == backoff.Stop {

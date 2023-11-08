@@ -1164,11 +1164,12 @@ func NewCreateNodeParams(
 	if options == nil {
 		options = &yt.CreateNodeOptions{}
 	}
+	optionsCopy := *options
 	return &CreateNodeParams{
 		Verb("create"),
 		path,
 		typ,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1222,10 +1223,11 @@ func NewCreateObjectParams(
 	if options == nil {
 		options = &yt.CreateObjectOptions{}
 	}
+	optionsCopy := *options
 	return &CreateObjectParams{
 		Verb("create"),
 		typ,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1272,10 +1274,11 @@ func NewNodeExistsParams(
 	if options == nil {
 		options = &yt.NodeExistsOptions{}
 	}
+	optionsCopy := *options
 	return &NodeExistsParams{
 		Verb("exists"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1326,10 +1329,11 @@ func NewRemoveNodeParams(
 	if options == nil {
 		options = &yt.RemoveNodeOptions{}
 	}
+	optionsCopy := *options
 	return &RemoveNodeParams{
 		Verb("remove"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1380,10 +1384,11 @@ func NewGetNodeParams(
 	if options == nil {
 		options = &yt.GetNodeOptions{}
 	}
+	optionsCopy := *options
 	return &GetNodeParams{
 		Verb("get"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1438,10 +1443,11 @@ func NewSetNodeParams(
 	if options == nil {
 		options = &yt.SetNodeOptions{}
 	}
+	optionsCopy := *options
 	return &SetNodeParams{
 		Verb("set"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1492,10 +1498,11 @@ func NewMultisetAttributesParams(
 	if options == nil {
 		options = &yt.MultisetAttributesOptions{}
 	}
+	optionsCopy := *options
 	return &MultisetAttributesParams{
 		Verb("multiset_attributes"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1546,10 +1553,11 @@ func NewListNodeParams(
 	if options == nil {
 		options = &yt.ListNodeOptions{}
 	}
+	optionsCopy := *options
 	return &ListNodeParams{
 		Verb("list"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1606,11 +1614,12 @@ func NewCopyNodeParams(
 	if options == nil {
 		options = &yt.CopyNodeOptions{}
 	}
+	optionsCopy := *options
 	return &CopyNodeParams{
 		Verb("copy"),
 		src,
 		dst,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1662,11 +1671,12 @@ func NewMoveNodeParams(
 	if options == nil {
 		options = &yt.MoveNodeOptions{}
 	}
+	optionsCopy := *options
 	return &MoveNodeParams{
 		Verb("move"),
 		src,
 		dst,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1718,11 +1728,12 @@ func NewLinkNodeParams(
 	if options == nil {
 		options = &yt.LinkNodeOptions{}
 	}
+	optionsCopy := *options
 	return &LinkNodeParams{
 		Verb("link"),
 		target,
 		link,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1770,9 +1781,10 @@ func NewStartTxParams(
 	if options == nil {
 		options = &yt.StartTxOptions{}
 	}
+	optionsCopy := *options
 	return &StartTxParams{
 		Verb("start_transaction"),
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1809,9 +1821,10 @@ func NewStartTabletTxParams(
 	if options == nil {
 		options = &yt.StartTabletTxOptions{}
 	}
+	optionsCopy := *options
 	return &StartTabletTxParams{
 		Verb("start_transaction"),
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1842,10 +1855,11 @@ func NewPingTxParams(
 	if options == nil {
 		options = &yt.PingTxOptions{}
 	}
+	optionsCopy := *options
 	return &PingTxParams{
 		Verb("ping_transaction"),
 		id,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1884,10 +1898,11 @@ func NewAbortTxParams(
 	if options == nil {
 		options = &yt.AbortTxOptions{}
 	}
+	optionsCopy := *options
 	return &AbortTxParams{
 		Verb("abort_transaction"),
 		id,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1934,10 +1949,11 @@ func NewCommitTxParams(
 	if options == nil {
 		options = &yt.CommitTxOptions{}
 	}
+	optionsCopy := *options
 	return &CommitTxParams{
 		Verb("commit_transaction"),
 		id,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -1984,10 +2000,11 @@ func NewWriteFileParams(
 	if options == nil {
 		options = &yt.WriteFileOptions{}
 	}
+	optionsCopy := *options
 	return &WriteFileParams{
 		Verb("write_file"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2030,10 +2047,11 @@ func NewReadFileParams(
 	if options == nil {
 		options = &yt.ReadFileOptions{}
 	}
+	optionsCopy := *options
 	return &ReadFileParams{
 		Verb("read_file"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2078,11 +2096,12 @@ func NewPutFileToCacheParams(
 	if options == nil {
 		options = &yt.PutFileToCacheOptions{}
 	}
+	optionsCopy := *options
 	return &PutFileToCacheParams{
 		Verb("put_file_to_cache"),
 		path,
 		md5,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2132,10 +2151,11 @@ func NewGetFileFromCacheParams(
 	if options == nil {
 		options = &yt.GetFileFromCacheOptions{}
 	}
+	optionsCopy := *options
 	return &GetFileFromCacheParams{
 		Verb("get_file_from_cache"),
 		md5,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2178,10 +2198,11 @@ func NewWriteTableParams(
 	if options == nil {
 		options = &yt.WriteTableOptions{}
 	}
+	optionsCopy := *options
 	return &WriteTableParams{
 		Verb("write_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2224,10 +2245,11 @@ func NewReadTableParams(
 	if options == nil {
 		options = &yt.ReadTableOptions{}
 	}
+	optionsCopy := *options
 	return &ReadTableParams{
 		Verb("read_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2272,11 +2294,12 @@ func NewStartOperationParams(
 	if options == nil {
 		options = &yt.StartOperationOptions{}
 	}
+	optionsCopy := *options
 	return &StartOperationParams{
 		Verb("start_operation"),
 		opType,
 		spec,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2321,10 +2344,11 @@ func NewAbortOperationParams(
 	if options == nil {
 		options = &yt.AbortOperationOptions{}
 	}
+	optionsCopy := *options
 	return &AbortOperationParams{
 		Verb("abort_operation"),
 		opID,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2359,10 +2383,11 @@ func NewSuspendOperationParams(
 	if options == nil {
 		options = &yt.SuspendOperationOptions{}
 	}
+	optionsCopy := *options
 	return &SuspendOperationParams{
 		Verb("suspend_operation"),
 		opID,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2397,10 +2422,11 @@ func NewResumeOperationParams(
 	if options == nil {
 		options = &yt.ResumeOperationOptions{}
 	}
+	optionsCopy := *options
 	return &ResumeOperationParams{
 		Verb("resume_operation"),
 		opID,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2435,10 +2461,11 @@ func NewCompleteOperationParams(
 	if options == nil {
 		options = &yt.CompleteOperationOptions{}
 	}
+	optionsCopy := *options
 	return &CompleteOperationParams{
 		Verb("complete_operation"),
 		opID,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2475,11 +2502,12 @@ func NewUpdateOperationParametersParams(
 	if options == nil {
 		options = &yt.UpdateOperationParametersOptions{}
 	}
+	optionsCopy := *options
 	return &UpdateOperationParametersParams{
 		Verb("update_operation_parameters"),
 		opID,
 		params,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2517,10 +2545,11 @@ func NewGetOperationParams(
 	if options == nil {
 		options = &yt.GetOperationOptions{}
 	}
+	optionsCopy := *options
 	return &GetOperationParams{
 		Verb("get_operation"),
 		opID,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2561,9 +2590,10 @@ func NewListOperationsParams(
 	if options == nil {
 		options = &yt.ListOperationsOptions{}
 	}
+	optionsCopy := *options
 	return &ListOperationsParams{
 		Verb("list_operations"),
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2602,10 +2632,11 @@ func NewListJobsParams(
 	if options == nil {
 		options = &yt.ListJobsOptions{}
 	}
+	optionsCopy := *options
 	return &ListJobsParams{
 		Verb("list_jobs"),
 		opID,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2642,11 +2673,12 @@ func NewGetJobStderrParams(
 	if options == nil {
 		options = &yt.GetJobStderrOptions{}
 	}
+	optionsCopy := *options
 	return &GetJobStderrParams{
 		Verb("get_job_stderr"),
 		opID,
 		jobID,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2686,11 +2718,12 @@ func NewAddMemberParams(
 	if options == nil {
 		options = &yt.AddMemberOptions{}
 	}
+	optionsCopy := *options
 	return &AddMemberParams{
 		Verb("add_member"),
 		group,
 		member,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2734,9 +2767,10 @@ func NewBuildMasterSnapshotsParams(
 	if options == nil {
 		options = &yt.BuildMasterSnapshotsOptions{}
 	}
+	optionsCopy := *options
 	return &BuildMasterSnapshotsParams{
 		Verb("build_master_snapshots"),
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2765,9 +2799,10 @@ func NewBuildSnapshotParams(
 	if options == nil {
 		options = &yt.BuildSnapshotOptions{}
 	}
+	optionsCopy := *options
 	return &BuildSnapshotParams{
 		Verb("build_snapshot"),
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2800,11 +2835,12 @@ func NewRemoveMemberParams(
 	if options == nil {
 		options = &yt.RemoveMemberOptions{}
 	}
+	optionsCopy := *options
 	return &RemoveMemberParams{
 		Verb("remove_member"),
 		group,
 		member,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2856,13 +2892,14 @@ func NewAddMaintenanceParams(
 	if options == nil {
 		options = &yt.AddMaintenanceOptions{}
 	}
+	optionsCopy := *options
 	return &AddMaintenanceParams{
 		Verb("add_maintenance"),
 		component,
 		address,
 		maintenanceType,
 		comment,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2908,11 +2945,12 @@ func NewRemoveMaintenanceParams(
 	if options == nil {
 		options = &yt.RemoveMaintenanceOptions{}
 	}
+	optionsCopy := *options
 	return &RemoveMaintenanceParams{
 		Verb("remove_maintenance"),
 		component,
 		address,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -2954,12 +2992,13 @@ func NewTransferAccountResourcesParams(
 	if options == nil {
 		options = &yt.TransferAccountResourcesOptions{}
 	}
+	optionsCopy := *options
 	return &TransferAccountResourcesParams{
 		Verb("transfer_account_resources"),
 		srcAccount,
 		dstAccount,
 		resourceDelta,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3010,13 +3049,14 @@ func NewTransferPoolResourcesParams(
 	if options == nil {
 		options = &yt.TransferPoolResourcesOptions{}
 	}
+	optionsCopy := *options
 	return &TransferPoolResourcesParams{
 		Verb("transfer_pool_resources"),
 		srcPool,
 		dstPool,
 		poolTree,
 		resourceDelta,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3068,12 +3108,13 @@ func NewCheckPermissionParams(
 	if options == nil {
 		options = &yt.CheckPermissionOptions{}
 	}
+	optionsCopy := *options
 	return &CheckPermissionParams{
 		Verb("check_permission"),
 		user,
 		permission,
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3128,11 +3169,12 @@ func NewDisableChunkLocationsParams(
 	if options == nil {
 		options = &yt.DisableChunkLocationsOptions{}
 	}
+	optionsCopy := *options
 	return &DisableChunkLocationsParams{
 		Verb("disable_chunk_locations"),
 		nodeAddress,
 		locationUUIDs,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3172,11 +3214,12 @@ func NewDestroyChunkLocationsParams(
 	if options == nil {
 		options = &yt.DestroyChunkLocationsOptions{}
 	}
+	optionsCopy := *options
 	return &DestroyChunkLocationsParams{
 		Verb("destroy_chunk_locations"),
 		nodeAddress,
 		locationUUIDs,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3216,11 +3259,12 @@ func NewResurrectChunkLocationsParams(
 	if options == nil {
 		options = &yt.ResurrectChunkLocationsOptions{}
 	}
+	optionsCopy := *options
 	return &ResurrectChunkLocationsParams{
 		Verb("resurrect_chunk_locations"),
 		nodeAddress,
 		locationUUIDs,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3258,10 +3302,11 @@ func NewRequestRestartParams(
 	if options == nil {
 		options = &yt.RequestRestartOptions{}
 	}
+	optionsCopy := *options
 	return &RequestRestartParams{
 		Verb("request_restart"),
 		nodeAddress,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3298,11 +3343,12 @@ func NewLockNodeParams(
 	if options == nil {
 		options = &yt.LockNodeOptions{}
 	}
+	optionsCopy := *options
 	return &LockNodeParams{
 		Verb("lock"),
 		path,
 		mode,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3348,10 +3394,11 @@ func NewUnlockNodeParams(
 	if options == nil {
 		options = &yt.UnlockNodeOptions{}
 	}
+	optionsCopy := *options
 	return &UnlockNodeParams{
 		Verb("unlock"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3394,10 +3441,11 @@ func NewSelectRowsParams(
 	if options == nil {
 		options = &yt.SelectRowsOptions{}
 	}
+	optionsCopy := *options
 	return &SelectRowsParams{
 		Verb("select_rows"),
 		query,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3440,10 +3488,11 @@ func NewLookupRowsParams(
 	if options == nil {
 		options = &yt.LookupRowsOptions{}
 	}
+	optionsCopy := *options
 	return &LookupRowsParams{
 		Verb("lookup_rows"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3486,12 +3535,13 @@ func NewLockRowsParams(
 	if options == nil {
 		options = &yt.LockRowsOptions{}
 	}
+	optionsCopy := *options
 	return &LockRowsParams{
 		Verb("lock_rows"),
 		path,
 		locks,
 		lockType,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3536,10 +3586,11 @@ func NewInsertRowsParams(
 	if options == nil {
 		options = &yt.InsertRowsOptions{}
 	}
+	optionsCopy := *options
 	return &InsertRowsParams{
 		Verb("insert_rows"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3578,10 +3629,11 @@ func NewDeleteRowsParams(
 	if options == nil {
 		options = &yt.DeleteRowsOptions{}
 	}
+	optionsCopy := *options
 	return &DeleteRowsParams{
 		Verb("delete_rows"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3620,10 +3672,11 @@ func NewMountTableParams(
 	if options == nil {
 		options = &yt.MountTableOptions{}
 	}
+	optionsCopy := *options
 	return &MountTableParams{
 		Verb("mount_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3666,10 +3719,11 @@ func NewUnmountTableParams(
 	if options == nil {
 		options = &yt.UnmountTableOptions{}
 	}
+	optionsCopy := *options
 	return &UnmountTableParams{
 		Verb("unmount_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3712,10 +3766,11 @@ func NewRemountTableParams(
 	if options == nil {
 		options = &yt.RemountTableOptions{}
 	}
+	optionsCopy := *options
 	return &RemountTableParams{
 		Verb("remount_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3758,10 +3813,11 @@ func NewReshardTableParams(
 	if options == nil {
 		options = &yt.ReshardTableOptions{}
 	}
+	optionsCopy := *options
 	return &ReshardTableParams{
 		Verb("reshard_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3804,10 +3860,11 @@ func NewAlterTableParams(
 	if options == nil {
 		options = &yt.AlterTableOptions{}
 	}
+	optionsCopy := *options
 	return &AlterTableParams{
 		Verb("alter_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3846,10 +3903,11 @@ func NewFreezeTableParams(
 	if options == nil {
 		options = &yt.FreezeTableOptions{}
 	}
+	optionsCopy := *options
 	return &FreezeTableParams{
 		Verb("freeze_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3892,10 +3950,11 @@ func NewUnfreezeTableParams(
 	if options == nil {
 		options = &yt.UnfreezeTableOptions{}
 	}
+	optionsCopy := *options
 	return &UnfreezeTableParams{
 		Verb("unfreeze_table"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3938,10 +3997,11 @@ func NewAlterTableReplicaParams(
 	if options == nil {
 		options = &yt.AlterTableReplicaOptions{}
 	}
+	optionsCopy := *options
 	return &AlterTableReplicaParams{
 		Verb("alter_table_replica"),
 		id,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -3976,10 +4036,11 @@ func NewCreateTableBackupParams(
 	if options == nil {
 		options = &yt.CreateTableBackupOptions{}
 	}
+	optionsCopy := *options
 	return &CreateTableBackupParams{
 		Verb("create_table_backup"),
 		manifest,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4018,10 +4079,11 @@ func NewRestoreTableBackupParams(
 	if options == nil {
 		options = &yt.RestoreTableBackupOptions{}
 	}
+	optionsCopy := *options
 	return &RestoreTableBackupParams{
 		Verb("restore_table_backup"),
 		manifest,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4062,11 +4124,12 @@ func NewStartQueryParams(
 	if options == nil {
 		options = &yt.StartQueryOptions{}
 	}
+	optionsCopy := *options
 	return &StartQueryParams{
 		Verb("start_query"),
 		engine,
 		query,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4108,10 +4171,11 @@ func NewAbortQueryParams(
 	if options == nil {
 		options = &yt.AbortQueryOptions{}
 	}
+	optionsCopy := *options
 	return &AbortQueryParams{
 		Verb("abort_query"),
 		id,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4150,10 +4214,11 @@ func NewGetQueryParams(
 	if options == nil {
 		options = &yt.GetQueryOptions{}
 	}
+	optionsCopy := *options
 	return &GetQueryParams{
 		Verb("get_query"),
 		id,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4190,9 +4255,10 @@ func NewListQueriesParams(
 	if options == nil {
 		options = &yt.ListQueriesOptions{}
 	}
+	optionsCopy := *options
 	return &ListQueriesParams{
 		Verb("list_queries"),
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4229,11 +4295,12 @@ func NewGetQueryResultParams(
 	if options == nil {
 		options = &yt.GetQueryResultOptions{}
 	}
+	optionsCopy := *options
 	return &GetQueryResultParams{
 		Verb("get_query_result"),
 		id,
 		resultIndex,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4277,11 +4344,12 @@ func NewReadQueryResultParams(
 	if options == nil {
 		options = &yt.ReadQueryResultOptions{}
 	}
+	optionsCopy := *options
 	return &ReadQueryResultParams{
 		Verb("read_query_result"),
 		id,
 		resultIndex,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4323,10 +4391,11 @@ func NewAlterQueryParams(
 	if options == nil {
 		options = &yt.AlterQueryOptions{}
 	}
+	optionsCopy := *options
 	return &AlterQueryParams{
 		Verb("alter_query"),
 		id,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4363,9 +4432,10 @@ func NewGenerateTimestampParams(
 	if options == nil {
 		options = &yt.GenerateTimestampOptions{}
 	}
+	optionsCopy := *options
 	return &GenerateTimestampParams{
 		Verb("generate_timestamp"),
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4396,10 +4466,11 @@ func NewLocateSkynetShareParams(
 	if options == nil {
 		options = &yt.LocateSkynetShareOptions{}
 	}
+	optionsCopy := *options
 	return &LocateSkynetShareParams{
 		Verb("locate_skynet_share"),
 		path,
-		options,
+		&optionsCopy,
 	}
 }
 
@@ -4436,11 +4507,12 @@ func NewGetInSyncReplicasParams(
 	if options == nil {
 		options = &yt.GetInSyncReplicasOptions{}
 	}
+	optionsCopy := *options
 	return &GetInSyncReplicasParams{
 		Verb("get_in_sync_replicas"),
 		path,
 		ts,
-		options,
+		&optionsCopy,
 	}
 }
 

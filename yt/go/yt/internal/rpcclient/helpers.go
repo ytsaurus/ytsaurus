@@ -238,9 +238,10 @@ func convertMutatingOptions(opts *yt.MutatingOptions) *rpc_proxy.TMutatingOption
 		return nil
 	}
 
+	retry := opts.Retry
 	return &rpc_proxy.TMutatingOptions{
 		MutationId: convertGUID(guid.GUID(opts.MutationID)),
-		Retry:      &opts.Retry,
+		Retry:      &retry,
 	}
 }
 
