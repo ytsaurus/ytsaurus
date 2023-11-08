@@ -393,7 +393,7 @@ private:
 
         for (const auto& chunkSlice : unversionedChunkSlices) {
             const auto& originalDataSlice = unversionedInputChunkToOwningDataSlice[chunkSlice->GetInputChunk()];
-            int inputCookie = unversionedInputChunkToInputCookie.at(chunkSlice->GetInputChunk());
+            int inputCookie = GetOrCrash(unversionedInputChunkToInputCookie, chunkSlice->GetInputChunk());
             auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
             dataSlice->CopyPayloadFrom(*originalDataSlice);
 

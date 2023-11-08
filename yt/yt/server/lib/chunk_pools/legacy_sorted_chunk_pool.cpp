@@ -403,7 +403,7 @@ private:
 
         for (const auto& chunkSlice : unversionedChunkSlices) {
             const auto& originalDataSlice = unversionedInputChunkToOwningDataSlice[chunkSlice->GetInputChunk()];
-            int inputCookie = unversionedInputChunkToInputCookie.at(chunkSlice->GetInputChunk());
+            int inputCookie = GetOrCrash(unversionedInputChunkToInputCookie, chunkSlice->GetInputChunk());
 
             // We additionally slice maniac slices by evenly by row indices.
             auto chunk = chunkSlice->GetInputChunk();

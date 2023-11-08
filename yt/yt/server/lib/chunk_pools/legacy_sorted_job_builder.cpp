@@ -386,7 +386,7 @@ private:
                 auto& lowerLimit = iterator->second;
                 auto exactDataSlice = CreateInputDataSlice(dataSlice, lowerLimit, upperLimit);
                 exactDataSlice->CopyPayloadFrom(*dataSlice);
-                auto inputCookie = DataSliceToInputCookie_.at(dataSlice);
+                auto inputCookie = GetOrCrash(DataSliceToInputCookie_, dataSlice);
                 exactDataSlice->Tag = inputCookie;
                 Jobs_.back()->AddDataSlice(
                     exactDataSlice,
@@ -472,7 +472,7 @@ private:
                 if (it != openedSlicesLowerLimits.end()) {
                     auto exactDataSlice = CreateInputDataSlice(dataSlice, it->second);
                     exactDataSlice->CopyPayloadFrom(*dataSlice);
-                    auto inputCookie = DataSliceToInputCookie_.at(dataSlice);
+                    auto inputCookie = GetOrCrash(DataSliceToInputCookie_, dataSlice);
                     exactDataSlice->Tag = inputCookie;
                     Jobs_.back()->AddDataSlice(exactDataSlice, inputCookie, true /* isPrimary */);
                     openedSlicesLowerLimits.erase(it);
@@ -577,7 +577,7 @@ private:
                             GetKeyPrefix(job->LowerPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_),
                             GetKeyPrefixSuccessor(job->UpperPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_));
                         exactForeignDataSlice->CopyPayloadFrom(*foreignDataSlice);
-                        auto inputCookie = DataSliceToInputCookie_.at(foreignDataSlice);
+                        auto inputCookie = GetOrCrash(DataSliceToInputCookie_, foreignDataSlice);
                         exactForeignDataSlice->Tag = inputCookie;
                         ++TotalSliceCount_;
                         // exactForeignDataSlice->TransformToNew(RowBuffer_, Options_.ForeignPrefixLength);
