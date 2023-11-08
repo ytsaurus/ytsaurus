@@ -634,6 +634,21 @@ class YTEnvSetup(object):
 
             yt_commands.create(
                 "table",
+                "//sys/sequoia/children_nodes",
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "parent_path", "type": "string", "sort_order": "ascending"},
+                        {"name": "child_key", "type": "string", "sort_order": "ascending"},
+                        {"name": "child_id", "type": "string"},
+                    ],
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                })
+            yt_commands.sync_mount_table("//sys/sequoia/children_nodes")
+
+            yt_commands.create(
+                "table",
                 "//sys/sequoia/chunk_replicas",
                 attributes={
                     "dynamic": True,

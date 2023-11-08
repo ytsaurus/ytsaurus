@@ -503,6 +503,12 @@ GENERATE_YT_RECORD(
 
 
 GENERATE_YT_RECORD(
+    sequoia_client/children_nodes.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
     sequoia_client/reverse_resolve_node.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h

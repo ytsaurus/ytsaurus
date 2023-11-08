@@ -1,0 +1,24 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+types:
+  - type_name: TChildrenNodes
+    fields:
+      - cpp_name: ParentPath
+        cpp_type: TMangledSequoiaPath
+        column_name: parent_path
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: ChildKey
+        cpp_type: TString
+        column_name: child_key
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: ChildId
+        cpp_type: NCypressClient::TNodeId
+        column_name: child_id
+        column_type: String
+
+    verbatim: |
+        static constexpr auto Table = ESequoiaTable::ChildrenNodes;

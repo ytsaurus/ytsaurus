@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/core/ypath/tokenizer.h>
+
 namespace NYT::NSequoiaClient {
 
 using namespace NYPath;
@@ -13,14 +15,14 @@ TMangledSequoiaPath MangleSequoiaPath(const TYPath& path)
     return TMangledSequoiaPath(path + '/');
 }
 
-TYPath DemangleSequoiaPath(TMangledSequoiaPath mangledPath)
+TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 {
     YT_VERIFY(!mangledPath.Underlying().empty());
     YT_VERIFY(mangledPath.Underlying().back() == '/');
     return mangledPath.Underlying().substr(0, mangledPath.Underlying().size() - 1);
 }
 
-TMangledSequoiaPath MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(TMangledSequoiaPath prefix)
+TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix)
 {
     return TMangledSequoiaPath(prefix.Underlying() + '\xFF');
 }

@@ -3,6 +3,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "path_resolver.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -16,6 +17,7 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/children_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -24,6 +26,8 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 #include <yt/yt/core/ypath/tokenizer.h>
+
+#include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -115,6 +119,8 @@ protected:
     {
         YT_VERIFY(TypeFromId(nodeId) != EObjectType::Rootstock);
 
+        auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(path));
+
         // Remove from resolve table.
         Transaction_->DeleteRow(NRecords::TResolveNodeKey{
             .Path = path,
@@ -123,6 +129,12 @@ protected:
         // Remove from reverse resolve table.
         Transaction_->DeleteRow(NRecords::TReverseResolveNodeKey{
             .NodeId = nodeId,
+        });
+
+        // Remove from children nodes table;
+        Transaction_->DeleteRow(NRecords::TChildrenNodesKey{
+            .ParentPath = MangleSequoiaPath(parentPath),
+            .ChildKey = childKey,
         });
 
         // Remove from master cell.
@@ -298,7 +310,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
     auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TResolveNodeKey>(
         {
             Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
         },
         selectedRowsLimit))
         .ValueOrThrow();
@@ -343,49 +355,13 @@ public:
 
 private:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
-
-    constexpr static auto TypicalUnresolvedSuffixTokenCountOnNodeCreation = 2;
+    DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, List);
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Create);
-
+        DISPATCH_YPATH_SERVICE_METHOD(List);
         return TNodeProxyBase::DoInvoke(context);
-    }
-
-    // TODO(kvk1920): Return vector of tokens when recursive creation will be supported.
-    TYPath TokenizeUnresolvedSuffixOnNodeCreation(const TYPath& unresolvedSuffix)
-    {
-        constexpr auto TypicalPathTokenCount = 2;
-        TCompactVector<TYPathBuf, TypicalPathTokenCount> pathTokens;
-
-        TTokenizer tokenizer(unresolvedSuffix);
-        tokenizer.Advance();
-
-        while (tokenizer.GetType() != ETokenType::EndOfStream) {
-            tokenizer.Expect(ETokenType::Slash);
-            tokenizer.Advance();
-            tokenizer.Expect(ETokenType::Literal);
-            pathTokens.push_back(tokenizer.GetToken());
-            tokenizer.Advance();
-        }
-
-        if (pathTokens.empty()) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "%v already exists",
-                Path_);
-        }
-        if (std::ssize(pathTokens) > 1) {
-            // TODO(kvk1920): Support recursive node creation.
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
-                "Node %v has no child with key %Qv",
-                Path_,
-                pathTokens[0]);
-        }
-
-        return TYPath(pathTokens[0]);
     }
 
     TCellId GetObjectCellId(TObjectId id)
@@ -458,8 +434,24 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     }
 
     auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
+    auto pathTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
 
-    auto childKey = TokenizeUnresolvedSuffixOnNodeCreation(unresolvedSuffix);
+    if (pathTokens.empty()) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::AlreadyExists,
+            "%v already exists",
+            Path_);
+    }
+    if (std::ssize(pathTokens) > 1) {
+        // TODO(kvk1920): Support recursive node creation.
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "Node %v has no child with key %Qv",
+            Path_,
+            pathTokens[0]);
+    }
+
+    auto childKey = TYPath(pathTokens[0]);
 
     const auto& parentPath = Path_;
     auto parentId = Id_;
@@ -499,6 +491,13 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
         .Key = {.NodeId = childId},
         .Path = childPath,
     });
+    Transaction_->WriteRow(NRecords::TChildrenNodes{
+        .Key = {
+            .ParentPath = MangleSequoiaPath(parentPath),
+            .ChildKey = childKey,
+        },
+        .ChildId = childId,
+    });
 
     // Create child on destination cell.
     CreateNode(type, childId, childPath);
@@ -514,6 +513,52 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
 
     ToProto(response->mutable_node_id(), childId);
     response->set_cell_tag(ToProto<int>(childCellTag));
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
+{
+    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
+    if (auto pathTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+        !pathTokens.empty())
+    {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "Node %v has no child with key %Qv",
+            Path_,
+            pathTokens[0]);
+    }
+
+    auto limit = request->has_limit()
+        ? std::make_optional(request->limit())
+        : std::nullopt;
+
+    auto mangledPath = MangleSequoiaPath(Path_);
+    Transaction_->LockRow(
+        NRecords::TResolveNodeKey{.Path = mangledPath},
+        ELockType::SharedStrong);
+
+    auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildrenNodesKey>(
+        {
+            Format("parent_path = %Qv", mangledPath),
+        },
+        limit))
+        .ValueOrThrow();
+
+    WaitFor(Transaction_->Commit())
+        .ThrowOnError();
+
+    TStringStream out;
+    NYson::TYsonWriter writer(&out);
+
+    writer.OnBeginList();
+    for (const auto& row : selectRows) {
+        writer.OnListItem();
+        writer.OnStringScalar(row.Key.ChildKey);
+    }
+    writer.OnEndList();
+
+    response->set_value(out.Str());
     context->Reply();
 }
 

@@ -15,7 +15,7 @@ namespace NYT::NSequoiaClient {
 struct ISequoiaTransaction
     : public TRefCounted
 {
-    virtual TFuture<void> Commit(const NApi::TTransactionCommitOptions& options) = 0;
+    virtual TFuture<void> Commit(const NApi::TTransactionCommitOptions& options = {}) = 0;
 
     virtual TFuture<NApi::TUnversionedLookupRowsResult> LookupRows(
         ESequoiaTable table,

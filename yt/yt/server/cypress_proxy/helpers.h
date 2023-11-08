@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/ytree/public.h>
+
+namespace NYT::NCypressProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<NYPath::TYPathBuf> TokenizeUnresolvedSuffix(const NYPath::TYPath& unresolvedSuffix);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCypressProxy

@@ -6,6 +6,7 @@ SRCS(
     bootstrap.cpp
     config.cpp
     dynamic_config_manager.cpp
+    helpers.cpp
     node_proxy.cpp
     object_service.cpp
     path_resolver.cpp

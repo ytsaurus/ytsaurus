@@ -12,7 +12,7 @@ TMangledSequoiaPath MangleSequoiaPath(const NYPath::TYPath& rawPath);
 
 NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
 
-TMangledSequoiaPath MakeLexigraphicallyMaximalMangledSequoiaPathForPrefix(TMangledSequoiaPath prefix);
+TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
