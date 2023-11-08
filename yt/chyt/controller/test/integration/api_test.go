@@ -377,7 +377,7 @@ func TestHTTPAPIList(t *testing.T) {
 
 	r = c.MakePostRequest("list", api.RequestParams{
 		Params: map[string]any{
-			"attributes": []string{"creator", "test_option"},
+			"attributes": []string{"creator", "test_option", "stage"},
 		},
 	})
 
@@ -390,6 +390,7 @@ func TestHTTPAPIList(t *testing.T) {
 		Attrs: map[string]any{
 			"creator":     "root",
 			"test_option": nil,
+			"stage":       "test_stage",
 		},
 	})
 }

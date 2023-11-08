@@ -96,5 +96,6 @@ func GetOpBriefAttributes(
 		"start_time":    getYSONTimePointerOrNil(infoState.YTOpStartTime),
 		"finish_time":   getYSONTimePointerOrNil(infoState.YTOpFinishTime),
 		"state":         GetOpState(speclet, infoState),
+		"stage":         speclet.Stage,
 	}, nil
 }

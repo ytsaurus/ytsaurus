@@ -219,22 +219,20 @@ func (a *API) Create(
 		return err
 	}
 
-	if specletOptions != nil {
-		pool, poolIsSet := specletOptions["pool"]
+	pool, poolIsSet := specletOptions["pool"]
 
-		if active, ok := specletOptions["active"]; ok {
-			if err := validateBool(active); err != nil {
-				return err
-			}
-			if active.(bool) && !poolIsSet {
-				return yterrors.Err("can't start operation, pool is not set")
-			}
+	if active, ok := specletOptions["active"]; ok {
+		if err := validateBool(active); err != nil {
+			return err
 		}
+		if active.(bool) && !poolIsSet {
+			return yterrors.Err("can't start operation, pool is not set")
+		}
+	}
 
-		if poolIsSet {
-			if err := a.validatePoolOption(ctx, pool); err != nil {
-				return err
-			}
+	if poolIsSet {
+		if err := a.validatePoolOption(ctx, pool); err != nil {
+			return err
 		}
 	}
 
