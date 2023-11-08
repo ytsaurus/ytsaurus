@@ -136,7 +136,7 @@ public:
         const TSharedRef& /*data*/,
         const TWriteOptions& /*options*/) override
     {
-        THROW_ERROR_EXCEPTION("Writes are not supported");
+        return MakeFuture(TError("Writes are not supported"));
     }
 
     virtual TFuture<void> Flush() override

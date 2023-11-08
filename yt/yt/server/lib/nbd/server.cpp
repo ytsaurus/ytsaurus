@@ -184,7 +184,7 @@ private:
             IConnectionPtr connection)
             : Server_(std::move(server))
             , Connection_(std::move(connection))
-            , Logger(Server_->Logger.WithTag("ConnectionId: %v", TGuid::Create()))
+            , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
         { }
 
