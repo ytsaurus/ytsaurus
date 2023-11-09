@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/containers/public.h>
 
+#include <yt/yt/library/containers/cri/public.h>
+
 #include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/job_report.h>
 
@@ -458,6 +460,8 @@ private:
 
     // Analyse results.
     static TError BuildJobProxyError(const TError& spawnError);
+
+    NContainers::NCri::TCriAuthConfigPtr BuildDockerAuthConfig();
 
     TUserSandboxOptions BuildUserSandboxOptions();
 

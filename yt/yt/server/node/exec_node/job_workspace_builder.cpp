@@ -638,7 +638,7 @@ private:
 
             YT_LOG_INFO("Preparing root volume (Image: %v)", imageDescriptor);
 
-            return Executor_->PullImage(imageDescriptor)
+            return Executor_->PullImage(imageDescriptor, /*always*/ false, Context_.DockerAuth)
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCriImageDescriptor>& imageOrError) {
                     if (!imageOrError.IsOK()) {
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
@@ -652,6 +652,7 @@ private:
                     const auto& imageResult = imageOrError.Value();
                     YT_LOG_INFO("Root volume prepared (Image: %v)", imageResult);
 
+                    ResultHolder_.DockerImage = imageResult.Image;
                     VolumePrepareFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
                 }));

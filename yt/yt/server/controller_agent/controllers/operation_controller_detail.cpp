@@ -9614,8 +9614,10 @@ void TOperationControllerBase::InitUserJobSpec(
                     break;
                 ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
                 #undef XX
+                case ENodeType::Entity:
+                    break;
                 default:
-                    // We do not export composite values as a separate environment variables.
+                    value = ConvertToYsonString(node, EYsonFormat::Text).ToString();
                     break;
             }
             if (value) {

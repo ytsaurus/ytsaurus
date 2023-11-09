@@ -160,6 +160,8 @@ public:
 
     TMemoryTrackerConfigPtr MemoryTracker;
 
+    //! Bind mounts for user job container.
+    //! Includes "root_fs_binds" and artifacts if they are passed as bind mounts.
     std::vector<TBindConfigPtr> Binds;
 
     std::vector<TString> GpuDevices;

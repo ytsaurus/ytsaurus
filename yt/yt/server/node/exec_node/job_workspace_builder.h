@@ -50,6 +50,7 @@ struct TJobWorkspaceBuildingContext
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
     std::vector<NJobAgent::TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
+    NContainers::NCri::TCriAuthConfigPtr DockerAuth;
 
     bool NeedGpuCheck;
     std::optional<TString> GpuCheckBinaryPath;
@@ -63,6 +64,7 @@ struct TJobWorkspaceBuildingContext
 struct TJobWorkspaceBuildingResult
 {
     IVolumePtr RootVolume;
+    std::optional<TString> DockerImage;
     std::vector<TString> TmpfsPaths;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
