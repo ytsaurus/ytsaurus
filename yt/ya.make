@@ -26,7 +26,6 @@ IF (NOT OPENSOURCE)
         docs
         docs/yandex-specific
         docs/ytsaurus
-        experiments
         hermes
         idm-integration
         internal
