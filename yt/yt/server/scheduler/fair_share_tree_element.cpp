@@ -1004,6 +1004,16 @@ int TSchedulerCompositeElement::GetChildOperationCount() const noexcept
     return count;
 }
 
+int TSchedulerCompositeElement::GetChildPoolCount() const noexcept
+{
+    int count = 0;
+    for (const auto& child : EnabledChildren_) {
+        if (!child->IsOperation()) {
+            ++count;
+        }
+    }
+    return count;
+}
 
 ESchedulingMode TSchedulerCompositeElement::GetMode() const
 {
