@@ -140,7 +140,7 @@ yt remove //sys/account_tree/my_account/my_subaccount3
 
 {% endcut %}
 
-#### Перемещение или переименование аккаунта { #account_tree_moving }
+### Перемещение или переименование аккаунта { #account_tree_moving }
 
 {% cut "В веб-интерфейсе {{product-name}}" %}
 
