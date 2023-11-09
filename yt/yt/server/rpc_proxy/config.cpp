@@ -49,6 +49,9 @@ void TAccessCheckerConfig::Register(TRegistrar registrar)
     registrar.Parameter("path_prefix", &TThis::PathPrefix)
         .Default("//sys/rpc_proxy_roles");
 
+    registrar.Parameter("use_access_control_objects", &TThis::UseAccessControlObjects)
+        .Default(false);
+
     registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
 }
