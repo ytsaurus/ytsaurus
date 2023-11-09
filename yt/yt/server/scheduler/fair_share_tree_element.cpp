@@ -1463,7 +1463,7 @@ void TSchedulerPoolElement::BuildResourceMetering(
         auto insertResult = meteringMap->insert({*key, meteringStatistics});
         YT_VERIFY(insertResult.second);
     } else {
-        meteringMap->at(*parentKey).AccountChild(meteringStatistics);
+        GetOrCrash(*meteringMap, *parentKey).AccountChild(meteringStatistics);
     }
 
     for (const auto& child : EnabledChildren_) {
@@ -1474,7 +1474,7 @@ void TSchedulerPoolElement::BuildResourceMetering(
     }
 
     if (key && parentKey) {
-        meteringMap->at(*parentKey).DiscountChild(meteringStatistics);
+        GetOrCrash(*meteringMap, *parentKey).DiscountChild(meteringStatistics);
     }
 }
 
