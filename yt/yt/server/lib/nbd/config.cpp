@@ -24,7 +24,7 @@ void TIdsConfig::Register(TRegistrar registrar)
     registrar.Parameter("port", &TThis::Port)
         .Default(10809);
     registrar.Parameter("max_backlog_size", &TThis::MaxBacklogSize)
-        .Default(1000);
+        .Default(1'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ void TUdsConfig::Register(TRegistrar registrar)
     registrar.Parameter("path", &TThis::Path)
         .Default("/tmp/nbd.sock");
     registrar.Parameter("max_backlog_size", &TThis::MaxBacklogSize)
-        .Default(1000);
+        .Default(1'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

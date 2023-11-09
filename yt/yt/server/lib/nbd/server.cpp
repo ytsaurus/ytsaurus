@@ -59,7 +59,7 @@ public:
                     THROW_ERROR_EXCEPTION(
                         "Failed to remove unix domain socket %v",
                         address)
-                    << TError::FromSystem();
+                        << TError::FromSystem();
                 }
             } else if (Config_->InternetDomainSocket) {
                 maxBacklogSize = Config_->InternetDomainSocket->MaxBacklogSize;
@@ -184,14 +184,14 @@ private:
             IConnectionPtr connection)
             : Server_(std::move(server))
             , Connection_(std::move(connection))
-            , Logger(Server_->Logger.WithTag("ConnectionId: %v", TGuid::Create()))
-            , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->Invoker_, /*maxConcurrentInvocations*/ 1))
+            , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
+            , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
         { }
 
         void Run()
         {
             BIND(&TConnectionHandler::FiberMain, MakeStrong(this))
-                .AsyncVia(Server_->Invoker_)
+                .AsyncVia(Server_->GetInvoker())
                 .Run();
         }
 
@@ -203,7 +203,7 @@ private:
         const IInvokerPtr ResponseInvoker_;
 
         IBlockDevicePtr Device_;
-        bool Abort_ = false;
+        std::atomic<bool> Abort_ = false;
 
 
         void FiberMain()
@@ -588,8 +588,12 @@ private:
 
         void WriteBuffer(const TSharedRef& buffer)
         {
-            WaitFor(Connection_->Write(buffer))
-                .ThrowOnError();
+            auto error = WaitFor(Connection_->Write(buffer));
+            if (!error.IsOK()) {
+                // WriteBuffer might be called asynchronously so abort connection gracefully (don't throw).
+                YT_LOG_WARNING(error, "Failed to write buffer, aborting connection");
+                Abort_ = true;
+            }
         }
 
         TSharedRef ReadBuffer(size_t size)
