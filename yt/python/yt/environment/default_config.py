@@ -189,7 +189,7 @@ def get_scheduler_config():
     scheduler = {
         lock_transaction_timeout = 10000;
         operations_update_period = 500;
-        fair_share_update_period = 500;
+        fair_share_update_period = 100;
         watchers_update_period = 100;
         nodes_attributes_update_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
