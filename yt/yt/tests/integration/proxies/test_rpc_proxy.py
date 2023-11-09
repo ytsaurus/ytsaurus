@@ -6,6 +6,7 @@ from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, create, ls,
     get, set,
     copy, remove, exists, create_account, create_user, create_proxy_role, make_ace, start_transaction, commit_transaction, ping_transaction,
+    create_access_control_object_namespace, create_access_control_object,
     insert_rows, select_rows,
     lookup_rows, alter_table, explain_query, read_file, write_file,
     read_table, write_table, map,
@@ -82,7 +83,23 @@ class TestRpcProxy(YTEnvSetup):
 
         wait(config_updated, ignore_exceptions=True)
 
-    @authors("gritukan")
+
+class RpcProxyAccessCheckerTestBase(YTEnvSetup):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    NUM_RPC_PROXIES = 1
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "access_checker": {
+            "enabled": True,
+            "cache": {
+                "expire_after_access_time": 100,
+            },
+        },
+    }
+
+    @authors("gritukan", "verytable")
     def test_access_checker(self):
         rpc_proxies = ls("//sys/rpc_proxies")
         assert len(rpc_proxies) == 1
@@ -95,14 +112,14 @@ class TestRpcProxy(YTEnvSetup):
                 return False
             return True
 
-        create("rpc_proxy_role_map", "//sys/rpc_proxy_roles")
+        self.create_proxy_role_namespace()
 
         create_user("u")
-        create_proxy_role("r1", "rpc")
-        create_proxy_role("r2", "rpc")
+        self.create_proxy_role("r1")
+        self.create_proxy_role("r2")
 
-        set("//sys/rpc_proxy_roles/r1/@acl", [make_ace("deny", "u", "use")])
-        set("//sys/rpc_proxy_roles/r2/@acl", [make_ace("allow", "u", "use")])
+        self.set_acl("r1", [make_ace("deny", "u", "use")])
+        self.set_acl("r2", [make_ace("allow", "u", "use")])
 
         # "u" is not allowed to use proxies with role "r1".
         set("//sys/rpc_proxies/" + proxy_name + "/@role", "r1")
@@ -113,7 +130,7 @@ class TestRpcProxy(YTEnvSetup):
         wait(lambda: check_access("u"))
 
         # Now "u" is not allowed to use proxies with role "r2".
-        set("//sys/rpc_proxy_roles/r2/@acl", [make_ace("deny", "u", "use")])
+        self.set_acl("r2", [make_ace("deny", "u", "use")])
         wait(lambda: not check_access("u"))
 
         # There is no node for proxy role "r3". By default we allow access to
@@ -132,6 +149,36 @@ class TestRpcProxy(YTEnvSetup):
         # Enable access checker via dynamic config. And "u" is banned again.
         set("//sys/rpc_proxies/@config", {"access_checker": {"enabled": True}})
         wait(lambda: not check_access("u"))
+
+
+class TestRpcProxyAccessChecker(RpcProxyAccessCheckerTestBase):
+    def create_proxy_role_namespace(self):
+        create("rpc_proxy_role_map", "//sys/rpc_proxy_roles")
+
+    def create_proxy_role(self, name):
+        create_proxy_role(name, "rpc")
+
+    def set_acl(self, role, acl):
+        set(f"//sys/rpc_proxy_roles/{role}/@acl", acl)
+
+
+class TestRpcProxyAccessCheckerWithAco(RpcProxyAccessCheckerTestBase):
+    @classmethod
+    def setup_class(cls):
+        cls.DELTA_RPC_PROXY_CONFIG["access_checker"].update({
+            "use_access_control_objects": True,
+            "path_prefix": "//sys/access_control_object_namespaces/rpc_proxy_roles",
+        })
+        super().setup_class()
+
+    def create_proxy_role_namespace(self):
+        create_access_control_object_namespace("rpc_proxy_roles")
+
+    def create_proxy_role(self, name):
+        create_access_control_object(name, "rpc_proxy_roles")
+
+    def set_acl(self, role, acl):
+        set(f"//sys/access_control_object_namespaces/rpc_proxy_roles/{role}/principal/@acl", acl)
 
 
 class TestRpcProxyStructuredLogging(YTEnvSetup):

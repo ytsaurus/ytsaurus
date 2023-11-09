@@ -57,7 +57,9 @@ public:
             return TError();
         }
 
-        auto path = Format("%v/%v", Config_->PathPrefix, *proxyRole);
+        auto path = Config_->UseAccessControlObjects
+            ? Format("%v/%v/principal", Config_->PathPrefix, *proxyRole)
+            : Format("%v/%v", Config_->PathPrefix, *proxyRole);
         auto error = WaitFor(Cache_->Get(TPermissionKey{
             .Object = path,
             .User = user,

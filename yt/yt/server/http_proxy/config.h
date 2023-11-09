@@ -165,8 +165,11 @@ public:
     bool Enabled;
 
     //! Access checker will check use permission for
-    //! PathPrefix/ProxyRole path.
+    //! PathPrefix/ProxyRole path or
+    //! PathPrefix/ProxyRole/principal if UseAccessControlObjects is set.
     TString PathPrefix;
+
+    bool UseAccessControlObjects;
 
     //! Parameters of the permission cache.
     NSecurityClient::TPermissionCacheConfigPtr Cache;

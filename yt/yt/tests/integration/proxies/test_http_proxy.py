@@ -7,6 +7,7 @@ from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, map,
     create_user, create_proxy_role, issue_token, make_ace,
+    create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint,
     read_table, write_table, Operation)
 
@@ -263,7 +264,34 @@ class TestHttpProxy(HttpProxyTestBase):
     def test_fail_logging(self):
         requests.get(self._get_proxy_address() + "/api/v2/get")
 
-    @authors("gritukan")
+    @authors("alexkolodezny")
+    def test_banned_proxy(self):
+        proxy = ls("//sys/http_proxies")[0]
+        set("//sys/http_proxies/" + proxy + "/@banned", True)
+        wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
+
+        set("//sys/http_proxies/" + proxy + "/@banned", False)
+        wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+
+    @authors("alexkolodezny")
+    def test_proxy_unavailable_on_master_failure(self):
+        with Restarter(self.Env, MASTERS_SERVICE):
+            wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
+
+        wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+
+
+class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
+    DELTA_PROXY_CONFIG = {
+        "access_checker": {
+            "enabled": True,
+            "cache": {
+                "expire_after_access_time": 100,
+            },
+        },
+    }
+
+    @authors("gritukan", "verytable")
     def test_access_checker(self):
         def check_access(proxy_address, user):
             url = "{}/api/v3/get?path=//sys/@config".format(proxy_address)
@@ -271,14 +299,14 @@ class TestHttpProxy(HttpProxyTestBase):
             assert rsp.status_code == 200 or rsp.status_code == 403
             return rsp.status_code == 200
 
-        create("http_proxy_role_map", "//sys/http_proxy_roles")
+        self.create_proxy_role_namespace()
 
         create_user("u")
-        create_proxy_role("r1", "http")
-        create_proxy_role("r2", "http")
+        self.create_proxy_role("r1")
+        self.create_proxy_role("r2")
 
-        set("//sys/http_proxy_roles/r1/@acl", [make_ace("deny", "u", "use")])
-        set("//sys/http_proxy_roles/r2/@acl", [make_ace("allow", "u", "use")])
+        self.set_acl("r1", [make_ace("deny", "u", "use")])
+        self.set_acl("r2", [make_ace("allow", "u", "use")])
 
         proxy = ls("//sys/http_proxies")[0]
         proxy_address = self._get_proxy_address()
@@ -292,7 +320,7 @@ class TestHttpProxy(HttpProxyTestBase):
         wait(lambda: check_access(proxy_address, "u"))
 
         # Now "u" is not allowed to use proxies with role "r2".
-        set("//sys/http_proxy_roles/r2/@acl", [make_ace("deny", "u", "use")])
+        self.set_acl("r2", [make_ace("deny", "u", "use")])
         wait(lambda: not check_access(proxy_address, "u"))
 
         # There is no node for proxy role "r3". By default we allow access to
@@ -312,21 +340,35 @@ class TestHttpProxy(HttpProxyTestBase):
         set("//sys/http_proxies/@config", {"access_checker": {"enabled": True}})
         wait(lambda: not check_access(proxy_address, "u"))
 
-    @authors("alexkolodezny")
-    def test_banned_proxy(self):
-        proxy = ls("//sys/http_proxies")[0]
-        set("//sys/http_proxies/" + proxy + "/@banned", True)
-        wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
 
-        set("//sys/http_proxies/" + proxy + "/@banned", False)
-        wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
+    def create_proxy_role_namespace(self):
+        create("http_proxy_role_map", "//sys/http_proxy_roles")
 
-    @authors("alexkolodezny")
-    def test_proxy_unavailable_on_master_failure(self):
-        with Restarter(self.Env, MASTERS_SERVICE):
-            wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
+    def create_proxy_role(self, name):
+        create_proxy_role(name, "http")
 
-        wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+    def set_acl(self, role, acl):
+        set(f"//sys/http_proxy_roles/{role}/@acl", acl)
+
+
+class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
+    @classmethod
+    def setup_class(cls):
+        cls.DELTA_PROXY_CONFIG["access_checker"].update({
+            "use_access_control_objects": True,
+            "path_prefix": "//sys/access_control_object_namespaces/http_proxy_roles",
+        })
+        super().setup_class()
+
+    def create_proxy_role_namespace(self):
+        create_access_control_object_namespace("http_proxy_roles")
+
+    def create_proxy_role(self, name):
+        create_access_control_object(name, "http_proxy_roles")
+
+    def set_acl(self, role, acl):
+        set(f"//sys/access_control_object_namespaces/http_proxy_roles/{role}/principal/@acl", acl)
 
 
 class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
