@@ -2276,6 +2276,30 @@ class TestAccounts(AccountsTestSuiteBase):
 
         wait(totals_match)
 
+    @authors("kvk1920")
+    def test_get_and_set_total_children_resource_limits(self):
+        create_account("parent")
+        create_account("child", "parent")
+        limits = {
+            "node_count": 615000,
+            "chunk_count": 3521000,
+            "tablet_count": 45500,
+            "tablet_static_memory": 28680932609228,
+            "disk_space_per_medium": {
+                "default": 1801118414798848,
+            },
+            "disk_space": 1801118414798848,
+            "master_memory": {
+                "total": 966367641600,
+                "chunk_host": 107374182400,
+                "per_cell": {},
+            },
+        }
+        for account in ("parent", "child"):
+            set(f"//sys/accounts/{account}/@resource_limits", limits)
+        set("//sys/accounts/parent/@resource_limits", get("//sys/accounts/parent/@total_children_resource_limits"))
+        assert get("//sys/accounts/parent/@resource_limits") == limits
+
 
 class TestAccountTree(AccountsTestSuiteBase):
     USE_DYNAMIC_TABLES = True
