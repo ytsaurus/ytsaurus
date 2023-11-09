@@ -525,6 +525,9 @@ class YTInstance(object):
 
             if on_masters_started_func is not None:
                 on_masters_started_func()
+
+            patched_node_config = self._apply_nodes_dynamic_config(client)
+
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
                 self.start_nodes(sync=False)
             if self.yt_config.chaos_node_count > 0 and not self.yt_config.defer_chaos_node_start:
@@ -560,7 +563,7 @@ class YTInstance(object):
                             self.yt_config.meta_files_suffix,
                             client)
 
-            self._apply_nodes_dynamic_config(client)
+            self._wait_for_dynamic_config(patched_node_config, client)
             self._write_environment_info_to_file()
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
@@ -1999,7 +2002,7 @@ class YTInstance(object):
 
         client.set("//sys/cluster_nodes/@config", patched_dyn_node_config)
 
-        self._wait_for_dynamic_config(patched_dyn_node_config["%true"], client)
+        return patched_dyn_node_config["%true"]
 
     def _wait_for_dynamic_config(self, expected_config, client):
         nodes = client.list("//sys/cluster_nodes")
