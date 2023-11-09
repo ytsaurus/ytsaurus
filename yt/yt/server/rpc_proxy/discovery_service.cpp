@@ -260,7 +260,7 @@ private:
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating proxy node %Qv", ProxyPath_)
+            THROW_ERROR_EXCEPTION("Error creating proxy node %v", ProxyPath_)
                 << ex;
         }
 
