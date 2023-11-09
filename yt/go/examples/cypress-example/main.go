@@ -11,21 +11,38 @@ import (
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
+	"go.ytsaurus.tech/yt/go/yt/ytrpc"
 )
 
 var (
-	flagProxy = flag.String("proxy", "", "cluster address")
+	flagProxy  = flag.String("proxy", "", "cluster address")
+	flagUseRpc = flag.Bool("use-rpc", false, "use RPC proxy")
+	flagUseTls = flag.Bool("use-tls", false, "use TLS")
 )
 
 func Example() error {
 	flag.Parse()
 
-	yc, err := ythttp.NewClient(&yt.Config{
-		Proxy:             *flagProxy,
-		ReadTokenFromFile: true,
-	})
-	if err != nil {
-		return err
+	var yc yt.Client
+	var err error
+	if *flagUseRpc {
+		yc, err = ytrpc.NewClient(&yt.Config{
+			Proxy:             *flagProxy,
+			ReadTokenFromFile: true,
+			UseTLS:            *flagUseTls,
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		yc, err = ythttp.NewClient(&yt.Config{
+			Proxy:             *flagProxy,
+			ReadTokenFromFile: true,
+			UseTLS:            *flagUseTls,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	ctx := context.Background()
