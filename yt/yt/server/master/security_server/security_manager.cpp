@@ -4005,16 +4005,16 @@ private:
         AccountMasterMemoryUsageUpdateExecutor_->Start();
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            ActivateAccountsProfiling();
+            StartAccountsProfiling();
         }
     }
 
-    void ActivateAccountsProfiling()
+    void StartAccountsProfiling()
     {
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (!dynamicConfig->EnableAccountsProfiling) {
-            DeactivateAccountsProfiling();
+            StopAccountsProfiling();
         }
 
         BufferedProducer_->SetEnabled(true);
@@ -4029,7 +4029,7 @@ private:
         }
     }
 
-    void DeactivateAccountsProfiling()
+    void StopAccountsProfiling()
     {
         if (AccountsProfilingExecutor_) {
             AccountsProfilingExecutor_->Stop();
@@ -4061,7 +4061,7 @@ private:
             AccountMasterMemoryUsageUpdateExecutor_.Reset();
         }
 
-        DeactivateAccountsProfiling();
+        StopAccountsProfiling();
     }
 
     void OnStopFollowing() override
@@ -4766,7 +4766,7 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             if (IsLeader()) {
-                ActivateAccountsProfiling();
+                StartAccountsProfiling();
             }
         }
 
