@@ -179,6 +179,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTransientAbort_23_2)                                       (2442))  // babenko
     ((ZombieACOs)                                                   (2443))  // shakurov
     ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
+    ((LastSeenUserAttribute)                                        (2445))  // cherepashka
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch

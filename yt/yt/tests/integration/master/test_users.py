@@ -19,6 +19,7 @@ from yt.common import YtError
 
 import pytest
 import builtins
+import datetime
 
 
 ##################################################################
@@ -707,6 +708,26 @@ class TestUsers(YTEnvSetup):
         check_profiling_counters("u", False)
         check_profiling_counters("v", True)
 
+    def _get_last_seen_time(self, username):
+        last_seen_yson = get(f"//sys/users/{username}/@last_seen_time")
+        return datetime.datetime.strptime(last_seen_yson, "%Y-%m-%dT%H:%M:%S.%fZ")
+
+    @authors("cherepashka")
+    def test_last_seen_time_is_increasing(self):
+        create_user("u")
+        wait(lambda: self._get_last_seen_time("u").year > 1970, timeout=10)
+        last_seen = self._get_last_seen_time("u")
+
+        for table_ind in range(5):
+            create("table", f"//tmp/t{table_ind}", authenticated_user="u")
+            wait(lambda: self._get_last_seen_time("u") > last_seen, timeout=2)
+            assert self._get_last_seen_time("u") - last_seen < datetime.timedelta(seconds=2)
+            last_seen = self._get_last_seen_time("u")
+
+        last_seen = self._get_last_seen_time("u")
+        set("//sys/users/u/@name", "v", authenticated_user="u")
+        wait(lambda: self._get_last_seen_time("v") > last_seen, timeout=2)
+
 
 ##################################################################
 
@@ -736,3 +757,17 @@ class TestUsersMulticell(TestUsers):
 
         set("//sys/@config/multicell_manager/cell_descriptors/11", {"name": "George"})
         assert get("//sys/users/u/@request_limits/read_request_rate/per_cell") == {"Julia": 100, "George": 200}
+
+    @authors("cherepashka")
+    def test_last_seen_via_visit_portal(self):
+        # Make sure secondary cell can host portal entries.
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+
+        create_user("u")
+        wait(lambda: self._get_last_seen_time("u").year > 1970, timeout=10)
+        last_seen = self._get_last_seen_time("u")
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/p/t", authenticated_user="u")
+        wait(lambda: self._get_last_seen_time("u") > last_seen, timeout=2)
+        assert self._get_last_seen_time("u") - last_seen < datetime.timedelta(seconds=2)

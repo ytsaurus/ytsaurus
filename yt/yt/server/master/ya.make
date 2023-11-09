@@ -303,11 +303,13 @@ SRCS(
     security_server/proxy_role.cpp
     security_server/request_tracker.cpp
     security_server/security_manager.cpp
+    security_server/proto/security_manager.proto
     security_server/security_tags.cpp
     security_server/subject_proxy_detail.cpp
     security_server/subject.cpp
     security_server/user_proxy.cpp
     security_server/user.cpp
+    security_server/user_activity_tracker.cpp
 
     sequoia_server/config.cpp
     sequoia_server/context.cpp

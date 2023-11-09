@@ -49,7 +49,8 @@ void TAccessTracker::Start()
     YT_VERIFY(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-        BIND(&TAccessTracker::OnFlush, MakeWeak(this)));
+        BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
+        GetDynamicConfig()->StatisticsFlushPeriod);
     FlushExecutor_->Start();
 
     const auto& configManager = Bootstrap_->GetConfigManager();
