@@ -3,10 +3,13 @@ package strawberry
 type OptionType string
 
 const (
-	TypeBool   OptionType = "bool"
-	TypeString OptionType = "string"
-	TypeUInt64 OptionType = "uint64"
-	TypeYson   OptionType = "yson"
+	TypeBool      OptionType = "bool"
+	TypeString    OptionType = "string"
+	TypeUInt64    OptionType = "uint64"
+	TypeYson      OptionType = "yson"
+	TypePath      OptionType = "path"
+	TypePool      OptionType = "pool"
+	TypeByteCount OptionType = "byte_count"
 )
 
 type OptionDescriptor struct {

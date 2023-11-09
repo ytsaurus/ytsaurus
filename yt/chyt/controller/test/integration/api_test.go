@@ -731,7 +731,7 @@ func TestHTTPAPIDescribeOptions(t *testing.T) {
 	require.GreaterOrEqual(t, len(result["result"]), 2)
 	require.Contains(t, stripOptions(result["result"])[0].Options, strawberry.OptionDescriptor{
 		Name: "pool",
-		Type: "string",
+		Type: "pool",
 	})
 	require.Contains(t, stripOptions(result["result"])[len(result["result"])-1].Options, strawberry.OptionDescriptor{
 		Name:         "test_option",

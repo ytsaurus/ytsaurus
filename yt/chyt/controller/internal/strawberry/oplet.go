@@ -35,7 +35,7 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 			Options: []OptionDescriptor{
 				{
 					Name:         "pool",
-					Type:         TypeString,
+					Type:         TypePool,
 					CurrentValue: speclet.Pool,
 					Description:  "Name of the compute pool to start a corresponding YT operation in.",
 				},

@@ -263,7 +263,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 				},
 				{
 					Name:         "instance_total_memory",
-					Type:         strawberry.TypeUInt64,
+					Type:         strawberry.TypeByteCount,
 					CurrentValue: speclet.InstanceTotalMemory,
 					DefaultValue: (&InstanceMemory{}).totalMemory(),
 					Description:  "Amount of RAM per instance in bytes.",
@@ -294,7 +294,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 				},
 				{
 					Name:         "geodata_path",
-					Type:         strawberry.TypeString,
+					Type:         strawberry.TypePath,
 					CurrentValue: speclet.GeoDataPath,
 					DefaultValue: DefaultGeoDataPath,
 				},
