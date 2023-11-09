@@ -131,19 +131,19 @@ TClusterResources::TMediaDiskSpace TClusterResources::GetPatchedDiskSpace(
             return;
         }
 
-        auto [it, ite] = std::equal_range(
+        auto [beginIt, endIt] = std::equal_range(
             diskSpace.begin(),
             diskSpace.end(),
             std::pair<const TMedium*, i64>(medium, mediumDiskSpace),
             compareByMediumIndexes);
 
-        if (auto distance = std::distance(it, ite); distance > 0) {
+        if (auto distance = std::distance(beginIt, endIt); distance > 0) {
             YT_ASSERT(distance == 1); // No duplicate media.
             YT_ASSERT(mediumDiskSpace == 0);
             return;
         }
 
-        diskSpace.insert(it, {medium, mediumDiskSpace}); // No emplace in TCompactVector.
+        diskSpace.insert(beginIt, {medium, mediumDiskSpace}); // No emplace in TCompactVector.
     };
 
     for (auto [mediumIndex, mediumDiskSpace] : DiskSpace()) {
@@ -393,7 +393,7 @@ void DoSerializeClusterResources(
         chunkManager,
         additionalMediumIndexes);
 
-    auto totalDiskSpace = i64(0);
+    i64 totalDiskSpace = 0;
     for (const auto& [medium, size] : diskSpace) {
         totalDiskSpace += size;
     }
