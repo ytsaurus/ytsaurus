@@ -471,21 +471,22 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 		var resultAttrs map[string]any
 
 		if len(attributes) != 0 {
-			strawberryAttrs, err := strawberry.GetOpBriefAttributes(
+			strawberryAttrs := strawberry.GetOpBriefAttributes(
 				op.Speclet.Value,
 				op.PersistentState,
 				op.InfoState)
-			if err != nil {
-				return nil, err
-			}
 
-			speclet, err := a.ctl.ParseSpeclet(op.Speclet.Value)
-			if err != nil {
-				return nil, err
+			speclet, errorParsingCtlSpeclet := a.ctl.ParseSpeclet(op.Speclet.Value)
+			if errorParsingCtlSpeclet != nil {
+				speclet, _ = a.ctl.ParseSpeclet(nil)
 			}
-			ctlAttrs, err := a.ctl.GetOpBriefAttributes(speclet)
-			if err != nil {
-				return nil, err
+			ctlAttrs := a.ctl.GetOpBriefAttributes(speclet)
+			// If an error occures, the attributes from speclet will be incorrect.
+			// In this case we return nil values for requested attributes and set broken status.
+			if errorParsingCtlSpeclet != nil {
+				for key := range ctlAttrs {
+					ctlAttrs[key] = nil
+				}
 			}
 
 			nodeAttrs := map[string]any{

@@ -45,7 +45,7 @@ type Controller interface {
 	//
 	// Given speclet should have suitable type for the specific controller.
 	// Otherwise, GetOpBriefAttributes may panic.
-	GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error)
+	GetOpBriefAttributes(parsedSpeclet any) map[string]any
 }
 
 type ControllerFactory struct {

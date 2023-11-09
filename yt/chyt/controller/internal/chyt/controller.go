@@ -318,16 +318,19 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 	}
 }
 
-func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error) {
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 	speclet := parsedSpeclet.(Speclet)
-	if err := c.populateResources(&speclet); err != nil {
-		return nil, err
+	var instanceCount, totalCPU, totalMemory any
+	if err := c.populateResources(&speclet); err == nil {
+		instanceCount = speclet.InstanceCount
+		totalCPU = speclet.CliqueCPU
+		totalMemory = speclet.CliqueMemory
 	}
 	return map[string]any{
-		"instance_count": speclet.InstanceCount,
-		"total_cpu":      speclet.CliqueCPU,
-		"total_memory":   speclet.CliqueMemory,
-	}, nil
+		"instance_count": instanceCount,
+		"total_cpu":      totalCPU,
+		"total_memory":   totalMemory,
+	}
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {

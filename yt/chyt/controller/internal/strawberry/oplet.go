@@ -933,11 +933,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo, err error) {
 		}
 	}
 
-	ctlAttributes, err := oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet)
-	if err != nil {
-		return
-	}
-	briefInfo.CtlAttributes = ctlAttributes
+	briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet)
 
 	if oplet.infoState.Error != nil {
 		briefInfo.Error = *oplet.infoState.Error

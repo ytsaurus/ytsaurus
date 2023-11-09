@@ -97,8 +97,8 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 	return nil
 }
 
-func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error) {
-	return nil, nil
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
+	return nil
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {

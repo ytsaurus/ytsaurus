@@ -91,11 +91,11 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 	}
 }
 
-func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error) {
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 	speclet := parsedSpeclet.(Speclet)
 	return map[string]any{
 		"test_option": speclet.TestOption,
-	}, nil
+	}
 }
 
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {

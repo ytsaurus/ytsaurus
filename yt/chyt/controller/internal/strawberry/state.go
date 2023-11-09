@@ -64,19 +64,19 @@ type InfoState struct {
 type OperationStatus string
 
 const (
-	StateActive   OperationStatus = "active"
-	StateInactive OperationStatus = "inactive"
-	StateBroken   OperationStatus = "broken"
+	StatusActive   OperationStatus = "active"
+	StatusInactive OperationStatus = "inactive"
+	StatusBroken   OperationStatus = "broken"
 )
 
 func GetOpStatus(speclet Speclet, infoState InfoState) OperationStatus {
 	if infoState.Error != nil {
-		return StateBroken
+		return StatusBroken
 	}
 	if speclet.ActiveOrDefault() {
-		return StateActive
+		return StatusActive
 	}
-	return StateInactive
+	return StatusInactive
 }
 
 // GetOpBriefAttributes returns map with strawberry attributes, which can be requested from API.
@@ -84,10 +84,12 @@ func GetOpBriefAttributes(
 	specletYson yson.RawValue,
 	persistentState PersistentState,
 	infoState InfoState,
-) (map[string]any, error) {
+) map[string]any {
+	var status, stage any
 	speclet, err := ParseSpeclet(specletYson)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		status = GetOpStatus(speclet, infoState)
+		stage = speclet.Stage
 	}
 	return map[string]any{
 		"creator":                  persistentState.Creator,
@@ -95,7 +97,7 @@ func GetOpBriefAttributes(
 		"creation_time":            getYSONTimePointerOrNil(infoState.CreationTime),
 		"yt_operation_start_time":  getYSONTimePointerOrNil(infoState.YTOpStartTime),
 		"yt_operation_finish_time": getYSONTimePointerOrNil(infoState.YTOpFinishTime),
-		"status":                   GetOpStatus(speclet, infoState),
-		"stage":                    speclet.Stage,
-	}, nil
+		"status":                   status,
+		"stage":                    stage,
+	}
 }

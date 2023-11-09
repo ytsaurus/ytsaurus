@@ -889,16 +889,16 @@ func TestHTTPAPIStateAfterStartAndStop(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	checkStatusFromListCommand(t, c, alias, strawberry.StateActive)
-	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StateActive)
+	checkStatusFromListCommand(t, c, alias, strawberry.StatusActive)
+	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StatusActive)
 
 	r = c.MakePostRequest("stop", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	checkStatusFromListCommand(t, c, alias, strawberry.StateInactive)
-	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StateInactive)
+	checkStatusFromListCommand(t, c, alias, strawberry.StatusInactive)
+	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StatusInactive)
 }
 
 func TestHTTPAPICreateAndStart(t *testing.T) {
@@ -950,4 +950,39 @@ func TestHTTPAPICreateAndStart(t *testing.T) {
 			"pool":   pool,
 		},
 		speclet)
+}
+
+func TestHTTPAPIListWorksIfSpecletIsIncorrect(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"speclet_options": map[string]any{
+				"test_option":     "not_int",
+				"network_project": 10,
+			},
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("list", api.RequestParams{
+		Params: map[string]any{
+			"attributes": []string{"test_option", "stage"},
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var resultWithAttrs map[string][]yson.ValueWithAttrs
+	require.NoError(t, yson.Unmarshal(r.Body, &resultWithAttrs))
+	require.Contains(t, resultWithAttrs["result"], yson.ValueWithAttrs{
+		Value: alias,
+		Attrs: map[string]any{
+			"test_option": nil,
+			"stage":       nil,
+		},
+	})
 }
