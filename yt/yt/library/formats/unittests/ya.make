@@ -7,17 +7,17 @@ ALLOCATOR(YT)
 PROTO_NAMESPACE(yt)
 
 SRCS(
-    protobuf_format_ut.proto
-
     arrow_writer_ut.cpp
     dsv_parser_ut.cpp
     dsv_writer_ut.cpp
+    protobuf_format_ut.proto
     row_helpers.cpp
     schemaful_dsv_parser_ut.cpp
     schemaful_dsv_writer_ut.cpp
     skiff_format_ut.cpp
     skiff_yson_converter_ut.cpp
     value_examples.cpp
+    web_json_writer_ut.cpp
     yamred_dsv_parser_ut.cpp
     yamred_dsv_writer_ut.cpp
     yamr_parser_ut.cpp

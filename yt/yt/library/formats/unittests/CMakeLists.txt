@@ -72,6 +72,7 @@ target_sources(unittester-formats PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/skiff_format_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/skiff_yson_converter_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/value_examples.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/web_json_writer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_parser_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_writer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_parser_ut.cpp
