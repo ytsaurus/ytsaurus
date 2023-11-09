@@ -528,10 +528,25 @@ public:
 
     TFuture<TCriImageDescriptor> PullImage(
         const TCriImageDescriptor& image,
-        TCriPodSpecPtr podSpec = nullptr) override
+        bool always,
+        TCriAuthConfigPtr authConfig,
+        TCriPodSpecPtr podSpec) override
     {
+        if (!always) {
+            return GetImageStatus(image)
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TCriImageApi::TRspImageStatusPtr& imageStatus) {
+                    if (imageStatus->has_image()) {
+                        return MakeFuture(TCriImageDescriptor{.Image = imageStatus->image().id()});
+                    }
+                    return PullImage(image, /*always*/ true, authConfig, podSpec);
+                }));
+        }
+
         auto req = ImageApi_.PullImage();
         FillImageSpec(req->mutable_image(), image);
+        if (authConfig) {
+            FillAuthConfig(req->mutable_auth(), *authConfig);
+        }
         if (podSpec) {
             FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);
         }
@@ -612,6 +627,27 @@ private:
         spec->set_image(image.Image);
     }
 
+    void FillAuthConfig(NProto::AuthConfig* auth, const TCriAuthConfig& authConfig)
+    {
+        if (!authConfig.Username.empty()) {
+            auth->set_username(authConfig.Username);
+        }
+        if (!authConfig.Password.empty()) {
+            auth->set_password(authConfig.Password);
+        }
+        if (!authConfig.Auth.empty()) {
+            auth->set_auth(authConfig.Auth);
+        }
+        if (!authConfig.ServerAddress.empty()) {
+            auth->set_server_address(authConfig.ServerAddress);
+        }
+        if (!authConfig.IdentityToken.empty()) {
+            auth->set_identity_token(authConfig.IdentityToken);
+        }
+        if (!authConfig.RegistryToken.empty()) {
+            auth->set_registry_token(authConfig.RegistryToken);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

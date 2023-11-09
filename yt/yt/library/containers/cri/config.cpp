@@ -28,4 +28,27 @@ void TCriExecutorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCriAuthConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("username", &TThis::Username)
+        .Optional();
+
+    registrar.Parameter("password", &TThis::Password)
+        .Optional();
+
+    registrar.Parameter("auth", &TThis::Auth)
+        .Optional();
+
+    registrar.Parameter("server_address", &TThis::ServerAddress)
+        .Optional();
+
+    registrar.Parameter("identity_token", &TThis::IdentityToken)
+        .Optional();
+
+    registrar.Parameter("registry_token", &TThis::RegistryToken)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NContainers::NCri

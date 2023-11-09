@@ -39,4 +39,32 @@ DEFINE_REFCOUNTED_TYPE(TCriExecutorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(khlebnikov): split docker registry stuff into common "docker" library.
+
+//! TCriAuthConfig depicts docker registry authentification
+class TCriAuthConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Username;
+
+    TString Password;
+
+    TString Auth;
+
+    TString ServerAddress;
+
+    TString IdentityToken;
+
+    TString RegistryToken;
+
+    REGISTER_YSON_STRUCT(TCriAuthConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCriAuthConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NContainers::NCri

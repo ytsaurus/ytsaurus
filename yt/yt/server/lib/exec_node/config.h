@@ -150,6 +150,8 @@ public:
 
     TString JobProxyImage;
 
+    //! Bind mounts for job proxy container.
+    //! For now works as "root_fs_binds" because user job runs in the same container.
     std::vector<NJobProxy::TBindConfigPtr> JobProxyBindMounts;
 
     //! Do not bind mount jobproxy binary into container
@@ -527,6 +529,8 @@ public:
     bool UseCommonRootFSQuota;
     bool UseArtifactBinds;
 
+    //! Bind mounts added for all user job containers.
+    //! Should include ChunkCache if artifacts are passed by symlinks.
     std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
 
     int NodeDirectoryPrepareRetryCount;

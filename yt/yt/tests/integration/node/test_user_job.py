@@ -1874,7 +1874,7 @@ class TestSecureVault(YTEnvSetup):
                 echo -e "{YT_SECURE_VAULT_string=$YT_SECURE_VAULT_string};"
                 echo -e "{YT_SECURE_VAULT_boolean=$YT_SECURE_VAULT_boolean};"
                 echo -e "{YT_SECURE_VAULT_double=$YT_SECURE_VAULT_double};"
-                echo -e "{YT_SECURE_VAULT_composite=\\"$YT_SECURE_VAULT_composite\\"};"
+                printf "{YT_SECURE_VAULT_composite=\\"%q\\"};" "$YT_SECURE_VAULT_composite"
                 BREAKPOINT;
            """),
         )
@@ -1889,8 +1889,7 @@ class TestSecureVault(YTEnvSetup):
         # Boolean values are represented with 0/1.
         assert res[4] == {"YT_SECURE_VAULT_boolean": 1}
         assert res[5] == {"YT_SECURE_VAULT_double": self.secure_vault["double"]}
-        # Composite values are not exported as separate environment variables.
-        assert res[6] == {"YT_SECURE_VAULT_composite": ""}
+        assert res[6] == {"YT_SECURE_VAULT_composite": '{"token1"="SeNsItIvE";"token2"="InFo";}'}
 
     @authors("ignat")
     def test_secure_vault_not_visible(self):
