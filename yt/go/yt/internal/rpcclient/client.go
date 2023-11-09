@@ -84,6 +84,10 @@ func NewClient(conf *yt.Config) (*client, error) {
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
 		}
+		if conf.UseTLS {
+			clientOpts = append(clientOpts, bus.WithEncryptionMode(bus.EncryptionModeRequired))
+			clientOpts = append(clientOpts, bus.WithTlsConfig(&tls.Config{RootCAs: certPool, ServerName: addr}))
+		}
 		return bus.NewClient(ctx, addr, clientOpts...)
 	}, c.log)
 

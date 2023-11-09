@@ -45,8 +45,6 @@ type Config struct {
 
 	// UseTLS enables TLS for all connections to cluster.
 	//
-	// This option is supported only in HTTP client.
-	//
 	// By default, client will not use TLS.
 	//
 	// TLS is not supported in local mode.
