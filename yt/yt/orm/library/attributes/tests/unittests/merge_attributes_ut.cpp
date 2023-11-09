@@ -90,7 +90,6 @@ TEST(MergeAttributes, Etc)
     EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

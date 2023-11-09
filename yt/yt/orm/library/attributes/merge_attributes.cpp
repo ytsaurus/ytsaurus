@@ -148,13 +148,13 @@ TYsonString MergeAttributeValuesAsNodes(
                 SetNodeByYPath(rootNode, attributeValue.Path, parentNode, /*force*/true);
             }
             THROW_ERROR_EXCEPTION_UNLESS(parentNode->GetType() == NYTree::ENodeType::Map,
-                "Cannot merge etc node into non-map node %Qv",
+                "Cannot merge etc node into non-map node %v",
                 attributeValue.Path);
             auto parentMapNode = parentNode->AsMap();
             auto mapNode = node->AsMap();
             for (const auto& [name, child] : mapNode->GetChildren()) {
                 THROW_ERROR_EXCEPTION_IF(parentMapNode->FindChild(name),
-                    "Duplicate key %Qv in attribute %Qv",
+                    "Duplicate key %Qv in attribute %v",
                     name,
                     attributeValue.Path);
                 mapNode->RemoveChild(child);
