@@ -11,8 +11,8 @@ namespace NYT::NHydra {
 /*!
  *  If none are found, then |InvalidSegmentId| is returned in the info.
  */
-TFuture<NHydra::TRemoteSnapshotParams> DiscoverLatestSnapshot(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
+    TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int maxSnapshotId = std::numeric_limits<i32>::max());
 
@@ -20,8 +20,8 @@ TFuture<NHydra::TRemoteSnapshotParams> DiscoverLatestSnapshot(
 /*!
  *  If the snapshot is not found, then an error is returned.
  */
-TFuture<NHydra::TRemoteSnapshotParams> DiscoverSnapshot(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
+    TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int snapshotId);
 

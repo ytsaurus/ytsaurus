@@ -69,7 +69,7 @@ protected:
 
     TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
 
-    TCompactFlatMap<int, NHydra::IChangelogPtr, 4> NextChangelogs_;
+    TCompactFlatMap<int, IChangelogPtr, 4> NextChangelogs_;
     IChangelogPtr Changelog_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

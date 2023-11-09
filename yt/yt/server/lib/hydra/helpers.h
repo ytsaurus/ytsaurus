@@ -10,7 +10,7 @@ namespace NYT::NHydra {
 
 bool IsPersistenceEnabled(
     const NElection::TCellManagerPtr& cellManager,
-    const NHydra::TDistributedHydraManagerOptions& options);
+    const TDistributedHydraManagerOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

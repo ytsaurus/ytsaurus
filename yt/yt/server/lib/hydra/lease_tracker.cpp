@@ -183,7 +183,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaseTracker::TLeaseTracker(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     TEpochContext* epochContext,
     TLeaderLeasePtr lease,
     std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,

@@ -80,7 +80,7 @@ class TLeaseTracker
 {
 public:
     TLeaseTracker(
-        NHydra::TDistributedHydraManagerConfigPtr config,
+        TDistributedHydraManagerConfigPtr config,
         TEpochContext* epochContext,
         TLeaderLeasePtr lease,
         std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,
@@ -106,7 +106,7 @@ public:
 private:
     class TFollowerPinger;
 
-    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerConfigPtr Config_;
     TEpochContext* const EpochContext_;
     const TLeaderLeasePtr Lease_;
     const std::vector<TCallback<TFuture<void>()>> CustomLeaseCheckers_;

@@ -339,7 +339,7 @@ void TLeaderCommitter::SerializeMutations()
 
         if (readOnly && !IsSystemMutationType(mutationDraft.Request.Type)) {
             auto error = TError(
-                EErrorCode::ReadOnly,
+                NHydra::EErrorCode::ReadOnly,
                 "Read-only mode is active");
             mutationDraft.Promise.Set(TError(
                 NRpc::EErrorCode::Unavailable,

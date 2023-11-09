@@ -48,19 +48,19 @@ DEFINE_REFCOUNTED_TYPE(IDistributedHydraManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHydra::IDistributedHydraManagerPtr CreateDistributedHydraManager(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+IDistributedHydraManagerPtr CreateDistributedHydraManager(
+    TDistributedHydraManagerConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr automatonInvoker,
-    NHydra::IAutomatonPtr automaton,
+    IAutomatonPtr automaton,
     NRpc::IServerPtr rpcServer,
     NElection::IElectionManagerPtr electionManager,
     NElection::TCellId cellId,
-    NHydra::IChangelogStoreFactoryPtr changelogStoreFactory,
-    NHydra::ISnapshotStorePtr snapshotStore,
+    IChangelogStoreFactoryPtr changelogStoreFactory,
+    ISnapshotStorePtr snapshotStore,
     NRpc::IAuthenticatorPtr authenticator,
-    const NHydra::TDistributedHydraManagerOptions& options = {},
-    const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions = {});
+    const TDistributedHydraManagerOptions& options = {},
+    const TDistributedHydraManagerDynamicOptions& dynamicOptions = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,7 +20,7 @@ namespace NYT::NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IChangelogPtr> RunChangelogAcquisition(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     TEpochContextPtr epochContext,
     int changelogId,
     std::optional<TPeerPriority> priority,

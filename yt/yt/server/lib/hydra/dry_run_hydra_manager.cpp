@@ -104,7 +104,7 @@ public:
     }
 
     void DryRunLoadSnapshot(
-        const NHydra::ISnapshotReaderPtr& reader,
+        const ISnapshotReaderPtr& reader,
         int snapshotId = InvalidSegmentId) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -235,17 +235,17 @@ public:
 
 
     // Stuff from ISimpleHydraManager
-    TFuture<NHydra::TMutationResponse> CommitMutation(NHydra::TMutationRequest&& /*request*/) override
+    TFuture<TMutationResponse> CommitMutation(TMutationRequest&& /*request*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    NHydra::TReign GetCurrentReign() override
+    TReign GetCurrentReign() override
     {
         YT_UNIMPLEMENTED();
     }
 
-    NHydra::EPeerState GetAutomatonState() const override
+    EPeerState GetAutomatonState() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -322,12 +322,12 @@ public:
         return New<TElectionCallbacks>();
     }
 
-    NHydra::EPeerState GetControlState() const override
+    EPeerState GetControlState() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    NHydra::TVersion GetAutomatonVersion() const override
+    TVersion GetAutomatonVersion() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -374,12 +374,12 @@ public:
     DEFINE_SIGNAL_OVERRIDE(TFuture<void>(), LeaderLeaseCheck);
 
     // Stuff from IDistributedHydraManager
-    NHydra::TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
+    TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    void SetDynamicOptions(const NHydra::TDistributedHydraManagerDynamicOptions& /*options*/) override
+    void SetDynamicOptions(const TDistributedHydraManagerDynamicOptions& /*options*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -442,7 +442,7 @@ DEFINE_REFCOUNTED_TYPE(TDryRunHydraManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHydra::IHydraManagerPtr CreateDryRunHydraManager(
+IHydraManagerPtr CreateDryRunHydraManager(
     TDistributedHydraManagerConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr automatonInvoker,

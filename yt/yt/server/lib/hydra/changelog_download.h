@@ -13,9 +13,9 @@ namespace NYT::NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> DownloadChangelog(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
-    NHydra::IChangelogPtr changelog,
+    IChangelogPtr changelog,
     int recordCount,
     const NLogging::TLogger& logger);
 

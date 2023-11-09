@@ -66,14 +66,14 @@ static const i64 LogTransferBlockSize = 1_KB;
 
 TPendingMutation::TPendingMutation(
     TVersion version,
-    NHydra::TMutationRequest&& request,
+    TMutationRequest&& request,
     TInstant timestamp,
     ui64 randomSeed,
     ui64 prevRandomSeed,
     i64 sequenceNumber,
     int term,
     TSharedRef serializedMutation,
-    TPromise<NHydra::TMutationResponse> promise)
+    TPromise<TMutationResponse> promise)
     : Version(version)
     , Request(request)
     , Timestamp(timestamp)

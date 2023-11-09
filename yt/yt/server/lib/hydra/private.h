@@ -68,13 +68,13 @@ class TConfigWrapper
     : public TRefCounted
 {
 public:
-    explicit TConfigWrapper(NHydra::TDistributedHydraManagerConfigPtr config);
+    explicit TConfigWrapper(TDistributedHydraManagerConfigPtr config);
 
-    void Set(NHydra::TDistributedHydraManagerConfigPtr config);
-    NHydra::TDistributedHydraManagerConfigPtr Get() const;
+    void Set(TDistributedHydraManagerConfigPtr config);
+    TDistributedHydraManagerConfigPtr Get() const;
 
 private:
-    TAtomicIntrusivePtr<NHydra::TDistributedHydraManagerConfig> Config_;
+    TAtomicIntrusivePtr<TDistributedHydraManagerConfig> Config_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConfigWrapper)
@@ -91,19 +91,6 @@ using NElection::TPeerId;
 using NElection::InvalidPeerId;
 using NElection::TPeerPriority;
 using NElection::TEpochId;
-
-using NHydra::EPeerState;
-using NHydra::EErrorCode;
-using NHydra::EFinalRecoveryAction;
-
-using NHydra::HydraLogger;
-
-using NHydra::TVersion;
-using NHydra::TElectionPriority;
-using NHydra::TReachableState;
-
-using NHydra::InvalidPeerId;
-using NHydra::TReign;
 
 ////////////////////////////////////////////////////////////////////////////////
 

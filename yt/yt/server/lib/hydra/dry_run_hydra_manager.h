@@ -8,13 +8,13 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHydra::IHydraManagerPtr CreateDryRunHydraManager(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+IHydraManagerPtr CreateDryRunHydraManager(
+    TDistributedHydraManagerConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr automatonInvoker,
-    NHydra::IAutomatonPtr automaton,
-    NHydra::ISnapshotStorePtr snapshotStore,
-    const NHydra::TDistributedHydraManagerOptions& options,
+    IAutomatonPtr automaton,
+    ISnapshotStorePtr snapshotStore,
+    const TDistributedHydraManagerOptions& options,
     NElection::TCellManagerPtr cellManager);
 
 ////////////////////////////////////////////////////////////////////////////////

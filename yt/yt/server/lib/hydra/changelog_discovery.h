@@ -13,12 +13,12 @@ namespace NYT::NHydra {
 struct TChangelogInfo
 {
     NElection::TPeerId PeerId =  NElection::InvalidPeerId;
-    int ChangelogId = NHydra::InvalidSegmentId;
+    int ChangelogId = InvalidSegmentId;
     int RecordCount = -1;
 };
 
 TFuture<std::pair<int, int>> ComputeQuorumLatestChangelogId(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int localChangelogId,
     int localTerm);
@@ -28,7 +28,7 @@ TFuture<std::pair<int, int>> ComputeQuorumLatestChangelogId(
  *  If none are found, then |InvalidSegmentId| is returned in the info.
  */
 TFuture<TChangelogInfo> DiscoverChangelog(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int changelogId,
     int minRecordCount);
@@ -45,7 +45,7 @@ struct TChangelogQuorumInfo
 
 //! Given #changelogId, computes the quorum info.
 TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int changelogId,
     int localRecordCount);

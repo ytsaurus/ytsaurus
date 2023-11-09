@@ -24,12 +24,12 @@ class TRecovery
 {
 public:
     TRecovery(
-        NHydra::TDistributedHydraManagerConfigPtr config,
-        const NHydra::TDistributedHydraManagerOptions& options,
-        const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions,
+        TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerDynamicOptions& dynamicOptions,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        NHydra::IChangelogStorePtr changelogStore,
-        NHydra::ISnapshotStorePtr snapshotStore,
+        IChangelogStorePtr changelogStore,
+        ISnapshotStorePtr snapshotStore,
         NRpc::IResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         TReachableState targetState,
@@ -39,12 +39,12 @@ public:
     TFuture<void> Run();
 
 private:
-    const NHydra::TDistributedHydraManagerConfigPtr Config_;
-    const NHydra::TDistributedHydraManagerOptions Options_;
-    const NHydra::TDistributedHydraManagerDynamicOptions DynamicOptions_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerOptions Options_;
+    const TDistributedHydraManagerDynamicOptions DynamicOptions_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
-    const NHydra::IChangelogStorePtr ChangelogStore_;
-    const NHydra::ISnapshotStorePtr SnapshotStore_;
+    const IChangelogStorePtr ChangelogStore_;
+    const ISnapshotStorePtr SnapshotStore_;
     const NRpc::IResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
     const TReachableState TargetState_;
@@ -60,14 +60,14 @@ private:
 
     //! Synchronizes the changelog at follower with the leader, i.e.
     //! downloads missing records or truncates redundant ones.
-    void SyncChangelog(const NHydra::IChangelogPtr& changelog);
+    void SyncChangelog(const IChangelogPtr& changelog);
 
     //! Applies records from a given changes up to a given one.
     /*!
      *  The current segment id should match that of #changeLog.
      *  The method ensures that no mutation is applied twice.
      */
-    void ReplayChangelog(const NHydra::IChangelogPtr& changelog, i64 sequenceNumber);
+    void ReplayChangelog(const IChangelogPtr& changelog, i64 sequenceNumber);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRecovery)
