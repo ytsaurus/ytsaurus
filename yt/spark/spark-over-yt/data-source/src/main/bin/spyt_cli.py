@@ -24,7 +24,7 @@ def run(command, args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['discovery', 'launch', 'manage'])
+    parser.add_argument('command', choices=['discovery', 'launch', 'manage', 'shell', 'submit'])
     args, unknown_args = parser.parse_known_args()
     run(args.command, unknown_args)
 

@@ -14,7 +14,8 @@ from yt.wrapper.errors import YtHttpResponseError  # noqa: E402
 from yt.wrapper.http_helpers import get_user_name  # noqa: E402
 from yt.wrapper.operation_commands import get_operation_url  # noqa: E402
 from yt.yson.convert import yson_to_json  # noqa: E402
-from spyt.conf import is_supported_cluster_minor_version  # noqa: E402
+from .arcadia import checked_extract_spark, checked_extract_spyt  # noqa: E402
+from .conf import is_supported_cluster_minor_version  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -299,14 +300,31 @@ def tuple(element_types):
     return tuple_type(element_types)
 
 
+def get_spyt_home():
+    spyt_home = checked_extract_spyt()
+    if spyt_home is not None:
+        return spyt_home
+    import spyt
+    return spyt.__path__[0]
+
+
+# COMPAT(alex-shishkin): Remove when nobody use this instead of get_spark_home
 def spark_home():
+    return get_spark_home()
+
+
+def get_spark_home():
     spark_home = os.environ.get("SPARK_HOME")
-    if spark_home is None:
-        try:
-            spark_home = subprocess.check_output("find_spark_home.py").strip().decode("utf-8")
-        except Exception:
-            raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
-    return spark_home
+    if spark_home is not None:
+        return spark_home
+    spark_home = checked_extract_spark()
+    if spark_home is not None:
+        return spark_home
+    try:
+        spark_home = subprocess.check_output("find_spark_home.py").strip().decode("utf-8")
+        return spark_home
+    except Exception:
+        raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
 
 
 def call_get_proxy_address_url(**kwargs):

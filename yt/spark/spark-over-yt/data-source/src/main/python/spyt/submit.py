@@ -7,11 +7,10 @@ from contextlib import contextmanager
 from py4j.java_gateway import JavaGateway, GatewayParameters
 from pyspark.serializers import read_int, UTF8Deserializer
 from subprocess import Popen, PIPE
-from pyspark.find_spark_home import _find_spark_home
 from py4j.protocol import Py4JJavaError
 from enum import Enum
 from datetime import timedelta
-from .utils import scala_buffer_to_list
+from .utils import scala_buffer_to_list, get_spark_home, get_spyt_home
 
 
 def launch_gateway(memory="512m",
@@ -20,7 +19,7 @@ def launch_gateway(memory="512m",
                    additional_jars=None,
                    additional_environ=None,
                    prefer_ipv6=False):  # Internal Yandex users must enable ipv6 option by default
-    spark_home = _find_spark_home()
+    spark_home = get_spark_home()
     java = os.path.join(java_home, "bin", "java") if java_home else "java"
     additional_jars = additional_jars or []
 
@@ -28,7 +27,10 @@ def launch_gateway(memory="512m",
     command += java_opts or []
     if prefer_ipv6:
         command.append('-Djava.net.preferIPv6Addresses=true')
-    command += ["-cp", ":".join(additional_jars + _submit_classpath()), "tech.ytsaurus.spyt.submit.PythonGatewayServer"]
+    command += [
+        "-cp", ":".join(additional_jars + _submit_classpath(spark_home)),
+        "tech.ytsaurus.spyt.submit.PythonGatewayServer"
+    ]
 
     conn_info_dir = tempfile.mkdtemp()
     try:
@@ -76,19 +78,14 @@ def launch_gateway(memory="512m",
     return gateway
 
 
-def _spyt_path():
-    import spyt
-    return spyt.__path__[0]
-
-
 def _list_path(path):
     return [os.path.join(path, name) for name in os.listdir(path)]
 
 
-def _submit_classpath():
-    spark_home = _find_spark_home()
+def _submit_classpath(spark_home=None):
+    spark_home = spark_home or get_spark_home()
     spark_classpath = _list_path(os.path.join(spark_home, "jars"))
-    spyt_classpath = _list_path(os.path.join(_spyt_path(), "jars"))
+    spyt_classpath = _list_path(os.path.join(get_spyt_home(), "jars"))
     return spyt_classpath + spark_classpath
 
 

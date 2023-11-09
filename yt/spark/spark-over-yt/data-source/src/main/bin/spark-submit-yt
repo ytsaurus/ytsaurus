@@ -26,7 +26,7 @@ def main(raw_args=None):
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token(), config={"remote_temp_files_directory": "//tmp/spyt"})
 
     return_code = raw_submit(discovery_path=args.discovery_path,
-                             spark_home=spark_utils.spark_home(),
+                             spark_home=spark_utils.get_spark_home(),
                              spark_args=unknown_args,
                              spyt_version=args.spyt_version,
                              python_version=args.python_version,

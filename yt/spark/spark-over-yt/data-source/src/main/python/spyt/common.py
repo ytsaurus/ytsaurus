@@ -4,7 +4,10 @@ from pyspark.sql.functions import lit
 from pyspark.sql import SparkSession
 
 
-def join_with_hot_key_null(right, key, joinType, condition=lit(True)):
+def join_with_hot_key_null(right, key, joinType, condition=None):
+    if condition is None:
+        condition = lit(True)
+
     def join(left):
         java_condition = _to_java_column(condition)
         return DataFrame(
