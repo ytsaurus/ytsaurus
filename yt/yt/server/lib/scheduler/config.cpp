@@ -306,7 +306,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_running_operation_count", &TThis::MaxRunningOperationCount)
-        .Default(200)
+        .Default(2000)
         .GreaterThan(0);
 
     registrar.Parameter("max_running_operation_count_per_pool", &TThis::MaxRunningOperationCountPerPool)
@@ -466,7 +466,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("use_resource_usage_with_precommit", &TThis::UseResourceUsageWithPrecommit)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("allowed_resource_usage_staleness", &TThis::AllowedResourceUsageStaleness)
         .Default(TDuration::MilliSeconds(100));
