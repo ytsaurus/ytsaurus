@@ -467,6 +467,8 @@ public:
     std::vector<TSchedulerOperationElement*> GetChildOperations() const;
     int GetChildOperationCount() const noexcept;
 
+    int GetChildPoolCount() const noexcept;
+
     ESchedulingMode GetMode() const final;
     bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const final;
 

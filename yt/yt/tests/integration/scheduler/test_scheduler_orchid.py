@@ -113,7 +113,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
                 "backend": "native",
                 "driver_config": get_driver().get_config(),
             }),
-            fields=["full_path"],
+            fields=["full_path", "child_pool_count"],
         )
 
         def child_pools_by_pool_orchid_path(pool):
@@ -128,12 +128,16 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
             "pool1": yson.YsonEntity(),
         }
 
+        assert client.get(child_pools_by_pool_orchid_path("/<Root>")) == {
+            "pool1": {"full_path": "/pool1", "child_pool_count": 2},
+            "pool2": {"full_path": "/pool2", "child_pool_count": 1},
+        }
         assert client.get(child_pools_by_pool_orchid_path("/pool1")) == {
-            "pool3": {"full_path": "/pool1/pool3"},
-            "pool4": {"full_path": "/pool1/pool4"},
+            "pool3": {"full_path": "/pool1/pool3", "child_pool_count": 0},
+            "pool4": {"full_path": "/pool1/pool4", "child_pool_count": 0},
         }
         assert client.get(child_pools_by_pool_orchid_path("/pool2")) == {
-            "pool5": {"full_path": "/pool2/pool5"},
+            "pool5": {"full_path": "/pool2/pool5", "child_pool_count": 0},
         }
         assert client.get(child_pools_by_pool_orchid_path("/pool5")) == {}
 
