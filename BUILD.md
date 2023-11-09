@@ -35,13 +35,20 @@
     sudo apt-get update
     ```
 
- 1. Install python (only for Ubuntu 18.04, skip this step for 20.04).
+ 1. Install python of version >= 3.8 
+
+    Note: this example is taken from https://www.build-python-from-source.com/ and checked on Ubuntu 18.04
 
     ```
-    sudo add-apt-repository ppa:deadsnakes/ppa
-    sudo apt-get update
-    sudo apt-get install -y python3.11 python3.11-dev python3.11-distutils python3.11-venv
-    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+    cd /tmp/
+    wget https://www.python.org/ftp/python/3.11.4/Python-3.11.4.tgz
+    tar xzf Python-3.11.4.tgz
+    cd Python-3.11.4
+    
+    sudo ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi
+    sudo make -j "$(nproc)"
+    sudo make altinstall
+    sudo rm /tmp/Python-3.11.4.tgz
     ```
 
  1. Install dependencies.
