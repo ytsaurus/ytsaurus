@@ -16,26 +16,14 @@ export YT_PROXY=<cluster_name> YT_ALIAS=*ch_public
 
 ## ytsaurus-client { #ytsaurus-client }
 
-Основной способ начать работать с {{product-name}} — установить пакет `ytsaurus-client`. Подробнее об этом можно прочитать в разделе [Python Wrapper](../../../../api/python/start.md).
-
-Установка `ytsaurus-client` с помощью [PyPi](https://pypi.org/):
-
-```bash
-pip install ytsaurus-client
-```
-
-{% note info "Примечание" %}
-
-Команда `pip install` по умолчанию ставит самую свежую стабильную версию пакета, тогда как самая свежая функциональность CHYT зачастую находится в нестабильных версиях `ytsaurus-client`. Поэтому если пакет ставится с целью использования CHYT, нужно указать ключ `--pre` при установке через PyPi.
-
-{% endnote %}
+Основной способ начать работать с CHYT — установить пакет `ytsaurus-client`. Подробнее об этом можно прочитать в разделе [Python Wrapper](../../../../api/python/start.md).
 
 Доступно для Python 3. В составе распространяется программа `yt`. Для того, чтобы воспользоваться функциональностью CHYT, можно запустить любую команду как `yt clickhouse [command]`.
 
 Например, следующим образом можно сделать тестовый запрос в публичную клику `ch_public`:
 
 ```bash
-yt clickhouse execute 'select "Hello world"' --alias *ch_public
+yt clickhouse execute "select 'Hello world'" --alias *ch_public
 ```
 
 Помимо этого пакет содержит Python API для работы с CHYT, доступный в модуле `yt.clickhouse`:
