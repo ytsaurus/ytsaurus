@@ -160,6 +160,10 @@ NODE_CONFIG_PATCHES = [
                 "heartbeat_period": 100,
                 "heartbeat_splay": 50
             },
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_period_splay": 50,
+            },
         },
         "cellar_node": {
             "master_connector": {
