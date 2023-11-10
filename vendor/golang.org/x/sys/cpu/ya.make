@@ -34,11 +34,15 @@ IF (ARCH_ARM64)
 ENDIF()
 
 IF (OS_LINUX)
-    SRCS(hwcap_linux.go)
+    SRCS(
+        hwcap_linux.go
+    )
 ENDIF()
 
 IF (OS_LINUX AND ARCH_X86_64)
-    SRCS(cpu_linux_noinit.go)
+    SRCS(
+        cpu_linux_noinit.go
+    )
 ENDIF()
 
 IF (OS_LINUX AND ARCH_ARM64)
@@ -49,13 +53,19 @@ IF (OS_LINUX AND ARCH_ARM64)
 ENDIF()
 
 IF (OS_DARWIN AND ARCH_ARM64)
-    SRCS(cpu_other_arm64.go)
+    SRCS(
+        cpu_other_arm64.go
+    )
 ENDIF()
 
 IF (OS_WINDOWS AND ARCH_ARM64)
-    SRCS(cpu_other_arm64.go)
+    SRCS(
+        cpu_other_arm64.go
+    )
 ENDIF()
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

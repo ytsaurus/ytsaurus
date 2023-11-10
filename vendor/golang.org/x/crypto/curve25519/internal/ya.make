@@ -1,1 +1,3 @@
-RECURSE(field)
+RECURSE(
+    field
+)

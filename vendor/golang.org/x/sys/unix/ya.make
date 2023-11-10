@@ -8,7 +8,9 @@ BUILD_ONLY_IF(
     OS_LINUX
 )
 
-SRCS(endian_little.go)
+SRCS(
+    endian_little.go
+)
 
 IF (OS_LINUX)
     SRCS(

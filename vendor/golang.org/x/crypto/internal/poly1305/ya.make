@@ -21,9 +21,13 @@ IF (ARCH_X86_64)
 ENDIF()
 
 IF (ARCH_ARM64)
-    SRCS(mac_noasm.go)
+    SRCS(
+        mac_noasm.go
+    )
 ENDIF()
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

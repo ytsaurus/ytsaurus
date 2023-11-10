@@ -21,9 +21,13 @@ IF (ARCH_X86_64)
 ENDIF()
 
 IF (ARCH_ARM64)
-    SRCS(chacha20poly1305_noasm.go)
+    SRCS(
+        chacha20poly1305_noasm.go
+    )
 ENDIF()
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

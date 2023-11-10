@@ -13,7 +13,9 @@ GO_TEST_SRCS(
 )
 
 IF (ARCH_X86_64)
-    SRCS(chacha_noasm.go)
+    SRCS(
+        chacha_noasm.go
+    )
 ENDIF()
 
 IF (ARCH_ARM64)
@@ -25,4 +27,6 @@ ENDIF()
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)
