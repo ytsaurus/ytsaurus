@@ -20,6 +20,7 @@ SRCS(
     net_dev.go
     net_ip_socket.go
     net_protocols.go
+    net_route.go
     net_sockstat.go
     net_softnet.go
     net_tcp.go
@@ -68,6 +69,7 @@ GO_TEST_SRCS(
     net_dev_test.go
     net_ip_socket_test.go
     net_protocols_test.go
+    net_route_test.go
     net_sockstat_test.go
     net_softnet_test.go
     net_tcp_test.go
@@ -123,11 +125,15 @@ IF (OS_LINUX)
 ENDIF()
 
 IF (OS_LINUX AND ARCH_X86_64)
-    SRCS(cpuinfo_x86.go)
+    SRCS(
+        cpuinfo_x86.go
+    )
 ENDIF()
 
 IF (OS_LINUX AND ARCH_ARM64)
-    SRCS(cpuinfo_armx.go)
+    SRCS(
+        cpuinfo_armx.go
+    )
 ENDIF()
 
 IF (OS_DARWIN)
@@ -150,7 +156,9 @@ IF (OS_DARWIN)
 ENDIF()
 
 IF (OS_WINDOWS)
-    SRCS(fs_statfs_notype.go)
+    SRCS(
+        fs_statfs_notype.go
+    )
 ENDIF()
 
 END()
@@ -167,5 +175,7 @@ RECURSE(
 )
 
 IF (OS_LINUX)
-    RECURSE(sysfs)
+    RECURSE(
+        sysfs
+    )
 ENDIF()

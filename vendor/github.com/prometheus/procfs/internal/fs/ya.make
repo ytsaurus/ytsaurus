@@ -2,7 +2,9 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-SRCS(fs.go)
+SRCS(
+    fs.go
+)
 
 GO_TEST_SRCS(
     # fs_test.go
@@ -10,4 +12,6 @@ GO_TEST_SRCS(
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

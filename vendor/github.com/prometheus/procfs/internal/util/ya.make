@@ -11,17 +11,25 @@ SRCS(
 GO_XTEST_SRCS(valueparser_test.go)
 
 IF (OS_LINUX)
-    SRCS(sysreadfile.go)
+    SRCS(
+        sysreadfile.go
+    )
 ENDIF()
 
 IF (OS_DARWIN)
-    SRCS(sysreadfile.go)
+    SRCS(
+        sysreadfile.go
+    )
 ENDIF()
 
 IF (OS_WINDOWS)
-    SRCS(sysreadfile_compat.go)
+    SRCS(
+        sysreadfile_compat.go
+    )
 ENDIF()
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)
