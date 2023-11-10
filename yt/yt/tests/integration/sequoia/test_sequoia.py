@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, create, ls
+from yt_commands import authors, create, ls, get
 
 from yt.common import YtError
 import pytest
@@ -15,9 +15,23 @@ class TestSequoia(YTEnvSetup):
 
     NUM_SECONDARY_MASTER_CELLS = 0
 
-    @authors("kvk1920")
+    @authors("kvk1920", "cherepashka")
     def test_create(self):
         create("map_node", "//tmp/some_node")
+
+        # Scalars.
+        create("int64_node", "//tmp/i")
+        assert get("//tmp/i") == 0
+        create("uint64_node", "//tmp/ui")
+        assert get("//tmp/ui") == 0
+        create("string_node", "//tmp/s")
+        assert get("//tmp/s") == ""
+        create("double_node", "//tmp/d")
+        assert get("//tmp/d") == 0.0
+        create("boolean_node", "//tmp/b")
+        assert not get("//tmp/b")
+        create("list_node", "//tmp/l")
+        assert get("//tmp/l") == []
 
     @authors("danilalexeev")
     def test_list(self):
@@ -28,8 +42,10 @@ class TestSequoia(YTEnvSetup):
         assert ls("//tmp") == ["m1", "m2"]
 
         create("map_node", "//tmp/m2/m3")
+        create("int64_node", "//tmp/m1/i")
         assert ls("//tmp/m2") == ["m3"]
         assert ls("//tmp") == ["m1", "m2"]
+        assert ls("//tmp/m1") == ["i"]
 
     @authors("danilalexeev")
     def test_create_recursive_fail(self):

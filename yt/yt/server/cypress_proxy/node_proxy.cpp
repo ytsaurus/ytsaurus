@@ -199,9 +199,8 @@ protected:
         // Try to reproduce Cypress behavior.
 
         auto type = TypeFromId(Id_);
-        // TODO(kvk1920): Implement `IsCompositeNodeType()` helper.
         // TODO(kvk1920): Support documents.
-        if (type != EObjectType::SequoiaMapNode && type != EObjectType::Scion) {
+        if (!IsSequoiaCompositeNodeType(type)) {
             THROW_ERROR_EXCEPTION("Node %v cannot have children", Path_);
         }
 
@@ -346,7 +345,7 @@ public:
     {
         auto type = TypeFromId(Id_);
 
-        if (type != EObjectType::SequoiaMapNode && type != EObjectType::Scion) {
+        if (!IsSupportedSequoiaType(type)) {
             THROW_ERROR_EXCEPTION(
                 "Object type %Qlv is not supported in Sequoia yet",
                 type);
@@ -456,7 +455,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
             EObjectType::MapNode);
     }
 
-    if (type != EObjectType::MapNode) {
+    if (type != EObjectType::MapNode && !IsScalarType(type)) {
         THROW_ERROR_EXCEPTION("Creation of %Qlv is not supported in Sequoia yet",
             type);
     }

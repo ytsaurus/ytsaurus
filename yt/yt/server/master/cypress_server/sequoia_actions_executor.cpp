@@ -87,7 +87,7 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto type = CheckedEnumCast<EObjectType>(request->type());
-        if (type != EObjectType::SequoiaMapNode) {
+        if (type != EObjectType::SequoiaMapNode && !IsScalarType(type)) {
             THROW_ERROR_EXCEPTION("Type %Qv is not supported in Sequoia", type);
         }
 

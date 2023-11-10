@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/client/cypress_client/public.h>
+
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NCypressProxy {
@@ -9,6 +13,14 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NYPath::TYPathBuf> TokenizeUnresolvedSuffix(const NYPath::TYPath& unresolvedSuffix);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsSupportedSequoiaType(NCypressClient::EObjectType type);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsSequoiaCompositeNodeType(NCypressClient::EObjectType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 
