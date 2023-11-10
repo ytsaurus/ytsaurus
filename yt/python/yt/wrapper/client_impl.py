@@ -403,7 +403,8 @@ class YtClient(ClientState):
             source_path, destination_path,
             recursive=None, force=None, ignore_existing=None, lock_existing=None, preserve_account=None,
             preserve_owner=None, preserve_acl=None, preserve_expiration_time=None, preserve_expiration_timeout=None,
-            preserve_creation_time=None, preserve_modification_time=None, pessimistic_quota_check=None):
+            preserve_creation_time=None, preserve_modification_time=None, pessimistic_quota_check=None,
+            enable_cross_cell_copying=None):
         """
         Copies Cypress node.
 
@@ -423,6 +424,7 @@ class YtClient(ClientState):
         :param bool preserve_modification_time: preserve modification time.
         :param bool force: force.
         :param bool pessimistic_quota_check: pessimistic quota check.
+        :param bool enable_cross_cell_copying: enable cross cell copying.
 
         .. seealso:: `copy in the docs <https://ytsaurus.tech/docs/en/api/commands#copy>`_
 
@@ -434,7 +436,7 @@ class YtClient(ClientState):
             preserve_account=preserve_account, preserve_owner=preserve_owner, preserve_acl=preserve_acl,
             preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout,
             preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time,
-            pessimistic_quota_check=pessimistic_quota_check)
+            pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying)
 
     def create(
             self,
@@ -1436,7 +1438,7 @@ class YtClient(ClientState):
             source_path, destination_path,
             recursive=None, force=None, preserve_account=None, preserve_owner=None, preserve_expiration_time=None,
             preserve_expiration_timeout=None, preserve_creation_time=None, preserve_modification_time=None,
-            pessimistic_quota_check=None):
+            pessimistic_quota_check=None, enable_cross_cell_copying=None):
         """
         Moves (renames) Cypress node.
 
@@ -1453,6 +1455,7 @@ class YtClient(ClientState):
         :param bool preserve_modification_time: preserve modification time.
         :param bool force: force.
         :param bool pessimistic_quota_check: pessimistic quota check.
+        :param bool enable_cross_cell_copying: enable cross cell copying.
 
         .. seealso:: `move in the docs <https://ytsaurus.tech/docs/en/api/commands#move>`_
 
@@ -1463,7 +1466,7 @@ class YtClient(ClientState):
             recursive=recursive, force=force, preserve_account=preserve_account, preserve_owner=preserve_owner,
             preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout,
             preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time,
-            pessimistic_quota_check=pessimistic_quota_check)
+            pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying)
 
     def ping_transaction(
             self,

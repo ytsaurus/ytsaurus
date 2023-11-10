@@ -49,6 +49,19 @@ class TestPortals(YTEnvSetup):
     ENABLE_BULK_INSERT = True
     NUM_SCHEDULERS = 1
 
+    @authors("nadya02")
+    def test_disable_cross_cell_copying(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
+
+        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 13})
+
+        with pytest.raises(YtError, match="Cross-cell \"copy\"/\"move\" command is explicitly disabled by request options"):
+            copy("//tmp/p1/f", "//tmp/p2/f", enable_cross_cell_copying=False)
+
+        with pytest.raises(YtError, match="Cross-cell \"copy\"/\"move\" command is explicitly disabled by request options"):
+            move("//tmp/p1/f", "//tmp/p2/f2", enable_cross_cell_copying=False)
+
     @authors("babenko")
     def test_cannot_create_portal_exit(self):
         with pytest.raises(YtError):

@@ -74,6 +74,7 @@ void SetCloneNodeBaseRequestParameters(
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_creation_time(options.PreserveCreationTime);
     req->set_preserve_modification_time(options.PreserveModificationTime);
+    req->set_enable_cross_cell_copying(options.EnableCrossCellCopying);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
     req->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
     req->set_preserve_owner(options.PreserveOwner);
@@ -984,6 +985,12 @@ TNodeId TClient::DoCloneNode(
     if (rspOrError.GetCode() != NObjectClient::EErrorCode::CrossCellAdditionalPath) {
         auto rsp = rspOrError.ValueOrThrow();
         return FromProto<TNodeId>(rsp->node_id());
+    }
+
+    if (!options.EnableCrossCellCopying) {
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::CrossCellAdditionalPath,
+            "Cross-cell \"copy\"/\"move\" command is explicitly disabled by request options");
     }
 
     if (!options.PrerequisiteRevisions.empty()) {
