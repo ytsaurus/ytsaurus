@@ -8,6 +8,7 @@ import org.apache.spark.sql.{SQLContext, SparkSession}
 import tech.ytsaurus.ysontree.{YTreeNode, YTreeTextSerializer}
 
 import java.util.Properties
+import scala.annotation.tailrec
 import scala.collection.JavaConverters.asScalaSetConverter
 import scala.util.Try
 
@@ -20,7 +21,15 @@ package object conf {
     def getAllKeys: Seq[String]
 
     def getYtConf[T](conf: ConfigEntry[T]): Option[T] = {
-      conf.get(getYtConf(conf.name))
+      @tailrec
+      def findFirst(names: List[String]): Option[String] = names match {
+        case head :: tail =>
+          val someValue = getYtConf(head)
+          if (someValue.isEmpty) findFirst(tail) else someValue
+        case Nil => None
+      }
+
+      conf.get(findFirst(conf.name :: conf.aliases))
     }
 
     def ytConf[T](conf: ConfigEntry[T]): T = {

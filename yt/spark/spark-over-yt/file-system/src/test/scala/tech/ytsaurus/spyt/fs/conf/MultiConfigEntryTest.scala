@@ -8,10 +8,10 @@ import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt.test.LocalSpark
 
 class MultiConfigEntryTest extends FlatSpec with Matchers with LocalSpark {
-  import tech.ytsaurus.spyt.fs.conf._
+  import ConfigEntry.implicits._
 
   private val entry = new MultiConfigEntry("log", "level", Some(Level.INFO),
-    { (name: String, default: Option[Level]) => new LogLevelConfigEntry(name, default) })
+    { (name: String, default: Option[Level]) => new ConfigEntry[Level](name, default) })
 
   private def test(confProvider: ConfProvider): Unit = {
     val res = confProvider.ytConf(entry)

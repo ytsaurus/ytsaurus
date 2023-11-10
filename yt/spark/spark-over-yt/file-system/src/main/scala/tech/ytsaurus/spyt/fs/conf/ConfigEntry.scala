@@ -8,15 +8,54 @@ import tech.ytsaurus.spyt.wrapper.Utils.parseDuration
 
 import scala.concurrent.duration._
 
-abstract class ConfigEntry[T](val name: String,
-                              val default: Option[T] = None) {
-  def get(value: String): T
+/**
+ * Shorthand class for working with spark properties.
+ * @param name primary entry name which is used for get and set
+ * @param default default value
+ * @param aliases a list of entry aliases if the property can't be retrieved by its primary name ordered by priority.
+ */
+class ConfigEntry[T : ValueAdapter](val name: String,
+                                    val default: Option[T] = None,
+                                    val aliases: List[String] = Nil) {
+  import ConfigEntry.{fromJsonTyped, toJsonTyped}
+
+  private val valueAdapter = implicitly[ValueAdapter[T]]
+
+  def get(value: String): T = valueAdapter.get(value)
 
   def get(value: Option[String]): Option[T] = value.map(get).orElse(default)
 
-  def set(value: T): String = value.toString
+  def set(value: T): String = valueAdapter.set(value)
 
   def fromJson(value: String)(implicit decoder: Decoder[T]): T = fromJsonTyped[T](value)
+
+  def toJson(value: T)(implicit encoder: Encoder[T]): String = toJsonTyped[T](value)
+}
+
+trait ValueAdapter[T] {
+  def get(value: String): T
+  def set(value: T): String = value.toString
+}
+
+object ConfigEntry {
+  object implicits {
+    implicit val intAdapter: ValueAdapter[Int] = (value: String) => value.toInt
+    implicit val longAdapter: ValueAdapter[Long] = (value: String) => value.toLong
+    implicit val boolAdapter: ValueAdapter[Boolean] = (value: String) => value.toBoolean
+    implicit val durationAdapter: ValueAdapter[Duration] = (value: String) => parseDuration(value)
+    implicit val stringAdapter: ValueAdapter[String] = (value: String) => value
+    implicit val stringListAdapter: ValueAdapter[Seq[String]] = new ValueAdapter[Seq[String]] {
+      override def get(value: String): Seq[String] = fromJsonTyped[Seq[String]](value)
+      override def set(value: Seq[String]): String = toJsonTyped(value)
+    }
+
+    implicit val stringMapAdapter: ValueAdapter[Map[String, String]] = new ValueAdapter[Map[String, String]] {
+      override def get(value: String): Map[String, String] = fromJsonTyped[Map[String, String]](value)
+      override def set(value: Map[String, String]): String = toJsonTyped(value)
+    }
+
+    implicit val levelAdapter: ValueAdapter[Level] = (value: String) => Level.toLevel(value)
+  }
 
   def fromJsonTyped[S](value: String)(implicit decoder: Decoder[S]): S = {
     decode[S](value) match {
@@ -25,47 +64,7 @@ abstract class ConfigEntry[T](val name: String,
     }
   }
 
-  def toJson(value: T)(implicit encoder: Encoder[T]): String = toJsonTyped[T](value)
-
   def toJsonTyped[S](value: S)(implicit encoder: Encoder[S]): String = {
     value.asJson.noSpaces
   }
 }
-
-class IntConfigEntry(name: String, default: Option[Int] = None) extends ConfigEntry[Int](name, default) {
-  override def get(value: String): Int = value.toInt
-}
-
-class LongConfigEntry(name: String, default: Option[Long] = None) extends ConfigEntry[Long](name, default) {
-  override def get(value: String): Long = value.toLong
-}
-
-class BooleanConfigEntry(name: String, default: Option[Boolean] = None) extends ConfigEntry[Boolean](name, default) {
-  override def get(value: String): Boolean = value.toBoolean
-}
-
-class DurationSecondsConfigEntry(name: String, default: Option[Duration] = None) extends ConfigEntry[Duration](name, default) {
-  override def get(value: String): Duration = parseDuration(value)
-}
-
-class StringConfigEntry(name: String, default: Option[String] = None) extends ConfigEntry[String](name, default) {
-  override def get(value: String): String = value
-}
-
-class StringListConfigEntry(name: String, default: Option[Seq[String]] = None) extends ConfigEntry[Seq[String]](name, default) {
-  override def get(value: String): Seq[String] = fromJson(value)
-
-  override def set(value: Seq[String]): String = toJson(value)
-}
-
-class StringMapConfigEntry(name: String, default: Option[Map[String, String]] = None)
-  extends ConfigEntry[Map[String, String]](name, default) {
-  override def get(value: String): Map[String, String] = fromJson(value)
-
-  override def set(value: Map[String, String]): String = toJson(value)
-}
-
-class LogLevelConfigEntry(name: String, default: Option[Level] = None) extends ConfigEntry[Level](name, default) {
-  override def get(value: String): Level = Level.toLevel(value)
-}
-

@@ -15,7 +15,7 @@ import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 import tech.ytsaurus.spyt.exceptions._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Write.DynBatchSize
-import tech.ytsaurus.spyt.fs.conf.StringConfigEntry
+import tech.ytsaurus.spyt.fs.conf.ConfigEntry
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
 class YtOutputCommitter(jobId: String,
@@ -258,7 +258,7 @@ object YtOutputCommitter {
     }
   }
 
-  def createTransaction(conf: Configuration, confEntry: StringConfigEntry, parent: Option[String]): String = {
+  def createTransaction(conf: Configuration, confEntry: ConfigEntry[String], parent: Option[String]): String = {
     implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
     val transactionTimeout = conf.ytConf(SparkYtConfiguration.Transaction.Timeout)
 
@@ -281,7 +281,7 @@ object YtOutputCommitter {
     }
   }
 
-  def abortTransaction(conf: Configuration, confEntry: StringConfigEntry): Unit = {
+  def abortTransaction(conf: Configuration, confEntry: ConfigEntry[String]): Unit = {
     abortTransaction(conf.ytConf(confEntry))
   }
 
@@ -292,7 +292,7 @@ object YtOutputCommitter {
     }
   }
 
-  def commitTransaction(conf: Configuration, confEntry: StringConfigEntry): Unit = {
+  def commitTransaction(conf: Configuration, confEntry: ConfigEntry[String]): Unit = {
     withTransaction(conf.ytConf(confEntry)) { transactionGuid =>
       log.debug(s"Commit write transaction: $transactionGuid")
       pingFutures.remove(transactionGuid).foreach { transaction =>

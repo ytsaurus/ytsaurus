@@ -6,7 +6,7 @@ import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
-import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.TypeV3
 import SchemaConverter.{MetadataFields, Unordered, ytLogicalSchema}
 import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.YtReader
@@ -94,11 +94,11 @@ class SchemaConverterTest extends FlatSpec with Matchers
 
   it should "read schema without parsing type v3" in {
     // in sparkSchema.toYTree no type_v1 type names
-    spark.conf.set(s"spark.yt.${ParsingTypeV3.name}", value = false)
+    spark.conf.set(s"spark.yt.${TypeV3.name}", value = false)
     createEmptyTable(tmpPath, schema)
     val res = spark.read.yt(tmpPath).schema
 
-    spark.conf.set(s"spark.yt.${ParsingTypeV3.name}", value = true)
+    spark.conf.set(s"spark.yt.${TypeV3.name}", value = true)
     val res2 = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, "false").yt(tmpPath).schema
 
     res shouldBe res2

@@ -9,7 +9,7 @@ object SchemaConverterConfig {
     import tech.ytsaurus.spyt.format.conf.{SparkYtConfiguration => SparkSettings}
     import tech.ytsaurus.spyt.fs.conf._
     SchemaConverterConfig(
-      parsingTypeV3 = spark.ytConf(SparkSettings.Read.ParsingTypeV3)
+      parsingTypeV3 = spark.ytConf(SparkSettings.Read.TypeV3)
     )
   }
 }

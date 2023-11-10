@@ -21,7 +21,7 @@ object SparkYtWriteConfiguration {
     sqlc.ytConf(Write.BatchSize),
     sqlc.ytConf(Write.DynBatchSize),
     sqlc.ytConf(Write.Timeout),
-    sqlc.ytConf(Write.TypeV3Format)
+    sqlc.ytConf(Write.TypeV3)
   )
 
   def apply(sqlc: SQLConf): SparkYtWriteConfiguration = SparkYtWriteConfiguration(
@@ -29,6 +29,6 @@ object SparkYtWriteConfiguration {
     sqlc.ytConf(Write.BatchSize),
     sqlc.ytConf(Write.DynBatchSize),
     sqlc.ytConf(Write.Timeout),
-    sqlc.ytConf(Write.TypeV3Format)
+    sqlc.ytConf(Write.TypeV3)
   )
 }

@@ -6,7 +6,7 @@ import org.apache.spark.sql.{DataFrameReader, Row}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import tech.ytsaurus.spyt._
-import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.TypeV3
 import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
 import tech.ytsaurus.spyt.serializers.SchemaConverter.MetadataFields
 import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
@@ -107,7 +107,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     writeTableFromURow(byteDecimal.map(x => packToRow(x, ColumnValueType.STRING)), tmpPath,
       TableSchema.builder().setUniqueKeys(false).addValue("a", TiType.decimal(precision, scale)).build())
 
-    withConf(s"spark.yt.${ParsingTypeV3.name}", "true") {
+    withConf(s"spark.yt.${TypeV3.name}", "true") {
       testEnabledAndDisabledArrow { reader =>
         val res = reader.yt(tmpPath)
         res.collect().map(x => x.getDecimal(0).toString) should contain theSameElementsAs data
