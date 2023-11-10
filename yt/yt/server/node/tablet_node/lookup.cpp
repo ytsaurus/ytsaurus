@@ -1217,7 +1217,7 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupAttemptFailed(
             return RunTabletRequest(requestIndex);
         } else {
             if (auto tabletSnapshot = SnapshotStore_->FindLatestTabletSnapshot(request.TabletId)) {
-                ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+                tabletSnapshot->PerformanceCounters->LookupError.Counter.fetch_add(1, std::memory_order::relaxed);
             }
 
             return MakeFuture<TSharedRef>(TError("Request failed after %v retries",
@@ -1229,7 +1229,7 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupAttemptFailed(
             request.TabletId);
 
         if (auto tabletSnapshot = SnapshotStore_->FindLatestTabletSnapshot(request.TabletId)) {
-            ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+            tabletSnapshot->PerformanceCounters->LookupError.Counter.fetch_add(1, std::memory_order::relaxed);
         }
 
         return MakeFuture<TSharedRef>(error);

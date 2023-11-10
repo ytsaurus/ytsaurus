@@ -374,8 +374,8 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     UpdateTimestampRange(context->CommitTimestamp);
     OnDynamicMemoryUsageUpdated();
 
-    ++PerformanceCounters_->DynamicRowWriteCount;
-    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
+    PerformanceCounters_->DynamicRowWrite.Counter.fetch_add(1, std::memory_order::relaxed);
+    PerformanceCounters_->DynamicRowWriteDataWeight.Counter.fetch_add(dataWeight, std::memory_order::relaxed);
     ++context->RowCount;
     context->DataWeight += dataWeight;
 

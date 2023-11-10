@@ -1,19 +1,35 @@
 #pragma once
 
 #include "public.h"
-#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
+
+#include <yt/yt/core/misc/ema_counter.h>
 
 namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPerformanceCountersEma
+{
+    std::atomic<i64> Counter;
+    TEmaCounter Ema{TEmaCounter::TWindowDurations{
+        TDuration::Minutes(10),
+        TDuration::Hours(1),
+    }};
+
+    void UpdateEma();
+};
+
+static_assert(sizeof(TEmaCounter) >= 64 - 8, "Consider adding alignment in TPerformanceCountersEma to avoid false sharing.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkReaderPerformanceCounters
     : public TRefCounted
 {
-    std::atomic<i64> StaticChunkRowReadCount = 0;
-    std::atomic<i64> StaticChunkRowReadDataWeight = 0;
-    std::atomic<i64> StaticChunkRowLookupCount = 0;
-    std::atomic<i64> StaticChunkRowLookupDataWeight = 0;
+    TPerformanceCountersEma StaticChunkRowRead;
+    TPerformanceCountersEma StaticChunkRowReadDataWeight;
+    TPerformanceCountersEma StaticChunkRowLookup;
+    TPerformanceCountersEma StaticChunkRowLookupDataWeight;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
@@ -23,17 +39,17 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
 struct TTabletPerformanceCounters
     : public TChunkReaderPerformanceCounters
 {
-    std::atomic<i64> DynamicRowReadCount = 0;
-    std::atomic<i64> DynamicRowReadDataWeight = 0;
-    std::atomic<i64> DynamicRowLookupCount = 0;
-    std::atomic<i64> DynamicRowLookupDataWeight = 0;
-    std::atomic<i64> DynamicRowWriteCount = 0;
-    std::atomic<i64> DynamicRowWriteDataWeight = 0;
-    std::atomic<i64> DynamicRowDeleteCount = 0;
-    std::atomic<i64> CompactionDataWeight = 0;
-    std::atomic<i64> PartitioningDataWeight = 0;
-    std::atomic<i64> LookupErrorCount = 0;
-    std::atomic<i64> WriteErrorCount = 0;
+    TPerformanceCountersEma DynamicRowRead;
+    TPerformanceCountersEma DynamicRowReadDataWeight;
+    TPerformanceCountersEma DynamicRowLookup;
+    TPerformanceCountersEma DynamicRowLookupDataWeight;
+    TPerformanceCountersEma DynamicRowWrite;
+    TPerformanceCountersEma DynamicRowWriteDataWeight;
+    TPerformanceCountersEma DynamicRowDelete;
+    TPerformanceCountersEma CompactionDataWeight;
+    TPerformanceCountersEma PartitioningDataWeight;
+    TPerformanceCountersEma LookupError;
+    TPerformanceCountersEma WriteError;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)

@@ -231,6 +231,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/sorted_dynamic_comparer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/sorted_dynamic_store.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/sorted_store_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/statistics_reporter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/store.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/store_compactor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/store_detail.cpp

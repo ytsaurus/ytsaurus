@@ -1,6 +1,7 @@
 #include "performance_counters.h"
 #include "private.h"
 
+#include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
@@ -11,6 +12,11 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPerformanceCountersEma::UpdateEma()
+{
+    Ema.Update(Counter.load(std::memory_order::relaxed));
+}
+
 void UpdatePerformanceCounters(
     const NChunkClient::NProto::TDataStatistics& statistics,
     const TTabletPerformanceCountersPtr& performanceCounters,
@@ -18,17 +24,17 @@ void UpdatePerformanceCounters(
     ERequestType type)
 {
     if (source == EDataSource::DynamicStore && type == ERequestType::Lookup) {
-        performanceCounters->DynamicRowLookupCount.fetch_add(statistics.row_count(), std::memory_order::relaxed);
-        performanceCounters->DynamicRowLookupDataWeight.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
+        performanceCounters->DynamicRowLookup.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
+        performanceCounters->DynamicRowLookupDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
     } else if (source == EDataSource::DynamicStore && type == ERequestType::Read) {
-        performanceCounters->DynamicRowReadCount.fetch_add(statistics.row_count(), std::memory_order::relaxed);
-        performanceCounters->DynamicRowReadDataWeight.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
+        performanceCounters->DynamicRowRead.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
+        performanceCounters->DynamicRowReadDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
     } else if (type == ERequestType::Lookup) {
-        performanceCounters->StaticChunkRowLookupCount.fetch_add(statistics.row_count(), std::memory_order::relaxed);
-        performanceCounters->StaticChunkRowLookupDataWeight.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
+        performanceCounters->StaticChunkRowLookup.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
+        performanceCounters->StaticChunkRowLookupDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
     } else {
-        performanceCounters->StaticChunkRowReadCount.fetch_add(statistics.row_count(), std::memory_order::relaxed);
-        performanceCounters->StaticChunkRowReadDataWeight.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
+        performanceCounters->StaticChunkRowRead.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
+        performanceCounters->StaticChunkRowReadDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
     }
 }
 

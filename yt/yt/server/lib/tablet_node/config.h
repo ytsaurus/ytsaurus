@@ -816,6 +816,23 @@ DEFINE_REFCOUNTED_TYPE(TOverloadControllerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStatisticsReporterConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+    TDuration Period;
+    NYPath::TYPath TablePath;
+
+    REGISTER_YSON_STRUCT(TStatisticsReporterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -853,6 +870,8 @@ public:
     TBackupManagerDynamicConfigPtr BackupManager;
 
     TOverloadControllerConfigPtr OverloadController;
+
+    TStatisticsReporterConfigPtr StatisticsReporter;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 

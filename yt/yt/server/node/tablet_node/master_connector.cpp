@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+
 #include <yt/yt/ytlib/table_client/performance_counters.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -234,21 +236,10 @@ private:
 
                 auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
                 auto performanceCounters = tabletSnapshot->PerformanceCounters;
-                protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
-                protoPerformanceCounters->set_dynamic_row_read_data_weight_count(performanceCounters->DynamicRowReadDataWeight);
-                protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
-                protoPerformanceCounters->set_dynamic_row_lookup_data_weight_count(performanceCounters->DynamicRowLookupDataWeight);
-                protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);
-                protoPerformanceCounters->set_dynamic_row_write_data_weight_count(performanceCounters->DynamicRowWriteDataWeight);
-                protoPerformanceCounters->set_dynamic_row_delete_count(performanceCounters->DynamicRowDeleteCount);
-                protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
-                protoPerformanceCounters->set_static_chunk_row_read_data_weight_count(performanceCounters->StaticChunkRowReadDataWeight);
-                protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
-                protoPerformanceCounters->set_static_chunk_row_lookup_data_weight_count(performanceCounters->StaticChunkRowLookupDataWeight);
-                protoPerformanceCounters->set_compaction_data_weight_count(performanceCounters->CompactionDataWeight);
-                protoPerformanceCounters->set_partitioning_data_weight_count(performanceCounters->PartitioningDataWeight);
-                protoPerformanceCounters->set_lookup_error_count(performanceCounters->LookupErrorCount);
-                protoPerformanceCounters->set_write_error_count(performanceCounters->WriteErrorCount);
+                #define XX(name, Name) protoPerformanceCounters->set_##name##_count( \
+                    performanceCounters->Name.Counter.load(std::memory_order::relaxed));
+                ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+                #undef XX
             }
         }
 
