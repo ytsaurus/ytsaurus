@@ -5,6 +5,8 @@ from yt.wrapper import YtError
 import time
 from datetime import datetime
 from multiprocessing import Process, Queue, current_process
+import queue
+
 
 class ProcessState:
     error = None
@@ -14,6 +16,29 @@ class ProcessState:
         self.process: Process = process
         self.queue: Queue = queue
         self.name = name
+
+
+class ProcessResult:
+    def __init__(self, error=None):
+        if error is None:
+            self.success = True
+        else:
+            self.success = False
+            if isinstance(error, YtError):
+                self.is_yt_error = True
+                self.error = error.simplify()
+            else:
+                self.is_yt_error = False
+                self.error = error
+
+    def get_error(self):
+        if self.success:
+            return None
+        elif self.is_yt_error:
+            return YtError.from_dict(self.error)
+        else:
+            return self.error
+
 
 class ProcessRunner:
     def __init__(self):
@@ -28,23 +53,10 @@ class ProcessRunner:
                         logger.func = func.__name__
                         func(*args, **kwargs)
                         logger.info("Function finished successfully")
-                    except YtError as e:
-                        # Some YtError-s are not picklable, so we transfer them as dict
-                        # and store a flag to preserve the type.
-                        logger.info("Caught error %s", str(e))
-                        logger.info("Putting YtError to queue")
-                        try:
-                            queue.put((1, e.simplify()), block=False)
-                        except Exception as e:
-                            logger.exception("Failed to put YtError to queue")
-                            raise
-                        logger.info("Put YtError to queue")
-                        raise
                     except Exception as e:
-                        logger.info("Putting regular exception to queue")
-                        queue.put((0, e))
-                        logger.info("Put regular exception to queue")
-                        raise
+                        queue.put(ProcessResult(e))
+                    else:
+                        queue.put(ProcessResult())
 
                 queue = Queue()
                 process = Process(target=error_handling_wrapper, args=(queue, args, kwargs))
@@ -62,22 +74,30 @@ class ProcessRunner:
                 if process.finished:
                     continue
 
-                process.process.join(10)
-                if process.process.is_alive():
-                    cur_time = int(time.mktime(datetime.now().timetuple()))
-                    logger.info("Process %s (%s) is still running for %s sec" % (
-                        process.process.pid, process.name, cur_time - process.process.start_time))
-                    continue
+                result = None
+                try:
+                    result = process.queue.get(timeout=1)
+                except queue.Empty:
+                    if process.process.is_alive():
+                        cur_time = int(time.mktime(datetime.now().timetuple()))
+                        logger.info("Process %s (%s) is still running for %s sec" % (
+                            process.process.pid, process.name, cur_time - process.process.start_time))
+                        continue
 
-                error = None
-                if process.process.exitcode != 0:
-                    error = Exception("Process has nonzero exit code")
-                if not process.queue.empty():
-                    logger.info("Getting from queue")
-                    is_yt_error, error = process.queue.get()
-                    logger.info("Got from queue")
-                    if is_yt_error:
-                        error = YtError.from_dict(error)
+                    # In the rare case the process may have had finished (and put its outcome to the queue)
+                    # after queue.Empty was raised but before it was caught. We check the queue once more.
+                    # However, we should not block on it since the process may have been terminated for external
+                    # reasons without putting anything to the queue.
+                    try:
+                        result = process.queue.get(timeout=0.1)
+                    except:
+                        pass
+
+                process.process.join()
+                error = result.get_error() if result is not None else None
+                if error is None and process.process.exitcode != 0:
+                    error = Exception("Process has nonzero exit code {}".format(
+                        process.process.exitcode))
                 process.error = error
 
                 process.finished = True
@@ -86,5 +106,6 @@ class ProcessRunner:
         result = [process.error for process in self.processes]
         self.processes = []
         return result
+
 
 process_runner = ProcessRunner()
