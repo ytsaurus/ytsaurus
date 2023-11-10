@@ -17,12 +17,14 @@ jobs:
           username: ${{secrets.YTSAURUS_EMAIL}}
           password: ${{secrets.YTSAURUS_EMAIL_PASSWORD}}
           subject: (${{github.repository}}, ${{github.event.issue.number}}) ${{github.event.issue.title}}
-          to: ytsaurus-github-issues@yandex-team.ru,nadya73@ytsaurus.tech
+          to: ytsaurus-github-issues@yandex-team.ru
           from: YTsaurus Github
           body: |
             Repository: ${{github.repository}}
+            Author: ${{github.event.issue.author}}
             Link: ${{github.server_url}}/${{github.repository}}/issues/${{github.event.issue.number}}
-            Description: ${{github.event.issue.body}}
+            Description:
+            ${{github.event.issue.body}}
 
   telegram:
     name: Telegram
