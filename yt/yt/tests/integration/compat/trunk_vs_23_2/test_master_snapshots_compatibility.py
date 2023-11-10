@@ -110,9 +110,10 @@ def check_chunk_creation_time_histogram():
 
         def profilers_ready():
             for profiler in profilers:
-                if not profilers[0].histogram("chunk_server/histograms/chunk_creation_time_histogram").get_bins():
+                if not profiler.histogram("chunk_server/histograms/chunk_creation_time_histogram").get_bins():
                     return False
             return True
+
         wait(profilers_ready)
 
         histogram = [
