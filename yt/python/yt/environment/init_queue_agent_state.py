@@ -1,3 +1,12 @@
+#!/usr/bin/python3
+
+from yt.wrapper import config, YtClient
+
+import argparse
+
+################################################################################
+
+
 QUEUE_TABLE_SCHEMA = [
     {"name": "cluster", "type": "string", "sort_order": "ascending"},
     {"name": "path", "type": "string", "sort_order": "ascending"},
@@ -63,6 +72,9 @@ CONSUMER_OBJECT_TABLE_SCHEMA = [
 ]
 
 
+################################################################################
+
+
 def create_table(client, path, schema, **kwargs):
     client.create("table", path, attributes={"dynamic": True, "schema": schema}, **kwargs)
     client.mount_table(path, sync=True)
@@ -115,3 +127,50 @@ def delete_tables(client,
         client.remove(registration_table_path, force=True)
     if not skip_replicated_table_mapping_table:
         client.remove(replicated_table_mapping_table_path, force=True)
+
+
+################################################################################
+
+
+def build_arguments_parser():
+    parser = argparse.ArgumentParser(description="Create queue agent state tables")
+
+    parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
+
+    parser.add_argument("--root", type=str, default=DEFAULT_ROOT,
+                        help="Root directory for state tables; defaults to {}".format(DEFAULT_ROOT))
+    parser.add_argument("--registration-table-path", type=str, default=DEFAULT_REGISTRATION_TABLE_PATH,
+                        help="Path to table with queue consumer registrations; defaults to {}".format(DEFAULT_REGISTRATION_TABLE_PATH))
+    parser.add_argument("--replicated-table-mapping-table-path", type=str, default=DEFAULT_REPLICATED_TABLE_MAPPING_TABLE_PATH,
+                        help="Path to table with replicated table mapping; defaults to {}".format(DEFAULT_REPLICATED_TABLE_MAPPING_TABLE_PATH))
+
+    parser.add_argument("--skip-queues", action="store_true", help="Do not create queue state table")
+    parser.add_argument("--skip-consumers", action="store_true", help="Do not create consumer state table")
+    parser.add_argument("--skip-object-mapping", action="store_true", help="Do not create queue agent object mapping table")
+    parser.add_argument("--create-registration-table", action="store_true", help="Create registration state table")
+    parser.add_argument("--create-replicated-table-mapping-table", action="store_true", help="Create replicated table mapping cache table")
+
+    parser.add_argument("--recursive", action="store_true", help="Create all state tables with the --recursive option")
+    parser.add_argument("--ignore-existing", action="store_true", help="Create all state tables with the --ignore-existing option")
+
+    return parser
+
+
+def main():
+    args = build_arguments_parser().parse_args()
+    client = YtClient(proxy=args.proxy, token=config["token"])
+    create_tables(client,
+                  root=args.root,
+                  registration_table_path=args.registration_table_path,
+                  replicated_table_mapping_table_path=args.replicated_table_mapping_table_path,
+                  skip_queues=args.skip_queues,
+                  skip_consumers=args.skip_consumers,
+                  skip_object_mapping=args.skip_object_mapping,
+                  create_registration_table=args.create_registration_table,
+                  create_replicated_table_mapping_table=args.create_replicated_table_mapping_table,
+                  recursive=args.recursive,
+                  ignore_existing=args.ignore_existing)
+
+
+if __name__ == "__main__":
+    main()
