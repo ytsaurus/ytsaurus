@@ -5,8 +5,27 @@ on:
     types: [opened]
 
 jobs:
-  issue-notifications:
-    name: Send issue notifications
+  mail:
+    name: Mail
+    runs-on: trampoline
+    steps:
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{secrets.YTSAURUS_EMAIL}}
+          password: ${{secrets.YTSAURUS_EMAIL_PASSWORD}}
+          subject: \[${{github.repository}}, \#${{github.event.issue.number}}\] ${{github.event.issue.title}}
+          to: ytsaurus-github-issues@yandex-team.ru,nadya73@ytsaurus.tech
+          from: YTsaurus Github
+          body: |
+            Repository: ${{github.repository}}
+            Link: ${{github.server_url}}/${{github.repository}}/issues/${{github.event.issue.number}}
+            Description: ${{github.event.issue.description}}
+
+  telegram:
+    name: Telegram
     runs-on: trampoline
     steps:
       - name: Send telegram message
@@ -18,5 +37,5 @@ jobs:
           format: markdown
           message: |
             New issue in *${{github.repository}}*: `${{github.event.issue.title}}`
-            ${{github.server_url}}/${{github.repository}}/issues/${{ github.event.issue.number }}
+            ${{github.server_url}}/${{github.repository}}/issues/${{github.event.issue.number}}
 
