@@ -16,7 +16,7 @@ jobs:
           server_port: 465
           username: ${{secrets.YTSAURUS_EMAIL}}
           password: ${{secrets.YTSAURUS_EMAIL_PASSWORD}}
-          subject: [${{github.repository}}, ${{github.event.issue.number}}] ${{github.event.issue.title}}
+          subject: (${{github.repository}}, ${{github.event.issue.number}}) ${{github.event.issue.title}}
           to: ytsaurus-github-issues@yandex-team.ru,nadya73@ytsaurus.tech
           from: YTsaurus Github
           body: |
