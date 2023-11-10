@@ -11,8 +11,12 @@ class ClientState(object):
             self._copy_init_state(other)
 
     def __del__(self):
-        if self._requests_session_origin_id and id(self) == self._requests_session_origin_id:
-            self._cleanup()
+        try:
+            if self._requests_session_origin_id and id(self) == self._requests_session_origin_id:
+                self._cleanup()
+        except Exception:
+            # in some cases (global termination), objects may have already been destroyed
+            pass
 
     def _cleanup(self):
         if self._requests_session:
