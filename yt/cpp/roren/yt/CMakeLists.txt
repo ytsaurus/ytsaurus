@@ -30,4 +30,5 @@ target_sources(cpp-roren-yt PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_io_private.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_graph.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_graph_v2.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_proto_io.cpp
 )

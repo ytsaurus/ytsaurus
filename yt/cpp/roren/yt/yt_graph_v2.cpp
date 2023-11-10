@@ -3,8 +3,10 @@
 
 #include "yt_graph.h"
 #include "yt_io_private.h"
+#include "yt_proto_io.h"
 
 #include <yt/cpp/roren/yt/proto/config.pb.h>
+#include <yt/cpp/roren/yt/proto/kv.pb.h>
 
 #include <yt/cpp/roren/interface/private/par_do_tree.h>
 #include <yt/cpp/roren/interface/roren.h>
@@ -100,6 +102,12 @@ enum class ETableType
     Input,
     Output,
     Intermediate,
+};
+
+enum class ETableFormat
+{
+    TNode,
+    Proto,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,11 +288,17 @@ public:
     virtual ~TTableNode() = default;
 
     virtual ETableType GetTableType() const = 0;
+    virtual ETableFormat GetTableFormat() const = 0;
 
-    virtual IRawParDoPtr CreateTNodeDecodingParDo() const = 0;
-    virtual IRawParDoPtr CreateTNodeEncodingParDo() const = 0;
+    virtual IRawParDoPtr CreateReadParDo(ssize_t tableCount) const = 0;
+    virtual IRawParDoPtr CreateDecodingParDo() const = 0;
+
+    virtual IRawParDoPtr CreateWriteParDo(ssize_t tableIndex) const = 0;
+    virtual IRawParDoPtr CreateEncodingParDo() const = 0;
 
     virtual NYT::TRichYPath GetPath() const = 0;
+
+    virtual const ::google::protobuf::Descriptor* GetProtoDescriptor() const = 0;
 
 private:
     virtual std::shared_ptr<TTableNode> Clone() const = 0;
@@ -483,19 +497,60 @@ public:
         return ETableType::Input;
     }
 
+    ETableFormat GetTableFormat() const override
+    {
+        return GetProtoDescriptor() ? ETableFormat::Proto : ETableFormat::TNode;
+    }
+
     NYT::TRichYPath GetPath() const override
     {
         return RawYtRead_->GetPath();
     }
 
-    IRawParDoPtr CreateTNodeDecodingParDo() const override
+    IRawParDoPtr CreateReadParDo(ssize_t tableCount) const override
     {
-        return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
+        auto readParDo = NPrivate::GetAttribute(*RawYtRead_, ReadParDoTag);
+
+        if (readParDo) {
+            auto mutableParDo = (*readParDo)->Clone();
+
+            auto upcastedParDo = VerifyDynamicCast<IProtoIOParDo*>(mutableParDo.Get());
+            upcastedParDo->SetTableCount(tableCount);
+
+            return mutableParDo;
+        } else {
+            return CreateReadNodeImpulseParDo(tableCount);
+        }
     }
 
-    IRawParDoPtr CreateTNodeEncodingParDo() const override
+    IRawParDoPtr CreateDecodingParDo() const override
+    {
+        auto protoDecodingParDo = NPrivate::GetAttribute(*RawYtRead_, DecodingParDoTag);
+
+        if (protoDecodingParDo) {
+            return *protoDecodingParDo;
+        } else {
+            return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
+        }
+    }
+
+    IRawParDoPtr CreateWriteParDo(ssize_t) const override
     {
         Y_ABORT("TInputTableNode is not expected to be written into");
+    }
+
+    IRawParDoPtr CreateEncodingParDo() const override
+    {
+        Y_ABORT("TInputTableNode is not expected to be written into");
+    }
+
+    const ::google::protobuf::Descriptor* GetProtoDescriptor() const override
+    {
+        auto descriptorPtr = NPrivate::GetAttribute(
+            *RawYtRead_,
+            ProtoDescriptorTag
+        );
+        return descriptorPtr ? *descriptorPtr : nullptr;
     }
 
 private:
@@ -524,14 +579,52 @@ public:
         return ETableType::Output;
     }
 
-    IRawParDoPtr CreateTNodeDecodingParDo() const override
+    ETableFormat GetTableFormat() const override
     {
-        return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
+        return GetProtoDescriptor() ? ETableFormat::Proto : ETableFormat::TNode;
     }
 
-    IRawParDoPtr CreateTNodeEncodingParDo() const override
+    IRawParDoPtr CreateReadParDo(ssize_t) const override
     {
-        return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
+        Y_ABORT("TOutputTableNode is not expected to be read from?");
+    }
+
+    IRawParDoPtr CreateDecodingParDo() const override
+    {
+        auto protoDecodingParDo = NPrivate::GetAttribute(*RawYtWrite_, DecodingParDoTag);
+
+        if (protoDecodingParDo) {
+            return *protoDecodingParDo;
+        } else {
+            return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
+        }
+    }
+
+    IRawParDoPtr CreateWriteParDo(ssize_t tableIndex) const override
+    {
+        auto writeParDo = NPrivate::GetAttribute(*RawYtWrite_, WriteParDoTag);
+
+        if (writeParDo) {
+            auto mutableParDo = (*writeParDo)->Clone();
+
+            auto upcastedParDo = VerifyDynamicCast<IProtoIOParDo*>(mutableParDo.Get());
+            upcastedParDo->SetTableIndex(tableIndex);
+
+            return mutableParDo;
+        } else {
+            return CreateWriteNodeParDo(tableIndex);
+        }
+    }
+
+    IRawParDoPtr CreateEncodingParDo() const override
+    {
+        auto protoEncodingParDo = NPrivate::GetAttribute(*RawYtWrite_, EncodingParDoTag);
+
+        if (protoEncodingParDo) {
+            return *protoEncodingParDo;
+        } else {
+            return MakeRawIdComputation(MakeRowVtable<NYT::TNode>());
+        }
     }
 
     NYT::TRichYPath GetPath() const override
@@ -542,6 +635,15 @@ public:
             path.OptimizeFor_ = NYT::EOptimizeForAttr::OF_SCAN_ATTR;
         }
         return path;
+    }
+
+    const ::google::protobuf::Descriptor* GetProtoDescriptor() const override
+    {
+        auto descriptorPtr = NPrivate::GetAttribute(
+            *RawYtWrite_,
+            ProtoDescriptorTag
+        );
+        return descriptorPtr ? *descriptorPtr : nullptr;
     }
 
     const NYT::TTableSchema& GetSchema() const
@@ -584,9 +686,10 @@ class TIntermediateTableNode
     : public TYtGraphV2::TTableNode
 {
 public:
-    TIntermediateTableNode(TRowVtable vtable, TString temporaryDirectory)
+    TIntermediateTableNode(TRowVtable vtable, TString temporaryDirectory, bool useProtoFormat)
         : TYtGraphV2::TTableNode(std::move(vtable))
         , TemporaryDirectory_(std::move(temporaryDirectory))
+        , UseProtoFormat_(useProtoFormat)
     { }
 
     ETableType GetTableType() const override
@@ -594,14 +697,51 @@ public:
         return ETableType::Intermediate;
     }
 
-    IRawParDoPtr CreateTNodeDecodingParDo() const override
+    ETableFormat GetTableFormat() const override
     {
-        return CreateDecodingValueNodeParDo(Vtable);
+        return UseProtoFormat_ ? ETableFormat::Proto : ETableFormat::TNode;
     }
 
-    IRawParDoPtr CreateTNodeEncodingParDo() const override
+    IRawParDoPtr CreateReadParDo(ssize_t tableCount) const override
     {
-        return CreateEncodingValueNodeParDo(Vtable);
+        if (UseProtoFormat_) {
+            auto readParDo = MakeIntrusive<TReadProtoImpulseParDo<TKVProto>>();
+            readParDo->SetTableCount(tableCount);
+
+            return readParDo;
+        } else {
+            return CreateReadNodeImpulseParDo(tableCount);
+        }
+    }
+
+    IRawParDoPtr CreateDecodingParDo() const override
+    {
+        if (UseProtoFormat_) {
+            return CreateDecodingValueProtoParDo(Vtable);
+        } else {
+            return CreateDecodingValueNodeParDo(Vtable);
+        }
+    }
+
+    IRawParDoPtr CreateWriteParDo(ssize_t tableIndex) const override
+    {
+        if (UseProtoFormat_) {
+            auto writeParDo = MakeIntrusive<TWriteProtoParDo<TKVProto>>();
+            writeParDo->SetTableIndex(tableIndex);
+
+            return writeParDo;
+        } else {
+            return CreateWriteNodeParDo(tableIndex);
+        }
+    }
+
+    IRawParDoPtr CreateEncodingParDo() const override
+    {
+        if (UseProtoFormat_) {
+            return CreateEncodingValueProtoParDo(Vtable);
+        } else {
+            return CreateEncodingValueNodeParDo(Vtable);
+        }
     }
 
     virtual NYT::TRichYPath GetPath() const override
@@ -626,15 +766,86 @@ public:
         return TemporaryDirectory_ + "/" + tableName.Str();
     }
 
+    const ::google::protobuf::Descriptor* GetProtoDescriptor() const override
+    {
+        return UseProtoFormat_ ? TKVProto::GetDescriptor() : nullptr;
+    }
+
 private:
     std::shared_ptr<TTableNode> Clone() const override
     {
-        return std::make_shared<TIntermediateTableNode>(Vtable, TemporaryDirectory_);
+        return std::make_shared<TIntermediateTableNode>(Vtable, TemporaryDirectory_, UseProtoFormat_);
     }
 
 private:
     const TString TemporaryDirectory_;
+    bool UseProtoFormat_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateReadImpulseParDo(const std::vector<TTableNode*>& inputTables)
+{
+    Y_ENSURE(!inputTables.empty(), "Expected 'inputTables' to be nonempty");
+
+    auto format = inputTables[0]->GetTableFormat();
+    for (const auto& table : inputTables) {
+        Y_ENSURE(table->GetTableFormat() == format, "Format of input tables is different");
+    }
+
+    // TODO: Here we pray that every input table has same proto message
+    return inputTables[0]->CreateReadParDo(std::ssize(inputTables));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::TFormat GetInputFormat(const std::vector<TTableNode*>& inputTables)
+{
+    Y_ENSURE(!inputTables.empty(), "Unexpected number of input tables");
+
+    TVector<const ::google::protobuf::Descriptor*> descriptors;
+    auto format = inputTables[0]->GetTableFormat();
+    for (const auto& table : inputTables) {
+        Y_ENSURE(table->GetTableFormat() == format, "Format of input tables is different");
+
+        if (format == ETableFormat::Proto) {
+            descriptors.emplace_back(table->GetProtoDescriptor());
+        }
+    }
+
+    switch (format) {
+        case ETableFormat::TNode:
+            return NYT::TFormat::YsonBinary();
+        case ETableFormat::Proto:
+            return NYT::TFormat::Protobuf(descriptors, true);
+        default:
+            Y_ABORT("Unsupported table format");
+    }
+}
+
+NYT::TFormat GetOutputFormat(const THashMap<TOperationConnector, TTableNode*>& outputTables)
+{
+    Y_ENSURE(!outputTables.empty(), "Unexpected number of output tables");
+
+    TVector<const ::google::protobuf::Descriptor*> descriptors;
+    auto format = outputTables.begin()->second->GetTableFormat();
+    for (const auto& [_, table] : outputTables) {
+        Y_ENSURE(table->GetTableFormat() == format, "Format of output tables is different");
+
+        if (format == ETableFormat::Proto) {
+            descriptors.emplace_back(table->GetProtoDescriptor());
+        }
+    }
+
+    switch (format) {
+        case ETableFormat::TNode:
+            return NYT::TFormat::YsonBinary();
+        case ETableFormat::Proto:
+            return NYT::TFormat::Protobuf(descriptors, true);
+        default:
+            Y_ABORT("Unsupported table format");
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -805,9 +1016,10 @@ public:
         TOperationNode* operation,
         TOperationConnector connector,
         TRowVtable vtable,
-        TString temporaryDirectory)
+        TString temporaryDirectory,
+        bool useProtoFormat)
     {
-        auto table = std::make_shared<TIntermediateTableNode>(std::move(vtable), std::move(temporaryDirectory));
+        auto table = std::make_shared<TIntermediateTableNode>(std::move(vtable), std::move(temporaryDirectory), useProtoFormat);
         Tables.push_back(table);
         LinkOperationOutput(operation, connector, table.get());
         return table.get();
@@ -1498,7 +1710,8 @@ public:
                         mapOperation,
                         TMapperOutputConnector{0, id},
                         pCollection->GetRowVtable(),
-                        Config_->GetWorkingDir()
+                        Config_->GetWorkingDir(),
+                        Config_->GetEnableProtoFormatForIntermediates()
                     );
                     RegisterPCollection(pCollection, outputTable);
                 }
@@ -1519,7 +1732,8 @@ public:
                     mapReduceOperation,
                     TReducerOutputConnector{nodeId},
                     sinkPCollection->GetRowVtable(),
-                    Config_->GetWorkingDir()
+                    Config_->GetWorkingDir(),
+                    Config_->GetEnableProtoFormatForIntermediates()
                 );
                 RegisterPCollection(sinkPCollection, outputTable);
                 break;
@@ -1542,7 +1756,8 @@ public:
                     mapReduceOperation,
                     TReducerOutputConnector{nodeId},
                     sinkPCollection->GetRowVtable(),
-                    Config_->GetWorkingDir()
+                    Config_->GetWorkingDir(),
+                    Config_->GetEnableProtoFormatForIntermediates()
                 );
                 RegisterPCollection(sinkPCollection, outputTable);
                 break;
@@ -1563,7 +1778,8 @@ public:
                     mapReduceOperation,
                     TReducerOutputConnector{nodeId},
                     sinkPCollection->GetRowVtable(),
-                    Config_->GetWorkingDir()
+                    Config_->GetWorkingDir(),
+                    Config_->GetEnableProtoFormatForIntermediates()
                 );
                 RegisterPCollection(sinkPCollection, outputTable);
                 break;
@@ -1586,7 +1802,8 @@ public:
                     mergeOperation,
                     TMergeOutputConnector{},
                     sinkPCollection->GetRowVtable(),
-                    Config_->GetWorkingDir()
+                    Config_->GetWorkingDir(),
+                    Config_->GetEnableProtoFormatForIntermediates()
                 );
                 RegisterPCollection(sinkPCollection, outputTable);
                 break;
@@ -1846,18 +2063,19 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                     NYT::TRawMapOperationSpec spec;
                     TParDoTreeBuilder mapperBuilder;
                     auto impulseOutputIdList = mapperBuilder.AddParDo(
-                        CreateReadNodeImpulseParDo(std::ssize(operation->InputTables)),
+                        CreateReadImpulseParDo(operation->InputTables),
                         TParDoTreeBuilder::RootNodeId
                     );
                     Y_ABORT_UNLESS(impulseOutputIdList.size() == operation->InputTables.size());
+
                     for (ssize_t i = 0; i < std::ssize(impulseOutputIdList); ++i) {
                         auto* inputTable = operation->InputTables[i];
                         mapperBuilder.AddParDoChainVerifyNoOutput(
                             impulseOutputIdList[i],
                             {
-                                inputTable->CreateTNodeDecodingParDo(),
-                                outputTable->CreateTNodeEncodingParDo(),
-                                CreateWriteNodeParDo(0)
+                                inputTable->CreateDecodingParDo(),
+                                outputTable->CreateEncodingParDo(),
+                                outputTable->CreateWriteParDo(i),
                             }
                         );
                         spec.AddInput(inputTable->GetPath());
@@ -1878,7 +2096,10 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                             break;
                         }
                     }
-                    spec.Format(NYT::TFormat::YsonBinary());
+
+                    spec.InputFormat(GetInputFormat(operation->InputTables));
+                    spec.OutputFormat(GetOutputFormat(operation->OutputTables));
+
                     NYT::IRawJobPtr job = CreateImpulseJob(mapperBuilder.Build());
                     return client->RawMap(spec, job, operationOptions);
                 }
@@ -1901,11 +2122,11 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                     }
                     spec.AddOutput(table->GetPath());
                     auto nodeId = tmpMapBuilder.AddParDoVerifySingleOutput(
-                        table->CreateTNodeEncodingParDo(),
+                        table->CreateEncodingParDo(),
                         mapperConnector.NodeId
                     );
                     tmpMapBuilder.AddParDoVerifyNoOutput(
-                        CreateWriteNodeParDo(sinkIndex),
+                        table->CreateWriteParDo(sinkIndex),
                         nodeId
                     );
 
@@ -1913,16 +2134,18 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 }
                 TParDoTreeBuilder mapperBuilder;
                 auto nodeId = mapperBuilder.AddParDoVerifySingleOutput(
-                    CreateReadNodeImpulseParDo(1),
+                    CreateReadImpulseParDo(operation->InputTables),
                     TParDoTreeBuilder::RootNodeId
                 );
                 nodeId = mapperBuilder.AddParDoVerifySingleOutput(
-                    inputTable->CreateTNodeDecodingParDo(),
+                    inputTable->CreateDecodingParDo(),
                     nodeId
                 );
                 mapperBuilder.Fuse(tmpMapBuilder, nodeId);
 
-                spec.Format(NYT::TFormat::YsonBinary());
+                spec.InputFormat(GetInputFormat(operation->InputTables));
+                spec.OutputFormat(GetOutputFormat(operation->OutputTables));
+
                 auto mapperParDo = mapperBuilder.Build();
                 addLocalFiles(mapperParDo, &spec.MapperSpec_);
                 NYT::IRawJobPtr job = CreateImpulseJob(mapperParDo);
@@ -1955,7 +2178,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         tmpMapperBuilderList[connector.MapperIndex].AddParDoChainVerifyNoOutput(
                             connector.NodeId,
                             {
-                                outputTable->CreateTNodeEncodingParDo(),
+                                outputTable->CreateEncodingParDo(),
                                 CreateWriteNodeParDo(mapperOutputIndex)
                             }
                         );
@@ -1964,7 +2187,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                     } else if constexpr (std::is_same_v<TType, TReducerOutputConnector>) {
                         reducerBuilder.AddParDoChainVerifyNoOutput(
                             connector.NodeId, {
-                                outputTable->CreateTNodeEncodingParDo(),
+                                outputTable->CreateEncodingParDo(),
                                 CreateWriteNodeParDo(reducerOutputIndex)
                             }
                         );
@@ -1978,14 +2201,14 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
             TParDoTreeBuilder mapBuilder;
             auto impulseOutputIdList = mapBuilder.AddParDo(
-                CreateReadNodeImpulseParDo(std::ssize(operation->InputTables)),
+                CreateReadImpulseParDo(operation->InputTables),
                 TParDoTreeBuilder::RootNodeId
             );
             Y_ABORT_UNLESS(impulseOutputIdList.size() == tmpMapperBuilderList.size());
             Y_ABORT_UNLESS(impulseOutputIdList.size() == operation->InputTables.size());
             for (ssize_t i = 0; i < std::ssize(impulseOutputIdList); ++i) {
                 auto decodedId = mapBuilder.AddParDoVerifySingleOutput(
-                    operation->InputTables[i]->CreateTNodeDecodingParDo(),
+                    operation->InputTables[i]->CreateDecodingParDo(),
                     impulseOutputIdList[i]
                 );
                 mapBuilder.Fuse(tmpMapperBuilderList[i], decodedId);

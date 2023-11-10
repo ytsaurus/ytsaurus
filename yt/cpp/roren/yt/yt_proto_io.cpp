@@ -1,0 +1,21 @@
+#include "yt_proto_io.h"
+
+namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateDecodingValueProtoParDo(TRowVtable rowVtable)
+{
+    return ::MakeIntrusive<TDecodingValueProtoParDo>(rowVtable);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateEncodingValueProtoParDo(TRowVtable rowVtable)
+{
+    return ::MakeIntrusive<TEncodingValueProtoParDo>(rowVtable);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoren::NPrivate

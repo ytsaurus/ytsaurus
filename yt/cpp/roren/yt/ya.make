@@ -11,6 +11,7 @@ SRCS(
     yt_io_private.cpp
     yt_graph.cpp
     yt_graph_v2.cpp
+    yt_proto_io.cpp
 )
 
 PEERDIR(

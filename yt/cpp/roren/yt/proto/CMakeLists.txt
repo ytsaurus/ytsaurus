@@ -18,6 +18,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(roren-yt-proto)
 target_link_libraries(roren-yt-proto PUBLIC
@@ -28,6 +40,7 @@ target_link_libraries(roren-yt-proto PUBLIC
 )
 target_proto_messages(roren-yt-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/proto/config.proto
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/proto/kv.proto
 )
 target_proto_addincls(roren-yt-proto
   ./
