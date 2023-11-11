@@ -10,13 +10,14 @@ import (
 	"net"
 	"sync"
 
+	"google.golang.org/protobuf/proto"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	"go.ytsaurus.tech/yt/go/crc64"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/core/misc"
 	"go.ytsaurus.tech/yt/yt_proto/yt/core/bus/proto"
-	"google.golang.org/protobuf/proto"
 )
 
 type AttributeKey string
@@ -33,10 +34,6 @@ const (
 	EncryptionModeDisabled EncryptionMode = 0
 	EncryptionModeOptional EncryptionMode = 1
 	EncryptionModeRequired EncryptionMode = 2
-
-	VerificationModeNone VerificationMode = 0
-	VerificationModeCa   VerificationMode = 1
-	VerificationModeFull VerificationMode = 2
 )
 
 type Options struct {
@@ -53,7 +50,7 @@ type packetFlags int16
 const (
 	packetMessage = packetType(0)
 	packetAck     = packetType(1)
-	packetSslAck  = packetType(2)
+	packetSSLAck  = packetType(2)
 
 	packetFlagsNone                   = packetFlags(0x0000)
 	packetFlagsRequestAcknowledgement = packetFlags(0x0001)
@@ -165,9 +162,9 @@ func newMessagePacket(id guid.GUID, data [][]byte, flags packetFlags, computeCRC
 	}
 }
 
-func newSslAckPacket(id guid.GUID) busMsg {
+func newSSLAckPacket(id guid.GUID) busMsg {
 	hdr := fixedHeader{
-		typ:       packetSslAck,
+		typ:       packetSSLAck,
 		flags:     packetFlagsNone,
 		partCount: 0,
 		packetID:  id,
@@ -312,8 +309,8 @@ func (c *Bus) sendHandshake() error {
 	return nil
 }
 
-func (c *Bus) sendSslAck() error {
-	packet := newSslAckPacket(guid.FromParts(2, 0, 0, 0))
+func (c *Bus) sendSSLAck() error {
+	packet := newSSLAckPacket(guid.FromParts(2, 0, 0, 0))
 	l, err := packet.writeTo(c.conn)
 	if err != nil {
 		return fmt.Errorf("bus: error sending SSL ACK: %w", err)
@@ -469,19 +466,18 @@ func (c *Bus) receiveHandshake() (EncryptionMode, error) {
 	}
 
 	e = EncryptionMode(handshake.GetEncryptionMode())
-	c.logger.Debug("Handshake received",
-		log.String("encryptionMode", fmt.Sprintf("%d", e)))
+	c.logger.Debug("Handshake received", log.Int("encryption_mode", int(e)))
 
 	return e, nil
 }
 
-func (c *Bus) receiveSslAck() error {
+func (c *Bus) receiveSSLAck() error {
 	msg, err := c.receive()
 	if err != nil {
 		return fmt.Errorf("bus: error receiving SSL ACK: %w", err)
 	}
 
-	if msg.fixHeader.typ != packetSslAck {
+	if msg.fixHeader.typ != packetSSLAck {
 		return fmt.Errorf("bus: SSL ACK type mismatch")
 	}
 
@@ -498,18 +494,16 @@ func (c *Bus) receiveSslAck() error {
 	return nil
 }
 
-func (c *Bus) establishSsl() error {
+func (c *Bus) establishSSL() error {
 	if err := c.sendHandshake(); err != nil {
-		fmt.Println("sendHandshake error", err)
 		c.Close()
-		return err
+		return fmt.Errorf("bus: error sending handshake: %w", err)
 	}
 
 	e, err := c.receiveHandshake()
 	if err != nil {
-		fmt.Println("receiveHandshake error", err)
 		c.Close()
-		return err
+		return fmt.Errorf("bus: error receiving handshake: %w", err)
 	}
 
 	if e == EncryptionModeDisabled || c.options.EncryptionMode == EncryptionModeDisabled {
@@ -520,23 +514,20 @@ func (c *Bus) establishSsl() error {
 		return nil
 	}
 
-	if err := c.sendSslAck(); err != nil {
-		fmt.Println("sendSslAck error", err)
+	if err := c.sendSSLAck(); err != nil {
 		c.Close()
-		return err
+		return fmt.Errorf("bus: error sending SSL ACK: %w", err)
 	}
 
-	if err := c.receiveSslAck(); err != nil {
-		fmt.Println("receiveSslAck error", err)
+	if err := c.receiveSSLAck(); err != nil {
 		c.Close()
-		return err
+		return fmt.Errorf("bus: error receiving SSL ACK: %w", err)
 	}
 
 	conn := tls.Client(c.conn, c.options.TlsConfig)
 	if err := conn.Handshake(); err != nil {
-		fmt.Println("conn.Handshake error", err)
 		c.Close()
-		return err
+		return fmt.Errorf("bus: error performing SSL handshake: %w", err)
 	}
 
 	c.conn = conn
@@ -552,7 +543,7 @@ func Dial(ctx context.Context, options Options) (*Bus, error) {
 	}
 
 	bus := NewBus(conn, options)
-	if err := bus.establishSsl(); err != nil {
+	if err := bus.establishSSL(); err != nil {
 		return nil, err
 	}
 
