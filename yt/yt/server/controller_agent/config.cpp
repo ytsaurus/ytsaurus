@@ -753,17 +753,14 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_archived_job_spec_count_per_operation", &TThis::MaxArchivedJobSpecCountPerOperation)
         .Default(500)
-        .GreaterThanOrEqual(0)
-        .LessThanOrEqual(5'000);
+        .GreaterThanOrEqual(0);
 
     registrar.Parameter("guaranteed_archived_job_spec_count_per_operation", &TThis::GuaranteedArchivedJobSpecCountPerOperation)
         .Default(10)
-        .GreaterThanOrEqual(0)
-        .LessThanOrEqual(100);
+        .GreaterThanOrEqual(0);
 
     registrar.Parameter("min_job_duration_to_archive_job_spec", &TThis::MinJobDurationToArchiveJobSpec)
-        .Default(TDuration::Minutes(30))
-        .GreaterThanOrEqual(TDuration::Minutes(5));
+        .Default(TDuration::Minutes(30));
 
     registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
         .Default(100'000)
