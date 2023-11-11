@@ -29,7 +29,7 @@ func testBus() error {
 		*flagAddress,
 		bus.WithLogger(ytlog.Must()),
 		bus.WithEncryptionMode(mode),
-		bus.WithTlsConfig(&tls.Config{InsecureSkipVerify: true}))
+		bus.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	defer conn.Close()
 
 	var req rpc_proxy.TReqDiscoverProxies

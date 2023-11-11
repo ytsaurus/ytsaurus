@@ -100,9 +100,9 @@ func WithEncryptionMode(m EncryptionMode) ClientOption {
 	}
 }
 
-func WithTlsConfig(c *tls.Config) ClientOption {
+func WithTLSConfig(c *tls.Config) ClientOption {
 	return func(conn *ClientConn) {
-		conn.TlsConfig = c
+		conn.TLSConfig = c
 	}
 }
 
@@ -134,7 +134,7 @@ type ClientConn struct {
 	log log.Logger
 
 	EncryptionMode EncryptionMode
-	TlsConfig      *tls.Config
+	TLSConfig      *tls.Config
 }
 
 func NewClient(ctx context.Context, address string, opts ...ClientOption) *ClientConn {
@@ -294,7 +294,7 @@ func (c *ClientConn) dial(ctx context.Context) {
 		Address:        c.address,
 		Logger:         c.log,
 		EncryptionMode: c.EncryptionMode,
-		TlsConfig:      c.TlsConfig,
+		TLSConfig:      c.TLSConfig,
 	}
 	bus, err := Dial(ctx, opts)
 	if err != nil {

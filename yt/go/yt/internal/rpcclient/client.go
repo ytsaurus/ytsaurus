@@ -86,7 +86,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		}
 		if conf.UseTLS {
 			clientOpts = append(clientOpts, bus.WithEncryptionMode(bus.EncryptionModeRequired))
-			clientOpts = append(clientOpts, bus.WithTlsConfig(&tls.Config{RootCAs: certPool, ServerName: addr}))
+			clientOpts = append(clientOpts, bus.WithTLSConfig(&tls.Config{RootCAs: certPool, ServerName: addr}))
 		}
 		return bus.NewClient(ctx, addr, clientOpts...)
 	}, c.log)

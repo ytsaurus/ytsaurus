@@ -41,7 +41,7 @@ type Options struct {
 	Logger  log.Logger
 
 	EncryptionMode EncryptionMode
-	TlsConfig      *tls.Config
+	TLSConfig      *tls.Config
 }
 
 type packetType int16
@@ -500,14 +500,14 @@ func (c *Bus) establishSSL() error {
 		return fmt.Errorf("bus: error sending handshake: %w", err)
 	}
 
-	e, err := c.receiveHandshake()
+	em, err := c.receiveHandshake()
 	if err != nil {
 		c.Close()
 		return fmt.Errorf("bus: error receiving handshake: %w", err)
 	}
 
-	if e == EncryptionModeDisabled || c.options.EncryptionMode == EncryptionModeDisabled {
-		if e == EncryptionModeRequired || c.options.EncryptionMode == EncryptionModeRequired {
+	if em == EncryptionModeDisabled || c.options.EncryptionMode == EncryptionModeDisabled {
+		if em == EncryptionModeRequired || c.options.EncryptionMode == EncryptionModeRequired {
 			return fmt.Errorf("bus: encryption mode mismatch")
 		}
 
@@ -524,7 +524,7 @@ func (c *Bus) establishSSL() error {
 		return fmt.Errorf("bus: error receiving SSL ACK: %w", err)
 	}
 
-	conn := tls.Client(c.conn, c.options.TlsConfig)
+	conn := tls.Client(c.conn, c.options.TLSConfig)
 	if err := conn.Handshake(); err != nil {
 		c.Close()
 		return fmt.Errorf("bus: error performing SSL handshake: %w", err)
