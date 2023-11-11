@@ -735,8 +735,15 @@ private:
                     unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
                 }
             }
-            WaitFor(AllSucceeded(unlinkFutures))
-                .ThrowOnError();
+
+            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
+                .ValueOrThrow();
+
+            for (const auto& unlinkError : unlinkResults) {
+                if (!unlinkError.IsOK() && unlinkError.GetCode() != Porto::VolumeNotLinked && unlinkError.GetCode() != Porto::VolumeNotFound) {
+                    THROW_ERROR unlinkError;
+                }
+            }
 
             RunTool<TRemoveDirAsRootTool>(VolumesPath_);
             RunTool<TRemoveDirAsRootTool>(VolumesMetaPath_);
