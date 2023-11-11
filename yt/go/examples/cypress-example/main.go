@@ -16,8 +16,8 @@ import (
 
 var (
 	flagProxy  = flag.String("proxy", "", "cluster address")
-	flagUseRpc = flag.Bool("use-rpc", false, "use RPC proxy")
-	flagUseTls = flag.Bool("use-tls", false, "use TLS")
+	flagUseRPC = flag.Bool("use-rpc", false, "use RPC proxy")
+	flagUseTLS = flag.Bool("use-tls", false, "use TLS")
 )
 
 func Example() error {
@@ -25,24 +25,22 @@ func Example() error {
 
 	var yc yt.Client
 	var err error
-	if *flagUseRpc {
+	if *flagUseRPC {
 		yc, err = ytrpc.NewClient(&yt.Config{
 			Proxy:             *flagProxy,
 			ReadTokenFromFile: true,
-			UseTLS:            *flagUseTls,
+			UseTLS:            *flagUseTLS,
 		})
-		if err != nil {
-			return err
-		}
 	} else {
 		yc, err = ythttp.NewClient(&yt.Config{
 			Proxy:             *flagProxy,
 			ReadTokenFromFile: true,
-			UseTLS:            *flagUseTls,
+			UseTLS:            *flagUseTLS,
 		})
-		if err != nil {
-			return err
-		}
+	}
+
+	if err != nil {
+		return err
 	}
 
 	ctx := context.Background()
