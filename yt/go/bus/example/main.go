@@ -14,13 +14,13 @@ import (
 
 var (
 	flagAddress = flag.String("address", "man2-4299-b52.hume.yt.gencfg-c.yandex.net:9013", "Address of YT rpc proxy")
-	useTls      = flag.Bool("tls", false, "Use TLS")
+	flagUseTLS  = flag.Bool("tls", false, "Use TLS")
 )
 
 func testBus() error {
 	ctx := context.Background()
 	mode := bus.EncryptionModeDisabled
-	if *useTls {
+	if *flagUseTLS {
 		mode = bus.EncryptionModeRequired
 	}
 
