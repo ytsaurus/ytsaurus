@@ -643,6 +643,9 @@ private:
                     if (!imageOrError.IsOK()) {
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
+                        // FIXME(khlebnikov): Drop reference to fix race with check in TJob::Cleanup() on cancellation.
+                        Context_.Slot = nullptr;
+
                         THROW_ERROR_EXCEPTION(
                             TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare docker image")
                                 << imageOrError);

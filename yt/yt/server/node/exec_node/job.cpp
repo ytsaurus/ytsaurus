@@ -384,6 +384,7 @@ void TJob::Abort(TError error)
                     .Via(Invoker_),
                 timeout);
             ArtifactsFuture_.Cancel(TError("Job aborted"));
+            WorkspaceFuture_.Cancel(TError("Job aborted"));
 
             if (auto slot = Slot_) {
                 slot->CancelPreparation();
@@ -1719,9 +1720,10 @@ void TJob::RunWithWorkspaceBuilder()
     })
         .Via(Invoker_));
 
-    workspaceBuilder->Run()
-        .Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
+    auto workspaceFuture = workspaceBuilder->Run();
+    workspaceFuture.Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
             .Via(Invoker_));
+    WorkspaceFuture_ = workspaceFuture.AsVoid();
 }
 
 void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)
