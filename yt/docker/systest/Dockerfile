@@ -36,6 +36,3 @@ RUN for package in client yson local native_driver; \
 RUN python3.7 -m pip install numpy
 
 COPY ./systest /usr/bin/systest
-COPY benchmark-0.0.1.tgz /tmp
-
-RUN tar -C /usr/bin -xzf benchmark-0.0.1.tgz

@@ -151,7 +151,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
+          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest
           docker push ytsaurus/ytsaurus-systest:latest
 
   stop-vm:

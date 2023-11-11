@@ -5,7 +5,6 @@ set -x
 
 script_name=$0
 output_path="."
-benchmarks_path=""
 ytsaurus_source_path="."
 ytsaurus_build_path="."
 image_tag="latest"
@@ -15,7 +14,6 @@ print_usage() {
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--benchmarks-path /path/to/benchmarks.tgz]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
 EOF
@@ -36,10 +34,6 @@ while [[ $# -gt 0 ]]; do
         ;;
         --output-path)
         output_path="$2"
-        shift 2
-        ;;
-        --benchmarks-path)
-        benchmarks_path=$2
         shift 2
         ;;
         --image-tag)
@@ -65,7 +59,6 @@ cp ${systest} ${output_path}
 cp ${dockerfile} ${output_path}
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 cp -r ${ytsaurus_source_path}/yt/yt/experiments/new_stress_test/ ${output_path}
-cp ${benchmarks_path} ${output_path}
 
 cd ${output_path}
 
