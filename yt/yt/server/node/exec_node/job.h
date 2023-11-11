@@ -263,6 +263,7 @@ private:
 
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = VoidFuture;
+    TFuture<void> WorkspaceFuture_ = VoidFuture;
 
     double Progress_ = 0.0;
     i64 StderrSize_ = 0;
