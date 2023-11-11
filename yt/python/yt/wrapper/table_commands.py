@@ -1055,7 +1055,7 @@ def get_table_columnar_statistics(paths, client=None):
     return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
 
 
-def dump_parquete(table, output_file):
+def dump_parquete(table, output_file, client=None):
     """Dump parquete
 
     :param table: path to tables
@@ -1063,7 +1063,7 @@ def dump_parquete(table, output_file):
     :param output_file: path to output file
     :type path: str
     """
-    stream = read_table(table, raw=True, format="arrow")
+    stream = read_table(table, raw=True, format="arrow", client=client)
 
     if yson.TYPE != "BINARY":
         raise YtError(
