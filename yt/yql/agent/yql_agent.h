@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/yql_client/proto/yql_service.pb.h>
 
+#include <yt/yt/library/program/config.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/rpc/bus/public.h>
@@ -38,6 +40,7 @@ struct IYqlAgent
 DEFINE_REFCOUNTED_TYPE(IYqlAgent)
 
 IYqlAgentPtr CreateYqlAgent(
+    TSingletonsConfigPtr singletonsConfig,
     TYqlAgentConfigPtr config,
     NHiveClient::TClusterDirectoryPtr clusterDirectory,
     NHiveClient::TClientDirectoryPtr clientDirectory,

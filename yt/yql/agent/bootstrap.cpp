@@ -146,6 +146,7 @@ void TBootstrap::DoRun()
     }
 
     YqlAgent_ = CreateYqlAgent(
+        Config_,
         Config_->YqlAgent,
         NativeConnection_->GetClusterDirectory(),
         clientDirectory,

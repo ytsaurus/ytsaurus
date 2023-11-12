@@ -20,6 +20,8 @@ class TYqlPluginConfig
     : public NYTree::TYsonStruct
 {
 public:
+    NYson::TYsonString SingletonsConfig;
+
     TString MRJobBinary;
     TString UdfDirectory;
 

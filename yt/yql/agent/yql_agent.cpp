@@ -30,6 +30,8 @@ using namespace NLogging;
 
 const auto& Logger = YqlAgentLogger;
 
+const auto RequiredABIVersion = 0;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlAgent
@@ -37,12 +39,14 @@ class TYqlAgent
 {
 public:
     TYqlAgent(
-        TYqlAgentConfigPtr config,
+        TSingletonsConfigPtr singletonsConfig,
+        TYqlAgentConfigPtr yqlAgentConfig,
         TClusterDirectoryPtr clusterDirectory,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
         TString agentId)
-        : Config_(std::move(config))
+        : SingletonsConfig_(std::move(singletonsConfig))
+        , Config_(std::move(yqlAgentConfig))
         , ClusterDirectory_(std::move(clusterDirectory))
         , ClientDirectory_(std::move(clientDirectory))
         , ControlInvoker_(std::move(controlInvoker))
@@ -55,6 +59,10 @@ public:
             ? ConvertToYsonString(Config_->OperationAttributes)
             : EmptyMap;
 
+        auto singletonsConfigString = SingletonsConfig_
+            ? ConvertToYsonString(*SingletonsConfig_)
+            : EmptyMap;
+
         THashMap<TString, TString> clusters;
         for (const auto& cluster : ClusterDirectory_->GetClusterNames()) {
             clusters[cluster] = cluster;
@@ -64,6 +72,8 @@ public:
         }
 
         NYqlPlugin::TYqlPluginOptions options{
+            .RequiredABIVersion = RequiredABIVersion,
+            .SingletonsConfig = singletonsConfigString,
             .MRJobBinary = Config_->MRJobBinary,
             .UdfDirectory = Config_->UdfDirectory,
             .Clusters = clusters,
@@ -135,6 +145,7 @@ public:
     }
 
 private:
+    const TSingletonsConfigPtr SingletonsConfig_;
     const TYqlAgentConfigPtr Config_;
     const TClusterDirectoryPtr ClusterDirectory_;
     const TClientDirectoryPtr ClientDirectory_;
@@ -224,6 +235,7 @@ private:
 };
 
 IYqlAgentPtr CreateYqlAgent(
+    TSingletonsConfigPtr singletonsConfig,
     TYqlAgentConfigPtr config,
     TClusterDirectoryPtr clusterDirectory,
     TClientDirectoryPtr clientDirectory,
@@ -231,6 +243,7 @@ IYqlAgentPtr CreateYqlAgent(
     TString agentId)
 {
     return New<TYqlAgent>(
+        std::move(singletonsConfig),
         std::move(config),
         std::move(clusterDirectory),
         std::move(clientDirectory),
