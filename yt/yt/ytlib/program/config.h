@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/library/containers/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +19,9 @@ public:
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
 
     NAuth::TNativeAuthenticationManagerConfigPtr NativeAuthenticationManager;
+
+    bool EnablePortoResourceTracker;
+    NContainers::TPodSpecConfigPtr PodSpec;
 
     REGISTER_YSON_STRUCT(TNativeSingletonsConfig);
 

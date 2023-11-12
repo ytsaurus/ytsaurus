@@ -13,6 +13,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/library/process
+    yt/yt/library/containers
     yt/yt/library/program
 
     yt/yt/core
