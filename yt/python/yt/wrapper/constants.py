@@ -11,6 +11,7 @@ try:
         YSON_PACKAGE_INSTALLATION_TEXT,
         RPC_PACKAGE_INSTALLATION_TEXT,
         PICKLING_DL_ENABLE_AUTO_COLLECTION,
+        ENABLE_YP_SERVICE_DISCOVERY
     )
 except ImportError:
     DEFAULT_HOST_SUFFIX = ""
@@ -24,3 +25,4 @@ except ImportError:
     YSON_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-yson"'
     RPC_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-rpc-driver"'
     PICKLING_DL_ENABLE_AUTO_COLLECTION = True
+    ENABLE_YP_SERVICE_DISCOVERY = False
