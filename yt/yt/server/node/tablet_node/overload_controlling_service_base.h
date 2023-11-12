@@ -17,7 +17,14 @@ public:
     template <typename... TArgs>
     TOverloadControllingServiceBase(NTabletNode::IBootstrap* bootstrap, TArgs&&... args);
 
+    using TRuntimeMethodInfoPtr = NRpc::TServiceBase::TRuntimeMethodInfoPtr;
+    using TMethodDescriptor = NRpc::TServiceBase::TMethodDescriptor;
+
+    TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor) override;
+    void SubscribeLoadAdjusted();
+
 protected:
+    std::optional<TError> GetThrottledError(const NRpc::NProto::TRequestHeader& requestHeader) override;
     void HandleRequest(
         std::unique_ptr<NRpc::NProto::TRequestHeader> header,
         TSharedRefArray message,
@@ -25,6 +32,9 @@ protected:
 
 private:
     NTabletNode::IBootstrap* const Bootstrap_;
+    THashSet<TString> Methods_;
+
+    void HandleLoadAdjusted();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

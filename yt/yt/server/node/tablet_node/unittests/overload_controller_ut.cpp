@@ -50,11 +50,18 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TMethodInfo = std::vector<std::pair<TString, TString>>;
+struct TMethodInfo
+{
+    TString Service;
+    TString Method;
+    double WaitingTimeoutFraction = 0;
+};
+
+using TMethodInfoList = std::vector<TMethodInfo>;
 
 static const TDuration MeanWaitTimeThreshold = TDuration::MilliSeconds(20);
 
-TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfo>& schema)
+TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfoList>& schema)
 {
     auto config = New<TOverloadControllerConfig>();
     config->Enabled = true;
@@ -62,12 +69,20 @@ TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfo>& 
     for (const auto& [trackerName, methods] : schema) {
         auto trackerConfig = New<TOverloadTrackerConfig>();
 
-        for (const auto& [service, method] : methods) {
-            auto serviceMethod = New<TServiceMethod>();
-            serviceMethod->Service = service;
-            serviceMethod->Method = method;
-
-            trackerConfig->MethodsToThrottle.push_back(std::move(serviceMethod));
+        for (const auto& methodInfo : methods) {
+            {
+                auto serviceMethod = New<TServiceMethod>();
+                serviceMethod->Service = methodInfo.Service;
+                serviceMethod->Method = methodInfo.Method;
+                trackerConfig->MethodsToThrottle.push_back(std::move(serviceMethod));
+            }
+            {
+                auto serviceMethodConfig = New<TServiceMethodConfig>();
+                serviceMethodConfig->Service = methodInfo.Service;
+                serviceMethodConfig->Method = methodInfo.Method;
+                serviceMethodConfig->WaitingTimeoutFraction = methodInfo.WaitingTimeoutFraction;
+                config->Methods.push_back(std::move(serviceMethodConfig));
+            }
             trackerConfig->MeanWaitTimeThreshold = MeanWaitTimeThreshold;
         }
 
@@ -94,6 +109,7 @@ TEST(TOverloadControllerTest, TestOverloadsRequests)
     });
     config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
     controller->Reconfigure(config);
+    controller->Start();
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
@@ -103,10 +119,10 @@ TEST(TOverloadControllerTest, TestOverloadsRequests)
     // Check overload incoming requests
     int remainsCount = 1000;
     while (remainsCount > 0) {
-        EXPECT_FALSE(controller->GetOverloadStatus({}, "MockService", "MockMethod2", {}).Overloaded);
+        EXPECT_FALSE(ShouldThrottleCall(controller->GetCongestionState("MockService", "MockMethod2")));
 
-        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
-        if (status.Overloaded) {
+        auto overloaded = ShouldThrottleCall(controller->GetCongestionState("MockService", "MockMethod"));
+        if (overloaded) {
             --remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(10));
@@ -115,8 +131,8 @@ TEST(TOverloadControllerTest, TestOverloadsRequests)
 
     // Check recovering even if no calls
     while (remainsCount < 1000) {
-        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
-        if (!status.Overloaded) {
+        auto overloaded = ShouldThrottleCall(controller->GetCongestionState("MockService", "MockMethod"));
+        if (!overloaded) {
             ++remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(1));
@@ -137,6 +153,7 @@ TEST(TOverloadControllerTest, TestNoOverloads)
     config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
 
     controller->Reconfigure(config);
+    controller->Start();
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
@@ -144,7 +161,7 @@ TEST(TOverloadControllerTest, TestNoOverloads)
     }
 
     for (int i = 0; i < 10000; ++i) {
-        EXPECT_FALSE(controller->GetOverloadStatus({}, "MockService", "MockMethod", {}).Overloaded);
+        EXPECT_FALSE(ShouldThrottleCall(controller->GetCongestionState("MockService", "MockMethod")));
         mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold / 2);
 
         Sleep(TDuration::MicroSeconds(10));
@@ -167,6 +184,7 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
     config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
 
     controller->Reconfigure(config);
+    controller->Start();
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
@@ -177,8 +195,8 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
     // Check overloading incoming requests
     int remainsCount = 1000;
     while (remainsCount > 0) {
-        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
-        if (status.Overloaded) {
+        auto overloaded = ShouldThrottleCall(controller->GetCongestionState("MockService", "MockMethod"));
+        if (overloaded) {
             --remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(10));
@@ -187,8 +205,8 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
 
     // Check recovering even if no calls
     while (remainsCount < 1000) {
-        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
-        if (!status.Overloaded) {
+        auto overloaded = ShouldThrottleCall(controller->GetCongestionState("MockService", "MockMethod"));
+        if (!overloaded) {
             ++remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(1));
@@ -196,22 +214,22 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
     }
 }
 
-TEST(TOverloadControllerTest, TestThrottlingAndSkips)
+TEST(TOverloadControllerTest, TestCongestionWindow)
 {
     auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
     auto mockInvoker = New<TMockInvoker>();
     auto mockInvoker2 = New<TMockInvoker>();
 
     controller->TrackInvoker("Mock", mockInvoker);
+    controller->TrackInvoker("Mock2", mockInvoker2);
 
     auto config = CreateConfig({
-        {"Mock", {{"MockService", "MockMethod"}}},
+        {"Mock", {{"MockService", "MockMethod", 0.3}}},
+        {"Mock2", {{"MockService", "MockMethod2", 0.3}}},
     });
-    config->LoadAdjustingPeriod = TDuration::MilliSeconds(200);
-    config->ThrottlingStepTime = TDuration::MilliSeconds(12);
-    config->MaxThrottlingTime = TDuration::MilliSeconds(127);
-
+    config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
     controller->Reconfigure(config);
+    controller->Start();
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
@@ -221,69 +239,144 @@ TEST(TOverloadControllerTest, TestThrottlingAndSkips)
     // Check overload incoming requests
     int remainsCount = 1000;
     while (remainsCount > 0) {
-        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
-        if (status.Overloaded) {
-            break;
+        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
+        {
+            auto window2 = controller->GetCongestionState("MockService", "MockMethod2");
+            EXPECT_EQ(window2.MaxWindow, window2.CurrentWindow);
+        }
+
+        auto congestionState = controller->GetCongestionState("MockService", "MockMethod");
+        bool overloaded = congestionState.MaxWindow != congestionState.CurrentWindow;
+        if (overloaded) {
+            --remainsCount;
+            EXPECT_EQ(0.3, congestionState.WaitingTimeoutFraction);
+            EXPECT_EQ(congestionState.OverloadedTrackers, TCongestionState::TTrackersList{"Mock"});
         } else {
-            Sleep(TDuration::MilliSeconds(10));
+            Sleep(TDuration::MicroSeconds(10));
         }
     }
 
-    {
-        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
-        EXPECT_TRUE(status.Overloaded);
-        EXPECT_FALSE(status.SkipCall);
-        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    // Check recovering even if no calls
+    while (remainsCount < 1000) {
+        auto congestionState = controller->GetCongestionState("MockService", "MockMethod");
+        bool overloaded = congestionState.MaxWindow != congestionState.CurrentWindow;
+
+        if (!overloaded) {
+            ++remainsCount;
+        } else {
+            Sleep(TDuration::MicroSeconds(1));
+        }
+    }
+}
+
+TEST(TOverloadControllerTest, TestCongestionWindowTwoTrackers)
+{
+    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto mockInvoker = New<TMockInvoker>();
+    auto mockInvoker2 = New<TMockInvoker>();
+
+    controller->TrackInvoker("Mock", mockInvoker);
+    controller->TrackInvoker("Mock2", mockInvoker2);
+
+    auto config = CreateConfig({
+        {"Mock", {{"MockService", "MockMethod", 0.3}}},
+        {"Mock2", {{"MockService", "MockMethod", 0.3}}},
+    });
+    config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
+    controller->Reconfigure(config);
+    controller->Start();
+
+    // Simulate overload
+    for (int i = 0; i < 5000; ++i) {
+        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
+        mockInvoker2->WaitTimeObserver(MeanWaitTimeThreshold * 2);
     }
 
-    {
-        auto status = controller->GetOverloadStatus(config->MaxThrottlingTime / 2, "MockService", "MockMethod", {});
-        EXPECT_TRUE(status.Overloaded);
-        EXPECT_FALSE(status.SkipCall);
-        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    // Check overload incoming requests
+    int remainsCount = 10;
+    while (remainsCount > 0) {
+        auto congestionState = controller->GetCongestionState("MockService", "MockMethod");
+        bool overloaded = congestionState.MaxWindow != congestionState.CurrentWindow;
+        if (overloaded) {
+            --remainsCount;
+            auto trackers = controller->GetCongestionState("MockService", "MockMethod").OverloadedTrackers;
+            std::sort(trackers.begin(), trackers.end());
+            EXPECT_EQ(trackers, TCongestionState::TTrackersList({"Mock", "Mock2"}));
+        } else {
+            Sleep(TDuration::MicroSeconds(10));
+        }
+    }
+}
+
+TEST(TOverloadControllerTest, TestCongestionWindowTwoInstancies)
+{
+    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto tracker1 = controller->CreateGenericTracker("Mock", "Mock.1");
+    auto tracker2 = controller->CreateGenericTracker("Mock", "Mock.2");
+
+    auto config = CreateConfig({
+        {"Mock", {{"MockService", "MockMethod", 0.3}}},
+    });
+    config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
+    controller->Reconfigure(config);
+    controller->Start();
+
+    // Simulate overload
+    for (int i = 0; i < 5000; ++i) {
+        tracker1(MeanWaitTimeThreshold * 2);
     }
 
-    {
-        auto status = controller->GetOverloadStatus(
-            config->MaxThrottlingTime - config->ThrottlingStepTime,
-            "MockService",
-            "MockMethod",
-            {});
-
-        EXPECT_TRUE(status.Overloaded);
-        EXPECT_TRUE(status.SkipCall);
-        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    // Check overload incoming requests
+    int remainsCount = 10;
+    while (remainsCount > 0) {
+        auto congestionState = controller->GetCongestionState("MockService", "MockMethod");
+        bool overloaded = congestionState.MaxWindow != congestionState.CurrentWindow;
+        if (overloaded) {
+            --remainsCount;
+            auto trackers = controller->GetCongestionState("MockService", "MockMethod").OverloadedTrackers;
+            EXPECT_EQ(trackers, TCongestionState::TTrackersList({"Mock"}));
+        } else {
+            Sleep(TDuration::MicroSeconds(10));
+        }
     }
 
-    {
-        auto status = controller->GetOverloadStatus(config->MaxThrottlingTime * 2, "MockService", "MockMethod", {});
-        EXPECT_TRUE(status.Overloaded);
-        EXPECT_TRUE(status.SkipCall);
-        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    Sleep(TDuration::MicroSeconds(10));
+
+    for (int i = 0; i < 5000; ++i) {
+        tracker1(MeanWaitTimeThreshold * 2);
+        tracker2(MeanWaitTimeThreshold * 2);
     }
 
-    {
-        auto status = controller->GetOverloadStatus(
-            config->MaxThrottlingTime * 2,
-            "MockService",
-            "MockMethod",
-            config->MaxThrottlingTime * 4);
-
-        EXPECT_TRUE(status.Overloaded);
-        EXPECT_TRUE(status.SkipCall);
-        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    remainsCount = 10;
+    while (remainsCount > 0) {
+        auto congestionState = controller->GetCongestionState("MockService", "MockMethod");
+        bool overloaded = congestionState.MaxWindow != congestionState.CurrentWindow;
+        if (overloaded) {
+            --remainsCount;
+            auto trackers = controller->GetCongestionState("MockService", "MockMethod").OverloadedTrackers;
+            EXPECT_EQ(trackers, TCongestionState::TTrackersList({"Mock"}));
+        } else {
+            Sleep(TDuration::MicroSeconds(10));
+        }
     }
 
-    {
-        auto status = controller->GetOverloadStatus(
-            config->MaxThrottlingTime / 2,
-            "MockService",
-            "MockMethod",
-            config->MaxThrottlingTime / 4);
+    Sleep(TDuration::MicroSeconds(10));
+    for (int i = 0; i < 5000; ++i) {
+        tracker1(MeanWaitTimeThreshold / 2);
+        tracker2(MeanWaitTimeThreshold * 2);
+    }
 
-        EXPECT_TRUE(status.Overloaded);
-        EXPECT_TRUE(status.SkipCall);
-        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    remainsCount = 10;
+    while (remainsCount > 0) {
+        auto congestionState = controller->GetCongestionState("MockService", "MockMethod");
+        bool overloaded = congestionState.MaxWindow != congestionState.CurrentWindow;
+        if (overloaded) {
+            --remainsCount;
+            auto trackers = controller->GetCongestionState("MockService", "MockMethod").OverloadedTrackers;
+            EXPECT_EQ(trackers, TCongestionState::TTrackersList({"Mock"}));
+        } else {
+            Sleep(TDuration::MicroSeconds(10));
+        }
     }
 }
 
