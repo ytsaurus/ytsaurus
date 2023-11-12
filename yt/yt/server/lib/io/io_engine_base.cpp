@@ -109,8 +109,8 @@ void TIOEngineSensors::UpdateKernelStatistics()
 {
     constexpr auto UpdatePeriod = TDuration::Seconds(1);
 
-    static YT_THREAD_LOCAL(std::optional<TInstant>) LastUpdateInstant;
-    static YT_THREAD_LOCAL(TTaskDiskStatistics) LastStatistics;
+    YT_THREAD_LOCAL(std::optional<TInstant>) LastUpdateInstant;
+    YT_THREAD_LOCAL(TTaskDiskStatistics) LastStatistics;
 
     auto& lastStatistics = GetTlsRef(LastStatistics);
     auto& lastUpdateInstant = GetTlsRef(LastUpdateInstant);

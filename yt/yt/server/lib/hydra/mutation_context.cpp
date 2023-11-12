@@ -121,7 +121,7 @@ bool TMutationContext::GetResponseKeeperSuppressed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_THREAD_LOCAL(TMutationContext*) CurrentMutationContextSlot;
+YT_THREAD_LOCAL(TMutationContext*) CurrentMutationContextSlot;
 
 TMutationContext* TryGetCurrentMutationContext()
 {
