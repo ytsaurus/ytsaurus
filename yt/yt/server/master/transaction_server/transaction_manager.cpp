@@ -1115,7 +1115,7 @@ public:
         }
 
         for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
-            ValidatePrerequisiteTransaction(prerequisiteTransactionId);
+            GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
         auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
@@ -1454,7 +1454,7 @@ public:
         return true;
     }
 
-    TTransaction* ValidatePrerequisiteTransaction(TTransactionId transactionId) override
+    TTransaction* GetAndValidatePrerequisiteTransaction(TTransactionId transactionId) override
     {
         auto* prerequisiteTransaction = FindTransaction(transactionId);
         if (!IsObjectAlive(prerequisiteTransaction)) {
@@ -1596,7 +1596,7 @@ private:
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         std::vector<TTransaction*> prerequisiteTransactions;
         for (auto id : prerequisiteTransactionIds) {
-            auto* prerequisiteTransaction = ValidatePrerequisiteTransaction(id);
+            auto* prerequisiteTransaction = GetAndValidatePrerequisiteTransaction(id);
             prerequisiteTransactions.push_back(prerequisiteTransaction);
         }
 
@@ -1655,7 +1655,7 @@ private:
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         std::vector<TTransaction*> prerequisiteTransactions;
         for (auto id : prerequisiteTransactionIds) {
-            auto* prerequisiteTransaction = ValidatePrerequisiteTransaction(id);
+            auto* prerequisiteTransaction = GetAndValidatePrerequisiteTransaction(id);
             prerequisiteTransactions.push_back(prerequisiteTransaction);
         }
 

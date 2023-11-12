@@ -1564,7 +1564,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     prerequisiteTransactions.reserve(request->upload_prerequisite_transaction_ids_size());
     for (auto id : request->upload_prerequisite_transaction_ids()) {
         auto transactionId = FromProto<TTransactionId>(id);
-        auto* transaction = transactionManager->ValidatePrerequisiteTransaction(transactionId);
+        auto* transaction = transactionManager->GetAndValidatePrerequisiteTransaction(transactionId);
         prerequisiteTransactions.push_back(transaction);
     }
 

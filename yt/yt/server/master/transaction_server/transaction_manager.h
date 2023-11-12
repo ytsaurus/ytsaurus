@@ -183,7 +183,7 @@ struct ITransactionManager
     using TCtxAbortCypressTransactionPtr = TIntrusivePtr<TCtxAbortCypressTransaction>;
     virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
 
-    virtual TTransaction* ValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
+    virtual TTransaction* GetAndValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)
