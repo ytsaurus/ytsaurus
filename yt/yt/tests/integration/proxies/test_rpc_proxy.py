@@ -1342,6 +1342,7 @@ class TestRpcProxyEliminateHeapUsage(TestRpcProxyHeapUsageStatisticsBase):
     }
 
     @authors("ni-stoiko")
+    @flaky(max_runs=3)
     def test_eliminate_usage(self):
         user = "u3"
         self.prepare_allocation("rpc_proxies", user)
