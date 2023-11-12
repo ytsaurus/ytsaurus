@@ -17,7 +17,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(PermissionCacheConfig, Simple)
+TEST(TPermissionCacheConfigTest, Simple)
 {
     auto config = New<TPermissionCacheConfig>();
     EXPECT_EQ(config->MasterReadOptions->ReadFrom, EMasterChannelKind::Cache);
