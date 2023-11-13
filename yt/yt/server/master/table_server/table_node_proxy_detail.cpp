@@ -1874,6 +1874,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(response->add_tablet_cells(), cell->GetDescriptor());
     }
 
+    for (const auto* index : trunkTable->SecondaryIndices()) {
+        auto* protoIndexInfo = response->add_indices();
+        ToProto(protoIndexInfo->mutable_index_table_id(), index->GetIndexTable()->GetId());
+        protoIndexInfo->set_index_kind(static_cast<int>(index->GetKind()));
+    }
+
     if (trunkTable->IsReplicated()) {
         const auto* replicatedTable = trunkTable->As<TReplicatedTableNode>();
         for (const auto* replica : replicatedTable->Replicas()) {

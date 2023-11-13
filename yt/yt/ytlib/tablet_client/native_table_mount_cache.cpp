@@ -396,6 +396,14 @@ private:
                 tableInfo->Replicas.push_back(replicaInfo);
             }
 
+            tableInfo->Indices.reserve(rsp->indices_size());
+            for (const auto& protoIndexInfo : rsp->indices()) {
+                TIndexInfo indexInfo;
+                indexInfo.TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id());
+                indexInfo.Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind());
+                tableInfo->Indices.push_back(indexInfo);
+            }
+
             if (tableInfo->IsSorted()) {
                 tableInfo->LowerCapBound = MinKey();
                 tableInfo->UpperCapBound = MaxKey();

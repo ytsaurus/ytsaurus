@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
 namespace NYT::NTableServer {
 
@@ -43,7 +44,7 @@ DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)
 DECLARE_MASTER_OBJECT_TYPE(TMasterTableSchema);
 
 using NTableClient::ETableCollocationType;
-using NTableClient::ESecondaryIndexKind;
+using NTabletClient::ESecondaryIndexKind;
 
 ////////////////////////////////////////////////////////////////////////////////
 

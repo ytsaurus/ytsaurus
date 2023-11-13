@@ -1517,6 +1517,12 @@ private:
                 }
                 response->set_physical_path(tableMountInfo->PhysicalPath);
 
+                for (const auto& indexInfo : tableMountInfo->Indices) {
+                    auto* protoIndexInfo = response->add_indices();
+                    ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
+                    protoIndexInfo->set_index_kind(static_cast<int>(indexInfo.Kind));
+                }
+
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                     tableMountInfo->Dynamic,
                     tableMountInfo->Tablets.size(),

@@ -132,10 +132,6 @@ DEFINE_ENUM(ETableCollocationType,
     ((Replication)  (0))
 );
 
-DEFINE_ENUM(ESecondaryIndexKind,
-    ((FullSync)  (0))
-);
-
 DECLARE_REFCOUNTED_STRUCT(IChunkIndexBuilder)
 
 DECLARE_REFCOUNTED_CLASS(IKeyFilter)

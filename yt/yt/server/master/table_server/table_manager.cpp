@@ -783,8 +783,8 @@ public:
         } else {
             try {
                 validate();
-            } catch (const std::exception& err) {
-                YT_LOG_ALERT(err, "Index creation validation failed on the foreign cell");
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Index creation validation failed on the foreign cell");
             }
         }
 

@@ -887,6 +887,8 @@ private:
                 return;
             }
 
+            ProcessSecondaryIndices(tableInfo, transaction);
+
             std::optional<int> tabletIndexColumnId;
             if (!tableInfo->IsSorted()) {
                 tabletIndexColumnId = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
@@ -1079,6 +1081,184 @@ private:
         {
             return transaction->GetColumnIdMapping(tableInfo, NameTable_, kind, Options_.AllowMissingKeyColumns);
         }
+
+        void ProcessSecondaryIndices(TTableMountInfoPtr tableInfo, TTransactionPtr transaction)
+        {
+            if (tableInfo->Indices.empty()) {
+                return;
+            }
+
+            int indexTableCount = tableInfo->Indices.size();
+
+            std::vector<TFuture<TTableMountInfoPtr>> futureIndexTableInfos;
+            futureIndexTableInfos.reserve(indexTableCount);
+            for (const auto& indexInfo : tableInfo->Indices) {
+                futureIndexTableInfos.push_back(Connection_
+                    ->GetTableMountCache()
+                    ->GetTableInfo(FromObjectId(indexInfo.TableId)));
+
+                if (indexInfo.Kind != ESecondaryIndexKind::FullSync) {
+                    THROW_ERROR_EXCEPTION("Unexpected secondary index kind, expected %v",
+                        ESecondaryIndexKind::FullSync)
+                        << TErrorAttribute("secondary_index_kind", indexInfo.Kind);
+                }
+            }
+
+            auto indexTableInfos = WaitForUnique(AllSucceeded(futureIndexTableInfos))
+                .ValueOrThrow();
+
+            for (const auto& column : tableInfo->Schemas[ETableSchemaKind::Primary]->Columns()) {
+                NameTable_->GetIdOrRegisterName(column.Name());
+            }
+
+            std::vector<TNameTableToSchemaIdMapping> idMappings(indexTableCount);
+            std::vector<TNameTableToSchemaIdMapping> keyIdMappings(indexTableCount);
+            for (int index = 0; index < indexTableCount; ++index) {
+                idMappings[index] = BuildColumnIdMapping(
+                    *indexTableInfos[index]->Schemas[ETableSchemaKind::Primary],
+                    NameTable_,
+                    /*allowMissingKeyColumns*/ true);
+                keyIdMappings[index] = BuildColumnIdMapping(
+                    *indexTableInfos[index]->Schemas[ETableSchemaKind::Lookup],
+                    NameTable_,
+                    /*allowMissingKeyColumns*/ true);
+            }
+
+            THashSet<ui16> tableLookupIdSet;
+            for (const auto& column : tableInfo->Schemas[ETableSchemaKind::Lookup]->Columns()) {
+                tableLookupIdSet.insert(NameTable_->GetIdOrRegisterName(column.Name()));
+            }
+
+            struct TSecondaryIndicesLookupBufferTag { };
+            auto rowBuffer = New<TRowBuffer>(TSecondaryIndicesLookupBufferTag());
+
+            auto buildRowMapping = [] (TUnversionedRow row) {
+                THashMap<ui16, int> idToPosition;
+                idToPosition.reserve(row.GetCount());
+                for (int position = 0; position < static_cast<int>(row.GetCount()); ++position) {
+                    idToPosition[row[position].Id] = position;
+                }
+
+                return idToPosition;
+            };
+
+            const auto& lookupSchema = tableInfo->Schemas[ETableSchemaKind::Lookup];
+            const auto& lookupIdMapping = transaction->GetColumnIdMapping(
+                tableInfo,
+                NameTable_,
+                ETableSchemaKind::Lookup,
+                /*allowMissingKeyColumns*/ false);
+
+            std::vector<TUnversionedRow> lookupKeys;
+            lookupKeys.reserve(Modifications_.Size());
+            for (const auto& modification : Modifications_) {
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(
+                    TUnversionedRow(modification.Row),
+                    *lookupSchema,
+                    lookupSchema->GetKeyColumnCount(),
+                    lookupIdMapping,
+                    /*columnPresenceBuffer*/ nullptr);
+                lookupKeys.push_back(capturedRow);
+            }
+
+            auto keyRange = MakeSharedRange(std::move(lookupKeys), std::move(rowBuffer));
+            TLookupRowsOptions lookupRowsOptions;
+            lookupRowsOptions.KeepMissingRows = true;
+
+            auto lookupRows = WaitForUnique(transaction->LookupRows(
+                Path_,
+                NameTable_,
+                keyRange,
+                lookupRowsOptions))
+                .ValueOrThrow();
+
+            for (int index = 0; index < indexTableCount; ++index) {
+                std::vector<TRowModification> secondaryModifications;
+                auto secondaryIndexPath = FromObjectId(tableInfo->Indices[index].TableId);
+
+                struct TSecondaryIndexModificationsBufferTag { };
+                rowBuffer = New<TRowBuffer>(TSecondaryIndexModificationsBufferTag());
+
+                const auto& schema = indexTableInfos[index]->Schemas[ETableSchemaKind::Primary];
+                auto secondaryNameTable = TNameTable::FromSchema(*schema);
+                std::optional<TUnversionedValue> empty;
+                if (auto id = secondaryNameTable->FindId(EmptyValueColumnName)) {
+                    empty = MakeUnversionedNullValue(*id);
+                }
+
+                auto writeRow = [&] (TUnversionedRow row) {
+                    auto rowToWrite = rowBuffer->CaptureAndPermuteRow(
+                        row,
+                        *schema,
+                        schema->GetKeyColumnCount(),
+                        idMappings[index],
+                        /*columnPresenceBuffer*/ nullptr,
+                        empty);
+                    secondaryModifications.push_back(TRowModification{
+                        ERowModificationType::Write,
+                        rowToWrite.ToTypeErasedRow(),
+                        TLockMask()
+                    });
+                };
+                auto deleteRow = [&] (TUnversionedRow row) {
+                    auto rowToDelete = rowBuffer->CaptureAndPermuteRow(
+                        row,
+                        *schema,
+                        schema->GetKeyColumnCount(),
+                        keyIdMappings[index],
+                        /*columnPresenceBuffer*/ nullptr);
+                    secondaryModifications.push_back(TRowModification{
+                        ERowModificationType::Delete,
+                        rowToDelete.ToTypeErasedRow(),
+                        TLockMask()
+                    });
+                };
+
+                for (int modificationIndex = 0; modificationIndex < std::ssize(Modifications_); ++modificationIndex) {
+                    const auto& modification = Modifications_[modificationIndex];
+                    const auto& modificationRow = TUnversionedRow(modification.Row);
+
+                    auto oldRow = rowBuffer->CaptureRow(lookupRows.Rowset->GetRows()[modificationIndex]);
+
+                    switch (modification.Type) {
+                        case ERowModificationType::Write: {
+                            if (!oldRow) {
+                                writeRow(modificationRow);
+                            } else {
+                                deleteRow(oldRow);
+
+                                auto oldRowMapping = buildRowMapping(oldRow);
+                                for (const auto& value : modificationRow) {
+                                    if (oldRowMapping.contains(value.Id)) {
+                                        oldRow[oldRowMapping[value.Id]] = value;
+                                    }
+                                }
+                                writeRow(oldRow);
+                            }
+
+                            break;
+                        }
+                        case ERowModificationType::Delete: {
+                            if (oldRow) {
+                                deleteRow(oldRow);
+                            }
+                            break;
+                        }
+                        default:
+                            YT_ABORT();
+                    }
+                }
+
+                transaction->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
+                    transaction.Get(),
+                    Connection_,
+                    secondaryIndexPath,
+                    std::move(secondaryNameTable),
+                    HunkMemoryPool_,
+                    MakeSharedRange(secondaryModifications, std::move(rowBuffer)),
+                    Options_));
+            }
+        }
     };
 
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
@@ -1211,8 +1391,8 @@ private:
 
             auto hunkStorageId = TableInfo_->HunkStorageId;
             const auto& tableMountCache = transaction->Client_->GetTableMountCache();
-            return tableMountCache->GetTableInfo(FromObjectId(hunkStorageId)
-                ).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TTableMountInfoPtr& hunkTableInfo) {
+            return tableMountCache->GetTableInfo(FromObjectId(hunkStorageId))
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TTableMountInfoPtr& hunkTableInfo) {
                     HunkTableInfo_ = hunkTableInfo;
 
                     YT_LOG_DEBUG("Got hunk table info (Path: %v, HunkStorageId: %v)",
@@ -1568,8 +1748,7 @@ private:
                     CellCommitSessionProvider_,
                     tabletInfo,
                     tableInfo,
-                    Logger)
-                ).first;
+                    Logger)).first;
         }
         return it->second;
     }
