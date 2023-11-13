@@ -299,6 +299,9 @@ public:
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
         SlotManager_->Initialize();
+
+        InitializeOverloadController();
+
         MasterConnector_->Initialize();
     }
 
