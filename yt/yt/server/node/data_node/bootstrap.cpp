@@ -260,6 +260,7 @@ public:
             GetControlInvoker(),
             RestartManager_);
         LocationHealthChecker_->Initialize();
+        MasterConnector_->Initialize();
     }
 
     void Run() override
@@ -273,8 +274,6 @@ public:
             GetOrchidRoot(),
             "/data_node",
             CreateVirtualNode(GetOrchidService(this)));
-
-        MasterConnector_->Initialize();
 
         P2PDistributor_->Start();
 

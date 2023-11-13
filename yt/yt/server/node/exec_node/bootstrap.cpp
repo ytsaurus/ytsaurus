@@ -167,6 +167,7 @@ public:
         ChunkCache_->Initialize();
         SlotManager_->Initialize();
         JobController_->Initialize();
+        MasterConnector_->Initialize();
     }
 
     void Run() override
@@ -179,8 +180,6 @@ public:
 
         JobProxySolomonExporter_->Register("/solomon/job_proxy", GetHttpServer());
         JobProxySolomonExporter_->Start();
-
-        MasterConnector_->Initialize();
 
         SchedulerConnector_->Start();
 

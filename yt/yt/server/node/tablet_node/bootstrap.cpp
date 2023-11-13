@@ -299,8 +299,7 @@ public:
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
         SlotManager_->Initialize();
-
-        InitializeOverloadController();
+        MasterConnector_->Initialize();
     }
 
     void InitializeOverloadController()
@@ -335,7 +334,6 @@ public:
             "/tablet_node_thread_pools",
             CreateVirtualNode(CreateThreadPoolsOrchidService()));
 
-        MasterConnector_->Initialize();
         StoreCompactor_->Start();
         StoreFlusher_->Start();
         StoreTrimmer_->Start();
