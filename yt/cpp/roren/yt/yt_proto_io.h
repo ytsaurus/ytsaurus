@@ -210,7 +210,7 @@ public:
         Y_ABORT_UNLESS(outputs.empty());
 
         Writer_ = std::make_unique<::NYT::TLenvalProtoTableWriter>(
-            MakeHolder<::NYT::TJobWriter>(TableIndex_ + 1),
+            MakeHolder<::NYT::TSingleStreamJobWriter>(TableIndex_),
             TVector{Descriptor_}
         );
     }
