@@ -117,16 +117,12 @@ private:
         }
     }
 
-    bool IsSuperuser()
+    void ValidateSuperuser(TInternedAttributeKey key)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        return securityManager->IsSuperuser(user);
-    }
 
-    void ValidateSuperuser(TInternedAttributeKey key)
-    {
-        if (!IsSuperuser()) {
+        if (!securityManager->IsSuperuser(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "Access denied: only superusers can change %Qv",
@@ -160,10 +156,10 @@ private:
             .SetMandatory(true)
             .SetPresent(!isRootAccount));
         descriptors->emplace_back(EInternedAttributeKey::ResourceLimits)
+            .SetPresent(!isRootAccount)
             .SetWritable(!isRootAccount)
             .SetReplicated(true)
-            .SetMandatory(true)
-            .SetOpaque(isRootAccount);
+            .SetMandatory(true);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ViolatedResourceLimits)
             .SetOpaque(true)
             .SetPresent(!isRootAccount));
@@ -258,7 +254,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::ResourceLimits:
-                if (IsRootAccount() && !IsSuperuser()) {
+                if (IsRootAccount()) {
                     break;
                 }
                 SerializeClusterResourceLimits(

@@ -432,6 +432,7 @@
     XX(ResourceUsage, resource_usage) \
     XX(RetainedTimestamp, retained_timestamp) \
     XX(Revision, revision) \
+    XX(RootAccountResourceLimits, root_account_resource_limits) \
     XX(RootNodeId, root_node_id) \
     XX(RootPath, root_path) \
     XX(RootstockId, rootstock_id) \
