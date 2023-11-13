@@ -21,9 +21,6 @@ public:
         const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig);
 
 private:
-    void ReportStatistics();
-    void DoReportStatistics();
-
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Spinlock_);
 
     IBootstrap* const Bootstrap_;
@@ -31,6 +28,9 @@ private:
     NConcurrency::TPeriodicExecutorPtr Executor_;
     bool Enable_;
     NYPath::TYPath TablePath_;
+
+    void ReportStatistics();
+    void DoReportStatistics();
 };
 
 DEFINE_REFCOUNTED_TYPE(TStatisticsReporter);
