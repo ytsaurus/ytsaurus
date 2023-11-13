@@ -16,6 +16,7 @@ import pytest
 
 from decimal import Decimal
 from random import shuffle
+import struct
 
 ##################################################################
 
@@ -694,10 +695,40 @@ while True:
 @pytest.mark.parametrize("precision,binary_size,skiff_type", [
     (3, 4, "int32"),
     (15, 8, "int64"),
-    (35, 16, "int128")
+    (35, 16, "int128"),
+    (35, 16, "yson32")
 ])
 @authors("ermolovd")
 class TestGoodSkiffDecimal(YTEnvSetup):
+    def _encoded_decimal_intval_to_skiff(self, encoded_decimal, skiff_type):
+        if skiff_type == "yson32":
+            # Magic number transform for decimal.
+            # It does not handle special values like inf, -inf, nan, but it does not matter for these tests.
+            result = list(reversed(encoded_decimal))
+            result[0] ^= 0x80
+            result = bytes(result)
+
+            # Encode yson string.
+            result = yson.dumps(result, yson_format="binary")
+
+            # Add size.
+            result = struct.pack("<I", len(result)) + result
+            return result
+        else:
+            return encoded_decimal
+
+    def _get_encoded_decimal_pi(self, binary_size, skiff_type):
+        return self._encoded_decimal_intval_to_skiff(b"\x3a\x01" + b"\x00" * (binary_size - 2), skiff_type)
+
+    def _get_encoded_decimal_e(self, binary_size, skiff_type):
+        return self._encoded_decimal_intval_to_skiff(b"\xf1\xfe" + b"\xff" * (binary_size - 2), skiff_type)
+
+    def _encode_optional(self, data):
+        return b"\x01" + data if data is not None else b"\x00"
+
+    def _encode_row(self, row_data):
+        return b"\x00\x00" + row_data
+
     @authors("ermolovd")
     def test_skiff_nonoptional_schema_nonoptional_skiff(self, precision, binary_size, skiff_type):
         schema = [{"name": "column", "type_v3": decimal_type(precision, 2)}]
@@ -706,8 +737,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_simple(skiff_type, name="column"))
         )
         skiff_data = (
-            b"\x00\x00\x3a\x01" + b"\x00" * (binary_size - 2)
-            + b"\x00\x00\xf1\xfe" + b"\xff" * (binary_size - 2)
+            self._encode_row(self._get_encoded_decimal_pi(binary_size, skiff_type))
+            + self._encode_row(self._get_encoded_decimal_e(binary_size, skiff_type))
         )
         write_table(
             "//tmp/table",
@@ -731,8 +762,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_simple(skiff_type, name="column"))
         )
         skiff_data = (
-            b"\x00\x00\x3a\x01" + b"\x00" * (binary_size - 2)
-            + b"\x00\x00\xf1\xfe" + b"\xff" * (binary_size - 2)
+            self._encode_row(self._get_encoded_decimal_pi(binary_size, skiff_type))
+            + self._encode_row(self._get_encoded_decimal_e(binary_size, skiff_type))
         )
         write_table(
             "//tmp/table",
@@ -754,9 +785,9 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_optional(skiff_simple(skiff_type), name="column"))
         )
         skiff_data = (
-            b"\x00\x00\x01\x3a\x01" + b"\x00" * (binary_size - 2)
-            + b"\x00\x00\x00"
-            + b"\x00\x00\x01\xf1\xfe" + b"\xff" * (binary_size - 2)
+            self._encode_row(self._encode_optional(self._get_encoded_decimal_pi(binary_size, skiff_type)))
+            + self._encode_row(self._encode_optional(None))
+            + self._encode_row(self._encode_optional(self._get_encoded_decimal_e(binary_size, skiff_type)))
         )
         write_table(
             "//tmp/table",
@@ -783,8 +814,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_optional(skiff_simple(skiff_type), name="column"))
         )
         skiff_data = (
-            b"\x00\x00\x01\x3a\x01" + b"\x00" * (binary_size - 2)
-            + b"\x00\x00\x01\xf1\xfe" + b"\xff" * (binary_size - 2)
+            self._encode_row(self._encode_optional(self._get_encoded_decimal_pi(binary_size, skiff_type)))
+            + self._encode_row(self._encode_optional(self._get_encoded_decimal_e(binary_size, skiff_type)))
         )
         write_table(
             "//tmp/table",
@@ -798,7 +829,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
         with raises_yt_error(yt_error_codes.SchemaViolation):
             write_table(
                 "//tmp/table",
-                b"\x00\x00\x00",
+                self._encode_row(self._encode_optional(None)),
                 is_raw=True,
                 input_format=format)
 
@@ -823,8 +854,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             )
         )
         skiff_data = (
-            b"\x00\x00\x3a\x01" + b"\x00" * (binary_size - 2) + b"\x02\x00\x00\x00" b"pi"
-            + b"\x00\x00\xf1\xfe" + b"\xff" * (binary_size - 2) + b"\x07\x00\x00\x00" b"minus e"
+            self._encode_row(self._get_encoded_decimal_pi(binary_size, skiff_type) + b"\x02\x00\x00\x00" b"pi")
+            + self._encode_row(self._get_encoded_decimal_e(binary_size, skiff_type) + b"\x07\x00\x00\x00" b"minus e")
         )
         write_table(
             "//tmp/table",
