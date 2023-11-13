@@ -173,35 +173,87 @@ func (a *API) validatePoolOption(ctx context.Context, value any) error {
 
 }
 
-func (a *API) getOplet(
-	ctx context.Context,
+func (a *API) newOplet(
 	alias string,
 	userClient yt.Client,
-	agentInfo strawberry.AgentInfo) (*strawberry.Oplet, error) {
+	agentInfo strawberry.AgentInfo,
+) *strawberry.Oplet {
 	if userClient == nil {
 		userClient = a.ytc
 	}
-	options := strawberry.OpletOptions{
+	return strawberry.NewOplet(strawberry.OpletOptions{
 		AgentInfo:    agentInfo,
 		Alias:        alias,
 		Controller:   a.ctl,
 		Logger:       a.l,
 		UserClient:   userClient,
 		SystemClient: a.ytc,
+	})
+}
+
+func (a *API) getOpletFromCypress(
+	ctx context.Context,
+	alias string,
+	userClient yt.Client,
+	agentInfo strawberry.AgentInfo,
+) (oplet *strawberry.Oplet, err error) {
+	oplet = a.newOplet(alias, userClient, agentInfo)
+
+	if err = oplet.EnsureUpdatedFromCypress(ctx); err != nil {
+		return
 	}
-
-	oplet := strawberry.NewOplet(options)
-
-	if err := oplet.EnsureUpdatedFromCypress(ctx); err != nil {
-		return nil, err
-	}
-
 	// Oplet should observe controller in up to date state.
-	if _, err := a.ctl.UpdateState(); err != nil {
-		return nil, err
+	if _, err = a.ctl.UpdateState(); err != nil {
+		return
+	}
+	return
+}
+
+func (a *API) getOpletFromYson(
+	alias string,
+	userClient yt.Client,
+	agentInfo strawberry.AgentInfo,
+	node yson.RawValue,
+	acl []yt.ACE,
+) (oplet *strawberry.Oplet, err error) {
+	oplet = a.newOplet(alias, userClient, agentInfo)
+	err = oplet.LoadFromYsonNode(node, acl)
+	return
+}
+
+// getOpletBriefInfoFromCypress creates an oplet from cypress and extracts
+// OpletBriefInfo even if the oplet is broken.
+func (a *API) getOpletBriefInfoFromCypress(ctx context.Context, alias string) (strawberry.OpletBriefInfo, error) {
+	oplet, err := a.getOpletFromCypress(ctx, alias, nil, a.cfg.AgentInfo)
+
+	if err == nil {
+		err = oplet.CheckOperationLiveness(ctx)
 	}
 
-	return oplet, nil
+	if err == nil || (oplet != nil && oplet.Broken()) {
+		return oplet.GetBriefInfo(), nil
+	} else {
+		return strawberry.OpletBriefInfo{}, err
+	}
+}
+
+// getOpletBriefInfoFromYson is similar to getOpletBriefInfoFromCypress,
+// but it creates an oplet from an already loaded strawberry state in yson.
+// It loads completely from provided state, so it's relatively cheap to call,
+// but it does not do extra check for operation liveness and this data may
+// be slightly outdated in the loaded state.
+func (a *API) getOpletBriefInfoFromYson(
+	alias string,
+	node yson.RawValue,
+	acl []yt.ACE,
+) (strawberry.OpletBriefInfo, error) {
+	oplet, err := a.getOpletFromYson(alias, nil, a.cfg.AgentInfo, node, acl)
+
+	if err == nil || (oplet != nil && oplet.Broken()) {
+		return oplet.GetBriefInfo(), nil
+	} else {
+		return strawberry.OpletBriefInfo{}, err
+	}
 }
 
 // Create creates a new strawberry operation in cypress.
@@ -374,18 +426,7 @@ func (a *API) GetBriefInfo(ctx context.Context, alias string) (strawberry.OpletB
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
 		return strawberry.OpletBriefInfo{}, err
 	}
-
-	oplet, err := a.getOplet(ctx, alias, nil, a.cfg.AgentInfo)
-	if err != nil {
-		return strawberry.OpletBriefInfo{}, err
-	}
-	if err := oplet.LoadInfoState(ctx); err != nil {
-		return strawberry.OpletBriefInfo{}, err
-	}
-	if err := oplet.CheckOperationLiveness(ctx); err != nil {
-		return strawberry.OpletBriefInfo{}, err
-	}
-	return oplet.GetBriefInfo()
+	return a.getOpletBriefInfoFromCypress(ctx, alias)
 }
 
 func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err error) {
@@ -439,23 +480,10 @@ type AliasWithAttrs struct {
 func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, error) {
 	var attributesToList []string
 	if len(attributes) != 0 {
-		attributesToList = []string{
-			"strawberry_persistent_state",
-			"strawberry_info_state",
-			"modification_time",
-			"value",
-		}
+		attributesToList = strawberry.CypressStateAttributes
 	}
 
-	var ops map[string]struct {
-		InfoState        strawberry.InfoState       `yson:"strawberry_info_state,attr"`
-		PersistentState  strawberry.PersistentState `yson:"strawberry_persistent_state,attr"`
-		ModificationTime yson.Time                  `yson:"modification_time,attr"`
-		Speclet          struct {
-			Value            yson.RawValue `yson:"value,attr"`
-			ModificationTime yson.Time     `yson:"modification_time,attr"`
-		} `yson:"speclet"`
-	}
+	var ops map[string]yson.RawValue
 
 	err := a.ytc.GetNode(
 		ctx,
@@ -466,59 +494,41 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 		return nil, err
 	}
 
+	var acls map[string]struct {
+		ACL []yt.ACE `yson:"principal_acl,attr"`
+	}
+
+	if len(attributes) != 0 {
+		err := a.ytc.GetNode(
+			ctx,
+			strawberry.AccessControlNamespacesPath.JoinChild(a.ctl.Family()),
+			&acls,
+			&yt.GetNodeOptions{Attributes: []string{"principal_acl"}})
+		if err != nil {
+			return nil, err
+		}
+
+		// Ctl state should be updated in order to return valid status.
+		if _, err := a.ctl.UpdateState(); err != nil {
+			return nil, err
+		}
+	}
+
 	result := make([]AliasWithAttrs, 0, len(ops))
-	for alias, op := range ops {
+	for alias, node := range ops {
 		var resultAttrs map[string]any
 
 		if len(attributes) != 0 {
-			strawberryAttrs := strawberry.GetOpBriefAttributes(
-				op.Speclet.Value,
-				op.PersistentState,
-				op.InfoState)
-
-			speclet, errorParsingCtlSpeclet := a.ctl.ParseSpeclet(op.Speclet.Value)
-			if errorParsingCtlSpeclet != nil {
-				speclet, _ = a.ctl.ParseSpeclet(nil)
+			briefInfo, err := a.getOpletBriefInfoFromYson(alias, node, acls[alias].ACL)
+			// NB: Should never happen.
+			if err != nil {
+				return nil, err
 			}
-			ctlAttrs := a.ctl.GetOpBriefAttributes(speclet)
-			// If an error occures, the attributes from speclet will be incorrect.
-			// In this case we return nil values for requested attributes and set broken status.
-			if errorParsingCtlSpeclet != nil {
-				for key := range ctlAttrs {
-					ctlAttrs[key] = nil
-				}
-			}
-
-			nodeAttrs := map[string]any{
-				"strawberry_state_modification_time": op.ModificationTime,
-				"speclet_modification_time":          op.Speclet.ModificationTime,
-			}
-
-			// Sanity check.
-			existingAttrs := make(map[string]bool)
-			for attr := range strawberryAttrs {
-				existingAttrs[attr] = true
-			}
-			for attr := range ctlAttrs {
-				if existingAttrs[attr] {
-					return nil, fmt.Errorf("this is a bug, attribute %v is duplicated", attr)
-				} else {
-					existingAttrs[attr] = true
-				}
-			}
-			for attr := range nodeAttrs {
-				if existingAttrs[attr] {
-					return nil, fmt.Errorf("this is a bug, attribute %v is duplicated", attr)
-				}
-			}
+			opletAttrs := strawberry.GetOpBriefAttributes(briefInfo)
 
 			resultAttrs = make(map[string]any)
 			for _, attr := range attributes {
-				if value, ok := strawberryAttrs[attr]; ok {
-					resultAttrs[attr] = value
-				} else if value, ok := ctlAttrs[attr]; ok {
-					resultAttrs[attr] = value
-				} else if value, ok := nodeAttrs[attr]; ok {
+				if value, ok := opletAttrs[attr]; ok {
 					resultAttrs[attr] = value
 				} else {
 					return nil, yterrors.Err(
@@ -677,7 +687,7 @@ func (a *API) Start(ctx context.Context, alias string, untracked bool, userClien
 		return err
 	}
 	agentInfo := a.getAgentInfoForUntrackedStage()
-	oplet, err := a.getOplet(ctx, alias, userClient, agentInfo)
+	oplet, err := a.getOpletFromCypress(ctx, alias, userClient, agentInfo)
 	if err != nil {
 		return err
 	}
@@ -707,7 +717,7 @@ func (a *API) Stop(ctx context.Context, alias string) error {
 		return nil
 	}
 	agentInfo := a.getAgentInfoForUntrackedStage()
-	oplet, err := a.getOplet(ctx, alias, nil, agentInfo)
+	oplet, err := a.getOpletFromCypress(ctx, alias, nil, agentInfo)
 	if err != nil {
 		return err
 	}

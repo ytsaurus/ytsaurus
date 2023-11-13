@@ -414,7 +414,7 @@ func TestHTTPAPIGetBriefInfo(t *testing.T) {
 	var result map[string]strawberry.OpletBriefInfo
 	err := yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
-	require.Equal(t, "Ok", result["result"].StatusReason)
+	require.Equal(t, "", result["result"].StatusReason)
 
 	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
@@ -432,7 +432,7 @@ func TestHTTPAPIGetBriefInfo(t *testing.T) {
 
 	err = yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(result["result"].StatusReason, "Waiting for restart"))
+	require.True(t, strings.HasPrefix(result["result"].StatusReason, "operation is pending restart"))
 	require.Equal(t, result["result"].Creator, "root")
 }
 
@@ -815,11 +815,12 @@ func TestHTTPAPISetInt64ValueUsingJSONFormat(t *testing.T) {
 	require.Equal(t, int64(1), resultWithOption["result"])
 }
 
-func checkStatusFromGetBriefInfoCommand(
+func checkAttrFromGetBriefInfoCommand(
 	t *testing.T,
 	c *helpers.RequestClient,
 	alias string,
-	expected strawberry.OperationStatus,
+	attrName string,
+	expectedValue any,
 ) {
 	t.Helper()
 
@@ -827,36 +828,41 @@ func checkStatusFromGetBriefInfoCommand(
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
-	var statusResult map[string]strawberry.OpletBriefInfo
-	require.NoError(t, yson.Unmarshal(r.Body, &statusResult))
-	require.Equal(t, expected, statusResult["result"].Status)
+	var rsp struct {
+		Result map[string]any `yson:"result"`
+	}
+	require.NoError(t, yson.Unmarshal(r.Body, &rsp))
+	require.Equal(t, expectedValue, rsp.Result[attrName])
 }
 
-func checkStatusFromListCommand(
+func checkAttrFromListCommand(
 	t *testing.T,
 	c *helpers.RequestClient,
 	alias string,
-	expected strawberry.OperationStatus,
+	attrName string,
+	expectedValue any,
 ) {
 	t.Helper()
 
 	r := c.MakePostRequest("list", api.RequestParams{
 		Params: map[string]any{
-			"attributes": []string{"status"},
+			"attributes": []string{attrName},
 		},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
-	var listResult map[string][]yson.ValueWithAttrs
-	require.NoError(t, yson.Unmarshal(r.Body, &listResult))
-	require.Contains(t, listResult["result"], yson.ValueWithAttrs{
+	var rsp struct {
+		Result []yson.ValueWithAttrs `yson:"result"`
+	}
+	require.NoError(t, yson.Unmarshal(r.Body, &rsp))
+	require.Contains(t, rsp.Result, yson.ValueWithAttrs{
 		Value: alias,
 		Attrs: map[string]any{
-			"status": string(expected),
+			attrName: expectedValue,
 		},
 	})
 }
 
-func TestHTTPAPIStateAfterStartAndStop(t *testing.T) {
+func TestHTTPAPIStateAndStatus(t *testing.T) {
 	t.Parallel()
 
 	env, c := helpers.PrepareAPI(t)
@@ -893,16 +899,88 @@ func TestHTTPAPIStateAfterStartAndStop(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	checkStatusFromListCommand(t, c, alias, strawberry.StatusActive)
-	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StatusActive)
+	checkAttrFromListCommand(t, c, alias, "state", "active")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "active")
+	// No agent to start op.
+	checkAttrFromListCommand(t, c, alias, "status", "pending")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "pending")
 
 	r = c.MakePostRequest("stop", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	checkStatusFromListCommand(t, c, alias, strawberry.StatusInactive)
-	checkStatusFromGetBriefInfoCommand(t, c, alias, strawberry.StatusInactive)
+	checkAttrFromListCommand(t, c, alias, "state", "inactive")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "inactive")
+	checkAttrFromListCommand(t, c, alias, "status", "good")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "good")
+
+	r = c.MakePostRequest("start", api.RequestParams{
+		Params: map[string]any{
+			"alias":     alias,
+			"untracked": true,
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	checkAttrFromListCommand(t, c, alias, "state", "untracked")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "untracked")
+
+	helpers.Wait(t, func() bool {
+		op := getOp(t, env, alias)
+		return op != nil && op.State == yt.StateRunning
+	})
+
+	// TODO(dakovalkov): CHYT-1039
+	// checkAttrFromListCommand(t, c, alias, "status", "good")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "good")
+
+	r = c.MakePostRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "preemption_mode",
+			"value": "graceful",
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	checkAttrFromListCommand(t, c, alias, "state", "untracked")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "untracked")
+	// TODO(dakovalkov): CHYT-1039
+	// checkAttrFromListCommand(t, c, alias, "status", "failed")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "failed")
+
+	r = c.MakePostRequest("stop", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	checkAttrFromListCommand(t, c, alias, "state", "inactive")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "inactive")
+	checkAttrFromListCommand(t, c, alias, "status", "good")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "good")
+
+	r = c.MakePostRequest("remove_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "preemption_mode",
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "preemption_mode",
+			"value": 1,
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	checkAttrFromListCommand(t, c, alias, "state", "inactive")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "inactive")
+	checkAttrFromListCommand(t, c, alias, "status", "failed")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "failed")
 }
 
 func TestHTTPAPICreateAndStart(t *testing.T) {
@@ -986,7 +1064,7 @@ func TestHTTPAPIListWorksIfSpecletIsIncorrect(t *testing.T) {
 		Value: alias,
 		Attrs: map[string]any{
 			"test_option": nil,
-			"stage":       nil,
+			"stage":       "production",
 		},
 	})
 }

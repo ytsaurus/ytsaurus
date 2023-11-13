@@ -226,9 +226,6 @@ func (c *Controller) Family() string {
 
 func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	var speclet Speclet
-	if specletYson == nil {
-		return speclet, nil
-	}
 	err := yson.Unmarshal(specletYson, &speclet)
 	if err != nil {
 		return nil, yterrors.Err("failed to parse speclet", err)

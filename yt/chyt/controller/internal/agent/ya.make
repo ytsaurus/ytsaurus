@@ -14,5 +14,7 @@ GO_TEST_SRCS(tracker_test.go)
 END()
 
 IF (NOT OPENSOURCE)
-    RECURSE(gotest)
+    RECURSE(
+        gotest
+    )
 ENDIF()

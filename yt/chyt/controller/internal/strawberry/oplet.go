@@ -78,17 +78,7 @@ type OpletOptions struct {
 	SystemClient yt.Client
 }
 
-type OpletState string
-
 const (
-	StateOK = "ok"
-	// State is does not exist if there was a resolve error during update from cypress.
-	StateDoesNotExist = "does_not_exist"
-
-	StateAccessNodeMissing  = "access_node_missing"
-	StateSpecletNodeMissing = "speclet_node_missing"
-	StateInvalidSpeclet     = "invalid_speclet"
-
 	StageUntracked = "untracked"
 )
 
@@ -113,6 +103,8 @@ type Oplet struct {
 
 	// strawberryStateModificationTime is a modification time of the strawberry cypress node.
 	strawberryStateModificationTime yson.Time
+	// strawberryStateModificationTime is a creation time of the strawberry cypress node.
+	strawberryStateCreationTime yson.Time
 
 	// flushedPersistentState is the last flushed persistentState. It is used to detect an external
 	// state change in the cypress and a local change of persistentState. It would be enough to
@@ -137,7 +129,13 @@ type Oplet struct {
 	// because it is not fault-tolerant. Eliminate this.
 	pendingRestart bool
 
-	state OpletState
+	// brokenError is an error that led the oplet to broken state.
+	// Flush persistent state is not allowed for a broken oplet because the state may be unparsed yet.
+	// So this error cannot be a part of persistent or info state and cannot be flushed.
+	brokenError error
+	// brokenReason is a brief reason why the oplet is in broken state.
+	// It contains a message from brokenError without any details like attributes and inner errors.
+	brokenReason string
 
 	acl []yt.ACE
 
@@ -154,7 +152,6 @@ func NewOplet(options OpletOptions) *Oplet {
 	oplet := &Oplet{
 		alias:                        options.Alias,
 		pendingUpdateFromCypressNode: true,
-		state:                        StateOK,
 		cypressNode:                  options.StrawberryRoot.Child(options.Alias),
 		l:                            log.With(options.Logger, log.String("alias", options.Alias)),
 		c:                            options.Controller,
@@ -162,9 +159,6 @@ func NewOplet(options OpletOptions) *Oplet {
 		systemClient:                 options.SystemClient,
 		agentInfo:                    options.AgentInfo,
 	}
-	oplet.infoState.Controller.Address = options.Hostname
-	// Set same to the flushedInfoState to avoid flushing it after controller change.
-	oplet.flushedInfoState = oplet.infoState
 	return oplet
 }
 
@@ -194,18 +188,24 @@ func (oplet *Oplet) Active() bool {
 	return oplet.strawberrySpeclet.ActiveOrDefault()
 }
 
+func (oplet *Oplet) Untracked() bool {
+	return oplet.strawberrySpeclet.StageOrDefault() == StageUntracked && oplet.Active()
+}
+
 func (oplet *Oplet) CypressNode() ypath.Path {
 	return oplet.cypressNode
 }
 
 func (oplet *Oplet) Broken() bool {
-	return oplet.state == StateAccessNodeMissing ||
-		oplet.state == StateSpecletNodeMissing ||
-		oplet.state == StateInvalidSpeclet
+	return oplet.brokenError != nil
 }
 
-func (oplet *Oplet) DoesNotExist() bool {
-	return oplet.state == StateDoesNotExist
+func (oplet *Oplet) BrokenReason() string {
+	return oplet.brokenReason
+}
+
+func (oplet *Oplet) BrokenError() error {
+	return oplet.brokenError
 }
 
 // Inappropriate returns |true| whenever the oplet does not belong to provided agent.
@@ -227,14 +227,79 @@ func (oplet *Oplet) OperationInfo() (yt.OperationID, yt.OperationState) {
 	return oplet.persistentState.YTOpID, oplet.persistentState.YTOpState
 }
 
-func (oplet *Oplet) SetState(state OpletState, reason string) {
-	if oplet.state != state {
-		oplet.l.Debug("Oplet state changed",
-			log.String("old_state", string(oplet.state)),
-			log.String("new_state", string(state)),
-			log.String("reason", reason))
-		oplet.state = state
+type OpletState string
+
+const (
+	OpletStateActive    OpletState = "active"
+	OpletStateInactive  OpletState = "inactive"
+	OpletStateUntracked OpletState = "untracked"
+)
+
+func (oplet *Oplet) State() OpletState {
+	if oplet.Untracked() {
+		return OpletStateUntracked
+	} else if oplet.Active() {
+		return OpletStateActive
+	} else {
+		return OpletStateInactive
 	}
+}
+
+type OpletStatus string
+
+const (
+	OpletStatusGood    OpletStatus = "good"
+	OpletStatusPending OpletStatus = "pending"
+	OpletStatusFailed  OpletStatus = "failed"
+)
+
+func (oplet *Oplet) Status() (status OpletStatus, statusReason string) {
+	if oplet.Broken() {
+		return OpletStatusFailed, "oplet is broken: " + oplet.brokenReason
+	}
+	if oplet.infoState.Error != nil {
+		return OpletStatusFailed, "info state contains error"
+	}
+
+	if ok, reason := oplet.needsRestart(); ok {
+		if oplet.Untracked() {
+			return OpletStatusFailed, "untracked operation is pending restart: " + reason
+		} else {
+			return OpletStatusPending, "operation is pending restart: " + reason
+		}
+	}
+	if ok, reason := oplet.needsAbort(); ok {
+		if oplet.Untracked() {
+			return OpletStatusFailed, "untracked operation is pending abort: " + reason
+		} else {
+			return OpletStatusPending, "operation is pending abort: " + reason
+		}
+	}
+	if ok, reason := oplet.needsUpdateOpParameters(); ok {
+		if oplet.Untracked() {
+			return OpletStatusFailed, "untracked operation is pending update op parameters: " + reason
+		} else {
+			return OpletStatusPending, "operation is pending update op parameters: " + reason
+		}
+	}
+
+	if oplet.Active() {
+		if oplet.persistentState.YTOpState == yt.StatePending {
+			return OpletStatusFailed, "operation is in pending state: max running operation count is probably exceeded"
+		} else if oplet.persistentState.YTOpState != yt.StateRunning {
+			return OpletStatusPending, "operation is not in running state"
+		}
+	}
+
+	return OpletStatusGood, ""
+}
+
+// setBroken sets oplet state to broken and returns corresponding error.
+func (oplet *Oplet) setBroken(reason string, args ...any) (brokenError error) {
+	oplet.brokenReason = reason
+	oplet.brokenError = yterrors.Err(append(args, reason)...)
+	oplet.l.Debug("Oplet is broken", log.Error(oplet.brokenError))
+	return oplet.brokenError
 }
 
 func (oplet *Oplet) OnCypressNodeChanged() {
@@ -258,26 +323,6 @@ func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
-}
-
-// LoadInfoState reads the info state from the cypress.
-// Agent's logic does not depend on info state, so it should be never called
-// during agent's routine. But it is used in API to generate better errors.
-func (oplet *Oplet) LoadInfoState(ctx context.Context) error {
-	oplet.l.Info("loading info oplet state from cypress")
-
-	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode.Attr("strawberry_info_state"), &oplet.infoState, nil)
-	if err != nil {
-		if yterrors.ContainsResolveError(err) {
-			// strawberry_info_state can be missing if there were no persistent state flush yet.
-			return nil
-		} else {
-			return err
-		}
-	}
-	// flushedInfoState and infoState should be equal to avoid unnecessary state flushing.
-	oplet.flushedInfoState = oplet.infoState
 	return nil
 }
 
@@ -365,7 +410,7 @@ func (oplet *Oplet) clearError() {
 }
 
 func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
-	if !oplet.strawberrySpeclet.ActiveOrDefault() {
+	if !oplet.Active() {
 		return false, "oplet is in inactive state"
 	}
 	if !oplet.HasYTOperation() {
@@ -400,7 +445,7 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 }
 
 func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) {
-	if !oplet.strawberrySpeclet.ActiveOrDefault() {
+	if !oplet.Active() {
 		return false, "oplet is in inactive state"
 	}
 	if !oplet.HasYTOperation() {
@@ -452,17 +497,42 @@ func (oplet *Oplet) resetBackoff() {
 	oplet.persistentState.BackoffDuration = time.Duration(0)
 }
 
+var CypressStateAttributes = []string{
+	"strawberry_persistent_state",
+	"strawberry_info_state",
+	"revision",
+	"creation_time",
+	"modification_time",
+	"value",
+}
+
 func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	oplet.l.Info("updating strawberry operations state from cypress",
 		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
 		log.UInt64("speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
 
-	initialUpdate := oplet.flushedStateRevision == 0
+	var node yson.RawValue
 
-	// Collect full attributes of the node.
+	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode, &node, &yt.GetNodeOptions{Attributes: CypressStateAttributes})
+
+	if yterrors.ContainsResolveError(err) {
+		return oplet.setBroken("cypress state does not exist", err)
+	} else if err != nil {
+		oplet.l.Error("faied to get operation state from cypress", log.Error(err))
+		return err
+	}
+
+	oplet.pendingUpdateFromCypressNode = false
+
+	return oplet.updateFromYsonNode(node)
+}
+
+func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
+	initialUpdate := oplet.flushedStateRevision == 0
 
 	var node struct {
 		PersistentState  PersistentState `yson:"strawberry_persistent_state,attr"`
+		InfoState        InfoState       `yson:"strawberry_info_state,attr"`
 		Revision         yt.Revision     `yson:"revision,attr"`
 		CreationTime     yson.Time       `yson:"creation_time,attr"`
 		ModificationTime yson.Time       `yson:"modification_time,attr"`
@@ -473,57 +543,36 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 		} `yson:"speclet"`
 	}
 
-	// Keep in sync with structure above.
-	attributes := []string{
-		"strawberry_persistent_state", "revision", "creation_time", "modification_time", "value",
+	err := yson.Unmarshal(nodeValue, &node)
+	if err != nil {
+		return oplet.setBroken("failed to parse cypress state node", err)
 	}
 
-	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode, &node, &yt.GetNodeOptions{Attributes: attributes})
-
-	if yterrors.ContainsResolveError(err) {
-		// Node has gone.
-		oplet.SetState(StateDoesNotExist, err.Error())
-		return err
-	} else if err != nil {
-		oplet.l.Error("error getting operation state from cypress", log.Error(err))
-		return err
-	}
-
-	oplet.pendingUpdateFromCypressNode = false
-
-	// Validate operation node
+	// Validate operation node.
 
 	if node.Speclet == nil {
-		oplet.SetState(StateSpecletNodeMissing, "speclet node is missing")
-		return yterrors.Err("speclet node is missing")
+		return oplet.setBroken("speclet node is missing")
 	}
 
 	if node.Speclet.Value == nil {
-		oplet.SetState(StateInvalidSpeclet, "speclet node is empty")
-		return yterrors.Err("speclet node is empty")
+		return oplet.setBroken("speclet node is empty")
 	}
 
 	var strawberrySpeclet Speclet
 	err = yson.Unmarshal(node.Speclet.Value, &strawberrySpeclet)
 	if err != nil {
-		msg := "error parsing strawberry speclet from node"
-		oplet.SetState(StateInvalidSpeclet, msg)
-		err = yterrors.Err(msg, err,
+		return oplet.setBroken("failed to parse strawberry speclet from node",
+			err,
 			yterrors.Attr("speclet_yson", node.Speclet.Value),
 			yterrors.Attr("speclet_revision", uint64(node.Speclet.Revision)))
-		oplet.l.Error(msg, log.Error(err))
-		return err
 	}
 
 	controllerSpeclet, err := oplet.c.ParseSpeclet(node.Speclet.Value)
 	if err != nil {
-		msg := "error parsing controller speclet from node"
-		oplet.SetState(StateInvalidSpeclet, msg)
-		err = yterrors.Err(msg, err,
+		return oplet.setBroken("failed to parse controller speclet from node",
+			err,
 			yterrors.Attr("speclet_yson", string(node.Speclet.Value)),
 			yterrors.Attr("speclet_revision", uint64(node.Speclet.Revision)))
-		oplet.l.Error(msg, log.Error(err))
-		return err
 	}
 
 	oplet.l.Debug("state collected and validated")
@@ -560,20 +609,37 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 			err = nil
 		}
 	}
+	oplet.infoState = node.InfoState
+	oplet.flushedInfoState = node.InfoState
 	oplet.flushedStateRevision = node.Revision
 
 	oplet.specletYson = node.Speclet.Value
 	oplet.persistentState.SpecletRevision = node.Speclet.Revision
 	oplet.strawberryStateModificationTime = node.ModificationTime
+	oplet.strawberryStateCreationTime = node.CreationTime
 	oplet.specletModificationTime = node.Speclet.ModificationTime
 	oplet.strawberrySpeclet = strawberrySpeclet
 	oplet.controllerSpeclet = controllerSpeclet
-	oplet.infoState.CreationTime = node.CreationTime
 
 	oplet.l.Info("strawberry operation state updated from cypress",
 		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
 		log.UInt64("speclet_revision", uint64(oplet.flushedStateRevision)))
 
+	return nil
+}
+
+func (oplet *Oplet) LoadFromYsonNode(node yson.RawValue, acl []yt.ACE) error {
+	// Assume that the provided yson node is a freshly loaded state from cypress,
+	// do not need to update from cypress once again.
+	oplet.pendingUpdateFromCypressNode = false
+
+	if err := oplet.updateFromYsonNode(node); err != nil {
+		return err
+	}
+	if acl == nil {
+		return oplet.setBroken("acl node is missing")
+	}
+	oplet.SetACL(acl)
 	return nil
 }
 
@@ -588,8 +654,7 @@ func (oplet *Oplet) UpdateACLFromNode(ctx context.Context) error {
 
 	acl, err := oplet.getACLFromNode(ctx)
 	if yterrors.ContainsResolveError(err) {
-		oplet.SetState(StateAccessNodeMissing, "acl node is missing")
-		return err
+		return oplet.setBroken("acl node is missing", err)
 	} else if err != nil {
 		oplet.l.Error("error getting acl from access node")
 		return err
@@ -790,7 +855,16 @@ func (oplet *Oplet) flushPersistentState(ctx context.Context) error {
 	oplet.l.Info("flushing new operation's state",
 		log.UInt64("flushed_state_revision", uint64(oplet.flushedStateRevision)))
 
+	// Sanity check, should never happen.
+	if oplet.Broken() {
+		return yterrors.Err("cannot flush persistent state of broken oplet",
+			yterrors.Attr("broken_reason", oplet.brokenReason))
+	}
+
 	annotation := oplet.CypAnnotation()
+
+	// Always override controller's address on flush.
+	oplet.infoState.Controller.Address = oplet.agentInfo.Hostname
 
 	err := oplet.systemClient.MultisetAttributes(
 		ctx,
@@ -846,7 +920,7 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 	}
 
 	// Skip further processing if the oplet does not belong to the controller or is broken.
-	if oplet.DoesNotExist() || oplet.Broken() || oplet.Inappropriate() || oplet.needsBackoff() {
+	if oplet.Broken() || oplet.Inappropriate() || oplet.needsBackoff() {
 		return err
 	}
 
@@ -886,31 +960,34 @@ type YTOperationBriefInfo struct {
 }
 
 type OpletBriefInfo struct {
-	Status                          OperationStatus      `yson:"status" json:"status"`
+	State                           OpletState           `yson:"state" json:"state"`
+	Status                          OpletStatus          `yson:"status" json:"status"`
+	StatusReason                    string               `yson:"status_reason" json:"status_reason"`
 	SpecletDiff                     map[string]FieldDiff `yson:"speclet_diff,omitempty" json:"speclet_diff,omitempty"`
 	YTOperation                     YTOperationBriefInfo `yson:"yt_operation,omitempty" json:"yt_operation,omitempty"`
 	Creator                         string               `yson:"creator,omitempty" json:"creator,omitempty"`
 	Pool                            string               `yson:"pool,omitempty" json:"pool,omitempty"`
 	Stage                           string               `yson:"stage" json:"stage"`
 	CreationTime                    *yson.Time           `yson:"creation_time,omitempty" json:"creation_time,omitempty"`
-	StrawberryStateModificationTime yson.Time            `yson:"strawberry_state_modification_time,omitempty" json:"strawberry_state_modification_time,omitempty"`
-	SpecletModificationTime         yson.Time            `yson:"speclet_modification_time,omitempty" json:"speclet_modification_time,omitempty"`
+	StrawberryStateModificationTime *yson.Time           `yson:"strawberry_state_modification_time,omitempty" json:"strawberry_state_modification_time,omitempty"`
+	SpecletModificationTime         *yson.Time           `yson:"speclet_modification_time,omitempty" json:"speclet_modification_time,omitempty"`
 	IncarnationIndex                int                  `yson:"incarnation_index" json:"incarnation_index"`
 	CtlAttributes                   map[string]any       `yson:"ctl_attributes" json:"ctl_attributes"`
-	StatusReason                    string               `yson:"status_reason" json:"status_reason"`
 	Error                           string               `yson:"error,omitempty" json:"error,omitempty"`
 }
 
-func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo, err error) {
-	briefInfo.Status = GetOpStatus(oplet.strawberrySpeclet, oplet.infoState)
+// GetBriefInfo should work even if oplet is broken.
+func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
+	briefInfo.State = oplet.State()
+	briefInfo.Status, briefInfo.StatusReason = oplet.Status()
 	briefInfo.Creator = oplet.persistentState.Creator
 	briefInfo.Stage = oplet.strawberrySpeclet.StageOrDefault()
-	briefInfo.CreationTime = getYSONTimePointerOrNil(oplet.infoState.CreationTime)
-	briefInfo.StrawberryStateModificationTime = oplet.strawberryStateModificationTime
-	briefInfo.SpecletModificationTime = oplet.specletModificationTime
+	briefInfo.CreationTime = getYSONTimePointerOrNil(oplet.strawberryStateCreationTime)
+	briefInfo.StrawberryStateModificationTime = getYSONTimePointerOrNil(oplet.strawberryStateModificationTime)
+	briefInfo.SpecletModificationTime = getYSONTimePointerOrNil(oplet.specletModificationTime)
 	briefInfo.IncarnationIndex = oplet.persistentState.IncarnationIndex
-	if oplet.persistentState.YTOpPool != nil {
-		briefInfo.Pool = *oplet.persistentState.YTOpPool
+	if oplet.strawberrySpeclet.Pool != nil {
+		briefInfo.Pool = *oplet.strawberrySpeclet.Pool
 	}
 
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
@@ -920,7 +997,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo, err error) {
 		briefInfo.YTOperation.StartTime = getYSONTimePointerOrNil(oplet.infoState.YTOpStartTime)
 		briefInfo.YTOperation.FinishTime = getYSONTimePointerOrNil(oplet.infoState.YTOpFinishTime)
 
-		if oplet.strawberrySpeclet.ActiveOrDefault() {
+		if !oplet.Broken() && oplet.Active() {
 			if !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
 				briefInfo.SpecletDiff = specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
 			}
@@ -937,29 +1014,20 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo, err error) {
 		}
 	}
 
-	briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet)
+	if oplet.controllerSpeclet == nil {
+		// NB: We should get a list of available options even if
+		// an oplet is broken and there is no speclet.
+		defaultSpeclet, _ := oplet.c.ParseSpeclet(yson.RawValue("{}"))
+		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(defaultSpeclet)
+	} else {
+		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet)
+	}
 
-	if oplet.infoState.Error != nil {
+	if oplet.Broken() {
+		briefInfo.Error = oplet.BrokenError().Error()
+	} else if oplet.infoState.Error != nil {
 		briefInfo.Error = *oplet.infoState.Error
 	}
 
-	if ok, reason := oplet.needsAbort(); ok {
-		briefInfo.StatusReason = "Waiting for abort: " + reason
-		return
-	}
-	if ok, reason := oplet.needsRestart(); ok {
-		briefInfo.StatusReason = "Waiting for restart: " + reason
-		return
-	}
-	if ok, reason := oplet.needsUpdateOpParameters(); ok {
-		briefInfo.StatusReason = "Waiting for update op parameters: " + reason
-		return
-	}
-	if len(briefInfo.SpecletDiff) > 0 {
-		briefInfo.StatusReason = "Speclet changed; operation should be restarted manually"
-		return
-	}
-
-	briefInfo.StatusReason = "Ok"
 	return
 }

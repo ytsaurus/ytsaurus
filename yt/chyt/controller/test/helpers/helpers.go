@@ -231,3 +231,16 @@ func PrepareMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient) {
 	})
 	return env, agent, PrepareClient(t, env, proxy, server)
 }
+
+func Wait(t *testing.T, predicate func() bool) {
+	t.Helper()
+
+	for i := 0; i < 30; i++ {
+		if !predicate() {
+			time.Sleep(300 * time.Millisecond)
+		} else {
+			return
+		}
+	}
+	require.True(t, predicate())
+}

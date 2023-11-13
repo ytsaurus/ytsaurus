@@ -47,7 +47,6 @@ const (
 
 // InfoState contains fields which are useful for understanding the current status of the oplet,
 // but they are not used by an agent itself and so they are not a part of the persistent state.
-// It is written to cypress when changed and is never read.
 type InfoState struct {
 	Error      *string `yson:"error,omitempty"`
 	Controller struct {
@@ -55,49 +54,31 @@ type InfoState struct {
 		// TODO(max42): build Revision, etc.
 	} `yson:"controller"`
 
-	CreationTime yson.Time `yson:"creation_time,omitempty"`
-
 	YTOpStartTime  yson.Time `yson:"yt_op_start_time,omitempty"`
 	YTOpFinishTime yson.Time `yson:"yt_op_finish_time,omitempty"`
 }
 
-type OperationStatus string
-
-const (
-	StatusActive   OperationStatus = "active"
-	StatusInactive OperationStatus = "inactive"
-	StatusBroken   OperationStatus = "broken"
-)
-
-func GetOpStatus(speclet Speclet, infoState InfoState) OperationStatus {
-	if infoState.Error != nil {
-		return StatusBroken
-	}
-	if speclet.ActiveOrDefault() {
-		return StatusActive
-	}
-	return StatusInactive
-}
-
 // GetOpBriefAttributes returns map with strawberry attributes, which can be requested from API.
-func GetOpBriefAttributes(
-	specletYson yson.RawValue,
-	persistentState PersistentState,
-	infoState InfoState,
-) map[string]any {
-	var status, stage any
-	speclet, err := ParseSpeclet(specletYson)
-	if err == nil {
-		status = GetOpStatus(speclet, infoState)
-		stage = speclet.Stage
+func GetOpBriefAttributes(briefInfo OpletBriefInfo) map[string]any {
+	attributes := map[string]any{
+		"state":                              briefInfo.State,
+		"status":                             briefInfo.Status,
+		"creator":                            briefInfo.Creator,
+		"creation_time":                      briefInfo.CreationTime,
+		"yt_operation_id":                    briefInfo.YTOperation.ID,
+		"yt_operation_start_time":            briefInfo.YTOperation.StartTime,
+		"yt_operation_finish_time":           briefInfo.YTOperation.FinishTime,
+		"stage":                              briefInfo.Stage,
+		"strawberry_state_modification_time": briefInfo.StrawberryStateModificationTime,
+		"speclet_modification_time":          briefInfo.SpecletModificationTime,
 	}
-	return map[string]any{
-		"creator":                  persistentState.Creator,
-		"yt_operation_id":          persistentState.YTOpID,
-		"creation_time":            getYSONTimePointerOrNil(infoState.CreationTime),
-		"yt_operation_start_time":  getYSONTimePointerOrNil(infoState.YTOpStartTime),
-		"yt_operation_finish_time": getYSONTimePointerOrNil(infoState.YTOpFinishTime),
-		"status":                   status,
-		"stage":                    stage,
+
+	for name, value := range briefInfo.CtlAttributes {
+		if _, ok := attributes[name]; ok {
+			panic("attribute " + name + " is duplicated")
+		}
+		attributes[name] = value
 	}
+
+	return attributes
 }

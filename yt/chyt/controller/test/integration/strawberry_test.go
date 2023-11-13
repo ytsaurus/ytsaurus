@@ -106,6 +106,8 @@ func setACL(t *testing.T, env *helpers.Env, alias string, acl []yt.ACE) {
 }
 
 func getOp(t *testing.T, env *helpers.Env, alias string) *yt.OperationStatus {
+	t.Helper()
+
 	ops, err := yt.ListAllOperations(env.Ctx, env.YT, nil)
 	require.NoError(t, err)
 	for _, op := range ops {
