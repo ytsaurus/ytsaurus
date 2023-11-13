@@ -345,8 +345,8 @@ func TestControllerStage(t *testing.T) {
 
 	defaultAgent.Stop()
 
-	setSpecletOption(t, env, "test7", "test_option", rand.Uint64())
-	setSpecletOption(t, env, "test6", "test_option", rand.Uint64())
+	setSpecletOption(t, env, "test7", "test_option", 1234)
+	setSpecletOption(t, env, "test6", "test_option", 4321)
 
 	waitIncarnation(t, env, "test7", 3)
 	// Default agent is off.
@@ -399,12 +399,12 @@ func TestForceRestart(t *testing.T) {
 	createStrawberryOp(t, env, "test9")
 	waitIncarnation(t, env, "test9", 1)
 
-	setSpecletOption(t, env, "test9", "test_option", rand.Uint64())
+	setSpecletOption(t, env, "test9", "test_option", 1234)
 	waitIncarnation(t, env, "test9", 2)
 
 	setSpecletOption(t, env, "test9", "restart_on_speclet_change", false)
 
-	setSpecletOption(t, env, "test9", "test_option", rand.Uint64())
+	setSpecletOption(t, env, "test9", "test_option", 4321)
 	time.Sleep(time.Second * 1)
 	// Operation should not be restarted because restart_on_speclet_change is false.
 	waitIncarnation(t, env, "test9", 2)

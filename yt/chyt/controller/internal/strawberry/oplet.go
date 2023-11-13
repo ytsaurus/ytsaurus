@@ -34,18 +34,21 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 			Title: "Basic options",
 			Options: []OptionDescriptor{
 				{
+					Title:        "Pool",
 					Name:         "pool",
 					Type:         TypePool,
 					CurrentValue: speclet.Pool,
 					Description:  "Name of the compute pool to start a corresponding YT operation in.",
 				},
 				{
+					Title:        "Network project",
 					Name:         "network_project",
 					Type:         TypeString,
 					CurrentValue: speclet.NetworkProject,
 					DefaultValue: a.DefaultNetworkProject,
 				},
 				{
+					Title:        "Preemption mode",
 					Name:         "preemption_mode",
 					Type:         TypeString,
 					CurrentValue: speclet.PreemptionMode,
@@ -54,6 +57,7 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 					Description:  "Preemption mode for a corresponding YT operation.",
 				},
 				{
+					Title:        "Restart on speclet change",
 					Name:         "restart_on_speclet_change",
 					Type:         TypeBool,
 					CurrentValue: speclet.RestartOnSpecletChange,

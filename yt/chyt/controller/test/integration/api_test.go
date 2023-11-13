@@ -724,19 +724,23 @@ func TestHTTPAPIDescribeOptions(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	var result map[string][]strawberry.OptionGroupDescriptor
-	err := yson.Unmarshal(r.Body, &result)
+	var rsp struct {
+		Result []strawberry.OptionGroupDescriptor `yson:"result"`
+	}
+	err := yson.Unmarshal(r.Body, &rsp)
 	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(rsp.Result), 2)
 
-	require.GreaterOrEqual(t, len(result["result"]), 2)
-	require.Contains(t, stripOptions(result["result"])[0].Options, strawberry.OptionDescriptor{
+	strippedResult := stripOptions(rsp.Result)
+
+	require.Contains(t, strippedResult[0].Options, strawberry.OptionDescriptor{
 		Name: "pool",
 		Type: "pool",
 	})
-	require.Contains(t, stripOptions(result["result"])[len(result["result"])-1].Options, strawberry.OptionDescriptor{
+	require.Contains(t, strippedResult[len(strippedResult)-1].Options, strawberry.OptionDescriptor{
 		Name:         "test_option",
-		Type:         "uint64",
-		CurrentValue: uint64(10),
+		Type:         "int64",
+		CurrentValue: int64(10),
 	})
 }
 

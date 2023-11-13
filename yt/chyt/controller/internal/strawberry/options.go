@@ -5,7 +5,7 @@ type OptionType string
 const (
 	TypeBool      OptionType = "bool"
 	TypeString    OptionType = "string"
-	TypeUInt64    OptionType = "uint64"
+	TypeInt64     OptionType = "int64"
 	TypeYson      OptionType = "yson"
 	TypePath      OptionType = "path"
 	TypePool      OptionType = "pool"
@@ -13,10 +13,13 @@ const (
 )
 
 type OptionDescriptor struct {
+	Title        string     `yson:"title" json:"title"`
 	Name         string     `yson:"name" json:"name"`
 	Type         OptionType `yson:"type" json:"type"`
 	CurrentValue any        `yson:"current_value,omitempty" json:"current_value,omitempty"`
 	DefaultValue any        `yson:"default_value,omitempty" json:"default_value,omitempty"`
+	MinValue     any        `yson:"min_value,omitempty" json:"min_value,omitempty"`
+	MaxValue     any        `yson:"max_value,omitempty" json:"max_value,omitempty"`
 	Choices      []any      `yson:"choices,omitempty" json:"choices,omitempty"`
 	Description  string     `yson:"description,omitempty" json:"description,omitempty"`
 }

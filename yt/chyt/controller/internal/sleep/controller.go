@@ -12,7 +12,7 @@ import (
 )
 
 type Speclet struct {
-	TestOption *uint64 `yson:"test_option"`
+	TestOption *int64 `yson:"test_option"`
 }
 
 type Controller struct {
@@ -83,7 +83,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 			Options: []strawberry.OptionDescriptor{
 				{
 					Name:         "test_option",
-					Type:         strawberry.TypeUInt64,
+					Type:         strawberry.TypeInt64,
 					CurrentValue: speclet.TestOption,
 				},
 			},
