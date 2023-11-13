@@ -219,6 +219,37 @@ class TestSkiff(object):
         assert len(result) == 1
 
         assert result[0]["value"] == {"key1": 1, "key2": "value2", "key3": 0.1}
+    #
+    # def test_int128(self):
+    #     skiff_schema = \
+    #         {
+    #             "wire_type": "tuple",
+    #             "children": [
+    #                 {
+    #                     "wire_type": "int128",
+    #                     "name": "signed"
+    #                 },
+    #                 {
+    #                     "wire_type": "uint128",
+    #                     "name": "unsigned"
+    #                 }
+    #             ]
+    #         }
+    #     schema = create_skiff_schema([skiff_schema])
+    #
+    #     record = schema.create_record()
+    #     record["signed"] = -5
+    #     record["unsigned"] = 5
+    #
+    #     stream = BytesIO()
+    #     dump_skiff([record], [stream], [schema])
+    #
+    #     stream.seek(0)
+    #     result = list(load_skiff(stream, [schema], "#range_index", "#row_index"))
+    #     assert len(result) == 1
+    #
+    #     assert result[0]["signed"] == -5
+    #     assert result[0]["unsigned"] == 5
 
     def test_other_columns(self):
         skiff_schema = \

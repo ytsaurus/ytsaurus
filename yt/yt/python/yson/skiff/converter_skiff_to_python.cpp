@@ -5,9 +5,11 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/int128/int128.h>
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>
 
+#include <util/system/byteorder.h>
 #include <util/system/yassert.h>
 
 #include <CXX/Extensions.hxx> // pycxx
@@ -179,6 +181,13 @@ private:
         } else if constexpr (WireType == EWireType::Int64) {
             static_assert(PythonType == EPythonType::Int);
             return PyLong_FromLongLong(parser->ParseInt64());
+        } else if constexpr (WireType == EWireType::Int128) {
+            static_assert(PythonType == EPythonType::Int);
+
+            auto value = parser->ParseInt128();
+            auto valueStr = ToString(i128(static_cast<ui64>(value.High), value.Low));
+            // _PyLong_FromDigits is a private function :(
+            return PyLong_FromString(const_cast<char*>(valueStr.c_str()), NULL, 10);
         } else if constexpr (WireType == EWireType::Uint8) {
             static_assert(PythonType == EPythonType::Int);
             return PyLong_FromUnsignedLongLong(parser->ParseUint8());
@@ -191,6 +200,13 @@ private:
         } else if constexpr (WireType == EWireType::Uint64) {
             static_assert(PythonType == EPythonType::Int);
             return PyLong_FromUnsignedLongLong(parser->ParseUint64());
+        } else if constexpr (WireType == EWireType::Uint128) {
+            static_assert(PythonType == EPythonType::Int);
+
+            auto value = parser->ParseUint128();
+            auto valueStr = ToString(ui128(value.High, value.Low));
+            // _PyLong_FromDigits is a private function :(
+            return PyLong_FromString(const_cast<char*>(valueStr.c_str()), NULL, 10);
         } else {
             // Silly check instead of static_assert(false);
             static_assert(WireType == EWireType::Int8);

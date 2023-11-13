@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/int128/int128.h>
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>
 
@@ -185,6 +186,24 @@ private:
         return static_cast<T>(value);
     }
 
+    template <typename TSkiffType, typename TIntType>
+    TSkiffType CheckAndGetInt128(PyObject* obj)
+    {
+        static_assert(std::is_integral_v<TIntType>);
+        if (!PyLong_Check(obj)) {
+            THROW_ERROR_EXCEPTION("Expected value of type int, got %v",
+                Repr(Py::Object(obj)));
+        }
+
+        auto objStrValue = Py::Str(Py::Object(obj));
+        TIntType objIntValue = FromString<TIntType>(objStrValue);
+
+        return TSkiffType{
+            .Low = GetLow(objIntValue),
+            .High = static_cast<decltype(TSkiffType{}.High)>(GetHigh(objIntValue))
+        };
+    }
+
     void WriteBytes(PyObject* obj, TCheckedInDebugSkiffWriter* writer)
     {
         auto str = Py::ConvertToStringBuf(obj);
@@ -206,6 +225,9 @@ private:
         } else if constexpr (WireType == EWireType::Int64) {
             auto value = CheckAndGetLongLong<i64>(obj);
             writer->WriteInt64(value);
+        } else if constexpr (WireType == EWireType::Uint128) {
+            auto value = CheckAndGetInt128<TInt128, i128>(obj);
+            writer->WriteInt128(value);
         } else if constexpr (WireType == EWireType::Uint8) {
             auto value = CheckAndGetLongLong<ui8>(obj);
             writer->WriteUint8(value);
@@ -218,6 +240,9 @@ private:
         } else if constexpr (WireType == EWireType::Uint64) {
             auto value = CheckAndGetLongLong<ui64>(obj);
             writer->WriteUint64(value);
+        } else if constexpr (WireType == EWireType::Uint128) {
+            auto value = CheckAndGetInt128<TUint128, ui128>(obj);
+            writer->WriteUint128(value);
         } else {
             // Silly check instead of static_assert(false);
             static_assert(WireType == EWireType::Int8);
