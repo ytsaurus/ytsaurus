@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, create, ls, get
+from yt_commands import authors, create, ls, get, remove
 
 from yt.common import YtError
 import pytest
@@ -16,7 +16,7 @@ class TestSequoia(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 0
 
     @authors("kvk1920", "cherepashka")
-    def test_create(self):
+    def test_create_and_remove(self):
         create("map_node", "//tmp/some_node")
 
         # Scalars.
@@ -32,6 +32,12 @@ class TestSequoia(YTEnvSetup):
         assert not get("//tmp/b")
         create("list_node", "//tmp/l")
         assert get("//tmp/l") == []
+
+        for node in ["some_node", "i", "ui", "s", "d", "b", "l"]:
+            remove(f"//tmp/{node}")
+            with pytest.raises(YtError):
+                get(f"//tmp/{node}")
+        assert ls("//tmp") == []
 
     @authors("danilalexeev")
     def test_list(self):

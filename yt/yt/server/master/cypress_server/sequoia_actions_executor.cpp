@@ -178,8 +178,15 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto* parent = cypressManager->GetNode(TVersionedNodeId(parentId));
-        auto parentProxy = cypressManager->GetNodeProxy(parent)->AsMap();
-        parentProxy->RemoveChild(request->key());
+
+        // This is temporary logic.
+        // TODO(cherepashka): In future DetachChild should remove child from parent node proxy.
+        auto& children = parent->As<TSequoiaMapNode>()->MutableChildren();
+        if (!children.Contains(request->key())) {
+            YT_LOG_FATAL("Sequoia map node has no such child: %Qv", request->key());
+        }
+        auto child = children.KeyToChild().find(request->key());
+        children.Remove(request->key(), child->second);
     }
 
     void HydraPrepareRemoveNode(
