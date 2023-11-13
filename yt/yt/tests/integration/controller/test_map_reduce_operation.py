@@ -809,7 +809,7 @@ print "x={0}\ty={1}".format(x, y)
             if c.attributes["requisition"][0]["account"] == "intermediate"
         ]
 
-    def _ban_nodes_with_intermediate_chunks(self, op):
+    def _ban_nodes_with_intermediate_chunks(self):
         intermediate_chunk_ids = self._find_intermediate_chunks()
         assert len(intermediate_chunk_ids) == 1
         intermediate_chunk_id = intermediate_chunk_ids[0]
@@ -821,9 +821,10 @@ print "x={0}\ty={1}".format(x, y)
         ban_node(node_id, "node with intermediate chunk")
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node_id)) == "offline")
 
-        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
-        wait(lambda: not exists("//sys/controller_agents/instances/{}/orchid/controller_agent/job_tracker/nodes/{}".format(
-            controller_agent_address, node_id)))
+        controller_agent_addresses = ls("//sys/controller_agents/instances")
+        for controller_agent_address in controller_agent_addresses:
+            wait(lambda: not exists("//sys/controller_agents/instances/{}/orchid/controller_agent/job_tracker/nodes/{}".format(
+                controller_agent_address, node_id)))
         return [node_id]
 
     def _abort_single_job_if_running_after_node_ban(self, op, job_id):
@@ -861,7 +862,7 @@ print "x={0}\ty={1}".format(x, y)
 
         first_reduce_job = wait_breakpoint()[0]
 
-        self._ban_nodes_with_intermediate_chunks(op)
+        self._ban_nodes_with_intermediate_chunks()
 
         # We abort reducer and restarted job will fail
         # due to unavailable intermediate chunk.
@@ -914,7 +915,7 @@ print "x={0}\ty={1}".format(x, y)
         # We wait for the first reducer to start (the second one is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
-        banned_nodes = self._ban_nodes_with_intermediate_chunks(op)
+        banned_nodes = self._ban_nodes_with_intermediate_chunks()
 
         # The first reducer will probably complete successfully, but the second one
         # must fail due to unavailable intermediate chunk.
@@ -3149,7 +3150,7 @@ done
 
         first_reduce_job = wait_breakpoint()[0]
 
-        assert self._ban_nodes_with_intermediate_chunks(op) != []
+        assert self._ban_nodes_with_intermediate_chunks() != []
         self._abort_single_job_if_running_after_node_ban(op, first_reduce_job)
 
         release_breakpoint()
@@ -3208,7 +3209,7 @@ done
 
         first_reduce_job = wait_breakpoint()[0]
 
-        assert self._ban_nodes_with_intermediate_chunks(op) != []
+        assert self._ban_nodes_with_intermediate_chunks() != []
         self._abort_single_job_if_running_after_node_ban(op, first_reduce_job)
 
         release_breakpoint()

@@ -377,7 +377,7 @@ def get_controller_agent_config():
 
         job_tracker = {
             logging_job_sample_size = 1000;
-            duration_before_job_considered_vanished = 1000;
+            duration_before_job_considered_disappeared_from_node = 1000;
         };
 
         set_committed_attribute_via_transaction_action = %true;

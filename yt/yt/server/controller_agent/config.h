@@ -707,7 +707,7 @@ public:
 
     int LoggingJobSampleSize;
 
-    TDuration DurationBeforeJobConsideredVanished;
+    TDuration DurationBeforeJobConsideredDisappearedFromNode;
 
     REGISTER_YSON_STRUCT(TJobTrackerConfig);
 

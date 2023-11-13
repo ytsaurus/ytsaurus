@@ -569,7 +569,9 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("logging_job_sample_size", &TThis::LoggingJobSampleSize)
         .Default(3)
         .GreaterThanOrEqual(0);
-    registrar.Parameter("duration_before_job_considered_vanished", &TThis::DurationBeforeJobConsideredVanished)
+    registrar.Parameter(
+        "duration_before_job_considered_disappeared_from_node",
+        &TThis::DurationBeforeJobConsideredDisappearedFromNode)
         .Default(TDuration::Seconds(5));
 }
 

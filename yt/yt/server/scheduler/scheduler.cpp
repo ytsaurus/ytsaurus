@@ -3353,8 +3353,8 @@ private:
             AbortOperationJobs(
                 operation,
                 error
-                    << TErrorAttribute("abort_reason", EAbortReason::Suspended),
-                EAbortReason::Suspended,
+                    << TErrorAttribute("abort_reason", EAbortReason::OperationSuspended),
+                EAbortReason::OperationSuspended,
                 /* terminated */ false);
         }
 
