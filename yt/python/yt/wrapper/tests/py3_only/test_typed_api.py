@@ -43,6 +43,17 @@ import typing
 import datetime
 
 
+
+
+
+
+
+
+
+
+
+
+
 @yt_dataclass
 class Struct:
     str_field: str
@@ -335,6 +346,228 @@ def write_and_read_primitive(py_type, ti_type, value, mode):
     else:
         assert False, "Unsupported mode {}".format(mode)
 
+
+@pytest.mark.usefixtures("yt_env_v4")
+class TestXXQQ(object):
+    @authors("chegoryu")
+    def test_xx(self):
+        import decimal
+        import struct
+        from typing import (
+            Any,
+            Type,
+        )
+
+        from yt.wrapper.schema.types import (
+            create_annotated_type,
+            yt_dataclass,
+        )
+
+        from yt.wrapper.schema.table_schema import (
+            TableSchema,
+        )
+
+        import yt.wrapper
+        from yt.wrapper import YPath, YtClient
+
+        import yt.type_info as ti
+        from yt.yson import (
+            dumps as yson_dumps,
+            loads as yson_loads,
+            get_bytes,
+            YsonStringProxy,
+        )
+
+        import yt.wrapper.schema.internal_schema
+
+
+        original_ti_type_to_wire_type = yt.wrapper.schema.internal_schema._ti_type_to_wire_type
+
+
+        def _ti_type_to_wire_type(ti_type: Any):
+            if ti_type.name == "Decimal":
+                return "yson32"
+            else:
+                return original_ti_type_to_wire_type(ti_type)
+
+
+        yt.wrapper.schema.internal_schema._ti_type_to_wire_type = _ti_type_to_wire_type
+
+
+        _MAX_DECIMAL_PRECISION = 35
+        _DECIMAL_CONTEXT = decimal.Context(prec=2 * _MAX_DECIMAL_PRECISION)
+
+
+        class _YtNaN(object):
+            """
+            Python compares NaN not as YT does
+            """
+
+            def __eq__(self, other: decimal.Decimal | Any):
+                if isinstance(other, decimal.Decimal):
+                    return other.is_nan()
+                else:
+                    return False
+
+            def __str__(self):
+                return "NaN"
+
+
+        YtNaN = _YtNaN()
+
+
+        def _get_decimal_byte_size(precision: int) -> int:
+            if precision < 0 or precision > 38:
+                raise ValueError(f"Bad precision: {precision}")
+            elif precision <= 9:
+                return 4
+            elif precision <= 18:
+                return 8
+            else:
+                return 16
+
+
+        def _encode_decimal(decimal_value: decimal.Decimal, precision: int, scale: int) -> bytes:
+            if isinstance(decimal_value, _YtNaN):
+                decimal_value = decimal.Decimal("NaN")
+            elif isinstance(decimal_value, str):
+                decimal_value = decimal.Decimal(decimal_value)
+            elif not isinstance(decimal_value, decimal.Decimal):
+                raise TypeError("decimal_value must be Decimal, actual type: {}".format(decimal_value.__class__.__name__))
+
+            if decimal_value == decimal.Decimal("Inf"):
+                return {
+                    4: b"\xFF\xFF\xFF\xFE",
+                    8: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
+                    16: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
+                }[_get_decimal_byte_size(precision)]
+            elif decimal_value == decimal.Decimal("-Inf"):
+                return {
+                    4: b"\x00\x00\x00\x02",
+                    8: b"\x00\x00\x00\x00\x00\x00\x00\x02",
+                    16: b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02",
+                }[_get_decimal_byte_size(precision)]
+            elif decimal_value.is_nan():
+                return {
+                    4: b"\xFF\xFF\xFF\xFF",
+                    8: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                    16: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                }[_get_decimal_byte_size(precision)]
+
+            scaled = decimal_value.scaleb(scale, context=_DECIMAL_CONTEXT)
+            intval = int(scaled)
+            if scaled - intval != 0:
+                raise RuntimeError(
+                    "Cannot convert {} to Decimal<{},{}> without loosing precision".format(
+                        decimal_value,
+                        precision,
+                        scale,
+                    )
+                )
+
+            byte_size = _get_decimal_byte_size(precision)
+
+            intval += 1 << (8 * byte_size - 1)
+            if byte_size == 4:
+                return struct.pack(">I", intval)
+            elif byte_size == 8:
+                return struct.pack(">Q", intval)
+            elif byte_size == 16:
+                return struct.pack(">QQ", intval >> 64, intval & 0xFFFFFFFFFFFFFFFF)
+            else:
+                raise RuntimeError("Unexpected precision: {}".format(precision))
+
+
+        def _decode_decimal(yt_binary_value: bytes, precision: int, scale: int) -> decimal.Decimal:
+            def check_int_special_value(intval: int, binsize: int):
+                shift = binsize * 8 - 1
+                nan_value = (1 << shift) - 1
+                value_map = {
+                    nan_value: decimal.Decimal("NaN"),
+                    nan_value - 1: decimal.Decimal("Inf"),
+                    -nan_value + 1: decimal.Decimal("-Inf"),
+                }
+                return value_map.get(intval, None)
+
+            expected_size = _get_decimal_byte_size(precision)
+            if isinstance(yt_binary_value, str):
+                yt_binary_value = yt_binary_value.encode("ascii")
+            if isinstance(yt_binary_value, YsonStringProxy):
+                yt_binary_value = get_bytes(yt_binary_value)
+            if len(yt_binary_value) != _get_decimal_byte_size(precision):
+                raise ValueError(
+                    "Binary value of Decimal<{},{}> has invalid length; expected length: {} actual length: {}".format(
+                        precision, scale, expected_size, len(yt_binary_value)
+                    )
+                )
+
+            if len(yt_binary_value) == 4:
+                (intval,) = struct.unpack(">I", yt_binary_value)
+            elif len(yt_binary_value) == 8:
+                (intval,) = struct.unpack(">Q", yt_binary_value)
+            elif len(yt_binary_value) == 16:
+                hi, lo = struct.unpack(">QQ", yt_binary_value)
+                intval = (hi << 64) | lo
+            else:
+                raise AssertionError("Unexpected length: {}".format(len(yt_binary_value)))
+            intval -= 1 << (len(yt_binary_value) * 8 - 1)
+
+            special = check_int_special_value(intval, len(yt_binary_value))
+            if special is not None:
+                return special
+
+            return decimal.Decimal(intval).scaleb(-scale, context=_DECIMAL_CONTEXT)
+
+
+        class YtDecimal:
+            @classmethod
+            def __class_getitem__(cls, precision_and_scale: tuple[int, int]) -> Type[decimal.Decimal]:
+                precision, scale = precision_and_scale
+
+                def to_yt_type(decimal_value: decimal.Decimal) -> bytes:
+                    xx = yson_dumps(_encode_decimal(decimal_value, precision, scale), yson_format="binary")
+                    print("WRITE", type(xx))
+                    print("WRITE", xx)
+                    return yson_dumps(_encode_decimal(decimal_value, precision, scale), yson_format="binary")
+
+                def from_yt_type(decimal_value: bytes) -> decimal.Decimal:
+                    xx = get_bytes(yson_loads(decimal_value))
+                    print("READ", type(xx))
+                    print("READ", xx)
+                    return _decode_decimal(xx, precision, scale)
+
+                return create_annotated_type(bytes, ti.Decimal(precision, scale), to_yt_type, from_yt_type)
+
+            @classmethod
+            def _name(cls):
+                return f"{cls.__module__}.{cls.__qualname__}"
+
+            def __new__(cls, *args: Any, **kwargs: Any):
+                raise TypeError(f"Type {YtDecimal._name()} cannot be instantiated")
+
+            def __init_subclass__(cls, *args: Any, **kwargs: Any):
+                raise TypeError(f"{YtDecimal._name()} cannot be subclassed")
+
+
+        @yt_dataclass
+        class TestDecimal:
+            test_decimal: YtDecimal[35, 18]
+            d_list: list[YtDecimal[35, 18]]
+
+
+        print("SCHEMA", TableSchema.from_row_type(TestDecimal))
+
+        books = [
+            TestDecimal(decimal.Decimal("1.1"), []),
+            TestDecimal(decimal.Decimal("5.1"), []),
+            TestDecimal(decimal.Decimal("-9.8"), [decimal.Decimal("5.234")]),
+        ]
+
+        table_path = YPath("//tmp/table")
+
+        yt.wrapper.write_table_structured(table_path, TestDecimal, books)
+        result = list(yt.wrapper.read_table_structured(table_path, TestDecimal))
+        print(result)
 
 @pytest.mark.usefixtures("yt_env_v4")
 class TestTypedApi(object):

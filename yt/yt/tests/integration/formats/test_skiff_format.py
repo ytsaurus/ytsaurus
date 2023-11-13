@@ -721,6 +721,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
         ]
 
         assert skiff_data == read_table("//tmp/table", is_raw=True, output_format=format)
+        assert skiff_data == read_table("//tmp/table", is_raw=False, output_format=format)
 
     @authors("ermolovd")
     def test_skiff_optional_schema_nonoptional_skiff(self, precision, binary_size, skiff_type):
