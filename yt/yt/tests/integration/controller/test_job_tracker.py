@@ -372,14 +372,14 @@ class TestJobTracker(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
-    def test_abort_vanished_job(self):
+    def test_abort_disappeared_from_node_job(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 100000)
-        update_controller_agent_config("job_tracker/duration_before_job_considered_vanished", 100)
+        update_controller_agent_config("job_tracker/duration_before_job_considered_disappeared_from_node", 100)
 
         update_scheduler_config("nodes_attributes_update_period", 1000000)
         time.sleep(0.5)
 
-        aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "vanished"})
+        aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "disappeared_from_node"})
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 

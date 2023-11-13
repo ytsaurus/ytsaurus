@@ -651,14 +651,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         const auto& address = node->GetDefaultAddress();
 
         auto error = TError("Node without user slots")
-            << TErrorAttribute("abort_reason", EAbortReason::NodeWithZeroUserSlots);
+            << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
         for (const auto& job : jobs) {
             YT_LOG_DEBUG("Aborting job on node without user slots (Address: %v, JobId: %v, OperationId: %v)",
                 address,
                 job->GetId(),
                 job->GetOperationId());
 
-            OnJobAborted(job, error, EAbortReason::NodeWithZeroUserSlots);
+            OnJobAborted(job, error, EAbortReason::NodeWithDisabledJobs);
         }
     }
 
@@ -1787,7 +1787,8 @@ void TNodeShard::ProcessHeartbeatJobs(
                 // This situation is possible if heartbeat from node has timed out,
                 // but we have scheduled some jobs.
                 // TODO(ignat):  YT-15875: consider deadline from node.
-                YT_LOG_INFO("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
+                YT_LOG_INFO(
+                    "Job is disappeared from node (Address: %v, JobId: %v, OperationId: %v)",
                     node->GetDefaultAddress(),
                     job->GetId(),
                     job->GetOperationId());
@@ -1797,11 +1798,11 @@ void TNodeShard::ProcessHeartbeatJobs(
             }
         }
 
-        auto error = TError("Job vanished")
-            << TErrorAttribute("abort_reason", EAbortReason::Vanished);
+        auto error = TError("Job disappeared from node")
+            << TErrorAttribute("abort_reason", EAbortReason::DisappearedFromNode);
         for (const auto& job : missingJobs) {
             YT_LOG_DEBUG("Aborting vanished job (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
-            OnJobAborted(job, error, EAbortReason::Vanished);
+            OnJobAborted(job, error, EAbortReason::DisappearedFromNode);
         }
     }
 }

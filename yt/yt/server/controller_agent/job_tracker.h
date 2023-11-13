@@ -85,7 +85,7 @@ private:
     NProfiling::TCounter ReceivedUnknownJobCount_;
     NProfiling::TCounter UnconfirmedJobCount_;
     NProfiling::TCounter ConfirmedJobCount_;
-    NProfiling::TCounter VanishedJobAbortCount_;
+    NProfiling::TCounter DisappearedFromNodeJobAbortCount_;
     NProfiling::TCounter JobAbortRequestCount_;
     NProfiling::TCounter JobReleaseRequestCount_;
     NProfiling::TCounter JobInterruptionRequestCount_;
@@ -131,7 +131,7 @@ private:
     struct TRunningJobStatus
     {
         TRequestedActionInfo RequestedActionInfo;
-        TInstant VanishedSince;
+        TInstant DisappearedFromNodeSince;
     };
 
     struct TJobInfo
@@ -186,7 +186,7 @@ private:
         int UnknownJobCount = 0;
         int UnconfirmedJobCount = 0;
         int ConfirmedJobCount = 0;
-        int VanishedJobAbortCount = 0;
+        int DisappearedFromNodeJobAbortCount = 0;
         int JobAbortRequestCount = 0;
         int JobReleaseRequestCount = 0;
         int JobInterruptionRequestCount = 0;
@@ -349,8 +349,8 @@ private:
 
     const TString& GetNodeAddressForLogging(TNodeId nodeId);
 
-    using TGrouppedJobsToAbort = THashMap<TOperationId, std::vector<TJobToAbort>>;
-    void AbortJobs(TGrouppedJobsToAbort jobsToAbort) const;
+    using TOperationIdToJobsToAbort = THashMap<TOperationId, std::vector<TJobToAbort>>;
+    void AbortJobs(TOperationIdToJobsToAbort jobsToAbort) const;
 
     void AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs);
 

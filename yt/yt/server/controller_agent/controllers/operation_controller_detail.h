@@ -233,6 +233,13 @@ private: \
         (std::move(jobSummary)),
         true)
 
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        AbortJobByJobTracker,
+        (TJobId jobId, EAbortReason abortReason),
+        (jobId, abortReason),
+        true);
+
 #undef IMPLEMENT_SAFE_METHOD
 
 public:
@@ -423,7 +430,6 @@ public:
 
     void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) override;
     void AbortJob(TJobId jobId, EAbortReason abortReason) override;
-    void AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason) final;
 
     bool CanInterruptJobs() const override;
     void InterruptJob(TJobId jobId, EInterruptReason reason) override;

@@ -3478,7 +3478,7 @@ void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary
     const auto& joblet = FindJoblet(abortedAllocationSummary.Id);
     if (!joblet) {
         YT_LOG_DEBUG(
-            "Joblet is not found, ignore allocation aborted event (AllocationId: %v)",
+            "Joblet is not found, ignore allocation aborted event (JobId: %v)",
             abortedAllocationSummary.Id);
 
         return;
@@ -5410,7 +5410,7 @@ void TOperationControllerBase::AsyncAbortJob(TJobId jobId, EAbortReason abortRea
             abortReason));
 }
 
-void TOperationControllerBase::AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason)
+void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReason abortReason)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
