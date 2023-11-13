@@ -102,6 +102,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalResourceUsage));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalCommittedResourceUsage));
         descriptors->push_back(EInternedAttributeKey::TotalResourceLimits);
+        descriptors->push_back(EInternedAttributeKey::RootAccountResourceLimits);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -126,6 +127,14 @@ private:
                 SerializeClusterResourceLimits(resources, consumer, Bootstrap_, /*serializeDiskSpace*/ true);
                 return true;
             }
+
+            case EInternedAttributeKey::RootAccountResourceLimits:
+                 SerializeClusterResourceLimits(
+                    rootAccount->ClusterResourceLimits(),
+                    consumer,
+                    Bootstrap_,
+                    /* serializeDiskSpace */ true);
+                return true;
 
             default:
                 return TBase::GetBuiltinAttribute(key, consumer);

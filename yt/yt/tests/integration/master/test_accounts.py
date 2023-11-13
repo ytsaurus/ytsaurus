@@ -2323,10 +2323,9 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             set("//tmp/t/@account", self._root_account_name)
 
-        # NB: "resource_limits" should be in attributes since we requested them
-        # as superuser.
         root_attributes = get("//sys/accounts/{0}/@".format(self._root_account_name))
         for attribute in [
+            "resource_limits",
             "resource_usage",
             "committed_resource_usage",
             "multicell_statistics",
@@ -2346,6 +2345,8 @@ class TestAccountTree(AccountsTestSuiteBase):
             self._set_account_zero_limits(self._root_account_name)
         with pytest.raises(YtError):
             set("//sys/accounts/{0}/@parent_name".format(self._root_account_name), "sys")
+
+        assert exists("//sys/accounts/@root_account_resource_limits")
 
     @authors("kiselyovp")
     def test_create1(self):
