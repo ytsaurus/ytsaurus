@@ -357,7 +357,7 @@ void ProcessDebugHeaders(const IRequestPtr& /*request*/, const IResponseWriterPt
 
 void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
 {
-    auto target = coordinator->AllocateProxy("data");
+    auto target = coordinator->AllocateProxy(coordinator->GetConfig()->DefaultRoleFilter.value_or("data"));
     if (target) {
         auto url = request->GetUrl();
         TString protocol;
