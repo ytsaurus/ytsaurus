@@ -172,12 +172,11 @@ public:
         MasterConnector_ = CreateMasterConnector(this);
 
         CellarManager_->Initialize();
+        MasterConnector_->Initialize();
     }
 
     void Run() override
-    {
-        MasterConnector_->Initialize();
-    }
+    { }
 
     const IInvokerPtr& GetTransactionTrackerInvoker() const override
     {

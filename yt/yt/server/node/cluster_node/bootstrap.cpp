@@ -757,7 +757,8 @@ private:
             Flavors_ = THashSet<ENodeFlavor>(flavors.begin(), flavors.end());
         }
 
-        YT_LOG_INFO("Initializing cluster node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
+        YT_LOG_INFO(
+            "Initializing cluster node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
             GetValues(localRpcAddresses),
             Config_->ClusterConnection->Static->PrimaryMaster->Addresses,
             Config_->Tags,
@@ -1047,6 +1048,8 @@ private:
         }
     #endif
 
+        MasterConnector_->Initialize();
+
         if (NeedDataNodeBootstrap()) {
             DataNodeBootstrap_->Initialize();
         }
@@ -1068,20 +1071,36 @@ private:
         }
 
         JobResourceManager_->Initialize();
+
+        YT_LOG_INFO("Cluster node initialization completed");
     }
 
     void DoRun()
     {
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
-        YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
+        YT_LOG_INFO(
+            "Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
             GetValues(localRpcAddresses),
             Config_->ClusterConnection->Static->PrimaryMaster->Addresses,
             Config_->Tags);
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
+        YT_LOG_INFO("Fetching dynamic config for the first time");
+
+        auto firstDynamicConfigReceivedEvent = DynamicConfigManager_->GetConfigLoadedFuture();
         DynamicConfigManager_->Start();
+        {
+            auto error = WaitFor(firstDynamicConfigReceivedEvent);
+
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for the first dynamic config update");
+        }
+
+        YT_LOG_INFO("Dynamic config received");
 
         if (IsCellarNode() || IsTabletNode()) {
             BundleDynamicConfigManager_->Start();
@@ -1155,7 +1174,6 @@ private:
 
         // Do not start subsystems until everything is initialized.
 
-        MasterConnector_->Initialize();
         MasterConnector_->Start();
 
         DoValidateConfig();
@@ -1182,6 +1200,8 @@ private:
 
         RpcServer_->Start();
         HttpServer_->Start();
+
+        YT_LOG_INFO("Node started successfully");
     }
 
     void DoValidateConfig()
