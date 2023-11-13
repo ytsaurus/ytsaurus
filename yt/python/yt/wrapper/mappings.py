@@ -52,6 +52,10 @@ class VerifiedDict(MutableMapping):
     def __len__(self):
         return len(self.store)
 
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return "{0}({1})".format(cls, str(self.store))
+
     def update_template_dict(self, template_dict):
         self._enable_check = False
         self.update(template_dict)

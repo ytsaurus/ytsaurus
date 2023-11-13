@@ -74,6 +74,7 @@ SET(SRCS
     completers.py
     compression.py
     config.py
+    config_remote_patch.py
     constants.py
     cypress_commands.py
     cypress_fuse.py

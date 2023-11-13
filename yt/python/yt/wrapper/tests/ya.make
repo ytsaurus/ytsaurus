@@ -43,6 +43,7 @@ PEERDIR(
     library/python/resource
 
     contrib/python/flaky
+    contrib/python/mock
     contrib/python/requests-mock
 
     # It is required to test job shell.

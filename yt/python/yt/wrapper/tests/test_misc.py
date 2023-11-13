@@ -48,8 +48,10 @@ except ImportError:
 import gc
 import inspect
 import itertools
+import mock
 import os
 import pytest
+import pickle
 import random
 import signal
 import string
@@ -1357,3 +1359,333 @@ class TestSkiffFormat(object):
 @authors("denvr")
 def test_show_default_config():
     assert dumps(get_default_config())
+
+
+@authors("denvr")
+def test_remote_config_value():
+    config = VerifiedDict({
+        "k1": "v1",
+        "k2": yt.default_config.RemotePatchableString("v2", "path2"),
+        "k3": yt.default_config.RemotePatchableBoolean(False, "path3"),
+    })
+
+    def _callback():
+        _callback.counter += 1
+
+    _callback.counter = 0
+    yt.default_config.RemotePatchableValueBase.set_read_access_callback(config, _callback)
+    assert isinstance(config["k2"], yt.default_config.RemotePatchableValueBase)
+    assert _callback.counter == 0
+    assert str(config["k2"]) == "v2"
+    assert _callback.counter == 1
+    assert isinstance(config["k3"], yt.default_config.RemotePatchableValueBase)
+    assert _callback.counter == 1
+    assert bool(config["k3"]) == False  # noqa
+    assert _callback.counter == 2
+
+    yt.default_config.RemotePatchableValueBase._materialize_all_leafs(config)
+
+    assert isinstance(config["k2"], str)
+    assert config["k2"] == "v2"
+    assert _callback.counter == 2
+    assert config["k3"] == False  # noqa
+    assert _callback.counter == 2
+
+
+@pytest.mark.usefixtures("yt_env_v4")
+class TestClientConfigFromCluster(object):
+    def prepare_client_with_cluster_config(self, cluster_path, cluster_config, client_config=None, req_mock=None):
+        yt.default_config.RemotePatchableValueBase._REMOTE_CACHE = {}
+        yt.remove(cluster_path, recursive=True, force=True)
+        yt.create("map_node", cluster_path)
+        for k, v in cluster_config.items():
+            yt.create("document", cluster_path + "/" + k)
+            yt.set(
+                cluster_path + "/" + k,
+                v
+            )
+        if not client_config:
+            client_config = {}
+        client_config.update({"proxy": {"url": yt.config.config["proxy"]["url"]}})
+        client_config["config_remote_patch_path"] = cluster_path
+        if req_mock:
+            req_mock.reset_mock()
+        client = yt.YtClient(config=client_config)
+        return client
+
+    @authors("denvr")
+    def test_remote_config_load(self):
+        yt.default_config.default_config["apply_remote_patch_at_start"] = False
+        yt.default_config.default_config["proxy"]["enable_proxy_discovery"] = yt.default_config.RemotePatchableBoolean(True, "enable_proxy_discovery")
+        yt.default_config.default_config["proxy"]["operation_link_pattern"] = yt.default_config.RemotePatchableString(
+            "{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
+            "operation_link_template",
+            lambda local_value, remote_value: remote_value
+        )
+
+        config_remote_patch_path = "//test_client_config"
+
+        req_mock_patch = mock.patch('yt.wrapper.http_driver.make_request', wraps=yt.http_driver.make_request)
+        req_mock = req_mock_patch.start()
+
+        def is_changed(config):
+            changed = str(config["proxy"]["operation_link_pattern"]) == "zzz" \
+                and bool(config["proxy"]["enable_proxy_discovery"]) == False  # noqa
+            default = config["proxy"]["connect_timeout"] == 5000 \
+                and config["proxy"]["request_timeout"] == 20000
+            return changed and default
+
+        def is_unchanged(config):
+            return str(config["proxy"]["operation_link_pattern"]) == "{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details" \
+                and bool(config["proxy"]["enable_proxy_discovery"]) \
+                and config["proxy"]["connect_timeout"] == 5000 \
+                and config["proxy"]["request_timeout"] == 20000
+
+        # start
+        assert is_unchanged(yt.config)
+
+        # absent path - unchanged
+        client_config = {"proxy": {"url": yt.config.config["proxy"]["url"]}}
+        client_config["config_remote_patch_path"] = "//some_wrong_path"
+        client = yt.YtClient(config=client_config)
+
+        req_mock.reset_mock()
+        _ = client.config["proxy"]["url"]
+        assert req_mock.call_count == 0, "No interact with cluster"
+
+        _ = bool(client.config["proxy"]["enable_proxy_discovery"])
+        assert req_mock.call_count > 0, "Interacted with cluster"
+        assert is_unchanged(client.config)
+
+        del client
+
+        # all ok - load config
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {
+            "default": {
+                "operation_link_template": "zzz",
+                "enable_proxy_discovery": False,
+                "other": 999
+            }
+        })
+
+        req_mock.reset_mock()
+        _ = client.config["proxy"]["url"]
+        assert req_mock.call_count == 0, "no interact with cluster"
+
+        assert str(client.config["proxy"]["operation_link_pattern"]) == "zzz"
+        assert req_mock.call_count > 0, "interacted with cluster"
+        assert is_changed(client.config), "config changed"
+
+        req_mock.reset_mock()
+        client2 = yt.YtClient(config=client.config)
+        assert is_changed(client2.config), "config2 changed"
+        assert req_mock.call_count == 0, "cached"
+
+        del client
+        del client2
+
+        # all ok (initialize all fields) (depends on prev step)
+        client_config = yt.default_config.get_default_config()
+        client_config["config_remote_patch_path"] = config_remote_patch_path
+        client_config["proxy"]["url"] = yt.config.config["proxy"]["url"]
+        client = yt.YtClient(config=client_config)
+        assert is_changed(client.config), "config (all fields) changed"
+
+        # do not override user config 1 (depends on prev step)
+        client_config = {"proxy": {"url": yt.config.config["proxy"]["url"], "operation_link_pattern": "custom"}}
+        client_config["config_remote_patch_path"] = config_remote_patch_path
+        client = yt.YtClient(config=client_config)
+        assert bool(client.config["proxy"]["enable_proxy_discovery"]) == False, "changed"  # noqa
+        assert str(client.config["proxy"]["operation_link_pattern"]) == "custom", "do not change user config"
+        assert client.config["proxy"]["connect_timeout"] == 5000, "default"
+
+        # do not override user config 2 (depends on prev step)
+        client_config = {"proxy": {"url": yt.config.config["proxy"]["url"]}}
+        client_config["config_remote_patch_path"] = config_remote_patch_path
+        client = yt.YtClient(config=client_config)
+        client.config["proxy"]["operation_link_pattern"] = "custom"
+        assert bool(client.config["proxy"]["enable_proxy_discovery"]) == False, "changed"  # noqa
+        assert str(client.config["proxy"]["operation_link_pattern"]) == "custom", "do not change user config"
+        assert client.config["proxy"]["connect_timeout"] == 5000, "default"
+
+        # preload
+        client = self.prepare_client_with_cluster_config(
+            config_remote_patch_path,
+            {
+                "default": {
+                    "operation_link_template": "zzz",
+                    "enable_proxy_discovery": False,
+                },
+            },
+            {
+                "apply_remote_patch_at_start": True,
+            },
+            req_mock=req_mock,
+        )
+        assert req_mock.call_count > 0, "interacted with cluster at start"
+        del client
+
+        # do not load at all
+        client = self.prepare_client_with_cluster_config(
+            config_remote_patch_path,
+            {
+                "default": {
+                    "operation_link_template": "zzz",
+                    "enable_proxy_discovery": False,
+                },
+            },
+            {
+                "apply_remote_patch_at_start": None,
+            },
+            req_mock=req_mock,
+        )
+        assert req_mock.call_count == 0, "do not interacted with cluster at start"
+        assert is_unchanged(client.config)
+        assert req_mock.call_count == 0, "do not interacted with cluster at all"
+        del client
+
+        # lazy load
+        client = self.prepare_client_with_cluster_config(
+            config_remote_patch_path,
+            {
+                "default": {
+                    "operation_link_template": "zzz",
+                    "enable_proxy_discovery": False,
+                },
+            },
+            {
+                "apply_remote_patch_at_start": False,
+            },
+            req_mock=req_mock,
+        )
+        assert req_mock.call_count == 0, "do not interacted with cluster at start"
+        assert bool(client.config["proxy"]["enable_proxy_discovery"]) == False, "changed"  # noqa
+        assert is_changed(client.config)
+        assert req_mock.call_count > 0, "interacted with cluster"
+        del client
+
+        # bad config 1 (str instead doc)
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {
+            "default": "some_wrong_string",
+        })
+        req_mock.reset_mock()
+        assert is_unchanged(client.config)
+        assert req_mock.call_count > 0, "interacted with cluster"
+        req_mock.reset_mock()
+        assert is_unchanged(client.config)
+        assert req_mock.call_count == 0, "cache bad config"
+        assert len(pickle.dumps(client.config["proxy"])) > 0
+        assert deepcopy(client.config) is not None
+        del client
+
+        # bad config 2 (table instead root map_node)
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {})
+        yt.remove(config_remote_patch_path, recursive=True)
+        yt.create("table", config_remote_patch_path)
+        yt.write_table(config_remote_patch_path, [{"foo": 1, "bar": 1}, {"foo": 2, "bar": 2}])
+        req_mock.reset_mock()
+        assert is_unchanged(client.config)
+        assert req_mock.call_count > 0, "interacted with cluster"
+        req_mock.reset_mock()
+        assert is_unchanged(client.config)
+        assert req_mock.call_count == 0, "cache bad config"
+        del client
+
+        # bad config 3 (table instead document)
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {})
+        yt.create("table", config_remote_patch_path + "/default")
+        yt.write_table(config_remote_patch_path + "/default", [{"foo": 1, "bar": 1}, {"foo": 2, "bar": 2}])
+        req_mock.reset_mock()
+        assert is_unchanged(client.config)
+        assert req_mock.call_count > 0, "interacted with cluster"
+        req_mock.reset_mock()
+        assert is_unchanged(client.config)
+        assert req_mock.call_count == 0, "cache bad config"
+        del client
+
+        yt.default_config.default_config["proxy"]["operation_link_pattern"] = yt.default_config.RemotePatchableString(
+            "{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
+            "operation_link_template",
+            yt.default_config._validate_operation_link_pattern
+        )
+
+        # bad config template (wrong placeholder in cluster)
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {
+            "default": {
+                "operation_link_template": "zzz{wrong_place_holder}",
+            }
+        })
+        assert is_unchanged(client.config)
+        del client
+
+        # good config template
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {
+            "default": {
+                "operation_link_template": "-{cluster_ui_host}-{cluster_path}-{operation_id}-zzz",
+            }
+        })
+        assert str(client.config["proxy"]["operation_link_pattern"]) == "-{proxy}-{cluster_path}-{id}-zzz"
+        del client
+
+    @authors("denvr")
+    def test_remote_config_load_experement(self):
+        config_remote_patch_path = "//test_client_config_exp"
+
+        yt.default_config.default_config["proxy"]["operation_link_pattern"] = yt.default_config.RemotePatchableString(
+            "{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
+            "operation_link_template",
+            lambda local_value, remote_value: remote_value
+        )
+
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {
+            "default": {
+                "operation_link_template": "zzz",
+            },
+            "experiment_20": {
+                "operation_link_template": "mmm",
+            },
+        })
+
+        ret_default = 0
+        ret_experiment_20 = 0
+        for i in range(20):
+            yt.default_config.RemotePatchableValueBase._REMOTE_CACHE = {}
+            client = yt.YtClient(config={"proxy": {"url": client.config["proxy"]["url"]}, "config_remote_patch_path": client.config["config_remote_patch_path"]})
+            if str(client.config["proxy"]["operation_link_pattern"]) == "zzz":
+                ret_default += 1
+            elif str(client.config["proxy"]["operation_link_pattern"]) == "mmm":
+                ret_experiment_20 += 1
+        assert ret_default + ret_experiment_20 == 20
+        assert ret_experiment_20 > 0
+        assert ret_experiment_20 < 10
+        del client
+
+    @authors("denvr")
+    def test_remote_config_load_global(self):
+        config_remote_patch_path = "//test_client_config_1"
+        yt.default_config.default_config["proxy"]["enable_proxy_discovery"] = yt.default_config.RemotePatchableBoolean(True, "enable_proxy_discovery")
+        yt.default_config.default_config["proxy"]["operation_link_pattern"] = yt.default_config.RemotePatchableString(
+            "{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
+            "operation_link_template",
+            lambda local_value, remote_value: remote_value
+        )
+
+        yt.config["config_remote_patch_path"] = config_remote_patch_path
+        yt.config._init_from_cluster()
+
+        yt.create("map_node", config_remote_patch_path)
+        yt.create("document", config_remote_patch_path + "/default")
+        yt.set(
+            config_remote_patch_path + "/default",
+            {
+                "operation_link_template": "zzz",
+                "enable_proxy_discovery": False,
+                "other": 999
+            },
+        )
+
+        assert str(yt.config["proxy"]["operation_link_pattern"]) == "zzz", "changed"
+        assert bool(yt.config["proxy"]["enable_proxy_discovery"]) == False, "changed"  # noqa
+        assert yt.config["proxy"]["request_timeout"] == 20000, "default"
+        assert len(pickle.dumps(yt.config.config["proxy"])) > 0
+        assert deepcopy(yt.config.config) is not None

@@ -105,6 +105,8 @@ def _filter_simple_types(obj):
         return obj
     elif isinstance(obj, datetime.timedelta):
         return obj.total_seconds() * 1000.0
+    elif isinstance(obj, yt.default_config.RemotePatchableValueBase):
+        return obj.value
     elif isinstance(obj, list):
         return [_filter_simple_types(item) for item in obj]
     elif isinstance(obj, collections_abc.Mapping):

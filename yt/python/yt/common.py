@@ -589,6 +589,7 @@ def require(condition, exception_func):
 
 
 def update_inplace(object, patch):
+    """Apply patch to object inplace"""
     if isinstance(patch, Mapping) and isinstance(object, Mapping):
         for key, value in iteritems(patch):
             if key in object:
@@ -607,6 +608,7 @@ def update_inplace(object, patch):
 
 
 def update(object, patch):
+    """Apply patch to object without modifying original object or patch"""
     if patch is None:
         return copy.deepcopy(object)
     elif object is None:

@@ -14,7 +14,7 @@ from yt.wrapper.cli_helpers import (
     add_subparser, parse_arguments, parse_data, output_format, dump_data, add_argument, add_structured_argument,
     YT_STRUCTURED_DATA_FORMAT, YT_ARGUMENTS_FORMAT)
 from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
-from yt.wrapper.default_config import get_default_config
+from yt.wrapper.default_config import get_default_config, RemotePatchableValueBase
 from yt.wrapper.admin_commands import add_switch_leader_parser
 from yt.wrapper.dirtable_commands import add_dirtable_parsers
 from yt.wrapper.spec_builders import (
@@ -1991,11 +1991,20 @@ if HAS_SKY_SHARE:
 
 @copy_docstring_from(get_default_config)
 def show_default_config(**kwargs):
-    print_to_output(dump_data(get_default_config()), eoln=False)
+    config = get_default_config()
+    if (kwargs["with_remote_patch"] or kwargs["only_remote_patch"]) and not yt.config["proxy"]["url"]:
+        raise yt.YtError("Missed '--proxy' flag")
+    if kwargs["with_remote_patch"]:
+        RemotePatchableValueBase.patch_config_with_remote_data(yt, config)
+    if kwargs["only_remote_patch"]:
+        config = RemotePatchableValueBase._get_remote_patch(yt)
+    print_to_output(dump_data(config), eoln=False)
 
 
 def add_show_default_config_parser(add_parser):
-    add_parser("show-default-config", show_default_config)
+    parser = add_parser("show-default-config", show_default_config)
+    parser.add_argument("--with-remote-patch", action="store_true", default=False, dest="with_remote_patch", help="with patch from cluster")
+    parser.add_argument("--only-remote-patch", action="store_true", default=False, dest="only_remote_patch", help="show only patch from cluster")
 
 
 def add_download_core_dump_parser(add_parser):

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .common import update, get_arg_spec
-from .default_config import get_default_config
+from .default_config import get_default_config, RemotePatchableValueBase, _get_settings_from_cluster_callback
 
 try:
     from yt.packages.six import PY3
@@ -9,8 +9,8 @@ except ImportError:
     from six import PY3
 
 from copy import deepcopy
+import functools
 import inspect
-
 import sys
 
 
@@ -115,6 +115,7 @@ def are_signatures_equal(lhs, rhs):
 
 
 def initialize_client(client, proxy, token, config):
+    # type: (yt.wrapper.YtClient, str, str, dict) -> None
     client.config = get_default_config()
     if config is not None:
         client.config = update(client.config, config)
@@ -123,3 +124,8 @@ def initialize_client(client, proxy, token, config):
         client.config["proxy"]["url"] = proxy
     if token is not None:
         client.config["token"] = token
+
+    if client.config["apply_remote_patch_at_start"]:
+        _get_settings_from_cluster_callback(client=client)
+    elif client.config["apply_remote_patch_at_start"] is False:
+        RemotePatchableValueBase.set_read_access_callback(client.config, functools.partial(_get_settings_from_cluster_callback, client.config))

@@ -1,9 +1,11 @@
 from __future__ import print_function
 
 from . import common
+from .config_remote_patch import RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean, _validate_operation_link_pattern  # noqa
 from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION
 from .mappings import VerifiedDict
 
+import yt.logger as logger
 import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson import YsonEntity, YsonMap
@@ -151,7 +153,8 @@ default_config = {
         "force_tracing": False,
 
         # Enable using heavy proxies for heavy commands (write_*, read_*).
-        "enable_proxy_discovery": True,
+        # NB: this option can be overridden with settings from cluster
+        "enable_proxy_discovery": RemotePatchableBoolean(True, "enable_proxy_discovery"),
         # Number of top unbanned proxies that would be used to choose random
         # proxy for heavy request.
         "number_of_top_proxies_for_random_choice": 5,
@@ -161,7 +164,8 @@ default_config = {
         "proxy_ban_timeout": 120 * 1000,
 
         # Link to operation in web interface.
-        "operation_link_pattern": "{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
+        # NB: this option can be overridden with settings from cluster
+        "operation_link_pattern": RemotePatchableString("{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details", "operation_link_template", _validate_operation_link_pattern),
 
         # Sometimes proxy can return incorrect or incomplete response.
         # This option enables checking response format for light requests.
@@ -248,6 +252,11 @@ default_config = {
     # Path to file with additional configuration.
     "config_path": None,
     "config_format": "yson",
+
+    # Path to document node on cluster with config patches. Some fields will be lazy changed with this one.
+    "config_remote_patch_path": "//sys/client_config",
+    # False means lazy config patching (at field access), True - patch at client start, None - do not patch at all
+    "apply_remote_patch_at_start": False,
 
     "pickling": {
         # Extensions to consider while looking files to archive.
@@ -741,6 +750,21 @@ SHORTCUTS = {
 
 
 def update_config_from_env(config):
+    # type: (yt.wrapper.mappings.VerifiedDict) -> yt.wrapper.mappings.VerifiedDict
+    """Patch config from envs"""
+
+    _update_from_env_patch(config)
+
+    _update_from_file(config)
+
+    _update_from_env_vars(config)
+
+    return config
+
+
+def _update_from_env_vars(config):
+    # type: (yt.wrapper.mappings.VerifiedDict) -> None
+
     def _get_var_type(value):
         var_type = type(value)
         # Using int we treat "0" as false, "1" as "true"
@@ -775,60 +799,6 @@ def update_config_from_env(config):
             d = d.get(k)
         return d
 
-    if "YT_CONFIG_PATCHES" in os.environ:
-        try:
-            patches = yson._loads_from_native_str(os.environ["YT_CONFIG_PATCHES"],
-                                                  yson_type="list_fragment",
-                                                  always_create_attributes=False)
-        except yson.YsonError:
-            print("Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
-            raise
-
-        try:
-            for patch in reversed(list(patches)):
-                common.update_inplace(config, patch)
-        except:  # noqa
-            print("Failed to apply config from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
-            raise
-
-    # These options should be processed before reading config file
-    for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
-        if opt_name in os.environ:
-            config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
-
-    config_path = config["config_path"]
-    if config_path is None:
-        home = None
-        try:
-            home = os.path.expanduser("~")
-        except KeyError:
-            pass
-
-        config_path = "/etc/ytclient.conf"
-        if home:
-            home_config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
-            if os.path.isfile(home_config_path):
-                config_path = home_config_path
-
-        try:
-            open(config_path, "r")
-        except IOError:
-            config_path = None
-    if config_path and os.path.isfile(config_path):
-        load_func = None
-        format = config["config_format"]
-        if format == "yson":
-            load_func = yson.load
-        elif format == "json":
-            load_func = json.load
-        else:
-            raise common.YtError("Incorrect config_format '%s'" % format)
-        try:
-            common.update_inplace(config, load_func(open(config_path, "rb")))
-        except Exception:
-            print("Failed to parse YT config from " + config_path, file=sys.stderr)
-            raise
-
     for key, value in six.iteritems(os.environ):
         prefix = "YT_"
         if not key.startswith(prefix):
@@ -846,8 +816,89 @@ def update_config_from_env(config):
                 value = int(value)
             _set(config, name, _apply_type(var_type, key, value))
 
-    return config
+
+def _update_from_env_patch(config):
+    # type: (yt.wrapper.mappings.VerifiedDict) -> None
+
+    if "YT_CONFIG_PATCHES" in os.environ:
+        try:
+            patches = yson._loads_from_native_str(os.environ["YT_CONFIG_PATCHES"],
+                                                  yson_type="list_fragment",
+                                                  always_create_attributes=False)
+        except yson.YsonError:
+            print("Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
+            raise
+
+        try:
+            for patch in reversed(list(patches)):
+                common.update_inplace(config, patch)
+        except:  # noqa
+            print("Failed to apply config from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
+            raise
+
+
+def _update_from_file(config):
+    # type: (yt.wrapper.mappings.VerifiedDict) -> None
+
+    # These options should be processed before reading config file
+    for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
+        if opt_name in os.environ:
+            config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
+    config_path = config["config_path"]
+
+    if config_path is None:
+        home = None
+        try:
+            home = os.path.expanduser("~")
+        except KeyError:
+            pass
+
+        config_path = "/etc/ytclient.conf"
+        if home:
+            home_config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
+            if os.path.isfile(home_config_path):
+                config_path = home_config_path
+
+        try:
+            open(config_path, "r")
+        except IOError:
+            config_path = None
+
+    if config_path and os.path.isfile(config_path):
+        load_func = None
+        format = config["config_format"]
+        if format == "yson":
+            load_func = yson.load
+        elif format == "json":
+            load_func = json.load
+        else:
+            raise common.YtError("Incorrect config_format '%s'" % format)
+        try:
+            common.update_inplace(config, load_func(open(config_path, "rb")))
+        except Exception:
+            print("Failed to parse YT config from " + config_path, file=sys.stderr)
+            raise
 
 
 def get_config_from_env():
+    # type: () -> yt.wrapper.mappings.VerifiedDict
+    """Get default config with patches from envs"""
     return update_config_from_env(get_default_config())
+
+
+def _get_settings_from_cluster_callback(config=None, client=None):
+    import yt.wrapper as yt
+    if config is None and client is None:
+        # config=None, client=None
+        client_or_module = yt
+        config = client_or_module.config.config
+    elif config is not None and client is None:
+        # config=<VerifyedDict>, client=None
+        client_or_module = yt.YtClient(config=config)
+    elif client is not None:
+        # config=None, client=<YtClient>
+        client_or_module = client
+        config = client.config
+    RemotePatchableValueBase.patch_config_with_remote_data(client_or_module)
+    RemotePatchableValueBase._materialize_all_leafs(config)
+    logger.debug("Client config patched with data from cluster \"%s\": \"%s\"", config["config_remote_patch_path"], RemotePatchableValueBase._get_remote_cluster_data(client_or_module))

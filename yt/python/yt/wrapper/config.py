@@ -4,8 +4,9 @@ from . import common
 from . import default_config
 from . import client_state
 
-import yt.yson as yson
 import yt.json_wrapper as json
+import yt.logger as logger
+import yt.yson as yson
 
 try:
     import yt.packages.six as six
@@ -39,6 +40,7 @@ class Config(types.ModuleType, client_state.ClientState):
 
         self.default_config_module = default_config
         self.common_module = common
+        self.logger_module = logger
         self.json_module = json
         self.yson_module = yson
         self.client_state_module = client_state
@@ -50,6 +52,7 @@ class Config(types.ModuleType, client_state.ClientState):
     def _init(self):
         self.client_state_module.ClientState.__init__(self)
         self._init_from_env()
+        self._init_from_cluster()
 
     def _init_from_env(self):
         import os
@@ -73,6 +76,10 @@ class Config(types.ModuleType, client_state.ClientState):
                 self.COMMAND_PARAMS["transaction_id"] = value
             elif key == "PING_ANCESTOR_TRANSACTIONS":
                 self.COMMAND_PARAMS["ping_ancestor_transactions"] = bool(value)
+
+    def _init_from_cluster(self):
+        if self.config["apply_remote_patch_at_start"] is not None:
+            self.default_config_module.RemotePatchableValueBase.set_read_access_callback(self.config, self.default_config_module._get_settings_from_cluster_callback)
 
     # NB: Method required for compatibility
     def set_proxy(self, value):
