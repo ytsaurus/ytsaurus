@@ -700,6 +700,15 @@ while True:
 ])
 @authors("ermolovd")
 class TestGoodSkiffDecimal(YTEnvSetup):
+    def _encode_row(self, row_data):
+        return b"\x00\x00" + row_data
+
+    def _encode_optional(self, data):
+        return b"\x01" + data if data is not None else b"\x00"
+
+    def _encode_string32(self, data):
+        return struct.pack("<I", len(data)) + data
+
     def _encoded_decimal_intval_to_skiff(self, encoded_decimal, skiff_type):
         if skiff_type == "yson32":
             # Magic number transform for decimal.
@@ -708,12 +717,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             result[0] ^= 0x80
             result = bytes(result)
 
-            # Encode yson string.
-            result = yson.dumps(result, yson_format="binary")
-
-            # Add size.
-            result = struct.pack("<I", len(result)) + result
-            return result
+            # Encode YSON string and add size.
+            return self._encode_string32(yson.dumps(result, yson_format="binary"))
         else:
             return encoded_decimal
 
@@ -722,12 +727,6 @@ class TestGoodSkiffDecimal(YTEnvSetup):
 
     def _get_encoded_decimal_e(self, binary_size, skiff_type):
         return self._encoded_decimal_intval_to_skiff(b"\xf1\xfe" + b"\xff" * (binary_size - 2), skiff_type)
-
-    def _encode_optional(self, data):
-        return b"\x01" + data if data is not None else b"\x00"
-
-    def _encode_row(self, row_data):
-        return b"\x00\x00" + row_data
 
     @authors("ermolovd")
     def test_skiff_nonoptional_schema_nonoptional_skiff(self, precision, binary_size, skiff_type):
@@ -854,8 +853,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             )
         )
         skiff_data = (
-            self._encode_row(self._get_encoded_decimal_pi(binary_size, skiff_type) + b"\x02\x00\x00\x00" b"pi")
-            + self._encode_row(self._get_encoded_decimal_e(binary_size, skiff_type) + b"\x07\x00\x00\x00" b"minus e")
+            self._encode_row(self._get_encoded_decimal_pi(binary_size, skiff_type) + self._encode_string32(b"pi"))
+            + self._encode_row(self._get_encoded_decimal_e(binary_size, skiff_type) + self._encode_string32(b"minus e"))
         )
         write_table(
             "//tmp/table",
