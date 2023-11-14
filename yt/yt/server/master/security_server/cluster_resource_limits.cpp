@@ -276,14 +276,19 @@ std::optional<TViolatedClusterResourceLimits> CheckChange(
     return result;
 }
 
-template <auto Change32, auto Change64, auto ChangeMasterMemory>
+// TODO(kvk1920): Get rid of UseUnderlyingValue.
+template <auto Change32, auto Change64, auto ChangeMasterMemory, bool UseUnderlyingValue = true>
 void DoChange(
     TClusterResourceLimits& self,
     const TClusterResourceLimits& delta)
 {
     auto doChange = [&] (auto value, auto method, auto delta) {
         auto newValue = value;
-        (newValue.*method)(delta.ToUnderlying());
+        if constexpr (UseUnderlyingValue) {
+            (newValue.*method)(delta.ToUnderlying());
+        } else {
+            (newValue.*method)(delta);
+        }
         return newValue;
     };
 
@@ -296,7 +301,11 @@ void DoChange(
 
     auto changeDiskSpace = [&] (int mediumIndex) {
         auto newDiskSpace = self.DiskSpace().GetOrDefault(mediumIndex);
-        (newDiskSpace.*Change64)(delta.DiskSpace().GetOrDefault(mediumIndex).ToUnderlying());
+        if constexpr (UseUnderlyingValue) {
+            (newDiskSpace.*Change64)(delta.DiskSpace().GetOrDefault(mediumIndex).ToUnderlying());
+        } else {
+            (newDiskSpace.*Change64)(delta.DiskSpace().GetOrDefault(mediumIndex));
+        }
         self.SetMediumDiskSpace(mediumIndex, newDiskSpace);
     };
 
@@ -355,7 +364,8 @@ void TClusterResourceLimits::IncreaseWithInfinityAllowed(
     DoChange<
         &TLimit32::IncreaseWithInfinityAllowed,
         &TLimit64::IncreaseWithInfinityAllowed,
-        &TMasterMemoryLimits::IncreaseWithInfinityAllowed>(*this, that);
+        &TMasterMemoryLimits::IncreaseWithInfinityAllowed,
+        /*UseUnderlyingValue*/ false>(*this, that);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

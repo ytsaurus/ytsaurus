@@ -2334,7 +2334,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     # (name/parent_name/resource_limits, incorrect values are welcome)
     # XXX(kiselyovp) a test for "account migration"
 
-    @authors("kiselyovp")
+    @authors("kiselyovp", "kvk1920")
     def test_root_account(self):
         assert exists("//sys/accounts/{0}".format(self._root_account_name))
         with pytest.raises(YtError):
@@ -2371,6 +2371,10 @@ class TestAccountTree(AccountsTestSuiteBase):
             set("//sys/accounts/{0}/@parent_name".format(self._root_account_name), "sys")
 
         assert exists("//sys/accounts/@root_account_resource_limits")
+
+        # TODO(kvk1920): Move to separate test.
+        # Should not crash.
+        get("//sys/accounts/@total_resource_limits")
 
     @authors("kiselyovp")
     def test_create1(self):
