@@ -187,6 +187,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnmountedCheck)                                 (2503))  // sabdenovch
     ((ReinitializeRootResourceLimits)                               (2504))  // kvk1920
     ((NoMountRevisionCheckInBulkInsert)                             (2505))  // ifsmirnov
+    ((FixSharedRangeMove)                                           (2506))  // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////
