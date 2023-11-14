@@ -11,6 +11,7 @@ RECURSE(
     docker
     systest
     spark/spark-over-yt
+    odin
 )
 
 
@@ -32,7 +33,6 @@ IF (NOT OPENSOURCE)
         jaeger
         meta_scheduler
         microservices
-        odin
         opensource
         packages
         recipe

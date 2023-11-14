@@ -6,7 +6,7 @@ Detailed documentation can be found [here](https://ytsaurus.tech/docs/ru/api/pyt
 
 
 ## How to build and develop python libraries
-In this README we will be assuming you are not root.
+In this README we will be assuming you are not a root user.
 
 ### Preparation and installation
 

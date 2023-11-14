@@ -1,0 +1,47 @@
+RECURSE(
+    clock_quorum_health
+    controller_agent_alerts
+    controller_agent_count
+    controller_agent_uptime
+    controller_agent_operation_memory_consumption
+    destroyed_replicas_size
+    discovery
+    dynamic_table_commands
+    dynamic_table_replication
+    lost_vital_chunks
+    quorum_health
+    map_result
+    master
+    master_alerts
+    master_chunk_management
+    medium_balancer_alerts
+    missing_part_chunks
+    oauth_health
+    operations_archive_tablet_store_preload
+    operations_count
+    operations_satisfaction
+    operations_snapshots
+    proxy
+    queue_agent_alerts
+    query_tracker_alerts
+    quorum_health
+    register_watcher
+    scheduler
+    scheduler_alerts
+    scheduler_alerts_jobs_archivation
+    scheduler_alerts_update_fair_share
+    scheduler_uptime
+    sort_result
+    stuck_missing_part_chunks
+    suspicious_jobs
+    tablet_cells
+    tablet_cell_gossip
+    tablet_cell_snapshots
+    chaos_cells
+    unaware_nodes
+    wrapper_files_count
+)
+
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()

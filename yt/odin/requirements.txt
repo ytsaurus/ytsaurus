@@ -1,0 +1,6 @@
+python-dateutil==2.8.2
+Flask==2.0.3
+Werkzeug==2.2.2
+cheroot==10.0.0
+
+-r ../yt/scripts/python_libraries_requirements.txt
