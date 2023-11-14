@@ -702,12 +702,12 @@ class TSingleLockSortedDynamicStoreReserializeConflictTest
     , public ::testing::WithParamInterface<std::tuple<ELockType, bool>>
 {
 public:
-    struct ParamSerializer
+    struct TParamSerializer
     {
-        template <class ParamType>
-        std::string operator()(const testing::TestParamInfo<ParamType>& info) const
+        template <class TParam>
+        std::string operator()(const testing::TestParamInfo<TParam>& info) const
         {
-            ELockType lockType = std::get<0>(info.param);
+            auto lockType = std::get<0>(info.param);
             bool reserialize = std::get<1>(info.param);
             return ToString(lockType) + (reserialize ? "With" : "Without") + "Reserialize";
         }
@@ -755,7 +755,7 @@ INSTANTIATE_TEST_SUITE_P(
             ELockType::Exclusive,
             ELockType::SharedStrong),
         ::testing::Values(true, false)),
-    TSingleLockSortedDynamicStoreReserializeConflictTest::ParamSerializer());
+    TSingleLockSortedDynamicStoreReserializeConflictTest::TParamSerializer());
 
 ////////////////////////////////////////////////////////////////////////////////
 

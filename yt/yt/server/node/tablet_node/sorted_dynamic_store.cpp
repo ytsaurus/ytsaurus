@@ -1518,7 +1518,7 @@ TError TSortedDynamicStore::CheckRowLocks(
             // COMPAT(ponasenko-rs)
             TTimestamp lastCommitTimestamp;
             if (HasMutationContext() &&
-                static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign)  < ETabletReign::PersistLastExclusiveLockTimestamp)
+                static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::PersistLastExclusiveLockTimestamp)
             {
                 lastCommitTimestamp = GetLastWriteTimestamp(row, index);
             } else {
@@ -2209,7 +2209,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
             for (auto row : batch->MaterializeRows()) {
                 // COMPAT(ponasenko-rs)
-                if (lastExclusiveLockTimestamps.empty()) {
+                if (context.GetVersion() < ETabletReign::PersistLastExclusiveLockTimestamp) {
                     LoadRow(row, &scratchData, lastReadLockTimestampPtr, nullptr);
                 } else {
                     LoadRow(
