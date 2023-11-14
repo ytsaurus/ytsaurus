@@ -238,7 +238,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             create_table_replica("//tmp/t", "nonexisting", "//tmp/r")
 
-    @authors("babenko", "aozeritsky")
+    @authors("babenko")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_simple(self, schema):
         self._create_cells()
@@ -653,7 +653,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
-    @authors("aozeritsky", "aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("preserve_tablet_index", [False, True])
     @pytest.mark.parametrize("use_hunks", [False, True])
     def test_async_replication_ordered(self, preserve_tablet_index, use_hunks):
@@ -1010,7 +1010,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tx2)
 
-    @authors("aozeritsky", "aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("commit_ordering", ["weak", "strong"])
     @pytest.mark.parametrize("use_hunks", [False, True])
     def test_sync_replication_ordered(self, commit_ordering, use_hunks):
@@ -1258,7 +1258,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             alter_table_replica(replica_id, atomicity="none")
 
-    @authors("aozeritsky")
+    @authors("akozhikhov")
     def test_sync_replication_switch(self):
         self._create_cells()
         self._create_replicated_table(
@@ -1296,7 +1296,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
-    @authors("aozeritsky")
+    @authors("akozhikhov")
     def test_sync_replication_switch_bundle_health(self):
         self._create_cells()
         self._create_replicated_table(
@@ -1343,7 +1343,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
-    @authors("aozeritsky")
+    @authors("akozhikhov")
     def test_sync_replication_switch_with_min_sync_replica(self):
         self._create_cells()
         self._create_replicated_table(
@@ -1387,7 +1387,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 result = result + 1
         return result
 
-    @authors("aozeritsky")
+    @authors("akozhikhov")
     def test_sync_replication_switch_with_min_max_sync_replica(self):
         self._create_cells()
         self._create_replicated_table(
@@ -1450,7 +1450,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert len(broken_replicas) == 1
         wait(lambda: self._get_sync_replicas(replica_ids) == 2)
 
-    @authors("ivanashevi")
+    @authors("akozhikhov")
     def test_sync_replication_switch_with_not_enough_healthy_replicas(self):
         self._create_cells()
         self._create_replicated_table(
@@ -1485,14 +1485,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         for i in range(3):
             remove("//tmp/r{}".format(i), driver=self.replica_driver)
-        wait(lambda: self._get_sync_replicas(replica_ids) == 3)
+        wait(lambda: self._get_sync_replicas(replica_ids[3:]) == 2)
+        wait(lambda: self._get_sync_replicas(replica_ids[:3]) == 1)
 
         replica_modes = {replica_id: get("#{0}/@mode".format(replica_id)) for replica_id in replica_ids}
         sleep(1.0)
         for replica_id in replica_ids:
             assert get("#{0}/@mode".format(replica_id)) == replica_modes[replica_id]
 
-    @authors("aozeritsky")
+    @authors("akozhikhov")
     def test_replicated_table_tracker_options(self):
         self._create_cells()
         set(
@@ -1733,7 +1734,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             (True, SIMPLE_SCHEMA_ORDERED),
         ],
     )
-    @authors("babenko", "aozeritsky")
+    @authors("babenko")
     def test_start_replication_timestamp(self, with_data, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
