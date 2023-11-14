@@ -352,6 +352,7 @@ public:
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
             MakeWeak(this)));
+        SubscribeLoadAdjusted();
     }
 
 private:

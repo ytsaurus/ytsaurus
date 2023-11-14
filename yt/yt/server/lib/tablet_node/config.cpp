@@ -775,6 +775,20 @@ void TServiceMethod::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TServiceMethodConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("service", &TThis::Service)
+        .Default();
+    registrar.Parameter("method", &TThis::Method)
+        .Default();
+    registrar.Parameter("max_window", &TThis::MaxWindow)
+        .Default(1024);
+    registrar.Parameter("waiting_timeout_fraction", &TThis::WaitingTimeoutFraction)
+        .Default(0.5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOverloadTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mean_wait_time_threshold", &TThis::MeanWaitTimeThreshold)
@@ -792,14 +806,10 @@ void TOverloadControllerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("trackers", &TThis::Trackers)
         .Default();
+    registrar.Parameter("methods", &TThis::Methods)
+        .Default();
     registrar.Parameter("load_adjusting_period", &TThis::LoadAdjustingPeriod)
         .Default(TDuration::MilliSeconds(100));
-    registrar.Parameter("max_window", &TThis::MaxWindow)
-        .Default(1024);
-    registrar.Parameter("throttling_step_time", &TThis::ThrottlingStepTime)
-        .Default(TDuration::MilliSeconds(5));
-    registrar.Parameter("max_throttling_time", &TThis::MaxThrottlingTime)
-        .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

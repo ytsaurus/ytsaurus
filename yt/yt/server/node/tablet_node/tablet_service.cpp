@@ -95,6 +95,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteHunks));
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
+        SubscribeLoadAdjusted();
     }
 
 private:

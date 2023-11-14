@@ -6,18 +6,28 @@
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 
+#include <library/cpp/yt/small_containers/compact_vector.h>
+
 #include <library/cpp/yt/threading/public.h>
 
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOverloadedStatus
+// Overall rpc-method congestion state.
+// Can be a a measure of allowed concurrency or probability of acceptance more calls.
+struct TCongestionState
 {
-    bool Overloaded = false;
-    bool SkipCall = false;
-    TDuration ThrottleTime;
+    std::optional<int> CurrentWindow;
+    std::optional<int> MaxWindow;
+    double WaitingTimeoutFraction = 0;
+
+    using TTrackersList = TCompactVector<std::string, 4>;
+    TTrackersList OverloadedTrackers;
 };
+
+// Probabilistic predicate based on congestion state of the the method.
+bool ShouldThrottleCall(const TCongestionState& congestionState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,21 +55,20 @@ public:
         THashMap<TString, TTrackerSensors> TrackerSensors;
     };
 
+    DEFINE_SIGNAL(void(), LoadAdjusted);
+
     explicit TOverloadController(TOverloadControllerConfigPtr config);
 
-    void TrackInvoker(const TString& name, const IInvokerPtr& invoker);
-    void TrackFSHThreadPool(const TString& name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool);
+    void TrackInvoker(TStringBuf name, const IInvokerPtr& invoker);
+    void TrackFSHThreadPool(TStringBuf name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool);
 
     using TWaitTimeObserver = std::function<void(TDuration)>;
-    TWaitTimeObserver CreateGenericTracker(const TString& trackerType, const std::optional<TString>& id = {});
+    TWaitTimeObserver CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id = {});
 
-    TOverloadedStatus GetOverloadStatus(
-        TDuration totalThrottledTime,
-        const TString& service,
-        const TString& method,
-        std::optional<TDuration> requestTimeout) const;
+    TCongestionState GetCongestionState(TStringBuf service, TStringBuf method) const;
 
     void Reconfigure(TOverloadControllerConfigPtr config);
+    void Start();
 
 private:
     using TSpinLockGuard = TGuard<NThreading::TSpinLock>;

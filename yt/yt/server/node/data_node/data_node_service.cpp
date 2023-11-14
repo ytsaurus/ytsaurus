@@ -1994,9 +1994,9 @@ private:
         YT_LOG_DEBUG("Awaiting asynchronous part of columnar statistics fetching");
 
         auto combinedResult = (earlyFinishTimeout ? AllSetWithTimeout(futures, *earlyFinishTimeout) : AllSet(futures));
-        context->SubscribeCanceled(BIND([Logger = Logger, combinedResult = combinedResult] {
+        context->SubscribeCanceled(BIND([Logger = Logger, combinedResult = combinedResult] (const TError& error) {
             YT_LOG_DEBUG("Columnar statistics fetch cancelled, propagating cancellation to chunk meta reading");
-            combinedResult.Cancel(TError("RPC request canceled"));
+            combinedResult.Cancel(error);
         }));
         context->ReplyFrom(combinedResult.Apply(BIND(
             &TDataNodeService::CombineColumnarStatisticsSubresponses,

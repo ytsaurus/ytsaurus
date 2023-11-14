@@ -294,14 +294,12 @@ public:
         BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
 
-        GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
+        InitializeOverloadController();
 
+        GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
         SlotManager_->Initialize();
-
-        InitializeOverloadController();
-
         MasterConnector_->Initialize();
     }
 
@@ -348,6 +346,7 @@ public:
         InMemoryManager_->Start();
         TableDynamicConfigManager_->Start();
         SlotManager_->Start();
+        OverloadController_->Start();
     }
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()

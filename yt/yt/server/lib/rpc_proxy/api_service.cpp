@@ -457,6 +457,11 @@ public:
         EmitError_ = true;
     }
 
+    void LogStructuredError(const TError& /*error*/) const
+    {
+        LogStructured();
+    }
+
     void LogStructured() const
     {
         // Throwing an exception here leads to a double reply, so wrap with try-catch.
@@ -926,7 +931,7 @@ private:
 
         // Then, connect it to the typed context using subscriptions for reply and cancel signals.
         context->SubscribeReplied(BIND(&TContext::LogStructured, MakeWeak(context)));
-        context->SubscribeCanceled(BIND(&TContext::LogStructured, MakeWeak(context)));
+        context->SubscribeCanceled(BIND(&TContext::LogStructuredError, MakeWeak(context)));
 
         // Finally, setup structured logging messages to be emitted.
 
@@ -1090,8 +1095,8 @@ private:
                     }
                 }));
 
-            Context_->SubscribeCanceled(BIND([future = std::move(future)] {
-                future.Cancel(MakeCanceledError());
+            Context_->SubscribeCanceled(BIND([future = std::move(future)] (const TError& error) {
+                future.Cancel(error);
             }));
         }
 

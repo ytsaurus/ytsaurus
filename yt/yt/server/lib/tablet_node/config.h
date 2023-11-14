@@ -779,6 +779,25 @@ DEFINE_REFCOUNTED_TYPE(TServiceMethod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TServiceMethodConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Service;
+    TString Method;
+
+    int MaxWindow;
+    double WaitingTimeoutFraction;
+
+    REGISTER_YSON_STRUCT(TServiceMethodConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TServiceMethodConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOverloadTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -801,11 +820,8 @@ class TOverloadControllerConfig
 public:
     bool Enabled;
     THashMap<TString, TOverloadTrackerConfigPtr> Trackers;
+    std::vector<TServiceMethodConfigPtr> Methods;
     TDuration LoadAdjustingPeriod;
-    int MaxWindow;
-
-    TDuration ThrottlingStepTime;
-    TDuration MaxThrottlingTime;
 
     REGISTER_YSON_STRUCT(TOverloadControllerConfig);
 
