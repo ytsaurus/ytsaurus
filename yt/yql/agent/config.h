@@ -20,20 +20,16 @@ class TYqlPluginConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NYson::TYsonString SingletonsConfig;
+    //! Set default settings for NYql::TYtClusterConfig.
+    static NYTree::IListNodePtr MergeClusterDefaultSettings(const NYTree::IListNodePtr& clusterConfigSettings);
 
-    TString MRJobBinary;
-    TString UdfDirectory;
+    //! Fields from NYql::TYtGatewayConfig with snake case keys.
+    NYTree::INodePtr GatewayConfig;
 
-    //! Mapping cluster name -> proxy address.
-    THashMap<TString, TString> Clusters;
-    std::optional<TString> DefaultCluster;
+    //! Fields from NYql::TFileStorageConfig with snake case keys.
+    NYTree::INodePtr FileStorageConfig;
 
     NYTree::INodePtr OperationAttributes;
-
-    int MaxFilesSizeMb;
-    int MaxFileCount;
-    int DownloadFileRetryCount;
 
     TString YTTokenPath;
 

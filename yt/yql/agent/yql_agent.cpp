@@ -10,11 +10,11 @@
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yql/plugin/bridge/plugin.h>
-
 
 namespace NYT::NYqlAgent {
 
@@ -55,38 +55,43 @@ public:
     {
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
-        auto operationAttributes = Config_->OperationAttributes
-            ? ConvertToYsonString(Config_->OperationAttributes)
-            : EmptyMap;
+        auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
 
         auto singletonsConfigString = SingletonsConfig_
             ? ConvertToYsonString(*SingletonsConfig_)
             : EmptyMap;
 
-        THashMap<TString, TString> clusters;
-        for (const auto& cluster : ClusterDirectory_->GetClusterNames()) {
-            clusters[cluster] = cluster;
+        THashSet<TString> presentClusters;
+        for (const auto& cluster : clustersConfig->GetChildren()) {
+            presentClusters.insert(cluster->AsMap()->GetChildOrThrow("name")->GetValue<TString>());
         }
-        for (const auto& [cluster, address] : Config_->Clusters) {
-            clusters[cluster] = address;
+
+        for (const auto& clusterName : ClusterDirectory_->GetClusterNames()) {
+            if (presentClusters.contains(clusterName)) {
+                continue;
+            }
+
+            auto cluster = NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("name").Value(clusterName)
+                    .Item("cluster").Value(clusterName)
+                .EndMap();
+            auto settings = TYqlPluginConfig::MergeClusterDefaultSettings(GetEphemeralNodeFactory()->CreateList());
+            cluster->AsMap()->AddChild("settings", std::move(settings));
+            clustersConfig->AddChild(std::move(cluster));
         }
 
         NYqlPlugin::TYqlPluginOptions options{
             .RequiredABIVersion = RequiredABIVersion,
             .SingletonsConfig = singletonsConfigString,
-            .MRJobBinary = Config_->MRJobBinary,
-            .UdfDirectory = Config_->UdfDirectory,
-            .Clusters = clusters,
-            .DefaultCluster = Config_->DefaultCluster,
-            .OperationAttributes = operationAttributes,
-            .MaxFilesSizeMb = Config_->MaxFilesSizeMb,
-            .MaxFileCount = Config_->MaxFileCount,
-            .DownloadFileRetryCount = Config_->DownloadFileRetryCount,
+            .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
+            .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
+            .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
             .YTTokenPath = Config_->YTTokenPath,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };
-        YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(options);
+        YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(std::move(options));
     }
 
     void Start() override
