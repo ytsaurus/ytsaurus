@@ -65,7 +65,7 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
 
             auto error = TError(EErrorCode::OperationControllerMemoryLimitExceeded,
                 "Operation controller memory usage exceeds memory limit, probably input of the operation "
-                "is too large, try to split operation into a smaller ones")
+                "is too large, try splitting the operation into smaller ones")
                 << TErrorAttribute("operation_controller_memory_usage", memory)
                 << TErrorAttribute("operation_controller_memory_limit", Config_->OperationControllerMemoryLimit)
                 << TErrorAttribute("operation_id", operationId);
