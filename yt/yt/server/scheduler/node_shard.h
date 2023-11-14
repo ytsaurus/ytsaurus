@@ -140,7 +140,7 @@ public:
 
     TNodeYsonList BuildNodeYsonList() const;
 
-    TOperationId FindOperationIdByJobId(TJobId job);
+    TOperationId FindOperationIdByAllocationId(TAllocationId allocationId);
 
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;

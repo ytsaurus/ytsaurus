@@ -53,6 +53,7 @@
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 #include <yt/yt/ytlib/discovery_client/member_client.h>
 
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -60,6 +61,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/scheduler_channel.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
@@ -234,7 +236,8 @@ public:
 
         JobShellDescriptorCache_ = New<TJobShellDescriptorCache>(
             config->JobShellDescriptorCache,
-            SchedulerChannel_);
+            MakeWeak(this),
+            CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
         ClusterDirectory_ = New<TClusterDirectory>(Options_);
         ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(

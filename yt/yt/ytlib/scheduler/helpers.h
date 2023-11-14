@@ -2,7 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -18,7 +21,29 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/security_client/acl.h>
+
 namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdeteMap& update);
+
+class TJobShellInfo
+{
+public:
+    TJobShellInfo(TJobShellPtr jobShell, TOperationJobShellRuntimeParametersPtr jobShellRuntimeParameters);
+
+    const std::vector<TString>& GetOwners();
+
+    const TString& GetSubcontainerName();
+
+private:
+    TJobShellPtr JobShell_;
+    TOperationJobShellRuntimeParametersPtr JobShellRuntimeParameters_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +106,7 @@ void ValidateOperationAccess(
     TJobId jobId,
     NYTree::EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
-    const NApi::NNative::IClientPtr& client,
+    const NApi::IClientPtr& client,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +126,41 @@ DEFINE_ENUM(EPoolNameValidationLevel,
 
 TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);
 void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAllocationBriefInfo
+{
+    NScheduler::TAllocationId AllocationId;
+    NJobTrackerClient::TOperationId OperationId;
+    std::optional<NSecurityClient::TSerializableAccessControlList> OperationAcl;
+    NControllerAgent::TControllerAgentDescriptor ControllerAgentDescriptor;
+    NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
+};
+
+struct TAllocationInfoToRequest
+{
+    bool OperationId = false;
+    bool OperationAcl = false;
+    bool ControllerAgentDescriptor = false;
+    bool NodeDescriptor = false;
+};
+
+void FromProto(
+    TAllocationBriefInfo* allocationBriefInfo,
+    const NProto::TAllocationBriefInfo& allocationBriefInfoProto);
+
+void ToProto(
+    NProto::TAllocationBriefInfo* allocationBriefInfoProto,
+    const TAllocationBriefInfo& allocationBriefInfo);
+
+void FromProto(
+    TAllocationInfoToRequest* requestedAllocationInfo,
+    const NProto::TReqGetAllocationBriefInfo::TRequestedInfo& requestedAllocationInfoProto);
+
+void ToProto(
+    NProto::TReqGetAllocationBriefInfo::TRequestedInfo* allocationInfoToRequestProto,
+    const TAllocationInfoToRequest& allocationInfoToRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

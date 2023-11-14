@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/job_prober_client/public.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -50,7 +52,8 @@ class TJobShellDescriptorCache
 public:
     TJobShellDescriptorCache(
         TAsyncExpiringCacheConfigPtr config,
-        NRpc::IChannelPtr schedulerChannel);
+        TWeakPtr<NApi::NNative::IConnection> connection,
+        NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
     ~TJobShellDescriptorCache();
 

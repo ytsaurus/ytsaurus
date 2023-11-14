@@ -2,16 +2,29 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+#include <yt/yt/ytlib/security_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/schema.h>
 
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/column_rename_descriptor.h>
+#include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/misc/io_tags.h>
+
+#include <yt/yt/client/security_client/public.h>
+
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/guid.h>
@@ -25,17 +38,21 @@
 
 #include <util/generic/cast.h>
 
-// TODO(max42): this whole file must be moved to server/lib/job_tracker_client.
 namespace NYT::NControllerAgent {
 
 using namespace NTableClient;
+using namespace NObjectClient;
+using namespace NSecurityClient;
+using namespace NApi;
+using namespace NApi::NNative;
+
+using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAllocationId AllocationIdFromJobId(TJobId jobId)
+TNodeId NodeIdFromJobId(TJobId jobId)
 {
-    // Job id is currently equal to allocation id.
-    return jobId;
+    return NScheduler::NodeIdFromAllocationId(AllocationIdFromJobId(jobId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +140,47 @@ TTableSchemaPtr RenameColumnsInSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateJobShellAccess(
+    const NApi::NNative::IClientPtr& client,
+    const TString& user,
+    const TString& jobShellName,
+    const std::vector<TString>& jobShellOwners)
+{
+    if (user == RootUserName || user == SuperusersGroupName) {
+        return;
+    }
+
+    auto proxy = CreateObjectServiceReadProxy(
+        client,
+        EMasterChannelKind::Cache);
+    TMasterReadOptions readOptions;
+    readOptions.ReadFrom = EMasterChannelKind::Cache;
+
+    auto userClosure = GetSubjectClosure(
+        user,
+        proxy,
+        client->GetNativeConnection(),
+        readOptions);
+
+    auto allowedSubjects = jobShellOwners;
+    allowedSubjects.push_back(RootUserName);
+    allowedSubjects.push_back(SuperusersGroupName);
+
+    for (const auto& allowedSubject : allowedSubjects) {
+        if (allowedSubject == user || userClosure.contains(allowedSubject)) {
+            return;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION(
+        NSecurityClient::EErrorCode::AuthorizationError,
+        "User %Qv is not allowed to run job shell %Qv",
+        user,
+        jobShellName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void PackBaggageFromJobSpec(
     const NTracing::TTraceContextPtr& traceContext,
     const NControllerAgent::NProto::TJobSpec& jobSpec,
@@ -138,6 +196,8 @@ void PackBaggageFromJobSpec(
     AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(static_cast<EJobType>(jobSpec.type())));
     traceContext->PackBaggage(baggage);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
 

@@ -1,6 +1,7 @@
 package NYT.NControllerAgent.NProto;
 
 import "yt/ytlib/scheduler/proto/job.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

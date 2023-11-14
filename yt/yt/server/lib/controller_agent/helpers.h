@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/tracing/public.h>
@@ -14,7 +16,7 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAllocationId AllocationIdFromJobId(TJobId jobId);
+NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +60,14 @@ struct TJobToConfirm
 {
     TJobId JobId;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateJobShellAccess(
+    const NApi::NNative::IClientPtr& client,
+    const TString& user,
+    const TString& jobShellName,
+    const std::vector<TString>& jobShellOwners);
 
 ////////////////////////////////////////////////////////////////////////////////
 

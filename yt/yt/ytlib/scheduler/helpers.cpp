@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include "config.h"
+
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -36,6 +38,45 @@ using namespace NLogging;
 using namespace NRpc;
 using namespace NJobTrackerClient::NProto;
 using namespace NTracing;
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdeteMap& update)
+{
+    for (const auto& [jobShellName, options] : update) {
+        if (!options) {
+            origin->erase(jobShellName);
+        } else {
+            (*origin)[jobShellName] = *options;
+        }
+    }
+}
+
+TJobShellInfo::TJobShellInfo(
+    TJobShellPtr jobShell,
+    TOperationJobShellRuntimeParametersPtr jobShellRuntimeParameters)
+    : JobShell_(std::move(jobShell))
+    , JobShellRuntimeParameters_(std::move(jobShellRuntimeParameters))
+{
+    YT_VERIFY(JobShell_);
+}
+
+const std::vector<TString>& TJobShellInfo::GetOwners()
+{
+    if (JobShellRuntimeParameters_) {
+        return JobShellRuntimeParameters_->Owners;
+    }
+
+    return JobShell_->Owners;
+}
+
+const TString& TJobShellInfo::GetSubcontainerName()
+{
+    return JobShell_->Subcontainer;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -316,7 +357,7 @@ void ValidateOperationAccess(
     TJobId jobId,
     EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
-    const NNative::IClientPtr& client,
+    const IClientPtr& client,
     const TLogger& logger)
 {
     const auto& Logger = logger;
@@ -452,6 +493,97 @@ TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validatio
 void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel)
 {
     CheckPoolName(poolName, validationLevel).ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(
+    TAllocationBriefInfo* allocationBriefInfo,
+    const NProto::TAllocationBriefInfo& allocationBriefInfoProto)
+{
+    allocationBriefInfo->AllocationId = FromProto<TAllocationId>(allocationBriefInfoProto.allocation_id());
+
+    if (allocationBriefInfoProto.has_operation_id()) {
+        allocationBriefInfo->OperationId = FromProto<TOperationId>(allocationBriefInfoProto.operation_id());
+    }
+
+    if (allocationBriefInfoProto.has_operation_acl()) {
+        TYsonString aclYson(allocationBriefInfoProto.operation_acl());
+        allocationBriefInfo->OperationAcl = ConvertTo<TSerializableAccessControlList>(aclYson);
+    }
+
+    if (allocationBriefInfoProto.has_controller_agent_descriptor()) {
+        FromProto(
+            &allocationBriefInfo->ControllerAgentDescriptor,
+            allocationBriefInfoProto.controller_agent_descriptor());
+    }
+
+    if (allocationBriefInfoProto.has_node_descriptor()) {
+        FromProto(
+            &allocationBriefInfo->NodeDescriptor,
+            allocationBriefInfoProto.node_descriptor());
+    }
+}
+
+void ToProto(
+    NProto::TAllocationBriefInfo* allocationBriefInfoProto,
+    const TAllocationBriefInfo& allocationBriefInfo)
+{
+    ToProto(
+        allocationBriefInfoProto->mutable_allocation_id(),
+        allocationBriefInfo.AllocationId);
+    ToProto(
+        allocationBriefInfoProto->mutable_operation_id(),
+        allocationBriefInfo.OperationId);
+
+
+    if (allocationBriefInfo.OperationAcl) {
+        auto aclYson = ConvertToYsonString(*allocationBriefInfo.OperationAcl);
+        allocationBriefInfoProto->set_operation_acl(aclYson.ToString());
+    }
+
+    if (allocationBriefInfo.ControllerAgentDescriptor) {
+        ToProto(
+            allocationBriefInfoProto->mutable_controller_agent_descriptor(),
+            allocationBriefInfo.ControllerAgentDescriptor);
+    }
+
+    if (!allocationBriefInfo.NodeDescriptor.IsNull()) {
+        ToProto(
+            allocationBriefInfoProto->mutable_node_descriptor(),
+            allocationBriefInfo.NodeDescriptor);
+    }
+}
+
+void FromProto(
+    TAllocationInfoToRequest* requestedAllocationInfo,
+    const NProto::TReqGetAllocationBriefInfo::TRequestedInfo& requestedAllocationInfoProto)
+{
+    requestedAllocationInfo->OperationId = requestedAllocationInfoProto.operation_id();
+    requestedAllocationInfo->OperationAcl = requestedAllocationInfoProto.operation_acl();
+    requestedAllocationInfo->ControllerAgentDescriptor = requestedAllocationInfoProto.controller_agent_descriptor();
+    requestedAllocationInfo->NodeDescriptor = requestedAllocationInfoProto.node_descriptor();
+}
+
+void ToProto(
+    NProto::TReqGetAllocationBriefInfo::TRequestedInfo* allocationInfoToRequestProto,
+    const TAllocationInfoToRequest& allocationInfoToRequest)
+{
+    if (allocationInfoToRequest.OperationId) {
+        allocationInfoToRequestProto->set_operation_id(true);
+    }
+
+    if (allocationInfoToRequest.OperationAcl) {
+        allocationInfoToRequestProto->set_operation_acl(true);
+    }
+
+    if (allocationInfoToRequest.ControllerAgentDescriptor) {
+        allocationInfoToRequestProto->set_controller_agent_descriptor(true);
+    }
+
+    if (allocationInfoToRequest.NodeDescriptor) {
+        allocationInfoToRequestProto->set_node_descriptor(true);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

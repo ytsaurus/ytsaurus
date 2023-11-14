@@ -337,13 +337,6 @@ struct IOperationControllerSchedulerHost
      */
     virtual void OnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary) = 0;
 
-    //! Called by a scheduler when user comes with abandon job request.
-    /*!
-     *  \note Invoker affinity: cancelable Controller invoker
-     *
-     */
-    virtual void AbandonJob(TJobId jobId) = 0;
-
     //! Method that is called after operation results are committed and before
     //! controller is disposed.
     /*!
@@ -582,6 +575,18 @@ struct IOperationController
      */
     virtual void AbortJobByJobTracker(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 
+    //! Called from job prober service.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
+    virtual void AbandonJob(TJobId jobId) = 0;
+
+    //! Called from job prober service.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
+    virtual void InterruptJobByUserRequest(TJobId jobId, TDuration timeout) = 0;
+
     //! Builds operation alerts.
     /*!
      * \note Invoker affinity: any.
@@ -620,6 +625,8 @@ struct IOperationController
     virtual NYTree::IYPathServicePtr GetOrchid() const = 0;
 
     virtual void ZombifyOrchid() = 0;
+
+    virtual const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const = 0;
 
     virtual TString WriteCoreDump() const = 0;
 

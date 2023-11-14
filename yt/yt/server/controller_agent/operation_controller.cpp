@@ -389,7 +389,12 @@ public:
 
     void AbandonJob(TJobId jobId) override
     {
-        return DoExecuteGuarded(&IOperationController::AbandonJob, std::move(jobId));
+        return DoExecuteGuarded(&IOperationController::AbandonJob, jobId);
+    }
+
+    void InterruptJobByUserRequest(TJobId jobId, TDuration timeout) override
+    {
+        return DoExecuteGuarded(&IOperationController::InterruptJobByUserRequest, jobId, timeout);
     }
 
     void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override
@@ -399,7 +404,7 @@ public:
 
     void AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason) override
     {
-        return DoExecuteGuarded(&IOperationController::AbortJobByJobTracker, std::move(jobId), abortReason);
+        return DoExecuteGuarded(&IOperationController::AbortJobByJobTracker, jobId, abortReason);
     }
 
     TControllerScheduleJobResultPtr ScheduleJob(
@@ -493,6 +498,11 @@ public:
     void ZombifyOrchid() override
     {
         return DoExecuteGuarded(&IOperationController::ZombifyOrchid);
+    }
+
+    const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const override
+    {
+        return DoExecuteGuarded(&IOperationController::GetJobShells);
     }
 
     TString WriteCoreDump() const override

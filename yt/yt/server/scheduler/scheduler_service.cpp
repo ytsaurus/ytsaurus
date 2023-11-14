@@ -52,6 +52,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetAllocationBriefInfo));
     }
 
 private:
@@ -64,7 +65,8 @@ private:
         auto transactionId = GetTransactionId(context);
         auto mutationId = context->GetMutationId();
 
-        context->SetRequestInfo("Type: %v, TransactionId: %v",
+        context->SetRequestInfo(
+            "Type: %v, TransactionId: %v",
             type,
             transactionId);
 
@@ -103,7 +105,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("OperationId: %v",
+        context->SetRequestInfo(
+            "OperationId: %v",
             operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
@@ -135,7 +138,8 @@ private:
 
         bool abortRunningJobs = request->abort_running_jobs();
 
-        context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
+        context->SetRequestInfo(
+            "OperationId: %v, AbortRunningJobs: %v",
             operationIdOrAlias,
             abortRunningJobs);
 
@@ -159,7 +163,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("OperationId: %v",
+        context->SetRequestInfo(
+            "OperationId: %v",
             operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
@@ -181,7 +186,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("OperationId: %v",
+        context->SetRequestInfo(
+            "OperationId: %v",
             operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
@@ -204,7 +210,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("OperationId: %v",
+        context->SetRequestInfo(
+            "OperationId: %v",
             operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
@@ -223,8 +230,43 @@ private:
         }
 
         auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
-        auto asyncResult = scheduler->UpdateOperationParameters(operation, context->GetAuthenticationIdentity().User, parametersNode);
+        auto asyncResult = scheduler->UpdateOperationParameters(
+            operation,
+            context->GetAuthenticationIdentity().User,
+            parametersNode);
+
         context->ReplyFrom(asyncResult);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetAllocationBriefInfo)
+    {
+        auto allocationId = FromProto<TAllocationId>(request->allocation_id());
+        TAllocationInfoToRequest requestedAllocationInfo;
+        FromProto(&requestedAllocationInfo, request->requested_info());
+
+        context->SetRequestInfo(
+            "AllocationId: %v, RequestedInfo: {OperationId: %v, OperationAcl: %v, CADescriptor: %v, NodeDescriptor: %v}",
+            allocationId,
+            requestedAllocationInfo.OperationId,
+            requestedAllocationInfo.OperationAcl,
+            requestedAllocationInfo.ControllerAgentDescriptor,
+            requestedAllocationInfo.NodeDescriptor);
+
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        if (ResponseKeeper_->TryReplyFrom(context)) {
+            return;
+        }
+
+        auto briefOperationInfo = scheduler->GetAllocationBriefInfo(
+            allocationId,
+            requestedAllocationInfo);
+
+        ToProto(response->mutable_allocation_brief_info(), briefOperationInfo);
+
+        context->SetResponseInfo("AllocationId: %v", allocationId);
+        context->Reply();
     }
 };
 

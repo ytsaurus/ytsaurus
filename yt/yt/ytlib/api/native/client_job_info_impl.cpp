@@ -1,6 +1,7 @@
 #include "client_impl.h"
 
 #include "connection.h"
+#include "helpers.h"
 
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/operation_archive_schema.h>
@@ -85,6 +86,8 @@ using namespace NJobTrackerClient;
 
 using NChunkClient::TDataSliceDescriptor;
 using NNodeTrackerClient::TNodeDescriptor;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,19 +225,51 @@ TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    TJobProberServiceProxy proxy(GetSchedulerChannel());
-    auto req = proxy.GetJobNode();
-    req->SetUser(Options_.GetAuthenticatedUser());
-    ToProto(req->mutable_job_id(), jobId);
-    req->set_required_permissions(static_cast<ui32>(requiredPermissions));
+    // COMPAT(pogorelov)
+    if (Connection_->GetConfig()->Scheduler->UseSchedulerJobProberService) {
+        NScheduler::TJobProberServiceProxy proxy(GetSchedulerChannel());
+        auto req = proxy.GetJobNode();
+        req->SetUser(Options_.GetAuthenticatedUser());
+        ToProto(req->mutable_job_id(), jobId);
+        req->set_required_permissions(static_cast<ui32>(requiredPermissions));
 
-    auto rspOrError = WaitFor(req->Invoke());
-    if (rspOrError.IsOK()) {
-        TNodeDescriptor nodeDescriptor;
-        FromProto(&nodeDescriptor, rspOrError.Value()->node_descriptor());
-        return nodeDescriptor;
-    } else {
-        return static_cast<TError>(rspOrError);
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.IsOK()) {
+            TNodeDescriptor nodeDescriptor;
+            FromProto(&nodeDescriptor, rspOrError.Value()->node_descriptor());
+            return nodeDescriptor;
+        } else {
+            return static_cast<TError>(rspOrError);
+        }
+    }
+
+    try {
+        auto allocationId = AllocationIdFromJobId(jobId);
+
+        auto allocationBriefInfoOrError = WaitFor(GetAllocationBriefInfo(
+            *SchedulerOperationProxy_,
+            allocationId,
+            TAllocationInfoToRequest{
+                .OperationId = true,
+                .OperationAcl = true,
+                .NodeDescriptor = true,
+            }));
+
+        if (!allocationBriefInfoOrError.IsOK()) {
+            return std::move(allocationBriefInfoOrError).Wrap();
+        }
+
+        const auto& allocationBriefInfo = allocationBriefInfoOrError.Value();
+
+        ValidateOperationAccess(
+            allocationBriefInfo.OperationId,
+            *allocationBriefInfo.OperationAcl,
+            jobId,
+            requiredPermissions);
+
+        return allocationBriefInfo.NodeDescriptor;
+    } catch (const std::exception& ex) {
+        return ex;
     }
 }
 
@@ -305,6 +340,7 @@ TErrorOr<TJobSpec> TClient::TryFetchJobSpecFromJobNode(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
+    // TODO(pogorelov): Do not get operation id from archive here, if it is already got from scheduler.
     if (auto operationId = TryGetOperationId(jobId)) {
         auto nodeChannelOrError = TryCreateChannelToJobNode(operationId, jobId, requiredPermissions);
         if (nodeChannelOrError.IsOK()) {
@@ -473,6 +509,22 @@ void TClient::ValidateOperationAccess(
         Logger);
 }
 
+void TClient::ValidateOperationAccess(
+    NScheduler::TOperationId operationId,
+    const NSecurityClient::TSerializableAccessControlList& operationAcl,
+    NScheduler::TJobId jobId,
+    NYTree::EPermissionSet permissions)
+{
+    NScheduler::ValidateOperationAccess(
+        Options_.GetAuthenticatedUser(),
+        operationId,
+        jobId,
+        permissions,
+        operationAcl,
+        StaticPointerCast<IClient>(MakeStrong(this)),
+        Logger);
+}
+
 TJobSpec TClient::FetchJobSpec(
     NScheduler::TJobId jobId,
     NApi::EJobSpecSource specSource,
@@ -517,12 +569,72 @@ void TClient::DoDumpJobContext(
     const TYPath& path,
     const TDumpJobContextOptions& /*options*/)
 {
-    auto req = SchedulerJobProberProxy_->DumpInputContext();
-    ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_path(), path);
+    // COMPAT(pogorelov)
+    if (Connection_->GetConfig()->Scheduler->UseSchedulerJobProberService) {
+        auto req = SchedulerJobProberProxy_->DumpInputContext();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_path(), path);
 
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+
+        return;
+    }
+
+    auto allocationId = AllocationIdFromJobId(jobId);
+
+    auto allocationBriefInfo = WaitFor(GetAllocationBriefInfo(
+        *SchedulerOperationProxy_,
+        allocationId,
+        TAllocationInfoToRequest{
+            .OperationId = true,
+            .OperationAcl = true,
+            .NodeDescriptor = true,
+        }))
+        .ValueOrThrow();
+
+    ValidateOperationAccess(
+        allocationBriefInfo.OperationId,
+        *allocationBriefInfo.OperationAcl,
+        jobId,
+        EPermissionSet(EPermission::Read));
+
+    auto nodeChannel = ChannelFactory_->CreateChannel(allocationBriefInfo.NodeDescriptor);
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
+    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+
+    auto req = jobProberServiceProxy.DumpInputContext();
+    ToProto(req->mutable_job_id(), jobId);
+
+    YT_LOG_DEBUG("Requesting node to dump job input context");
+
+    auto rsp = WaitFor(req->Invoke()).
+        ValueOrThrow();
+
+    auto chunkIds = FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
+    YT_VERIFY(chunkIds.size() == 1);
+
+    auto chunkId = chunkIds[0];
+
+    YT_LOG_DEBUG("Received job input context dump from node (ChunkId: %v)", chunkId);
+
+    try {
+        TJobFile file{
+            jobId,
+            path,
+            chunkId,
+            "input_context"
+        };
+        SaveJobFiles(
+            MakeStrong(this),
+            allocationBriefInfo.OperationId,
+            {file});
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
+            << ex;
+    }
+
+    YT_LOG_DEBUG("Job input context attached (ChunkId: %v, Path: %v)", chunkId, path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

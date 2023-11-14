@@ -90,7 +90,7 @@ public:
 
     TNodeYsonList BuildNodeYsonList() const;
 
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId job);
+    TFuture<TOperationId> FindOperationIdByAllocationId(TAllocationId allocationId);
 
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;
@@ -130,7 +130,7 @@ private:
     THashMap<TString, NNodeTrackerClient::TNodeId> NodeAddressToNodeId_;
 
     const TNodeShardPtr& GetNodeShard(NNodeTrackerClient::TNodeId nodeId) const;
-    const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const;
+    const TNodeShardPtr& GetNodeShardByAllocationId(TAllocationId allocationId) const;
 
     template <typename TCallback>
     auto ExecuteInNodeShards(TCallback callback) const -> std::vector<typename TFutureTraits<decltype(callback(std::declval<const TNodeShardPtr&>()))>::TWrapped>;

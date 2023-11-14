@@ -12,6 +12,10 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAllocationId AllocationIdFromJobId(TJobId jobId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);
@@ -51,6 +55,21 @@ NYson::TYsonString BuildBriefStatistics(const NYTree::INodePtr& statistics);
 ////////////////////////////////////////////////////////////////////////////////
 
 void SanitizeJobSpec(NProto::TJobSpec* jobSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(
+    TControllerAgentDescriptor* controllerAgentDescriptor,
+    const NProto::TControllerAgentDescriptor& controllerAgentDescriptorProto);
+
+void ToProto(
+    NProto::TControllerAgentDescriptor* controllerAgentDescriptorProto,
+    const TControllerAgentDescriptor& controllerAgentDescriptor);
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
+    TStringBuf /*format*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

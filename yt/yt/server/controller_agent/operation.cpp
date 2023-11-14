@@ -1,6 +1,10 @@
 #include "operation.h"
 
+#include "operation_controller.h"
+
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
+
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -37,10 +41,40 @@ const IOperationControllerPtr& TOperation::GetControllerOrThrow() const
 {
     if (!Controller_) {
         THROW_ERROR_EXCEPTION(
-            "Operation %v is missing controller",
+            "Controller of operation %v is missing",
             Id_);
     }
     return Controller_;
+}
+
+void TOperation::UpdateJobShellOptions(const TJobShellOptionsUpdeteMap& update)
+{
+    ApplyJobShellOptionsUpdate(&OptionsPerJobShell_, update);
+}
+
+std::optional<NScheduler::TJobShellInfo> TOperation::GetJobShellInfo(const TString& jobShellName)
+{
+    const auto& controller = GetControllerOrThrow();
+
+    TJobShellPtr jobShell;
+    for (const auto& shell : controller->GetJobShells()) {
+        if (shell->Name == jobShellName) {
+            jobShell = shell;
+        }
+    }
+
+    if (!jobShell) {
+        return {};
+    }
+
+    TOperationJobShellRuntimeParametersPtr runtimeParameters;
+    if (auto it = OptionsPerJobShell_.find(jobShellName); it != OptionsPerJobShell_.end()) {
+        runtimeParameters = it->second;
+    }
+
+    return NScheduler::TJobShellInfo(
+        std::move(jobShell),
+        std::move(runtimeParameters));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

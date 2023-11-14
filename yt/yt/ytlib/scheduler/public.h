@@ -15,6 +15,11 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TAllocationId = TGuid;
+constexpr TAllocationId NullAllocationId{};
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NVectorHdrf::EIntegralGuaranteeType;
 using NVectorHdrf::ESchedulingMode;
 using NVectorHdrf::EJobResourceType;
@@ -142,6 +147,14 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TTentativeTreeEligibilityConfig)
 DECLARE_REFCOUNTED_CLASS(TJobCpuMonitorConfig)
 DECLARE_REFCOUNTED_CLASS(TExperimentOperationSpec)
+
+using TJobShellOptionsMap = THashMap<
+    TString,
+    TOperationJobShellRuntimeParametersPtr>;
+
+using TJobShellOptionsUpdeteMap = THashMap<
+    TString,
+    std::optional<TOperationJobShellRuntimeParametersPtr>>;
 
 struct TDiskQuota;
 class TJobResourcesWithQuota;

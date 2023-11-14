@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, insert_rows, write_file, read_table, write_table, join_reduce, interrupt_job, sync_create_cells, sync_mount_table,
+    get, insert_rows, write_file, read_table, write_table, join_reduce, sync_create_cells, sync_mount_table,
     sync_unmount_table, raises_yt_error, assert_statistics, sorted_dicts)
 
 from yt_helpers import skip_if_no_descending
@@ -1466,7 +1466,7 @@ echo {v = 2} >&7
         )
 
         jobs = wait_breakpoint()
-        interrupt_job(jobs[0])
+        op.interrupt_job(jobs[0])
         release_breakpoint()
         op.track()
 

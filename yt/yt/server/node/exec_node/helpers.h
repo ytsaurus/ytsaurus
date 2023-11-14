@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/hydra/public.h>
@@ -54,7 +56,7 @@ void FormatValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
-    const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto,
+    const NControllerAgent::NProto::TControllerAgentDescriptor& proto,
     const NNodeTrackerClient::TNetworkPreferenceList& localNetworks);
 
 ////////////////////////////////////////////////////////////////////////////////

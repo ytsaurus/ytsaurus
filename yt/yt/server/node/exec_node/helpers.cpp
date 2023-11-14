@@ -184,7 +184,7 @@ TErrorOr<TString> TryParseControllerAgentAddress(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
+    auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
 
     try {
         return GetAddressOrThrow(addresses, localNetworks);
@@ -223,12 +223,12 @@ void FormatValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
-    const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto,
+    const NControllerAgent::NProto::TControllerAgentDescriptor& proto,
     const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
+    auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
 
     if (!proto.has_addresses()) {
         return TError("Controller agent descriptor has no addresses")

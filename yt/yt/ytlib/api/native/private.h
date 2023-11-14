@@ -17,6 +17,8 @@ DECLARE_REFCOUNTED_CLASS(TClient)
 
 inline const NLogging::TLogger TvmSynchronizerLogger("TvmSynchronizer");
 
+inline const NLogging::TLogger NativeConnectionLogger("NativeConnection");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
