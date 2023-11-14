@@ -324,6 +324,7 @@ def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None
     _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_conf({"spark.ui.showConsoleProgress": "true"}, spark_base_args)
+    _add_conf(spark_conf, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client, jar_caching_enabled)
     _add_ipv6_preference(ipv6_preference_enabled, spark_base_args)
     spark_env = _create_spark_env(client, spark_home)
