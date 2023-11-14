@@ -5,27 +5,6 @@ on:
     types: [opened]
 
 jobs:
-  mail:
-    name: Mail
-    runs-on: trampoline
-    steps:
-      - name: Send email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{secrets.YTSAURUS_EMAIL}}
-          password: ${{secrets.YTSAURUS_EMAIL_PASSWORD}}
-          subject: (${{github.repository}}, ${{github.event.issue.number}}) ${{github.event.issue.title}}
-          to: ytsaurus-github-issues@yandex-team.ru
-          from: YTsaurus Github
-          body: |
-            Repository: ${{github.repository}}
-            Author: ${{github.event.issue.author}}
-            Link: ${{github.server_url}}/${{github.repository}}/issues/${{github.event.issue.number}}
-            Description:
-            ${{github.event.issue.body}}
-
   telegram:
     name: Telegram
     runs-on: trampoline
