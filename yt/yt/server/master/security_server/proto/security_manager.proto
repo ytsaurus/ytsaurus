@@ -2,8 +2,6 @@ package NYT.NSecurityServer.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
-import "yt_proto/yt/core/ytree/proto/attributes.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TUserActivityStatisticsUpdate
