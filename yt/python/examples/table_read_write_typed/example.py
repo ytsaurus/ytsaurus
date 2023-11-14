@@ -19,7 +19,9 @@ def main():
         raise RuntimeError("Environment variable YT_PROXY is empty")
     client = yt.wrapper.YtClient(cluster)
 
-    table = "//tmp/{}-read-write".format(getpass.getuser())
+    table = "//tmp/{}-read-write-typed".format(getpass.getuser())
+
+    client.remove(table, force=True)
 
     # Просто пишем данные в таблицу, если таблица существует, её перезапишут.
     client.write_table_structured(

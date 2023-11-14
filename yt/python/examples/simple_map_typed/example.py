@@ -42,7 +42,7 @@ def main():
     client = yt.wrapper.YtClient(cluster)
 
     # Выходная таблица у нас будет лежать в tmp и содержать имя текущего пользователя.
-    output_table = "//tmp/{}-pytutorial-emails".format(getpass.getuser())
+    output_table = "//tmp/{}-pytutorial-typed-map-emails".format(getpass.getuser())
 
     client.run_map(
         ComputeEmailsMapper(),

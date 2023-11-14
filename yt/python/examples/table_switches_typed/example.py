@@ -71,6 +71,8 @@ def main():
     client.write_table_structured(input3, ValueRow, [ValueRow(value=4)])
 
     output1, output2 = outputs = ["{}/output{}".format(path, i) for i in range(1, 3)]
+    client.remove(output1, force=True)
+    client.remove(output2, force=True)
 
     # Пример запуска маппера, который будет использовать OutputRow
     # для выбора выходной таблицы.

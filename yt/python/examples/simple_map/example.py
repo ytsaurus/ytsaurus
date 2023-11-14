@@ -25,10 +25,10 @@ def main():
     client = yt.wrapper.YtClient(cluster)
 
     # Выходная таблица у нас будет лежать в tmp и содержать имя текущего пользователя.
-    output_table = "//tmp/{}-pytutorial-emails".format(getpass.getuser())
+    output_table = "//tmp/{}-pytutorial-map-emails".format(getpass.getuser())
 
     client.run_map(
-        compute_emails_mapper, source_table="//home/dev/tutorial/staff_unsorted", destination_table=output_table
+        compute_emails_mapper, source_table="//home/tutorial/staff_unsorted", destination_table=output_table
     )
 
     ui_url = os.getenv("YT_UI_URL")

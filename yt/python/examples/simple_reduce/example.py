@@ -34,10 +34,10 @@ def main():
     client = yt.wrapper.YtClient(cluster)
 
     sorted_tmp_table = "//tmp/{}-pytutorial-tmp".format(getpass.getuser())
-    output_table = "//tmp/{}-pytutorial-name-stat".format(getpass.getuser())
+    output_table = "//tmp/{}-pytutorial-simple-reduce-name-stat".format(getpass.getuser())
 
     client.run_sort(
-        source_table="//home/dev/tutorial/staff_unsorted", destination_table=sorted_tmp_table, sort_by=["name"]
+        source_table="//home/tutorial/staff_unsorted", destination_table=sorted_tmp_table, sort_by=["name"]
     )
 
     client.run_reduce(

@@ -45,7 +45,7 @@ def main():
     client = yt.wrapper.YtClient(cluster)
 
     sorted_tmp_table = "//tmp/{}-pytutorial-tmp".format(getpass.getuser())
-    output_table = "//tmp/{}-pytutorial-name-stat".format(getpass.getuser())
+    output_table = "//tmp/{}-pytutorial-simle-reduce-typed-name-stat".format(getpass.getuser())
 
     # Отсортируем таблицу по возрастанию поля name.
     client.run_sort(

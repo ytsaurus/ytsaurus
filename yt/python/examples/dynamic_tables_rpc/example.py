@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import yt.wrapper as yt
+import yt.wrapper
 
 import getpass
 import os

@@ -59,9 +59,9 @@ def main():
         raise RuntimeError("Environment variable YT_PROXY is empty")
     client = yt.wrapper.YtClient(cluster)
 
-    sorted_staff_table = "//tmp/{}-pytutorial-staff-sorted".format(getpass.getuser())
-    sorted_is_robot_table = "//tmp/{}-pytutorial-is_robot-sorted".format(getpass.getuser())
-    output_table = "//tmp/{}-pytutorial-robots".format(getpass.getuser())
+    sorted_staff_table = "//tmp/{}-pytutorial-mi-typed-staff-sorted".format(getpass.getuser())
+    sorted_is_robot_table = "//tmp/{}-pytutorial-mi-typed-is_robot-sorted".format(getpass.getuser())
+    output_table = "//tmp/{}-pytutorial-mi-typed-robots".format(getpass.getuser())
 
     client.run_sort(
         source_table="//home/tutorial/staff_unsorted_schematized",
@@ -69,8 +69,14 @@ def main():
         sort_by=["uid"],
     )
 
+    client.create("table", sorted_is_robot_table, ignore_existing=True, attributes={
+        "schema": schema.TableSchema()
+        .add_column("uid", yt.type_info.Int64)
+        .add_column("is_robot", yt.type_info.Bool)
+    })
+
     client.run_sort(
-        source_table="//home/tutotirla/is_robot_unsorted",
+        source_table="//home/tutorial/is_robot_unsorted",
         destination_table=sorted_is_robot_table,
         sort_by=["uid"],
     )

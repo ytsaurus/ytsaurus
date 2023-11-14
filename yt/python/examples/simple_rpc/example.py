@@ -1,6 +1,6 @@
 import os
 
-import yt.wrapper as yt
+import yt.wrapper
 
 
 def main():

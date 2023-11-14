@@ -26,21 +26,21 @@ def main():
     client.create("map_node", path, force=True)
 
     local_path = "/tmp/pytutorial_local_file"
-    with open(local_path, "w") as fout:
+    with open(local_path, "wb") as fout:
         fout.write(b"local file")
 
     cypress_path = path + "/cypress_file"
 
     # Записывать в файл можно из потока.
-    with open(local_path) as f:
+    with open(local_path, "rb") as f:
         client.write_file(cypress_path, f)
-    assert client.read_file(cypress_path, length=5).read() == "local"
-    assert client.read_file(cypress_path, offset=6).read() == "file"
+    assert client.read_file(cypress_path, length=5).read() == b"local"
+    assert client.read_file(cypress_path, offset=6).read() == b"file"
 
     # Записывать в файл можно просто строку (или bytes).
     client.write_file(cypress_path, b"cypress file")
-    assert client.read_file(cypress_path, length=7).read() == "cypress"
-    assert client.read_file(cypress_path, offset=8).read() == "file"
+    assert client.read_file(cypress_path, length=7).read() == b"cypress"
+    assert client.read_file(cypress_path, offset=8).read() == b"file"
 
     client.write_table(path + "/input_table", [{"x": 1}])
 

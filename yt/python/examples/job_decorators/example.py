@@ -66,7 +66,7 @@ def sum_x_raw():
 # @raw позволяет отметить, что функция принимает на вход поток сырых данных, а не распарсенные записи.
 @yt.wrapper.raw
 def change_field_raw(line):
-    yield "{}\n".format(int(line.strip()) + 10)
+    yield "{}\n".format(int(line.strip()) + 10).encode()
 
 
 def main():

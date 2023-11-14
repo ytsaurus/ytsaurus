@@ -58,7 +58,7 @@ def main():
     client.run_map_reduce(
         NormalizeNameMapper(),
         CountNamesReducer(),
-        source_table="//home/dev/tutorial/staff_unsorted",
+        source_table="//home/tutorial/staff_unsorted",
         destination_table=output_table,
         reduce_by=["name"],
     )

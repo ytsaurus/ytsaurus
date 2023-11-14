@@ -32,7 +32,7 @@ def main():
         raise RuntimeError("Environment variable YT_PROXY is empty")
     client = yt.wrapper.YtClient(cluster)
 
-    table = "//tmp/{}-table-schema".format(getpass.getuser())
+    table = "//tmp/{}-table-schema-typed".format(getpass.getuser())
     client.remove(table, force=True)
 
     rows = [
@@ -51,9 +51,9 @@ def main():
 
     # Может потребоваться создать таблицу с сортированной схемой.
     # В таком случае стоит использовать метод build_schema_sorted_by().
-    sorted_table = "//tmp/{}-table-schema-sorted".format(getpass.getuser())
+    sorted_table = "//tmp/{}-table-schema-typed-sorted".format(getpass.getuser())
     sorted_schema = schema.build_schema_sorted_by(["name"])
-    client.create("table", sorted_table, attributes={"schema": sorted_schema})
+    client.create("table", sorted_table, attributes={"schema": sorted_schema}, ignore_existing=True)
 
     client.write_table_structured(table, StaffEntry, sorted(rows, key=lambda r: r.name))
 

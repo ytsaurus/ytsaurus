@@ -7,13 +7,12 @@ import copy
 import getpass
 import os
 import re
-import typing
 
 
 @yt.wrapper.yt_dataclass
 class GrepRow:
     # В этом поле приезжает строка, по которой мы фильтруем.
-    target: typing.Optional[bytes]
+    target: bytes
     # В этом поле будут приезжать все остальные колонки.
     other: schema.OtherColumns
 
