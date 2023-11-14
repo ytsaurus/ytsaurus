@@ -163,7 +163,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 }
 
 // Run starts the infinite loop consisting of lock acquisition and agent operation.
-func (app *App) Run() {
+func (app *App) Run(stopCh <-chan struct{}) {
 	if app.HTTPAPIServer != nil {
 		go app.HTTPAPIServer.Run()
 	}
@@ -187,8 +187,13 @@ func (app *App) Run() {
 			}
 		}
 
-		<-lost
-		app.l.Info("lock lost")
+		select {
+		case <-stopCh:
+			app.l.Info("app is stopped")
+		case <-lost:
+			app.l.Info("lock lost")
+		}
+
 		app.isLeader.Store(false)
 
 		for _, loc := range app.locations {
@@ -196,6 +201,17 @@ func (app *App) Run() {
 				a.Stop()
 			}
 		}
+
+		if _, ok := <-stopCh; !ok {
+			break
+		}
+	}
+
+	if app.HTTPAPIServer != nil {
+		app.HTTPAPIServer.Stop()
+	}
+	if app.HTTPMonitoringServer != nil {
+		app.HTTPMonitoringServer.Stop()
 	}
 }
 

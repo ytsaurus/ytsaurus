@@ -1,5 +1,8 @@
 GO_LIBRARY()
 
-SRCS(helpers.go)
+SRCS(
+    helpers.go
+    strawberry_env.go
+)
 
 END()

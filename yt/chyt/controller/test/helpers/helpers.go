@@ -61,10 +61,10 @@ type RequestClient struct {
 	Endpoint string
 	Proxy    string
 	User     string
+	Env      *Env
 
 	httpClient *http.Client
 	t          *testing.T
-	env        *Env
 }
 
 type Response struct {
@@ -76,7 +76,7 @@ func (c *RequestClient) MakeRequest(httpMethod string, command string, params ap
 	body, err := api.Marshal(params, format)
 	require.NoError(c.t, err)
 
-	c.env.L.Debug("making http api request", log.String("command", command), log.Any("params", params))
+	c.Env.L.Debug("making http api request", log.String("command", command), log.Any("params", params))
 
 	req, err := http.NewRequest(httpMethod, c.Endpoint+"/"+command, bytes.NewReader(body))
 	require.NoError(c.t, err)
@@ -91,7 +91,7 @@ func (c *RequestClient) MakeRequest(httpMethod string, command string, params ap
 	body, err = io.ReadAll(rsp.Body)
 	require.NoError(c.t, err)
 
-	c.env.L.Debug("http api request finished",
+	c.Env.L.Debug("http api request finished",
 		log.String("command", command),
 		log.Any("params", params),
 		log.Int("status_code", rsp.StatusCode),
@@ -115,6 +115,19 @@ func (c *RequestClient) MakeGetRequest(command string, params api.RequestParams)
 	return c.MakeRequest(http.MethodGet, command, params, api.DefaultFormat)
 }
 
+func (c *RequestClient) GetBriefInfo(alias string) strawberry.OpletBriefInfo {
+	r := c.MakePostRequest("get_brief_info", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(c.t, http.StatusOK, r.StatusCode)
+
+	var rsp struct {
+		Result strawberry.OpletBriefInfo `yson:"result"`
+	}
+	require.NoError(c.t, yson.Unmarshal(r.Body, &rsp))
+	return rsp.Result
+}
+
 func PrepareClient(t *testing.T, env *Env, proxy string, server *httpserver.HTTPServer) *RequestClient {
 	go server.Run()
 	t.Cleanup(server.Stop)
@@ -124,9 +137,9 @@ func PrepareClient(t *testing.T, env *Env, proxy string, server *httpserver.HTTP
 		Endpoint:   "http://" + server.RealAddress(),
 		Proxy:      proxy,
 		User:       "root",
+		Env:        env,
 		httpClient: &http.Client{},
 		t:          t,
-		env:        env,
 	}
 
 	return client
@@ -235,7 +248,7 @@ func PrepareMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient) {
 func Wait(t *testing.T, predicate func() bool) {
 	t.Helper()
 
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 100; i++ {
 		if !predicate() {
 			time.Sleep(300 * time.Millisecond)
 		} else {

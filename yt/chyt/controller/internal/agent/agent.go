@@ -339,7 +339,8 @@ func (a *Agent) Start() {
 
 	a.aliasToOp = make(map[string]*strawberry.Oplet)
 
-	a.nodeCh = TrackChildren(a.ctx, a.root, time.Millisecond*1000, a.ytc, a.l)
+	revisionCollectPeriod := time.Duration(a.config.RevisionCollectPeriodOrDefault())
+	a.nodeCh = TrackChildren(a.ctx, a.root, revisionCollectPeriod, a.ytc, a.l)
 
 	a.runningOpsCh = CollectOperations(
 		a.ctx,

@@ -55,6 +55,6 @@ func doRun() error {
 	}
 
 	a := app.New(&config, &options, cfs)
-	a.Run()
+	a.Run(make(chan struct{}) /*stopCh*/)
 	panic("unreachable")
 }
