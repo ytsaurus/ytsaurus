@@ -337,6 +337,8 @@ SRCS(
     queue_client/helpers.cpp
     queue_client/registration_manager.cpp
 
+    replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
+
     scheduler/config.cpp
     scheduler/helpers.cpp
     scheduler/job_resources_helpers.cpp

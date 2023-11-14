@@ -887,7 +887,7 @@ public:
                 for (auto* table : collocation->Tables()) {
                     table->SetReplicationCollocation(collocation);
                 }
-                OnReplicationCollocationUpdated(collocation);
+                OnReplicationCollocationCreated(collocation);
                 break;
 
             default:
@@ -1000,7 +1000,7 @@ public:
         switch (collocationType) {
             case ETableCollocationType::Replication:
                 table->SetReplicationCollocation(collocation);
-                OnReplicationCollocationUpdated(collocation);
+                OnReplicationCollocationCreated(collocation);
                 break;
 
             default:
@@ -1045,7 +1045,7 @@ public:
             table->GetId(),
             collocation->Tables().size());
 
-        OnReplicationCollocationUpdated(collocation);
+        OnReplicationCollocationCreated(collocation);
 
         // NB: On secondary master collocation should only be destroyed via foreign object removal mechanism.
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1224,7 +1224,7 @@ public:
         }
     }
 
-    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationCreated);
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
 private:
@@ -2109,7 +2109,7 @@ private:
         Save(context, Consumers_);
     }
 
-    void OnReplicationCollocationUpdated(TTableCollocation* collocation)
+    void OnReplicationCollocationCreated(TTableCollocation* collocation)
     {
         std::vector<TTableId> tableIds;
         tableIds.reserve(collocation->Tables().size());
@@ -2119,7 +2119,7 @@ private:
             }
         }
         if (!tableIds.empty()) {
-            ReplicationCollocationUpdated_.Fire(TTableCollocationData{
+            ReplicationCollocationCreated_.Fire(TTableCollocationData{
                 .Id = collocation->GetId(),
                 .TableIds = std::move(tableIds),
             });

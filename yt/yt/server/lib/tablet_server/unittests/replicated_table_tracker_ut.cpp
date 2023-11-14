@@ -83,6 +83,11 @@ public:
         }));
     }
 
+    TDynamicReplicatedTableTrackerConfigPtr GetConfig() const override
+    {
+        return Config_;
+    }
+
     void SetSnapshot(TReplicatedTableTrackerSnapshot snapshot)
     {
         YT_VERIFY(LoadingFromSnapshotRequested_.load());
@@ -140,8 +145,8 @@ public:
             auto it = ReplicaIdToInfo_.find(command.ReplicaId);
             EXPECT_NE(it, ReplicaIdToInfo_.end());
             ++it->second.CommandCount;
-            it->second.Mode = command.TargetMode;
-            ReplicaModeUpdated_(command.ReplicaId, command.TargetMode);
+            it->second.Data.Mode = command.TargetMode;
+            ReplicaCreated_(it->second.Data);
         }
 
         TApplyChangeReplicaCommandResults result(commands.size());
@@ -154,7 +159,7 @@ public:
         EXPECT_NE(it, ReplicaIdToInfo_.end());
         EXPECT_GT(it->second.CommandCount, 0);
         it->second.CommandCount = 0;
-        EXPECT_EQ(it->second.Mode, targetMode);
+        EXPECT_EQ(it->second.Data.Mode, targetMode);
     }
 
     void ValidateReplicaModeRemained(TTableReplicaId replicaId) const
@@ -164,7 +169,7 @@ public:
 
     ETableReplicaMode GetReplicaMode(TTableReplicaId replicaId) const
     {
-        return GetOrCrash(ReplicaIdToInfo_, replicaId).Mode;
+        return GetOrCrash(ReplicaIdToInfo_, replicaId).Data.Mode;
     }
 
     // Host stuff.
@@ -178,15 +183,9 @@ public:
         ReplicatedTableDestroyed_ = std::move(callback);
     }
 
-    void SubscribeReplicatedTableOptionsUpdated(
-        TCallback<void(NTableClient::TTableId, TReplicatedTableOptionsPtr)> callback) override
+    void SubscribeReplicationCollocationCreated(TCallback<void(TTableCollocationData)> callback) override
     {
-        ReplicatedTableOptionsUpdated_ = std::move(callback);
-    }
-
-    void SubscribeReplicationCollocationUpdated(TCallback<void(TTableCollocationData)> callback) override
-    {
-        ReplicationCollocationUpdated_ = std::move(callback);
+        ReplicationCollocationCreated_ = std::move(callback);
     }
 
     void SubscribeReplicationCollocationDestroyed(
@@ -206,32 +205,8 @@ public:
         ReplicaDestroyed_ = std::move(callback);
     }
 
-    void SubscribeReplicaModeUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode)> callback) override
-    {
-        ReplicaModeUpdated_ = std::move(callback);
-    }
-
-    void SubscribeReplicaEnablementUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
-    {
-        ReplicaEnablementUpdated_ = std::move(callback);
-    }
-
-    void SubscribeReplicaTrackingPolicyUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
-    {
-        ReplicaTrackingPolicyUpdated_ = std::move(callback);
-    }
-
-    void SubscribeConfigChanged(TCallback<void(TDynamicReplicatedTableTrackerConfigPtr)> callback) override
-    {
-        ConfigChanged_ = std::move(callback);
-    }
-
     // Host testing interop.
-    TReplicatedTableData CreateReplicatedTableData(
-        std::optional<TCounter> replicaModeSwitchCounter = std::nullopt)
+    TReplicatedTableData CreateReplicatedTableData()
     {
         auto tableId = MakeRegularId(
             EObjectType::ReplicatedTable,
@@ -244,19 +219,19 @@ public:
         options->MinSyncReplicaCount = 0;
         options->MaxSyncReplicaCount = 1;
 
-        EmplaceOrCrash(TableIdToInfo_, tableId, TTableInfo{ .Options = options });
+        auto it = EmplaceOrCrash(TableIdToInfo_, tableId, TTableInfo{
+            .Options = std::move(options),
+        });
 
         return TReplicatedTableData{
             .Id = tableId,
-            .Options = std::move(options),
-            .ReplicaModeSwitchCounter = replicaModeSwitchCounter.value_or(
-                TProfiler().Counter("/replica_mode_switch_counter")),
+            .Options = it->second.Options,
         };
     }
 
-    TTableId CreateReplicatedTable(std::optional<TCounter> replicaModeSwitchCounter = std::nullopt)
+    TTableId CreateReplicatedTable()
     {
-        auto data = CreateReplicatedTableData(replicaModeSwitchCounter);
+        auto data = CreateReplicatedTableData();
         ReplicatedTableCreated_(data);
         return data.Id;
     }
@@ -279,12 +254,8 @@ public:
 
         auto& replicaIds = GetOrCrash(TableIdToInfo_, tableId).ReplicaIds;
         InsertOrCrash(replicaIds, replicaId);
-        EmplaceOrCrash(ReplicaIdToInfo_, replicaId, TReplicaInfo{ .Mode = mode, .TableId = tableId });
 
-        auto guard = Guard(ReplicaLagTimesLock_);
-        EmplaceOrCrash(ReplicaIdToLagTime_, replicaId, replicaLagTime);
-
-        return TReplicaData{
+        TReplicaData replicaData{
             .TableId = tableId,
             .Id = replicaId,
             .Mode = mode,
@@ -294,6 +265,12 @@ public:
             .TrackingEnabled = true,
             .ContentType = contentType,
         };
+        EmplaceOrCrash(ReplicaIdToInfo_, replicaId, TReplicaInfo{ .Data = replicaData });
+
+        auto guard = Guard(ReplicaLagTimesLock_);
+        EmplaceOrCrash(ReplicaIdToLagTime_, replicaId, replicaLagTime);
+
+        return replicaData;
     }
 
     TTableReplicaId CreateTableReplica(
@@ -317,11 +294,6 @@ public:
         GetOrCrash(ReplicaIdToLagTime_, replicaId) = replicaLagTime;
     }
 
-    void ChangeConfig(const TDynamicReplicatedTableTrackerConfigPtr& config)
-    {
-        ConfigChanged_(CloneYsonStruct(config));
-    }
-
     const TReplicatedTableOptionsPtr& GetTableOptions(TTableId tableId) const
     {
         return GetOrCrash(TableIdToInfo_, tableId).Options;
@@ -329,23 +301,33 @@ public:
 
     void SetTableOptions(TTableId tableId, TReplicatedTableOptionsPtr options)
     {
-        GetOrCrash(TableIdToInfo_, tableId).Options = options;
-        ReplicatedTableOptionsUpdated_(tableId, std::move(options));
+        auto& info = GetOrCrash(TableIdToInfo_, tableId);
+        info.Options = options;
+        ReplicatedTableCreated_(TReplicatedTableData{
+            .Id = tableId,
+            .Options = info.Options,
+        });
     }
 
     void UpdateReplicaEnablement(TTableReplicaId replicaId, bool enabled)
     {
-        ReplicaEnablementUpdated_(replicaId, enabled);
+        auto& replicaInfo = GetOrCrash(ReplicaIdToInfo_, replicaId);
+        replicaInfo.Data.Enabled = enabled;
+        ReplicaCreated_(replicaInfo.Data);
     }
 
     void UpdateReplicaTrackingPolicy(TTableReplicaId replicaId, bool trackingEnabled)
     {
-        ReplicaTrackingPolicyUpdated_(replicaId, trackingEnabled);
+        auto& replicaInfo = GetOrCrash(ReplicaIdToInfo_, replicaId);
+        replicaInfo.Data.TrackingEnabled = trackingEnabled;
+        ReplicaCreated_(replicaInfo.Data);
     }
 
     void UpdateReplicaMode(TTableReplicaId replicaId, ETableReplicaMode mode)
     {
-        ReplicaModeUpdated_(replicaId, mode);
+        auto& replicaInfo = GetOrCrash(ReplicaIdToInfo_, replicaId);
+        replicaInfo.Data.Mode = mode;
+        ReplicaCreated_(replicaInfo.Data);
     }
 
     TTableCollocationId CreateReplicationCollocation(std::vector<TTableId> tableIds)
@@ -357,7 +339,7 @@ public:
             std::ssize(CollocationIdToInfo_));
         EmplaceOrCrash(CollocationIdToInfo_, collocationId, TCollocationInfo{ .TableIds = tableIds });
 
-        ReplicationCollocationUpdated_(TTableCollocationData{
+        ReplicationCollocationCreated_(TTableCollocationData{
             .Id = collocationId,
             .TableIds = std::move(tableIds),
         });
@@ -381,6 +363,8 @@ public:
     }
 
 private:
+    const TDynamicReplicatedTableTrackerConfigPtr Config_ = New<TDynamicReplicatedTableTrackerConfig>();
+
     TPromise<TReplicatedTableTrackerSnapshot> SnapshotPromise_ = NewPromise<TReplicatedTableTrackerSnapshot>();
     std::atomic<bool> LoadingFromSnapshotRequested_ = false;
 
@@ -391,9 +375,8 @@ private:
 
     struct TReplicaInfo
     {
-        ETableReplicaMode Mode;
         int CommandCount = 0;
-        TTableId TableId;
+        TReplicaData Data;
     };
 
     THashMap<TTableReplicaId, TReplicaInfo> ReplicaIdToInfo_;
@@ -418,13 +401,9 @@ private:
 
     TCallback<void(TReplicatedTableData)> ReplicatedTableCreated_;
     TCallback<void(NTableClient::TTableId)> ReplicatedTableDestroyed_;
-    TCallback<void(NTableClient::TTableId, TReplicatedTableOptionsPtr)> ReplicatedTableOptionsUpdated_;
     TCallback<void(TReplicaData)> ReplicaCreated_;
     TCallback<void(NTabletClient::TTableReplicaId)> ReplicaDestroyed_;
-    TCallback<void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode)> ReplicaModeUpdated_;
-    TCallback<void(NTabletClient::TTableReplicaId, bool)> ReplicaEnablementUpdated_;
-    TCallback<void(NTabletClient::TTableReplicaId, bool)> ReplicaTrackingPolicyUpdated_;
-    TCallback<void(TTableCollocationData)> ReplicationCollocationUpdated_;
+    TCallback<void(TTableCollocationData)> ReplicationCollocationCreated_;
     TCallback<void(NTableClient::TTableCollocationId)> ReplicationCollocationDestroyed_;
     TCallback<void(TDynamicReplicatedTableTrackerConfigPtr)> ConfigChanged_;
 };
@@ -437,11 +416,12 @@ class TReplicatedTableTrackerTest
 public:
     void SetUp() override
     {
-        Config_->CheckPeriod = CheckPeriod;
-        Config_->UseNewReplicatedTableTracker = true;
+        Host_->GetConfig()->CheckPeriod = CheckPeriod;
+        Host_->GetConfig()->UseNewReplicatedTableTracker = true;
         Tracker_ = ::NYT::NTabletServer::CreateReplicatedTableTracker(
             Host_,
-            CloneYsonStruct(Config_));
+            CloneYsonStruct(Host_->GetConfig()),
+            /*profiler*/ {});
         Tracker_->Initialize();
         Tracker_->EnableTracking();
 
@@ -564,7 +544,6 @@ public:
 
 protected:
     const TIntrusivePtr<TMockReplicatedTableTrackerHost> Host_ = New<TMockReplicatedTableTrackerHost>();
-    const TDynamicReplicatedTableTrackerConfigPtr Config_ = New<TDynamicReplicatedTableTrackerConfig>();
 
     IReplicatedTableTrackerPtr Tracker_;
 };
@@ -573,6 +552,7 @@ protected:
 
 // FIXME(akozhikhov): These tests should not rely on timings to work appropriately under sanitizers.
 // #if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+
 #if 0
 
 TEST_F(TReplicatedTableTrackerTest, Simple)
@@ -602,14 +582,12 @@ TEST_F(TReplicatedTableTrackerTest, BannedReplicaCluster)
     Sleep(WarmUpPeriod);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
-    Config_->ReplicatorHint->BannedReplicaClusters = {Cluster1};
-    Host_->ChangeConfig(Config_);
+    Host_->GetConfig()->ReplicatorHint->BannedReplicaClusters = {Cluster1};
 
     Sleep(SleepPeriod);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
-    Config_->ReplicatorHint->BannedReplicaClusters.clear();
-    Host_->ChangeConfig(Config_);
+    Host_->GetConfig()->ReplicatorHint->BannedReplicaClusters.clear();
 
     Sleep(SleepPeriod);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
@@ -689,10 +667,9 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
 
     int maxIterationsWithoutAcceptableBundleHealth = 4;
     auto sleepPeriod = CheckPeriod * maxIterationsWithoutAcceptableBundleHealth;
-    Config_->MaxIterationsWithoutAcceptableBundleHealth = maxIterationsWithoutAcceptableBundleHealth;
-    Config_->BundleHealthCache->RefreshTime = CheckPeriod / 2;
-    Config_->BundleHealthCache->ExpireAfterFailedUpdateTime = CheckPeriod / 2;
-    Host_->ChangeConfig(Config_);
+    Host_->GetConfig()->MaxIterationsWithoutAcceptableBundleHealth = maxIterationsWithoutAcceptableBundleHealth;
+    Host_->GetConfig()->BundleHealthCache->RefreshTime = CheckPeriod / 2;
+    Host_->GetConfig()->BundleHealthCache->ExpireAfterFailedUpdateTime = CheckPeriod / 2;
 
     auto tableId = Host_->CreateReplicatedTable();
     auto options = Host_->GetTableOptions(tableId);
@@ -911,8 +888,7 @@ TEST_F(TReplicatedTableTrackerTest, IgnoreNewActionsIfLoadingFromSnapshotRequest
 
 TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshotUponActionQueueOverflow)
 {
-    Config_->MaxActionQueueSize = 1;
-    Host_->ChangeConfig(Config_);
+    Host_->GetConfig()->MaxActionQueueSize = 1;
     Sleep(SleepPeriod);
 
     EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
@@ -1018,8 +994,7 @@ TEST_F(TReplicatedTableTrackerTest, TableWithDisabledTracking)
 
 TEST_F(TReplicatedTableTrackerTest, DisabledTracker1)
 {
-    Config_->EnableReplicatedTableTracker = false;
-    Host_->ChangeConfig(Config_);
+    Host_->GetConfig()->EnableReplicatedTableTracker = false;
     Sleep(SleepPeriod);
 
     auto tableId = Host_->CreateReplicatedTable();
@@ -1210,9 +1185,8 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
 
 TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)
 {
-    Config_->ClusterStateCache->RefreshTime = CheckPeriod / 2;
-    Config_->ClusterStateCache->ExpireAfterFailedUpdateTime = CheckPeriod / 2;
-    Host_->ChangeConfig(Config_);
+    Host_->GetConfig()->ClusterStateCache->RefreshTime = CheckPeriod / 2;
+    Host_->GetConfig()->ClusterStateCache->ExpireAfterFailedUpdateTime = CheckPeriod / 2;
 
     auto client = Host_->GetMockClient(Cluster1);
     MockGoodReplicaCluster(client);

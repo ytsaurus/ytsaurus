@@ -21,4 +21,5 @@ RECURSE(
     tablet_balancer
     cypress_proxy
     tcp_proxy
+    replicated_table_tracker
 )

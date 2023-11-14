@@ -30,6 +30,7 @@
 #include "tablet_resources.h"
 #include "tablet_service.h"
 #include "tablet_type_handler.h"
+#include "replicated_table_tracker.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -625,7 +626,9 @@ public:
             preserveTimestamps = std::nullopt;
         }
 
-        YT_LOG_DEBUG("Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v)",
+        YT_LOG_DEBUG("Table replica updated "
+            "(TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, "
+            "Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v)",
             table->GetId(),
             replica->GetId(),
             enabled,
@@ -636,7 +639,7 @@ public:
 
         if (mode) {
             replica->SetMode(*mode);
-            ReplicaModeUpdated_.Fire(replica->GetId(), *mode);
+            FireUponTableReplicaUpdate(replica);
         }
 
         if (atomicity) {
@@ -1455,10 +1458,6 @@ public:
                 objectManager->UnrefObject(replica);
             }
             YT_VERIFY(replicatedTable->Replicas().empty());
-
-            if (!table->IsExternal()) {
-                ReplicatedTableDestroyed_.Fire(table->GetId());
-            }
         }
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -2590,6 +2589,20 @@ public:
         tablet->GetTable()->AccountTabletStatisticsDelta(statisticsDelta);
     }
 
+    void FireUponTableReplicaUpdate(TTableReplica* replica)
+    {
+        ReplicaCreated_.Fire(TReplicaData{
+            .TableId = replica->GetTable()->GetId(),
+            .Id = replica->GetId(),
+            .Mode = replica->GetMode(),
+            .Enabled = replica->GetState() == ETableReplicaState::Enabled,
+            .ClusterName = replica->GetClusterName(),
+            .TablePath = replica->GetReplicaPath(),
+            .TrackingEnabled = replica->GetEnableReplicatedTableTracker(),
+            .ContentType = ETableReplicaContentType::Data,
+        });
+    }
+
     void UpdateExtraMountConfigKeys(std::vector<TString> keys)
     {
         for (auto&& key : keys) {
@@ -2608,12 +2621,8 @@ public:
 
     DEFINE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
     DEFINE_SIGNAL_WITH_ACCESSOR(void(TTableId), ReplicatedTableDestroyed);
-    DEFINE_SIGNAL_WITH_ACCESSOR(void(TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
     DEFINE_SIGNAL(void(TReplicaData), ReplicaCreated);
     DEFINE_SIGNAL(void(TTableReplicaId), ReplicaDestroyed);
-    DEFINE_SIGNAL(void(TTableReplicaId, ETableReplicaMode), ReplicaModeUpdated);
-    DEFINE_SIGNAL(void(TTableReplicaId, bool), ReplicaEnablementUpdated);
-    DEFINE_SIGNAL_WITH_ACCESSOR(void(TTableReplicaId, bool), ReplicaTrackingPolicyUpdated);
 
 private:
     template <class T>
@@ -5466,14 +5475,12 @@ private:
 
         auto* table = replica->GetTable();
 
-        bool enabled;
         switch (state) {
             case ETableReplicaState::Enabling:
                 YT_LOG_DEBUG("Table replica enabled (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Enabled);
-                enabled = true;
                 break;
 
             case ETableReplicaState::Disabling:
@@ -5481,14 +5488,13 @@ private:
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Disabled);
-                enabled = false;
                 break;
 
             default:
                 YT_ABORT();
         }
 
-        ReplicaEnablementUpdated_.Fire(replica->GetId(), enabled);
+        FireUponTableReplicaUpdate(replica);
     }
 
     void DiscardDynamicStores(TTablet* tablet)
@@ -6358,7 +6364,7 @@ private:
             dynamicConfig->ProfilingPeriod);
         ProfilingExecutor_->Start();
 
-        Bootstrap_->GetNewReplicatedTableTracker()->EnableTracking();
+        Bootstrap_->GetReplicatedTableTrackerStateProvider()->EnableStateMonitoring();
     }
 
     void OnStopLeading() override
@@ -6388,16 +6394,7 @@ private:
 
         BundleIdToProfilingCounters_.clear();
 
-        Bootstrap_->GetNewReplicatedTableTracker()->DisableTracking();
-    }
-
-    void OnRecoveryComplete() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnRecoveryComplete();
-
-        Bootstrap_->GetNewReplicatedTableTracker()->Initialize();
+        Bootstrap_->GetReplicatedTableTrackerStateProvider()->DisableStateMonitoring();
     }
 
 
@@ -7319,18 +7316,19 @@ void TTabletManager::AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* 
     Impl_->AttachDynamicStoreToTablet(tablet, dynamicStore);
 }
 
+void TTabletManager::FireUponTableReplicaUpdate(TTableReplica* replica)
+{
+    Impl_->FireUponTableReplicaUpdate(replica);
+}
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTabletBase, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_);
 
 DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TReplicatedTableData), ReplicatedTableCreated, *Impl_);
 DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableId), ReplicatedTableDestroyed, *Impl_);
-DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated, *Impl_);
 DELEGATE_SIGNAL(TTabletManager, void(TReplicaData), ReplicaCreated, *Impl_);
 DELEGATE_SIGNAL(TTabletManager, void(TTableReplicaId), ReplicaDestroyed, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(TTableReplicaId, ETableReplicaMode), ReplicaModeUpdated, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(TTableReplicaId, bool), ReplicaEnablementUpdated, *Impl_);
-DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableReplicaId, bool), ReplicaTrackingPolicyUpdated, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

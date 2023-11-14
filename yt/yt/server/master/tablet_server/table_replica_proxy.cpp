@@ -209,9 +209,7 @@ private:
 
                 auto enableTracking = ConvertTo<bool>(value);
                 replica->SetEnableReplicatedTableTracker(enableTracking);
-                Bootstrap_->GetTabletManager()->GetReplicaTrackingPolicyUpdatedSignal()->Fire(
-                    replica->GetId(),
-                    enableTracking);
+                Bootstrap_->GetTabletManager()->FireUponTableReplicaUpdate(replica);
 
                 return true;
             }

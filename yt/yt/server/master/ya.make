@@ -357,6 +357,7 @@ SRCS(
     tablet_server/mount_config_storage.cpp
     tablet_server/public.cpp
     tablet_server/replicated_table_tracker.cpp
+    tablet_server/replicated_table_tracker_service.cpp
     tablet_server/table_replica_proxy.cpp
     tablet_server/table_replica_type_handler.cpp
     tablet_server/table_replica.cpp

@@ -9,11 +9,14 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
 
 PEERDIR(
+    yt/yt/server/lib/tablet_server
+    yt/yt/server/lib/hydra
+
     yt/yt/core
     yt/yt/core/test_framework
+
     yt/yt/client/unittests/mock
     yt/yt_proto/yt/client
-    yt/yt/server/lib/tablet_server
 )
 
 SIZE(MEDIUM)

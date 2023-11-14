@@ -185,7 +185,7 @@ public:
     virtual void RecomputeMasterTableSchemaExportRefCounters(NLogging::ELogLevel logLevel) = 0;
     virtual void RecomputeMasterTableSchemaRefCounters(NLogging::ELogLevel logLevel) = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);
 };
 

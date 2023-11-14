@@ -1,0 +1,103 @@
+package NYT.NReplicatedTableTrackerClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicatedTableData
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required bytes table_options = 2; // YSON-serialized
+}
+
+message TReplicaData
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int32 mode = 3; // ETableReplicaMode
+    required bool enabled = 4;
+    required string cluster_name = 5;
+    required string table_path = 6;
+    required bool tracking_enabled = 7;
+    required int32 content_type = 8; // ETableReplicaContentType
+}
+
+message TTableCollocationData
+{
+    required NYT.NProto.TGuid collocation_id = 1;
+    repeated NYT.NProto.TGuid table_ids = 2;
+}
+
+message TReplicatedTableTrackerSnapshot
+{
+    repeated TReplicatedTableData replicated_table_data_list = 1;
+    repeated TReplicaData replica_data_list = 2;
+    repeated TTableCollocationData collocation_data_list = 3;
+}
+
+message TChangeReplicaModeCommand
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required int32 target_mode = 2; // ETableReplicaMode
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTrackerStateUpdateAction
+{
+    required int64 revision = 1; // TTrackerStateRevision
+
+    optional TReplicatedTableData created_replicated_table_data = 2;
+    optional NYT.NProto.TGuid destroyed_replicated_table_id = 3;
+
+    optional TReplicaData created_replica_data = 4;
+    optional NYT.NProto.TGuid destroyed_replica_id = 5;
+
+    optional TTableCollocationData created_collocation_data = 6;
+    optional NYT.NProto.TGuid destroyed_collocation_id = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetTrackerStateUpdates
+{
+    optional int64 revision = 1; // TTrackerStateRevision
+
+    required bool snapshot_requested = 2;
+}
+
+message TRspGetTrackerStateUpdates
+{
+    optional int64 snapshot_revision = 1; // TTrackerStateRevision
+    optional TReplicatedTableTrackerSnapshot snapshot = 2;
+
+    repeated TTrackerStateUpdateAction update_actions = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqApplyChangeReplicaModeCommands
+{
+    repeated TChangeReplicaModeCommand commands = 1;
+}
+
+message TRspApplyChangeReplicaModeCommands
+{
+    repeated NYT.NProto.TError inner_errors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqComputeReplicaLagTimes
+{
+    repeated NYT.NProto.TGuid replica_ids = 1;
+}
+
+message TRspComputeReplicaLagTimes
+{
+    repeated NYT.NProto.TGuid replica_ids = 1;
+    repeated uint64 lag_times = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
