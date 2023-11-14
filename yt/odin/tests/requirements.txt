@@ -1,3 +1,1 @@
-mock==5.1.0
-
 -r ../../yt/scripts/pytest_requirements.txt
