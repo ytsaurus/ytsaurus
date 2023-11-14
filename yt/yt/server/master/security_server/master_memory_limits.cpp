@@ -139,13 +139,18 @@ std::optional<TViolatedMasterMemoryLimits> CheckChange(
     return result;
 }
 
-template <void (TLimit64::*Method)(ui64)>
+template <auto method, bool UseUnderlying = true>
 void DoChange(
     TMasterMemoryLimits& self,
     const TMasterMemoryLimits& delta)
 {
-    (self.Total.*Method)(delta.Total.ToUnderlying());
-    (self.ChunkHost.*Method)(delta.ChunkHost.ToUnderlying());
+    if constexpr (UseUnderlying) {
+        (self.Total.*method)(delta.Total.ToUnderlying());
+        (self.ChunkHost.*method)(delta.ChunkHost.ToUnderlying());
+    } else {
+        (self.Total.*method)(delta.Total);
+        (self.ChunkHost.*method)(delta.ChunkHost);
+    }
 
     TCellTagList defaultValues;
 
@@ -155,7 +160,11 @@ void DoChange(
         }
 
         auto& thisLimit = self.PerCell[cellTag];
-        (thisLimit.*Method)(deltaMasterMemory.ToUnderlying());
+        if constexpr (UseUnderlying) {
+            (thisLimit.*method)(deltaMasterMemory.ToUnderlying());
+        } else {
+            (thisLimit.*method)(deltaMasterMemory);
+        }
         if (thisLimit == self.PerCell.DefaultValue()) {
             defaultValues.push_back(cellTag);
         }
@@ -189,7 +198,7 @@ void TMasterMemoryLimits::Increase(const TMasterMemoryLimits& delta)
 
 void TMasterMemoryLimits::IncreaseWithInfinityAllowed(const TMasterMemoryLimits& that)
 {
-    DoChange<&TLimit64::Increase>(*this, that);
+    DoChange<&TLimit64::IncreaseWithInfinityAllowed, /*UseUnderlying*/ false>(*this, that);
 }
 
 void TMasterMemoryLimits::Decrease(const TMasterMemoryLimits& delta)
