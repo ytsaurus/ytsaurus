@@ -3397,9 +3397,14 @@ class TestSatisfactionRatio(YTEnvSetup):
                     "cpu": 8,
                     "user_slots": 8,
                 },
-                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
-            }
-        }
+                "gpu_manager": {
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 8
+                    },
+                },
+            },
+        },
     }
 
     def setup_method(self, method):

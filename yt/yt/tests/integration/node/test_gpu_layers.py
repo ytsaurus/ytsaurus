@@ -41,22 +41,35 @@ class TestGpuJobSetup(YTEnvSetup):
                     "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
                 },
                 "gpu_manager": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": [
-                            "-c",
-                            "echo SETUP-GPU-OUTPUT > /gpu_setup_output_file",
-                        ],
-                    },
                     # For to GPU manager to initialize properly.
-                    "test_resource": True,
-                    "test_gpu_count": 1,
-                    "test_setup_commands": True,
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 1,
+                        "test_setup_commands": True,
+                    },
                 },
             },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "gpu_manager": {
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": [
+                                "-c",
+                                "echo SETUP-GPU-OUTPUT > /gpu_setup_output_file",
+                            ],
+                        },
+                    },
                 },
             },
         },
@@ -176,16 +189,25 @@ class TestSkipGpuJobSetup(YTEnvSetup):
                     "path": "/static-bin/static-bash",
                     "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
                 },
-                "gpu_manager": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": ["-c", "echo SETUP-JUNK > /setup_output_file"],
-                    },
-                },
             },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "gpu_manager": {
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": ["-c", "echo SETUP-JUNK > /setup_output_file"],
+                        },
+                    },
                 },
             },
         },
@@ -250,16 +272,29 @@ class TestGpuLayer(YTEnvSetup):
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
                     "driver_version": "test_version",
-                    "driver_layer_fetch_period": 10000,
                     "driver_layer_fetch_splay": 1000,
-                    "test_resource": True,
-                    "test_layers": True,
-                    "test_gpu_count": 1,
+                    "testing": {
+                        "test_resource": True,
+                        "test_layers": True,
+                        "test_gpu_count": 1,
+                    },
                 },
             },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "gpu_manager": {
+                        "driver_layer_fetch_period": 10000,
+                    },
                 },
             },
         },
@@ -354,16 +389,29 @@ class TestGpuLayerUpdate(YTEnvSetup):
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
                     "driver_version": "test_version",
-                    "driver_layer_fetch_period": 10000,
                     "driver_layer_fetch_splay": 1000,
-                    "test_resource": True,
-                    "test_layers": True,
-                    "test_gpu_count": 1,
+                    "testing": {
+                        "test_resource": True,
+                        "test_layers": True,
+                        "test_gpu_count": 1,
+                    },
                 }
             },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "gpu_manager": {
+                        "driver_layer_fetch_period": 10000,
+                    },
                 },
             },
         },
@@ -468,9 +516,11 @@ class TestCudaLayer(YTEnvSetup):
                 "gpu_manager": {
                     "driver_version": "0",
                     "cuda_toolkit_min_driver_version": {"0": "0"},
-                    "test_resource": True,
-                    "test_layers": True,
-                    "test_gpu_count": 1,
+                    "testing": {
+                        "test_resource": True,
+                        "test_layers": True,
+                        "test_gpu_count": 1,
+                    },
                 },
             },
             "slot_manager": {
@@ -603,20 +653,33 @@ class TestForceCudaLayer(YTEnvSetup):
                     "driver_version": "0",
                     "driver_layer_directory_path": "//tmp/drivers",
                     "cuda_toolkit_min_driver_version": {"0": "0"},
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": [
-                            "-c",
-                            "echo SETUP-OUTPUT > /playground/setup_output_file",
-                        ],
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 1,
                     },
-                    "test_resource": True,
-                    "test_gpu_count": 1,
                 }
             },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "gpu_manager": {
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": [
+                                "-c",
+                                "echo SETUP-OUTPUT > /playground/setup_output_file",
+                            ],
+                        },
+                    },
                 },
             },
         },
@@ -878,9 +941,11 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
-                    "test_resource": True,
-                    "test_layers": True,
-                    "test_gpu_count": 1,
+                    "testing": {
+                        "test_resource": True,
+                        "test_layers": True,
+                        "test_gpu_count": 1,
+                    },
                 },
             },
             "slot_manager": {
@@ -1224,10 +1289,12 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
-                    "test_resource": True,
-                    "test_layers": True,
-                    "test_gpu_count": 1,
-                    "test_extra_gpu_check_command_failure": True,
+                    "testing": {
+                        "test_resource": True,
+                        "test_layers": True,
+                        "test_gpu_count": 1,
+                        "test_extra_gpu_check_command_failure": True,
+                    },
                 },
             },
             "slot_manager": {

@@ -2060,7 +2060,12 @@ class TestUserJobMonitoring(YTEnvSetup):
                     "user_slots": 20,
                     "cpu": 20,
                 },
-                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+                "gpu_manager": {
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 8,
+                    },
+                },
             },
         },
     }
@@ -2685,9 +2690,11 @@ class TestConsecutiveJobAborts(YTEnvSetup):
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
-                    "test_resource": True,
-                    "test_layers": True,
-                    "test_gpu_count": 1,
+                    "testing": {
+                        "test_resource": True,
+                        "test_layers": True,
+                        "test_gpu_count": 1,
+                    },
                 },
             },
             "slot_manager": {
@@ -3491,9 +3498,11 @@ class TestGpuStatistics(YTEnvSetup):
         "exec_node": {
             "job_controller": {
                 "gpu_manager": {
-                    "test_resource": True,
-                    "test_gpu_count": 1,
-                    "test_utilization_gpu_rate": 0.5,
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 1,
+                        "test_utilization_gpu_rate": 0.5,
+                    },
                 },
             },
         },

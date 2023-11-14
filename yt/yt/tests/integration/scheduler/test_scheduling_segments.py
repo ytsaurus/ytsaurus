@@ -81,7 +81,12 @@ class TestSchedulingSegments(YTEnvSetup):
                     "cpu": 10,
                     "user_slots": 10,
                 },
-                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+                "gpu_manager": {
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 8
+                    },
+                },
             },
 
         },
@@ -935,7 +940,12 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                     "cpu": 10,
                     "user_slots": 10,
                 },
-                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+                "gpu_manager": {
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 8
+                    },
+                },
             },
         },
         "job_proxy_heartbeat_period": 100,
@@ -1684,7 +1694,12 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
-                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+                "gpu_manager": {
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 8
+                    },
+                },
             },
         },
     }
@@ -1844,7 +1859,12 @@ class TestRunningJobStatistics(YTEnvSetup):
                     "cpu": 2,
                     "user_slots": 2,
                 },
-                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+                "gpu_manager": {
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 8
+                    },
+                },
             },
         },
         "job_proxy_heartbeat_period": 100,

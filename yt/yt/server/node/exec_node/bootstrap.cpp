@@ -84,7 +84,7 @@ public:
 
         SlotManager_ = New<TSlotManager>(this);
 
-        GpuManager_ = New<TGpuManager>(this, GetConfig()->ExecNode->JobController->GpuManager);
+        GpuManager_ = New<TGpuManager>(this);
 
         JobReporter_ = New<TJobReporter>(
             GetConfig()->ExecNode->JobReporter,
@@ -369,22 +369,24 @@ private:
             }
         }
 
-        GetSchedulerConnector()->OnDynamicConfigChanged(
-            oldConfig->ExecNode->SchedulerConnector,
-            newConfig->ExecNode->SchedulerConnector);
-        GetControllerAgentConnectorPool()->OnDynamicConfigChanged(
-            oldConfig->ExecNode->ControllerAgentConnector,
-            newConfig->ExecNode->ControllerAgentConnector);
-
-        JobReporter_->OnDynamicConfigChanged(oldConfig->ExecNode->JobReporter, newConfig->ExecNode->JobReporter);
-
-        GetMasterConnector()->OnDynamicConfigChanged(
-            oldConfig->ExecNode->MasterConnector,
-            newConfig->ExecNode->MasterConnector);
-
-        GetSlotManager()->OnDynamicConfigChanged(
+        SlotManager_->OnDynamicConfigChanged(
             oldConfig->ExecNode->SlotManager,
             newConfig->ExecNode->SlotManager);
+        ControllerAgentConnectorPool_->OnDynamicConfigChanged(
+            oldConfig->ExecNode->ControllerAgentConnector,
+            newConfig->ExecNode->ControllerAgentConnector);
+        MasterConnector_->OnDynamicConfigChanged(
+            oldConfig->ExecNode->MasterConnector,
+            newConfig->ExecNode->MasterConnector);
+        SchedulerConnector_->OnDynamicConfigChanged(
+            oldConfig->ExecNode->SchedulerConnector,
+            newConfig->ExecNode->SchedulerConnector);
+        // TODO(arkady-e1ppa): Move this to JobController::OnDynamicConfigChanged
+        GpuManager_->OnDynamicConfigChanged(
+            oldConfig->ExecNode->JobController->GpuManager,
+            newConfig->ExecNode->JobController->GpuManager);
+
+        JobReporter_->OnDynamicConfigChanged(oldConfig->ExecNode->JobReporter, newConfig->ExecNode->JobReporter);
 
         DynamicConfig_ = newConfig;
     }

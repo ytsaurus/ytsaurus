@@ -61,7 +61,7 @@ TGpuSlot::TGpuSlot(
 
 TString TGpuSlot::GetDeviceName() const
 {
-    return GetGpuDeviceName(DeviceIndex_);
+    return NExecNode::GetGpuDeviceName(DeviceIndex_);
 }
 
 int TGpuSlot::GetDeviceIndex() const
@@ -100,40 +100,39 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGpuManager::TGpuManager(
-    IBootstrap* bootstrap,
-    TGpuManagerConfigPtr config)
+TGpuManager::TGpuManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
-    , Config_(std::move(config))
+    , StaticConfig_(Bootstrap_->GetConfig()->ExecNode->JobController->GpuManager)
+    , DynamicConfig_(New<TGpuManagerDynamicConfig>())
     , HealthCheckExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnHealthCheck, MakeWeak(this)),
-        Config_->HealthCheckPeriod))
+        DynamicConfig_.Acquire()->HealthCheckPeriod))
     , FetchDriverLayerExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)),
         TPeriodicExecutorOptions{
-            .Period = Config_->DriverLayerFetchPeriod,
-            .Splay = Config_->DriverLayerFetchPeriodSplay
+            .Period = DynamicConfig_.Acquire()->DriverLayerFetchPeriod,
+            .Splay = StaticConfig_->DriverLayerFetchSplay,
         }))
     , TestGpuInfoUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
-        Config_->TestGpuInfoUpdatePeriod))
-    , GpuInfoProvider_(CreateGpuInfoProvider(Config_->GpuInfoSource))
+        StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
+    , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
 {
-    if (!Config_->Enable) {
+    if (!StaticConfig_->Enable) {
         return;
     }
 
     std::vector<TGpuDeviceDescriptor> descriptors;
     bool shouldInitializeLayers;
 
-    if (Config_->TestResource) {
-        for (int index = 0; index < Config_->TestGpuCount; ++index) {
+    if (StaticConfig_->Testing->TestResource) {
+        for (int index = 0; index < StaticConfig_->Testing->TestGpuCount; ++index) {
             descriptors.push_back(TGpuDeviceDescriptor{Format("/dev/nvidia%v", index), index});
         }
-        shouldInitializeLayers = Config_->TestLayers;
+        shouldInitializeLayers = StaticConfig_->Testing->TestLayers;
     } else {
         try {
             descriptors = ListGpuDevices();
@@ -146,16 +145,16 @@ TGpuManager::TGpuManager(
 
     if (shouldInitializeLayers) {
         try {
-            DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();
+            DriverVersionString_ = StaticConfig_->DriverVersion ? *StaticConfig_->DriverVersion : GetGpuDriverVersionString();
         } catch (const std::exception& ex) {
             YT_LOG_FATAL(ex, "Cannot determine GPU driver version");
         }
     } else {
-        DriverVersionString_ = Config_->DriverVersion.value_or(GetDummyGpuDriverVersionString());
+        DriverVersionString_ = StaticConfig_->DriverVersion.value_or(GetDummyGpuDriverVersionString());
     }
 
-    if (Config_->DriverLayerDirectoryPath) {
-        DriverLayerPath_ = *Config_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
+    if (StaticConfig_->DriverLayerDirectoryPath) {
+        DriverLayerPath_ = *StaticConfig_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
 
         YT_LOG_INFO("GPU driver layer specified (Path: %v, Version: %v)",
             DriverLayerPath_,
@@ -188,7 +187,7 @@ TGpuManager::TGpuManager(
             });
     }
 
-    if (!Config_->TestResource) {
+    if (!StaticConfig_->Testing->TestResource) {
         HealthCheckExecutor_->Start();
     } else {
         TestGpuInfoUpdateExecutor_->Start();
@@ -196,62 +195,45 @@ TGpuManager::TGpuManager(
 
     Bootstrap_->SubscribePopulateAlerts(
         BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));
-
-    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-    dynamicConfigManager->SubscribeConfigChanged(BIND(&TGpuManager::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TGpuManager::OnDynamicConfigChanged(
-    const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-    const TClusterNodeDynamicConfigPtr& newNodeConfig)
+    const TGpuManagerDynamicConfigPtr& /*oldNodeConfig*/,
+    const TGpuManagerDynamicConfigPtr& newConfig)
 {
-    auto gpuManagerConfig = newNodeConfig->ExecNode->JobController->GpuManager;
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    DynamicConfig_.Store(gpuManagerConfig);
+    YT_ASSERT(newConfig);
 
-    if (gpuManagerConfig && gpuManagerConfig->HealthCheckPeriod) {
-        HealthCheckExecutor_->SetPeriod(*gpuManagerConfig->HealthCheckPeriod);
-    } else {
-        HealthCheckExecutor_->SetPeriod(Config_->HealthCheckPeriod);
-    }
-    if (gpuManagerConfig && gpuManagerConfig->DriverLayerFetchPeriod) {
-        FetchDriverLayerExecutor_->SetPeriod(*gpuManagerConfig->DriverLayerFetchPeriod);
-    } else {
-        FetchDriverLayerExecutor_->SetPeriod(Config_->DriverLayerFetchPeriod);
-    }
-    if (gpuManagerConfig && gpuManagerConfig->GpuInfoSource) {
+    HealthCheckExecutor_->SetPeriod(newConfig->HealthCheckPeriod);
+    FetchDriverLayerExecutor_->SetPeriod(newConfig->DriverLayerFetchPeriod);
+    if (newConfig->GpuInfoSource) {
         // XXX(ignat): avoid this hack.
-        if (!gpuManagerConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
-            gpuManagerConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath = Config_->GpuInfoSource->NvGpuManagerDevicesCgroupPath;
+        if (!newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
+            newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath = StaticConfig_->GpuInfoSource->NvGpuManagerDevicesCgroupPath;
         }
-        GpuInfoProvider_.Store(CreateGpuInfoProvider(gpuManagerConfig->GpuInfoSource));
+        GpuInfoProvider_.Store(CreateGpuInfoProvider(newConfig->GpuInfoSource));
     } else {
-        GpuInfoProvider_.Store(CreateGpuInfoProvider(Config_->GpuInfoSource));
+        GpuInfoProvider_.Store(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource));
     }
+
+    DynamicConfig_.Store(std::move(newConfig));
 }
 
 TDuration TGpuManager::GetHealthCheckTimeout() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    return dynamicConfig
-        ? dynamicConfig->HealthCheckTimeout.value_or(Config_->HealthCheckTimeout)
-        : Config_->HealthCheckTimeout;
+    return DynamicConfig_.Acquire()->HealthCheckTimeout;
 }
 
 TDuration TGpuManager::GetHealthCheckFailureBackoff() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    return dynamicConfig
-        ? dynamicConfig->HealthCheckFailureBackoff.value_or(Config_->HealthCheckFailureBackoff)
-        : Config_->HealthCheckFailureBackoff;
+    return DynamicConfig_.Acquire()->HealthCheckFailureBackoff;
 }
 
 THashMap<TString, TString> TGpuManager::GetCudaToolkitMinDriverVersion() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    return dynamicConfig
-        ? dynamicConfig->CudaToolkitMinDriverVersion.value_or(Config_->CudaToolkitMinDriverVersion)
-        : Config_->CudaToolkitMinDriverVersion;
+    return DynamicConfig_.Acquire()
+        ->CudaToolkitMinDriverVersion.value_or(StaticConfig_->CudaToolkitMinDriverVersion);
 }
 
 void TGpuManager::OnHealthCheck()
@@ -385,7 +367,7 @@ void TGpuManager::OnTestGpuInfoUpdate()
     auto guard = Guard(SpinLock_);
 
     for (auto& [_, gpuInfo] : HealthyGpuInfoMap_) {
-        gpuInfo.UtilizationGpuRate = Config_->TestUtilizationGpuRate;
+        gpuInfo.UtilizationGpuRate = StaticConfig_->Testing->TestUtilizationGpuRate;
         gpuInfo.UpdateTime = now;
     }
 }
@@ -563,12 +545,8 @@ std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto dynamicConfig = DynamicConfig_.Acquire();
-    if (dynamicConfig && dynamicConfig->JobSetupCommand) {
+    if (dynamicConfig->JobSetupCommand) {
         return {*dynamicConfig->JobSetupCommand};
-    }
-
-    if (Config_->JobSetupCommand) {
-        return {*Config_->JobSetupCommand};
     }
 
     return {};

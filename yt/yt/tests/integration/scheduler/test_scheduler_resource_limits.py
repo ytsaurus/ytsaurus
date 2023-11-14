@@ -782,8 +782,10 @@ class TestSchedulerGpu(YTEnvSetup):
             config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 4
             config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 4
             config["exec_node"]["job_controller"]["gpu_manager"] = {
-                "test_resource": True,
-                "test_gpu_count": 4,
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 4,
+                },
             }
 
     def setup_method(self, method):

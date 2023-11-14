@@ -73,9 +73,7 @@ class TGpuManager
     : public TRefCounted
 {
 public:
-    TGpuManager(
-        IBootstrap* bootstrap,
-        TGpuManagerConfigPtr config);
+    explicit TGpuManager(IBootstrap* bootstrap);
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
@@ -95,9 +93,13 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService() const;
 
+    void OnDynamicConfigChanged(
+        const TGpuManagerDynamicConfigPtr& oldConfig,
+        const TGpuManagerDynamicConfigPtr& newConfig);
+
 private:
     IBootstrap* const Bootstrap_;
-    const TGpuManagerConfigPtr Config_;
+    const TGpuManagerConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TGpuManagerDynamicConfig> DynamicConfig_;
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
@@ -130,10 +132,6 @@ private:
     TAtomicIntrusivePtr<IGpuInfoProvider> GpuInfoProvider_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
-
-    void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
 
     TDuration GetHealthCheckTimeout() const;
     TDuration GetHealthCheckFailureBackoff() const;

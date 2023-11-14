@@ -468,39 +468,54 @@ DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGpuManagerTestingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! This is a special testing option.
+    //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
+    bool TestResource;
+
+    //! These options enable testing gpu layers and setup commands.
+    bool TestLayers;
+
+    bool TestSetupCommands;
+
+    bool TestExtraGpuCheckCommandFailure;
+
+    int TestGpuCount;
+
+    double TestUtilizationGpuRate;
+
+    TDuration TestGpuInfoUpdatePeriod;
+
+    REGISTER_YSON_STRUCT(TGpuManagerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuManagerTestingConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGpuManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
 
-    TDuration HealthCheckTimeout;
-    TDuration HealthCheckPeriod;
-
-    TDuration HealthCheckFailureBackoff;
-
-    std::optional<TShellCommandConfigPtr> JobSetupCommand;
-
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
     std::optional<TString> DriverVersion;
-    TDuration DriverLayerFetchPeriod;
-    TDuration DriverLayerFetchPeriodSplay;
 
     THashMap<TString, TString> CudaToolkitMinDriverVersion;
 
+    // TODO(arkady-e1ppa): Move this to dynamic config once
+    // we can update splay in periodic executor
+    TDuration DriverLayerFetchSplay;
+
     TGpuInfoSourceConfigPtr GpuInfoSource;
 
-    // TODO(eshcherbin): Extract test options to subconfig?
-    //! This is a special testing option.
-    //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
-    bool TestResource;
-    //! These options enable testing gpu layers and setup commands.
-    bool TestLayers;
-    bool TestSetupCommands;
-    bool TestExtraGpuCheckCommandFailure;
-    int TestGpuCount;
-    double TestUtilizationGpuRate;
-    TDuration TestGpuInfoUpdatePeriod;
+    TGpuManagerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TGpuManagerConfig);
 
@@ -515,13 +530,13 @@ class TGpuManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> HealthCheckTimeout;
-    std::optional<TDuration> HealthCheckPeriod;
-    std::optional<TDuration> HealthCheckFailureBackoff;
+    TDuration HealthCheckTimeout;
+    TDuration HealthCheckPeriod;
+    TDuration HealthCheckFailureBackoff;
 
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
 
-    std::optional<TDuration> DriverLayerFetchPeriod;
+    TDuration DriverLayerFetchPeriod;
 
     std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
 

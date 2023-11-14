@@ -404,6 +404,8 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default(TDuration::Seconds(5));
+    // TODO(arkady-e1ppa): Start updating splay in periodics
+    // when it supports doing so.
     registrar.Parameter("heartbeat_splay", &TThis::HeartbeatSplay)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("failed_heartbeat_backoff_start_time", &TThis::FailedHeartbeatBackoffStartTime)
@@ -474,33 +476,8 @@ void TGpuInfoSourceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGpuManagerConfig::Register(TRegistrar registrar)
+void TGpuManagerTestingConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable", &TThis::Enable)
-        .Default(true);
-
-    registrar.Parameter("health_check_timeout", &TThis::HealthCheckTimeout)
-        .Default(TDuration::Minutes(5));
-    registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
-        .Default(TDuration::Seconds(10));
-    registrar.Parameter("health_check_failure_backoff", &TThis::HealthCheckFailureBackoff)
-        .Default(TDuration::Minutes(10));
-
-    registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
-        .Default();
-
-    registrar.Parameter("driver_layer_directory_path", &TThis::DriverLayerDirectoryPath)
-        .Default();
-    registrar.Parameter("driver_version", &TThis::DriverVersion)
-        .Default();
-    registrar.Parameter("driver_layer_fetch_period", &TThis::DriverLayerFetchPeriod)
-        .Default(TDuration::Minutes(5));
-    registrar.Parameter("driver_layer_fetch_splay", &TThis::DriverLayerFetchPeriodSplay)
-        .Default(TDuration::Minutes(5));
-    registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
-        .Alias("toolkit_min_driver_version")
-        .Default();
-
     registrar.Parameter("test_resource", &TThis::TestResource)
         .Default(false);
     registrar.Parameter("test_layers", &TThis::TestLayers)
@@ -517,9 +494,6 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("test_gpu_info_update_period", &TThis::TestGpuInfoUpdatePeriod)
         .Default(TDuration::MilliSeconds(100));
 
-    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
-        .DefaultNew();
-
     registrar.Postprocessor([] (TThis* config) {
         if (config->TestLayers && !config->TestResource) {
             THROW_ERROR_EXCEPTION("You need to specify 'test_resource' option if 'test_layers' is specified");
@@ -532,20 +506,47 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+
+    registrar.Parameter("driver_layer_directory_path", &TThis::DriverLayerDirectoryPath)
+        .Default();
+    registrar.Parameter("driver_version", &TThis::DriverVersion)
+        .Default();
+
+    registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
+        .Alias("toolkit_min_driver_version")
+        .Default();
+
+    registrar.Parameter("driver_layer_fetch_splay", &TThis::DriverLayerFetchSplay)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
+        .DefaultNew();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("health_check_timeout", &TThis::HealthCheckTimeout)
-        .Default();
+        .Default(TDuration::Minutes(5));
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
-        .Default();
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("health_check_failure_backoff", &TThis::HealthCheckFailureBackoff)
-        .Default();
+        .Default(TDuration::Minutes(10));
 
     registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
         .Default();
 
     registrar.Parameter("driver_layer_fetch_period", &TThis::DriverLayerFetchPeriod)
-        .Default();
+        .Default(TDuration::Minutes(5));
+
     registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
         .Alias("toolkit_min_driver_version")
         .Default();

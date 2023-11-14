@@ -1720,7 +1720,7 @@ std::vector<TDevice> TJob::GetGpuDevices()
         }
 
         // We should not explicitly exclude test device that does not actually exists.
-        if (!deviceFound && !Config_->JobController->GpuManager->TestResource) {
+        if (!deviceFound && !Config_->JobController->GpuManager->Testing->TestResource) {
             // Exclude device explicitly.
             devices.emplace_back(TDevice{
                 .DeviceName = deviceName,
@@ -2031,7 +2031,7 @@ void TJob::OnJobProxyFinished(const TError& error)
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
             .GpuCheckType = EGpuCheckType::Extra,
             .CurrentStartIndex = SetupCommandCount_,
-            .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure,
+            .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->Testing->TestExtraGpuCheckCommandFailure,
             .GpuDevices = GetGpuDevices()
         };
 
@@ -2574,7 +2574,7 @@ void TJob::InitializeArtifacts()
             YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
         }
 
-        bool needGpuLayers = NeedGpuLayers() || Config_->JobController->GpuManager->TestLayers;
+        bool needGpuLayers = NeedGpuLayers() || Config_->JobController->GpuManager->Testing->TestLayers;
 
         if (needGpuLayers && UserJobSpec_->enable_gpu_layers()) {
             if (UserJobSpec_->layers().empty()) {
@@ -3061,7 +3061,7 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
 
     addIfPresent(Config_->JobController->JobSetupCommand);
 
-    bool needGpu = NeedGpuLayers() || Config_->JobController->GpuManager->TestSetupCommands;
+    bool needGpu = NeedGpuLayers() || Config_->JobController->GpuManager->Testing->TestSetupCommands;
     if (needGpu) {
         auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
         result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());
