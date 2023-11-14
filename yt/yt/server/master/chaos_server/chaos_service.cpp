@@ -85,7 +85,7 @@ private:
             descriptor.CellId = cellId;
             descriptor.ConfigVersion = cell->GetConfigVersion();
 
-            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 if (!cell->IsAlienPeer(peerId)) {
                     descriptor.AlienPeers.push_back({
                         .PeerId = peerId,

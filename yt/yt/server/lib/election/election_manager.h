@@ -120,7 +120,7 @@ struct TEpochContext
     const TCancelableContextPtr CancelableContext;
 
     //! The id of the leading peer (for this epoch).
-    TPeerId LeaderId = InvalidPeerId;
+    int LeaderId = InvalidPeerId;
 
     //! An internally used epoch id.
     TEpochId EpochId;

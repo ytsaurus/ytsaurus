@@ -86,7 +86,7 @@ private:
     }
 
     void OnResponse(
-        TPeerId peerId,
+        int peerId,
         const TInternalHydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
@@ -235,7 +235,7 @@ private:
     }
 
     void OnResponse(
-        TPeerId peerId,
+        int peerId,
         const TInternalHydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
@@ -380,7 +380,7 @@ private:
     }
 
     void OnResponse(
-        TPeerId peerId,
+        int peerId,
         const TInternalHydraServiceProxy::TErrorOrRspGetLatestChangelogIdPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {

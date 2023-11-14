@@ -46,7 +46,7 @@ class TElectionTest
     : public testing::Test
 {
 public:
-    void Configure(int peerCount, TPeerId selfId)
+    void Configure(int peerCount, int selfId)
     {
         // NB: During func gauge registration callback holding strong
         // reference to RPC server is put into the queue that is not
@@ -135,7 +135,7 @@ protected:
     IElectionManagerPtr ElectionManager;
     std::vector<TIntrusivePtr<TElectionServiceMock>> PeerMocks;
 
-    static TString GetPeerAddress(TPeerId id)
+    static TString GetPeerAddress(int id)
     {
         return "peer" + ToString(id);
     }
@@ -399,11 +399,11 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
 struct TStatus
 {
     EPeerState State;
-    TPeerId VoteId;
+    int VoteId;
     TEpochId VoteEpochId;
     TPeerPriority Priority;
 
-    TStatus(EPeerState state, TPeerId voteId, TEpochId voteEpochId, TPeerPriority priority)
+    TStatus(EPeerState state, int voteId, TEpochId voteEpochId, TPeerPriority priority)
         : State(state)
         , VoteId(voteId)
         , VoteEpochId(voteEpochId)

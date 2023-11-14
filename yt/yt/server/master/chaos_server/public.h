@@ -16,7 +16,6 @@ namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NHydra::TPeerId;
 using NHydra::InvalidPeerId;
 using NHydra::EPeerState;
 

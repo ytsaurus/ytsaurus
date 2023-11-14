@@ -31,7 +31,7 @@ public:
     bool IsSlotWarmedUp(const NNodeTrackerServer::TNode::TCellSlot* slot) const;
     bool CheckIfNodeCanHostCells(const NNodeTrackerServer::TNode* node) const;
     const THashSet<NCellServer::TCellBase*>& Cells(NCellarClient::ECellarType cellarType);
-    bool IsAlienPeer(const NCellServer::TCellBase* cell, NCellServer::TPeerId peerId) const;
+    bool IsAlienPeer(const NCellServer::TCellBase* cell, int peerId) const;
 
     NNodeTrackerServer::TNode* FindNodeByAddress(const TString& address);
 

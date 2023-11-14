@@ -207,7 +207,7 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
     TReqReassignPeers request;
 
     // List of the cells that are ready to reassign leader together with new leading peer id.
-    std::vector<std::pair<TCellBase*, TPeerId>> leaderReassignments;
+    std::vector<std::pair<TCellBase*, int>> leaderReassignments;
     // Set of the bundles that contain cell that are going to reassign leader but leader reassignment
     // is not ready yet. For such bundles we do not execute any leader reassignments to synchronize
     // reassignment downtimes of different cells.
@@ -337,7 +337,7 @@ bool TCellTrackerImpl::IsLeaderReassignmentRequired(TCellBase* cell)
     return static_cast<bool>(error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned));
 }
 
-TPeerId TCellTrackerImpl::FindNewLeadingPeerId(TCellBase* cell)
+int TCellTrackerImpl::FindNewLeadingPeerId(TCellBase* cell)
 {
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
     TError error;
@@ -376,7 +376,7 @@ TPeerId TCellTrackerImpl::FindNewLeadingPeerId(TCellBase* cell)
     }
 }
 
-void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TPeerId newLeadingPeerId)
+void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadingPeerId)
 {
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
     TError error;
@@ -440,7 +440,7 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
     int assignCount = 0;
 
     // Try to assign missing peers.
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (cell->IsAlienPeer(peerId)) {
             continue;
         }
@@ -466,7 +466,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
         return;
     }
 
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (cell->IsAlienPeer(peerId)) {
             continue;
         }
@@ -614,9 +614,9 @@ bool TCellTrackerImpl::IsDecommissioned(
     return false;
 }
 
-TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
+int TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
 {
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (cell->IsAlienPeer(peerId)) {
             continue;
         }
@@ -641,9 +641,9 @@ TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
     return InvalidPeerId;
 }
 
-TPeerId TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
+int TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
 {
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (cell->IsAlienPeer(peerId)) {
             continue;
         }

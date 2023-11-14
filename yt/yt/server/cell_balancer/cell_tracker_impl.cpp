@@ -325,7 +325,7 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
 
 
     // Try to assign missing peers.
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (ClusterStateProvider_->IsAlienPeer(cell, peerId)) {
             continue;
         }
@@ -345,7 +345,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
         return;
     }
 
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (ClusterStateProvider_->IsAlienPeer(cell, peerId)) {
             continue;
         }
@@ -487,9 +487,9 @@ bool TCellTrackerImpl::IsDecommissioned(
     return false;
 }
 
-TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
+int TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
 {
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (ClusterStateProvider_->IsAlienPeer(cell, peerId)) {
             continue;
         }
@@ -513,9 +513,9 @@ TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
     return InvalidPeerId;
 }
 
-TPeerId TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
+int TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
 {
-    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (ClusterStateProvider_->IsAlienPeer(cell, peerId)) {
             continue;
         }

@@ -61,7 +61,7 @@ struct TSnapshotParams
 struct TRemoteSnapshotParams
     : public TSnapshotParams
 {
-    TPeerId PeerId = InvalidPeerId;
+    int PeerId = InvalidPeerId;
     int SnapshotId = InvalidSegmentId;
     bool SnapshotReadOnly = false;
 };

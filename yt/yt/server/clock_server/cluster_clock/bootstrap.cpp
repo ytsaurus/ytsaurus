@@ -191,7 +191,7 @@ void TBootstrap::DoInitialize()
     // TODO(gepardo): Possibly add authentication here.
 
     TCellConfigPtr localCellConfig;
-    TPeerId localPeerId;
+    int localPeerId;
 
     auto primaryId = Config_->ClockCell->GetPeerIdOrThrow(localAddress);
     localCellConfig = Config_->ClockCell;

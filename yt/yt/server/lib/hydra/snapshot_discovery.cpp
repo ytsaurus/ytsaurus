@@ -90,7 +90,7 @@ private:
 
 
     void OnResponse(
-        TPeerId peerId,
+        int peerId,
         const TInternalHydraServiceProxy::TErrorOrRspLookupSnapshotPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {

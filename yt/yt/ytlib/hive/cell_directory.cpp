@@ -379,7 +379,7 @@ public:
         return result;
     }
 
-    std::optional<TString> FindPeerAddress(TCellId cellId, TPeerId peerId) override
+    std::optional<TString> FindPeerAddress(TCellId cellId, int peerId) override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellIdToEntry_.find(cellId);

@@ -118,24 +118,24 @@ public:
     //! Computes the health from a point of view of a single master.
     virtual ECellHealth GetHealth() const;
 
-    TPeerId FindPeerId(const TString& address) const;
-    TPeerId GetPeerId(const TString& address) const;
+    int FindPeerId(const TString& address) const;
+    int GetPeerId(const TString& address) const;
 
-    TPeerId FindPeerId(NNodeTrackerServer::TNode* node) const;
-    TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;
+    int FindPeerId(NNodeTrackerServer::TNode* node) const;
+    int GetPeerId(NNodeTrackerServer::TNode* node) const;
 
-    void AssignPeer(const NHiveClient::TCellPeerDescriptor& descriptor, TPeerId peerId);
-    void RevokePeer(TPeerId peerId, const TError& reason);
+    void AssignPeer(const NHiveClient::TCellPeerDescriptor& descriptor, int peerId);
+    void RevokePeer(int peerId, const TError& reason);
     void ExpirePeerRevocationReasons(TInstant deadline);
 
-    void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
+    void AttachPeer(NNodeTrackerServer::TNode* node, int peerId);
     void DetachPeer(NNodeTrackerServer::TNode* node);
-    void UpdatePeerSeenTime(TPeerId peerId, TInstant when);
-    void UpdatePeerState(TPeerId peerId, EPeerState peerState);
+    void UpdatePeerSeenTime(int peerId, TInstant when);
+    void UpdatePeerState(int peerId, EPeerState peerState);
 
-    NNodeTrackerServer::TNode::TCellSlot* FindCellSlot(TPeerId peerId) const;
+    NNodeTrackerServer::TNode::TCellSlot* FindCellSlot(int peerId) const;
 
-    NHydra::EPeerState GetPeerState(TPeerId peerId) const;
+    NHydra::EPeerState GetPeerState(int peerId) const;
 
     //! If peers are independent peerId should be specified.
     //! If peers are not independent std::nullopt should be passed as peerId.
@@ -166,7 +166,7 @@ public:
 
     NCellarClient::ECellarType GetCellarType() const;
 
-    bool IsValidPeer(TPeerId peerId) const;
+    bool IsValidPeer(int peerId) const;
 
 protected:
     ECellHealth GetCumulativeIndependentPeersHealth() const;

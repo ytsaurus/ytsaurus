@@ -65,7 +65,7 @@ ECellHealth TChaosCell::GetHealth() const
     return TCellBase::GetHealth();
 }
 
-void TChaosCell::UpdateAlienPeer(TPeerId peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor)
+void TChaosCell::UpdateAlienPeer(int peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor)
 {
     YT_VERIFY(IsAlienPeer(peerId));
     Peers_[peerId].Descriptor = descriptor;

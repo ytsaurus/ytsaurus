@@ -698,7 +698,7 @@ void TBootstrap::DoInitialize()
     auto localAddress = BuildServiceAddress(expectedLocalHostName, Config_->RpcPort);
 
     TCellConfigPtr localCellConfig;
-    TPeerId localPeerId;
+    int localPeerId;
 
     auto primaryId = Config_->PrimaryMaster->FindPeerId(localAddress);
     if (primaryId == InvalidPeerId) {

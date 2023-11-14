@@ -76,7 +76,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         TCellBase::TPeer* peer,
         NCellBalancerClient::NProto::TPeer* protoPeer,
         TCellBase* cell,
-        TPeerId peerId)
+        int peerId)
     {
         if (protoPeer->has_assigned_node_descriptor()) {
             FromProto(&peer->Descriptor, protoPeer->assigned_node_descriptor());
@@ -250,7 +250,7 @@ const THashSet<TCellBase*>& TClusterStateProvider::Cells(ECellarType cellarType)
     return CellsPerTypeMap_[cellarType];
 }
 
-bool TClusterStateProvider::IsAlienPeer(const TCellBase* cell, TPeerId peerId) const
+bool TClusterStateProvider::IsAlienPeer(const TCellBase* cell, int peerId) const
 {
     auto it = AlienPeers_.find(cell);
     if (it == AlienPeers_.end()) {

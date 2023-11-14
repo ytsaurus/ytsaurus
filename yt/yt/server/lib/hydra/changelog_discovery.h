@@ -12,8 +12,8 @@ namespace NYT::NHydra {
 
 struct TChangelogInfo
 {
-    NElection::TPeerId PeerId =  NElection::InvalidPeerId;
-    int ChangelogId = InvalidSegmentId;
+    int PeerId =  NElection::InvalidPeerId;
+    int ChangelogId = NHydra::InvalidSegmentId;
     int RecordCount = -1;
 };
 

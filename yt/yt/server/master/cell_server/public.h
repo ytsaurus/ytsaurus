@@ -26,7 +26,6 @@ class TCellStatus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NHydra::TPeerId;
 using NHydra::InvalidPeerId;
 using NHydra::EPeerState;
 

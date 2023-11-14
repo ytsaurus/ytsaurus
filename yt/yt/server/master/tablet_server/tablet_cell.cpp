@@ -76,7 +76,7 @@ TCellDescriptor TTabletCell::GetDescriptor() const
     TCellDescriptor descriptor;
     descriptor.CellId = Id_;
     descriptor.ConfigVersion = ConfigVersion_;
-    for (TPeerId peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
         descriptor.Peers.push_back(TCellPeerDescriptor(
             Peers_[peerId].Descriptor,
             peerId == LeadingPeerId_));

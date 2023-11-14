@@ -50,8 +50,8 @@ private:
         const NNodeTrackerServer::TNode* node,
         const NCellServer::TCellBase* cell);
 
-    NCellServer::TPeerId FindGoodPeer(const NCellServer::TCellBase* cell);
-    NCellServer::TPeerId FindGoodFollower(const NCellServer::TCellBase* cell);
+    int FindGoodPeer(const NCellServer::TCellBase* cell);
+    int FindGoodFollower(const NCellServer::TCellBase* cell);
 
     void UpdateDynamicConfig();
 };

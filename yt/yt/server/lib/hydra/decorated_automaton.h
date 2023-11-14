@@ -106,7 +106,7 @@ struct TEpochContext
     TPromise<void> LeaderSyncPromise;
     NProfiling::TWallTimer LeaderSyncTimer;
 
-    TPeerId LeaderId = InvalidPeerId;
+    int LeaderId = InvalidPeerId;
     TEpochId EpochId;
     TAtomicObject<NElection::TPeerIdSet> AlivePeerIds;
 

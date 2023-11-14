@@ -82,7 +82,7 @@ private:
             NCellBalancerClient::NProto::TPeer* protoPeer,
             const TCellBase::TPeer& peer,
             const TCellBase& cell,
-            TPeerId peerId)
+            int peerId)
         {
             if (!peer.Descriptor.IsNull()) {
                 ToProto(protoPeer->mutable_assigned_node_descriptor(), peer.Descriptor);

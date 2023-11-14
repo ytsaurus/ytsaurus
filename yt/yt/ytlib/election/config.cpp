@@ -94,7 +94,7 @@ int TCellConfig::CountVotingPeers() const
 
 int TCellConfig::FindPeerId(const TString& address) const
 {
-    for (TPeerId id = 0; id < std::ssize(Peers); ++id) {
+    for (int id = 0; id < std::ssize(Peers); ++id) {
         const auto& peerAddress = Peers[id]->Address;
         if (peerAddress && to_lower(*peerAddress) == to_lower(address)) {
             return id;

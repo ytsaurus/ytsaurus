@@ -18,7 +18,7 @@ struct TAlienCellDescriptorLite
 
 struct TAlienPeerDescriptor
 {
-    NElection::TPeerId PeerId;
+    int PeerId;
     NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
 };
 

@@ -23,7 +23,7 @@ TCellManager::TCellManager(
     TCellConfigPtr config,
     IChannelFactoryPtr channelFactory,
     IAlienCellPeerChannelFactoryPtr alienChannelFactory,
-    TPeerId selfId)
+    int selfId)
     : Config_(std::move(config))
     , ChannelFactory_(std::move(channelFactory))
     , AlienCellPeerChannelFactory_(std::move(alienChannelFactory))
@@ -36,7 +36,7 @@ TCellManager::TCellManager(
         selfId))
 {
     PeerChannels_.resize(TotalPeerCount_);
-    for (TPeerId id = 0; id < TotalPeerCount_; ++id) {
+    for (int id = 0; id < TotalPeerCount_; ++id) {
         PeerChannels_[id] = CreatePeerChannel(id, Config_->Peers[id]);
     }
 
@@ -51,7 +51,7 @@ TCellId TCellManager::GetCellId() const
     return Config_->CellId;
 }
 
-TPeerId TCellManager::GetSelfPeerId() const
+int TCellManager::GetSelfPeerId() const
 {
     return SelfId_;
 }
@@ -76,17 +76,17 @@ int TCellManager::GetTotalPeerCount() const
     return TotalPeerCount_;
 }
 
-const TCellPeerConfigPtr& TCellManager::GetPeerConfig(TPeerId id) const
+const TCellPeerConfigPtr& TCellManager::GetPeerConfig(int id) const
 {
     return Config_->Peers[id];
 }
 
-IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
+IChannelPtr TCellManager::GetPeerChannel(int id) const
 {
     return PeerChannels_[id];
 }
 
-IChannelPtr TCellManager::CreatePeerChannel(TPeerId id, const TCellPeerConfigPtr& config)
+IChannelPtr TCellManager::CreatePeerChannel(int id, const TCellPeerConfigPtr& config)
 {
     if (config->AlienCluster) {
         return AlienCellPeerChannelFactory_->CreateChannel(

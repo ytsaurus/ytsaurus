@@ -27,7 +27,7 @@ struct ICellarOccupant
     virtual NHydra::TCellId GetCellId() const = 0;
     virtual NHydra::EPeerState GetControlState() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
-    virtual NHydra::TPeerId GetPeerId() const = 0;
+    virtual int GetPeerId() const = 0;
     virtual const NHiveClient::TCellDescriptor& GetCellDescriptor() const = 0;
     virtual int GetConfigVersion() const = 0;
 

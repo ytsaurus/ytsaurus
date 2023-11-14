@@ -148,7 +148,7 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, Suspended_);
 }
 
-TPeerId TCellBase::FindPeerId(const TString& address) const
+int TCellBase::FindPeerId(const TString& address) const
 {
     for (auto peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
         const auto& peer = Peers_[peerId];
@@ -159,16 +159,16 @@ TPeerId TCellBase::FindPeerId(const TString& address) const
     return InvalidPeerId;
 }
 
-TPeerId TCellBase::GetPeerId(const TString& address) const
+int TCellBase::GetPeerId(const TString& address) const
 {
     auto peerId = FindPeerId(address);
     YT_VERIFY(peerId != InvalidPeerId);
     return peerId;
 }
 
-TPeerId TCellBase::FindPeerId(TNode* node) const
+int TCellBase::FindPeerId(TNode* node) const
 {
-    for (TPeerId peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
+    for (int peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
         if (Peers_[peerId].Node == node) {
             return peerId;
         }
@@ -176,14 +176,14 @@ TPeerId TCellBase::FindPeerId(TNode* node) const
     return InvalidPeerId;
 }
 
-TPeerId TCellBase::GetPeerId(TNode* node) const
+int TCellBase::GetPeerId(TNode* node) const
 {
     auto peerId = FindPeerId(node);
     YT_VERIFY(peerId != InvalidPeerId);
     return peerId;
 }
 
-void TCellBase::AssignPeer(const TCellPeerDescriptor& descriptor, TPeerId peerId)
+void TCellBase::AssignPeer(const TCellPeerDescriptor& descriptor, int peerId)
 {
     auto& peer = Peers_[peerId];
     YT_VERIFY(peer.Descriptor.IsNull());
@@ -191,7 +191,7 @@ void TCellBase::AssignPeer(const TCellPeerDescriptor& descriptor, TPeerId peerId
     peer.Descriptor = descriptor;
 }
 
-void TCellBase::RevokePeer(TPeerId peerId, const TError& reason)
+void TCellBase::RevokePeer(int peerId, const TError& reason)
 {
     auto& peer = Peers_[peerId];
     YT_VERIFY(!peer.Descriptor.IsNull());
@@ -209,7 +209,7 @@ void TCellBase::ExpirePeerRevocationReasons(TInstant deadline)
     }
 }
 
-void TCellBase::AttachPeer(TNode* node, TPeerId peerId)
+void TCellBase::AttachPeer(TNode* node, int peerId)
 {
     auto& peer = Peers_[peerId];
     YT_VERIFY(peer.Descriptor.GetDefaultAddress() == node->GetDefaultAddress());
@@ -226,13 +226,13 @@ void TCellBase::DetachPeer(TNode* node)
     }
 }
 
-void TCellBase::UpdatePeerSeenTime(TPeerId peerId, TInstant when)
+void TCellBase::UpdatePeerSeenTime(int peerId, TInstant when)
 {
     auto& peer = Peers_[peerId];
     peer.LastSeenTime = when;
 }
 
-void TCellBase::UpdatePeerState(TPeerId peerId, EPeerState peerState)
+void TCellBase::UpdatePeerState(int peerId, EPeerState peerState)
 {
     auto& peer = Peers_[peerId];
     if (peerId == GetLeadingPeerId() && peer.LastSeenState != EPeerState::Leading && peerState == EPeerState::Leading) {
@@ -242,7 +242,7 @@ void TCellBase::UpdatePeerState(TPeerId peerId, EPeerState peerState)
     peer.LastSeenState = peerState;
 }
 
-TNode::TCellSlot* TCellBase::FindCellSlot(TPeerId peerId) const
+TNode::TCellSlot* TCellBase::FindCellSlot(int peerId) const
 {
     auto* node = Peers_[peerId].Node;
     if (!node) {
@@ -252,7 +252,7 @@ TNode::TCellSlot* TCellBase::FindCellSlot(TPeerId peerId) const
     return node->FindCellSlot(this);
 }
 
-NHydra::EPeerState TCellBase::GetPeerState(NElection::TPeerId peerId) const
+NHydra::EPeerState TCellBase::GetPeerState(int peerId) const
 {
     auto* slot = FindCellSlot(peerId);
     if (!slot) {
@@ -421,7 +421,7 @@ ECellarType TCellBase::GetCellarType() const
     return GetCellarTypeFromCellId(GetId());
 }
 
-bool TCellBase::IsValidPeer(TPeerId peerId) const
+bool TCellBase::IsValidPeer(int peerId) const
 {
     return 0 <= peerId && peerId < std::ssize(Peers_);
 }

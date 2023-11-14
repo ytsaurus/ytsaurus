@@ -175,7 +175,7 @@ public:
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
-    TPeerId GetPeerId() const override
+    int GetPeerId() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -324,7 +324,7 @@ public:
             : CellDescriptor_.ConfigVersion;
 
         if (configureInfo.has_peer_id()) {
-            TPeerId peerId = configureInfo.peer_id();
+            int peerId = configureInfo.peer_id();
             if (PeerId_ != peerId) {
                 YT_LOG_DEBUG("Peer id updated (PeerId: %v -> %v)",
                     PeerId_,
@@ -668,7 +668,7 @@ private:
     const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
     const TChangelogStoreFactoryThunkPtr ChangelogStoreFactoryThunk_ = New<TChangelogStoreFactoryThunk>();
 
-    TPeerId PeerId_;
+    int PeerId_;
     TCellDescriptor CellDescriptor_;
     int ConfigVersion_ = 0;
 

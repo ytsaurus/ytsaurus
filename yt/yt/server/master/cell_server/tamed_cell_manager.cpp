@@ -562,7 +562,7 @@ public:
                 auto changelogAttributes = createAttributes(cellBundle->GetOptions()->ChangelogAcl);
 
                 if (cell->IsIndependent()) {
-                    for (TPeerId peerId = 0; peerId < peerCount; ++peerId) {
+                    for (int peerId = 0; peerId < peerCount; ++peerId) {
                         if (cell->IsAlienPeer(peerId)) {
                             continue;
                         }
@@ -617,7 +617,7 @@ public:
             hiveManager->RemoveCellMailbox(mailbox);
         }
 
-        for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+        for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
             const auto& peer = cell->Peers()[peerId];
             if (cell->IsAlienPeer(peerId)) {
                 continue;
@@ -750,7 +750,7 @@ public:
             auto revocationReason = TError("Peer count reduced from %v to %v",
                 oldPeerCount,
                 newPeerCount);
-            for (TPeerId peerId = newPeerCount; peerId < oldPeerCount; ++peerId) {
+            for (int peerId = newPeerCount; peerId < oldPeerCount; ++peerId) {
                 DoRevokePeer(cell, peerId, revocationReason);
             }
 
@@ -1175,7 +1175,7 @@ private:
 
     THashMap<TCellTag, TCellBase*> CellTagToCell_;
     THashMap<TString, TCellSet> AddressToCell_;
-    THashMap<TTransaction*, std::pair<TCellBase*, std::optional<TPeerId>>> TransactionToCellMap_;
+    THashMap<TTransaction*, std::pair<TCellBase*, std::optional<int>>> TransactionToCellMap_;
 
     TPeriodicExecutorPtr CellStatusIncrementalGossipExecutor_;
     TPeriodicExecutorPtr CellStatusFullGossipExecutor_;
@@ -1295,7 +1295,7 @@ private:
             InsertOrCrash(cell->GetArea()->Cells(), cell);
             InsertOrCrash(CellsPerTypeMap_[cell->GetCellarType()], cell);
 
-            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 if (cell->IsAlienPeer(peerId)) {
                     continue;
                 }
@@ -1306,7 +1306,7 @@ private:
             }
 
             if (cell->IsIndependent()) {
-                for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                     auto* transaction = cell->Peers()[peerId].PrerequisiteTransaction;
                     if (transaction) {
                         EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
@@ -1905,7 +1905,7 @@ private:
     }
 
 
-    bool AddToAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell, TPeerId peerId)
+    bool AddToAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell, int peerId)
     {
         const auto& address = descriptor.GetDefaultAddress();
         auto cellsIt = AddressToCell_.find(address);
@@ -1956,8 +1956,8 @@ private:
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
-        std::vector<TPeerId> assignedPeers;
-        THashSet<TPeerId> assignedPeersSet;
+        std::vector<int> assignedPeers;
+        THashSet<int> assignedPeersSet;
         for (const auto& peerInfo : request->peer_infos()) {
             auto peerId = peerInfo.peer_id();
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
@@ -2241,7 +2241,7 @@ private:
     }
 
 
-    void RestartPrerequisiteTransactions(TCellBase* cell, const std::vector<TPeerId>& peerIds)
+    void RestartPrerequisiteTransactions(TCellBase* cell, const std::vector<int>& peerIds)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -2256,7 +2256,7 @@ private:
         }
     }
 
-    void AbortCellTransactions(TCellBase* cell, const std::vector<TPeerId>& peerIds)
+    void AbortCellTransactions(TCellBase* cell, const std::vector<int>& peerIds)
     {
         bool independent = cell->IsIndependent();
         for (auto peerId : peerIds) {
@@ -2275,7 +2275,7 @@ private:
 
         bool independent = cell->IsIndependent();
         if (independent) {
-            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 if (!cell->IsAlienPeer(peerId)) {
                     StartPrerequisiteTransaction(cell, peerId);
                 }
@@ -2289,7 +2289,7 @@ private:
     {
         bool independent = cell->IsIndependent();
         if (independent) {
-            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 if (!cell->IsAlienPeer(peerId)) {
                     AbortPrerequisiteTransaction(cell, peerId);
                 }
@@ -2299,7 +2299,7 @@ private:
         }
     }
 
-    void StartPrerequisiteTransaction(TCellBase* cell, std::optional<TPeerId> peerId)
+    void StartPrerequisiteTransaction(TCellBase* cell, std::optional<int> peerId)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -2476,7 +2476,7 @@ private:
         if (peerId) {
             DoRevokePeer(cell, *peerId, revocationReason);
         } else {
-            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 if (!cell->IsAlienPeer(peerId)) {
                     DoRevokePeer(cell, peerId, revocationReason);
                 }
@@ -2484,7 +2484,7 @@ private:
         }
     }
 
-    void DoRevokePeer(TCellBase* cell, TPeerId peerId, const TError& reason)
+    void DoRevokePeer(TCellBase* cell, int peerId, const TError& reason)
     {
         const auto& peer = cell->Peers()[peerId];
         const auto& descriptor = peer.Descriptor;

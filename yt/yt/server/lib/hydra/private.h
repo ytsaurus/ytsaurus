@@ -87,7 +87,6 @@ bool IsSystemMutationType(const TString& mutationType);
 
 using NElection::TCellId;
 using NElection::NullCellId;
-using NElection::TPeerId;
 using NElection::InvalidPeerId;
 using NElection::TPeerPriority;
 using NElection::TEpochId;

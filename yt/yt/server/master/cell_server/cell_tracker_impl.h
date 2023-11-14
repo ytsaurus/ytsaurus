@@ -53,9 +53,9 @@ private:
     bool IsLeaderReassignmentRequired(TCellBase* cell);
     // If it is possible to reassign leader right now, returns the new leading peer id.
     // Otherwise, returns #InvalidPeerId.
-    TPeerId FindNewLeadingPeerId(TCellBase* cell);
+    int FindNewLeadingPeerId(TCellBase* cell);
 
-    void ScheduleLeaderReassignment(TCellBase* cell, TPeerId newLeaderPeerId);
+    void ScheduleLeaderReassignment(TCellBase* cell, int newLeaderPeerId);
 
     void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer);
     void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer);
@@ -69,8 +69,8 @@ private:
         const NNodeTrackerServer::TNode* node,
         const TCellBase* cell);
 
-    static TPeerId FindGoodPeer(const TCellBase* cell);
-    static TPeerId FindGoodFollower(const TCellBase* cell);
+    static int FindGoodPeer(const TCellBase* cell);
+    static int FindGoodFollower(const TCellBase* cell);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

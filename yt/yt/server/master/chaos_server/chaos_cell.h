@@ -47,10 +47,10 @@ public:
     NHiveClient::TCellDescriptor GetDescriptor() const override;
     int GetDescriptorConfigVersion() const override;
 
-    bool IsAlienPeer(TPeerId peerId) const override;
+    bool IsAlienPeer(int peerId) const override;
     NCellServer::ECellHealth GetHealth() const override;
 
-    void UpdateAlienPeer(TPeerId peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
+    void UpdateAlienPeer(int peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
     int GetAlienConfigVersion(int alienClusterIndex) const;
     void SetAlienConfigVersion(int alienClusterIndex, int version);

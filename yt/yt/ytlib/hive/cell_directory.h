@@ -134,7 +134,7 @@ struct ICellDirectory
     virtual TCellDescriptorPtr FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns peer address for a given cell (null if cell is not known or peer has no address).
-    virtual std::optional<TString> FindPeerAddress(TCellId cellId, NElection::TPeerId peerId) = 0;
+    virtual std::optional<TString> FindPeerAddress(TCellId cellId, int peerId) = 0;
 
 
     //! Returns the list of all registered cells, their versions, and configurations.

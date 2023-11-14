@@ -138,7 +138,7 @@ private:
         return AllSucceeded(std::move(futures));
     }
 
-    void OnRemoteChangelogAcquired(TPeerId id, const TInternalHydraServiceProxy::TErrorOrRspAcquireChangelogPtr& rspOrError)
+    void OnRemoteChangelogAcquired(int id, const TInternalHydraServiceProxy::TErrorOrRspAcquireChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             YT_LOG_INFO(rspOrError, "Error acquiring changelog at follower (PeerId: %v, ChangelogId: %v)",

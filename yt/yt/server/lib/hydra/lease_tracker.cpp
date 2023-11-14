@@ -67,7 +67,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        for (TPeerId id = 0; id < Owner_->EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
+        for (int id = 0; id < Owner_->EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
             if (id == Owner_->EpochContext_->CellManager->GetSelfPeerId()) {
                 OnSuccess();
             } else {
@@ -93,7 +93,7 @@ private:
     const TPromise<void> Promise_ = NewPromise<void>();
 
 
-    void SendPing(TPeerId followerId)
+    void SendPing(int followerId)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
@@ -130,7 +130,7 @@ private:
     }
 
     void OnResponse(
-        TPeerId followerId,
+        int followerId,
         bool voting,
         const TInternalHydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
