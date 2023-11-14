@@ -17,6 +17,7 @@ target_link_libraries(yt-server-tools PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-library-process
+  yt-library-containers
   yt-library-program
   yt-yt-core
 )
