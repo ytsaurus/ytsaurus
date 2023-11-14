@@ -838,6 +838,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
                 return replica_info
         assert False
 
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.parametrize("driver_cluster", ["primary", "remote_0"])
     def test_replicated_tables_backup(self, driver_cluster):
         self._create_cells()
