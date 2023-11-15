@@ -2106,7 +2106,7 @@ class YtClient(ClientState):
     def run_merge(
             self,
             source_table, destination_table,
-            mode=None, sync=True, job_io=None, table_writer=None, job_count=None, spec=None):
+            mode=None, sync=True, job_io=None, table_writer=None, job_count=None, spec=None, merge_by=None):
         """
         Merges source tables to destination table.
 
@@ -2122,6 +2122,8 @@ class YtClient(ClientState):
         :param dict job_io: job io specification.
         :param dict table_writer: standard operation parameter.
         :param dict spec: standard operation parameter.
+        :param merge_by: list of columns list of columns used for sorted merge (only for `sorted` mode)
+        :type merge_by: list[str]
 
         .. seealso::  :ref:`operation_parameters`.
 
@@ -2130,7 +2132,7 @@ class YtClient(ClientState):
             source_table, destination_table,
             client=self,
             mode=mode, sync=sync, job_io=job_io, table_writer=table_writer, job_count=job_count,
-            spec=spec)
+            spec=spec, merge_by=merge_by)
 
     def run_operation(
             self,
