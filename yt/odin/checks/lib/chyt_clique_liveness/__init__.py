@@ -56,6 +56,7 @@ def get_failed_and_aborted_jobs(op_id, yt_client, interval):
     jobs.extend(failed_jobs.get('jobs', []))
     jobs.extend(aborted_jobs.get('jobs', []))
 
+    jobs = filter(lambda job: job.get('finish_time') is not None, jobs)
     jobs = sorted(jobs, key=lambda job: job.get('finish_time'), reverse=True)
 
     for job in jobs:
