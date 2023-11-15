@@ -39,6 +39,16 @@ class TestSequoia(YTEnvSetup):
                 get(f"//tmp/{node}")
         assert ls("//tmp") == []
 
+    @authors("cherepashka")
+    def test_recursive_remove(self):
+        create("map_node", "//tmp/m1")
+        create("map_node", "//tmp/m1/m2")
+        create("map_node", "//tmp/m1/m2/m3")
+        create("int64_node", "//tmp/m1/m2/m3/i")
+
+        remove("//tmp/m1")
+        assert ls("//tmp") == []
+
     @authors("danilalexeev")
     def test_list(self):
         assert ls("//tmp") == []
