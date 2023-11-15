@@ -27,6 +27,7 @@ XX(TInExpression)
 XX(TBetweenExpression)
 XX(TTransformExpression)
 XX(TCaseExpression)
+XX(TLikeExpression)
 
 #undef XX
 
@@ -315,6 +316,30 @@ struct TCaseExpression
         , OptionalOperand(std::move(optionalOperand))
         , WhenThenExpressions(std::move(whenThenExpressions))
         , DefaultExpression(std::move(defaultExpression))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLikeExpression
+    : public TExpression
+{
+    TExpressionList Text;
+    EStringMatchOp Opcode;
+    TExpressionList Pattern;
+    TNullableExpressionList EscapeCharacter;
+
+    TLikeExpression(
+        const TSourceLocation& sourceLocation,
+        TExpressionList text,
+        EStringMatchOp opcode,
+        TExpressionList pattern,
+        TNullableExpressionList EscapeCharacter)
+        : TExpression(sourceLocation)
+        , Text(std::move(text))
+        , Opcode(opcode)
+        , Pattern(std::move(pattern))
+        , EscapeCharacter(std::move(EscapeCharacter))
     { }
 };
 

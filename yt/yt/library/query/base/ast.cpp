@@ -158,6 +158,16 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             typedLhs->OptionalOperand == typedRhs->OptionalOperand &&
             typedLhs->WhenThenExpressions == typedRhs->WhenThenExpressions &&
             typedLhs->DefaultExpression == typedRhs->DefaultExpression;
+    } else if (const auto* typedLhs = lhs.As<TLikeExpression>()) {
+        const auto* typedRhs = rhs.As<TLikeExpression>();
+        if (!typedRhs) {
+            return false;
+        }
+        return
+            typedLhs->Text == typedRhs->Text &&
+            typedLhs->Opcode == typedRhs->Opcode &&
+            typedLhs->Pattern == typedRhs->Pattern &&
+            typedLhs->EscapeCharacter == typedRhs->EscapeCharacter;
     } else {
         YT_ABORT();
     }
@@ -302,6 +312,11 @@ std::vector<TStringBuf> GetKeywords()
     XX(then)
     XX(else)
     XX(end)
+    XX(like)
+    XX(ilike)
+    XX(rlike)
+    XX(regexp)
+    XX(escape)
     XX(false)
     XX(true)
 
@@ -534,6 +549,19 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool
         }
 
         builder->AppendString(" END");
+    } else if (auto* typedExpr = expr.As<TLikeExpression>()) {
+        FormatExpressions(builder, typedExpr->Text, expandAliases);
+
+        builder->AppendChar(' ');
+        builder->AppendString(GetStringMatchOpcodeLexeme(typedExpr->Opcode));
+        builder->AppendChar(' ');
+
+        FormatExpressions(builder, typedExpr->Pattern, expandAliases);
+
+        if (typedExpr->EscapeCharacter) {
+            builder->AppendString(" ESCAPE ");
+            FormatExpressions(builder, *typedExpr->EscapeCharacter, expandAliases);
+        }
     } else {
         YT_ABORT();
     }

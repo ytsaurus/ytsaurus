@@ -37,6 +37,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (BetweenExpr)
     (TransformExpr)
     (CaseExpr)
+    (LikeExpr)
 
     (NamedExpression)
     (AggregateItem)
@@ -245,6 +246,24 @@ struct TExpressionFragmentPrinter
         }
     }
 
+    void OnLikeText(const TLikeExpression* /*likeExpr*/, size_t id)
+    {
+        auto textId = DebugExpressions[id].Args[0];
+        InferNameArg(textId);
+    }
+
+    void OnLikePattern(const TLikeExpression* /*likeExpr*/, size_t id)
+    {
+        auto patternId = DebugExpressions[id].Args[1];
+        InferNameArg(patternId);
+    }
+
+    void OnLikeEscapeCharacter(const TLikeExpression* /*likeExpr*/, size_t id)
+    {
+        auto escapeCharacterId = *DebugExpressions[id].ExtraArg;
+        InferNameArg(escapeCharacterId);
+    }
+
     template <class T>
     void OnArguments(const T* /*expr*/, size_t id)
     {
@@ -445,6 +464,12 @@ private:
 
     size_t Profile(
         const TCaseExpression* caseExpr,
+        const TTableSchemaPtr& schema,
+        TExpressionFragments* fragments,
+        bool isolated);
+
+    size_t Profile(
+        const TLikeExpression* likeExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isolated);
@@ -905,6 +930,113 @@ size_t TExpressionProfiler::Profile(
 }
 
 size_t TExpressionProfiler::Profile(
+    const TLikeExpression* likeExpr,
+    const TTableSchemaPtr& schema,
+    TExpressionFragments* fragments,
+    bool isolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<int>(EFoldingObjectType::LikeExpr));
+
+    YT_VERIFY(likeExpr->GetWireType() == EValueType::Boolean);
+
+    auto textId = Profile(likeExpr->Text, schema, fragments, isolated);
+    id.AddInteger(textId);
+
+    id.AddInteger(static_cast<int>(likeExpr->Opcode));
+
+    auto patternId = Profile(likeExpr->Pattern, schema, fragments, isolated);
+    id.AddInteger(patternId);
+
+    std::optional<size_t> escapeCharacterId;
+    if (likeExpr->EscapeCharacter) {
+        YT_VERIFY(likeExpr->Opcode != EStringMatchOp::Regex);
+        escapeCharacterId = Profile(likeExpr->EscapeCharacter, schema, fragments, isolated);
+        id.AddInteger(*escapeCharacterId);
+    }
+
+    auto savedId = id;
+
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
+    }
+
+    Fold(savedId);
+
+    ++fragments->Items[textId].UseCount;
+    ++fragments->Items[patternId].UseCount;
+    if (escapeCharacterId) {
+        ++fragments->Items[*escapeCharacterId].UseCount;
+    }
+
+    bool nullable = true;
+    nullable |= fragments->Items[textId].Nullable;
+    nullable |= fragments->Items[patternId].Nullable;
+    if (escapeCharacterId) {
+        nullable |= fragments->Items[*escapeCharacterId].Nullable;
+    }
+
+    if (!escapeCharacterId) {
+        fragments->DebugInfos.emplace_back(
+            likeExpr,
+            std::vector{textId, patternId});
+    } else {
+        fragments->DebugInfos.emplace_back(
+            likeExpr,
+            std::vector{textId, patternId},
+            *escapeCharacterId);
+    }
+
+    int opaqueIndex = -1;
+    {
+        auto patternLiteral = likeExpr->Pattern->As<TLiteralExpression>();
+        bool patternIsLiteral = patternLiteral != nullptr;
+        auto patternValue = MakeUnversionedNullValue();
+        if (patternIsLiteral) {
+            patternValue = patternLiteral->Value;
+            YT_ASSERT(patternValue.Type == EValueType::String || patternValue.Type == EValueType::Null);
+        }
+
+        bool haveEscape = likeExpr->EscapeCharacter != nullptr;
+        const TLiteralExpression* escapeLiteral = haveEscape ? likeExpr->EscapeCharacter->As<TLiteralExpression>() : nullptr;
+        bool escapeIsLiteral = escapeLiteral != nullptr;
+        auto escapeValue = MakeUnversionedNullValue();
+        if (escapeIsLiteral) {
+            escapeValue = escapeLiteral->Value;
+            YT_ASSERT(escapeValue.Type == EValueType::String || escapeValue.Type == EValueType::Null);
+        }
+
+        std::unique_ptr<re2::RE2> precompiledRegex;
+        if (patternIsLiteral && (!haveEscape || escapeIsLiteral)) {
+            auto re2Pattern = ConvertLikePatternToRegex(
+                patternValue.AsStringBuf(),
+                likeExpr->Opcode,
+                haveEscape ? escapeValue.AsStringBuf() : TStringBuf(),
+                haveEscape);
+
+            re2::RE2::Options options;
+            options.set_log_errors(false);
+
+            precompiledRegex = std::make_unique<re2::RE2>(re2::StringPiece(re2Pattern.Data(), re2Pattern.Size()), options);
+        }
+
+        opaqueIndex = Variables_->AddOpaque<TLikeExpressionContext>(std::move(precompiledRegex));
+    }
+
+    fragments->Items.emplace_back(
+        MakeCodegenLikeExpr(
+            textId,
+            likeExpr->Opcode,
+            patternId,
+            escapeCharacterId,
+            opaqueIndex),
+        likeExpr->GetWireType(),
+        nullable);
+
+    return fragments->Items.size() - 1;
+}
+
+size_t TExpressionProfiler::Profile(
     const TConstExpressionPtr& expr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
@@ -928,6 +1060,8 @@ size_t TExpressionProfiler::Profile(
         return Profile(transformExpr, schema, fragments, isolated);
     } else if (auto caseExpr = expr->As<TCaseExpression>()) {
         return Profile(caseExpr, schema, fragments, isolated);
+    } else if (auto likeExpr = expr->As<TLikeExpression>()) {
+        return Profile(likeExpr, schema, fragments, isolated);
     }
 
     YT_ABORT();

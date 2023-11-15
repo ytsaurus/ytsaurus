@@ -122,6 +122,19 @@ message TCaseExpression
     optional TExpression default_expression = 3;
 }
 
+message TLikeExpression
+{
+    extend TExpression
+    {
+        optional TLikeExpression like_expression = 112;
+    }
+
+    required TExpression text = 1;
+    required int32 opcode = 2; // EStringMatchOp
+    required TExpression pattern = 3;
+    optional TExpression escape_character = 4;
+}
+
 message TNamedItem
 {
     required TExpression expression = 1;

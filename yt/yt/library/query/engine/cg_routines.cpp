@@ -2158,6 +2158,58 @@ i64 YsonLength(char* data, int length)
     return lengthEvaluator.GetLength();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void LikeOpHelper(
+    TPIValue* result,
+    TPIValue* text,
+    EStringMatchOp matchOp,
+    TPIValue* pattern,
+    bool useEscapeCharacter,
+    TPIValue* escapeCharacter,
+    TLikeExpressionContext* context)
+{
+    if (text->Type == EValueType::Null ||
+        pattern->Type == EValueType::Null ||
+        (useEscapeCharacter && escapeCharacter->Type == EValueType::Null))
+    {
+        result->Type = EValueType::Null;
+        return;
+    }
+
+    std::unique_ptr<re2::RE2> newRegex;
+
+    re2::RE2* matcher = nullptr;
+    if (context->PrecompiledRegex) {
+        matcher = context->PrecompiledRegex.get();
+    } else {
+        TStringBuf escape;
+        if (useEscapeCharacter) {
+            escape = escapeCharacter->AsStringBuf();
+        }
+
+        auto asRe2Pattern = ConvertLikePatternToRegex(pattern->AsStringBuf(), matchOp, escape, useEscapeCharacter);
+
+        re2::RE2::Options options;
+        options.set_log_errors(false);
+        newRegex = std::make_unique<re2::RE2>(re2::StringPiece(asRe2Pattern.Data(), asRe2Pattern.Size()), options);
+        if (!newRegex->ok()) {
+            THROW_ERROR_EXCEPTION("Error parsing regular expression %Qv",
+                asRe2Pattern)
+                << TError(matcher->error().c_str());
+        }
+
+        matcher = newRegex.get();
+    }
+
+    bool matched = re2::RE2::FullMatch(re2::StringPiece(text->AsStringBuf().Data(), text->AsStringBuf().Size()), *matcher);
+
+    result->Type = EValueType::Boolean;
+    result->Data.Boolean = matched;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2237,6 +2289,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
     REGISTER_ROUTINE(HasPermissions);
     REGISTER_ROUTINE(YsonLength);
+    REGISTER_ROUTINE(LikeOpHelper);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 

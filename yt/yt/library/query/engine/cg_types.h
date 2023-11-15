@@ -151,6 +151,11 @@ struct TTypeBuilder<TSharedRange<TRange<TPIValue>>*>
     : public TTypeBuilder<void*>
 { };
 
+template <>
+struct TTypeBuilder<NQueryClient::TLikeExpressionContext*>
+    : public TTypeBuilder<void*>
+{ };
+
 // Aggregate types
 
 template <>

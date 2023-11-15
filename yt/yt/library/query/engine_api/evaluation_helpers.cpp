@@ -16,6 +16,94 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRe2SpecialCharacter(char character)
+{
+    return character == '\\' ||
+        character == '^' ||
+        character == '$' ||
+        character == '.' ||
+        character == '[' ||
+        character == ']' ||
+        character == '|' ||
+        character == '(' ||
+        character == ')' ||
+        character == '?' ||
+        character == '*' ||
+        character == '+' ||
+        character == '{' ||
+        character == '}';
+}
+
+TString ConvertLikePatternToRegex(
+    TStringBuf pattern,
+    EStringMatchOp matchOp,
+    TStringBuf escapeCharacter,
+    bool escapeCharacterUsed)
+{
+    if (matchOp == EStringMatchOp::Regex) {
+        if (escapeCharacterUsed) {
+            THROW_ERROR_EXCEPTION("Nontrivial ESCAPE value should not be used together with REGEX (RLIKE) operators");
+        }
+        return TString(pattern);
+    }
+
+    TStringBuilder builder;
+    if (matchOp == EStringMatchOp::CaseInsensitiveLike) {
+        builder.AppendString("(?is)"); // Match case-insensitively and let '.' match '\n'.
+    } else if (matchOp == EStringMatchOp::Like) {
+        builder.AppendString("(?s)"); // Let '.' match '\n'.
+    } else {
+        YT_ABORT();
+    }
+
+    char escape = '\\';
+    if (escapeCharacterUsed) {
+        if (escapeCharacter.Size() > 1) {
+            THROW_ERROR_EXCEPTION("Escape string must be empty or one character");
+        }
+
+        if (!escapeCharacter.empty()) {
+            escape = escapeCharacter[0];
+        } else {
+            escape = '\0';
+        }
+    }
+
+    builder.AppendString("^");
+    auto* it = pattern.begin();
+    while (it < pattern.end()) {
+        if (*it == escape) {
+            if (it + 1 == pattern.end()) {
+                THROW_ERROR_EXCEPTION("Incomplete escape sequence at the end of LIKE pattern");
+            }
+
+            ++it;
+
+            if (IsRe2SpecialCharacter(*it)) {
+                builder.AppendChar('\\');
+            }
+
+            builder.AppendChar(*it);
+        } else if (IsRe2SpecialCharacter(*it)) {
+            builder.AppendChar('\\');
+            builder.AppendChar(*it);
+        } else if (*it == '%') {
+            builder.AppendString(".*");
+        } else if (*it == '_') {
+            builder.AppendChar('.');
+        } else {
+            builder.AppendChar(*it);
+        }
+
+        ++it;
+    }
+
+    builder.AppendChar('$');
+    return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 constexpr ssize_t BufferLimit = 512_KB;
 
 struct TTopCollectorBufferTag

@@ -49,6 +49,11 @@ typedef TParser::token_type TToken;
     kw_between = 'between'i;
     kw_in = 'in'i;
     kw_transform = 'transform'i;
+    kw_like = 'like'i;
+    kw_ilike = 'ilike'i;
+    kw_rlike = 'rlike'i;
+    kw_regexp = 'regexp'i;
+    kw_escape = 'escape'i;
     kw_false = 'false'i;
     kw_true = 'true'i;
     kw_yson_false = '%false'i;
@@ -62,7 +67,9 @@ typedef TParser::token_type TToken;
     keyword = kw_select | kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_using | kw_group_by
         | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_is | kw_not
         | kw_null | kw_between | kw_in | kw_transform | kw_false | kw_true | kw_yson_false | kw_yson_true
-        | kw_case_begin | kw_case_when | kw_case_then | kw_case_end;
+        | kw_case_begin | kw_case_when | kw_case_then | kw_case_end
+        | kw_like | kw_ilike | kw_rlike | kw_regexp | kw_escape
+    ;
 
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
@@ -124,6 +131,11 @@ typedef TParser::token_type TToken;
         kw_between => { type = TToken::KwBetween; fbreak; };
         kw_in => { type = TToken::KwIn; fbreak; };
         kw_transform => { type = TToken::KwTransform; fbreak; };
+        kw_like => { type = TToken::KwLike; fbreak; };
+        kw_ilike => { type = TToken::KwILike; fbreak; };
+        kw_rlike => { type = TToken::KwRLike; fbreak; };
+        kw_regexp => { type = TToken::KwRegexp; fbreak; };
+        kw_escape => { type = TToken::KwEscape; fbreak; };
         kw_false => { type = TToken::KwFalse; fbreak; };
         kw_true => { type = TToken::KwTrue; fbreak; };
         kw_yson_false => { type = TToken::KwFalse; fbreak; };

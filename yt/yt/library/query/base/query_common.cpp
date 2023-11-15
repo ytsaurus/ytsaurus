@@ -40,6 +40,16 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
     }
 }
 
+const char* GetStringMatchOpcodeLexeme(EStringMatchOp opcode)
+{
+    switch (opcode) {
+        case EStringMatchOp::Like:                return "LIKE";
+        case EStringMatchOp::CaseInsensitiveLike: return "ILIKE";
+        case EStringMatchOp::Regex:               return "REGEX";
+        default:                                  YT_ABORT();
+    }
+}
+
 EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode)
 {
     switch (opcode) {

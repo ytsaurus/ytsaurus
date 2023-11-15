@@ -24,6 +24,8 @@
 #include <sparsehash/dense_hash_set>
 #include <sparsehash/dense_hash_map>
 
+#include <contrib/libs/re2/re2/re2.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,6 +111,21 @@ using TJoinLookupRows = std::unordered_multiset<
     const TPIValue*,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
+
+struct TLikeExpressionContext
+{
+    const std::unique_ptr<re2::RE2> PrecompiledRegex;
+
+    TLikeExpressionContext(std::unique_ptr<re2::RE2> precompiledRegex)
+        : PrecompiledRegex(std::move(precompiledRegex))
+    { }
+};
+
+TString ConvertLikePatternToRegex(
+    TStringBuf pattern,
+    EStringMatchOp matchOp,
+    TStringBuf escapeCharacter,
+    bool escapeCharacterUsed);
 
 struct TExecutionContext;
 

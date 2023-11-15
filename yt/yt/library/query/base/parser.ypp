@@ -94,6 +94,11 @@
 %token KwCaseThen "keyword `THEN`"
 %token KwCaseElse "keyword `ELSE`"
 %token KwCaseEnd "keyword `END`"
+%token KwLike "keyword `LIKE`"
+%token KwILike "keyword `ILIKE`"
+%token KwRLike "keyword `RLIKE`"
+%token KwRegexp "keyword `REGEXP`"
+%token KwEscape "keyword `ESCAPE`"
 
 %token KwFalse "keyword `TRUE`"
 %token KwTrue "keyword `FALSE`"
@@ -153,6 +158,7 @@
 %type <TExpressionList> not-op-expr
 %type <TExpressionList> is-null-op-expr
 %type <TExpressionList> equal-op-expr
+%type <TExpressionList> string-like-op-expr
 %type <TExpressionList> relational-op-expr
 %type <TExpressionList> bitor-op-expr
 %type <TExpressionList> bitand-op-expr
@@ -167,6 +173,7 @@
 %type <TNullableExpressionList> case-default-expr
 %type <TWhenThenExpression> when-then-expr
 %type <TWhenThenExpressionList> when-then-expr-list
+%type <TNullableExpressionList> optional-escape
 
 %type <std::optional<TLiteralValue>> literal-value
 %type <std::optional<TLiteralValue>> const-value
@@ -180,6 +187,7 @@
 %type <EBinaryOp> relational-op
 %type <EBinaryOp> multiplicative-op
 %type <EBinaryOp> additive-op
+%type <EStringMatchOp> string-match-op
 
 %start head
 
@@ -501,6 +509,8 @@ relational-op-expr
         }
     | bitor-op-expr
         { $$ = $1; }
+    | string-like-op-expr
+        { $$ = $1; }
 ;
 
 relational-op
@@ -512,6 +522,39 @@ relational-op
         { $$ = EBinaryOp::Greater; }
     | OpGreaterOrEqual
         { $$ = EBinaryOp::GreaterOrEqual; }
+;
+
+string-like-op-expr
+    : additive-op-expr[text] string-match-op[opcode] additive-op-expr[pattern] optional-escape[escape]
+        {
+            $$ = MakeExpression<TLikeExpression>(head, @$, $text, $opcode, $pattern, $escape);
+        }
+    | additive-op-expr[text] KwNot string-match-op[opcode] additive-op-expr[pattern] optional-escape[escape]
+        {
+            $$ = MakeExpression<TUnaryOpExpression>(
+                head,
+                @$,
+                EUnaryOp::Not,
+                MakeExpression<TLikeExpression>(head, @$, $text, $opcode, $pattern, $escape));
+        }
+;
+
+optional-escape
+    : KwEscape additive-op-expr[expr]
+        { $$ = $expr; }
+    |
+        { }
+;
+
+string-match-op
+    : KwLike
+        { $$ = EStringMatchOp::Like; }
+    | KwILike
+        { $$ = EStringMatchOp::CaseInsensitiveLike; }
+    | KwRLike
+        { $$ = EStringMatchOp::Regex; }
+    | KwRegexp
+        { $$ = EStringMatchOp::Regex; }
 ;
 
 bitor-op-expr

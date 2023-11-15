@@ -140,6 +140,13 @@ TCodegenExpression MakeCodegenCaseExpr(
     EValueType resultType,
     TComparerManagerPtr comparerManager);
 
+TCodegenExpression MakeCodegenLikeExpr(
+    size_t textId,
+    EStringMatchOp opcode,
+    size_t patternId,
+    std::optional<size_t> escapeCharacterId,
+    int contextIndex);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenEmptyOp(TCGOperatorContext& builder);

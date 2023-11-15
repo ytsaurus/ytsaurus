@@ -875,6 +875,16 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         if (caseExpr->DefaultExpression) {
             ToProto(proto->mutable_default_expression(), caseExpr->DefaultExpression);
         }
+    } else if (auto likeExpr = original->As<TLikeExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::Like));
+        auto* proto = serialized->MutableExtension(NProto::TLikeExpression::like_expression);
+
+        ToProto(proto->mutable_text(), likeExpr->Text);
+        proto->set_opcode(static_cast<int>(likeExpr->Opcode));
+        ToProto(proto->mutable_pattern(), likeExpr->Pattern);
+        if (likeExpr->EscapeCharacter) {
+            ToProto(proto->mutable_escape_character(), likeExpr->EscapeCharacter);
+        }
     }
 }
 
@@ -1012,6 +1022,21 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
 
             if (ext.has_default_expression()) {
                 FromProto(&result->DefaultExpression, ext.default_expression());
+            }
+
+            *original = result;
+            return;
+        }
+
+        case EExpressionKind::Like: {
+            auto result = New<TLikeExpression>(GetWireType(type));
+            const auto& ext = serialized.GetExtension(NProto::TLikeExpression::like_expression);
+
+            FromProto(&result->Text, ext.text());
+            result->Opcode = static_cast<EStringMatchOp>(ext.opcode());
+            FromProto(&result->Pattern, ext.pattern());
+            if (ext.has_escape_character()) {
+                FromProto(&result->EscapeCharacter, ext.escape_character());
             }
 
             *original = result;

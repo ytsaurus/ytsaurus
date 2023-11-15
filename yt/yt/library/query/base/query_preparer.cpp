@@ -84,6 +84,10 @@ void ExtractFunctionNames(
         ExtractFunctionNames(caseExpr->OptionalOperand, functions);
         ExtractFunctionNames(caseExpr->WhenThenExpressions, functions);
         ExtractFunctionNames(caseExpr->DefaultExpression, functions);
+    } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
+        ExtractFunctionNames(likeExpr->Text, functions);
+        ExtractFunctionNames(likeExpr->Pattern, functions);
+        ExtractFunctionNames(likeExpr->EscapeCharacter, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -1590,6 +1594,9 @@ private:
     TUntypedExpression OnCaseOp(
         const NAst::TCaseExpression* caseExpr);
 
+    TUntypedExpression OnLikeOp(
+        const NAst::TLikeExpression* likeExpr);
+
 public:
     TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
@@ -1667,6 +1674,8 @@ TUntypedExpression TBuilderCtx::OnExpression(
         return OnTransformOp(transformExpr);
     } else if (auto caseExpr = expr->As<NAst::TCaseExpression>()) {
         return OnCaseOp(caseExpr);
+    } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
+        return OnLikeOp(likeExpr);
     }
 
     YT_ABORT();
@@ -2419,6 +2428,60 @@ TUntypedExpression TBuilderCtx::OnCaseOp(const NAst::TCaseExpression* caseExpr)
     };
 
     return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant=*/ false};
+}
+
+TUntypedExpression TBuilderCtx::OnLikeOp(const NAst::TLikeExpression* likeExpr)
+{
+    auto source = likeExpr->GetSource(Source);
+
+    if (likeExpr->Opcode == EStringMatchOp::Regex && likeExpr->EscapeCharacter) {
+        THROW_ERROR_EXCEPTION("ESCAPE should not be used together with REGEXP (RLIKE)")
+            << TErrorAttribute("source", source);
+    }
+
+    auto makeTypedStringExpression = [this] (
+        const NAst::TExpressionList& expression,
+        TStringBuf name,
+        TStringBuf source)
+    {
+        auto stringTypes = TTypeSet({EValueType::String,});
+
+        if (expression.size() != 1) {
+            THROW_ERROR_EXCEPTION("Expecting scalar %Qv expression",
+                name)
+                << TErrorAttribute("source", source);
+        }
+
+        auto untypedExpression = OnExpression(expression.front());
+        if (!Unify(&stringTypes, untypedExpression.FeasibleTypes)) {
+                THROW_ERROR_EXCEPTION("Types mismatch in %v", name)
+                    << TErrorAttribute("source", source)
+                    << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
+                    << TErrorAttribute("expected_type", ToString(stringTypes));
+        }
+
+        return untypedExpression.Generator(EValueType::String);
+    };
+
+    auto typedText = makeTypedStringExpression(likeExpr->Text, "LIKE matched value", source);
+    auto typedPattern = makeTypedStringExpression(likeExpr->Pattern, "LIKE pattern", source);
+
+    TConstExpressionPtr typedEscapeCharacter;
+    if (likeExpr->EscapeCharacter) {
+        typedEscapeCharacter = makeTypedStringExpression(likeExpr->EscapeCharacter.value(), "escape character", source);
+    }
+
+    auto result = New<TLikeExpression>(
+        std::move(typedText),
+        likeExpr->Opcode,
+        std::move(typedPattern),
+        std::move(typedEscapeCharacter));
+
+    TExpressionGenerator generator = [result] (EValueType /*type*/) {
+        return result;
+    };
+
+    return TUntypedExpression{TTypeSet({EValueType::Boolean}), std::move(generator), /*IsConstant=*/ false};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

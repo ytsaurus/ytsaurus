@@ -2351,8 +2351,78 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i2=100",
             "coalesce(i1, i2)",
-            MakeInt64(100))
-));
+            MakeInt64(100))));
+
+class TEvaluateLikeExpressionTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<const char*, bool>>
+{ };
+
+TEST_P(TEvaluateLikeExpressionTest, Basic)
+{
+    const auto& param = GetParam();
+    const auto& exprString = std::get<0>(param);
+    const auto& expected = std::get<1>(param);
+    auto schema = New<TTableSchema>();
+    auto expr = PrepareExpression(exprString, *schema);
+    auto buffer = New<TRowBuffer>();
+    TUnversionedValue result{};
+    EvaluateExpression(expr, "", schema, &result, buffer);
+    EXPECT_EQ(result, MakeBoolean(expected));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    EvaluateLikeExpressionTest,
+    TEvaluateLikeExpressionTest,
+    ::testing::Values(
+        std::make_tuple("'abc' like ''", false),
+        std::make_tuple("'abc' like '' escape ''", false),
+        std::make_tuple("'' like '' escape ''", true),
+        std::make_tuple("'' like '%'", true),
+        std::make_tuple("'ab.cd.efgh' like '__.__.____'", true),
+        std::make_tuple("'ab.cd-efgh' like '__.__.____'", false),
+        std::make_tuple("'a' || 'b' || 'c' like '_'", false),
+        std::make_tuple("'abc' like '_' || '_' || 'c'", true),
+        std::make_tuple("'$[](){}' like '$[](){}'", true),
+        std::make_tuple("'ABC' like '(?i)abc'", false),
+        std::make_tuple("'(?i)ABC' like '(?i)abc'", false),
+        std::make_tuple("'(?i)ABC' like '(?i)ABC'", true),
+        std::make_tuple("'(?i)ABC' ilike '(?i)abc'", true),
+        std::make_tuple("'abc' like '%'", true),
+        std::make_tuple("'abc' like '_%_'", true),
+        std::make_tuple("'abcdef' like 'abcdef'", true),
+        std::make_tuple("'abcdef' like 'a_c_%f'", true),
+        std::make_tuple("'abcdef' like '%abc%def%'", true),
+        std::make_tuple("'abcdef' not like '%abc%def%'", false),
+        std::make_tuple("'abcdef' like '%abc%def%'", true),
+        std::make_tuple("'abc\n\tdef' like '%abc%def%'", true),
+        std::make_tuple("'abc\n\tdef' like '%Abc%def%'", false),
+        std::make_tuple("'abc\n\tdef' ilike '%Abc%def%'", true),
+        std::make_tuple("'abc\n\tdef' not ilike '%Abc%def%'", false),
+        std::make_tuple("'Abc\n\tdef' ilike '%BC%DEF%'", true),
+        std::make_tuple("'Abc\n\tdef' not ilike '%BC%DEF%'", false),
+        std::make_tuple("'q' not like 'x_' escape 'x'", true),
+        std::make_tuple("'_' like '._' escape '.'", true),
+        std::make_tuple("'a' like '._' escape '.'", false),
+        std::make_tuple("'_' like '[_' escape '['", true),
+        std::make_tuple("'a' like '[_' escape '['", false),
+        std::make_tuple(R"('_' like '\\_' escape '\\')", true),
+        std::make_tuple(R"('a' like '\\_' escape '\\')", false),
+        std::make_tuple(R"('\\q' like '\\_' escape '')", true),
+        std::make_tuple(R"('\\qwe' like '\\%' escape '')", true),
+        std::make_tuple(R"('\\abc\\' like '\\abc\\' escape 'x')", true),
+        std::make_tuple(R"('_' like '\\_')", true),
+        std::make_tuple(R"('_' like 'x_' escape 'x')", true),
+        std::make_tuple(R"('\\_\\%_%' like '\\_\\%_%' escape '')", true),
+        std::make_tuple(R"('\\' like '\\\\')", true),
+        std::make_tuple(R"('\\\\' like '\\\\')", false),
+        std::make_tuple(R"('\\' like 'x\\' escape 'x')", true),
+        std::make_tuple(R"('\\abc\\' like '\\\\%\\\\')", true),
+        std::make_tuple(R"('Abc def' rlike '\\w+')", false),
+        std::make_tuple(R"('Abc def' rlike '\\w+ \\w+')", true),
+        std::make_tuple(R"('Abc def' rlike '\\w+\\s+\\w+')", true),
+        std::make_tuple(R"('Abc def' regexp '\\w+\\s+\\w+')", true),
+        std::make_tuple(R"('Abc def' not regexp '\\w+\\s+\\w+')", false)));
 
 INSTANTIATE_TEST_SUITE_P(
     EvaluateTimestampExpressionTest,

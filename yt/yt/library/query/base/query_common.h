@@ -71,6 +71,12 @@ DEFINE_ENUM(EBinaryOp,
     (Concatenate)
 );
 
+DEFINE_ENUM(EStringMatchOp,
+    (Like)
+    (CaseInsensitiveLike)
+    (Regex)
+);
+
 DEFINE_ENUM(ETotalsMode,
     (None)
     (BeforeHaving)
@@ -85,6 +91,7 @@ DEFINE_ENUM(EAggregateFunction,
 
 const char* GetUnaryOpcodeLexeme(EUnaryOp opcode);
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
+const char* GetStringMatchOpcodeLexeme(EStringMatchOp opcode);
 
 //! Reverse binary opcode for comparison operations (for swapping arguments).
 EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode);

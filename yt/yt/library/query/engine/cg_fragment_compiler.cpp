@@ -2228,6 +2228,68 @@ TCodegenExpression MakeCodegenCaseExpr(
     };
 }
 
+TCodegenExpression MakeCodegenLikeExpr(
+    size_t textId,
+    EStringMatchOp opcode,
+    size_t patternId,
+    std::optional<size_t> escapeCharacterId,
+    int contextIndex)
+{
+    return [
+        =
+    ] (TCGExprContext& builder) {
+        auto text = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "text");
+        CodegenFragment(builder, textId)
+            .StoreToValue(builder, text);
+
+        Value* matchOp = builder->getInt32(static_cast<int>(opcode));
+
+        auto pattern = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "pattern");
+        CodegenFragment(builder, patternId)
+            .StoreToValue(builder, pattern);
+
+        Value* useEscapeCharacter = builder->getInt8(escapeCharacterId.has_value());
+
+        auto escapeCharacter = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "escapeCharacter");
+        if (escapeCharacterId) {
+            CodegenFragment(builder, *escapeCharacterId)
+                .StoreToValue(builder, escapeCharacter);
+        }
+
+        auto result = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "text");
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("LikeOpHelper"),
+            {
+                result,
+                text,
+                matchOp,
+                pattern,
+                useEscapeCharacter,
+                escapeCharacter,
+                builder.GetOpaqueValue(contextIndex),
+            });
+
+        return TCGValue::LoadFromRowValue(builder, result, EValueType::Boolean);
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Operators
 //

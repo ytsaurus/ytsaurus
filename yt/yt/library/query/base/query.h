@@ -47,6 +47,7 @@ DEFINE_ENUM(EExpressionKind,
     ((Transform)  (7))
     ((Between)    (8))
     ((Case)       (9))
+    ((Like)       (10))
 );
 
 struct TExpression
@@ -225,6 +226,31 @@ struct TCaseExpression
         , OptionalOperand(std::move(optionalOperand))
         , WhenThenExpressions(std::move(whenThenExpressions))
         , DefaultExpression(std::move(defaultExpression))
+    { }
+};
+
+struct TLikeExpression
+    : public TExpression
+{
+    TConstExpressionPtr Text;
+    EStringMatchOp Opcode;
+    TConstExpressionPtr Pattern;
+    TConstExpressionPtr EscapeCharacter;
+
+    explicit TLikeExpression(EValueType type)
+        : TExpression(type)
+    { }
+
+    TLikeExpression(
+        TConstExpressionPtr text,
+        EStringMatchOp opcode,
+        TConstExpressionPtr pattern,
+        TConstExpressionPtr escapeCharacter)
+        : TExpression(EValueType::Boolean)
+        , Text(std::move(text))
+        , Opcode(opcode)
+        , Pattern(std::move(pattern))
+        , EscapeCharacter(std::move(escapeCharacter))
     { }
 };
 
@@ -490,10 +516,11 @@ struct TAbstractVisitor
             return Derived()->OnTransform(transformExpr, args...);
         } else if (auto caseExpr = expr->template As<TCaseExpression>()) {
             return Derived()->OnCase(caseExpr, args...);
+        } else if (auto likeExpr = expr->template As<TLikeExpression>()) {
+            return Derived()->OnLike(likeExpr, args...);
         }
         YT_ABORT();
     }
-
 };
 
 template <class TResult, class TDerived>
@@ -566,6 +593,13 @@ struct TVisitor
             Visit(whenThenExpression->Condition);
             Visit(whenThenExpression->Result);
         }
+    }
+
+    void OnLike(const TLikeExpression* likeExpr)
+    {
+        Visit(likeExpr->Text);
+        Visit(likeExpr->Pattern);
+        Visit(likeExpr->EscapeCharacter);
     }
 };
 
@@ -739,6 +773,33 @@ struct TRewriter
             std::move(newWhenThenExpressions),
             newDefault);
     }
+
+    TConstExpressionPtr OnLike(const TLikeExpression* likeExpr)
+    {
+        bool allEqual = true;
+
+        auto newText = Visit(likeExpr->Text);
+        allEqual = allEqual && newText == likeExpr->Text;
+
+        auto newPattern = Visit(likeExpr->Pattern);
+        allEqual = allEqual && newPattern == likeExpr->Pattern;
+
+        TConstExpressionPtr newEscapeCharacter;
+        if (const auto& escapeCharacter = likeExpr->EscapeCharacter) {
+            newEscapeCharacter = Visit(likeExpr->EscapeCharacter);
+            allEqual = allEqual && newEscapeCharacter == likeExpr->EscapeCharacter;
+        }
+
+        if (allEqual) {
+            return likeExpr;
+        }
+
+        return New<TLikeExpression>(
+            std::move(newText),
+            likeExpr->Opcode,
+            std::move(newPattern),
+            std::move(newEscapeCharacter));
+    }
 };
 
 template <class TDerived, class TNode, class... TArgs>
@@ -807,7 +868,8 @@ struct TAbstractExpressionPrinter
             expr->As<TFunctionExpression>() ||
             expr->As<TUnaryOpExpression>() ||
             expr->As<TTransformExpression>() ||
-            expr->As<TCaseExpression>();
+            expr->As<TCaseExpression>() ||
+            expr->As<TLikeExpression>();
     }
 
     const TExpression* GetExpression(const TConstExpressionPtr& expr)
@@ -862,6 +924,21 @@ struct TAbstractExpressionPrinter
             Builder->AppendString(" ELSE ");
             Visit(defaultExpression, args...);
         }
+    }
+
+    void OnLikeText(const TLikeExpression* likeExpr, TArgs... args)
+    {
+        Visit(likeExpr->Text, args...);
+    }
+
+    void OnLikePattern(const TLikeExpression* likeExpr, TArgs... args)
+    {
+        Visit(likeExpr->Pattern, args...);
+    }
+
+    void OnLikeEscapeCharacter(const TLikeExpression* likeExpr, TArgs... args)
+    {
+        Visit(likeExpr->EscapeCharacter, args...);
     }
 
     template <class T>
@@ -1072,6 +1149,23 @@ struct TAbstractExpressionPrinter
         Derived()->OnWhenThenExpressions(caseExpr, args...);
         Derived()->OnDefaultExpression(caseExpr, args...);
         Builder->AppendString(" END");
+    }
+
+    void OnLike(const TLikeExpression* likeExpr, TArgs... args)
+    {
+        Derived()->OnLikeText(likeExpr, args...);
+
+        Builder->AppendChar(' ');
+        Builder->AppendString(GetStringMatchOpcodeLexeme(likeExpr->Opcode));
+        Builder->AppendChar(' ');
+
+        Derived()->OnLikePattern(likeExpr, args...);
+
+        if (likeExpr->EscapeCharacter) {
+            YT_ASSERT(likeExpr->Opcode != EStringMatchOp::Regex);
+            Builder->AppendString(" ESCAPE ");
+            Derived()->OnLikeEscapeCharacter(likeExpr, args...);
+        }
     }
 };
 

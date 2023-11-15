@@ -7585,14 +7585,15 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple("any={]", "Unexpected \"]\""),
         std::make_tuple("any=[}", "Unexpected \"}\""),
         std::make_tuple("any=[];[]", "Error occurred while parsing YSON")));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryPrepareCaseTest
     : public TQueryPrepareTest
     , public ::testing::WithParamInterface<std::tuple<
         const char*, // query
         const char*>> // error message
 { };
-
-////////////////////////////////////////////////////////////////////////////////
 
 TEST_P(TQueryPrepareCaseTest, Simple)
 {
@@ -7930,6 +7931,143 @@ TEST_P(TQueryEvaluateCaseWithIncorrectSemanticsTest, Simple)
 
     SUCCEED();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryEvaluateLikeTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        std::vector<TOwningRow>>> // result
+{ };
+
+TEST_P(TQueryEvaluateLikeTest, Simple)
+{
+    auto split = MakeSplit({{"a", EValueType::String},});
+
+    std::vector<TString> source = {
+        R"(a="--- ---")",
+        R"(a="--- abc ---")",
+        R"(a="abc")",
+        R"(a="--- Abc ---")",
+        R"(a="--- --- Ab ---")",
+    };
+
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& result = std::get<1>(args);
+
+    Evaluate(query, split, source, ResultMatcher(result));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    QueryEvaluateLikeTest,
+    TQueryEvaluateLikeTest,
+    ::testing::Values(
+        std::make_tuple(
+            "a from [//t] where a like '%abc%'",
+            YsonToRows({R"(a="--- abc ---")", R"(a="abc")",}, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "a from [//t] where a like '%Abc%'",
+            YsonToRows({R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "a from [//t] where a not like '%abc%'",
+            YsonToRows({R"(a="--- ---")", R"(a="--- Abc ---")", R"(a="--- --- Ab ---")",}, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "a from [//t] where a ilike '%abc%'",
+            YsonToRows({R"(a="--- abc ---")", R"(a="abc")", R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "a from [//t] where a ilike '%_bc%'",
+            YsonToRows({R"(a="--- abc ---")", R"(a="abc")", R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "a from [//t] where a rlike '.*[aA]bc.*'",
+            YsonToRows({
+                R"(a="--- abc ---")",
+                R"(a="abc")",
+                R"(a="--- Abc ---")",
+            }, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "a like # from [//t] limit 1",
+            YsonToRows({R"(a=#)",}, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "# like a from [//t] limit 1",
+            YsonToRows({R"(a=#)",}, MakeSplit({{"a", EValueType::String},}))),
+        std::make_tuple(
+            "a like a escape # from [//t] limit 1",
+            YsonToRows({R"(a=#)",}, MakeSplit({{"a", EValueType::String},})))
+));
+
+TEST_F(TQueryEvaluateLikeTest, Complex)
+{
+    auto split = MakeSplit({{"pattern", EValueType::String}, {"escape_character", EValueType::String}, });
+    std::vector<TString> source = {
+        R"(pattern="abc";escape_character="_")",
+        R"(pattern="a_c";escape_character="b")",
+        R"(pattern="abbc";escape_character="b")",
+        R"(pattern="_a_b_c";escape_character="_")",
+        R"(pattern="%";escape_character="_")",
+
+        R"(pattern="";escape_character="_")",
+        R"(pattern="a_%c";escape_character="_")",
+
+        R"(pattern=#;escape_character="_")",
+        R"(pattern="";escape_character=#)",
+    };
+
+    auto result = YsonToRows({
+        "match=%true",
+        "match=%true",
+        "match=%true",
+        "match=%true",
+        "match=%true",
+
+        "match=%false",
+        "match=%false",
+
+        "match=#",
+        "match=#",
+    }, MakeSplit({{"match", EValueType::Boolean},}));
+
+    Evaluate("select 'abc' like pattern escape escape_character as match from [//t]", split, source, ResultMatcher(result));
+}
+
+class TQueryLikeWithIncorrectSyntaxTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        const char*>> // error message
+{ };
+
+TEST_P(TQueryLikeWithIncorrectSyntaxTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& errorMessage = std::get<1>(args);
+
+    auto split = MakeSplit({{"a", EValueType::String},});
+    auto source = std::vector<TString>{ R"(a="")", };
+
+    EXPECT_THROW_THAT(
+        Evaluate(
+            query,
+            split,
+            source,
+            [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
+        HasSubstr(errorMessage));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    QueryLikeWithIncorrectSyntaxTest,
+    TQueryLikeWithIncorrectSyntaxTest,
+    ::testing::Values(
+        std::make_tuple("a from [//t] where a like 123", "Types mismatch in LIKE pattern"),
+        std::make_tuple("a from [//t] where 123 like a", "Types mismatch in LIKE matched value"),
+        std::make_tuple("a from [//t] where '' like '' escape 123", "Types mismatch in escape character"),
+        std::make_tuple(R"(a from [//t] where a like '\\')", "Incomplete escape sequence at the end of LIKE pattern"),
+        std::make_tuple("a from [//t] where a like 'x' escape 'x'", "Incomplete escape sequence at the end of LIKE pattern"),
+        std::make_tuple("a from [//t] where a like '' escape 'xx'", "Escape string must be empty or one character"),
+        std::make_tuple("a from [//t] where a rlike '123' escape 'x'", "ESCAPE should not be used together with REGEXP (RLIKE)")
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 
