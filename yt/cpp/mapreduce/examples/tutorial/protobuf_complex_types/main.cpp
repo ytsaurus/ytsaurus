@@ -34,10 +34,10 @@ REGISTER_REDUCER(AggregateLinksReducer)
 int main() {
     NYT::Initialize();
 
-    TString cluster = "hume";
+    TString cluster = "freud";
     auto client = CreateClient(cluster);
 
-    const TString sortedLinksTable  = "//home/levysotsky/yt-tutorial/links-sorted-schematized";
+    const TString sortedLinksTable  = "//home/tutorial/links_sorted_schematized";
 
     Cout << "Sorted links table: https://yt.yandex-team.ru/" << cluster << "/#page=navigation&offsetMode=row&path=" << sortedLinksTable << Endl;
 

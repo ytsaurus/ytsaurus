@@ -65,7 +65,7 @@ int main() {
 
     auto op = client->Map(
         TMapOperationSpec()
-            .AddInput<TNode>("//home/dev/tutorial/staff_unsorted")
+            .AddInput<TNode>("//home/tutorial/staff_unsorted")
             .AddOutput<TNode>(outputTable)
             .MapperSpec(TUserJobSpec()
                 .AddJobProfiler(TJobProfilerSpec()

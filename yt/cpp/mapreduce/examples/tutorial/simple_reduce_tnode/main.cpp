@@ -38,7 +38,7 @@ int main() {
 
     client->Sort(
         TSortOperationSpec()
-            .AddInput("//home/dev/tutorial/staff_unsorted")
+            .AddInput("//home/tutorial/staff_unsorted")
             .Output(sortedTmpTable)
             .SortBy({"name"}));
 

@@ -41,14 +41,26 @@ int main() {
     auto client = CreateClient("freud");
 
     const TString outputTable = "//tmp/" + GetUsername() + "-tutorial-join-reduce";
+    const TString outputTmpVideoTable = "//tmp/" + GetUsername() + "-tutorial-join-reduce-video-sorted";
+    const TString outputTmpDocTable = "//tmp/" + GetUsername() + "-tutorial-join-reduce-doc-sorted";
+
+    client->Sort(TSortOperationSpec()
+        .SortBy({"host"})
+        .AddInput("//home/tutorial/host_video_regexp")
+        .Output(outputTmpVideoTable));
+
+    client->Sort(TSortOperationSpec()
+        .SortBy({"host"})
+        .AddInput("//home/tutorial/doc_title")
+        .Output(outputTmpDocTable));
 
     client->Reduce(
         TReduceOperationSpec()
         .JoinBy({"host"})
         .AddInput<TNode>(
-            TRichYPath("//home/dev/tutorial/host_video_regexp")
+            TRichYPath(outputTmpVideoTable)
             .Foreign(true)) // важно отметить хостовую таблицу как foreign
-        .AddInput<TNode>("//home/dev/tutorial/doc_title")
+        .AddInput<TNode>(outputTmpDocTable)
         .AddOutput<TNode>(outputTable)
         .EnableKeyGuarantee(false),
         new TFilterVideoRegexp);

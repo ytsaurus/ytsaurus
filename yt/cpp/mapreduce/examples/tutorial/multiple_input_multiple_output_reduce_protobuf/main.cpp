@@ -62,13 +62,13 @@ int main() {
 
     client->Sort(
         TSortOperationSpec()
-            .AddInput("//home/dev/tutorial/staff_unsorted")
+            .AddInput("//home/tutorial/staff_unsorted")
             .Output(sortedUserTable)
             .SortBy({"uid"}));
 
     client->Sort(
         TSortOperationSpec()
-            .AddInput("//home/dev/tutorial/is_robot_unsorted")
+            .AddInput("//home/tutorial/is_robot_unsorted")
             .Output(sortedIsRobotTable)
             .SortBy({"uid"}));
 

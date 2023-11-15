@@ -37,7 +37,7 @@ int main() {
 
     client->Map(
         TMapOperationSpec()
-            .AddInput<TLoginRecord>("//home/dev/tutorial/staff_unsorted")
+            .AddInput<TLoginRecord>("//home/tutorial/staff_unsorted")
             .AddOutput<TEmailRecord>(outputTable),
         new TComputeEmailsMapper);
 

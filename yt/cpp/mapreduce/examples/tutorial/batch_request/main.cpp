@@ -13,8 +13,8 @@ int main() {
     auto request = client->CreateBatchRequest();
 
     // Добавляем запросы в batch
-    NThreading::TFuture<bool> docTitleExists = request->Exists("//home/dev/tutorial/doc_title");
-    NThreading::TFuture<bool> unexistingTableExists = request->Exists("//home/dev/tutorial/unexisting_table");
+    NThreading::TFuture<bool> docTitleExists = request->Exists("//home/tutorial/doc_title");
+    NThreading::TFuture<bool> unexistingTableExists = request->Exists("//home/tutorial/unexisting_table");
 
     const TString outputTable = "//tmp/" + GetUsername() + "-tutorial-test-batch";
     NThreading::TFuture<TNodeId> createResult = request->Create(outputTable, NT_TABLE);
@@ -23,8 +23,8 @@ int main() {
     request->ExecuteBatch();
 
     // Проверяем результаты.
-    Cout << "Table //home/dev/tutorial/doc_title exists: " << docTitleExists.GetValue() << Endl;
-    Cout << "Table //home/dev/tutorial/unexisting_table exists: " << unexistingTableExists.GetValue() << Endl;
+    Cout << "Table //home/tutorial/doc_title exists: " << docTitleExists.GetValue() << Endl;
+    Cout << "Table //home/tutorial/unexisting_table exists: " << unexistingTableExists.GetValue() << Endl;
 
     try {
         // Следует проверять все результаты с помощью GetValue(),

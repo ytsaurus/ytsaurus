@@ -20,7 +20,7 @@ int main() {
 
     MapReduce<TLoginRecord, TLoginRecord, TNameStatistics>(
         client,
-        "//home/dev/tutorial/staff_unsorted",
+        "//home/tutorial/staff_unsorted",
         outputTable,
         {"name"}, // список ключей, по которым мы будем редьюсить
         [](auto& src, auto& dst) { // mapper

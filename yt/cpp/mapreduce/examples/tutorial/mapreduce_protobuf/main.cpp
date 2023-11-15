@@ -65,7 +65,7 @@ int main() {
     client->MapReduce(
         TMapReduceOperationSpec()
             .ReduceBy({"name"})
-            .AddInput<TLoginRecord>("//home/dev/tutorial/staff_unsorted")
+            .AddInput<TLoginRecord>("//home/tutorial/staff_unsorted")
             .AddOutput<TNameStatistics>(outputTable),
         new TNormalizeNameMapper,
         new TCountNameReducer);
