@@ -62,7 +62,7 @@ object YtUtils {
   private[v2] case class SchemaDiscrepancy(expected: FileWithSchema,
                                            actual: FileWithSchema) {
     def format(file: FileWithSchema): String = {
-      s"${expected.file.getPath}: ${file.schema.fields.map(x => s"${x.name}[${x.dataType.simpleString}]").mkString(",")}"
+      s"${file.file.getPath}: ${file.schema.fields.map(x => s"${x.name}[${x.dataType.simpleString}]").mkString(",")}"
     }
 
     def logWarning(): Unit = {
