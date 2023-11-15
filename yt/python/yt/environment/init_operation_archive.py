@@ -514,6 +514,9 @@ def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(proxy=args.proxy, token=config["token"])
 
+    # TODO(omgronny): Remove it when YTADMIN-11850 will be solved.
+    TRANSFORMS.pop(49)
+
     run(
         client=client,
         archive_path=args.archive_path,
