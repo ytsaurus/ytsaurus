@@ -75,13 +75,9 @@ class TChaosManager
 {
     DEFINE_SIGNAL_OVERRIDE(void(TReplicatedTableData), ReplicatedTableCreated);
     DEFINE_SIGNAL_OVERRIDE(void(TTableId), ReplicatedTableDestroyed);
-    DEFINE_SIGNAL_OVERRIDE(void(TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
     DEFINE_SIGNAL_OVERRIDE(void(TReplicaData), ReplicaCreated);
     DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId), ReplicaDestroyed);
-    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId, ETableReplicaMode), ReplicaModeUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId, bool), ReplicaEnablementUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId, bool), ReplicaTrackingPolicyUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationCreated);
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
 public:
@@ -692,11 +688,17 @@ private:
 
         if (options) {
             replicationCard->SetReplicatedTableOptions(options);
-            ReplicatedTableOptionsUpdated_.Fire(replicationCardId, options);
+            ReplicatedTableCreated_.Fire(TReplicatedTableData{
+                .Id = replicationCardId,
+                .Options = options,
+            });
         }
         if (enableTracker) {
             replicationCard->GetReplicatedTableOptions()->EnableReplicatedTableTracker = *enableTracker;
-            ReplicatedTableOptionsUpdated_.Fire(replicationCardId, replicationCard->GetReplicatedTableOptions());
+            ReplicatedTableCreated_.Fire(TReplicatedTableData{
+                .Id = replicationCardId,
+                .Options = replicationCard->GetReplicatedTableOptions(),
+            });
         }
         if (collocationId) {
             auto* collocation = FindReplicationCardCollocation(*collocationId);
@@ -1059,7 +1061,7 @@ private:
             }
 
             revoke = true;
-            ReplicaModeUpdated_.Fire(replicaId, *mode);
+            FireTableReplicaCreatedOrUpdated(replicationCardId, replicaId, *replicaInfo);
         }
 
         bool currentlyEnabled = replicaInfo->State == ETableReplicaState::Enabled;
@@ -1085,12 +1087,12 @@ private:
             }
 
             revoke = true;
-            ReplicaEnablementUpdated_.Fire(replicaId, *enabled);
+            FireTableReplicaCreatedOrUpdated(replicationCardId, replicaId, *replicaInfo);
         }
 
         if (enableReplicatedTableTracker && replicaInfo->EnableReplicatedTableTracker != *enableReplicatedTableTracker) {
             replicaInfo->EnableReplicatedTableTracker = *enableReplicatedTableTracker;
-            ReplicaTrackingPolicyUpdated_.Fire(replicaId, *enableReplicatedTableTracker);
+            FireTableReplicaCreatedOrUpdated(replicationCardId, replicaId, *replicaInfo);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica altered (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
@@ -2104,7 +2106,7 @@ private:
                 if (oldCollocation->ReplicationCards().empty()) {
                     ReplicationCollocationDestroyed_.Fire(oldCollocation->GetId());
                 } else {
-                    ReplicationCollocationUpdated_.Fire(TTableCollocationData{
+                    ReplicationCollocationCreated_.Fire(TTableCollocationData{
                         .Id = oldCollocation->GetId(),
                         .TableIds = oldCollocation->GetReplicationCardIds()
                     });
@@ -2119,7 +2121,7 @@ private:
             EmplaceOrCrash(collocation->ReplicationCards(), replicationCard);
             if (!migration) {
                 collocation->SetSize(collocation->GetSize() + 1);
-                ReplicationCollocationUpdated_.Fire(TTableCollocationData{
+                ReplicationCollocationCreated_.Fire(TTableCollocationData{
                     .Id = collocation->GetId(),
                     .TableIds = collocation->GetReplicationCardIds()
                 });
@@ -2165,7 +2167,7 @@ private:
 
     void FireReplicationCardCollocationUpdated(TReplicationCardCollocation* collocation)
     {
-        ReplicationCollocationUpdated_.Fire(TTableCollocationData{
+        ReplicationCollocationCreated_.Fire(TTableCollocationData{
             .Id = collocation->GetId(),
             .TableIds = collocation->GetReplicationCardIds()
         });
@@ -2188,16 +2190,7 @@ private:
         });
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-            ReplicaCreated_.Fire(TReplicaData{
-                .TableId = replicationCard->GetId(),
-                .Id = replicaId,
-                .Mode = GetTargetReplicaMode(replicaInfo.Mode),
-                .Enabled = GetTargetReplicaState(replicaInfo.State) == ETableReplicaState::Enabled,
-                .ClusterName = replicaInfo.ClusterName,
-                .TablePath = replicaInfo.ReplicaPath,
-                .TrackingEnabled = replicaInfo.EnableReplicatedTableTracker,
-                .ContentType = replicaInfo.ContentType
-            });
+            FireTableReplicaCreatedOrUpdated(replicationCard->GetId(), replicaId, replicaInfo);
         }
     }
 
@@ -2331,6 +2324,22 @@ private:
         return New<TReplicatedTableOptions>();
     }
 
+    void FireTableReplicaCreatedOrUpdated(
+        TReplicationCardId replicationCardId,
+        TReplicaId replicaId,
+        const TReplicaInfo& replicaInfo)
+    {
+        ReplicaCreated_.Fire(TReplicaData{
+            .TableId = replicationCardId,
+            .Id = replicaId,
+            .Mode = GetTargetReplicaMode(replicaInfo.Mode),
+            .Enabled = GetTargetReplicaState(replicaInfo.State) == ETableReplicaState::Enabled,
+            .ClusterName = replicaInfo.ClusterName,
+            .TablePath = replicaInfo.ReplicaPath,
+            .TrackingEnabled = replicaInfo.EnableReplicatedTableTracker,
+            .ContentType = replicaInfo.ContentType
+        });
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCard, TReplicationCard, ReplicationCardMap_)

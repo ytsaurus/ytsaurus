@@ -118,7 +118,8 @@ def get_dynamic_master_config():
         increase_upload_replication_factor = %true;
 
         replicated_table_tracker = {
-            check_period = 100;
+            check_period = 500;
+            update_period = 500;
             cluster_directory_synchronizer = {
                 sync_period = 500;
             };
@@ -825,6 +826,16 @@ def get_tablet_balancer_config():
 
 
 def get_cypress_proxy_config():
+    return yson.loads(b"""
+{
+    dynamic_config_manager = {
+        update_period = 100;
+    };
+}
+""")
+
+
+def get_replicated_table_tracker_config():
     return yson.loads(b"""
 {
     dynamic_config_manager = {

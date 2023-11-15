@@ -16,11 +16,12 @@ target_link_libraries(unittester-server-lib-tablet_server PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  server-lib-tablet_server
+  server-lib-hydra
   yt-yt-core
   yt-core-test_framework
   client-unittests-mock
   yt_proto-yt-client
-  server-lib-tablet_server
 )
 target_link_options(unittester-server-lib-tablet_server PRIVATE
   -ldl

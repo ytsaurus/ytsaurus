@@ -76,6 +76,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NApi;
 using namespace NRpc;
+using namespace NReplicatedTableTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1327,24 +1328,341 @@ TReplicatedTableTracker::~TReplicatedTableTracker() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTrackerHost
-    : public IReplicatedTableTrackerHost
+class TReplicatedTableTrackerStateProvider
+    : public IReplicatedTableTrackerStateProvider
 {
 public:
-    TReplicatedTableTrackerHost(TBootstrap* bootstrap)
+    TReplicatedTableTrackerStateProvider(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-    { }
-
-    bool AlwaysUseNewReplicatedTableTracker() const override
     {
+        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableCreated(BIND_NO_PROPAGATE(
+            &TReplicatedTableTrackerStateProvider::OnReplicatedTableCreated,
+            MakeWeak(this)));
+        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableDestroyed(BIND_NO_PROPAGATE(
+            &TReplicatedTableTrackerStateProvider::OnReplicatedTableDestroyed,
+            MakeWeak(this)));
+
+        Bootstrap_->GetTabletManager()->SubscribeReplicaCreated(BIND_NO_PROPAGATE(
+            &TReplicatedTableTrackerStateProvider::OnReplicaCreated,
+            MakeWeak(this)));
+        Bootstrap_->GetTabletManager()->SubscribeReplicaDestroyed(BIND_NO_PROPAGATE(
+            &TReplicatedTableTrackerStateProvider::OnReplicaDestroyed,
+            MakeWeak(this)));
+
+        Bootstrap_->GetTableManager()->SubscribeReplicationCollocationCreated(BIND_NO_PROPAGATE(
+            &TReplicatedTableTrackerStateProvider::OnReplicationCollocationCreated,
+            MakeWeak(this)));
+        Bootstrap_->GetTableManager()->SubscribeReplicationCollocationDestroyed(BIND_NO_PROPAGATE(
+            &TReplicatedTableTrackerStateProvider::OnReplicationCollocationDestroyed,
+            MakeWeak(this)));
+
+        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND_NO_PROPAGATE(
+            &TReplicatedTableTrackerStateProvider::OnConfigChanged,
+            MakeWeak(this)));
+
+        GetAutomatonInvoker()->Invoke(BIND(
+            &TReplicatedTableTrackerStateProvider::OnConfigChanged,
+            MakeWeak(this),
+            /*oldConfig*/ nullptr));
+    }
+
+    void DrainUpdateQueue(
+        TQueueDrainResult* result,
+        TTrackerStateRevision revision,
+        bool snapshotRequested) override
+    {
+        auto drainQueueGuard = Guard(DrainQueueLock_);
+
+        if (!IsEnabled()) {
+            THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
+                "Rtt state provider is disabled");
+        }
+
+        if (!snapshotRequested) {
+            if (revision == InvalidTrackerStateRevision ||
+                ClientRevision_ == InvalidTrackerStateRevision ||
+                revision != ClientRevision_)
+            {
+                THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::StateRevisionMismatch,
+                    "Rtt client state revision mismatch: %v != %v",
+                    ClientRevision_,
+                    revision);
+            }
+        }
+
+        while (true) {
+            auto guard = Guard(ActionQueueLock_);
+
+            if (LoadingFromSnapshotRequested_.load() || snapshotRequested) {
+                LoadingFromSnapshotRequested_.store(false);
+                ActionQueue_.clear();
+                guard.Release();
+
+                YT_LOG_DEBUG("Rtt state provider started loading snapshot");
+
+                auto [revision, snapshot] = WaitFor(GetSnapshot())
+                    .ValueOrThrow();
+
+                ClientRevision_ = revision;
+                result->set_snapshot_revision(revision);
+                ToProto(result->mutable_snapshot(), snapshot);
+
+                {
+                    // NB: Some outdated actions could have been enqueued while waiting on GetSnapshot.
+                    auto guard = Guard(ActionQueueLock_);
+                    while (!ActionQueue_.empty()) {
+                        YT_VERIFY(ActionQueue_.front().revision() != revision);
+                        if (ActionQueue_.front().revision() > revision) {
+                            break;
+                        }
+                        ActionQueue_.pop_front();
+                    }
+                }
+
+                YT_LOG_DEBUG("Rtt state provider finished loading snapshot (ClientRevision: %v)",
+                    ClientRevision_);
+
+                result->clear_update_actions();
+                break;
+            }
+
+            if (ActionQueue_.empty()) {
+                break;
+            }
+
+            auto action = std::move(ActionQueue_.front());
+            ActionQueue_.pop_front();
+            guard.Release();
+
+            YT_LOG_DEBUG("Rtt state provider dequeued an action (Revision: %v)",
+                action.revision());
+
+            YT_LOG_ALERT_IF(action.revision() <= ClientRevision_,
+                "Rtt state provider encountered oudated action upon queue drain");
+
+            ClientRevision_ = action.revision();
+            *result->add_update_actions() = std::move(action);
+        }
+    }
+
+    TFuture<TReplicaLagTimes> ComputeReplicaLagTimes(
+        std::vector<NTabletClient::TTableReplicaId> replicaIds) override
+    {
+        if (!IsEnabled()) {
+            THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
+                "Rtt state provider is disabled");
+        }
+
+        return BIND([bootstrap = Bootstrap_, replicaIds = std::move(replicaIds)] {
+            auto latestTimestamp = bootstrap->GetTimestampProvider()->GetLatestTimestamp();
+            const auto& tabletManager = bootstrap->GetTabletManager();
+
+            TReplicaLagTimes results;
+            results.reserve(replicaIds.size());
+
+            for (auto replicaId : replicaIds) {
+                auto* replica = tabletManager->FindTableReplica(replicaId);
+                if (IsObjectAlive(replica)) {
+                    results.emplace_back(replicaId, replica->ComputeReplicationLagTime(latestTimestamp));
+                }
+            }
+
+            return results;
+        })
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    TFuture<TApplyChangeReplicaCommandResults> ApplyChangeReplicaModeCommands(
+        std::vector<TChangeReplicaModeCommand> commands) override
+    {
+        if (!IsEnabled()) {
+            THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
+                "Rtt state provider is disabled");
+        }
+
+        return BIND([bootstrap = Bootstrap_, commands = std::move(commands)] {
+            const auto& tabletManager = bootstrap->GetTabletManager();
+
+            std::vector<TFuture<void>> futures;
+            futures.reserve(commands.size());
+
+            for (const auto& command : commands) {
+                auto* replica = tabletManager->FindTableReplica(command.ReplicaId);
+                if (!IsObjectAlive(replica)) {
+                    futures.push_back(MakeFuture(TError(NReplicatedTableTrackerClient::EErrorCode::NonResidentReplica,
+                        "Replica %v does not reside on this cell",
+                        command.ReplicaId)));
+                    continue;
+                }
+
+                auto req = TTableReplicaYPathProxy::Alter(FromObjectId(command.ReplicaId));
+                GenerateMutationId(req);
+                req->set_mode(static_cast<int>(command.TargetMode));
+
+                const auto& objectManager = bootstrap->GetObjectManager();
+                auto rootService = objectManager->GetRootService();
+                futures.push_back(ExecuteVerb(rootService, req).AsVoid());
+            }
+
+            return AllSet(std::move(futures));
+        })
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    void EnableStateMonitoring() override
+    {
+        LoadingFromSnapshotRequested_.store(true);
+        StateMonitoringEnabled_.store(true);
+    }
+
+    void DisableStateMonitoring() override
+    {
+        StateMonitoringEnabled_.store(false);
+    }
+
+    bool IsEnabled() const override
+    {
+        return StateMonitoringEnabled_.load() && TrackerEnabled_.load();
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    using TUpdateAction = NReplicatedTableTrackerClient::NProto::TTrackerStateUpdateAction;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DrainQueueLock_);
+    TTrackerStateRevision ClientRevision_ = InvalidTrackerStateRevision;
+
+    std::atomic<TTrackerStateRevision> Revision_ = NullTrackerStateRevision;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionQueueLock_);
+    std::deque<TUpdateAction> ActionQueue_;
+
+    std::atomic<bool> StateMonitoringEnabled_ = false;
+    std::atomic<bool> TrackerEnabled_ = false;
+
+    std::atomic<bool> LoadingFromSnapshotRequested_ = false;
+
+    std::atomic<i64> MaxActionQueueSize_ = -1;
+
+
+    bool CheckIfCanEnqueue()
+    {
+        if (IsEnabled() && !LoadingFromSnapshotRequested_.load()) {
+            return true;
+        }
+
+        // NB: Now we have to load from snapshot because some action is skipped.
+        LoadingFromSnapshotRequested_.store(true);
         return false;
     }
 
-    TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() override
+    void OnReplicatedTableCreated(const TReplicatedTableData& tableData)
     {
-        YT_VERIFY(LoadingFromSnapshotRequested());
+        if (!CheckIfCanEnqueue()) {
+            return;
+        }
 
-        return BIND([bootstrap = Bootstrap_, host = MakeStrong(this)] {
+        TUpdateAction action;
+        ToProto(action.mutable_created_replicated_table_data(), tableData);
+        EnqueueAction(std::move(action), "ReplicatedTableCreated");
+    }
+
+    void OnReplicatedTableDestroyed(TTableId tableId)
+    {
+        if (!CheckIfCanEnqueue()) {
+            return;
+        }
+
+        TUpdateAction action;
+        ToProto(action.mutable_destroyed_replicated_table_id(), tableId);
+        EnqueueAction(std::move(action), "ReplicatedTableDestroyed");
+    }
+
+    void OnReplicaCreated(const TReplicaData& replicaData)
+    {
+        if (!CheckIfCanEnqueue()) {
+            return;
+        }
+
+        TUpdateAction action;
+        ToProto(action.mutable_created_replica_data(), replicaData);
+        EnqueueAction(std::move(action), "ReplicaCreated");
+    }
+
+    void OnReplicaDestroyed(TTableReplicaId replicaId)
+    {
+        if (!CheckIfCanEnqueue()) {
+            return;
+        }
+
+        TUpdateAction action;
+        ToProto(action.mutable_destroyed_replica_id(), replicaId);
+        EnqueueAction(std::move(action), "ReplicaDestroyed");
+    }
+
+    void OnReplicationCollocationCreated(const TTableCollocationData& collocationData)
+    {
+        if (!CheckIfCanEnqueue()) {
+            return;
+        }
+
+        TUpdateAction action;
+        ToProto(action.mutable_created_collocation_data(), collocationData);
+        EnqueueAction(std::move(action), "ReplicationCollocationCreated");
+    }
+
+    void OnReplicationCollocationDestroyed(TTableCollocationId collocationId)
+    {
+        if (!CheckIfCanEnqueue()) {
+            return;
+        }
+
+        TUpdateAction action;
+        ToProto(action.mutable_destroyed_collocation_id(), collocationId);
+        EnqueueAction(std::move(action), "ReplicationCollocationDestroyed");
+    }
+
+    void EnqueueAction(TUpdateAction action, const TString& actionString)
+    {
+        auto revision = ++Revision_;
+        action.set_revision(revision);
+
+        auto guard = Guard(ActionQueueLock_);
+
+        if (std::ssize(ActionQueue_) >= MaxActionQueueSize_.load()) {
+            LoadingFromSnapshotRequested_.store(true);
+            ActionQueue_.clear();
+            guard.Release();
+            YT_LOG_WARNING("Action queue is reset due to overflow (MaxActionQueueSize: %v, LastAction: %v)",
+                MaxActionQueueSize_.load(),
+                actionString);
+            return;
+        }
+
+        ActionQueue_.push_back(std::move(action));
+
+        guard.Release();
+
+        YT_LOG_DEBUG("Rtt state provider enqueued new action (ActionRevision: %v, Action: %v)",
+            revision,
+            actionString);
+    }
+
+    void OnConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    {
+        const auto& newConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableTracker;
+        TrackerEnabled_ = newConfig->EnableReplicatedTableTracker && newConfig->UseNewReplicatedTableTracker;
+        MaxActionQueueSize_ = newConfig->MaxActionQueueSize;
+    }
+
+    TFuture<std::pair<TTrackerStateRevision, TReplicatedTableTrackerSnapshot>> GetSnapshot()
+    {
+        return BIND([bootstrap = Bootstrap_, this_ = MakeStrong(this), this] {
+            YT_LOG_DEBUG("Started building replicated table tracker snapshot");
+
             TReplicatedTableTrackerSnapshot snapshot;
 
             const auto& cypressManager = bootstrap->GetCypressManager();
@@ -1358,7 +1676,6 @@ public:
                     snapshot.ReplicatedTables.push_back(TReplicatedTableData{
                         .Id = table->GetId(),
                         .Options = table->GetReplicatedTableOptions(),
-                        .ReplicaModeSwitchCounter = table->TabletCellBundle()->ProfilingCounters().ReplicaModeSwitch
                     });
 
                     for (auto* replica : table->Replicas()) {
@@ -1397,153 +1714,13 @@ public:
                 }
             }
 
-            host->LoadingFromSnapshotRequested_.store(false);
+            YT_LOG_DEBUG("Finished building replicated table tracker snapshot");
 
-            return snapshot;
+            return std::make_pair(++Revision_, std::move(snapshot));
         })
             .AsyncVia(GetAutomatonInvoker())
             .Run();
     }
-
-    bool LoadingFromSnapshotRequested() const override
-    {
-        return LoadingFromSnapshotRequested_.load();
-    }
-
-    void RequestLoadingFromSnapshot() override
-    {
-        LoadingFromSnapshotRequested_.store(true);
-    }
-
-    TFuture<TReplicaLagTimes> ComputeReplicaLagTimes(
-        std::vector<NTabletClient::TTableReplicaId> replicaIds) override
-    {
-        return BIND([bootstrap = Bootstrap_, replicaIds = std::move(replicaIds)] {
-            auto latestTimestamp = bootstrap->GetTimestampProvider()->GetLatestTimestamp();
-            const auto& tabletManager = bootstrap->GetTabletManager();
-
-            TReplicaLagTimes results;
-            results.reserve(replicaIds.size());
-
-            for (auto replicaId : replicaIds) {
-                auto* replica = tabletManager->FindTableReplica(replicaId);
-                if (IsObjectAlive(replica)) {
-                    results.emplace_back(replicaId, replica->ComputeReplicationLagTime(latestTimestamp));
-                }
-            }
-
-            return results;
-        })
-            .AsyncVia(GetAutomatonInvoker())
-            .Run();
-    }
-
-    NApi::IClientPtr CreateClusterClient(const TString& clusterName) override
-    {
-        const auto& clusterDirectory = Bootstrap_->GetClusterConnection()->GetClusterDirectory();
-        auto connection = clusterDirectory->FindConnection(clusterName);
-        // TODO(akozhikhov): Consider employing specific user.
-        return connection
-            ? connection->CreateClient(NApi::TClientOptions::FromUser(RootUserName))
-            : nullptr;
-    }
-
-    TFuture<TApplyChangeReplicaCommandResults> ApplyChangeReplicaModeCommands(
-        std::vector<TChangeReplicaModeCommand> commands) override
-    {
-        return BIND([bootstrap = Bootstrap_, commands = std::move(commands)] {
-            std::vector<TFuture<void>> futures;
-            futures.reserve(commands.size());
-
-            for (const auto& command : commands) {
-                auto req = TTableReplicaYPathProxy::Alter(FromObjectId(command.ReplicaId));
-                GenerateMutationId(req);
-                req->set_mode(static_cast<int>(command.TargetMode));
-
-                const auto& objectManager = bootstrap->GetObjectManager();
-                auto rootService = objectManager->GetRootService();
-                futures.push_back(ExecuteVerb(rootService, req).AsVoid());
-            }
-
-            return AllSet(std::move(futures));
-        })
-            .AsyncVia(GetAutomatonInvoker())
-            .Run();
-    }
-
-    void SubscribeReplicatedTableCreated(TCallback<void(TReplicatedTableData)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableCreated(std::move(callback));
-    }
-
-    void SubscribeReplicatedTableDestroyed(TCallback<void(NTableClient::TTableId)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableDestroyed(std::move(callback));
-    }
-
-    void SubscribeReplicatedTableOptionsUpdated(
-        TCallback<void(NTableClient::TTableId, TReplicatedTableOptionsPtr)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableOptionsUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicaCreated(TCallback<void(TReplicaData)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicaCreated(std::move(callback));
-    }
-
-    void SubscribeReplicaDestroyed(
-        TCallback<void(NTabletClient::TTableReplicaId)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicaDestroyed(std::move(callback));
-    }
-
-    void SubscribeReplicaModeUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicaModeUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicaEnablementUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicaEnablementUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicaTrackingPolicyUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
-    {
-        Bootstrap_->GetTabletManager()->SubscribeReplicaTrackingPolicyUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicationCollocationUpdated(TCallback<void(TTableCollocationData)> callback) override
-    {
-        Bootstrap_->GetTableManager()->SubscribeReplicationCollocationUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicationCollocationDestroyed(
-        TCallback<void(NTableClient::TTableCollocationId)> callback) override
-    {
-        Bootstrap_->GetTableManager()->SubscribeReplicationCollocationDestroyed(std::move(callback));
-    }
-
-    void SubscribeConfigChanged(TCallback<void(TDynamicReplicatedTableTrackerConfigPtr)> callback) override
-    {
-        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(
-            [
-                callback = std::move(callback),
-                bootstrap = Bootstrap_
-            ] (TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
-        {
-            callback(bootstrap->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableTracker);
-        }));
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-
-    std::atomic<bool> LoadingFromSnapshotRequested_ = false;
-
 
     IInvokerPtr GetAutomatonInvoker() const
     {
@@ -1555,9 +1732,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReplicatedTableTrackerHostPtr CreateReplicatedTableTrackerHost(TBootstrap* bootstrap)
+IReplicatedTableTrackerStateProviderPtr CreateReplicatedTableTrackerStateProvider(TBootstrap* bootstrap)
 {
-    return New<TReplicatedTableTrackerHost>(bootstrap);
+    return New<TReplicatedTableTrackerStateProvider>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

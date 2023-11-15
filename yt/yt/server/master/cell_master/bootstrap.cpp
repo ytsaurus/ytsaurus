@@ -118,6 +118,7 @@
 #include <yt/yt/server/master/tablet_server/tablet_hydra_service.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker_service.h>
+#include <yt/yt/server/master/tablet_server/replicated_table_tracker_service.h>
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -537,9 +538,9 @@ const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
     return NodeChannelFactory_;
 }
 
-const IReplicatedTableTrackerPtr& TBootstrap::GetNewReplicatedTableTracker() const
+const IReplicatedTableTrackerStateProviderPtr& TBootstrap::GetReplicatedTableTrackerStateProvider() const
 {
-    return NewReplicatedTableTracker_;
+    return ReplicatedTableTrackerStateProvider_;
 }
 
 const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
@@ -979,11 +980,10 @@ void TBootstrap::DoInitialize()
     // Cf. TConfigManager::Initialize.
     ConfigManager_->Initialize();
 
-    NewReplicatedTableTrackerHost_ = CreateReplicatedTableTrackerHost(this);
-    NewReplicatedTableTracker_ = CreateReplicatedTableTracker(
-        NewReplicatedTableTrackerHost_,
-        // NB: We rely on the config manager signal being called after RTT initialization so actual config will be applied.
-        New<TDynamicReplicatedTableTrackerConfig>());
+    // NB: We rely on the config manager signal being called after RTT initialization so actual config will be applied.
+    ReplicatedTableTrackerActionQueue_ = New<TActionQueue>("RttQueue");
+    auto rttInvoker = ReplicatedTableTrackerActionQueue_->GetInvoker();
+    ReplicatedTableTrackerStateProvider_ = CreateReplicatedTableTrackerStateProvider(this);
 
     CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
         Config_->CellDirectorySynchronizer,
@@ -1028,6 +1028,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateSequoiaTransactionService(this));
     RpcServer_->RegisterService(CreateIncumbentService(this));
     RpcServer_->RegisterService(CreateTabletHydraService(this));
+    RpcServer_->RegisterService(CreateReplicatedTableTrackerService(this, rttInvoker));
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkLocationMapTypeHandler(this));

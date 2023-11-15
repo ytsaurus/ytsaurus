@@ -71,6 +71,7 @@ struct IChaosSlot
     virtual NApi::IClientPtr CreateClusterClient(const TString& clusterName) const = 0;
     virtual const NTabletServer::IReplicatedTableTrackerPtr& GetReplicatedTableTracker() const = 0;
     virtual void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const = 0;
+    virtual NTabletServer::TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosSlot)

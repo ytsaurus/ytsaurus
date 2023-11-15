@@ -18,6 +18,7 @@
 #include <yt/yt/server/tablet_balancer/program.h>
 #include <yt/yt/server/cypress_proxy/program.h>
 #include <yt/yt/server/tcp_proxy/program.h>
+#include <yt/yt/server/replicated_table_tracker/program.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -69,6 +70,7 @@ int main(int argc, const char** argv)
     TryProgram<NCypressProxy::TCypressProxyProgram>(argc, argv, "cypress-proxy");
     TryProgram<NQueryTracker::TQueryTrackerProgram>(argc, argv, "query-tracker");
     TryProgram<NTcpProxy::TTcpProxyProgram>(argc, argv, "tcp-proxy");
+    TryProgram<NReplicatedTableTracker::TReplicatedTableTrackerProgram>(argc, argv, "replicated-table-tracker");
     // Handles auxiliary flags like --version and --build.
     TAllProgram().Run(argc, argv);
 }

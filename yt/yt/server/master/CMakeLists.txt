@@ -576,6 +576,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/hunk_tablet.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/hunk_tablet_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/hunk_tablet_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_settings.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/tablet.cpp

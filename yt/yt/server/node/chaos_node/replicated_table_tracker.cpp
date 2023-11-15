@@ -88,6 +88,11 @@ public:
             .Run();
     }
 
+    TDynamicReplicatedTableTrackerConfigPtr GetConfig() const override
+    {
+        return Slot_->GetReplicatedTableTrackerConfig();
+    }
+
     bool LoadingFromSnapshotRequested() const override
     {
         return LoadingFromSnapshotRequested_.load();
@@ -167,12 +172,6 @@ public:
         Slot_->GetChaosManager()->SubscribeReplicatedTableDestroyed(std::move(callback));
     }
 
-    void SubscribeReplicatedTableOptionsUpdated(
-        TCallback<void(NTableClient::TTableId, TReplicatedTableOptionsPtr)> callback) override
-    {
-        Slot_->GetChaosManager()->SubscribeReplicatedTableOptionsUpdated(std::move(callback));
-    }
-
     void SubscribeReplicaCreated(TCallback<void(TReplicaData)> callback) override
     {
         Slot_->GetChaosManager()->SubscribeReplicaCreated(std::move(callback));
@@ -184,44 +183,15 @@ public:
         Slot_->GetChaosManager()->SubscribeReplicaDestroyed(std::move(callback));
     }
 
-    void SubscribeReplicaModeUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode)> callback) override
+    void SubscribeReplicationCollocationCreated(TCallback<void(TTableCollocationData)> callback) override
     {
-        Slot_->GetChaosManager()->SubscribeReplicaModeUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicaEnablementUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
-    {
-        Slot_->GetChaosManager()->SubscribeReplicaEnablementUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicaTrackingPolicyUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
-    {
-        Slot_->GetChaosManager()->SubscribeReplicaTrackingPolicyUpdated(std::move(callback));
-    }
-
-    void SubscribeReplicationCollocationUpdated(TCallback<void(TTableCollocationData)> callback) override
-    {
-        Slot_->GetChaosManager()->SubscribeReplicationCollocationUpdated(std::move(callback));
+        Slot_->GetChaosManager()->SubscribeReplicationCollocationCreated(std::move(callback));
     }
 
     void SubscribeReplicationCollocationDestroyed(
         TCallback<void(NTableClient::TTableCollocationId)> callback) override
     {
         Slot_->GetChaosManager()->SubscribeReplicationCollocationDestroyed(std::move(callback));
-    }
-
-    void SubscribeConfigChanged(TCallback<void(TDynamicReplicatedTableTrackerConfigPtr)> callback) override
-    {
-        Slot_->SubscribeReplicatedTableTrackerConfigChanged(BIND(
-            [callback = std::move(callback)] (
-                const TDynamicReplicatedTableTrackerConfigPtr& /*oldConfig*/,
-                const TDynamicReplicatedTableTrackerConfigPtr& newConfig)
-            {
-                callback(newConfig);
-            }));
     }
 
 private:

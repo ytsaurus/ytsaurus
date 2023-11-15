@@ -86,13 +86,9 @@ struct IChaosManager
 
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TReplicatedTableData), ReplicatedTableCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableId), ReplicatedTableDestroyed);
-    DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableId, NTabletClient::TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TReplicaData), ReplicaCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId), ReplicaDestroyed);
-    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode), ReplicaModeUpdated);
-    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId, bool), ReplicaEnablementUpdated);
-    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId, bool), ReplicaTrackingPolicyUpdated);
-    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCard, TReplicationCard);

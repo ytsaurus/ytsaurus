@@ -228,6 +228,7 @@ class YTEnvSetup(object):
     NUM_QUEUE_AGENTS = 0
     NUM_TABLET_BALANCERS = 0
     NUM_CYPRESS_PROXIES = 0
+    NUM_REPLICATED_TABLE_TRACKERS = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
 
@@ -268,6 +269,7 @@ class YTEnvSetup(object):
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
     ENABLE_STANDALONE_TABLET_BALANCER = False
+    ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER = False
 
     NUM_REMOTE_CLUSTERS = 0
     NUM_TEST_PARTITIONS = 1
@@ -409,6 +411,7 @@ class YTEnvSetup(object):
             rpc_proxy_count=(
                 cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
             cypress_proxy_count=cls.get_param("NUM_CYPRESS_PROXIES", index),
+            replicated_table_tracker_count=cls.get_param("NUM_REPLICATED_TABLE_TRACKERS", index),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
@@ -828,6 +831,7 @@ class YTEnvSetup(object):
                 self._clear_ql_pools(driver=driver)
                 self._restore_default_bundle_options(driver=driver)
                 self._setup_tablet_balancer_dynamic_config(driver=driver)
+                self._setup_standalone_replicated_table_tracker_dynamic_config(driver=driver)
 
             if not self.get_param("DEFER_SECONDARY_CELL_START", cluster_index):
                 yt_commands.wait_for_nodes(driver=driver)
@@ -1333,6 +1337,11 @@ class YTEnvSetup(object):
                     path="//sys/@config/tablet_manager/enable_tablet_resource_validation",
                     input=True,
                 ),
+                yt_commands.make_batch_request(
+                    "set",
+                    path="//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker",
+                    input=self.ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER,
+                ),
             ],
             driver=driver,
         ):
@@ -1354,6 +1363,20 @@ class YTEnvSetup(object):
             instances = yt_commands.ls("//sys/tablet_balancer/instances")
 
             self._wait_for_dynamic_config("//sys/tablet_balancer/instances", config, instances, driver=driver)
+
+    def _setup_standalone_replicated_table_tracker_dynamic_config(self, driver=None):
+        if self.ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER:
+            config = yt_commands.get("//sys/@config/tablet_manager/replicated_table_tracker", driver=driver)
+            config["use_new_replicated_table_tracker"] = True
+
+            yt_commands.set(
+                "//sys/@config/tablet_manager/replicated_table_tracker",
+                config,
+                driver=driver)
+
+            instances_path = "//sys/replicated_table_tracker/instances"
+            instances = yt_commands.ls(instances_path, driver=driver)
+            self._wait_for_dynamic_config(instances_path, config, instances, driver=driver)
 
     def _clear_ql_pools(self, driver=None):
         yt_commands.remove("//sys/ql_pools/*", driver=driver)

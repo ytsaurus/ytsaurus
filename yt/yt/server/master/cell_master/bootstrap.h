@@ -148,8 +148,8 @@ public:
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetSnapshotIOInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
-    const NTabletServer::IReplicatedTableTrackerPtr& GetNewReplicatedTableTracker() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
+    const NTabletServer::IReplicatedTableTrackerStateProviderPtr& GetReplicatedTableTrackerStateProvider() const;
 
     const NZookeeperServer::IZookeeperManagerPtr& GetZookeeperManager() const;
     NZookeeperMaster::IBootstrap* GetZookeeperBootstrap() const;
@@ -233,8 +233,8 @@ protected:
     NTabletServer::IBackupManagerPtr BackupManager_;
     NSchedulerPoolServer::ISchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
-    NTabletServer::IReplicatedTableTrackerHostPtr NewReplicatedTableTrackerHost_;
-    NTabletServer::IReplicatedTableTrackerPtr NewReplicatedTableTracker_;
+    NConcurrency::TActionQueuePtr ReplicatedTableTrackerActionQueue_;
+    NTabletServer::IReplicatedTableTrackerStateProviderPtr ReplicatedTableTrackerStateProvider_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
     NHiveServer::THiveManagerPtr HiveManager_;

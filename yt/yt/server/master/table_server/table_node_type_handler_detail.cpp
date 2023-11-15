@@ -299,7 +299,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
             .Id = id.ObjectId,
             .Options = New<TReplicatedTableOptions>(),
-            .ReplicaModeSwitchCounter = tabletCellBundle->ProfilingCounters().ReplicaModeSwitch
         });
     }
 
@@ -310,6 +309,13 @@ template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
 {
     TBase::DoZombify(table);
+
+    if (!table->IsExternal() &&
+        table->IsTrunk() &&
+        TypeFromId(table->GetId()) == EObjectType::ReplicatedTable)
+    {
+        this->Bootstrap_->GetTabletManager()->GetReplicatedTableDestroyedSignal()->Fire(table->GetId());
+    }
 }
 
 template <class TImpl>
@@ -602,10 +608,28 @@ void TReplicatedTableNodeTypeHandler::DoClone(
     NCypressServer::ENodeCloneMode mode,
     NSecurityServer::TAccount* account)
 {
+    auto id = clonedTrunkNode->GetVersionedId();
+    if (!id.IsBranched() && !clonedTrunkNode->IsExternal()) {
+        const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+        tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
+            .Id = id.ObjectId,
+            .Options = New<TReplicatedTableOptions>(),
+        });
+    }
+
     TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
     // NB: Replica set is intentionally not copied but recreated by tablet manager.
     clonedTrunkNode->SetReplicatedTableOptions(CloneYsonStruct(sourceNode->GetReplicatedTableOptions()));
+
+    // TODO(akozhikhov): Change order of DoClone to call this signal once.
+    if (!id.IsBranched() && !clonedTrunkNode->IsExternal()) {
+        const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+        tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
+            .Id = id.ObjectId,
+            .Options = clonedTrunkNode->GetReplicatedTableOptions(),
+        });
+    }
 }
 
 void TReplicatedTableNodeTypeHandler::DoBeginCopy(

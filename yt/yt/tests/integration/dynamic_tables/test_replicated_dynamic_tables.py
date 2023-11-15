@@ -97,6 +97,9 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     NUM_TEST_PARTITIONS = 8
     NUM_REMOTE_CLUSTERS = 1
 
+    ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER = True
+    NUM_REPLICATED_TABLE_TRACKERS = 2
+
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
             # Disable cache
