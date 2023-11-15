@@ -707,7 +707,7 @@ private:
                 "Logging",
                 "Logging",
                 /*threadPriority*/ NThreading::EThreadPriority::Normal,
-                /*shutdownPriority*/ 201)
+                /*shutdownPriority*/ 200)
             , Owner_(owner)
         { }
 
@@ -1367,7 +1367,7 @@ private:
     const TShutdownCookie ShutdownCookie_ = RegisterShutdownCallback(
         "LogManager",
         BIND_NO_PROPAGATE(&TImpl::Shutdown, MakeWeak(this)),
-        /*priority*/ 200);
+        /*priority*/ 201);
 
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);
 
