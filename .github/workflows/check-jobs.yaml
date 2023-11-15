@@ -34,6 +34,11 @@ jobs:
         run: |
           ytsaurus/yt/yt/scripts/run_python_tests.sh
 
+      - name: Odin tests
+        shell: bash
+        run: |
+          ytsaurus/yt/odin/tests/run_tests.sh
+
       - name: Testmo unittests upload
         shell: bash
         run: |

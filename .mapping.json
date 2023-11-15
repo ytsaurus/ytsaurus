@@ -2655,6 +2655,7 @@
   "yt/odin/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/odin/README.md",
   "yt/odin/requirements.txt":"yt/opensource/repos/ytsaurus/github_toplevel/yt/odin/requirements.txt",
   "yt/odin/tests/requirements.txt":"yt/opensource/repos/ytsaurus/github_toplevel/yt/odin/tests/requirements.txt",
+  "yt/odin/tests/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/odin/tests/run_tests.sh",
   "yt/python/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/README.md",
   "yt/python/yt/wrapper/tests/pytest.ini":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/yt/wrapper/tests/pytest.ini",
   "yt/systest/CMakeLists.darwin-arm64.txt":"",
