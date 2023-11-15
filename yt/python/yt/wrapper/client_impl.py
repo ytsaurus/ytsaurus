@@ -2122,7 +2122,7 @@ class YtClient(ClientState):
         :param dict job_io: job io specification.
         :param dict table_writer: standard operation parameter.
         :param dict spec: standard operation parameter.
-        :param merge_by: list of columns list of columns used for sorted merge (only for `sorted` mode)
+        :param merge_by: list of columns for sorted merge (only for `sorted` mode)
         :type merge_by: list[str]
 
         .. seealso::  :ref:`operation_parameters`.
