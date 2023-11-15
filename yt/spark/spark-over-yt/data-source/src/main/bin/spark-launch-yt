@@ -14,6 +14,12 @@ from spyt.standalone import Worker, start_spark_cluster, find_spark_cluster, Spa
 from spyt import utils as spark_utils
 
 
+def add_group(parser, enabler_arg, disabler_arg, dest_arg):
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument(enabler_arg, dest=dest_arg, action='store_true')
+    group.add_argument(disabler_arg, dest=dest_arg, action='store_false')
+
+
 def main(raw_args=None):
     parser = spark_utils.get_default_arg_parser(description="Spark Launch")
 
@@ -25,8 +31,13 @@ def main(raw_args=None):
     parser.add_argument("--worker-timeout", required=False, default="10m")
     parser.add_argument("--pool", required=False)
     parser.add_argument("--tmpfs-limit", required=False, default="150G")
+    # COMPAT(alex-shishkin): replace with worker-disk-name='ssd_slots_physical' and worker-disk-limit
     parser.add_argument("--ssd-limit", required=False, default=None)
+    # COMPAT(alex-shishkin): replace with worker-disk-name='ssd_slots_physical' and worker-disk-account
     parser.add_argument("--ssd-account", required=False, default=None)
+    parser.add_argument("--worker-disk-name", required=False, default="default")
+    parser.add_argument("--worker-disk-limit", required=False, default=None)
+    parser.add_argument("--worker-disk-account", required=False, default=None)
     parser.add_argument("--master-memory-limit", required=False, default="4G")
     parser.add_argument("--history-server-memory-limit",
                         required=False, default="16G")
@@ -88,6 +99,9 @@ def main(raw_args=None):
     group.add_argument('--prefer-ipv4', dest='enable_preference_ipv6',
                        action='store_false')
     parser.set_defaults(enable_preference_ipv6=default_enablers.enable_preference_ipv6)
+
+    add_group(parser, '--enable-tmpfs', '--disable-tmpfs', 'enable_tmpfs')
+    parser.set_defaults(enable_tmpfs=True)
 
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--enable-tcp-proxy', dest='enable_tcp_proxy',
@@ -187,9 +201,13 @@ def main(raw_args=None):
                         operation_alias=args.operation_alias,
                         discovery_path=args.discovery_path,
                         pool=args.pool or get_user_name(client=yt_client),
+                        enable_tmpfs=args.enable_tmpfs,
                         tmpfs_limit=args.tmpfs_limit,
                         ssd_limit=args.ssd_limit,
                         ssd_account=args.ssd_account,
+                        worker_disk_name=args.worker_disk_name,
+                        worker_disk_limit=args.worker_disk_limit,
+                        worker_disk_account=args.worker_disk_account,
                         master_memory_limit=args.master_memory_limit,
                         enable_history_server=args.enable_history_server,
                         history_server_memory_limit=args.history_server_memory_limit,

@@ -344,8 +344,8 @@ def get_spark_conf(config, enablers):
 
 
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
-                               worker,
-                               tmpfs_limit, ssd_limit, ssd_account,
+                               worker, enable_tmpfs, tmpfs_limit,
+                               worker_disk_name, worker_disk_limit, worker_disk_account,
                                master_memory_limit, shs_location,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
@@ -361,10 +361,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment = config["environment"]
     default_java_home = environment["JAVA_HOME"]
 
-    if ssd_limit:
-        spark_home = "."
-    else:
+    if enable_tmpfs:
         spark_home = "./tmpfs"
+    else:
+        spark_home = "."
     livy_tgz = "livy.tgz"
     spark_root = "{}/{}".format(spark_home, "spark")
 
@@ -482,7 +482,6 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())
     environment["SPARK_YT_BYOP_PORT"] = "27002"
-    environment["SPARK_LOCAL_DIRS"] = "./tmpfs"
     environment["SPARK_YT_SOLOMON_ENABLED"] = str(enablers.enable_solomon_agent)
     environment["SOLOMON_PUSH_PORT"] = "27099"
     environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = str(enablers.enable_preference_ipv6)
@@ -522,9 +521,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         "layer_paths": config["layer_paths"],
         "environment": environment,
         "memory_reserve_factor": 1.0,
-        "tmpfs_path": "tmpfs",
         "enable_rpc_proxy_in_job_proxy": rpc_job_proxy,
     }
+    if enable_tmpfs:
+        common_task_spec["tmpfs_path"] = "tmpfs"
 
     worker_file_paths = copy.copy(common_task_spec["file_paths"])
     shs_file_paths = copy.copy(common_task_spec["file_paths"])
@@ -550,13 +550,18 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     worker_task_spec = copy.deepcopy(common_task_spec)
     worker_task_spec["environment"] = worker_environment
     worker_task_spec["rpc_proxy_worker_thread_pool_size"] = rpc_job_proxy_thread_pool_size
-    if ssd_limit:
+    worker_ram_memory = _parse_memory(worker.memory)
+    worker_local_dirs = "."
+    if worker_disk_limit:
         worker_task_spec["disk_request"] = {
-            "disk_space": _parse_memory(ssd_limit),
-            "account": ssd_account,
-            "medium_name": "ssd_slots_physical"
+            "disk_space": _parse_memory(worker_disk_limit),
+            "account": worker_disk_account,
+            "medium_name": worker_disk_name
         }
-        worker_environment["SPARK_LOCAL_DIRS"] = "."
+    elif enable_tmpfs:
+        worker_ram_memory += _parse_memory(tmpfs_limit)
+        worker_local_dirs = "./tmpfs"
+    worker_environment["SPARK_LOCAL_DIRS"] = worker_local_dirs
 
     driver_task_spec = copy.deepcopy(worker_task_spec)
     driver_environment = driver_task_spec["environment"]
@@ -588,7 +593,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         builder.begin_task("workers") \
             .job_count(worker.num) \
             .command(worker_command) \
-            .memory_limit(_parse_memory(worker.memory) + _parse_memory(tmpfs_limit) + _parse_memory(worker.memory_overhead)) \
+            .memory_limit(worker_ram_memory + _parse_memory(worker.memory_overhead)) \
             .cpu_limit(worker.cores + worker_cores_overhead) \
             .spec(worker_task_spec) \
             .file_paths(worker_file_paths) \
@@ -597,7 +602,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         builder.begin_task("drivers") \
             .job_count(worker.num) \
             .command(worker_command) \
-            .memory_limit(_parse_memory(worker.memory) + _parse_memory(tmpfs_limit)) \
+            .memory_limit(worker_ram_memory) \
             .cpu_limit(worker.cores + worker_cores_overhead) \
             .spec(driver_task_spec) \
             .file_paths(worker_file_paths) \
@@ -644,9 +649,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
                         worker_memory_overhead=SparkDefaultArguments.SPARK_WORKER_MEMORY_OVERHEAD,
                         worker_timeout=SparkDefaultArguments.SPARK_WORKER_TIMEOUT,
                         operation_alias=None, discovery_path=None, pool=None,
-                        tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
+                        enable_tmpfs=True, tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
                         ssd_limit=SparkDefaultArguments.SPARK_WORKER_SSD_LIMIT,
-                        ssd_account=None,
+                        ssd_account=None, worker_disk_name="default", worker_disk_limit=None, worker_disk_account=None,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
                         enable_history_server=True,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
@@ -676,9 +681,13 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     :param worker_cores_overhead: additional worker cores
     :param worker_memory_overhead: additional worker memory
     :param worker_timeout: timeout to fail master waiting
+    :param enable_tmpfs: mounting ram memory as directory 'tmpfs'
     :param tmpfs_limit: limit of tmpfs usage, default 150G
     :param ssd_limit: limit of ssd usage, default None, ssd disabled
     :param ssd_account: account for ssd quota
+    :param worker_disk_name: medium name
+    :param worker_disk_limit: limit of disk usage, default None, disk disabled
+    :param worker_disk_account: account for disk quota
     :param master_memory_limit: memory limit for master, default 2G
     :param enable_history_server: enables SHS
     :param history_server_memory_limit: memory limit for history server, default 16G,
@@ -747,11 +756,16 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     spark_cluster_version = spark_cluster_version or latest_cluster_version(
         global_conf)
 
+    if ssd_limit is not None:
+        worker_disk_name = "ssd_slots_physical"
+        worker_disk_limit = ssd_limit
+        worker_disk_account = ssd_account
+
     validate_cluster_version(spark_cluster_version, client=client)
     validate_custom_params(params)
     validate_mtn_config(enablers, network_project, tvm_id, tvm_secret)
     validate_worker_num(worker.num, worker_num_limit(global_conf))
-    validate_ssd_config(ssd_limit, ssd_account)
+    validate_ssd_config(worker_disk_limit, worker_disk_account)
 
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(
@@ -790,9 +804,11 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
         'spark_discovery': spark_discovery,
         'config': dynamic_config,
         'worker': worker,
+        'enable_tmpfs': enable_tmpfs,
         'tmpfs_limit': tmpfs_limit,
-        'ssd_limit': ssd_limit,
-        'ssd_account': ssd_account,
+        'worker_disk_name': worker_disk_name,
+        'worker_disk_limit': worker_disk_limit,
+        'worker_disk_account': worker_disk_account,
         'master_memory_limit': master_memory_limit,
         'shs_location': shs_location,
         'history_server_memory_limit': history_server_memory_limit,
