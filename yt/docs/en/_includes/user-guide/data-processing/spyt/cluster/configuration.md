@@ -4,15 +4,17 @@ For a listing of all the options supported by Spark, see the [documentation](htt
 
 ## Basic options { #main }
 
-Most options are available starting with version 1.23.0, while `spark.yt.write.writingTypeV3.enabled` is available as of version 1.24.0.
+Most options are available starting with version 1.23.0 if otherwise is not specified.
 
 - `spark.yt.write.batchSize`: `500,000` by default, the amount of data transferred in a single `WriteTable` transaction.
 - `spark.yt.write.miniBatchSize`: `1000` by default, the amount of data transmitted for writing to {{product-name}}.
 - `spark.yt.write.timeout`: `60 seconds` by default, the timeout to write a single mini batch.
-- `spark.yt.write.writingTypeV3.enabled`: `false` by default, writing of tables with schemas in [type_v3](../../../../../user-guide/storage/data-types.md) format, `type_v1` by default.
+- `spark.yt.write.typeV3.enabled`: `false` by default, (Since 1.75.2) writing of tables with schemas in [type_v3](../../../../../user-guide/storage/data-types.md) format, `type_v1` by default.
+- `spark.yt.write.typeV3Format.enabled`: `false` Same as `spark.yt.write.typeV3.enabled` for versions older than 1.75.2.
 - `spark.yt.read.vectorized.capacity`: `1000` by default, the maximum number of rows in a batch for reading via `wire protocol ()`.
 - `spark.yt.read.arrow.enabled`: `true` by default, reading to be performed in batches whenever possible.
-- `spark.yt.read.parsingTypeV3.enabled`: `false` by default, reading of tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) format, `type_v1` by default.
+- `spark.yt.read.typeV3.enabled`: `false` by default, (Since 1.75.2) reading of tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) format, `type_v1` by default.
+- `spark.yt.read.parsingTypeV3.enabled`: `false` Same as `spark.yt.read.typeV3.enabled` for versions older than 1.75.2.
 - `spark.yt.read.keyColumnsFilterPushdown.enabled`: `false` or `Predicate pushdown` by default. Using Spark query filters to read from {{product-name}} optimizes the amount of data returned by {{product-name}} reducing the read delay accordingly. The range of the rows required is added when generating the path.
 - `spark.yt.read.keyColumnsFilterPushdown.union.enabled`: `false` by default, in filter pushdown, all are merged into one, and a continuous range of rows is requested from a table.
 - `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit`: `100` be default, the maximum number of ranges a Spark read query is broken into.

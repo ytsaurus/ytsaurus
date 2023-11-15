@@ -4,15 +4,17 @@
 
 ## Основные опции { #main }
 
-Большинство опций доступны, начиная с версии 1.23.0, `spark.yt.write.writingTypeV3.enabled` – с версии 1.24.0.
+Большинство опций доступны, начиная с версии 1.23.0 если не указано иное.
 
 - `spark.yt.write.batchSize`: по умолчанию – `500 000`, размер данных, отправляемых через одну операцию `WriteTable`;
 - `spark.yt.write.miniBatchSize`: по умолчанию – `1000`, размер данных, отправляемых на запись в {{product-name}};
 - `spark.yt.write.timeout`: по умолчанию – `60 seconds`, ограничение на ожидание записи одного мини-батча;
-- `spark.yt.write.writingTypeV3.enabled`: по умолчанию – `false`, запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md), по умолчанию `type_v1`;
+- `spark.yt.write.typeV3.enabled`: по умолчанию – `false`, (с версии 1.75.2) запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md), по умолчанию `type_v1`;
+- `spark.yt.write.writingTypeV3.enabled`: по умолчанию – `false`, то же, что и `spark.yt.write.typeV3.enabled` для версий старше 1.75.2;
 - `spark.yt.read.vectorized.capacity`: по умолчанию – `1000`, максимальное количество строк в батче при чтении через `wire protocol ()`;
 - `spark.yt.read.arrow.enabled`: по умолчанию – `true`, использование считывания батчами при возможности;
-- `spark.yt.read.parsingTypeV3.enabled`: по умолчанию – `false`, чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md), по умолчанию `type_v1`;
+- `spark.yt.read.typeV3.enabled`: по умолчанию – `false`, (с версии 1.75.2) чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md), по умолчанию `type_v1`;
+- `spark.yt.read.parsingTypeV3.enabled`: по умолчанию – `false`, то же, что и `spark.yt.read.typeV3.enabled` для версий старше 1.75.2;
 - `spark.yt.read.keyColumnsFilterPushdown.enabled`: по умолчанию – `false` или `Predicate pushdown`. Использование фильтров Spark-запроса для чтения из {{product-name}} оптимизирует объем полученных данных из {{product-name}} и, соответственно, уменьшает время чтения. При формировании пути добавляется range необходимых строк;
 - `spark.yt.read.keyColumnsFilterPushdown.union.enabled`: по умолчанию – `false`, при пробросе фильтров происходит объединение в один и из таблицы запрашивается непрерывный диапазон строк;
 - `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit`: по умолчанию – `100`, максимальное количество диапазонов, на которое распадется Spark-запрос чтения;
