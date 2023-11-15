@@ -16,9 +16,7 @@ DEFINE_REFCOUNTED_TYPE(IResponseKeeperManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IResponseKeeperManagerPtr CreateResponseKeeperManager(
-    TBootstrap* bootstrap,
-    NHydra::IPersistentResponseKeeperPtr responseKeeper);
+IResponseKeeperManagerPtr CreateResponseKeeperManager(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
