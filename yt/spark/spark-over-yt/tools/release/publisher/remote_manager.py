@@ -2,8 +2,8 @@ from typing import Optional, NamedTuple, NoReturn, List
 
 from yt.wrapper import YtClient
 
-from local_manager import Versions
-from utils import configure_logger
+from .local_manager import Versions
+from .utils import configure_logger
 
 logger = configure_logger("Remote manager")
 
@@ -100,4 +100,3 @@ def spark_remote_dir(versions: Versions):
 
 def spyt_remote_dir(versions: Versions):
     return f"spyt/{versions.client_version.get_version_directory()}"
-

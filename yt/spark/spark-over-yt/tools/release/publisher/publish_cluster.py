@@ -3,10 +3,10 @@ import argparse
 from os import listdir
 from os.path import join
 
-from local_manager import Versions, get_release_level, load_versions, ReleaseLevel
-from remote_manager import ClientBuilder, bin_remote_dir, conf_remote_dir, spark_remote_dir, PublishConfig, \
+from .local_manager import Versions, get_release_level, load_versions, ReleaseLevel
+from .remote_manager import ClientBuilder, bin_remote_dir, conf_remote_dir, spark_remote_dir, PublishConfig, \
     spyt_remote_dir, Client
-from utils import configure_logger
+from .utils import configure_logger
 
 logger = configure_logger("Cluster publisher")
 
@@ -44,7 +44,7 @@ def upload_cluster(uploader: Client, versions: Versions, sources_path: str, publ
     if not versions.cluster_version.is_snapshot:
         global_conf_file_name = publish_conf.specific_global_file or 'global'
         global_conf_file = join(conf_local_dir, global_conf_file_name)
-        uploader.write_document(global_conf_file, f"conf/global")
+        uploader.write_document(global_conf_file, "conf/global")
 
 
 def upload_client(uploader: Client, versions: Versions, sources_path: str, publish_conf: PublishConfig):

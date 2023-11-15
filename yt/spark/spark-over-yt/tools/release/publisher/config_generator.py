@@ -7,9 +7,9 @@ from os.path import join
 import shutil
 from typing import List, Dict, Any
 
-from local_manager import get_release_level, load_versions, Versions, ReleaseLevel
-from remote_manager import bin_remote_dir, conf_remote_dir, ClientBuilder, Client
-from utils import configure_logger
+from .local_manager import get_release_level, load_versions, Versions, ReleaseLevel
+from .remote_manager import bin_remote_dir, conf_remote_dir, ClientBuilder, Client
+from .utils import configure_logger
 
 
 logger = configure_logger("Config generator")
@@ -97,7 +97,7 @@ def get_file_paths(conf_local_dir: str, root_path: str, versions: Versions) -> L
 def prepare_sidecar_configs(conf_local_dir: str, os_release: bool):
     sidecar_configs_dir = get_sidecar_configs_dir(conf_local_dir)
     if os.path.isdir(sidecar_configs_dir):
-        logger.info(f"Sidecar configs are already prepared")
+        logger.info("Sidecar configs are already prepared")
     else:
         raw_sidecar_configs_dir = join(conf_local_dir, 'sidecar-config' if os_release else 'inner-sidecar-config')
         shutil.copytree(raw_sidecar_configs_dir, sidecar_configs_dir)
@@ -108,7 +108,7 @@ def prepare_launch_config(conf_local_dir: str, client: Client, versions: Version
                           os_release: bool) -> Dict[str, Any]:
     launch_config = copy.deepcopy(LAUNCH_CONFIG)
     launch_config['spark_yt_base_path'] = client.resolve_from_root(bin_remote_dir(versions))
-    launch_config['file_paths'] = get_file_paths(conf_local_dir, client_builder.root_path, versions)
+    launch_config['file_paths'] = get_file_paths(conf_local_dir, client.root_path, versions)
     launch_config['enablers'] = {
         "enable_byop": not os_release,
         "enable_preference_ipv6": not os_release,
@@ -181,7 +181,7 @@ def make_configs(sources_path: str, client_builder: ClientBuilder, versions: Ver
 def main(sources_path: str, client_builder: ClientBuilder, os_release: bool):
     release_level = get_release_level(sources_path)
     if release_level < ReleaseLevel.CLUSTER:
-        raise RuntimeError(f"Found no cluster files")
+        raise RuntimeError("Found no cluster files")
     versions = load_versions(sources_path)
     make_configs(sources_path, client_builder, versions, os_release)
     logger.info("Generation finished successfully")
