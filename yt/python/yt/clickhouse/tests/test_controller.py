@@ -97,7 +97,7 @@ class TestController(object):
     @authors("gudqeit")
     def test_status(self):
         self.client.create(alias="d")
-        assert self.client.status(alias="d")["status"] == "good"
+        assert self.client.status(alias="d")["health"] == "good"
 
     @authors("gudqeit")
     def test_get_option(self):

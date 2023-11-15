@@ -245,53 +245,53 @@ func (oplet *Oplet) State() OpletState {
 	}
 }
 
-type OpletStatus string
+type OpletHealth string
 
 const (
-	OpletStatusGood    OpletStatus = "good"
-	OpletStatusPending OpletStatus = "pending"
-	OpletStatusFailed  OpletStatus = "failed"
+	OpletHealthGood    OpletHealth = "good"
+	OpletHealthPending OpletHealth = "pending"
+	OpletHealthFailed  OpletHealth = "failed"
 )
 
-func (oplet *Oplet) Status() (status OpletStatus, statusReason string) {
+func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
 	if oplet.Broken() {
-		return OpletStatusFailed, "oplet is broken: " + oplet.brokenReason
+		return OpletHealthFailed, "oplet is broken: " + oplet.brokenReason
 	}
 	if oplet.infoState.Error != nil {
-		return OpletStatusFailed, "info state contains error"
+		return OpletHealthFailed, "info state contains error"
 	}
 
 	if ok, reason := oplet.needsRestart(); ok {
 		if oplet.Untracked() {
-			return OpletStatusFailed, "untracked operation is pending restart: " + reason
+			return OpletHealthFailed, "untracked operation is pending restart: " + reason
 		} else {
-			return OpletStatusPending, "operation is pending restart: " + reason
+			return OpletHealthPending, "operation is pending restart: " + reason
 		}
 	}
 	if ok, reason := oplet.needsAbort(); ok {
 		if oplet.Untracked() {
-			return OpletStatusFailed, "untracked operation is pending abort: " + reason
+			return OpletHealthFailed, "untracked operation is pending abort: " + reason
 		} else {
-			return OpletStatusPending, "operation is pending abort: " + reason
+			return OpletHealthPending, "operation is pending abort: " + reason
 		}
 	}
 	if ok, reason := oplet.needsUpdateOpParameters(); ok {
 		if oplet.Untracked() {
-			return OpletStatusFailed, "untracked operation is pending update op parameters: " + reason
+			return OpletHealthFailed, "untracked operation is pending update op parameters: " + reason
 		} else {
-			return OpletStatusPending, "operation is pending update op parameters: " + reason
+			return OpletHealthPending, "operation is pending update op parameters: " + reason
 		}
 	}
 
 	if oplet.Active() {
 		if oplet.persistentState.YTOpState == yt.StatePending {
-			return OpletStatusFailed, "operation is in pending state: max running operation count is probably exceeded"
+			return OpletHealthFailed, "operation is in pending state: max running operation count is probably exceeded"
 		} else if oplet.persistentState.YTOpState != yt.StateRunning {
-			return OpletStatusPending, "operation is not in running state"
+			return OpletHealthPending, "operation is not in running state"
 		}
 	}
 
-	return OpletStatusGood, ""
+	return OpletHealthGood, ""
 }
 
 // setBroken sets oplet state to broken and returns corresponding error.
@@ -961,8 +961,8 @@ type YTOperationBriefInfo struct {
 
 type OpletBriefInfo struct {
 	State                           OpletState           `yson:"state" json:"state"`
-	Status                          OpletStatus          `yson:"status" json:"status"`
-	StatusReason                    string               `yson:"status_reason" json:"status_reason"`
+	Health                          OpletHealth          `yson:"health" json:"health"`
+	HealthReason                    string               `yson:"health_reason" json:"health_reason"`
 	SpecletDiff                     map[string]FieldDiff `yson:"speclet_diff,omitempty" json:"speclet_diff,omitempty"`
 	YTOperation                     YTOperationBriefInfo `yson:"yt_operation,omitempty" json:"yt_operation,omitempty"`
 	Creator                         string               `yson:"creator,omitempty" json:"creator,omitempty"`
@@ -979,7 +979,7 @@ type OpletBriefInfo struct {
 // GetBriefInfo should work even if oplet is broken.
 func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	briefInfo.State = oplet.State()
-	briefInfo.Status, briefInfo.StatusReason = oplet.Status()
+	briefInfo.Health, briefInfo.HealthReason = oplet.Health()
 	briefInfo.Creator = oplet.persistentState.Creator
 	briefInfo.Stage = oplet.strawberrySpeclet.StageOrDefault()
 	briefInfo.CreationTime = getYSONTimePointerOrNil(oplet.strawberryStateCreationTime)

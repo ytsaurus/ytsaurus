@@ -62,7 +62,7 @@ type InfoState struct {
 func GetOpBriefAttributes(briefInfo OpletBriefInfo) map[string]any {
 	attributes := map[string]any{
 		"state":                              briefInfo.State,
-		"status":                             briefInfo.Status,
+		"health":                             briefInfo.Health,
 		"creator":                            briefInfo.Creator,
 		"creation_time":                      briefInfo.CreationTime,
 		"yt_operation_id":                    briefInfo.YTOperation.ID,

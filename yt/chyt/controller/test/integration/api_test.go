@@ -414,7 +414,7 @@ func TestHTTPAPIGetBriefInfo(t *testing.T) {
 	var result map[string]strawberry.OpletBriefInfo
 	err := yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
-	require.Equal(t, "", result["result"].StatusReason)
+	require.Equal(t, "", result["result"].HealthReason)
 
 	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
@@ -432,7 +432,7 @@ func TestHTTPAPIGetBriefInfo(t *testing.T) {
 
 	err = yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(result["result"].StatusReason, "operation is pending restart"))
+	require.True(t, strings.HasPrefix(result["result"].HealthReason, "operation is pending restart"))
 	require.Equal(t, result["result"].Creator, "root")
 }
 
@@ -902,8 +902,8 @@ func TestHTTPAPIStateAndStatus(t *testing.T) {
 	checkAttrFromListCommand(t, c, alias, "state", "active")
 	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "active")
 	// No agent to start op.
-	checkAttrFromListCommand(t, c, alias, "status", "pending")
-	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "pending")
+	checkAttrFromListCommand(t, c, alias, "health", "pending")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "health", "pending")
 
 	r = c.MakePostRequest("stop", api.RequestParams{
 		Params: map[string]any{"alias": alias},
@@ -912,8 +912,8 @@ func TestHTTPAPIStateAndStatus(t *testing.T) {
 
 	checkAttrFromListCommand(t, c, alias, "state", "inactive")
 	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "inactive")
-	checkAttrFromListCommand(t, c, alias, "status", "good")
-	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "good")
+	checkAttrFromListCommand(t, c, alias, "health", "good")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "health", "good")
 
 	r = c.MakePostRequest("start", api.RequestParams{
 		Params: map[string]any{
@@ -932,8 +932,8 @@ func TestHTTPAPIStateAndStatus(t *testing.T) {
 	})
 
 	// TODO(dakovalkov): CHYT-1039
-	// checkAttrFromListCommand(t, c, alias, "status", "good")
-	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "good")
+	// checkAttrFromListCommand(t, c, alias, "health", "good")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "health", "good")
 
 	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
@@ -947,8 +947,8 @@ func TestHTTPAPIStateAndStatus(t *testing.T) {
 	checkAttrFromListCommand(t, c, alias, "state", "untracked")
 	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "untracked")
 	// TODO(dakovalkov): CHYT-1039
-	// checkAttrFromListCommand(t, c, alias, "status", "failed")
-	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "failed")
+	// checkAttrFromListCommand(t, c, alias, "health", "failed")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "health", "failed")
 
 	r = c.MakePostRequest("stop", api.RequestParams{
 		Params: map[string]any{"alias": alias},
@@ -957,8 +957,8 @@ func TestHTTPAPIStateAndStatus(t *testing.T) {
 
 	checkAttrFromListCommand(t, c, alias, "state", "inactive")
 	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "inactive")
-	checkAttrFromListCommand(t, c, alias, "status", "good")
-	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "good")
+	checkAttrFromListCommand(t, c, alias, "health", "good")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "health", "good")
 
 	r = c.MakePostRequest("remove_option", api.RequestParams{
 		Params: map[string]any{
@@ -979,8 +979,8 @@ func TestHTTPAPIStateAndStatus(t *testing.T) {
 
 	checkAttrFromListCommand(t, c, alias, "state", "inactive")
 	checkAttrFromGetBriefInfoCommand(t, c, alias, "state", "inactive")
-	checkAttrFromListCommand(t, c, alias, "status", "failed")
-	checkAttrFromGetBriefInfoCommand(t, c, alias, "status", "failed")
+	checkAttrFromListCommand(t, c, alias, "health", "failed")
+	checkAttrFromGetBriefInfoCommand(t, c, alias, "health", "failed")
 }
 
 func TestHTTPAPICreateAndStart(t *testing.T) {
