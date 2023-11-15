@@ -160,7 +160,8 @@ def start(master_count=1,
           log_compression_method=None,
           enable_master_cache=False,
           clock_count=0,
-          chaos_node_count=0):
+          chaos_node_count=0,
+          replicated_table_tracker_count=0):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -202,6 +203,7 @@ def start(master_count=1,
         master_cache_count=master_cache_count,
         tablet_balancer_count=tablet_balancer_count,
         cypress_proxy_count=cypress_proxy_count,
+        replicated_table_tracker_count=replicated_table_tracker_count,
         # TODO: Should we default to a fixed name, like "primary" in integration tests?
         cluster_name=sandbox_id,
         queue_agent_count=queue_agent_count,

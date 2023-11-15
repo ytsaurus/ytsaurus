@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/replicated_table_tracker_client/public.h>
+
 #include <yt/yt/ytlib/tablet_client/table_replica_ypath.h>
 
 #include <yt/yt/client/api/client.h>
@@ -25,14 +27,27 @@ void FormatValue(
 
 TString ToString(const TChangeReplicaModeCommand& command);
 
+void ToProto(
+    NReplicatedTableTrackerClient::NProto::TChangeReplicaModeCommand* protoCommand,
+    const TChangeReplicaModeCommand& command);
+void FromProto(
+    TChangeReplicaModeCommand* command,
+    const NReplicatedTableTrackerClient::NProto::TChangeReplicaModeCommand& protoCommand);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReplicatedTableData
 {
     NTableClient::TTableId Id;
     NTabletClient::TReplicatedTableOptionsPtr Options;
-    NProfiling::TCounter ReplicaModeSwitchCounter;
 };
+
+void ToProto(
+    NReplicatedTableTrackerClient::NProto::TReplicatedTableData* protoTableData,
+    const TReplicatedTableData& tableData);
+void FromProto(
+    TReplicatedTableData* tableData,
+    const NReplicatedTableTrackerClient::NProto::TReplicatedTableData& protoTableData);
 
 struct TReplicaData
 {
@@ -48,11 +63,25 @@ struct TReplicaData
     NTabletClient::ETableReplicaContentType ContentType;
 };
 
+void ToProto(
+    NReplicatedTableTrackerClient::NProto::TReplicaData* protoReplicaData,
+    const TReplicaData& replicaData);
+void FromProto(
+    TReplicaData* replicaData,
+    const NReplicatedTableTrackerClient::NProto::TReplicaData& protoReplicaData);
+
 struct TTableCollocationData
 {
     NTableClient::TTableCollocationId Id;
     std::vector<NTableClient::TTableId> TableIds;
 };
+
+void ToProto(
+    NReplicatedTableTrackerClient::NProto::TTableCollocationData* protoCollocationData,
+    const TTableCollocationData& collocationData);
+void FromProto(
+    TTableCollocationData* collocationData,
+    const NReplicatedTableTrackerClient::NProto::TTableCollocationData& protoCollocationData);
 
 struct TReplicatedTableTrackerSnapshot
 {
@@ -60,6 +89,13 @@ struct TReplicatedTableTrackerSnapshot
     std::vector<TReplicaData> Replicas;
     std::vector<TTableCollocationData> Collocations;
 };
+
+void ToProto(
+    NReplicatedTableTrackerClient::NProto::TReplicatedTableTrackerSnapshot* protoTrackerSnapshot,
+    const TReplicatedTableTrackerSnapshot& trackerSnapshot);
+void FromProto(
+    TReplicatedTableTrackerSnapshot* trackerSnapshot,
+    const NReplicatedTableTrackerClient::NProto::TReplicatedTableTrackerSnapshot& protoTrackerSnapshot);
 
 using TReplicaLagTimes = std::vector<
     std::pair<NTabletClient::TTableReplicaId, std::optional<TDuration>>>;
@@ -75,6 +111,7 @@ struct IReplicatedTableTrackerHost
     virtual bool AlwaysUseNewReplicatedTableTracker() const = 0;
 
     virtual TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() = 0;
+    virtual TDynamicReplicatedTableTrackerConfigPtr GetConfig() const = 0;
 
     virtual bool LoadingFromSnapshotRequested() const = 0;
 
@@ -90,26 +127,15 @@ struct IReplicatedTableTrackerHost
 
     virtual void SubscribeReplicatedTableCreated(TCallback<void(TReplicatedTableData)> callback) = 0;
     virtual void SubscribeReplicatedTableDestroyed(TCallback<void(NTableClient::TTableId)> callback) = 0;
-    virtual void SubscribeReplicatedTableOptionsUpdated(
-        TCallback<void(NTableClient::TTableId, NTabletClient::TReplicatedTableOptionsPtr)> callback) = 0;
 
     virtual void SubscribeReplicaCreated(TCallback<void(TReplicaData)> callback) = 0;
     virtual void SubscribeReplicaDestroyed(
         TCallback<void(NTabletClient::TTableReplicaId)> callback) = 0;
-    virtual void SubscribeReplicaModeUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode)> callback) = 0;
-    virtual void SubscribeReplicaEnablementUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) = 0;
-    virtual void SubscribeReplicaTrackingPolicyUpdated(
-        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) = 0;
 
-    virtual void SubscribeReplicationCollocationUpdated(
+    virtual void SubscribeReplicationCollocationCreated(
         TCallback<void(TTableCollocationData)> callback) = 0;
     virtual void SubscribeReplicationCollocationDestroyed(
         TCallback<void(NTableClient::TTableCollocationId)> callback) = 0;
-
-    virtual void SubscribeConfigChanged(
-        TCallback<void(TDynamicReplicatedTableTrackerConfigPtr)> callback) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicatedTableTrackerHost)
@@ -137,7 +163,8 @@ DEFINE_REFCOUNTED_TYPE(IReplicatedTableTracker)
 
 IReplicatedTableTrackerPtr CreateReplicatedTableTracker(
     IReplicatedTableTrackerHostPtr host,
-    TDynamicReplicatedTableTrackerConfigPtr config);
+    TDynamicReplicatedTableTrackerConfigPtr config,
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

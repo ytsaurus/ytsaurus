@@ -57,6 +57,8 @@ protected:
         NCypressServer::TEndCopyContext* context,
         NCypressServer::ICypressNodeFactory* factory) override;
 
+    void DoZombify(TImpl* table) override;
+
     std::optional<std::vector<TString>> DoListColumns(TImpl* node) const override;
 };
 

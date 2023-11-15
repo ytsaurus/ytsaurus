@@ -966,6 +966,7 @@
   "yt/yt/server/node/tablet_node/unittests/CMakeLists.txt":"",
   "yt/yt/server/query_tracker/CMakeLists.txt":"",
   "yt/yt/server/queue_agent/CMakeLists.txt":"",
+  "yt/yt/server/replicated_table_tracker/CMakeLists.txt":"",
   "yt/yt/server/rpc_proxy/CMakeLists.txt":"",
   "yt/yt/server/rpc_proxy/unittests/CMakeLists.txt":"",
   "yt/yt/server/scheduler/CMakeLists.txt":"",

@@ -38,7 +38,8 @@ PROGRAMS = [("master", "master/bin"),
             ("master-cache", "master_cache/bin"),
             ("queue-agent", "queue_agent/bin"),
             ("cypress-proxy", "cypress_proxy/bin"),
-            ("query-tracker", "query_tracker/bin")]
+            ("query-tracker", "query_tracker/bin"),
+            ("replicated-table-tracker", "replicated_table_tracker/bin")]
 
 
 def sudo_rmtree(path):

@@ -250,7 +250,8 @@ public:
 
         ReplicatedTableTracker_ = CreateReplicatedTableTracker(
             CreateReplicatedTableTrackerHost(this),
-            Bootstrap_->GetReplicatedTableTrackerConfig());
+            Bootstrap_->GetReplicatedTableTrackerConfig(),
+            /*profiler*/ {});
     }
 
     void Initialize() override
@@ -365,6 +366,11 @@ public:
     void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const override
     {
         Bootstrap_->SubscribeReplicatedTableTrackerConfigChanged(std::move(callback));
+    }
+
+    TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const override
+    {
+        return Bootstrap_->GetReplicatedTableTrackerConfig();
     }
 
 private:

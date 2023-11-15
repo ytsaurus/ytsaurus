@@ -41,6 +41,8 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/table_settings.h>
 
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -2322,9 +2324,10 @@ bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, c
         case EInternedAttributeKey::ReplicatedTableOptions: {
             auto options = ConvertTo<TReplicatedTableOptionsPtr>(value);
             table->SetReplicatedTableOptions(options);
-            Bootstrap_->GetTabletManager()->GetReplicatedTableOptionsUpdatedSignal()->Fire(
-                table->GetTrunkNode()->GetId(),
-                options);
+            Bootstrap_->GetTabletManager()->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
+                .Id = table->GetTrunkNode()->GetId(),
+                .Options = options,
+            });
             return true;
         }
 

@@ -15,6 +15,9 @@ import pytest
 
 
 class TestReplicatedTablesCollocationBase(DynamicTablesBase):
+    ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER = True
+    NUM_REPLICATED_TABLE_TRACKERS = 2
+
     def _create_replicated_table(self, path, **attributes):
         attributes["schema"] = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},

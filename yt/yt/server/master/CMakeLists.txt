@@ -594,6 +594,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/mount_config_storage.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica.cpp
