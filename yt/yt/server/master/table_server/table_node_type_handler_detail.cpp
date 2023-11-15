@@ -398,6 +398,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
 {
+    TTabletOwnerTypeHandler::DoZombify(table);
+    TSchemafulNodeTypeHandler::DoZombify(table);
+
     const auto& objectManager = this->GetBootstrap()->GetObjectManager();
 
     // Since the deletion and attribute alteration is replicated to the external cell,
