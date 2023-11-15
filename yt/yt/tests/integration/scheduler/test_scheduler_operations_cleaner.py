@@ -222,14 +222,16 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         # We expect to get all the operations by "with_failed_jobs" filter
         # as brief_progress is reported only to archive and must be fetched
         # by cleaner on startup.
-        res = list_operations(
-            include_archive=True,
-            from_time=self.list_op_format(before_start_time),
-            to_time=self.list_op_format(datetime.utcnow()),
-            with_failed_jobs=True,
-        )
-        assert res["failed_jobs_count"] == len(ops)
-        assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
+        @wait_no_assert
+        def wait_for_failed_ops():
+            res = list_operations(
+                include_archive=True,
+                from_time=self.list_op_format(before_start_time),
+                to_time=self.list_op_format(datetime.utcnow()),
+                with_failed_jobs=True,
+            )
+            assert res["failed_jobs_count"] == len(ops)
+            assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
 
     @authors("levysotsky")
     def test_archive_lookup_failure(self):
