@@ -358,6 +358,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if job_types == [] or job_types is None:
         job_types = ['master', 'history', 'worker']
 
+    environment = config["environment"]
+    default_java_home = environment["JAVA_HOME"]
+
     if ssd_limit:
         spark_home = "."
     else:
@@ -377,12 +380,12 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     def _launcher_command(component, additional_commands=[], xmx="512m", extra_java_opts=None, launcher_opts=""):
         create_dir = "mkdir -p {}".format(spark_home)
-        move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
+        java_bin = os.path.join(default_java_home, 'bin', 'java')
         extra_java_opts_str = " " + " ".join(extra_java_opts) if extra_java_opts else ""
-        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar{1}".format(xmx, extra_java_opts_str)
+        run_launcher = "{} -Xmx{} -cp spark-yt-launcher.jar{}".format(java_bin, xmx, extra_java_opts_str)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
-        commands = [create_dir, move_java, _unpack_command("spark.tgz", spark_home),
+        commands = [create_dir, _unpack_command("spark.tgz", spark_home),
                     _unzip_command("spark-extra.zip", spark_root)] + additional_commands + [
             "{} {} tech.ytsaurus.spark.launcher.{}Launcher {}".format(run_launcher, spark_conf, component, launcher_opts)
         ]
@@ -471,12 +474,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     operation_spec['preemption_mode'] = preemption_mode
 
-    environment = config["environment"]
     environment["YT_PROXY"] = call_get_proxy_address_url(required=True, client=client)
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
     environment["SPARK_BASE_DISCOVERY_PATH"] = str(spark_discovery.base_discovery_path)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
-    environment["JAVA_HOME"] = "$HOME/tmpfs/jdk11"
     environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())

@@ -42,7 +42,7 @@ object PythonPlugin extends AutoPlugin {
       val target = new File(targetDir, file.getName)
       if (file.isDirectory) {
         IO.copyDirectory(file, target)
-      } else {
+      } else if (file.isFile) {
         IO.copyFile(file, target)
       }
     }
