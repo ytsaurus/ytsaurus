@@ -653,10 +653,10 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
             auto lhsSpecifiedModuleCount = lhs.Operation->SpecifiedSchedulingSegmentModules
                 ? lhs.Operation->SpecifiedSchedulingSegmentModules->size()
-                : 0;
+                : Config_->GetModules().size();
             auto rhsSpecifiedModuleCount = rhs.Operation->SpecifiedSchedulingSegmentModules
                 ? rhs.Operation->SpecifiedSchedulingSegmentModules->size()
-                : 0;
+                : Config_->GetModules().size();
             if (lhsSpecifiedModuleCount != rhsSpecifiedModuleCount) {
                 return lhsSpecifiedModuleCount < rhsSpecifiedModuleCount;
             }
