@@ -594,7 +594,7 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
     return {inSyncClusterName, expectedTableSchemas};
 }
 
-NApi::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const TString& clusterName)
+NApi::NNative::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const TString& clusterName)
 {
     const auto& clusterDirectory = Connection_->GetClusterDirectory();
     auto replicaConnection = clusterDirectory->FindConnection(clusterName);
@@ -606,6 +606,11 @@ NApi::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const TString& cluster
         .ThrowOnError();
 
     return clusterDirectory->GetConnectionOrThrow(clusterName);
+}
+
+bool TClient::TReplicaClient::IsTerminated() const
+{
+    return Client->GetNativeConnection()->IsTerminated();
 }
 
 NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
@@ -630,14 +635,17 @@ NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
     }
 
     auto guard = ReaderGuard(replicaClient->Lock);
-    if (replicaClient->Client) {
+    if (replicaClient->Client && !replicaClient->IsTerminated()) {
         return replicaClient->Client;
     }
     guard.Release();
 
     auto writerGuard = WriterGuard(replicaClient->Lock);
-    if (replicaClient->Client) {
+    if (replicaClient->Client && !replicaClient->IsTerminated()) {
         return replicaClient->Client;
+    } else if (replicaClient->Client) {
+        replicaClient->Client = nullptr;
+        replicaClient->AsyncClient = {};
     }
 
     if (auto asyncClient = replicaClient->AsyncClient) {
@@ -647,12 +655,12 @@ NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
             .ValueOrThrow();
     }
 
-    auto asyncClient = BIND([this, replicaClient, clusterName, this_=MakeStrong(this)] () {
+    auto asyncClient = BIND([this, replicaClient, clusterName, this_ = MakeStrong(this)] {
         try {
             auto connection = GetReplicaConnectionOrThrow(clusterName);
 
             auto guard = WriterGuard(replicaClient->Lock);
-            replicaClient->Client = connection->CreateClient(Options_);
+            replicaClient->Client = connection->CreateNativeClient(Options_);
             return replicaClient->Client;
         } catch (const std::exception& ex) {
             auto guard = WriterGuard(replicaClient->Lock);

@@ -797,8 +797,10 @@ private:
     struct TReplicaClient final
     {
         YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
-        NApi::IClientPtr Client;
-        TFuture<NApi::IClientPtr> AsyncClient;
+        NApi::NNative::IClientPtr Client;
+        TFuture<NApi::NNative::IClientPtr> AsyncClient;
+
+        bool IsTerminated() const;
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
@@ -945,7 +947,7 @@ private:
         const std::vector<TTableReplicaInfoPtrList>& candidates,
         NQueryClient::NAst::TQuery* query);
 
-    NApi::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
+    NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const TString& clusterName);
 
     TSelectRowsResult DoSelectRows(
