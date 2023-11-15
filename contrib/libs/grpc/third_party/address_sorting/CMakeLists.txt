@@ -6,22 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(grpc-third_party-address_sorting)
-target_compile_options(grpc-third_party-address_sorting PRIVATE
-  -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(grpc-third_party-address_sorting PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/grpc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/include
-)
-target_link_libraries(grpc-third_party-address_sorting PUBLIC
-  contrib-libs-linux-headers
-)
-target_sources(grpc-third_party-address_sorting PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting_posix.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting_windows.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

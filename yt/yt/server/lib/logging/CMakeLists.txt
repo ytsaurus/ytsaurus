@@ -6,22 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(server-lib-logging)
-target_compile_options(server-lib-logging PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-logging PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-threading
-  yt-yt-client
-  yt-yt-core
-  yt-library-program
-)
-target_sources(server-lib-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/category_registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/program_describe_structured_logs_mixin.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

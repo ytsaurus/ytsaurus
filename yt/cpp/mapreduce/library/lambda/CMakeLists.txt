@@ -6,20 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(mapreduce-library-lambda)
-target_compile_options(mapreduce-library-lambda PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(mapreduce-library-lambda PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-mapreduce-interface
-  mapreduce-library-table_schema
-)
-target_sources(mapreduce-library-lambda PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/yt_lambda.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/field_copier.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/wrappers.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,51 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(yt-server-job_proxy)
-target_compile_options(yt-server-job_proxy PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-job_proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-getopt
-  cpp-yt-phdr_cache
-  ytserver
-  server-lib-controller_agent
-  yt-library-containers
-  library-containers-cri
-  server-lib-exec_node
-  server-lib-rpc_proxy
-  yt-server-tools
-  server-lib-shell
-  server-lib-user_job
-  yt-library-sparse_coredump
-)
-target_sources(yt-server-job_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/asan_warning_filter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/core_watcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/cpu_monitor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/environment.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_throttler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_prober_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/memory_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/merge_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/partition_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/partition_sort_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/remote_copy_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/shallow_merge_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/simple_sort_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/sorted_merge_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/stderr_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/tmpfs_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_synchronizer_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_write_controller.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

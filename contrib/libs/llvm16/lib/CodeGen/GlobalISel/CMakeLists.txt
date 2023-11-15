@@ -6,51 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(lib-CodeGen-GlobalISel)
-target_compile_options(lib-CodeGen-GlobalISel PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(lib-CodeGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel
-)
-target_link_libraries(lib-CodeGen-GlobalISel PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  libs-llvm16-include
-  llvm16-lib-Analysis
-  llvm16-lib-CodeGen
-  lib-CodeGen-SelectionDAG
-  llvm16-lib-IR
-  llvm16-lib-MC
-  llvm16-lib-Support
-  llvm16-lib-Target
-  lib-Transforms-Utils
-)
-target_sources(lib-CodeGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/CSEInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/CSEMIRBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/CallLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/Combiner.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/CombinerHelper.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/GISelChangeObserver.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/GISelKnownBits.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/GlobalISel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/IRTranslator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/InlineAsmLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/InstructionSelect.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/InstructionSelector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/LegacyLegalizerInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/LegalityPredicates.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/LegalizeMutations.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/Legalizer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/LegalizerHelper.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/LegalizerInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/LoadStoreOpt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/Localizer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/LostDebugLocObserver.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/MachineIRBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/RegBankSelect.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/Utils.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

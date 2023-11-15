@@ -6,28 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(abseil-cpp-absl-debugging)
-target_compile_options(abseil-cpp-absl-debugging PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(abseil-cpp-absl-debugging PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp
-)
-target_link_libraries(abseil-cpp-absl-debugging PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  abseil-cpp-absl-base
-  cpp-sanitizer-include
-)
-target_sources(abseil-cpp-absl-debugging PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/failure_signal_handler.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/address_is_readable.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/demangle.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/elf_mem_image.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/examine_stack.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/vdso_support.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/leak_check.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/stacktrace.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/symbolize.cc
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

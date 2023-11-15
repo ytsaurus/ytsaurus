@@ -6,15 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(cpp-xdelta3-xdelta_codec)
-target_link_libraries(cpp-xdelta3-xdelta_codec PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-xdelta3
-)
-target_sources(cpp-xdelta3-xdelta_codec PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/codec.c
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/merge_patches.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

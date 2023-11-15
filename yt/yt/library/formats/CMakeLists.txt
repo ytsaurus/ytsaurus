@@ -6,49 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(yt-library-formats)
-target_compile_options(yt-library-formats PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-library-formats PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-client-formats
-  client-arrow-fbs
-  yt-library-column_converters
-)
-target_sources(yt-library-formats PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/arrow_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/dsv_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/dsv_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/escape.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/protobuf.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/protobuf_options.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/protobuf_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/protobuf_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaful_dsv_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaful_dsv_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaful_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaless_writer_adapter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/skiff_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/skiff_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/skiff_yson_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unversioned_value_yson_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/versioned_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/web_json_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamred_dsv_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamred_dsv_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamr_parser_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamr_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamr_writer_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamr_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yql_yson_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yson_map_to_unversioned_value.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yson_parser.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

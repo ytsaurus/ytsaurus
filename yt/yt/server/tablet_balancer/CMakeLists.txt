@@ -6,36 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-tablet_balancer)
-target_compile_options(yt-server-tablet_balancer PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-tablet_balancer PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-phdr_cache
-  library-cpp-getopt
-  yt-library-dynamic_config
-  yt-yt-ytlib
-  yt-yt-core
-  server-lib-admin
-  server-lib-cypress_election
-  server-lib-cypress_registrar
-  server-lib-misc
-  server-lib-tablet_balancer
-  server-lib-tablet_server
-)
-target_sources(yt-server-tablet_balancer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/action_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/bundle_state.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/table_registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/tablet_action.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/tablet_balancer.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

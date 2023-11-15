@@ -6,17 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(discovery_server-unittests-mock)
-target_compile_options(discovery_server-unittests-mock PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(discovery_server-unittests-mock PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-)
-target_sources(discovery_server-unittests-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/mock/connection.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

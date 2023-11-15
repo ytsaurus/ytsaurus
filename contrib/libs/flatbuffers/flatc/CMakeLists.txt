@@ -6,56 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(libs-flatbuffers-flatc)
-target_compile_options(libs-flatbuffers-flatc PRIVATE
-  -DFLATBUFFERS_LOCALE_INDEPENDENT=1
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(libs-flatbuffers-flatc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/grpc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/include
-)
-target_link_libraries(libs-flatbuffers-flatc PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  abseil-cpp-absl-base
-)
-target_sources(libs-flatbuffers-flatc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/grpc/src/compiler/cpp_generator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/grpc/src/compiler/go_generator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/grpc/src/compiler/java_generator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/grpc/src/compiler/python_generator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/grpc/src/compiler/swift_generator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/grpc/src/compiler/ts_generator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/annotated_binary_text_gen.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/bfbs_gen_lua.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/bfbs_gen_nim.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/binary_annotator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/code_generators.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/file_binary_writer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/file_name_saving_file_manager.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/file_writer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/flatc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_binary.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_cpp.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_cpp_yandex_maps_iter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_csharp.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_dart.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_fbs.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_go.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_grpc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_java.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_json_schema.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_kotlin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_lobster.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_php.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_python.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_rust.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_swift.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_text.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_ts.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_parser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/reflection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/util.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

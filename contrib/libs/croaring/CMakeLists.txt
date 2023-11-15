@@ -6,39 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-libs-croaring)
-target_compile_options(contrib-libs-croaring PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(contrib-libs-croaring PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/include
-)
-target_include_directories(contrib-libs-croaring PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/include/roaring
-)
-target_link_libraries(contrib-libs-croaring PUBLIC
-  contrib-libs-linux-headers
-)
-target_sources(contrib-libs-croaring PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/array_util.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/bitset.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/bitset_util.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/array.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/bitset.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/containers.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/convert.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_andnot.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_equal.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_intersection.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_negation.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_subset.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_union.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_xor.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/run.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/isadetection.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/memory.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/roaring.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/roaring_array.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/roaring_priority_queue.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

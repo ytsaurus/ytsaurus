@@ -6,42 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-core-test_framework)
-target_compile_options(yt-core-test_framework PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-core-test_framework PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-testing-gtest
-  cpp-testing-hook
-  yt-yt-build
-  yt-yt-core
-  yt-core-http
-  library-profiling-solomon
-)
-target_sources(yt-core-test_framework PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/fixed_growth_string_output.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/mock_http.cpp
-)
-
-add_global_library_for(yt-core-test_framework.global yt-core-test_framework)
-target_compile_options(yt-core-test_framework.global PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-core-test_framework.global PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-testing-gtest
-  cpp-testing-hook
-  yt-yt-build
-  yt-yt-core
-  yt-core-http
-  library-profiling-solomon
-)
-target_sources(yt-core-test_framework.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/framework.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

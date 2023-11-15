@@ -6,22 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(tablet_balancer-dry_run-lib)
-target_compile_options(tablet_balancer-dry_run-lib PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(tablet_balancer-dry_run-lib PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  server-lib-tablet_balancer
-  server-lib-tablet_server
-  yt-yt-ytlib
-)
-target_sources(tablet_balancer-dry_run-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/executor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/holders.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

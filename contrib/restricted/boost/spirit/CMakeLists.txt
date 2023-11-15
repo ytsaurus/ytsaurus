@@ -6,40 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(restricted-boost-spirit INTERFACE)
-target_include_directories(restricted-boost-spirit INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/spirit/include
-)
-target_link_libraries(restricted-boost-spirit INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  restricted-boost-array
-  restricted-boost-assert
-  restricted-boost-config
-  restricted-boost-core
-  restricted-boost-endian
-  restricted-boost-function
-  restricted-boost-function_types
-  restricted-boost-fusion
-  restricted-boost-integer
-  restricted-boost-io
-  restricted-boost-iterator
-  restricted-boost-move
-  restricted-boost-mpl
-  restricted-boost-optional
-  restricted-boost-phoenix
-  restricted-boost-pool
-  restricted-boost-preprocessor
-  restricted-boost-proto
-  restricted-boost-range
-  restricted-boost-smart_ptr
-  restricted-boost-static_assert
-  restricted-boost-thread
-  restricted-boost-throw_exception
-  restricted-boost-type_traits
-  restricted-boost-typeof
-  restricted-boost-unordered
-  restricted-boost-utility
-  restricted-boost-variant
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,28 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(utils-TableGen-GlobalISel)
-target_compile_options(utils-TableGen-GlobalISel PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(utils-TableGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel
-)
-target_link_libraries(utils-TableGen-GlobalISel PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  llvm16-lib-Support
-  llvm16-lib-TableGen
-)
-target_sources(utils-TableGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/CodeExpander.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDag.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagEdge.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagInstr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagOperands.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagPredicate.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagPredicateDependencyEdge.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchTree.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

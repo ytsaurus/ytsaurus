@@ -6,33 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-restricted-turbo_base64)
-target_compile_options(contrib-restricted-turbo_base64 PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_link_libraries(contrib-restricted-turbo_base64 PUBLIC
-  contrib-libs-linux-headers
-)
-target_sources(contrib-restricted-turbo_base64 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64c.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64d.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
-)
-target_sources_custom(contrib-restricted-turbo_base64
-  .avx
-  SRCS
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
-  CUSTOM_FLAGS
-  -mavx
-)
-target_sources_custom(contrib-restricted-turbo_base64
-  .avx2
-  SRCS
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64avx2.c
-  CUSTOM_FLAGS
-  -mavx2
-  -mfma
-  -mbmi
-  -mbmi2
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,45 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(server-controller_agent-controllers)
-target_compile_options(server-controller_agent-controllers PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-controller_agent-controllers PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-query-engine
-  ytserver
-  server-lib-chunk_pools
-  server-lib-tablet_server
-  yt-library-safe_assert
-)
-target_sources(server-controller_agent-controllers PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/aggregated_job_statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/alert_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/auto_merge_director.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/auto_merge_task.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/chunk_pool_adapters.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/competitive_job_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/data_balancer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/data_flow_graph.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/experiment_job_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/extended_job_resources.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_info.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_memory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_splitter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/operation_controller_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/ordered_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/probing_job_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/speculative_job_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sort_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sorted_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/task.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/unordered_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/vanilla_controller.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

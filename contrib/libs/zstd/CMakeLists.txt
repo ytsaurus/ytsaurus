@@ -6,58 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-libs-zstd)
-target_compile_options(contrib-libs-zstd PRIVATE
-  -DZSTD_LEGACY_SUPPORT=1
-  -DZSTD_MULTITHREAD
-  -DDYNAMIC_BMI2
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(contrib-libs-zstd PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy
-)
-target_link_libraries(contrib-libs-zstd PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-xxhash
-)
-target_sources(contrib-libs-zstd PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/decompress/huf_decompress_amd64.S
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common/debug.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common/entropy_common.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common/error_private.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common/fse_decompress.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common/pool.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common/threading.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/common/zstd_common.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/fse_compress.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/hist.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/huf_compress.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_compress.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_compress_literals.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_compress_sequences.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_compress_superblock.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_double_fast.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_fast.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_lazy.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_ldm.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstd_opt.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/compress/zstdmt_compress.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/decompress/huf_decompress.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/decompress/zstd_ddict.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/decompress/zstd_decompress.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/decompress/zstd_decompress_block.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/dictBuilder/cover.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/dictBuilder/divsufsort.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/dictBuilder/fastcover.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/dictBuilder/zdict.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy/zstd_v01.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy/zstd_v02.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy/zstd_v03.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy/zstd_v04.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy/zstd_v05.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy/zstd_v06.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/lib/legacy/zstd_v07.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,24 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(http)
-add_subdirectory(unittests)
-
-add_library(yt-library-backtrace_introspector)
-target_compile_options(yt-library-backtrace_introspector PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-library-backtrace_introspector PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  backtrace-cursors-interop
-  backtrace-cursors-libunwind
-  backtrace-cursors-frame_pointer
-  cpp-yt-misc
-)
-target_sources(yt-library-backtrace_introspector PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/introspect.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/introspect_linux.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

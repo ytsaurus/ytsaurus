@@ -6,94 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(MCDisassembler)
-add_subdirectory(MCParser)
-
-add_library(llvm16-lib-MC)
-target_compile_options(llvm16-lib-MC PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(llvm16-lib-MC PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC
-)
-target_link_libraries(llvm16-lib-MC PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  llvm16-lib-BinaryFormat
-  lib-DebugInfo-CodeView
-  llvm16-lib-Support
-  llvm16-lib-TargetParser
-)
-target_sources(llvm16-lib-MC PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/ConstantPools.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/ELFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmInfoCOFF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmInfoDarwin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmInfoELF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmInfoGOFF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmInfoWasm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmInfoXCOFF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmMacro.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAsmStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCAssembler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCCodeEmitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCCodeView.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCContext.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDXContainerStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDXContainerWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDwarf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCELFObjectTargetWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCELFStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCExpr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCFragment.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCInst.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCInstPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCInstrAnalysis.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCInstrDesc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCInstrInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCLabel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCLinkerOptimizationHint.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCMachOStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCMachObjectTargetWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCNullStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCObjectFileInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCObjectStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCPseudoProbe.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCRegisterInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSPIRVStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSchedule.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSectionCOFF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSectionDXContainer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSectionELF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSectionMachO.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSectionWasm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSectionXCOFF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSubtargetInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSymbol.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSymbolELF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCSymbolXCOFF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCTargetOptions.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCTargetOptionsCommandFlags.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCValue.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCWasmObjectTargetWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCWasmStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCWin64EH.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCWinCOFFStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCWinEH.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCXCOFFObjectTargetWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCXCOFFStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MachObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/SPIRVObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/StringTableBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/SubtargetFeature.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/TargetRegistry.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/WasmObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/WinCOFFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/XCOFFObjectWriter.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

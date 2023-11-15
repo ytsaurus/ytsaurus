@@ -6,33 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-find_package(Python3 REQUIRED COMPONENTS Development)
-
-add_library(python-driver-lib)
-target_compile_options(python-driver-lib PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-target_include_directories(python-driver-lib PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
-)
-target_link_libraries(python-driver-lib PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  core-service_discovery-yp
-  yt-client-driver
-  yt-python-common
-  yt-python-yson
-  contrib-libs-pycxx
-  Python3::Module
-)
-target_sources(python-driver-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/descriptor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/driver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/response.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

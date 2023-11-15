@@ -6,25 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(util-charset)
-target_link_libraries(util-charset PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-)
-target_joined_source(util-charset
-  all_charset.cpp
-  ${CMAKE_SOURCE_DIR}/util/charset/generated/unidata.cpp
-  ${CMAKE_SOURCE_DIR}/util/charset/recode_result.cpp
-  ${CMAKE_SOURCE_DIR}/util/charset/unicode_table.cpp
-  ${CMAKE_SOURCE_DIR}/util/charset/unidata.cpp
-  ${CMAKE_SOURCE_DIR}/util/charset/utf8.cpp
-  ${CMAKE_SOURCE_DIR}/util/charset/wide.cpp
-)
-target_sources_custom(util-charset
-  .sse41
-  SRCS
-  ${CMAKE_SOURCE_DIR}/util/charset/wide_sse41.cpp
-  CUSTOM_FLAGS
-  -msse4.1
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

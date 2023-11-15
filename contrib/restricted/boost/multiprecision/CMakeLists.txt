@@ -6,19 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(restricted-boost-multiprecision INTERFACE)
-target_include_directories(restricted-boost-multiprecision INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/multiprecision/include
-)
-target_link_libraries(restricted-boost-multiprecision INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  restricted-boost-assert
-  restricted-boost-config
-  restricted-boost-core
-  restricted-boost-integer
-  restricted-boost-lexical_cast
-  restricted-boost-math
-  restricted-boost-random
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,13 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(library-cpp-pop_count)
-target_link_libraries(library-cpp-pop_count PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-)
-target_sources(library-cpp-pop_count PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/pop_count/popcount.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

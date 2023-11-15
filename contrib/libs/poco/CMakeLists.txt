@@ -6,13 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(Crypto)
-add_subdirectory(Data)
-add_subdirectory(Foundation)
-add_subdirectory(JSON)
-add_subdirectory(MongoDB)
-add_subdirectory(Net)
-add_subdirectory(NetSSL_OpenSSL)
-add_subdirectory(Redis)
-add_subdirectory(Util)
-add_subdirectory(XML)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

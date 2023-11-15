@@ -6,77 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-find_package(Python3 REQUIRED COMPONENTS Development)
-add_subdirectory(arrow)
-
-add_library(yt-python-yson)
-target_compile_options(yt-python-yson PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-target_include_directories(yt-python-yson PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
-)
-target_link_libraries(yt-python-yson PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-library-skiff_ext
-  yt-python-common
-  contrib-libs-pycxx
-  library-cpp-skiff
-  Python3::Module
-)
-target_sources(yt-python-yson PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/lazy_dict.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/limited_yson_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/list_fragment_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/pull_object_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/yson_lazy_map.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/consumer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_python_to_skiff.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/other_columns.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_consumer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_iterator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/record.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/schema.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/structured_iterator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/switch.cpp
-)
-
-add_global_library_for(yt-python-yson.global yt-python-yson)
-target_compile_options(yt-python-yson.global PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-target_include_directories(yt-python-yson.global PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
-)
-target_link_libraries(yt-python-yson.global PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-library-skiff_ext
-  yt-python-common
-  contrib-libs-pycxx
-  library-cpp-skiff
-  Python3::Module
-)
-target_sources(yt-python-yson.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/yson.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

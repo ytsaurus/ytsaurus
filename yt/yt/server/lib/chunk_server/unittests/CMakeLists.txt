@@ -6,58 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(unittester-server-lib-chunk-server)
-target_compile_options(unittester-server-lib-chunk-server PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-server-lib-chunk-server PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-build
-  yt-core-test_framework
-  server-lib-chunk_server
-)
-target_link_options(unittester-server-lib-chunk-server PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(unittester-server-lib-chunk-server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/unittests/immutable_chunk_meta_ut.cpp
-)
-add_test(
-  NAME
-  unittester-server-lib-chunk-server
-  COMMAND
-  unittester-server-lib-chunk-server
-)
-set_property(
-  TEST
-  unittester-server-lib-chunk-server
-  PROPERTY
-  LABELS
-  SMALL
-)
-set_property(
-  TEST
-  unittester-server-lib-chunk-server
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(unittester-server-lib-chunk-server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-vcs_info(unittester-server-lib-chunk-server)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

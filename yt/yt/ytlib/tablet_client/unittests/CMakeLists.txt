@@ -6,59 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(unittester-ytlib-tablet-client)
-target_compile_options(unittester-ytlib-tablet-client PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-ytlib-tablet-client PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  client-unittests-mock
-  table_client-unittests-helpers
-  yt-core-test_framework
-  yt-yt-ytlib
-)
-target_link_options(unittester-ytlib-tablet-client PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(unittester-ytlib-tablet-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
-)
-add_test(
-  NAME
-  unittester-ytlib-tablet-client
-  COMMAND
-  unittester-ytlib-tablet-client
-)
-set_property(
-  TEST
-  unittester-ytlib-tablet-client
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-set_property(
-  TEST
-  unittester-ytlib-tablet-client
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(unittester-ytlib-tablet-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-vcs_info(unittester-ytlib-tablet-client)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

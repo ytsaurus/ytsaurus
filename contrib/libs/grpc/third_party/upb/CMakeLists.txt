@@ -6,43 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(grpc-third_party-upb)
-target_compile_options(grpc-third_party-upb PRIVATE
-  -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(grpc-third_party-upb PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/grpc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
-)
-target_link_libraries(grpc-third_party-upb PUBLIC
-  contrib-libs-linux-headers
-)
-target_sources(grpc-third_party-upb PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/naive.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/range2-neon.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/range2-sse.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/arena.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/array.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/decode.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/decode_fast.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/def.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/encode.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/extension_registry.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json_decode.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json_encode.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/map.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/msg.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/status.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/table.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/text_encode.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/upb.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

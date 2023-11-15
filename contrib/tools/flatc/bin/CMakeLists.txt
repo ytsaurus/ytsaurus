@@ -6,29 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(flatc)
-target_include_directories(flatc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/include
-)
-target_link_libraries(flatc PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  libs-flatbuffers-flatc
-)
-target_link_options(flatc PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-)
-target_sources(flatc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/flatc_main.cpp
-)
-target_allocator(flatc
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-vcs_info(flatc)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

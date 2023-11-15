@@ -6,34 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(restricted-boost-coroutine)
-target_compile_options(restricted-boost-coroutine PUBLIC
-  -DBOOST_COROUTINES_NO_DEPRECATION_WARNING
-)
-target_compile_options(restricted-boost-coroutine PRIVATE
-  -DBOOST_COROUTINES_SOURCE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(restricted-boost-coroutine PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/coroutine/include
-)
-target_link_libraries(restricted-boost-coroutine PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  restricted-boost-assert
-  restricted-boost-config
-  boost-context-fcontext_impl
-  restricted-boost-core
-  restricted-boost-exception
-  restricted-boost-move
-  restricted-boost-system
-  restricted-boost-throw_exception
-  restricted-boost-type_traits
-  restricted-boost-utility
-)
-target_sources(restricted-boost-coroutine PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/coroutine/src/posix/stack_traits.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/coroutine/src/detail/coroutine_context.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/coroutine/src/exceptions.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

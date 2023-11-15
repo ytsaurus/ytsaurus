@@ -6,29 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(lib-DebugInfo-Symbolize)
-target_compile_options(lib-DebugInfo-Symbolize PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(lib-DebugInfo-Symbolize PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/Symbolize
-)
-target_link_libraries(lib-DebugInfo-Symbolize PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  lib-DebugInfo-DWARF
-  lib-DebugInfo-PDB
-  llvm16-lib-Demangle
-  llvm16-lib-Object
-  llvm16-lib-Support
-  llvm16-lib-TargetParser
-)
-target_sources(lib-DebugInfo-Symbolize PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/Symbolize/DIPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/Symbolize/Markup.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/Symbolize/MarkupFilter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/Symbolize/SymbolizableObjectFile.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/Symbolize/Symbolize.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

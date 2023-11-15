@@ -6,56 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(yt-yt-library-oom-unittests)
-target_compile_options(yt-yt-library-oom-unittests PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-yt-library-oom-unittests PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-library-oom
-)
-target_link_options(yt-yt-library-oom-unittests PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(yt-yt-library-oom-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/oom/unittests/oom_ut.cpp
-)
-add_test(
-  NAME
-  yt-yt-library-oom-unittests
-  COMMAND
-  yt-yt-library-oom-unittests
-)
-set_property(
-  TEST
-  yt-yt-library-oom-unittests
-  PROPERTY
-  LABELS
-  SMALL
-)
-set_property(
-  TEST
-  yt-yt-library-oom-unittests
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(yt-yt-library-oom-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-vcs_info(yt-yt-library-oom-unittests)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,23 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-library-column_converters)
-target_compile_options(yt-library-column_converters PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-library-column_converters PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-)
-target_sources(yt-library-column_converters PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/boolean_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/floating_point_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/integer_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/null_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/string_column_converter.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,24 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(flatc)
-
-add_library(contrib-libs-flatbuffers)
-target_compile_options(contrib-libs-flatbuffers PRIVATE
-  -DFLATBUFFERS_LOCALE_INDEPENDENT=1
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(contrib-libs-flatbuffers PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/include
-)
-target_link_libraries(contrib-libs-flatbuffers PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  abseil-cpp-absl-base
-)
-target_sources(contrib-libs-flatbuffers PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_gen_text.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/idl_parser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/reflection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/src/util.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

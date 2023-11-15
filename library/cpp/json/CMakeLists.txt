@@ -6,24 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(common)
-add_subdirectory(fast_sax)
-add_subdirectory(writer)
-
-add_library(library-cpp-json)
-target_link_libraries(library-cpp-json PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-rapidjson
-  cpp-json-common
-  cpp-json-fast_sax
-  cpp-json-writer
-  cpp-string_utils-relaxed_escaper
-)
-target_sources(library-cpp-json PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/json_writer.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/json_reader.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/json_prettifier.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/rapidjson_helpers.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

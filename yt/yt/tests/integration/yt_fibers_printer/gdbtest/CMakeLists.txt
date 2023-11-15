@@ -6,37 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(gdbtest)
-target_compile_options(gdbtest PRIVATE
-  -g
-  -Wdeprecated-this-capture
-)
-target_link_libraries(gdbtest PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  yt-yt-core
-)
-target_link_options(gdbtest PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(gdbtest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/main.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/foo.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/bar.cpp
-)
-target_allocator(gdbtest
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-vcs_info(gdbtest)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

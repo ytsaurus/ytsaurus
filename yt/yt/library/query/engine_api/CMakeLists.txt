@@ -6,40 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(library-query-engine_api)
-target_compile_options(library-query-engine_api PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(library-query-engine_api PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_include_directories(library-query-engine_api PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
-)
-target_link_libraries(library-query-engine_api PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  library-web_assembly-api
-  library-query-misc
-  library-query-proto
-  library-query-base
-  yt-yt-client
-  cpp-yt-memory
-  contrib-libs-sparsehash
-)
-target_sources(library-query-engine_api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/append_function_implementation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/column_evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluation_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/builtin_function_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/range_inferrer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/new_range_inferrer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

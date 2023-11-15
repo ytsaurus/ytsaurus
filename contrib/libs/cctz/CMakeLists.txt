@@ -6,28 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(tzdata)
-
-add_library(contrib-libs-cctz)
-target_compile_options(contrib-libs-cctz PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(contrib-libs-cctz PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/include
-)
-target_link_libraries(contrib-libs-cctz PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-)
-target_sources(contrib-libs-cctz PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/civil_time_detail.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_fixed.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_format.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_if.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_impl.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_info.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_libc.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_lookup.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_posix.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/src/zone_info_source.cc
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

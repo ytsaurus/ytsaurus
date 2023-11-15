@@ -6,34 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(restricted-patched-replxx)
-target_compile_options(restricted-patched-replxx PUBLIC
-  -DREPLXX_STATIC
-)
-target_compile_options(restricted-patched-replxx PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(restricted-patched-replxx PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/include
-)
-target_include_directories(restricted-patched-replxx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src
-)
-target_link_libraries(restricted-patched-replxx PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-)
-target_sources(restricted-patched-replxx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/ConvertUTF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/conversion.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/escape.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/history.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/prompt.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/replxx.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/replxx_impl.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/terminal.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/util.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/wcwidth.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src/windows.cxx
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

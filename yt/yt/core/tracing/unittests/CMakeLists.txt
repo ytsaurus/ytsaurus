@@ -6,57 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(unittester-core-tracing)
-target_compile_options(unittester-core-tracing PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-core-tracing PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-core
-  yt-core-test_framework
-)
-target_link_options(unittester-core-tracing PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(unittester-core-tracing PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/unittests/allocation_tags_ut.cpp
-)
-add_test(
-  NAME
-  unittester-core-tracing
-  COMMAND
-  unittester-core-tracing
-)
-set_property(
-  TEST
-  unittester-core-tracing
-  PROPERTY
-  LABELS
-  SMALL
-)
-set_property(
-  TEST
-  unittester-core-tracing
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(unittester-core-tracing
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-vcs_info(unittester-core-tracing)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

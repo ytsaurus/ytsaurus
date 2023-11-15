@@ -6,30 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-tcp_proxy)
-target_compile_options(yt-server-tcp_proxy PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(yt-server-tcp_proxy PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(yt-server-tcp_proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  server-lib-cypress_registrar
-  server-lib-misc
-  yt-yt-ytlib
-  yt-library-dynamic_config
-  library-cpp-getopt
-  cpp-yt-phdr_cache
-)
-target_sources(yt-server-tcp_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/router.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

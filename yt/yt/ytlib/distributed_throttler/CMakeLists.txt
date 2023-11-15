@@ -6,53 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(yt-ytlib-distributed_throttler)
-target_compile_options(yt-ytlib-distributed_throttler PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(yt-ytlib-distributed_throttler PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-ytlib-discovery_client
-  contrib-libs-protobuf
-)
-target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
-)
-target_sources(yt-ytlib-distributed_throttler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
-)
-target_proto_addincls(yt-ytlib-distributed_throttler
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(yt-ytlib-distributed_throttler
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

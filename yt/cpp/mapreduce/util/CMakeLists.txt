@@ -6,34 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(ut)
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-add_library(cpp-mapreduce-util)
-target_compile_options(cpp-mapreduce-util PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(cpp-mapreduce-util PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  tools-enum_parser-enum_serialization_runtime
-  cpp-mapreduce-common
-  cpp-mapreduce-interface
-)
-target_sources(cpp-mapreduce-util PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/batch.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
-)
-generate_enum_serilization(cpp-mapreduce-util
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.h
-  INCLUDE_HEADERS
-  yt/cpp/mapreduce/util/wait_for_tablets_state.h
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

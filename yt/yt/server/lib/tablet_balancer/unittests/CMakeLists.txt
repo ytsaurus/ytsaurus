@@ -6,57 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(unittester-tablet-balancer-lib)
-target_compile_options(unittester-tablet-balancer-lib PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-tablet-balancer-lib PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  server-lib-tablet_balancer
-  tablet_balancer-dry_run-lib
-  yt-core-test_framework
-)
-target_link_options(unittester-tablet-balancer-lib PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(unittester-tablet-balancer-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/balancing_helpers_ut.cpp
-)
-add_test(
-  NAME
-  unittester-tablet-balancer-lib
-  COMMAND
-  unittester-tablet-balancer-lib
-)
-set_property(
-  TEST
-  unittester-tablet-balancer-lib
-  PROPERTY
-  LABELS
-  SMALL
-)
-set_property(
-  TEST
-  unittester-tablet-balancer-lib
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(unittester-tablet-balancer-lib
-  cpp-ytalloc-impl
-)
-vcs_info(unittester-tablet-balancer-lib)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

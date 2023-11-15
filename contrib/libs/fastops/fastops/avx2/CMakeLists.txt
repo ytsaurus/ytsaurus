@@ -6,23 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(fastops-fastops-avx2)
-target_compile_options(fastops-fastops-avx2 PRIVATE
-  -mavx
-  -mavx2
-  -mfma
-  -msse4
-  -msse4.1
-  -msse4.2
-  -Wno-unknown-pragmas
-  -Wno-unused-local-typedef
-)
-target_link_libraries(fastops-fastops-avx2 PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  fastops-fastops-core
-)
-target_sources(fastops-fastops-avx2 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/avx2/ops_avx2.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

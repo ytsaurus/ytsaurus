@@ -6,25 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(orm-library-query)
-target_compile_options(orm-library-query PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(orm-library-query PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  orm-library-attributes
-  library-query-engine
-  yt-yt-core
-  yt-yt-client
-)
-target_sources(orm-library-query PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/query/expression_evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/query/filter_introspection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/query/filter_matcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/query/query_evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/query/query_optimizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/query/query_rewriter.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

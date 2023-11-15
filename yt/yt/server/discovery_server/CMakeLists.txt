@@ -6,26 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-discovery_server)
-target_compile_options(yt-server-discovery_server PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(yt-server-discovery_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(yt-server-discovery_server PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-getopt
-  yt-yt-ytlib
-  cpp-yt-phdr_cache
-  ytserver
-  server-lib-discovery_server
-)
-target_sources(yt-server-discovery_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/discovery_server/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/discovery_server/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/discovery_server/program.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

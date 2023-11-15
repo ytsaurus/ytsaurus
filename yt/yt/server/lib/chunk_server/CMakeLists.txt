@@ -6,48 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-chunk_server)
-target_compile_options(server-lib-chunk_server PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-chunk_server PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-  contrib-libs-protobuf
-)
-target_proto_messages(server-lib-chunk_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job.proto
-)
-target_sources(server-lib-chunk_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
-)
-target_proto_addincls(server-lib-chunk_server
-  ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(server-lib-chunk_server
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

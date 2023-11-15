@@ -6,28 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(dry_run)
-add_subdirectory(unittests)
-
-add_library(server-lib-tablet_balancer)
-target_compile_options(server-lib-tablet_balancer PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-tablet_balancer PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-yt-core
-  orm-library-query
-  yt-yt-ytlib
-)
-target_sources(server-lib-tablet_balancer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/balancing_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

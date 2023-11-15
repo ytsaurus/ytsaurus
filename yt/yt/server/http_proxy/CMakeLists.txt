@@ -6,55 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(yt-server-http_proxy)
-target_compile_options(yt-server-http_proxy PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-http_proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-blockcodecs-core
-  yt-client-driver
-  yt-yt-ytlib
-  yt-library-auth_server
-  yt-library-clickhouse_discovery
-  yt-library-dynamic_config
-  yt-library-ytprof
-  yt-core-https
-  ytserver
-  server-lib-chunk_pools
-  server-lib-cypress_registrar
-  server-lib-zookeeper_proxy
-  server-lib-logging
-  library-cpp-cgiparam
-  library-cpp-getopt
-  cpp-streams-brotli
-  cpp-string_utils-base64
-  cpp-yt-phdr_cache
-)
-target_sources(yt-server-http_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/access_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/api.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/http_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/formats.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/compression.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/framing.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/discovery_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/compression_opensource.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

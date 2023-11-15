@@ -6,45 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-find_package(Python3 REQUIRED)
-
-add_library(yt-ytlib-query_tracker_client)
-target_compile_options(yt-ytlib-query_tracker_client PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-ytlib-query_tracker_client PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-)
-target_sources(yt-ytlib-query_tracker_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/helpers.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
-)
-add_custom_command(
-  OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
-  DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  COMMAND
-  Python3::Interpreter
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml
-  --output-root
-  ${CMAKE_BINARY_DIR}
-  --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
-  --output-include
-  yt/yt/ytlib/query_tracker_client/public.h
-  --output-include
-  yt/yt/client/table_client/record_codegen_deps.h
-  --output-include
-  yt/yt/core/yson/string.h
-  --output-include
-  yt/yt/core/misc/error.h
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

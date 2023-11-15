@@ -6,48 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(bin)
-add_subdirectory(proto)
-add_subdirectory(unittests)
-
-add_library(yt-systest)
-target_compile_options(yt-systest PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-systest PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-getopt
-  cpp-mapreduce-client
-  cpp-mapreduce-interface
-  cpp-mapreduce-io
-  yt-systest-proto
-  yt-yt-client
-  yt-library-containers
-  yt-library-program
-  library-profiling-solomon
-  yt_proto-yt-client
-)
-target_sources(yt-systest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/bootstrap_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/dataset_operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/decorate_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/map_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/map.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/multi_map.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/reduce.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/util.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/reduce_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/run.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/runner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/sort_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/table_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/test_home.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/test_program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/util.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

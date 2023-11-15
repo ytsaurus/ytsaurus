@@ -6,33 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(restricted-boost-atomic)
-target_compile_options(restricted-boost-atomic PRIVATE
-  -DBOOST_ATOMIC_SOURCE
-  -DBOOST_ATOMIC_USE_SSE41
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(restricted-boost-atomic PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/atomic/include
-)
-target_include_directories(restricted-boost-atomic PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/atomic/src
-)
-target_link_libraries(restricted-boost-atomic PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  restricted-boost-align
-  restricted-boost-assert
-  restricted-boost-config
-  restricted-boost-predef
-  restricted-boost-preprocessor
-  restricted-boost-static_assert
-  restricted-boost-type_traits
-  restricted-boost-winapi
-)
-target_sources(restricted-boost-atomic PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/atomic/src/find_address_sse2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/atomic/src/lock_pool.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/atomic/src/find_address_sse41.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

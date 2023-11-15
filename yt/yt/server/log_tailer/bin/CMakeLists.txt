@@ -6,34 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(ytserver-log-tailer)
-target_compile_options(ytserver-log-tailer PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(ytserver-log-tailer PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  yt-server-log_tailer
-)
-target_link_options(ytserver-log-tailer PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(ytserver-log-tailer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/bin/main.cpp
-)
-target_allocator(ytserver-log-tailer
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-vcs_info(ytserver-log-tailer)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,33 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-find_package(Python3 REQUIRED COMPONENTS Development)
-
-add_library(yt-python-common)
-target_compile_options(yt-python-common PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-target_include_directories(yt-python-common PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
-)
-target_link_libraries(yt-python-common PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  contrib-libs-pycxx
-  Python3::Module
-)
-target_sources(yt-python-common PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/buffered_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/dynamic_ring_buffer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/shutdown.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/tee_input_stream.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,56 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(yt-yt-library-tracing-unittests)
-target_compile_options(yt-yt-library-tracing-unittests PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  library-tracing-jaeger
-)
-target_link_options(yt-yt-library-tracing-unittests PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(yt-yt-library-tracing-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/unittests/sampler_ut.cpp
-)
-add_test(
-  NAME
-  yt-yt-library-tracing-unittests
-  COMMAND
-  yt-yt-library-tracing-unittests
-)
-set_property(
-  TEST
-  yt-yt-library-tracing-unittests
-  PROPERTY
-  LABELS
-  SMALL
-)
-set_property(
-  TEST
-  yt-yt-library-tracing-unittests
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(yt-yt-library-tracing-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-vcs_info(yt-yt-library-tracing-unittests)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

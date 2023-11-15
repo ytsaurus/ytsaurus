@@ -6,19 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(restricted-boost-format INTERFACE)
-target_include_directories(restricted-boost-format INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/format/include
-)
-target_link_libraries(restricted-boost-format INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  restricted-boost-assert
-  restricted-boost-config
-  restricted-boost-core
-  restricted-boost-optional
-  restricted-boost-smart_ptr
-  restricted-boost-throw_exception
-  restricted-boost-utility
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

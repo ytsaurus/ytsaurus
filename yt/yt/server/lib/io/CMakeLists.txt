@@ -6,38 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(server-lib-io)
-target_compile_options(server-lib-io PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-io PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-io PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-core-test_framework
-  yt-library-profiling
-  yt-yt-ytlib
-  contrib-libs-liburing
-)
-target_sources(server-lib-io PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/gentle_loader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/io_engine.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/io_request_slicer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/io_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/io_workload_model.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/chunk_fragment.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/chunk_file_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/chunk_file_reader_adapter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/chunk_file_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/read_request_combiner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/dynamic_io_engine.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/io_engine_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/io_engine_uring.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

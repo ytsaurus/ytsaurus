@@ -6,39 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-find_package(Python3 REQUIRED COMPONENTS Development)
-
-add_shared_library(yson_lib)
-target_compile_options(yson_lib PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-target_link_libraries(yson_lib PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  Python3::Module
-  yt-yt-core
-  yt-python-common
-  yt-python-yson
-  python-yson-arrow
-)
-target_link_options(yson_lib PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -Wl,-z,notext
-  -Wl,-Bsymbolic
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-use_export_script(yson_lib
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson_shared/yson3.exports
-)
-vcs_info(yson_lib)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,25 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(yt-library-vector_hdrf)
-target_compile_options(yt-library-vector_hdrf PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-library-vector_hdrf PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-numeric
-  library-numeric-serialize
-  yt-yt-core
-)
-target_sources(yt-library-vector_hdrf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/job_resources.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/piecewise_linear_function_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_vector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_volume.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/fair_share_update.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

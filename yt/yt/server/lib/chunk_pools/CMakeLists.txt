@@ -6,56 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(mock)
-add_subdirectory(unittests)
-
-add_library(server-lib-chunk_pools)
-target_compile_options(server-lib-chunk_pools PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-chunk_pools PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-  server-lib-controller_agent
-)
-target_sources(server-lib-chunk_pools PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/input_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/input_chunk_mapping.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/legacy_job_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/job_size_adjuster.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/job_size_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/legacy_sorted_job_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/multi_chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/new_sorted_job_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/new_job_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/ordered_chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/resource.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/shuffle_chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/sorted_chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/sorted_job_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/sorted_staging_area.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unordered_chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.cpp
-)
-
-add_global_library_for(server-lib-chunk_pools.global server-lib-chunk_pools)
-target_compile_options(server-lib-chunk_pools.global PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-chunk_pools.global PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-  server-lib-controller_agent
-)
-target_sources(server-lib-chunk_pools.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/chunk_pool_factory.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

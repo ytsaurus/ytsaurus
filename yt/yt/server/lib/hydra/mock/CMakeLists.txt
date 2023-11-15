@@ -6,17 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(lib-hydra-mock)
-target_compile_options(lib-hydra-mock PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(lib-hydra-mock PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  server-lib-hydra
-)
-target_sources(lib-hydra-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/mock/simple_hydra_manager_mock.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

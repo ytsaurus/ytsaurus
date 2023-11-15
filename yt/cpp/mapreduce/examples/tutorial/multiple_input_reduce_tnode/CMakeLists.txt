@@ -6,34 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(multiple_input_reduce_tnode)
-target_compile_options(multiple_input_reduce_tnode PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(multiple_input_reduce_tnode PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-mapreduce-client
-)
-target_link_options(multiple_input_reduce_tnode PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(multiple_input_reduce_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_reduce_tnode/main.cpp
-)
-target_allocator(multiple_input_reduce_tnode
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-vcs_info(multiple_input_reduce_tnode)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

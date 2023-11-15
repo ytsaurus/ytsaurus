@@ -6,46 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(library-query-base)
-target_compile_options(library-query-base PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(library-query-base PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/base
-)
-target_link_libraries(library-query-base PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-yt-client
-  library-query-misc
-  library-query-proto
-  bison-bison-induced
-)
-target_sources(library-query-base PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/constraints.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/coordination_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_types.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions_common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/key_trie.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query_common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query_preparer.cpp
-)
-target_bison_parser(library-query-base
-  PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/parser.ypp
-)
-target_ragel_lexers(library-query-base
-  PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/lexer.rl6
-  -CG2
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

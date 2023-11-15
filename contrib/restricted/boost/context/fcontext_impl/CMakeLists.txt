@@ -6,18 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(boost-context-fcontext_impl)
-target_compile_options(boost-context-fcontext_impl PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_link_libraries(boost-context-fcontext_impl PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  boost-context-impl_common
-)
-target_sources(boost-context-fcontext_impl PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/context/src/asm/jump_x86_64_sysv_elf_gas.S
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/context/src/asm/make_x86_64_sysv_elf_gas.S
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/context/src/asm/ontop_x86_64_sysv_elf_gas.S
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,14 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(cpp-clickhouse_deps-re2_st_stub INTERFACE)
-target_include_directories(cpp-clickhouse_deps-re2_st_stub INTERFACE
-  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_deps/re2_st_stub/include
-)
-target_link_libraries(cpp-clickhouse_deps-re2_st_stub INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-re2
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

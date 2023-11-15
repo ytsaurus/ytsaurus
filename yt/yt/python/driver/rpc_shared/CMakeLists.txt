@@ -6,36 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-find_package(Python3 REQUIRED COMPONENTS Development)
-
-add_shared_library(driver_rpc_lib)
-target_compile_options(driver_rpc_lib PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-target_link_libraries(driver_rpc_lib PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  Python3::Module
-  python-driver-rpc
-)
-target_link_options(driver_rpc_lib PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -Wl,-z,notext
-  -Wl,-Bsymbolic
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-use_export_script(driver_rpc_lib
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/rpc_shared/driver_rpc3.exports
-)
-vcs_info(driver_rpc_lib)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

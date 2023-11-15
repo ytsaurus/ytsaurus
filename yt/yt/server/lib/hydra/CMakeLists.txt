@@ -6,99 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(dry_run)
-add_subdirectory(mock)
-add_subdirectory(unittests)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-hydra)
-target_compile_options(server-lib-hydra PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-hydra PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-hydra PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-process
-  yt-yt-ytlib
-  server-lib-misc
-  server-lib-election
-  server-lib-io
-  logging-backends-stream
-  streams-lz-lz4
-  streams-lz-snappy
-  contrib-libs-protobuf
-)
-target_proto_messages(server-lib-hydra PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
-)
-target_sources(server-lib-hydra PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_acquisition.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_discovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_download.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_store_factory_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_store_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/checkpointable_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/composite_automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/decorated_automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/distributed_hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run_hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_dispatcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_index.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_janitor_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/lazy_changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/lease_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/local_changelog_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/local_hydra_janitor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/local_snapshot_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation_committer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation_context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/persistent_response_keeper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/recovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/remote_changelog_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/remote_snapshot_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_discovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_download.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_store_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/state_hash_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/unbuffered_file_changelog.cpp
-)
-target_proto_addincls(server-lib-hydra
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(server-lib-hydra
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

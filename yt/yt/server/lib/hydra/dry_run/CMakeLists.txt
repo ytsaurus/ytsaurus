@@ -6,18 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(lib-hydra-dry_run)
-target_compile_options(lib-hydra-dry_run PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(lib-hydra-dry_run PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-)
-target_sources(lib-hydra-dry_run PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/utils.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

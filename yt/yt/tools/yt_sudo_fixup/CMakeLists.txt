@@ -6,28 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(yt-sudo-fixup)
-target_compile_options(yt-sudo-fixup PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-sudo-fixup PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-)
-target_link_options(yt-sudo-fixup PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-)
-target_sources(yt-sudo-fixup PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/yt_sudo_fixup/main.cpp
-)
-target_allocator(yt-sudo-fixup
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-vcs_info(yt-sudo-fixup)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

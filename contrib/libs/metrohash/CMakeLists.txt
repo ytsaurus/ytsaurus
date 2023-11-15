@@ -6,20 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-libs-metrohash)
-target_compile_options(contrib-libs-metrohash PRIVATE
-  -msse4.2
-)
-target_include_directories(contrib-libs-metrohash PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src
-)
-target_link_libraries(contrib-libs-metrohash PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-)
-target_sources(contrib-libs-metrohash PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128crc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash64.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

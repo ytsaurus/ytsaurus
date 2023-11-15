@@ -6,33 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-library-program)
-target_compile_options(yt-library-program PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-library-program PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  core-service_discovery-yp
-  yt-library-monitoring
-  library-profiling-solomon
-  library-profiling-tcmalloc
-  library-profiling-perf
-  yt-library-ytprof
-  library-tracing-jaeger
-  cpp-yt-mlock
-  cpp-yt-stockpile
-  cpp-yt-string
-)
-target_sources(yt-library-program PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/program/build_attributes.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/program/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/program/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/program/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/program/program_config_mixin.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/program/program_pdeathsig_mixin.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/program/program_setsid_mixin.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

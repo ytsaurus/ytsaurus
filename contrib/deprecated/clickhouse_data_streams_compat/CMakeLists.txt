@@ -6,23 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-deprecated-clickhouse_data_streams_compat)
-target_include_directories(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat
-)
-target_link_libraries(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-clickhouse-src
-)
-target_sources(contrib-deprecated-clickhouse_data_streams_compat PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/IBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/RemoteBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/RemoteBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/NativeBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/NativeBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SourceFromInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SinkToOutputStream.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

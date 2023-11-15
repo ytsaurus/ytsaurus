@@ -6,52 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-timestamp_server)
-target_compile_options(server-lib-timestamp_server PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-timestamp_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-timestamp_server PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-  contrib-libs-protobuf
-)
-target_proto_messages(server-lib-timestamp_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.proto
-)
-target_sources(server-lib-timestamp_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/timestamp_manager.cpp
-)
-target_proto_addincls(server-lib-timestamp_server
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(server-lib-timestamp_server
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

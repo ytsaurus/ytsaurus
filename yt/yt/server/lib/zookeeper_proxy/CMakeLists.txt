@@ -6,23 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(server-lib-zookeeper_proxy)
-target_compile_options(server-lib-zookeeper_proxy PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-zookeeper_proxy PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-zookeeper_proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-)
-target_sources(server-lib-zookeeper_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/server.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

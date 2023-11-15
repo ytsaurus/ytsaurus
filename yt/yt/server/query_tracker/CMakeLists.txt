@@ -6,40 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-query_tracker)
-target_compile_options(yt-server-query_tracker PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-query_tracker PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-phdr_cache
-  library-cpp-getopt
-  yt-chyt-client
-  yt-library-dynamic_config
-  yt-library-clickhouse_discovery
-  yt-yt-ytlib
-  yt-library-coredumper
-  server-lib-admin
-  server-lib-cypress_election
-  server-lib-cypress_registrar
-  server-lib-misc
-  library-query-engine
-  library-query-row_comparer
-  yt-ytlib-query_tracker_client
-)
-target_sources(yt-server-query_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/alert_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/chyt_engine.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/handler_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/mock_engine.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/ql_engine.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/yql_engine.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

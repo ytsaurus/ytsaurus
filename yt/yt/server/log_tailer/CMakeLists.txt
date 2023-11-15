@@ -6,26 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(bin)
-
-add_library(yt-server-log_tailer)
-target_compile_options(yt-server-log_tailer PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-log_tailer PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-query-engine
-  yt-yt-core
-  yt-yt-ytlib
-  ytserver
-  cpp-getopt-small
-)
-target_sources(yt-server-log_tailer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_rotator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_tailer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

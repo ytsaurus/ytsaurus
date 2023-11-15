@@ -6,62 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_grpc_cpp_bin
-  TOOL_grpc_cpp_dependency
-  contrib/tools/protoc/plugins/grpc_cpp
-  grpc_cpp
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(yt-contrib-cri-api)
-set_property(TARGET yt-contrib-cri-api PROPERTY
-  PROTOC_EXTRA_OUTS .grpc.pb.cc .grpc.pb.h
-)
-set_property(TARGET yt-contrib-cri-api PROPERTY
-  PROTO_NAMESPACE yt/yt/contrib/cri-api
-)
-target_include_directories(yt-contrib-cri-api PUBLIC
-  ${CMAKE_BINARY_DIR}/yt/yt/contrib/cri-api
-)
-target_link_libraries(yt-contrib-cri-api PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-grpc
-  yt-contrib-gogoproto
-  contrib-libs-protobuf
-)
-target_proto_messages(yt-contrib-cri-api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.proto
-)
-target_proto_addincls(yt-contrib-cri-api
-  ./yt/yt/contrib/cri-api
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(yt-contrib-cri-api
-  --cpp_out=${CMAKE_BINARY_DIR}/yt/yt/contrib/cri-api
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt/yt/contrib/cri-api
-)
-target_proto_plugin(yt-contrib-cri-api
-  grpc_cpp
-  grpc_cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

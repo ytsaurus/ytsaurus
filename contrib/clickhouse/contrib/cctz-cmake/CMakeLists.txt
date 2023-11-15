@@ -6,25 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(clickhouse-contrib-cctz-cmake)
-target_compile_options(clickhouse-contrib-cctz-cmake PUBLIC
-  -DOS_LINUX
-)
-target_compile_options(clickhouse-contrib-cctz-cmake PRIVATE
-  -DINCBIN_SILENCE_BITCODE_WARNING
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D__GCC_HAVE_DWARF2_CFI_ASM=1
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(clickhouse-contrib-cctz-cmake PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_deps/incbin_stub
-)
-target_link_libraries(clickhouse-contrib-cctz-cmake PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  cpp-clickhouse_deps-incbin_stub
-)
-target_sources(clickhouse-contrib-cctz-cmake PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/contrib/cctz-cmake/TimeZones.generated.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

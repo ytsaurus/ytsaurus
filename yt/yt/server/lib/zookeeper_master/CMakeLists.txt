@@ -6,23 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(server-lib-zookeeper_master)
-target_compile_options(server-lib-zookeeper_master PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-zookeeper_master PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-zookeeper_master PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  server-lib-hydra
-)
-target_sources(server-lib-zookeeper_master PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_shard.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

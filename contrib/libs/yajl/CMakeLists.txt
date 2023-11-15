@@ -6,25 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-libs-yajl)
-target_compile_options(contrib-libs-yajl PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_link_libraries(contrib-libs-yajl PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-)
-target_sources(contrib-libs-yajl PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_buf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_gen.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_parser.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_version.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_alloc.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_encode.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_lex.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_tree.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/yajl/yajl_parser.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

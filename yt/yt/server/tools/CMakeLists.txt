@@ -6,26 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(yt-server-tools)
-target_compile_options(yt-server-tools PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-tools PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-process
-  yt-library-containers
-  yt-library-program
-  yt-yt-core
-)
-target_sources(yt-server-tools PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/proc.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/seccomp.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/signaler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/tools.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

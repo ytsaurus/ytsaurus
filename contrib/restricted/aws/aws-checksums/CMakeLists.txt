@@ -6,23 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(restricted-aws-aws-checksums)
-target_compile_options(restricted-aws-aws-checksums PRIVATE
-  -DAWS_CHECKSUMS_USE_IMPORT_EXPORT
-  -DAWS_COMMON_USE_IMPORT_EXPORT
-  -DHAVE_SYSCONF
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(restricted-aws-aws-checksums PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/include
-)
-target_link_libraries(restricted-aws-aws-checksums PUBLIC
-  contrib-libs-linux-headers
-  restricted-aws-aws-c-common
-)
-target_sources(restricted-aws-aws-checksums PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_sw.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/intel/asm/crc32c_sse42_asm.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

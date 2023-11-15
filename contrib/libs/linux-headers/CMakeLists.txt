@@ -6,9 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-libs-linux-headers INTERFACE)
-target_include_directories(contrib-libs-linux-headers INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/linux-headers
-  ${CMAKE_SOURCE_DIR}/contrib/libs/linux-headers/_nf
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

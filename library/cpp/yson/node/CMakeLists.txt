@@ -6,31 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-add_library(cpp-yson-node)
-target_link_libraries(cpp-yson-node PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  tools-enum_parser-enum_serialization_runtime
-  library-cpp-yson
-  cpp-yson-json
-)
-target_sources(cpp-yson-node PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yson/node/node.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yson/node/node_io.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yson/node/node_builder.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yson/node/node_visitor.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yson/node/serialize.cpp
-)
-generate_enum_serilization(cpp-yson-node
-  ${CMAKE_SOURCE_DIR}/library/cpp/yson/node/node.h
-  INCLUDE_HEADERS
-  library/cpp/yson/node/node.h
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

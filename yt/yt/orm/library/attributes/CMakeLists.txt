@@ -6,22 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(orm-library-attributes)
-target_compile_options(orm-library-attributes PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(orm-library-attributes PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-yt-client
-)
-target_sources(orm-library-attributes PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/attribute_path.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/merge_attributes.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/scalar_attribute.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/ytree.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

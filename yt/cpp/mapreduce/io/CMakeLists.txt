@@ -6,37 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(cpp-mapreduce-io)
-target_compile_options(cpp-mapreduce-io PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(cpp-mapreduce-io PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-protobuf
-  library-cpp-yson
-  cpp-mapreduce-common
-  cpp-mapreduce-interface
-  mapreduce-interface-logging
-  yt_proto-yt-formats
-  cpp-yson-node
-  cpp-mapreduce-skiff
-)
-target_sources(cpp-mapreduce-io PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/counting_raw_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/job_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/job_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/lenval_table_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/node_table_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/node_table_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/proto_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/proto_table_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/proto_table_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/skiff_row_table_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/skiff_table_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/stream_raw_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/yamr_table_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/io/yamr_table_writer.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

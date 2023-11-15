@@ -6,41 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-find_package(Python3 REQUIRED COMPONENTS Development)
-
-add_library(python-yson-arrow INTERFACE)
-target_include_directories(python-yson-arrow INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
-)
-target_link_libraries(python-yson-arrow INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-python-common
-  contrib-libs-pycxx
-  libs-apache-arrow
-  Python3::Module
-)
-
-add_global_library_for(python-yson-arrow.global python-yson-arrow)
-target_compile_options(python-yson-arrow.global PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-target_include_directories(python-yson-arrow.global PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
-)
-target_link_libraries(python-yson-arrow.global PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-python-common
-  contrib-libs-pycxx
-  libs-apache-arrow
-  Python3::Module
-)
-target_sources(python-yson-arrow.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow/parquete.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

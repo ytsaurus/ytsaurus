@@ -6,32 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-cypress_proxy)
-target_compile_options(yt-server-cypress_proxy PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-cypress_proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-phdr_cache
-  library-cpp-getopt
-  yt-library-dynamic_config
-  yt-yt-ytlib
-  server-lib-admin
-  server-lib-misc
-  server-lib-cypress_registrar
-)
-target_sources(yt-server-cypress_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/path_resolver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/rootstock_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

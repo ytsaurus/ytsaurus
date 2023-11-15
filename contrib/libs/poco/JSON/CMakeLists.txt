@@ -6,41 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(libs-poco-JSON)
-target_compile_options(libs-poco-JSON PRIVATE
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_ENABLE_CPP14
-  -DPOCO_NO_AUTOMATIC_LIBS
-  -DPOCO_UNBUNDLED
-  -DPOCO_OS_FAMILY_UNIX
-  -DPOCO_HAVE_FD_EPOLL
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(libs-poco-JSON PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/include
-)
-target_include_directories(libs-poco-JSON PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src
-)
-target_link_libraries(libs-poco-JSON PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  libs-poco-Foundation
-)
-target_sources(libs-poco-JSON PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/Array.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/Handler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/JSONException.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/Object.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/ParseHandler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/Parser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/ParserImpl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/PrintHandler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/Query.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/Stringifier.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/Template.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/TemplateCache.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/src/pdjson.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

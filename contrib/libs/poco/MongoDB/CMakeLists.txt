@@ -6,51 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(libs-poco-MongoDB)
-target_compile_options(libs-poco-MongoDB PRIVATE
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_ENABLE_CPP14
-  -DPOCO_NO_AUTOMATIC_LIBS
-  -DPOCO_UNBUNDLED
-  -DPOCO_OS_FAMILY_UNIX
-  -DPOCO_HAVE_FD_EPOLL
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(libs-poco-MongoDB PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/include
-)
-target_include_directories(libs-poco-MongoDB PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
-)
-target_link_libraries(libs-poco-MongoDB PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  libs-poco-Foundation
-  libs-poco-Net
-)
-target_sources(libs-poco-MongoDB PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Array.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Binary.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Connection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Cursor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Database.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/DeleteRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Document.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Element.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/GetMoreRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/InsertRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/JavaScriptCode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/KillCursorsRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Message.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/MessageHeader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/ObjectId.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/QueryRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/RegularExpression.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/ReplicaSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/RequestMessage.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/ResponseMessage.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/UpdateRequest.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

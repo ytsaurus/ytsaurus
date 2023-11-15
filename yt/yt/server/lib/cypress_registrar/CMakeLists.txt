@@ -6,18 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(server-lib-cypress_registrar)
-target_compile_options(server-lib-cypress_registrar PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-cypress_registrar PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-)
-target_sources(server-lib-cypress_registrar PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/cypress_registrar.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

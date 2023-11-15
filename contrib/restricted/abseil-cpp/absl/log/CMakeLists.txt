@@ -6,42 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(abseil-cpp-absl-log)
-target_compile_options(abseil-cpp-absl-log PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(abseil-cpp-absl-log PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp
-)
-target_link_libraries(abseil-cpp-absl-log PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  abseil-cpp-absl-base
-  abseil-cpp-absl-container
-  abseil-cpp-absl-debugging
-  abseil-cpp-absl-flags
-  abseil-cpp-absl-hash
-  abseil-cpp-absl-numeric
-  abseil-cpp-absl-profiling
-  abseil-cpp-absl-strings
-  abseil-cpp-absl-synchronization
-  abseil-cpp-absl-time
-  abseil-cpp-absl-types
-)
-target_sources(abseil-cpp-absl-log PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/die_if_null.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/flags.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/globals.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/initialize.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/check_op.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/conditions.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/globals.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/log_format.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/log_message.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/log_sink_set.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/nullguard.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/internal/proto.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/log_entry.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/log/log_sink.cc
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

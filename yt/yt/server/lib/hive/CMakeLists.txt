@@ -6,57 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-hive)
-target_compile_options(server-lib-hive PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-hive PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-hive PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  server-lib-election
-  contrib-libs-protobuf
-)
-target_proto_messages(server-lib-hive PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/proto/hive_manager.proto
-)
-target_sources(server-lib-hive PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/avenue_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/hive_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/mailbox.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/public.cpp
-)
-target_proto_addincls(server-lib-hive
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(server-lib-hive
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

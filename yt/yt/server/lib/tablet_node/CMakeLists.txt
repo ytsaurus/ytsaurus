@@ -6,56 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-tablet_node)
-target_compile_options(server-lib-tablet_node PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-tablet_node PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-tablet_node PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-dynamic_config
-  yt-yt-ytlib
-  server-lib-hive
-  server-lib-election
-  server-lib-transaction_supervisor
-  contrib-libs-protobuf
-)
-target_proto_messages(server-lib-tablet_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.proto
-)
-target_sources(server-lib-tablet_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/table_settings.cpp
-)
-target_proto_addincls(server-lib-tablet_node
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(server-lib-tablet_node
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

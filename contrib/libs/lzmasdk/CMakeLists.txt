@@ -6,29 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(contrib-libs-lzmasdk)
-target_compile_options(contrib-libs-lzmasdk PRIVATE
-  -D_7ZIP_ST=1
-)
-target_link_libraries(contrib-libs-lzmasdk PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-)
-target_sources(contrib-libs-lzmasdk PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/7zStream.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/Aes.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/AesOpt.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/Alloc.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/Bra.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/Bra86.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/BraIA64.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/CpuArch.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/LzFind.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/Lzma2Dec.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/Lzma2Enc.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/LzmaDec.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/LzmaEnc.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/LzmaLib.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzmasdk/Sha256.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

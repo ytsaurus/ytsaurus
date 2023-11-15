@@ -6,19 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(lib-chunk_pools-mock)
-target_compile_options(lib-chunk_pools-mock PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(lib-chunk_pools-mock PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-core-test_framework
-  server-lib-chunk_pools
-)
-target_sources(lib-chunk_pools-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,31 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(llvm16-lib-Remarks)
-target_compile_options(llvm16-lib-Remarks PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(llvm16-lib-Remarks PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks
-)
-target_link_libraries(llvm16-lib-Remarks PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  lib-Bitstream-Reader
-  llvm16-lib-Support
-)
-target_sources(llvm16-lib-Remarks PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/BitstreamRemarkParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/BitstreamRemarkSerializer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/Remark.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkFormat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkLinker.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkSerializer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkStringTable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/YAMLRemarkParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/YAMLRemarkSerializer.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

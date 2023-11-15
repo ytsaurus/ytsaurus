@@ -6,19 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(core-service_discovery-yp)
-target_compile_options(core-service_discovery-yp PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(core-service_discovery-yp PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  core-rpc-grpc
-)
-target_sources(core-service_discovery-yp PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/service_discovery/yp/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/service_discovery/yp/service_discovery_dummy.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

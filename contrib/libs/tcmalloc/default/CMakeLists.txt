@@ -6,66 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(libs-tcmalloc-default INTERFACE)
-target_link_libraries(libs-tcmalloc-default INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-restricted-abseil-cpp
-  libs-tcmalloc-malloc_extension
-)
-
-add_global_library_for(libs-tcmalloc-default.global libs-tcmalloc-default)
-target_compile_options(libs-tcmalloc-default.global PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_link_libraries(libs-tcmalloc-default.global PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-restricted-abseil-cpp
-  libs-tcmalloc-malloc_extension
-)
-target_sources(libs-tcmalloc-default.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/tcmalloc.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/arena.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/background.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/central_freelist.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/common.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/cpu_cache.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/experimental_pow2_below64_size_class.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/experimental_pow2_size_class.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/legacy_size_classes.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/guarded_page_allocator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/huge_address_map.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/huge_allocator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/huge_cache.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/huge_page_aware_allocator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/page_allocator.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/page_allocator_interface.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/page_heap.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/pagemap.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/parameters.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/peak_heap_tracker.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/sampler.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/size_classes.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/span.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/stack_trace_table.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/static_vars.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/stats.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/system-alloc.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/thread_cache.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/transfer_cache.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/experiment.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/noruntime_size_classes.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/cache_topology.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/environment.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/logging.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/memory_stats.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/mincore.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/numa.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/percpu.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/percpu_rseq_asm.S
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/percpu_rseq_unsupported.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/util.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/want_hpaa_subrelease.cc
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

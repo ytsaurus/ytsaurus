@@ -6,23 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(clickhouse-base-widechar_width)
-target_compile_options(clickhouse-base-widechar_width PUBLIC
-  -DOS_LINUX
-)
-target_compile_options(clickhouse-base-widechar_width PRIVATE
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D__GCC_HAVE_DWARF2_CFI_ASM=1
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(clickhouse-base-widechar_width PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/widechar_width
-)
-target_link_libraries(clickhouse-base-widechar_width PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-)
-target_sources(clickhouse-base-widechar_width PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/widechar_width/widechar_width.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

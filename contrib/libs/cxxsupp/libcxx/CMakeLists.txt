@@ -6,73 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(libs-cxxsupp-libcxx)
-target_compile_options(libs-cxxsupp-libcxx PUBLIC
-  -DLIBCXX_BUILDING_LIBCXXRT
-  -nostdinc++
-)
-target_compile_options(libs-cxxsupp-libcxx PRIVATE
-  -D_LIBCPP_BUILDING_LIBRARY
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(libs-cxxsupp-libcxx PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxxrt/include
-)
-target_include_directories(libs-cxxsupp-libcxx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src
-)
-target_link_libraries(libs-cxxsupp-libcxx PUBLIC
-  contrib-libs-linux-headers
-  libs-cxxsupp-libcxxabi-parts
-  libs-cxxsupp-libcxxrt
-  libs-cxxsupp-builtins
-)
-target_sources(libs-cxxsupp-libcxx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/algorithm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/any.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/assert.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/atomic.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/barrier.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/bind.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/charconv.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/chrono.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/condition_variable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/condition_variable_destructor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/debug.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/exception.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/filesystem/directory_iterator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/filesystem/operations.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/functional.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/future.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/hash.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/ios.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/ios.instantiations.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/iostream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/legacy_pointer_safety.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/locale.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/memory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/mutex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/mutex_destructor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/optional.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/random.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/random_shuffle.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/regex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/ryu/d2fixed.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/ryu/d2s.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/ryu/f2s.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/shared_mutex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/stdexcept.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/string.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/strstream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/system_error.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/thread.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/typeinfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/utility.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/valarray.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/variant.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/vector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/format.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/libcxx/src/new.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,20 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(library-ytprof-http)
-target_compile_options(library-ytprof-http PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(library-ytprof-http PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cgiparam
-  yt-core-http
-  yt-library-ytprof
-  yt-library-process
-)
-target_sources(library-ytprof-http PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/http/handler.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,18 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(cpp-regex-pcre)
-target_link_libraries(cpp-regex-pcre PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-pcre
-  libs-pcre-pcre16
-  libs-pcre-pcre32
-  cpp-containers-stack_array
-)
-target_sources(cpp-regex-pcre PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/regex/pcre/pcre.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/regex/pcre/regexp.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

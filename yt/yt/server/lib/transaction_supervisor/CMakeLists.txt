@@ -6,60 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-transaction_supervisor)
-target_compile_options(server-lib-transaction_supervisor PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(server-lib-transaction_supervisor PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(server-lib-transaction_supervisor PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  server-lib-election
-  server-lib-transaction_server
-  contrib-libs-protobuf
-)
-target_proto_messages(server-lib-transaction_supervisor PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto
-)
-target_sources(server-lib-transaction_supervisor PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/abort.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/commit.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_supervisor.cpp
-)
-target_proto_addincls(server-lib-transaction_supervisor
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(server-lib-transaction_supervisor
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

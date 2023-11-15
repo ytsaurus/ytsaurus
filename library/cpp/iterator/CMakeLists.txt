@@ -6,21 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(library-cpp-iterator)
-target_link_libraries(library-cpp-iterator PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-)
-target_sources(library-cpp-iterator PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/cartesian_product.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/concatenate.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/enumerate.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/iterate_keys.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/iterate_values.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/filtering.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/functools.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/mapped.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/iterator/zip.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

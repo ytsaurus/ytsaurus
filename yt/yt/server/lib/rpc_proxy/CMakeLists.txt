@@ -6,31 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(server-lib-rpc_proxy)
-target_compile_options(server-lib-rpc_proxy PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-rpc_proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-  yt-library-auth_server
-  yt-yt-client
-  yt-client-arrow
-  server-lib-misc
-  yt-library-error_skeleton
-  server-lib-transaction_server
-  yt-yt-core
-)
-target_sources(server-lib-rpc_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/access_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/format_row_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/profilers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/proxy_coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/security_manager.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

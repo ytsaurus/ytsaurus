@@ -6,33 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-master_cache)
-target_compile_options(yt-server-master_cache PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(yt-server-master_cache PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-)
-target_link_libraries(yt-server-master_cache PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-getopt
-  cpp-yt-phdr_cache
-  yt-library-dynamic_config
-  yt-yt-ytlib
-  ytserver
-  server-lib-chaos_cache
-  server-lib-cypress_registrar
-)
-target_sources(yt-server-master_cache PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/chaos_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/chaos_cache_bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/chaos_cache_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/master_cache_bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master_cache/program.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

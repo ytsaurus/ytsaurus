@@ -6,73 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(udf)
-
-add_executable(unittester-query)
-target_compile_options(unittester-query PRIVATE
-  -Wdeprecated-this-capture
-)
-target_include_directories(unittester-query PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
-)
-target_link_libraries(unittester-query PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-build
-  yt-core-test_framework
-  library-query-engine
-  library-query-engine_api
-  query-unittests-udf
-  contrib-libs-sparsehash
-)
-target_link_options(unittester-query PRIVATE
-  -rdynamic
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(unittester-query PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
-)
-add_test(
-  NAME
-  unittester-query
-  COMMAND
-  unittester-query
-)
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(unittester-query
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-vcs_info(unittester-query)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

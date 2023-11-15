@@ -6,59 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(libs-cxxsupp-builtins)
-target_compile_options(libs-cxxsupp-builtins PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_link_libraries(libs-cxxsupp-builtins PUBLIC
-  contrib-libs-linux-headers
-)
-target_sources(libs-cxxsupp-builtins PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/addtf3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/ashlti3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/clzti2.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/comparetf2.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/divdc3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/divsc3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/divtf3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/divti3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/divxc3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/extenddftf2.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/extendsftf2.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixdfti.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixsfti.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixtfdi.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixtfsi.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixunsdfti.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixunssfti.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixunstfdi.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixunstfsi.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixunstfti.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/fixunsxfti.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floatditf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floatsitf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floattidf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floattisf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floattixf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floatunditf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floatunsitf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floatuntidf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/floatuntisf.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/gcc_personality_v0.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/int_util.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/lshrti3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/modti3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/muldc3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/muloti4.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/mulsc3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/multf3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/mulxc3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/popcountdi2.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/subtf3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/trunctfdf2.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/trunctfsf2.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/udivmodti4.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/udivti3.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cxxsupp/builtins/umodti3.c
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

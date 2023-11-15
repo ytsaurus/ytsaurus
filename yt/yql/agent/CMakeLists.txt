@@ -6,34 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(bin)
-
-add_library(yt-yql-agent)
-target_compile_options(yt-yql-agent PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-yql-agent PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-phdr_cache
-  library-cpp-getopt
-  logging-backends-arcadia
-  yt-library-dynamic_config
-  yt-yt-ytlib
-  server-lib-admin
-  server-lib-cypress_election
-  server-lib-misc
-  yt-yql-plugin
-  library-query-engine
-  library-query-row_comparer
-  yql-plugin-bridge
-)
-target_sources(yt-yql-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/yql_agent.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/yql_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/interop.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,109 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_executable(unittester-core-ytree)
-target_compile_options(unittester-core-ytree PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-core-ytree PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  tools-enum_parser-enum_serialization_runtime
-  yt-yt-core
-  yt-core-test_framework
-  contrib-libs-protobuf
-)
-target_link_options(unittester-core-ytree PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_proto_messages(unittester-core-ytree PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/proto/test.proto
-)
-target_sources(unittester-core-ytree PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/attributes_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/attribute_filter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/resolver_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/service_combiner_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/tree_builder_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/lazy_ypath_service_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_serializable_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_struct_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_fluent_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_ut.cpp
-)
-add_test(
-  NAME
-  unittester-core-ytree
-  COMMAND
-  unittester-core-ytree
-)
-set_property(
-  TEST
-  unittester-core-ytree
-  PROPERTY
-  LABELS
-  SMALL
-)
-set_property(
-  TEST
-  unittester-core-ytree
-  PROPERTY
-  PROCESSORS
-  4
-)
-generate_enum_serilization(unittester-core-ytree
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.h
-  INCLUDE_HEADERS
-  yt/yt/core/ytree/unittests/serialize_ut.h
-)
-target_allocator(unittester-core-ytree
-  cpp-ytalloc-impl
-)
-target_proto_addincls(unittester-core-ytree
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(unittester-core-ytree
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
-)
-vcs_info(unittester-core-ytree)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

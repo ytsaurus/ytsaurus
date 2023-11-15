@@ -6,59 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(cpp-integration-test-hydra)
-target_compile_options(cpp-integration-test-hydra PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(cpp-integration-test-hydra PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  library-query-engine
-  tests-cpp-test_base
-  server-lib-hydra
-  yt-yt-ytlib
-  yt-core-test_framework
-)
-target_link_options(cpp-integration-test-hydra PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(cpp-integration-test-hydra PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
-)
-add_test(
-  NAME
-  cpp-integration-test-hydra
-  COMMAND
-  cpp-integration-test-hydra
-)
-set_property(
-  TEST
-  cpp-integration-test-hydra
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-set_property(
-  TEST
-  cpp-integration-test-hydra
-  PROPERTY
-  PROCESSORS
-  4
-)
-target_allocator(cpp-integration-test-hydra
-  cpp-ytalloc-impl
-)
-vcs_info(cpp-integration-test-hydra)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

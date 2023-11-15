@@ -6,56 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(unittester-core-dump)
-target_compile_options(unittester-core-dump PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-core-dump PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-library-sparse_coredump
-)
-target_link_options(unittester-core-dump PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(unittester-core-dump PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
-)
-add_test(
-  NAME
-  unittester-core-dump
-  COMMAND
-  unittester-core-dump
-)
-set_property(
-  TEST
-  unittester-core-dump
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-set_property(
-  TEST
-  unittester-core-dump
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(unittester-core-dump
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-vcs_info(unittester-core-dump)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

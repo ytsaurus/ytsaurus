@@ -6,73 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-
-add_library(client-arrow-fbs)
-target_link_libraries(client-arrow-fbs PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-flatbuffers
-)
-target_sources(client-arrow-fbs PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.cpp
-)
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/Message.fbs
-  -I
-  ${CMAKE_BINARY_DIR}
-  -I
-  ${CMAKE_SOURCE_DIR}
-)
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/Schema.fbs
-  -I
-  ${CMAKE_BINARY_DIR}
-  -I
-  ${CMAKE_SOURCE_DIR}
-)
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs
-  -I
-  ${CMAKE_BINARY_DIR}
-  -I
-  ${CMAKE_SOURCE_DIR}
-)
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs
-  -I
-  ${CMAKE_BINARY_DIR}
-  -I
-  ${CMAKE_SOURCE_DIR}
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

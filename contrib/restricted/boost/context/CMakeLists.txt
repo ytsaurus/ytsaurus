@@ -6,16 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(fcontext_impl)
-add_subdirectory(impl_common)
-
-add_library(restricted-boost-context INTERFACE)
-target_include_directories(restricted-boost-context INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/context/include
-)
-target_link_libraries(restricted-boost-context INTERFACE
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  boost-context-fcontext_impl
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,64 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(libs-poco-Data)
-target_compile_options(libs-poco-Data PRIVATE
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_ENABLE_CPP14
-  -DPOCO_NO_AUTOMATIC_LIBS
-  -DPOCO_UNBUNDLED
-  -DTHREADSAFE
-  -DPOCO_OS_FAMILY_UNIX
-  -DPOCO_HAVE_FD_EPOLL
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(libs-poco-Data PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/include
-)
-target_include_directories(libs-poco-Data PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-)
-target_link_libraries(libs-poco-Data PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  libs-poco-Foundation
-)
-target_sources(libs-poco-Data PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinding.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractExtraction.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractExtractor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractPreparation.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractPreparator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/ArchiveStrategy.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Bulk.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Connector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/DataException.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Date.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/DynamicLOB.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Limit.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/MetaColumn.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/PooledSessionHolder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/PooledSessionImpl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Position.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Range.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RecordSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Row.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RowFilter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RowFormatter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RowIterator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SQLChannel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Session.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionFactory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionImpl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionPool.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionPoolContainer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SimpleRowFormatter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Statement.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/StatementCreator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/StatementImpl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Time.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Transaction.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

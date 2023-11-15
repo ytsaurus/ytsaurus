@@ -6,22 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-client-formats)
-target_compile_options(yt-client-formats PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-client-formats PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-library-skiff_ext
-  yt_proto-yt-formats
-  cpp-string_utils-base64
-)
-target_sources(yt-client-formats PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/parser.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

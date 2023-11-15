@@ -6,90 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(libs-apache-orc)
-target_compile_options(libs-apache-orc PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-target_include_directories(libs-apache-orc PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/include
-)
-target_include_directories(libs-apache-orc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/proto
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
-)
-target_link_libraries(libs-apache-orc PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  contrib-libs-lz4
-  contrib-libs-snappy
-  contrib-libs-zlib
-  contrib-libs-zstd
-  contrib-libs-protobuf
-)
-target_proto_messages(libs-apache-orc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/proto/orc_proto.proto
-)
-target_sources(libs-apache-orc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Adaptor.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/BloomFilter.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/ByteRLE.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/ColumnPrinter.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/ColumnReader.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/ColumnWriter.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Common.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Compression.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Exceptions.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Int128.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/LzoDecompressor.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/MemoryPool.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Murmur3.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/OrcFile.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/RLE.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/RLEV2Util.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/RLEv1.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Reader.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/RleDecoderV2.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/RleEncoderV2.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Statistics.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/StripeStream.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Timezone.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/TypeImpl.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Vector.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Writer.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/io/InputStream.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/io/OutputStream.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/ExpressionTree.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/Literal.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/PredicateLeaf.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/SargsApplier.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/SearchArgument.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/TruthValue.cc
-)
-target_proto_addincls(libs-apache-orc
-  ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(libs-apache-orc
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

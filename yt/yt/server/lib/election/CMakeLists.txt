@@ -6,23 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(server-lib-election)
-target_compile_options(server-lib-election PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-election PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-)
-target_sources(server-lib-election PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/distributed_election_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/election_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/election_manager_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/alien_cell_peer_channel_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/public.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

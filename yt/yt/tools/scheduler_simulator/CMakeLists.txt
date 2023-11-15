@@ -6,28 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(bin)
-add_subdirectory(unittests)
-
-add_library(yt-tools-scheduler_simulator)
-target_compile_options(yt-tools-scheduler_simulator PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-tools-scheduler_simulator PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-server-scheduler
-)
-target_sources(yt-tools-scheduler_simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation_description.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/scheduler_strategy_host.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/shared_data.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/node_shard.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/node_worker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/control_thread.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/event_log.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

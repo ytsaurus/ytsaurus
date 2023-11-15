@@ -6,24 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-clock_server)
-target_compile_options(yt-server-clock_server PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-clock_server PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  ytserver
-  server-lib-hydra
-  server-lib-hive
-  server-lib-timestamp_server
-)
-target_sources(yt-server-clock_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/hydra_facade.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/serialize.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

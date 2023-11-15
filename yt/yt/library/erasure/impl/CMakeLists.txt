@@ -6,21 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
-
-add_library(library-erasure-impl)
-target_compile_options(library-erasure-impl PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(library-erasure-impl PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-erasure
-  library-cpp-erasure
-)
-target_sources(library-erasure-impl PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/codec.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/codec_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/codec_opensource.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

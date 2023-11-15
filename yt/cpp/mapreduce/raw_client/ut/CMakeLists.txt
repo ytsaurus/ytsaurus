@@ -6,69 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_executable(yt-cpp-mapreduce-raw_client-ut)
-target_include_directories(yt-cpp-mapreduce-raw_client-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/raw_client
-)
-target_link_libraries(yt-cpp-mapreduce-raw_client-ut PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-unittest_main
-  cpp-mapreduce-raw_client
-)
-target_link_options(yt-cpp-mapreduce-raw_client-ut PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-target_sources(yt-cpp-mapreduce-raw_client-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_batch_request_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_requests_ut.cpp
-)
-set_property(
-  TARGET
-  yt-cpp-mapreduce-raw_client-ut
-  PROPERTY
-  SPLIT_FACTOR
-  1
-)
-add_yunittest(
-  NAME
-  yt-cpp-mapreduce-raw_client-ut
-  TEST_TARGET
-  yt-cpp-mapreduce-raw_client-ut
-  TEST_ARG
-  --print-before-suite
-  --print-before-test
-  --fork-tests
-  --print-times
-  --show-fails
-)
-set_yunittest_property(
-  TEST
-  yt-cpp-mapreduce-raw_client-ut
-  PROPERTY
-  LABELS
-  SMALL
-)
-set_yunittest_property(
-  TEST
-  yt-cpp-mapreduce-raw_client-ut
-  PROPERTY
-  PROCESSORS
-  1
-)
-target_allocator(yt-cpp-mapreduce-raw_client-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-vcs_info(yt-cpp-mapreduce-raw_client-ut)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

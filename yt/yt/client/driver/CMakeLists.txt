@@ -6,35 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-client-driver)
-target_compile_options(yt-client-driver PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-client-driver PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-library-formats
-)
-target_sources(yt-client-driver PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/authentication_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/chaos_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/command.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/cypress_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/driver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/etc_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/file_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/journal_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/proxy_discovery_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/query_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/queue_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/scheduler_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/table_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/transaction_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

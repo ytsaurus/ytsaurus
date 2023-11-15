@@ -6,32 +6,8 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(yt-server-replicated_table_tracker)
-target_compile_options(yt-server-replicated_table_tracker PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-server-replicated_table_tracker PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  server-lib-admin
-  server-lib-cypress_election
-  server-lib-cypress_registrar
-  server-lib-hydra
-  server-lib-misc
-  server-lib-tablet_server
-  yt-library-dynamic_config
-  yt-yt-ytlib
-  yt-yt-core
-  cpp-yt-memory
-  cpp-yt-phdr_cache
-  library-cpp-getopt
-)
-target_sources(yt-server-replicated_table_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/replicated_table_tracker_host.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()

@@ -6,19 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(library-containers-disk_manager)
-target_compile_options(library-containers-disk_manager PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(library-containers-disk_manager PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-)
-target_sources(library-containers-disk_manager PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_info_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_manager_proxy.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
