@@ -81,7 +81,8 @@ def run_erase(table, spec=None, sync=True, client=None):
 @forbidden_inside_job
 def run_merge(source_table, destination_table, mode=None,
               sync=True, job_io=None, table_writer=None,
-              job_count=None, spec=None, client=None):
+              job_count=None, spec=None, merge_by=None,
+              client=None):
     """Merges source tables to destination table.
 
     :param source_table: tables to merge.
@@ -96,6 +97,8 @@ def run_merge(source_table, destination_table, mode=None,
     :param dict job_io: job io specification.
     :param dict table_writer: standard operation parameter.
     :param dict spec: standard operation parameter.
+    :param merge_by: list of columns for merging by (works only for `sorted` mode)
+    :type merge_by: list[str]
 
     .. seealso::  :ref:`operation_parameters`.
     """
@@ -107,6 +110,7 @@ def run_merge(source_table, destination_table, mode=None,
         .mode(mode) \
         .job_io(job_io) \
         .job_count(job_count) \
+        .merge_by(merge_by) \
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
