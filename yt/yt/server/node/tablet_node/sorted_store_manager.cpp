@@ -179,7 +179,12 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
             for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
                 const auto& value = row[index];
                 int lockIndex = columnIndexToLockIndex[value.Id];
-                lockMask.Set(lockIndex, ELockType::Exclusive);
+
+                if (lockMask.Get(lockIndex) != ELockType::Exclusive &&
+                    lockMask.Get(lockIndex) != ELockType::SharedWrite)
+                {
+                    lockMask.Set(lockIndex, ELockType::Exclusive);
+                }
             }
             break;
         }
@@ -238,6 +243,13 @@ void TSortedStoreManager::LockRow(TWriteContext* context, bool prelock, const TS
 
 void TSortedStoreManager::ConfirmRow(TWriteContext* context, const TSortedDynamicRowRef& rowRef)
 {
+    for (int lockIndex = 0; lockIndex < rowRef.LockMask.GetSize(); ++lockIndex) {
+        if (rowRef.LockMask.Get(lockIndex) == ELockType::SharedWrite) {
+            context->HasSharedWriteLocks = true;
+            break;
+        }
+    }
+
     context->LockedRows->push_back(rowRef);
 }
 
@@ -1200,7 +1212,8 @@ void TSortedStoreManager::WaitOnBlockedRow(
     int lockIndex)
 {
     const auto& lock = row.BeginLocks(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())[lockIndex];
-    const auto* transaction = lock.WriteTransaction;
+    const auto* transaction = lock.PreparedTransaction;
+
     if (!transaction) {
         return;
     }

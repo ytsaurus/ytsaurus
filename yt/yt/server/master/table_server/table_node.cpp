@@ -107,6 +107,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, HunkStorageNode);
     Save(context, SecondaryIndices);
     Save(context, IndexTo);
+    Save(context, EnableSharedWriteLocks);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(
@@ -189,6 +190,11 @@ void TTableNode::TDynamicTableAttributes::Load(
     if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
         Load(context, SecondaryIndices);
         Load(context, IndexTo);
+    }
+
+    // COMPAT(ponasenko-rs)
+    if (context.GetVersion() >= EMasterReign::TabletSharedWriteLocks) {
+        Load(context, EnableSharedWriteLocks);
     }
 }
 

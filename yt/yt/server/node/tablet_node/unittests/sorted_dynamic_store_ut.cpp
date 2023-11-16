@@ -753,6 +753,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(
         ::testing::Values(
             ELockType::Exclusive,
+            ELockType::SharedWrite,
             ELockType::SharedStrong),
         ::testing::Values(true, false)),
     TSingleLockSortedDynamicStoreReserializeConflictTest::TParamSerializer());

@@ -12,10 +12,17 @@
 #include <yt/yt/core/misc/ring_queue.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
+#include <library/cpp/yt/memory/chunked_memory_pool_allocator.h>
+
+#include <util/system/align.h>
 
 #include <atomic>
 
 namespace NYT::NTabletNode {
+
+/////////////////////////////////////////////////////////////////////////////
+
+const int TypicalSharedWriteTransactionCount = 2;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -35,14 +42,26 @@ using TRevisionList = TEditList<ui32>;
 
 struct TLockDescriptor
 {
+    using TSharedWriteTransaction = std::pair<TTimestamp, const TTransaction*>;
+    using TSharedWriteTransactions = TCompactSet<
+        TSharedWriteTransaction,
+        TypicalSharedWriteTransactionCount,
+        std::less<TSharedWriteTransaction>,
+        TChunkedMemoryPoolAllocator<TSharedWriteTransaction>>;
+    TSharedWriteTransactions SharedWriteTransactions;
+
     // Each transaction can take read lock only once.
     int ReadLockCount;
 
     // The latest commit timestamp of a transaction that was holding this read lock.
     TTimestamp LastReadLockTimestamp;
 
-    TTransaction* WriteTransaction;
+    const TTransaction* WriteTransaction;
+    TTimestamp WriteTransactionPrepareTimestamp;
+
+    const TTransaction* PreparedTransaction;
     std::atomic<TTimestamp> PrepareTimestamp;
+
     std::atomic<TEditListHeader*> WriteRevisionList;
 
     // Edit list of revision of committed transactions that were holding this read lock.
@@ -55,6 +74,9 @@ struct TLockDescriptor
     std::atomic<TEditListHeader*> ReadLockRevisionList;
 
     std::atomic<TEditListHeader*> ExclusiveLockRevisionList;
+
+    // Separate to ignore shared write <-> shared write conflicts.
+    std::atomic<TEditListHeader*> SharedWriteLockRevisionList;
 };
 
 struct TSortedDynamicRowHeader
@@ -313,7 +335,14 @@ public:
             auto* lock = row.BeginLocks(keyColumnCount);
             for (int index = 0; index < columnLockCount; ++index, ++lock) {
                 lock->PrepareTimestamp = NTableClient::NotPreparedTimestamp;
+                lock->WriteTransactionPrepareTimestamp = NTableClient::NotPreparedTimestamp;
                 lock->WriteRevisionList = nullptr;
+
+                YT_VERIFY(uintptr_t(&lock->SharedWriteTransactions) %
+                    alignof(TLockDescriptor::TSharedWriteTransactions) == 0);
+
+                new(&lock->SharedWriteTransactions) TLockDescriptor::TSharedWriteTransactions(
+                    TChunkedMemoryPoolAllocator<void>(pool));
             }
         }
 
@@ -428,6 +457,17 @@ public:
     static void SetExclusiveLockRevisionList(TLockDescriptor& lock, TRevisionList list)
     {
         lock.ExclusiveLockRevisionList = list.Header_;
+    }
+
+
+    static TRevisionList GetSharedWriteLockRevisionList(const TLockDescriptor& lock)
+    {
+        return TRevisionList(lock.SharedWriteLockRevisionList);
+    }
+
+    static void SetSharedWriteLockRevisionList(TLockDescriptor& lock, TRevisionList list)
+    {
+        lock.SharedWriteLockRevisionList = list.Header_;
     }
 
 
@@ -576,6 +616,8 @@ struct TWriteContext
     TTimestampToRevisionMap TimestampToRevision;
 
     std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
+
+    bool HasSharedWriteLocks = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

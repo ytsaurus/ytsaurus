@@ -236,7 +236,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
 
 
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
-                require_sync_replica=None, format=None, raw=None, client=None):
+                require_sync_replica=None, lock_type=None, format=None, raw=None, client=None):
     """Inserts rows from input_stream to dynamic table.
 
     :param table: output table path.
@@ -263,6 +263,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     set_param(params, "atomicity", atomicity)
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
+    set_param(params, "lock_type", lock_type)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:

@@ -62,11 +62,14 @@ void ISequoiaTransaction::LockRow(
 }
 
 template <class TRecord>
-void ISequoiaTransaction::WriteRow(const TRecord& record)
+void ISequoiaTransaction::WriteRow(
+    const TRecord& record,
+    NTableClient::ELockType lockType)
 {
     WriteRow(
         TRecord::Table,
-        NTableClient::FromRecord(record, GetRowBuffer()));
+        NTableClient::FromRecord(record, GetRowBuffer()),
+        lockType);
 }
 
 template <class TRecordKey>

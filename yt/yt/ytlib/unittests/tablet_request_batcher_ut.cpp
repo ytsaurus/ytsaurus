@@ -14,9 +14,11 @@ namespace {
 
 using namespace NCompression;
 using namespace NTableClient;
+using namespace NTransactionClient;
 using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 class TTabletRequestBatcherTest
     : public ::testing::Test
@@ -24,6 +26,12 @@ class TTabletRequestBatcherTest
 protected:
     TTableSchemaPtr Schema_;
     ITabletRequestBatcherPtr Batcher_;
+    TLockMask primaryExclusiveMask_;
+
+    void SetUp() override
+    {
+        primaryExclusiveMask_.Set(PrimaryLockIndex, ELockType::Exclusive);
+    }
 
     void CreateBatcher(bool sorted, TTabletRequestBatcherOptions options = {})
     {
@@ -59,6 +67,10 @@ protected:
 
         return CreateWireProtocolReader(batch->RequestData);
     }
+
+    TLockMask GetPrimaryLockExclusiveMask() const {
+        return primaryExclusiveMask_;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,23 +80,31 @@ TEST_F(TTabletRequestBatcherTest, SimpleSorted)
     CreateBatcher(/*sorted*/ true);
 
     auto row1 = MakeRow(/*key*/ 1, /*value*/ 2);
-    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, row1, TLockMask());
+    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, row1, GetPrimaryLockExclusiveMask());
     auto row2 = MakeRow(/*key*/ 2);
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, row2, TLockMask());
     auto row3 = MakeRow(/*key*/ 3, /*value*/ 42);
     TLockMask mask3;
-    mask3.Set(0, ELockType::SharedWeak);
-    mask3.Set(1, ELockType::SharedStrong);
+    mask3.Set(PrimaryLockIndex, ELockType::Exclusive);
+    mask3.Set(1, ELockType::SharedWeak);
+    mask3.Set(2, ELockType::SharedStrong);
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, row3, mask3);
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+
+    EXPECT_EQ(EWireProtocolCommand::WriteAndLockRow, reader->ReadCommand());
     EXPECT_EQ(row1, reader->ReadUnversionedRow(/*captureValues*/ true));
+    TLockMask expectedMask1;
+    expectedMask1.Set(PrimaryLockIndex, ELockType::Exclusive);
+    EXPECT_EQ(expectedMask1, reader->ReadLockMask());
+
     EXPECT_EQ(EWireProtocolCommand::DeleteRow, reader->ReadCommand());
     EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
+
     EXPECT_EQ(EWireProtocolCommand::WriteAndLockRow, reader->ReadCommand());
     EXPECT_EQ(row3, reader->ReadUnversionedRow(/*captureValues*/ true));
     EXPECT_EQ(mask3, reader->ReadLockMask());
+
     EXPECT_TRUE(reader->IsFinished());
 }
 
@@ -156,7 +176,7 @@ TEST_F(TTabletRequestBatcherTest, MaxRowsPerBatch)
     for (int index = 0; index < 10; ++index) {
         rows.push_back(MakeRow(/*key*/ index, /*value*/ index));
         Batcher_->SubmitUnversionedRow(
-            EWireProtocolCommand::WriteRow, rows.back(), TLockMask());
+            EWireProtocolCommand::WriteAndLockRow, rows.back(), GetPrimaryLockExclusiveMask());
     }
 
     auto batches = Batcher_->PrepareBatches();
@@ -170,8 +190,9 @@ TEST_F(TTabletRequestBatcherTest, MaxRowsPerBatch)
         auto reader = CreateWireProtocolReader(batch->RequestData);
         auto rowCount = batchIndex == 3 ? 1 : 3;
         for (int batchRowIndex = 0; batchRowIndex < rowCount; ++batchRowIndex) {
-            EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+            EXPECT_EQ(EWireProtocolCommand::WriteAndLockRow, reader->ReadCommand());
             EXPECT_EQ(rows[rowIndex++], reader->ReadUnversionedRow(/*captureValues*/ true));
+            EXPECT_EQ(GetPrimaryLockExclusiveMask(), reader->ReadLockMask());
         }
         EXPECT_TRUE(reader->IsFinished());
     }
@@ -184,7 +205,7 @@ TEST_F(TTabletRequestBatcherTest, MaxDataWeightPerBatch)
     std::vector<TUnversionedOwningRow> rows;
     for (int index = 0; index < 10; ++index) {
         rows.push_back(MakeRow(/*key*/ index, /*value*/ index));
-        Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, rows.back(), TLockMask());
+        Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, rows.back(), GetPrimaryLockExclusiveMask());
     }
 
     auto batches = Batcher_->PrepareBatches();
@@ -198,8 +219,9 @@ TEST_F(TTabletRequestBatcherTest, MaxDataWeightPerBatch)
         auto reader = CreateWireProtocolReader(batch->RequestData);
         auto rowCount = batchIndex == 3 ? 1 : 3;
         for (int batchRowIndex = 0; batchRowIndex < rowCount; ++batchRowIndex) {
-            EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+            EXPECT_EQ(EWireProtocolCommand::WriteAndLockRow, reader->ReadCommand());
             EXPECT_EQ(rows[rowIndex++], reader->ReadUnversionedRow(/*captureValues*/ true));
+            EXPECT_EQ(GetPrimaryLockExclusiveMask(), reader->ReadLockMask());
         }
         EXPECT_TRUE(reader->IsFinished());
     }
@@ -221,7 +243,7 @@ TEST_F(TTabletRequestBatcherTest, RowMerger1)
     CreateBatcher(/*sorted*/ true);
 
     auto row1 = MakeRow(/*key*/ 1, /*value*/ 1);
-    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, row1, TLockMask());
+    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, row1, GetPrimaryLockExclusiveMask());
     auto row2 = MakeRow(/*key*/ 1);
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, row2, TLockMask());
 
@@ -238,11 +260,12 @@ TEST_F(TTabletRequestBatcherTest, RowMerger2)
     auto row1 = MakeRow(/*key*/ 1);
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, row1, TLockMask());
     auto row2 = MakeRow(/*key*/ 1, /*value*/ 1);
-    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, row2, TLockMask());
+    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, row2, GetPrimaryLockExclusiveMask());
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+    EXPECT_EQ(EWireProtocolCommand::WriteAndLockRow, reader->ReadCommand());
     EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_EQ(GetPrimaryLockExclusiveMask(), reader->ReadLockMask());
     EXPECT_TRUE(reader->IsFinished());
 }
 

@@ -88,6 +88,7 @@ private:
         NTabletServer::THunkStorageNodePtr HunkStorageNode;
         THashSet<TSecondaryIndex*> SecondaryIndices;
         TSecondaryIndex* IndexTo = nullptr;
+        bool EnableSharedWriteLocks = false;
 
         TDynamicTableAttributes();
 
@@ -127,6 +128,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingTag);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDetailedProfiling);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableConsistentChunkReplicaPlacement);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableSharedWriteLocks);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);

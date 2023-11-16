@@ -162,6 +162,7 @@
     XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSequoiaReplicas, enable_sequoia_replicas) \
+    XX(EnableSharedWriteLocks, enable_shared_write_locks) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
     XX(EnableStripedErasure, enable_striped_erasure) \
     XX(EndorsementRequired, endorsement_required) \

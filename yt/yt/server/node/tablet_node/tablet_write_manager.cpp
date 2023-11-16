@@ -108,6 +108,10 @@ public:
                 }
             }
 
+            if (writeContext.HasSharedWriteLocks) {
+                transaction->SetHasSharedWriteLocks(true);
+            }
+
             YT_LOG_DEBUG(
                 "Prelocked rows confirmed (TransactionId: %v, RowCount: %v)",
                 transaction->GetId(),
@@ -260,7 +264,12 @@ public:
         updateProfileCounters(persistentWriteState->LocklessWriteLog);
         updateProfileCounters(persistentWriteState->LockedWriteLog);
 
-        CommitLockedRows(transaction);
+        // COMPAT(ponasenko-rs)
+        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+            reign < ETabletReign::SharedWriteLocks || !NeedsSortedSharedWriteSerialization(transaction))
+        {
+            CommitLockedRows(transaction);
+        }
 
         if (NeedsLocklessSerialization(transaction)) {
             TCompactVector<TTableReplicaInfo*, 16> syncReplicas;
@@ -326,10 +335,21 @@ public:
         YT_VERIFY(HasHydraContext());
 
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
-        YT_VERIFY(transientWriteState->LockedRows.empty());
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
 
-        CommitLocklessRows(transaction, /*delayed*/ true);
+        // COMPAT(ponasenko-rs)
+        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+            reign < ETabletReign::SharedWriteLocks)
+        {
+            YT_VERIFY(transientWriteState->LockedRows.empty());
+            CommitLocklessRows(transaction, /*delayed*/ true);
+        } else {
+            if (transientWriteState->LockedRows.empty()) {
+                CommitLocklessRows(transaction, /*delayed*/ true);
+            } else {
+                CommitLockedRows(transaction);
+            }
+        }
 
         EraseOrCrash(transaction->SerializingTabletIds(), Tablet_->GetId());
         YT_VERIFY(!NeedsSerialization(transaction));
@@ -398,7 +418,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return NeedsLocklessSerialization(transaction);
+        // COMPAT(ponasenko-rs)
+        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+            reign < ETabletReign::SharedWriteLocks)
+        {
+            return NeedsLocklessSerialization(transaction);
+        }
+
+        return NeedsLocklessSerialization(transaction) || NeedsSortedSharedWriteSerialization(transaction);
     }
 
     void UpdateReplicationProgress(TTransaction* transaction) override
@@ -1062,6 +1089,11 @@ private:
         const auto& storeManager = Tablet_->GetStoreManager();
         YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
 
+        if (context.HasSharedWriteLocks) {
+            YT_VERIFY(!relock || transaction->GetHasSharedWriteLocks());
+            transaction->SetHasSharedWriteLocks(true);
+        }
+
         YT_LOG_DEBUG(
             "Rows locked (TransactionId: %v, RowCount: %v)",
             transaction->GetId(),
@@ -1530,6 +1562,14 @@ private:
         return
             !persistentWriteState->LocklessWriteLog.Empty() &&
             Tablet_->GetCommitOrdering() == ECommitOrdering::Strong;
+    }
+
+    bool NeedsSortedSharedWriteSerialization(TTransaction* transaction)
+    {
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
+
+        return transaction->GetHasSharedWriteLocks() &&
+            !persistentWriteState->LockedWriteLog.Empty();
     }
 
     TWriteContext CreateWriteContext(TTransaction* transaction)

@@ -106,6 +106,7 @@ public:
     TTimestamp GetLastWriteTimestamp(TSortedDynamicRow row, int lockIndex);
 
     TTimestamp GetLastExclusiveTimestamp(TSortedDynamicRow row, int lockIndex);
+    TTimestamp GetLastSharedWriteTimestamp(TSortedDynamicRow row, int lockIndex);
     TTimestamp GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex);
 
     // IStore implementation.
@@ -219,6 +220,7 @@ private:
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
 
     void AddExclusiveLockRevision(TLockDescriptor& lock, ui32 revision);
+    void AddSharedWriteLockRevision(TLockDescriptor& lock, ui32 revision);
     void AddReadLockRevision(TLockDescriptor& lock, ui32 revision);
 
     void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
@@ -231,13 +233,12 @@ private:
     {
         TTimestampToRevisionMap TimestampToRevision;
         std::vector<std::vector<ui32>> WriteRevisions;
+        TTimestamp* LastExclusiveLockTimestamps;
+        TTimestamp* LastSharedWriteLockTimestamps;
+        TTimestamp* LastReadLockTimestamps;
     };
 
-    void LoadRow(
-        TVersionedRow row,
-        TLoadScratchData* scratchData,
-        TTimestamp* lastReadLockTimestamps,
-        TTimestamp* lastExclusiveLockTimestamps);
+    void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
     ui32 CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
     ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TTimestampToRevisionMap* scratchData);
 

@@ -1093,6 +1093,8 @@ def add_insert_rows_parser(add_parser):
     aggregate_parser.add_argument("--aggregate", dest="aggregate", default=None, action="store_true")
     aggregate_parser.add_argument("--no-aggregate", dest="aggregate", default=None, action="store_false")
 
+    parser.add_argument("--lock_type", dest="lock_type", default=None, type=str)
+
     error_message = "Use 'insert-rows' instead of 'insert'"
 
     def print_error():

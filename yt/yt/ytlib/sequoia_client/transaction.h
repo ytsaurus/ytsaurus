@@ -61,10 +61,13 @@ struct ISequoiaTransaction
 
     virtual void WriteRow(
         ESequoiaTable table,
-        NTableClient::TUnversionedRow row) = 0;
+        NTableClient::TUnversionedRow row,
+        NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive) = 0;
 
     template <class TRecord>
-    void WriteRow(const TRecord& record);
+    void WriteRow(
+        const TRecord& record,
+        NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive);
 
     virtual void DeleteRow(
         ESequoiaTable table,

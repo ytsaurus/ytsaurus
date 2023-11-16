@@ -409,6 +409,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic && !table->SecondaryIndices().empty()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IndexTo)
         .SetPresent(isDynamic && table->GetIndexTo()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableSharedWriteLocks)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetPresent(isDynamic && isSorted));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -1072,6 +1076,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::EnableSharedWriteLocks:
+            if (!isDynamic || !isSorted) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetEnableSharedWriteLocks());
+            return true;
+
         default:
             break;
     }
@@ -1663,6 +1676,17 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::EnableSharedWriteLocks: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
+            lockedTable->SetEnableSharedWriteLocks(ConvertTo<bool>(value));
+            return true;
+        }
+
         default:
             break;
     }
@@ -1855,6 +1879,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
     ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
+    response->set_enable_shared_write_locks(trunkTable->GetEnableSharedWriteLocks());
 
     THashSet<TTabletCell*> cells;
     for (const auto* tabletBase : trunkTable->Tablets()) {

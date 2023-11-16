@@ -1119,7 +1119,7 @@ class YtClient(ClientState):
             self,
             table, input_stream,
             update=None, aggregate=None, atomicity=None, durability=None, require_sync_replica=None,
-            format=None, raw=None):
+            lock_type=None, format=None, raw=None):
         """
         Inserts rows from input_stream to dynamic table.
 
@@ -1138,7 +1138,7 @@ class YtClient(ClientState):
             table, input_stream,
             client=self,
             update=update, aggregate=aggregate, atomicity=atomicity, durability=durability, require_sync_replica=require_sync_replica,
-            format=format, raw=raw)
+            lock_type=lock_type, format=format, raw=raw)
 
     def internalize(
             self,

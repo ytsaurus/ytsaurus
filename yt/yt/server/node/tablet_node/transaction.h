@@ -66,6 +66,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Foreign);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasLease);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasSharedWriteLocks, false);
 
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp, NullTimestamp);

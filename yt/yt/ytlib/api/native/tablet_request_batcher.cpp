@@ -8,6 +8,7 @@
 namespace NYT::NApi::NNative {
 
 using namespace NTableClient;
+using namespace NTransactionClient;
 using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,12 +118,12 @@ private:
                 switch (it->Command) {
                     case EWireProtocolCommand::DeleteRow:
                         rowMerger.DeletePartialRow(it->Row);
+                        lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
                         break;
 
                     case EWireProtocolCommand::WriteRow:
-                        rowMerger.AddPartialRow(it->Row);
-                        break;
-
+                        YT_VERIFY(it->Locks.IsNone());
+                        [[fallthrough]];
                     case EWireProtocolCommand::WriteAndLockRow:
                         rowMerger.AddPartialRow(it->Row);
                         lockMask = MaxMask(lockMask, it->Locks);
@@ -139,6 +140,7 @@ private:
             TUnversionedRow mergedRow;
             if (resultCommand == EWireProtocolCommand::DeleteRow) {
                 mergedRow = rowMerger.BuildDeleteRow();
+                lockMask = TLockMask();
             } else {
                 if (lockMask.GetSize() > 0) {
                     resultCommand = EWireProtocolCommand::WriteAndLockRow;

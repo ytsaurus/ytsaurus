@@ -47,6 +47,7 @@ DEFINE_ENUM(ETabletReign,
     ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
     // 23.3 starts here.
     ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
+    ((SharedWriteLocks)                            (100901)) // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////

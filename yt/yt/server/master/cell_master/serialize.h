@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReinitializeRootResourceLimits)                               (2504))  // kvk1920
     ((NoMountRevisionCheckInBulkInsert)                             (2505))  // ifsmirnov
     ((FixSharedRangeMove)                                           (2506))  // ponasenko-rs
+    ((TabletSharedWriteLocks)                                       (2507))  // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////

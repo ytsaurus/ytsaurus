@@ -317,10 +317,15 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             commit_transaction(tx2)
 
     @authors("ponasenko-rs")
-    def test_tablet_exclusive_locks_persist_in_snapshots(self):
+    @pytest.mark.parametrize("lock_type", ["exclusive", "shared_write", "shared_strong"])
+    def test_tablet_locks_persist_in_snapshots(self, lock_type):
         if self.DRIVER_BACKEND == "rpc":
-            # TODO(ponasenko-rs): Remove after YT-20282
-            pytest.skip("Rpc proxy client drops exclusive locks without data")
+            if lock_type == "exclusive":
+                # TODO(ponasenko-rs): Remove after YT-20282.
+                pytest.skip("Rpc proxy client drops exclusive locks without data")
+            elif lock_type == "shared_write":
+                # Shared write locks aren't supported on rpc proxy.
+                pytest.skip()
 
         sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
@@ -336,7 +341,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         tx = start_transaction(type="tablet")
 
         lock_tx = start_transaction(type="tablet")
-        lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type="exclusive", tx=lock_tx)
+        lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type=lock_type, tx=lock_tx)
         commit_transaction(lock_tx)
 
         build_snapshot(cell_id=cell_id)
@@ -349,6 +354,145 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx)
         with pytest.raises(YtError):
             commit_transaction(tx)
+
+    @authors("ponasenko-rs")
+    def test_transaction_shared_write_locks(self):
+        if self.DRIVER_BACKEND == "rpc":
+            # Shared write locks aren't supported on rpc proxy.
+            pytest.skip()
+
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64", "lock": "la"},
+            {"name": "b", "type": "int64", "lock": "lb"},
+            {"name": "c", "type": "int64", "lock": "lc"}
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        set("//tmp/t/@enable_shared_write_locks", True)
+        sync_mount_table("//tmp/t")
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/t", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a"]) == [{"key": 1, "a": 2}])
+
+        # write conflict
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/t", [{"key": 2, "a": 2}], update=True, tx=tx2)
+        insert_rows("//tmp/t", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
+
+        commit_transaction(tx1)
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+        commit_transaction(tx3)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a"]) == [{"key": 2, "a": 3}])
+
+        # read conflict
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        lock_rows("//tmp/t", [{"key": 3}], locks=["la"], tx=tx2)
+        insert_rows("//tmp/t", [{"key": 3, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
+
+        commit_transaction(tx1)
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+        commit_transaction(tx3)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 3}], column_names=["key", "a"]) == [{"key": 3, "a": 3}])
+
+        # no conflict after shared write locks
+        tx1 = start_transaction(type="tablet")
+        insert_rows("//tmp/t", [{"key": 4, "a": 1}], update=True, tx=tx1)
+        commit_transaction(tx1)
+
+        wait(lambda:  lookup_rows("//tmp/t", [{"key": 4}], column_names=["key", "a"]) == [{"key": 4, "a": 1}])
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("has_explicit_lock_group", [True, False])
+    def test_aggregate_shared_write_locks(self, has_explicit_lock_group):
+        if self.DRIVER_BACKEND == "rpc":
+            # Shared write locks aren't supported on rpc proxy.
+            pytest.skip()
+
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "aggregate": "sum", "required": True},
+        ]
+        if has_explicit_lock_group:
+            schema[1]["lock"] = "value_lock"
+
+        create_dynamic_table("//tmp/t", schema=schema)
+        set("//tmp/t/@enable_shared_write_locks", True)
+        sync_mount_table("//tmp/t")
+
+        tx_ids = [start_transaction(type="tablet") for _ in range(10)]
+
+        for tx_id in tx_ids:
+            insert_rows("//tmp/t", [{"key": 0, "value": 1}], aggregate=True, lock_type="shared_write", tx=tx_id)
+            commit_transaction(tx_id)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}], column_names=["key", "value"]) == [{"key": 0, "value": 10}])
+
+    @authors("ponasenko-rs")
+    def test_enable_shared_write_locks(self):
+        if self.DRIVER_BACKEND == "rpc":
+            # Shared write locks aren't supported on rpc proxy.
+            pytest.skip()
+
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64", "lock": "la"}
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/t", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx1)
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a"]) == [])
+
+        set("//tmp/t/@enable_shared_write_locks", True)
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/t", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a"]) == [{"key": 1, "a": 2}])
 
     @authors("babenko", "savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

@@ -145,6 +145,7 @@ message TRspGetMountInfo
     optional NYT.NProto.TGuid replication_card_id = 9; // NChaosClient::TReplicationCardId
     optional NYT.NProto.TGuid hunk_storage_node_id = 10;
     repeated TIndexInfo indices = 11;
+    optional bool enable_shared_write_locks = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
