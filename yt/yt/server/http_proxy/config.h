@@ -169,6 +169,7 @@ public:
     //! PathPrefix/ProxyRole/principal if UseAccessControlObjects is set.
     TString PathPrefix;
 
+    // COMPAT(verytable): Drop it after migration to aco roles everywhere.
     bool UseAccessControlObjects;
 
     //! Parameters of the permission cache.
