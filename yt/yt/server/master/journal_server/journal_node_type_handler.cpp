@@ -267,7 +267,7 @@ protected:
         auto* chunkList = trunkNode->GetChunkList();
         if (auto* unsealedChunk = chunkList ? FindFirstUnsealedChild(chunkList)->As<TChunk>() : nullptr) {
             YT_LOG_DEBUG(
-                "Waiting for journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
+                "Waiting for first unsealed journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                 trunkNode->GetId(),
                 unsealedChunk->GetId());
             const auto& chunkManager = GetBootstrap()->GetChunkManager();

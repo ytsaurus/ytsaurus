@@ -1022,6 +1022,10 @@ public:
                 continue;
             }
             auto* rightSibling = children[index + 1]->AsChunk();
+            YT_LOG_DEBUG(
+                "Waiting for next unsealed journal chunk to become sealed (CurrentChunkId: %v, NextChunkId: %v)",
+                chunk->GetId(),
+                rightSibling->GetId());
             ScheduleChunkSeal(rightSibling);
         }
 
@@ -5751,9 +5755,14 @@ private:
                 }
             }
 
-            if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
-                const auto& journalManager = Bootstrap_->GetJournalManager();
-                journalManager->SealJournal(trunkJournalNode, nullptr);
+            if (IsObjectAlive(trunkJournalNode)) {
+                if (journalNodeLocked) {
+                    YT_LOG_DEBUG("Journal node cannot be sealed since it is still locked (NodeId: %v)",
+                        trunkJournalNode->GetId());
+                } else {
+                    const auto& journalManager = Bootstrap_->GetJournalManager();
+                    journalManager->SealJournal(trunkJournalNode, nullptr);
+                }
             }
         }
     }
