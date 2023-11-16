@@ -189,6 +189,7 @@ DEFINE_ENUM(EMasterReign,
     ((NoMountRevisionCheckInBulkInsert)                             (2505))  // ifsmirnov
     ((FixSharedRangeMove)                                           (2506))  // ponasenko-rs
     ((TabletSharedWriteLocks)                                       (2507))  // ponasenko-rs
+    ((HunksForever)                                                 (2508))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

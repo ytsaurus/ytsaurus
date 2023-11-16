@@ -63,12 +63,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     KEYS_OF_ROWS_WITH_VARIOUS_ANY_VALUES = [{"key": x["key"]} for x in ROWS_WITH_VARIOUS_ANY_VALUES]
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "tablet_manager": {
-            "enable_hunks": True
-        }
-    }
-
     # Do not allow multiple erasure parts per node.
     DELTA_MASTER_CONFIG = {}
 
@@ -1437,12 +1431,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         {"name": "key", "type": "int64"},
         {"name": "value", "type": "string"},
     ]
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "tablet_manager": {
-            "enable_hunks": True
-        }
-    }
 
     # Do not allow multiple erasure parts per node.
     DELTA_MASTER_CONFIG = {}

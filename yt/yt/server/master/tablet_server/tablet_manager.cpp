@@ -5748,11 +5748,6 @@ private:
     {
         YT_VERIFY(options.Persistent);
 
-        const auto& dynamicConfig = GetDynamicConfig();
-        if ((request->hunk_chunks_to_add_size() > 0 || request->hunk_chunks_to_remove_size() > 0) && !dynamicConfig->EnableHunks) {
-            THROW_ERROR_EXCEPTION("Hunks are not enabled");
-        }
-
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
         auto* tablet = GetTabletOrThrow(tabletId)->As<TTablet>();

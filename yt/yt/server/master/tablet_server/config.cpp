@@ -191,9 +191,6 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("tablet_node_tracker", &TThis::TabletNodeTracker)
         .DefaultNew();
 
-    registrar.Parameter("enable_hunks", &TThis::EnableHunks)
-        .Default(false);
-
     registrar.Parameter("enable_backups", &TThis::EnableBackups)
         .Default(false);
 

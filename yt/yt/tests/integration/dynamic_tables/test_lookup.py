@@ -1344,12 +1344,6 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         }
     }
 
-    DELTA_DYNAMIC_MASTER_CONFIG = update(TestSortedDynamicTablesBase.DELTA_DYNAMIC_MASTER_CONFIG, {
-        "tablet_manager": {
-            "enable_hunks": True
-        }
-    })
-
     def create_simple_table(self, path, hunks, **kwargs):
         value_column_schema = {"name": "value", "type": "string"}
         if hunks:

@@ -277,9 +277,6 @@ public:
 
     TDynamicTabletNodeTrackerConfigPtr TabletNodeTracker;
 
-    // COMPAT(babenko)
-    bool EnableHunks;
-
     bool EnableBackups;
 
     bool SendDynamicStoreIdInBackup;
