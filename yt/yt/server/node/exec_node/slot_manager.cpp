@@ -211,16 +211,21 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     {
         auto guard = WriterGuard(LocationsLock_);
         Locations_.clear();
+    }
 
+    {
         int locationIndex = 0;
         for (const auto& locationConfig : StaticConfig_->Locations) {
-            Locations_.push_back(New<TSlotLocation>(
+            auto newLocation = New<TSlotLocation>(
                 std::move(locationConfig),
                 Bootstrap_,
                 Format("slot%v", locationIndex),
                 JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
                 SlotCount_,
-                BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, JobEnvironment_)));
+                BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, JobEnvironment_));
+
+            auto guard = WriterGuard(LocationsLock_);
+            Locations_.push_back(std::move(newLocation));
             ++locationIndex;
         }
     }
