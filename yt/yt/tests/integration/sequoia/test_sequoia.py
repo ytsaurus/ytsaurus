@@ -73,3 +73,14 @@ class TestSequoia(YTEnvSetup):
     def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
         assert ls("//tmp/a") == ["b"]
+
+    @authors("danilalexeev")
+    def test_escaped_symbols(self):
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/special@&*[{symbols")
+        path = r"//tmp/special\\\/\@\&\*\[\{symbols"
+        create("map_node", path + "/m", recursive=True)
+        assert r"special\/@&*[{symbols" in ls("//tmp")
+        assert "m" in ls(path)
+        child_id = create("map_node", r"//tmp/m\@1")
+        assert get(r"//tmp/m\@1/@id") == child_id

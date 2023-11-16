@@ -119,8 +119,6 @@ protected:
     {
         YT_VERIFY(TypeFromId(nodeId) != EObjectType::Rootstock);
 
-        auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(path));
-
         // Remove from resolve table.
         Transaction_->DeleteRow(NRecords::TResolveNodeKey{
             .Path = path,
@@ -131,11 +129,14 @@ protected:
             .NodeId = nodeId,
         });
 
-        // Remove from children nodes table;
-        Transaction_->DeleteRow(NRecords::TChildrenNodesKey{
-            .ParentPath = MangleSequoiaPath(parentPath),
-            .ChildKey = childKey,
-        });
+        if (TypeFromId(nodeId) != EObjectType::Scion) {
+            // Remove from children nodes table.
+            auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(path));
+            Transaction_->DeleteRow(NRecords::TChildrenNodesKey{
+                .ParentPath = MangleSequoiaPath(parentPath),
+                .ChildKey = ToStringLiteral(childKey),
+            });
+        }
 
         // Remove from master cell.
         NCypressServer::NProto::TReqRemoveNode reqRemoveNode;
@@ -233,7 +234,7 @@ protected:
         THROW_ERROR_EXCEPTION(
             "Node %v has no child with key %Qv",
             Path_,
-            ToYPathLiteral(tokenizer.GetToken()));
+            tokenizer.GetToken());
     }
 };
 
@@ -382,7 +383,7 @@ private:
         Transaction_->WriteRow(NRecords::TChildrenNodes{
             .Key = {
                 .ParentPath = MangleSequoiaPath(parentPath),
-                .ChildKey = TString(childKey),
+                .ChildKey = ToStringLiteral(childKey),
             },
             .ChildId = id,
         });
@@ -412,7 +413,7 @@ private:
         auto childPath = parentPath;
         for (const auto& childKey : childKeys) {
             auto cellTag = cellTagCallback(childKey);
-            childPath = YPathJoin(childPath, childKey);
+            childPath = Format("%v/%v", childPath, childKey);
             auto childId = Transaction_->GenerateObjectId(EObjectType::SequoiaMapNode, cellTag, /*sequoia*/ true);
             CreateNode(EObjectType::SequoiaMapNode, childId, childPath);
             AttachChild(parentId, childId, TYPath(childKey));

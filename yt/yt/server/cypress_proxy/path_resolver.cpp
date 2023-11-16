@@ -29,10 +29,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto SlashYPath = TYPath("/");
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TPathResolver
 {
 public:
@@ -65,22 +61,15 @@ public:
             constexpr int TypicalTokenCount = 16;
             TCompactVector<TResolveAttempt, TypicalTokenCount> resolveAttempts;
 
-            TYPath currentPrefix = SlashYPath;
-            currentPrefix.reserve(Tokenizer_.GetInput().size());
-
             while (Tokenizer_.Skip(ETokenType::Slash)) {
                 if (Tokenizer_.GetType() != ETokenType::Literal) {
                     break;
                 }
-                auto literal = Tokenizer_.GetLiteralValue();
-
-                currentPrefix += SlashYPath;
-                currentPrefix += std::move(literal);
 
                 Tokenizer_.Advance();
 
                 resolveAttempts.push_back(TResolveAttempt{
-                    .Prefix = currentPrefix,
+                    .Prefix = TYPath(Tokenizer_.GetPrefix()),
                     .Suffix = TYPath(Tokenizer_.GetInput()),
                 });
             }
