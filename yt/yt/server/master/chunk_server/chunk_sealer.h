@@ -14,7 +14,6 @@ namespace NYT::NChunkServer {
 struct IChunkSealer
     : public IJobController
 {
-public:
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
