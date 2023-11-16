@@ -65,7 +65,6 @@
 
 #include <library/cpp/yt/threading/recursive_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
-#include <library/cpp/yt/threading/traceless_guard.h>
 
 #include <util/generic/algorithm.h>
 
@@ -1643,7 +1642,7 @@ private:
             }
 
             {
-                auto guard = NThreading::TracelessTryGuard(LocalExecutionLock_);
+                TTryGuard guard(LocalExecutionLock_);
                 if (!guard.WasAcquired()) {
                     Reschedule();
                     break;
@@ -2180,7 +2179,7 @@ private:
             return true;
         }
 
-        auto guard = NThreading::TracelessTryGuard(LocalExecutionLock_);
+        TTryGuard guard(LocalExecutionLock_);
         if (!guard.WasAcquired()) {
             YT_LOG_DEBUG("Failed to acquire execution lock, backing off and retrying (RequestId: %v)",
                 RequestId_);

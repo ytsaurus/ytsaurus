@@ -32,7 +32,6 @@ inline void TReaderWriterSpinLock::ReleaseReader() noexcept
 {
     auto prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order::release);
     Y_ASSERT((prevValue & ~WriterMask) != 0);
-    NDetail::RecordSpinLockReleased();
 }
 
 inline void TReaderWriterSpinLock::AcquireWriter() noexcept
@@ -47,7 +46,6 @@ inline void TReaderWriterSpinLock::ReleaseWriter() noexcept
 {
     auto prevValue = Value_.fetch_and(~WriterMask, std::memory_order::release);
     Y_ASSERT(prevValue & WriterMask);
-    NDetail::RecordSpinLockReleased();
 }
 
 inline bool TReaderWriterSpinLock::IsLocked() const noexcept
@@ -72,7 +70,6 @@ inline bool TReaderWriterSpinLock::TryAcquireReader() noexcept
         Value_.fetch_sub(ReaderDelta, std::memory_order::relaxed);
         return false;
     }
-    NDetail::RecordSpinLockAcquired();
     return true;
 }
 
@@ -92,19 +89,13 @@ inline bool TReaderWriterSpinLock::TryAcquireReaderForkFriendly() noexcept
         return false;
     }
     auto newValue = oldValue + ReaderDelta;
-
-    bool acquired = Value_.compare_exchange_weak(oldValue, newValue, std::memory_order::acquire);
-    NDetail::RecordSpinLockAcquired(acquired);
-    return acquired;
+    return Value_.compare_exchange_weak(oldValue, newValue, std::memory_order::acquire);
 }
 
 inline bool TReaderWriterSpinLock::TryAcquireWriter() noexcept
 {
     auto expected = UnlockedValue;
-
-    bool acquired =  Value_.compare_exchange_weak(expected, WriterMask, std::memory_order::acquire);
-    NDetail::RecordSpinLockAcquired(acquired);
-    return acquired;
+    return Value_.compare_exchange_weak(expected, WriterMask, std::memory_order::acquire);
 }
 
 inline bool TReaderWriterSpinLock::TryAndTryAcquireWriter() noexcept

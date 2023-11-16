@@ -62,8 +62,6 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/traceless_guard.h>
-
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -1375,7 +1373,7 @@ public:
         TTrackerStateRevision revision,
         bool snapshotRequested) override
     {
-        auto drainQueueGuard = NThreading::TracelessGuard(DrainQueueLock_);
+        auto drainQueueGuard = Guard(DrainQueueLock_);
 
         if (!IsEnabled()) {
             THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,

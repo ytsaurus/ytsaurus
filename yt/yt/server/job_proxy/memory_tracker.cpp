@@ -8,8 +8,6 @@
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
-#include <library/cpp/yt/threading/traceless_guard.h>
-
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/statistics.h>
 
@@ -70,7 +68,7 @@ i64 TMemoryTracker::GetMemoryUsage()
 
 TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
 {
-    auto guard = NThreading::TracelessGuard(MemoryStatisticsLock_);
+    auto guard = Guard(MemoryStatisticsLock_);
 
     auto now = TInstant::Now();
 

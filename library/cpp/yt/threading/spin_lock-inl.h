@@ -30,7 +30,6 @@ inline void TSpinLock::Release() noexcept
 #else
     YT_ASSERT(Value_.exchange(UnlockedValue, std::memory_order::release) != UnlockedValue);
 #endif
-    NDetail::RecordSpinLockReleased();
 }
 
 inline bool TSpinLock::IsLocked() const noexcept
@@ -46,14 +45,11 @@ inline bool TSpinLock::TryAcquire() noexcept
 #else
     auto newValue = LockedValue;
 #endif
-
-    bool acquired = Value_.compare_exchange_weak(
+    return Value_.compare_exchange_weak(
         expectedValue,
         newValue,
         std::memory_order::acquire,
         std::memory_order::relaxed);
-    NDetail::RecordSpinLockAcquired(acquired);
-    return acquired;
 }
 
 inline bool TSpinLock::TryAndTryAcquire() noexcept

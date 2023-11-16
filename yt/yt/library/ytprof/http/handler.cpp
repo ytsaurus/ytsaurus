@@ -18,8 +18,6 @@
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
-#include <library/cpp/yt/threading/traceless_guard.h>
-
 #include <util/system/mutex.h>
 
 namespace NYT::NYTProf {
@@ -42,8 +40,7 @@ public:
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         try {
-            auto guard = NThreading::TracelessTryGuard(Lock_);
-
+            TTryGuard guard(Lock_);
             if (!guard) {
                 rsp->SetStatus(EStatusCode::TooManyRequests);
                 WaitFor(rsp->WriteBody(TSharedRef::FromString("Profile fetch already running")))
