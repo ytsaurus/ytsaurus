@@ -36,8 +36,7 @@ public:
     TFuture<std::vector<std::vector<TSharedRef>>> ReadRows(
         const NChunkClient::TClientChunkReadOptions& options,
         int firstRowIndex,
-        int rowCount,
-        bool enableFastPath);
+        int rowCount);
 
 private:
     const TChunkReaderConfigPtr Config_;

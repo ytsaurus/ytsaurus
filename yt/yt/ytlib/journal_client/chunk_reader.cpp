@@ -225,8 +225,7 @@ public:
             partsReader->ReadRows(
                 Options_,
                 FirstBlockIndex_,
-                BlockCount_,
-                /*enableFastPath*/ RetryIndex_ == 1)
+                BlockCount_)
                 .Subscribe(BIND(&TReadBlocksSession::OnRowsRead, MakeStrong(this))
                     .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
         }
