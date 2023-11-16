@@ -27,9 +27,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, FetchTableRows);
     DEFINE_RPC_PROXY_METHOD(NProto, GetOrderedTabletSafeTrimRowCount);
 
-    DEFINE_RPC_PROXY_METHOD(NProto, CreateSessionInstance);
-    DEFINE_RPC_PROXY_METHOD(NProto, PingSessionInstance);
-    DEFINE_RPC_PROXY_METHOD(NProto, CloseSessionInstance);
+    DEFINE_RPC_PROXY_METHOD(NProto, CreateDistributedSession);
+    DEFINE_RPC_PROXY_METHOD(NProto, PingDistributedSession);
+    DEFINE_RPC_PROXY_METHOD(NProto, CloseDistributedSession);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

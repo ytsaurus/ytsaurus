@@ -11,91 +11,95 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/private.h>
 
 namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
+using namespace NRpc;
 using namespace NThreading;
 
 using NYT::ToProto;
 using NYT::FromProto;
 
-static const TLogger Logger("DistributedQuerySession");
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSessionCommon
-    : public TRefCounted
+struct TPingableDistributedSessionContext final
 {
-    TSessionId Id;
-    TSessionOptions Options;
-    IInvokerPtr Invoker;
-
-    TSessionCommon(
-        TSessionId id,
-        TSessionOptions options,
-        IInvokerPtr invoker)
-        : Id(id)
-        , Options(options)
-        , Invoker(std::move(invoker))
-    { }
+    TDistributedSessionId SessionId;
+    TDistributedSessionOptions Options;
 };
 
-DEFINE_REFCOUNTED_TYPE(TSessionCommon)
+DEFINE_REFCOUNTED_TYPE(TPingableDistributedSessionContext)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TNodePinger)
 
 class TNodePinger
     : public TRefCounted
 {
 public:
     TNodePinger(
-        TIntrusivePtr<const TSessionCommon> common,
+        IInvokerPtr invoker,
         TWeakPtr<IDistributedSessionCoordinator> coordinator,
-        TQueryServiceProxy proxy)
-        : Common_(std::move(common))
+        IChannelPtr channel,
+        TIntrusivePtr<TPingableDistributedSessionContext> context)
+        : Invoker_(std::move(invoker))
         , Coordinator_(std::move(coordinator))
-        , Proxy_(std::move(proxy))
+        , Proxy_(std::move(channel))
         , PingExecutor_(New<TPeriodicExecutor>(
-            common->Invoker,
+            Invoker_,
             BIND(&TNodePinger::SendPing, MakeWeak(this)),
-            Common_->Options.PingPeriod))
+            context->Options.PingPeriod))
+        , Context_(std::move(context))
     {
         PingExecutor_->Start();
     }
 
     void Close()
     {
-        auto req = Proxy_.CloseSessionInstance();
-        ToProto(req->mutable_session_id(), Common_->Id);
+        auto req = Proxy_.CloseDistributedSession();
+        ToProto(req->mutable_session_id(), Context_->SessionId);
+        req->SetTimeout(Context_->Options.ControlRpcTimeout);
         YT_UNUSED_FUTURE(req->Invoke());
 
         YT_UNUSED_FUTURE(PingExecutor_->Stop());
     }
 
 private:
-    const TIntrusivePtr<const TSessionCommon> Common_;
+    const IInvokerPtr Invoker_;
     const TWeakPtr<IDistributedSessionCoordinator> Coordinator_;
     const TQueryServiceProxy Proxy_;
     const TPeriodicExecutorPtr PingExecutor_;
+
+    TIntrusivePtr<TPingableDistributedSessionContext> Context_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, PropagateSpinLock_);
     THashSet<TString> PropagatedAddresses_;
 
     void SendPing()
     {
-        auto req = Proxy_.PingSessionInstance();
-        ToProto(req->mutable_session_id(), Common_->Id);
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        auto req = Proxy_.PingDistributedSession();
+        ToProto(req->mutable_session_id(), Context_->SessionId);
         ToProto(req->mutable_nodes_with_propagated_session(), GrabPropagatedAddresses());
-        req->SetTimeout(Common_->Options.ControlRpcTimeout);
+        req->SetTimeout(Context_->Options.ControlRpcTimeout);
         req->Invoke()
-            .Subscribe(BIND(&TNodePinger::HandlePingResponse, MakeWeak(this)));
+            .Subscribe(BIND(&TNodePinger::OnSessionPinged, MakeWeak(this)).Via(Invoker_));
     }
 
-    void HandlePingResponse(const TQueryServiceProxy::TErrorOrRspPingSessionInstancePtr& rspOrError)
+    void OnSessionPinged(const TQueryServiceProxy::TErrorOrRspPingDistributedSessionPtr& rspOrError)
     {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
         auto coordinator = Coordinator_.Lock();
         if (!coordinator) {
             return;
@@ -107,31 +111,35 @@ private:
             auto addresses = FromProto<std::vector<TString>>(rsp->nodes_to_propagate_session_onto());
 
             for (const auto& address : addresses) {
-                coordinator->BindToRemoteSessionIfNecessary(address);
+                coordinator->BindToRemoteSession(address);
             }
 
             RegisterPropagatedAddresses(std::move(addresses));
         } else {
-            coordinator->PingAbortCallback(rspOrError);
+            coordinator->Abort(rspOrError);
         }
     }
 
     std::vector<TString> GrabPropagatedAddresses()
     {
-        THashSet<TString> swap;
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        THashSet<TString> addressesSet;
         {
             auto guard = Guard(PropagateSpinLock_);
-            std::swap(PropagatedAddresses_, swap);
+            std::swap(PropagatedAddresses_, addressesSet);
         }
 
         std::vector<TString> addresses;
-        addresses.reserve(swap.size());
-        std::move(swap.begin(), swap.end(), std::back_inserter(addresses));
+        addresses.reserve(addressesSet.size());
+        std::move(addressesSet.begin(), addressesSet.end(), std::back_inserter(addresses));
         return addresses;
     }
 
     void RegisterPropagatedAddresses(std::vector<TString> addresses)
     {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
         auto guard = Guard(PropagateSpinLock_);
 
         for (auto& address : addresses) {
@@ -149,27 +157,23 @@ class TDistributedSessionCoordinator
 {
 public:
     TDistributedSessionCoordinator(
-        TSessionOptions options,
         IInvokerPtr invoker,
-        INodeChannelFactoryPtr channelFactory)
-        : Common_(New<TSessionCommon>(
-            TSessionId::Create(),
-            options,
-            std::move(invoker)))
+        INodeChannelFactoryPtr channelFactory,
+        TDistributedSessionOptions options)
+        : Invoker_(std::move(invoker))
         , NodeChannelFactory_(std::move(channelFactory))
-        , AbortByPingFailPromise_(NewPromise<void>())
+        , Context_(New<TPingableDistributedSessionContext>(
+            TDistributedSessionId::Create(),
+            options))
     { }
 
-    TSessionId GetId() const override
+    TDistributedSessionId GetDistributedSessionId() const override
     {
-        return Common_->Id;
+        return Context_->SessionId;
     }
 
-    void BindToRemoteSessionIfNecessary(TString address) override
+    void BindToRemoteSession(TString address) override
     {
-        THROW_ERROR_EXCEPTION_IF(AbortByPingFailPromise_.IsSet(),
-            "Cannot bind to a disbanded distributed query session coordinator");
-
         {
             auto guard = Guard(SessionCoordinatorLock_);
             if (!SessionMembers_.insert(address).second){
@@ -177,34 +181,37 @@ public:
             }
         }
 
-        BindToRemoteSessionInstance(TQueryServiceProxy(NodeChannelFactory_->CreateChannel(std::move(address))));
+        DoBindToRemoteSession(std::move(address));
     }
 
-    void PingAbortCallback(TError error) override
+    void Abort(TError error) override
     {
         if (AbortByPingFailPromise_.ToFuture().Cancel(error)) {
-            YT_LOG_DEBUG(error,
-                "Distributed query session execution cancelled (SessionId: %v)",
-                Common_->Id);
+            YT_LOG_DEBUG(error, "Distributed query session execution cancelled (SessionId: %v)",
+                Context_->SessionId);
         }
     }
 
-    void CloseRemoteInstances() override
+    void CloseRemoteSessions() override
     {
-        YT_LOG_INFO("Closing remote distributed query session instances (SessionId: %v)",
-            Common_->Id);
+        YT_LOG_DEBUG("Closing remote distributed query session instances (SessionId: %v)",
+            Context_->SessionId);
 
-        for (auto& node : Pingers_) {
-            node->Close();
+        for (auto& pinger : Pingers_) {
+            pinger->Close();
         }
 
-        Pingers_.clear();
+        {
+            auto guard = Guard(SessionCoordinatorLock_);
+            Pingers_.clear();
+        }
     }
 
 private:
-    const TIntrusivePtr<const TSessionCommon> Common_;
+    const IInvokerPtr Invoker_;
     const INodeChannelFactoryPtr NodeChannelFactory_;
-    const TPromise<void> AbortByPingFailPromise_;
+    const TPromise<void> AbortByPingFailPromise_ = NewPromise<void>();
+    TIntrusivePtr<TPingableDistributedSessionContext> Context_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SessionCoordinatorLock_);
     THashSet<TString> SessionMembers_;
@@ -213,27 +220,35 @@ private:
     TFuture<void> CreateSessionInstanceIfNecessary(TQueryServiceProxy proxy, TString address)
     {
         THROW_ERROR_EXCEPTION_IF(AbortByPingFailPromise_.IsSet(),
-            "Cannot bind to a disbanded distributed query session coordinator");
+            "Cannot bind to a closed distributed query session coordinator");
 
         {
             auto guard = Guard(SessionCoordinatorLock_);
-            if (!SessionMembers_.insert(std::move(address)).second) {
+            if (!SessionMembers_.insert(address).second) {
                 return VoidFuture;
             }
         }
 
-        auto req = proxy.CreateSessionInstance();
-        ToProto(req->mutable_session_id(), Common_->Id);
-        req->set_retention_time(ToProto<i64>(Common_->Options.RetentionTime));
+        auto req = proxy.CreateDistributedSession();
+        ToProto(req->mutable_session_id(), Context_->SessionId);
+        req->set_retention_time(ToProto<i64>(Context_->Options.RetentionTime));
+        req->SetTimeout(Context_->Options.ControlRpcTimeout);
 
         return req->Invoke()
             .AsVoid()
-            .Apply(BIND(&TDistributedSessionCoordinator::BindToRemoteSessionInstance, MakeWeak(this), std::move(proxy)));
+            .Apply(BIND(
+                &TDistributedSessionCoordinator::DoBindToRemoteSession,
+                MakeWeak(this),
+                std::move(address)));
     }
 
-    void BindToRemoteSessionInstance(TQueryServiceProxy proxy)
+    void DoBindToRemoteSession(TString address)
     {
-        auto pinger = New<TNodePinger>(Common_, MakeWeak(this), std::move(proxy));
+        auto pinger = New<TNodePinger>(
+            Invoker_,
+            MakeWeak(this),
+            NodeChannelFactory_->CreateChannel(address),
+            Context_);
 
         {
             auto guard = Guard(SessionCoordinatorLock_);
@@ -247,11 +262,14 @@ DEFINE_REFCOUNTED_TYPE(TDistributedSessionCoordinator)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDistributedSessionCoordinatorPtr CreateDistributeSessionCoordinator(
-    TSessionOptions options,
     IInvokerPtr invoker,
-    NNodeTrackerClient::INodeChannelFactoryPtr channelFactory)
+    INodeChannelFactoryPtr channelFactory,
+    TDistributedSessionOptions options)
 {
-    return New<TDistributedSessionCoordinator>(options, std::move(invoker), std::move(channelFactory));
+    return New<TDistributedSessionCoordinator>(
+        std::move(invoker),
+        std::move(channelFactory),
+        std::move(options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

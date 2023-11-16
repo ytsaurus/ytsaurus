@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -10,15 +12,7 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(IDistributedSessionCoordinator)
-DECLARE_REFCOUNTED_CLASS(TNodePinger)
-DECLARE_REFCOUNTED_STRUCT(TSessionCommon)
-
-using TSessionId = TGuid;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSessionOptions
+struct TDistributedSessionOptions
 {
     TDuration ControlRpcTimeout;
     TDuration PingPeriod;
@@ -27,17 +21,19 @@ struct TSessionOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IDistributedSessionCoordinator
+struct IDistributedSessionCoordinator
     : public TRefCounted
 {
-public:
-    virtual TSessionId GetId() const = 0;
+    virtual TDistributedSessionId GetDistributedSessionId() const = 0;
 
-    virtual void BindToRemoteSessionIfNecessary(TString address) = 0;
+    //! Forces coordinator to start pinging a remote session created by another remote session.
+    virtual void BindToRemoteSession(TString address) = 0;
 
-    virtual void PingAbortCallback(TError error) = 0;
+    //! Cancels query execution initiated by coordinator.
+    virtual void Abort(TError error) = 0;
 
-    virtual void CloseRemoteInstances() = 0;
+    //! Closes remote sessions and terminates pingers.
+    virtual void CloseRemoteSessions() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedSessionCoordinator)
@@ -45,9 +41,9 @@ DEFINE_REFCOUNTED_TYPE(IDistributedSessionCoordinator)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDistributedSessionCoordinatorPtr CreateDistributeSessionCoordinator(
-    TSessionOptions options,
+    NNodeTrackerClient::INodeChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
-    NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
+    TDistributedSessionOptions options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

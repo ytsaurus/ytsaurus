@@ -2,6 +2,7 @@
 #include "query_service.h"
 #include "public.h"
 #include "private.h"
+#include "session_manager.h"
 #include "session.h"
 #include "helpers.h"
 #include "multiread_request_queue_provider.h"
@@ -100,7 +101,7 @@ using namespace NYson;
 using NChunkClient::NProto::TMiscExt;
 using NYT::ToProto;
 using NYT::FromProto;
-using NQueryClient::TSessionId;
+using NQueryClient::TDistributedSessionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,9 +331,8 @@ public:
             Bootstrap_
                 ->GetMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::Query))
-        , SessionManager_(CreateNewSessionManager(
-            bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag),
-            QueryAgentLogger))
+        , DistributedSessionManager_(CreateDistributedSessionManager(
+            bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)))
         , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -357,11 +357,11 @@ public:
             .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOrderedTabletSafeTrimRowCount)
             .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateSessionInstance)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateDistributedSession)
             .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSessionInstance)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingDistributedSession)
             .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CloseSessionInstance)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CloseDistributedSession)
             .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
@@ -379,7 +379,7 @@ private:
     const IMemoryUsageTrackerPtr MemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
     const IRequestQueueProviderPtr MultireadRequestQueueProvider = CreateMultireadRequestQueueProvider();
-    const ISessionManagerPtr SessionManager_;
+    const IDistributedSessionManagerPtr DistributedSessionManager_;
 
     std::atomic<bool> RejectUponThrottlerOverdraft_;
 
@@ -1948,44 +1948,44 @@ private:
             newConfig->QueryAgent->RejectUponThrottlerOverdraft.value_or(Config_->RejectUponThrottlerOverdraft));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateSessionInstance)
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
         auto retentionTime = FromProto<TDuration>(request->retention_time());
 
-        auto session = SessionManager_->GetOrCreate(
-            sessionId,
-            retentionTime);
+        context->SetRequestInfo("DistributedSessionId: %v", sessionId);
 
-        context->SuppressMissingRequestInfoCheck();
+        DistributedSessionManager_->GetDistributedSessionOrCreate(sessionId, retentionTime);
+
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, PingSessionInstance)
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, PingDistributedSession)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
-        auto weakSession = SessionManager_->GetOrThrow(sessionId);
+        auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
+        auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
 
-        auto session = weakSession.Lock();
+        context->SetRequestInfo("DistributedSessionId: %v", sessionId);
+
         session->RenewLease();
 
         auto propagated = FromProto<std::vector<TString>>(request->nodes_with_propagated_session());
-        session->FulfillPropagationRequests(propagated);
-        ToProto(response->mutable_nodes_to_propagate_session_onto(), session->CopyPropagationRequests());
+        session->ErasePropagationAddresses(propagated);
+        ToProto(response->mutable_nodes_to_propagate_session_onto(), session->GetPropagationAddresses());
 
-        context->SuppressMissingRequestInfoCheck();
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CloseSessionInstance)
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CloseDistributedSession)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
 
-        if (SessionManager_->InvalidateIfExists(sessionId)) {
-            YT_LOG_INFO("Distributed query session closed remotely (SessionId: %v)", sessionId);
+        context->SetRequestInfo("SessionId: %v", sessionId);
+
+        if (DistributedSessionManager_->CloseDistributedSession(sessionId)) {
+            YT_LOG_DEBUG("Distributed query session closed remotely (SessionId: %v)", sessionId);
         }
 
-        context->SuppressMissingRequestInfoCheck();
         context->Reply();
     }
 };
