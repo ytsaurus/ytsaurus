@@ -2,6 +2,8 @@ GO_PROGRAM()
 
 LICENSE(MIT)
 
-SRCS(readme.go)
+SRCS(
+    readme.go
+)
 
 END()

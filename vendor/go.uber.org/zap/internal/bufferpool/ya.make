@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-SRCS(bufferpool.go)
+SRCS(
+    bufferpool.go
+)
 
 END()

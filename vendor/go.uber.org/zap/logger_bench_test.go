@@ -23,6 +23,7 @@ package zap
 import (
 	"errors"
 	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -196,6 +197,48 @@ func BenchmarkAddCallerAndStacktrace(b *testing.B) {
 		for pb.Next() {
 			logger.Warn("Caller and stacktrace.")
 		}
+	})
+}
+
+func Benchmark5WithsUsed(b *testing.B) {
+	benchmarkWithUsed(b, (*Logger).With, 5, true)
+}
+
+// This benchmark will be used in future as a
+// baseline for improving
+func Benchmark5WithsNotUsed(b *testing.B) {
+	benchmarkWithUsed(b, (*Logger).With, 5, false)
+}
+
+func Benchmark5WithLazysUsed(b *testing.B) {
+	benchmarkWithUsed(b, (*Logger).WithLazy, 5, true)
+}
+
+// This benchmark will be used in future as a
+// baseline for improving
+func Benchmark5WithLazysNotUsed(b *testing.B) {
+	benchmarkWithUsed(b, (*Logger).WithLazy, 5, false)
+}
+
+func benchmarkWithUsed(b *testing.B, withMethod func(*Logger, ...zapcore.Field) *Logger, N int, use bool) {
+	keys := make([]string, N)
+	values := make([]string, N)
+	for i := 0; i < N; i++ {
+		keys[i] = "k" + strconv.Itoa(i)
+		values[i] = "v" + strconv.Itoa(i)
+	}
+
+	b.ResetTimer()
+
+	withBenchedLogger(b, func(log *Logger) {
+		for i := 0; i < N; i++ {
+			log = withMethod(log, String(keys[i], values[i]))
+		}
+		if use {
+			log.Info("used")
+			return
+		}
+		runtime.KeepAlive(log)
 	})
 }
 

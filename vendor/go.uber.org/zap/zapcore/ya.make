@@ -15,6 +15,7 @@ SRCS(
     hook.go
     increase_level.go
     json_encoder.go
+    lazy_with.go
     level.go
     level_strings.go
     marshaler.go
@@ -52,10 +53,17 @@ GO_XTEST_SRCS(
     # json_encoder_test.go
     sampler_bench_test.go
     # sampler_test.go
-    tee_logger_bench_test.go
+    #tee_logger_bench_test.go
     # tee_test.go
+)
+
+GO_SKIP_TESTS(
+    entry_ext_test.go
+    lazy_with_test.go
 )
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

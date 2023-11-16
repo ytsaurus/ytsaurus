@@ -13,4 +13,6 @@ GO_TEST_SRCS(clock_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

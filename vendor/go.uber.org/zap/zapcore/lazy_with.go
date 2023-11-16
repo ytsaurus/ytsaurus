@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,45 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package zapcore_test
+package zapcore
 
-import (
-	"testing"
+import "sync"
 
-	"go.uber.org/zap/internal/ztest"
-	. "go.uber.org/zap/zapcore"
-)
-
-func withBenchedTee(b *testing.B, f func(Core)) {
-	fac := NewTee(
-		NewCore(NewJSONEncoder(testEncoderConfig()), &ztest.Discarder{}, DebugLevel),
-		NewCore(NewJSONEncoder(testEncoderConfig()), &ztest.Discarder{}, InfoLevel),
-	)
-	b.ResetTimer()
-	f(fac)
+type lazyWithCore struct {
+	Core
+	sync.Once
+	fields []Field
 }
 
-func BenchmarkTeeCheck(b *testing.B) {
-	cases := []struct {
-		lvl Level
-		msg string
-	}{
-		{DebugLevel, "foo"},
-		{InfoLevel, "bar"},
-		{WarnLevel, "baz"},
-		{ErrorLevel, "babble"},
+// NewLazyWith wraps a Core with a "lazy" Core that will only encode fields if
+// the logger is written to (or is further chained in a lon-lazy manner).
+func NewLazyWith(core Core, fields []Field) Core {
+	return &lazyWithCore{
+		Core:   core,
+		fields: fields,
 	}
-	withBenchedTee(b, func(core Core) {
-		b.RunParallel(func(pb *testing.PB) {
-			i := 0
-			for pb.Next() {
-				tt := cases[i]
-				entry := Entry{Level: tt.lvl, Message: tt.msg}
-				if cm := core.Check(entry, nil); cm != nil {
-					cm.Write(Field{Key: "i", Integer: int64(i), Type: Int64Type})
-				}
-				i = (i + 1) % len(cases)
-			}
-		})
+}
+
+func (d *lazyWithCore) initOnce() {
+	d.Once.Do(func() {
+		d.Core = d.Core.With(d.fields)
 	})
+}
+
+func (d *lazyWithCore) With(fields []Field) Core {
+	d.initOnce()
+	return d.Core.With(fields)
+}
+
+func (d *lazyWithCore) Check(e Entry, ce *CheckedEntry) *CheckedEntry {
+	d.initOnce()
+	return d.Core.Check(e, ce)
 }

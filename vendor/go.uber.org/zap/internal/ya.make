@@ -2,7 +2,9 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-SRCS(level_enabler.go)
+SRCS(
+    level_enabler.go
+)
 
 END()
 
@@ -12,5 +14,6 @@ RECURSE(
     exit
     pool
     readme
+    stacktrace
     ztest
 )

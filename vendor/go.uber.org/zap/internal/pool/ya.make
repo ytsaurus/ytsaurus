@@ -2,10 +2,14 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-SRCS(pool.go)
+SRCS(
+    pool.go
+)
 
 GO_XTEST_SRCS(pool_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

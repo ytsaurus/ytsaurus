@@ -3,10 +3,10 @@ GO_LIBRARY()
 LICENSE(MIT)
 
 SRCS(
-    color.go
+    stack.go
 )
 
-GO_TEST_SRCS(color_test.go)
+GO_TEST_SRCS(stack_test.go)
 
 END()
 
