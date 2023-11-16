@@ -396,7 +396,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     const TSharedRef& metaFileBlob)
 {
     YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
-        FileName_);
+        metaFileName);
 
     if (metaFileBlob.Size() < sizeof (TChunkMetaHeaderBase)) {
         THROW_ERROR_EXCEPTION(
