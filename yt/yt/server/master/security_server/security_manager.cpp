@@ -4244,7 +4244,7 @@ private:
             }
 
             // Update last seen time.
-            auto lastSeenTime = FromProto<TInstant>(update.last_seen());
+            auto lastSeenTime = FromProto<TInstant>(update.last_seen_time());
             if (lastSeenTime > user->GetLastSeenTime()) {
                 user->SetLastSeenTime(lastSeenTime);
             }

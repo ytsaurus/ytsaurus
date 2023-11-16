@@ -7,7 +7,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 message TUserActivityStatisticsUpdate
 {
     required NYT.NProto.TGuid user_id = 1;
-    required int64 last_seen = 2;
+    required int64 last_seen_time = 2;
 }
 
 message TReqUpdateUserActivityStatistics

@@ -75,7 +75,7 @@ public:
 
         auto now = NProfiling::GetInstant();
         NProto::TUserActivityStatisticsUpdate update;
-        update.set_last_seen(NYT::ToProto<i64>(now));
+        update.set_last_seen_time(NYT::ToProto<i64>(now));
         ToProto(update.mutable_user_id(), user->GetId());
 
         auto accumulatedStatistics = UserToActivityStatistics_.empty() ? update : UserToActivityStatistics_[user->GetId()];
@@ -145,7 +145,7 @@ private:
         const NProto::TUserActivityStatisticsUpdate& accumulatedStatistics,
         const NProto::TUserActivityStatisticsUpdate& update)
     {
-        return update.last_seen() > accumulatedStatistics.last_seen() ? update : accumulatedStatistics;
+        return update.last_seen_time() > accumulatedStatistics.last_seen_time() ? update : accumulatedStatistics;
     }
 };
 
