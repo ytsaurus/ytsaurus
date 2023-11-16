@@ -1277,14 +1277,14 @@ class TestChunkMerger(YTEnvSetup):
 
         accounts = [f"a{i}" for i in range(5)]
 
-        def __devide_limit(val):
+        def __divide_limit(val):
             if isinstance(val, dict):
-                return {key: __devide_limit(val[key]) for key in val}
+                return {key: __divide_limit(val[key]) for key in val}
             else:
                 return val // 10
 
         tmp_limits = get("//sys/accounts/tmp/@resource_limits")
-        limits = __devide_limit(tmp_limits)
+        limits = __divide_limit(tmp_limits)
         for account in accounts:
             create_account(account, "tmp")
             set(f"//sys/accounts/{account}/@resource_limits", limits)
@@ -1317,16 +1317,19 @@ class TestChunkMerger(YTEnvSetup):
             )
         )
 
-        nodes_being_merged_by_account = [
-            item for item in nodes_being_merged_list if {i for i in item["tags"].keys()} == {"account", "account_id"}
+        def __alive_account(account):
+            return account[0] != "<" and account[-1] != ">"
+
+        nodes_being_merged_by_alive_accounts = [
+            item for item in nodes_being_merged_list if item["tags"].keys() == {"account"} and __alive_account(item["tags"]["account"])
         ]
 
-        def get_entire_number(x):
-            return reduce(lambda a, b: a + b, [i["value"] for i in x])
+        def get_entire_number(items):
+            return reduce(lambda a, b: a + b, [item["value"] for item in items])
 
         for i in range(5):
-            part = [item for item in nodes_being_merged_by_account if item["tags"]["account"] == accounts[i]]
-            assert get_entire_number(part) == 2.0
+            selected_items = [item for item in nodes_being_merged_by_alive_accounts if item["tags"]["account"] == accounts[i]]
+            assert get_entire_number(selected_items) == 2.0
 
 
 class TestChunkMergerMulticell(TestChunkMerger):

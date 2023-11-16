@@ -769,21 +769,18 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
+    auto getAccountTag = [&] (TAccountId accountId) {
         auto* account = securityManager->FindAccount(accountId);
-        TWithTagGuard tagGuard(buffer, "account_id", ToString(accountId));
-        if (IsObjectAlive(account)) {
-            tagGuard.AddTag("account", account->GetName());
-        }
+        return IsObjectAlive(account) ? account->GetName() : "<" + ToString(accountId) + ">";
+    };
+
+    for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
+        TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
         buffer->AddGauge("/chunk_merger_nodes_being_merged", nodesBeingMerged);
     }
 
     for (const auto& [accountId, usages] : QueuesUsage_) {
-        auto* account = securityManager->FindAccount(accountId);
-        TWithTagGuard tagGuard(buffer, "account_id", ToString(accountId));
-        if (IsObjectAlive(account)) {
-            tagGuard.AddTag("account", account->GetName());
-        }
+        TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
         buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", usages.JobsAwaitingChunkCreation);
         buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", usages.JobsUndergoingChunkCreation);
         buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", usages.JobsAwaitingNodeHeartbeat);
@@ -819,6 +816,14 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
         buffer->AddCounter("/chunk_merger_completed_job_count", CompletedJobCountPerMode_[mergerMode]);
     }
     buffer->AddCounter("/chunk_merger_auto_merge_fallback_count", AutoMergeFallbackJobCount_);
+
+    for (const auto& [accountId, sessionDurations] : NodeMergeDurations_) {
+        TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
+        for (const auto& sessionDuration : sessionDurations) {
+            buffer->AddGauge("/chunk_merger_average_merge_duration", sessionDuration.GetValue());
+        }
+    }
+    NodeMergeDurations_.clear();
 }
 
 void TChunkMerger::OnJobWaiting(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks)
@@ -965,6 +970,7 @@ void TChunkMerger::Clear()
     TransactionRotator_.Clear();
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
+    NodeMergeDurations_.clear();
     ConfigVersion_ = 0;
 
     OldNodesBeingMerged_.reset();
@@ -982,6 +988,7 @@ void TChunkMerger::ResetTransientState()
     RunningSessions_ = {};
     SessionsAwaitingFinalization_ = {};
     QueuesUsage_ = {};
+    NodeMergeDurations_ = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -1070,7 +1077,7 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
     YT_LOG_DEBUG("Starting new merge job session (NodeId: %v, Account: %v)",
         nodeId,
         account->GetName());
-    YT_VERIFY(RunningSessions_.emplace(nodeId, TChunkMergerSession({.AccountId = account->GetId()})).second);
+    YT_VERIFY(RunningSessions_.emplace(nodeId, TChunkMergerSession({.AccountId = account->GetId(), .SessionCreationTime = TInstant::Now()})).second);
 
     auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
 
@@ -1245,7 +1252,9 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
         .NodeId = nodeId,
         .Result = session.Result,
         .TraversalInfo = session.TraversalInfo,
-        .JobCount = session.JobCount
+        .JobCount = session.JobCount,
+        .AccountId = session.AccountId,
+        .SessionCreationTime = session.SessionCreationTime,
     });
     EraseOrCrash(RunningSessions_, nodeId);
 }
@@ -1268,6 +1277,12 @@ void TChunkMerger::FinalizeSessions()
             ToProto(req->mutable_traversal_info(), sessionResult.TraversalInfo);
         }
         req->set_job_count(sessionResult.JobCount);
+        auto sessionLifetimeDuration = TInstant::Now() - sessionResult.SessionCreationTime;
+        YT_LOG_DEBUG("Finalized merge session (NodeId: %v, MergeSessionDuration: %v)",
+            sessionResult.NodeId,
+            sessionLifetimeDuration);
+
+        NodeMergeDurations_[sessionResult.AccountId].push_back(sessionLifetimeDuration);
         SessionsAwaitingFinalization_.pop();
     }
 
@@ -1667,6 +1682,12 @@ void TChunkMerger::ValidateStatistics(
         newStatistics.data_weight());
 }
 
+void TChunkMerger::RemoveNodeFromRescheduleCounterMap(TObjectId nodeId) {
+    if (NodeToRescheduleCount_.contains(nodeId)) {
+        EraseOrCrash(NodeToRescheduleCount_, nodeId);
+    }
+}
+
 void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1980,13 +2001,23 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         if (result == EMergeSessionResult::TransientFailure || (result == EMergeSessionResult::OK && nodeTouched)) {
             // TODO(shakurov): "RescheduleMerge"?
+            if (result == EMergeSessionResult::TransientFailure) {
+                if (NodeToRescheduleCount_[nodeId] + 1 > GetDynamicConfig()->MaxAllowedReschedulingsPerSession) {
+                    YT_LOG_ALERT("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v)",
+                        nodeId,
+                        NodeToRescheduleCount_[nodeId]);
+                }
+                ++NodeToRescheduleCount_[nodeId];
+            }
             ScheduleMerge(nodeId);
             continue;
         } else if (result == EMergeSessionResult::PermanentFailure) {
+            RemoveNodeFromRescheduleCounterMap(nodeId);
             continue;
         }
 
         YT_VERIFY(result == EMergeSessionResult::OK);
+        RemoveNodeFromRescheduleCounterMap(nodeId);
 
         auto* oldRootChunkList = chunkOwner->GetChunkList();
         if (oldRootChunkList->GetKind() != EChunkListKind::Static) {

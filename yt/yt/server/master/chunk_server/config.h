@@ -197,6 +197,8 @@ public:
 
     int MaxNodesBeingMerged;
 
+    int MaxAllowedReschedulingsPerSession;
+
     // For testing purposes.
     std::optional<int> MaxChunksPerIteration;
     std::optional<TDuration> DelayBetweenIterations;
