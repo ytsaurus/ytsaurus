@@ -103,12 +103,10 @@ def main(raw_args=None):
     add_group(parser, '--enable-tmpfs', '--disable-tmpfs', 'enable_tmpfs')
     parser.set_defaults(enable_tmpfs=True)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-tcp-proxy', dest='enable_tcp_proxy',
-                       action='store_true')
-    group.add_argument('--disable-tcp-proxy', dest='enable_tcp_proxy',
-                       action='store_false')
+    add_group(parser, '--enable-tcp-proxy', '--disable-tcp-proxy', 'enable_tcp_proxy')
     parser.set_defaults(enable_tcp_proxy=default_enablers.enable_tcp_proxy)
+    parser.add_argument('--tcp-proxy-range-start', required=False, default=30000, type=int)
+    parser.add_argument('--tcp-proxy-range-size', required=False, default=100, type=int)
 
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--enable-history-server', dest='enable_history_server', action='store_true')
@@ -253,7 +251,9 @@ def main(raw_args=None):
                         livy_driver_memory=args.livy_driver_memory,
                         livy_max_sessions=args.livy_max_sessions,
                         rpc_job_proxy=args.rpc_job_proxy,
-                        rpc_job_proxy_thread_pool_size=args.rpc_job_proxy_thread_pool_size)
+                        rpc_job_proxy_thread_pool_size=args.rpc_job_proxy_thread_pool_size,
+                        tcp_proxy_range_start=args.tcp_proxy_range_start,
+                        tcp_proxy_range_size=args.tcp_proxy_range_size)
 
 
 if __name__ == '__main__':

@@ -54,7 +54,6 @@ trait SparkLauncher {
     val src = Path.of(home, "livy.template.conf")
     val preparedConfPath = createFromTemplate(src.toFile) { content =>
       content
-        .replaceAll("\\$BIND_ADDRESS", hostAndPort.host)
         .replaceAll("\\$BIND_PORT", hostAndPort.port.toString)
         .replaceAll("\\$MASTER_ADDRESS", s"spark://${masterAddress.hostAndPort}")
         .replaceAll("\\$MAX_SESSIONS", maxSessions.toString)

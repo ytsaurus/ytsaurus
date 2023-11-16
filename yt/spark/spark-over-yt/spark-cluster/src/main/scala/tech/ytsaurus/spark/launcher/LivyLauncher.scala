@@ -2,6 +2,7 @@ package tech.ytsaurus.spark.launcher
 
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
+import tech.ytsaurus.spark.launcher.TcpProxyService.updateTcpAddress
 import tech.ytsaurus.spyt.HostAndPort
 import tech.ytsaurus.spyt.wrapper.Utils.{parseDuration, ytHostnameOrIpAddress}
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
@@ -16,23 +17,29 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
 
   import livyArgs._
 
-  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, _) =>
+  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
+    val tcpRouter = TcpProxyService.register("LIVY")(yt)
     val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
 
     log.info(s"Starting livy server for master $masterAddress")
     val address = HostAndPort(ytHostnameOrIpAddress, port)
-    log.info(f"Server will started on address $address")
+    val externalAddress = tcpRouter.map(_.getExternalAddress("LIVY")).getOrElse(address)
+    log.info(f"Server will started on address $externalAddress")
     prepareLivyConf(address, masterAddress, maxSessions)
     prepareLivyClientConf(driverCores, driverMemory)
 
-    withService(startLivyServer(address)) { livyServer =>
-      discoveryService.registerLivy(address)
+    withService(startLivyServer(externalAddress)) { livyServer =>
+      discoveryService.registerLivy(externalAddress)
 
       def isAlive: Boolean = {
         val isMasterAlive = DiscoveryService.isAlive(masterAddress.webUiHostAndPort, 3)
         val isLivyAlive = livyServer.isAlive(3)
 
         isMasterAlive && isLivyAlive
+      }
+      tcpRouter.foreach { router =>
+        updateTcpAddress(livyServer.address.toString, router.getPort("LIVY"))(yt)
+        log.info("Tcp proxy port addresses updated")
       }
       checkPeriodically(isAlive)
     }

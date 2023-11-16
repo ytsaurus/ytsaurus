@@ -23,19 +23,23 @@ object TcpProxyService {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private def EXPIRATION_TIMEOUT: Long = (10 minutes).toMillis
+  private val EXPIRATION_TIMEOUT: Long = (10 minutes).toMillis
 
-  private def DEFAULT_ROUTES: YPath = YPath.simple("//sys/tcp_proxies/routes/default")
+  private val DEFAULT_ROUTES: YPath = YPath.simple("//sys/tcp_proxies/routes/default")
 
-  private def START_PORT: Int = 26000
-
-  private def END_PORT: Int = 27000
-
-  def isEnabled: Boolean = {
+  private val isEnabled: Boolean = {
     sys.env.get("SPARK_YT_TCP_PROXY_ENABLED").exists(_.toBoolean)
   }
 
-  def proxyAddress(implicit yt: CompoundClient): Option[String] = {
+  private val startPort: Int = {
+    sys.env.get("SPARK_YT_TCP_PROXY_RANGE_START").map(_.toInt).getOrElse(30000)
+  }
+
+  private val endPort: Int = {
+    startPort + sys.env.get("SPARK_YT_TCP_PROXY_RANGE_SIZE").map(_.toInt).getOrElse(1000)
+  }
+
+  private def proxyAddress(implicit yt: CompoundClient): Option[String] = {
     if (isEnabled) {
       try {
         val externalAddresses = YtWrapper.attribute(DEFAULT_ROUTES, "external_addresses", None).asList()
@@ -88,7 +92,7 @@ object TcpProxyService {
 
   @tailrec
   private def takeFreePortIterative(address: String, current: Int)(implicit yt: CompoundClient): Int = {
-    if (current >= END_PORT) {
+    if (current >= endPort) {
       throw new IllegalStateException("No free ports found")
     }
     if (tryTakePort(address, current)) {
@@ -101,7 +105,7 @@ object TcpProxyService {
 
   private def takeFreePort(address: String)(implicit yt: CompoundClient): Int = {
     log.debug(f"Search free port for address $address")
-    takeFreePortIterative(address, START_PORT)
+    takeFreePortIterative(address, startPort)
   }
 
   private def takeFreePorts(addresses: Seq[String])(implicit yt: CompoundClient): Map[String, Int] = {

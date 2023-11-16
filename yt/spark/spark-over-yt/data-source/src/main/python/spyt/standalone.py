@@ -353,6 +353,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_log_update_interval, worker_log_table_ttl, pool, enablers, client,
                                livy_driver_cores, livy_driver_memory, livy_max_sessions, preemption_mode,
                                cluster_log_level, job_types, rpc_job_proxy_thread_pool_size,
+                               tcp_proxy_range_start, tcp_proxy_range_size,
                                driver_op_resources=None, driver_op_discovery_script=None,
                                extra_metrics_enabled=True, autoscaler_enabled=False, rpc_job_proxy=False):
     if job_types == [] or job_types is None:
@@ -487,6 +488,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = str(enablers.enable_preference_ipv6)
     environment["SPARK_YT_TCP_PROXY_ENABLED"] = str(enablers.enable_tcp_proxy)
     environment["SPARK_YT_RPC_JOB_PROXY_ENABLED"] = str(rpc_job_proxy)
+    if enablers.enable_tcp_proxy:
+        environment["SPARK_YT_TCP_PROXY_RANGE_START"] = str(tcp_proxy_range_start)
+        environment["SPARK_YT_TCP_PROXY_RANGE_SIZE"] = str(tcp_proxy_range_size)
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
 
@@ -670,7 +674,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
                         enable_livy=False, livy_driver_cores=SparkDefaultArguments.LIVY_DRIVER_CORES,
                         livy_driver_memory=SparkDefaultArguments.LIVY_DRIVER_MEMORY,
                         livy_max_sessions=SparkDefaultArguments.LIVY_MAX_SESSIONS, rpc_job_proxy=False,
-                        rpc_job_proxy_thread_pool_size=4):
+                        rpc_job_proxy_thread_pool_size=4, tcp_proxy_range_start=30000,
+                        tcp_proxy_range_size=100):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -729,6 +734,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     :param livy_max_sessions: session count limit for livy server
     :param rpc_job_proxy: using RPC proxy in job proxy
     :param rpc_job_proxy_thread_pool_size: RPC proxy thread pool size
+    :param tcp_proxy_range_start: start port of TCP proxy allocation range
+    :param tcp_proxy_range_size: size of TCP proxy allocation range
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
@@ -834,6 +841,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
         'livy_max_sessions': livy_max_sessions,
         'rpc_job_proxy': rpc_job_proxy,
         'rpc_job_proxy_thread_pool_size': rpc_job_proxy_thread_pool_size,
+        'tcp_proxy_range_start': tcp_proxy_range_start,
+        'tcp_proxy_range_size': tcp_proxy_range_size,
     }
 
     master_args = args.copy()
