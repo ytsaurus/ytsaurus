@@ -706,7 +706,7 @@ private:
                 owner->EventCount_,
                 "Logging",
                 "Logging",
-                /*threadPriority*/ NThreading::EThreadPriority::Normal,
+                /*threadPriority*/ EThreadPriority::Normal,
                 /*shutdownPriority*/ 200)
             , Owner_(owner)
         { }
