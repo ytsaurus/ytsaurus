@@ -63,6 +63,7 @@ REPLICATED_TABLE_MAPPING_TABLE_SCHEMA = [
 DEFAULT_ROOT = "//sys/queue_agents"
 DEFAULT_REGISTRATION_TABLE_PATH = DEFAULT_ROOT + "/consumer_registrations"
 DEFAULT_REPLICATED_TABLE_MAPPING_TABLE_PATH = DEFAULT_ROOT + "/replicated_table_mapping"
+DEFAULT_TABLET_CELL_BUNDLE = "sys"
 
 CONSUMER_OBJECT_TABLE_SCHEMA = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
@@ -75,8 +76,8 @@ CONSUMER_OBJECT_TABLE_SCHEMA = [
 ################################################################################
 
 
-def create_table(client, path, schema, **kwargs):
-    client.create("table", path, attributes={"dynamic": True, "schema": schema}, **kwargs)
+def create_table(client, path, schema, tablet_cell_bundle, **kwargs):
+    client.create("table", path, attributes={"dynamic": True, "schema": schema, "tablet_cell_bundle": tablet_cell_bundle}, **kwargs)
     client.mount_table(path, sync=True)
 
 
@@ -84,6 +85,7 @@ def create_tables(client,
                   root=DEFAULT_ROOT,
                   registration_table_path=DEFAULT_REGISTRATION_TABLE_PATH,
                   replicated_table_mapping_table_path=DEFAULT_REPLICATED_TABLE_MAPPING_TABLE_PATH,
+                  tablet_cell_bundle=DEFAULT_TABLET_CELL_BUNDLE,
                   skip_queues=False,
                   skip_consumers=False,
                   skip_object_mapping=False,
@@ -100,15 +102,15 @@ def create_tables(client,
     replicated_table_mapping_table_schema = replicated_table_mapping_table_schema or REPLICATED_TABLE_MAPPING_TABLE_SCHEMA
 
     if not skip_queues:
-        create_table(client, "{}/{}".format(root, DEFAULT_QUEUE_TABLE_NAME), queue_table_schema, **kwargs)
+        create_table(client, "{}/{}".format(root, DEFAULT_QUEUE_TABLE_NAME), queue_table_schema, tablet_cell_bundle, **kwargs)
     if not skip_consumers:
-        create_table(client, "{}/{}".format(root, DEFAULT_CONSUMER_TABLE_NAME), consumer_table_schema, **kwargs)
+        create_table(client, "{}/{}".format(root, DEFAULT_CONSUMER_TABLE_NAME), consumer_table_schema, tablet_cell_bundle, **kwargs)
     if not skip_object_mapping:
-        create_table(client, "{}/{}".format(root, DEFAULT_QUEUE_AGENT_OBJECT_MAPPING_TABLE_NAME), object_mapping_schema, **kwargs)
+        create_table(client, "{}/{}".format(root, DEFAULT_QUEUE_AGENT_OBJECT_MAPPING_TABLE_NAME), object_mapping_schema, tablet_cell_bundle, **kwargs)
     if create_registration_table:
-        create_table(client, registration_table_path, registration_table_schema, **kwargs)
+        create_table(client, registration_table_path, registration_table_schema, tablet_cell_bundle, **kwargs)
     if create_replicated_table_mapping_table:
-        create_table(client, replicated_table_mapping_table_path, replicated_table_mapping_table_schema, **kwargs)
+        create_table(client, replicated_table_mapping_table_path, replicated_table_mapping_table_schema, tablet_cell_bundle, **kwargs)
 
 
 def delete_tables(client,
@@ -143,6 +145,8 @@ def build_arguments_parser():
                         help="Path to table with queue consumer registrations; defaults to {}".format(DEFAULT_REGISTRATION_TABLE_PATH))
     parser.add_argument("--replicated-table-mapping-table-path", type=str, default=DEFAULT_REPLICATED_TABLE_MAPPING_TABLE_PATH,
                         help="Path to table with replicated table mapping; defaults to {}".format(DEFAULT_REPLICATED_TABLE_MAPPING_TABLE_PATH))
+    parser.add_argument("--tablet-cell-bundle", type=str, default=DEFAULT_TABLET_CELL_BUNDLE,
+                        help="Tablet cell bundle for queue agent state tables; defaults to {}".format(DEFAULT_TABLET_CELL_BUNDLE))
 
     parser.add_argument("--skip-queues", action="store_true", help="Do not create queue state table")
     parser.add_argument("--skip-consumers", action="store_true", help="Do not create consumer state table")
@@ -163,6 +167,7 @@ def main():
                   root=args.root,
                   registration_table_path=args.registration_table_path,
                   replicated_table_mapping_table_path=args.replicated_table_mapping_table_path,
+                  tablet_cell_bundle=args.tablet_cell_bundle,
                   skip_queues=args.skip_queues,
                   skip_consumers=args.skip_consumers,
                   skip_object_mapping=args.skip_object_mapping,
