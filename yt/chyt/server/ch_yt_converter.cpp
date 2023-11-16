@@ -97,9 +97,9 @@ public:
 
     void InitColumn(const DB::IColumn* column) override
     {
-        Column_ = column;
+        Column_ = column->convertToFullIfNeeded();
         Data_ = Column_->getDataAt(0).data;
-        ColumnString_ = dynamic_cast<const DB::ColumnString*>(Column_);
+        ColumnString_ = dynamic_cast<const DB::ColumnString*>(Column_.get());
         CurrentValueIndex_ = 0;
     }
 
@@ -210,7 +210,7 @@ public:
     }
 
 private:
-    const DB::IColumn* Column_ = nullptr;
+    DB::ColumnPtr Column_;
     const char* Data_ = nullptr;
     const DB::ColumnString* ColumnString_ = nullptr;
     i64 CurrentValueIndex_ = 0;
