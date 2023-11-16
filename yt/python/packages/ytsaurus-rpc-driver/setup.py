@@ -37,6 +37,11 @@ def main():
         license="Apache 2.0",
 
         description="C++ RPC driver.",
+        long_description=\
+            "YTsaurus — is a platform for distributed storage and processing of large amounts of data with support of MapReduce, "\
+            "distributed file system and NoSQL key-value storage."\
+            "\n\n"\
+            "This library provides C++ RPC driver.",
         keywords="yt ytsaurus python bindings driver",
 
         include_package_data=True,

@@ -37,6 +37,11 @@ def main():
         license="Apache 2.0",
 
         description="C++ bindings for YSON.",
+        long_description=\
+            "YTsaurus — is a platform for distributed storage and processing of large amounts of data with support of MapReduce, "\
+            "distributed file system and NoSQL key-value storage."\
+            "\n\n"\
+            "This library provides C++ bindings for YSON format.",
         keywords="yt python bindings yson",
 
         include_package_data=True,
