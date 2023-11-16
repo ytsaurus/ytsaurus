@@ -114,7 +114,8 @@ constexpr int AccountTreeDepthLimit = 10;
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicSecurityManagerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TUserActivityTracker)
+DECLARE_REFCOUNTED_STRUCT(IUserActivityTracker)
+
 DECLARE_REFCOUNTED_CLASS(TRequestTracker)
 
 DEFINE_ENUM(EAccessControlEvent,

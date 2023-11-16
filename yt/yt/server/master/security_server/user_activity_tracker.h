@@ -1,55 +1,26 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 
-#include <yt/yt/server/master/cell_master/public.h>
-
-#include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
-
-#include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TUserActivityTracker
+struct IUserActivityTracker
     : public TRefCounted
 {
-public:
-    explicit TUserActivityTracker(NCellMaster::TBootstrap* bootstrap);
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 
-    void Start();
-    void Stop();
-
-    void OnUserSeen(TUser* user);
-
-private:
-    NCellMaster::TBootstrap* const Bootstrap_;
-
-    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TUserActivityTracker::OnDynamicConfigChanged, MakeWeak(this));
-
-    THashMap<NObjectClient::TObjectId, NProto::TUserActivityStatisticsUpdate> UserToActivityStatistics_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
-
-    NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    void Reset();
-    void OnFlush();
-
-    const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
-
-    NProto::TUserActivityStatisticsUpdate AggregateUserStatistics(
-        const NProto::TUserActivityStatisticsUpdate& accumulatedStatistics,
-        const NProto::TUserActivityStatisticsUpdate& update);
+    virtual void OnUserSeen(TUser* user) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserActivityTracker)
+DEFINE_REFCOUNTED_TYPE(IUserActivityTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IUserActivityTrackerPtr CreateUserActivityTracker(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

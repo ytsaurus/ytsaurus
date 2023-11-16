@@ -58,6 +58,8 @@
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 
+#include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
@@ -448,7 +450,7 @@ class TSecurityManager
 public:
     explicit TSecurityManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SecurityManager)
-        , UserActivityTracker_(New<TUserActivityTracker>(bootstrap))
+        , UserActivityTracker_(CreateUserActivityTracker(bootstrap))
         , RequestTracker_(New<TRequestTracker>(Bootstrap_->GetConfig()->SecurityManager->UserThrottler, bootstrap))
     {
         RegisterLoader(
@@ -2655,7 +2657,7 @@ private:
     friend class TNetworkProjectTypeHandler;
     friend class TProxyRoleTypeHandler;
 
-    const TUserActivityTrackerPtr UserActivityTracker_;
+    const IUserActivityTrackerPtr UserActivityTracker_;
     const TRequestTrackerPtr RequestTracker_;
 
     const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
