@@ -270,8 +270,9 @@ int TActionManager::CreatePendingBundleActions(const TString& bundleName, int ac
 
     int createdActionCount = std::ssize(runningActions);
     if (!runningActions.empty()) {
-        GetOrCreateProfilingCounters(bundleName).RunningActions.Update(runningActions.size());
-        EmplaceOrCrash(RunningActions_, bundleName, std::move(runningActions));
+        auto it = RunningActions_.emplace(bundleName, THashSet<TTabletActionPtr>{}).first;
+        it->second.insert(runningActions.begin(), runningActions.end());
+        GetOrCreateProfilingCounters(bundleName).RunningActions.Update(std::ssize(it->second));
     }
 
     YT_LOG_INFO("Created tablet actions for bundle (ActionCount: %v, BundleName: %v)",
