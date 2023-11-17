@@ -287,6 +287,14 @@ public:
 
     void SetSchedulerTreeAlert(const TString& /*treeId*/, ESchedulerAlertType /*alertType*/, const TError& /*alert*/) override
     { }
+
+    const re2::RE2& GetEphemeralPoolNameRegex() const override
+    {
+        return RegexStub_;
+    }
+
+private:
+    re2::RE2 RegexStub_ = re2::RE2(".*");
 };
 
 using TFairShareTreeHostMockPtr = TIntrusivePtr<TFairShareTreeHostMock>;

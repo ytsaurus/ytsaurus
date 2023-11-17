@@ -190,6 +190,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSharedRangeMove)                                           (2506))  // ponasenko-rs
     ((TabletSharedWriteLocks)                                       (2507))  // ponasenko-rs
     ((HunksForever)                                                 (2508))  // babenko
+    ((ConfigurablePoolNameValidationRegex)                          (2509))  // renadeen
 );
 
 ////////////////////////////////////////////////////////////////////////////////

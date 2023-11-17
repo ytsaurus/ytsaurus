@@ -14,6 +14,12 @@ class TDynamicSchedulerPoolManagerConfig
 public:
     int MaxSchedulerPoolSubtreeSize;
 
+    // Pool name validation regex for user with |Administer| permission on scheduler pool schema object.
+    TString PoolNameRegexForAdministrators;
+
+    // Pool name validation regex for all others.
+    TString PoolNameRegexForUsers;
+
     REGISTER_YSON_STRUCT(TDynamicSchedulerPoolManagerConfig);
 
     static void Register(TRegistrar registrar);

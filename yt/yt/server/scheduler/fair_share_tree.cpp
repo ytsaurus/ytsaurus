@@ -22,6 +22,7 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
 
@@ -2252,6 +2253,9 @@ private:
         }
 
         if (!pool) {
+            // Validate pool name only if pool does not exist.
+            ValidatePoolName(poolName.GetSpecifiedPoolName(), Host_->GetEphemeralPoolNameRegex());
+
             pool = GetPoolOrParent(poolName, operation->GetAuthenticatedUser()).Get();
         }
 

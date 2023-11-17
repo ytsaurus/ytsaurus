@@ -53,11 +53,6 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
     }
 
     for (const auto& [childName, childNode] : children) {
-        Error_ = CheckPoolName(childName, EPoolNameValidationLevel::NonStrict);
-        if (!Error_.IsOK()) {
-            return false;
-        }
-
         if (ParsedPoolNames_.contains(childName)) {
             Error_ = TError("Duplicate pool %Qv found in new configuration", childName);
             return false;
@@ -183,4 +178,3 @@ void TPoolsConfigParser::ValidatePoolPresetConfig(const TString& presetName, con
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

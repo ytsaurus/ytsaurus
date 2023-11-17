@@ -458,20 +458,7 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 const int PoolNameMaxLength = 100;
 
-TString StrictPoolNameRegexSymbols = "-_a-z0-9";
-TString NonStrictPoolNameRegexSymbols = StrictPoolNameRegexSymbols + ":A-Z";
-
-TEnumIndexedVector<EPoolNameValidationLevel, TString> RegexStrings = {
-    "[" + NonStrictPoolNameRegexSymbols + "]+",
-    "[" + StrictPoolNameRegexSymbols + "]+",
-};
-
-TEnumIndexedVector<EPoolNameValidationLevel, TIntrusivePtr<NRe2::TRe2>> Regexes = {
-    New<NRe2::TRe2>(RegexStrings[EPoolNameValidationLevel::NonStrict]),
-    New<NRe2::TRe2>(RegexStrings[EPoolNameValidationLevel::Strict]),
-};
-
-TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validationLevel)
+TError CheckPoolName(const TString& poolName, const re2::RE2& regex)
 {
     if (poolName == RootPoolName) {
         return TError("Pool name cannot be equal to root pool name")
@@ -484,19 +471,16 @@ TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validatio
             << TErrorAttribute("max_length", PoolNameMaxLength);
     }
 
-    const auto& regex = Regexes[validationLevel];
-
-    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), *regex)) {
-        const auto& regexString = RegexStrings[validationLevel];
-        return TError("Pool name %Qv must match regular expression %Qv", poolName, regexString);
+    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), regex)) {
+        return TError("Pool name %Qv must match regular expression %Qv", poolName, regex.pattern());
     }
 
     return TError();
 }
 
-void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel)
+void ValidatePoolName(const TString& poolName, const re2::RE2& regex)
 {
-    CheckPoolName(poolName, validationLevel).ThrowOnError();
+    CheckPoolName(poolName, regex).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -593,4 +577,3 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-
