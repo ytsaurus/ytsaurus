@@ -409,8 +409,11 @@ private:
         NProfiling::TCpuDuration interruptTimeout = 0,
         const std::optional<TString>& interruptUser = std::nullopt);
 
+    void ProcessJobsToAbort(NProto::NNode::TRspHeartbeat* response, const TExecNodePtr& node);
+
     TExecNodePtr FindNodeByJob(TJobId jobId);
 
+    bool IsJobAborted(TJobId jobId, const TExecNodePtr& node);
     TJobPtr FindJob(TJobId jobId, const TExecNodePtr& node);
     TJobPtr FindJob(TJobId jobId);
     TJobPtr GetJobOrThrow(TJobId jobId);
