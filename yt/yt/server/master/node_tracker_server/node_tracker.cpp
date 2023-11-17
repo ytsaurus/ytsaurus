@@ -960,6 +960,18 @@ private:
         return GetNodePath(node->GetDefaultAddress());
     }
 
+    void FillResponseNodeTags(
+        ::google::protobuf::RepeatedPtrField<TProtoStringType>* rspTags,
+        const THashSet<TString>& tags)
+    {
+        TCompactVector<TString, 16> sortedTags(tags.begin(), tags.end());
+        std::sort(sortedTags.begin(), sortedTags.end());
+        rspTags->Reserve(sortedTags.size());
+        for (auto& tag : sortedTags) {
+            rspTags->Add(std::move(tag));
+        }
+    }
+
     void HydraRegisterNode(
         const TCtxRegisterNodePtr& context,
         TReqRegisterNode* request,
@@ -1161,6 +1173,8 @@ private:
 
         response->set_node_id(node->GetId());
         response->set_use_new_heartbeats(true);
+
+        FillResponseNodeTags(response->mutable_tags(), node->Tags());
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -1460,12 +1474,7 @@ private:
             node->SetResourceLimits(request->resource_limits());
         }
 
-        auto rspTags = response->mutable_tags();
-        TCompactVector<TString, 16> sortedTags(node->Tags().begin(), node->Tags().end());
-        std::sort(sortedTags.begin(), sortedTags.end());
-        for (auto tag : sortedTags) {
-            rspTags->Add(std::move(tag));
-        }
+        FillResponseNodeTags(response->mutable_tags(), node->Tags());
 
         *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
         response->set_decommissioned(node->IsDecommissioned());

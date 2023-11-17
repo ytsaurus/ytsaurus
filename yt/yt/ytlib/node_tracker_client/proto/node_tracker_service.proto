@@ -49,6 +49,8 @@ message TRspRegisterNode
     // COMPAT(gritukan)
     optional bool use_new_heartbeats = 2;
 
+    repeated string tags = 3;
+
     extensions 100 to max;
 }
 
