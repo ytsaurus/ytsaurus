@@ -18,7 +18,7 @@ PEERDIR(
     yt/yt_proto/yt/formats
 )
 
-DEFAULT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR src/main/java **/*)
 
 END()
 

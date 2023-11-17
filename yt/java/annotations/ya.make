@@ -12,7 +12,7 @@ USE_ERROR_PRONE()
 LINT(extended)
 CHECK_JAVA_DEPS(yes)
 
-DEFAULT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR src/main/java **/*)
 
 PEERDIR(
     contrib/java/com/google/code/findbugs/jsr305/3.0.2

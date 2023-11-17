@@ -18,7 +18,8 @@ PEERDIR(
     contrib/java/javax/persistence/persistence-api/1.0
 )
 
-DEFAULT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR src/main/java **/*)
+JAVA_SRCS(SRCDIR src/main/resources **/*)
 
 DEPENDENCY_MANAGEMENT(
     contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.13.1

@@ -16,7 +16,7 @@ PEERDIR(
     yt/java/ytsaurus-client-core
 )
 
-DEFAULT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR src/main/java **/*)
 
 END()
 

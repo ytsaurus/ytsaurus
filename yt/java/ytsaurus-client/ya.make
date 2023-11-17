@@ -50,7 +50,8 @@ DEPENDENCY_MANAGEMENT(
     contrib/java/org/lz4/lz4-java/1.6.0
 )
 
-DEFAULT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR src/main/java **/*)
+JAVA_SRCS(SRCDIR src/main/resources **/*)
 
 END()
 

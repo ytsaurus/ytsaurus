@@ -12,7 +12,7 @@ PEERDIR(
     yt/java/ytsaurus-testlib/src/main/proto
 )
 
-DEFAULT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR src/main/java **/*)
 
 # Added automatically to remove dependency on default contrib versions
 DEPENDENCY_MANAGEMENT(

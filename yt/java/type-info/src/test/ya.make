@@ -2,14 +2,14 @@ JTEST()
 
 JDK_VERSION(11)
 
-DEFAULT_JUNIT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR java **/*)
 
-IF(NOT EXPORT_GRADLE)
-    JAVA_SRCS(
-        PACKAGE_PREFIX tech.ytsaurus.typeinfo
-        SRCDIR ${ARCADIA_ROOT}/library/cpp/type_info/ut/test-data *.txt
-    )
-ENDIF()
+JAVA_SRCS(SRCDIR resources **/*)
+
+JAVA_SRCS(
+    PACKAGE_PREFIX tech.ytsaurus.typeinfo
+    SRCDIR ${ARCADIA_ROOT}/library/cpp/type_info/ut/test-data *.txt
+)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
 

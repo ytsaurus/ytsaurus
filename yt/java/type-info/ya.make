@@ -13,7 +13,7 @@ PEERDIR(
     yt/java/yson
 )
 
-DEFAULT_JAVA_SRCS_LAYOUT()
+JAVA_SRCS(SRCDIR src/main/java **/*.java)
 
 END()
 
