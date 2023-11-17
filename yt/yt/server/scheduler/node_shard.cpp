@@ -2574,7 +2574,7 @@ void TNodeShard::DoInterruptJob(
 
 void TNodeShard::ProcessJobsToAbort(NProto::NNode::TRspHeartbeat* response, const TExecNodePtr& node)
 {
-    for (auto& [jobId, abortReason]: node->JobsToAbort()) {
+    for (auto& [jobId, abortReason] : node->JobsToAbort()) {
         YT_LOG_DEBUG(
             "Sent job abort request to node (Reason: %v, JobId: %v)",
             abortReason,
