@@ -1,0 +1,10 @@
+import "library/cpp/actors/protos/actors.proto";
+
+package NKikimrGRpcService;
+
+message TEvSubscribeGrpcCancel {
+    optional NActorsProto.TActorId Subscriber = 1;
+};
+
+message TEvClientLost {
+};

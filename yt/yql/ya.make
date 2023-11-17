@@ -3,7 +3,6 @@ RECURSE(
     plugin
 )
 
-IF (NOT OPENSOURCE)
-    # We cannot run tests in open source since we do not have YQL plugin shared library in our repo.
-    RECURSE_FOR_TESTS(tests)
-ENDIF()
+# TODO(gritukan): These tests will be broken in open source after this commit,
+# but we are going to implement test infrastructure for YQL in the next commit.
+RECURSE_FOR_TESTS(tests)

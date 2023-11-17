@@ -1,0 +1,115 @@
+LIBRARY()
+
+SRCS(
+    actor_activity_names.cpp
+    appdata.h
+    appdata.cpp
+    backtrace.h
+    backtrace.cpp
+    board_lookup.cpp
+    board_publish.cpp
+    board_replica.cpp
+    blobstorage.h
+    blobstorage.cpp
+    channel_profiles.h
+    counters.cpp
+    counters.h
+    defs.h
+    domain.cpp
+    domain.h
+    event_filter.cpp
+    event_filter.h
+    events.h
+    group_stat.cpp
+    group_stat.h
+    hive.h
+    interconnect_channels.h
+    localdb.cpp
+    localdb.h
+    location.h
+    logoblob.cpp
+    logoblob.h
+    memobserver.h
+    nameservice.h
+    path.cpp
+    pool_stats_collector.cpp
+    pool_stats_collector.h
+    resource_profile.h
+    row_version.cpp
+    row_version.h
+    services_assert.cpp
+    shared_quota.h
+    statestorage.cpp
+    statestorage.h
+    statestorage_event_filter.cpp
+    statestorage_guardian.cpp
+    statestorage_guardian_impl.h
+    statestorage_impl.h
+    statestorage_monitoring.cpp
+    statestorage_proxy.cpp
+    statestorage_replica.cpp
+    statestorage_replica_probe.cpp
+    statestorage_warden.cpp
+    storage_pools.cpp
+    storage_pools.h
+    subdomain.h
+    subdomain.cpp
+    table_index.cpp
+    tablet.cpp
+    tablet.h
+    tablet_killer.cpp
+    tablet_pipe.h
+    tablet_pipecache.h
+    tablet_resolver.h
+    tablet_status_checker.cpp
+    tabletid.h
+    tablet_types.h
+    traceid.cpp
+    traceid.h
+    tracing.h
+    tx_processing.h
+    tx_processing.cpp
+    user_registry.h
+    blobstorage_grouptype.cpp
+)
+
+PEERDIR(
+    library/cpp/actors/core
+    library/cpp/actors/helpers
+    library/cpp/actors/interconnect
+    library/cpp/actors/protos
+    library/cpp/actors/wilson
+    library/cpp/deprecated/enum_codegen
+    library/cpp/logger
+    library/cpp/lwtrace
+    library/cpp/lwtrace/mon
+    library/cpp/random_provider
+    library/cpp/time_provider
+    contrib/ydb/core/base/services
+    contrib/ydb/core/debug
+    contrib/ydb/core/erasure
+    contrib/ydb/core/protos
+    contrib/ydb/core/protos/out
+    contrib/ydb/core/scheme
+    contrib/ydb/library/aclib
+    contrib/ydb/library/login
+    contrib/ydb/library/pdisk_io
+    contrib/ydb/library/pretty_types_print/protobuf
+    contrib/ydb/library/ydb_issue
+    contrib/ydb/public/api/protos/out
+    contrib/ydb/library/yql/minikql
+    library/cpp/deprecated/atomic
+)
+
+IF (NOT OS_WINDOWS)
+PEERDIR(
+    library/cpp/dwarf_backtrace
+)
+ENDIF()
+
+END()
+
+RECURSE_FOR_TESTS(
+    ut
+    ut_board_subscriber
+)

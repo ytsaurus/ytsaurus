@@ -1,0 +1,73 @@
+LIBRARY()
+
+SRCS(
+    yql_dq_control.cpp
+    yql_dq_control.h
+    yql_dq_datasink_constraints.cpp
+    yql_dq_datasink_type_ann.cpp
+    yql_dq_datasink_type_ann.h
+    yql_dq_datasource_constraints.cpp
+    yql_dq_datasource_type_ann.cpp
+    yql_dq_datasource_type_ann.h
+    yql_dq_gateway.cpp
+    yql_dq_gateway.h
+    yql_dq_provider.cpp
+    yql_dq_provider.h
+    yql_dq_datasink.cpp
+    yql_dq_datasink.h
+    yql_dq_datasource.cpp
+    yql_dq_datasource.h
+    yql_dq_recapture.cpp
+    yql_dq_recapture.h
+    yql_dq_statistics.cpp
+    yql_dq_statistics.h
+    yql_dq_statistics_json.cpp
+    yql_dq_statistics_json.h
+    yql_dq_validate.cpp
+)
+
+PEERDIR(
+    library/cpp/grpc/client
+    library/cpp/threading/task_scheduler
+    library/cpp/threading/future
+    library/cpp/svnversion
+    library/cpp/yson/node
+    library/cpp/yson
+    contrib/ydb/public/lib/yson_value
+    contrib/ydb/public/sdk/cpp/client/ydb_driver
+    contrib/ydb/library/yql/core
+    contrib/ydb/library/yql/core/issue
+    contrib/ydb/library/yql/utils/backtrace
+    contrib/ydb/library/yql/dq/integration
+    contrib/ydb/library/yql/dq/integration/transform
+    contrib/ydb/library/yql/dq/transform
+    contrib/ydb/library/yql/dq/tasks
+    contrib/ydb/library/yql/dq/type_ann
+    contrib/ydb/library/yql/providers/common/gateway
+    contrib/ydb/library/yql/providers/common/metrics
+    contrib/ydb/library/yql/providers/common/schema/expr
+    contrib/ydb/library/yql/providers/common/transform
+    contrib/ydb/library/yql/providers/common/activation
+    contrib/ydb/library/yql/providers/common/proto
+    contrib/ydb/library/yql/providers/dq/api/grpc
+    contrib/ydb/library/yql/providers/dq/api/protos
+    contrib/ydb/library/yql/providers/dq/common
+    contrib/ydb/library/yql/providers/dq/config
+    contrib/ydb/library/yql/providers/dq/expr_nodes
+    contrib/ydb/library/yql/providers/dq/opt
+    contrib/ydb/library/yql/providers/dq/planner
+    contrib/ydb/library/yql/providers/result/expr_nodes
+    contrib/ydb/library/yql/minikql
+)
+
+YQL_LAST_ABI_VERSION()
+
+END()
+
+RECURSE(
+    exec
+)
+
+RECURSE_FOR_TESTS(
+    ut
+)

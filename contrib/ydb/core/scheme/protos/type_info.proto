@@ -1,0 +1,7 @@
+package NKikimrProto;
+option java_package = "ru.yandex.kikimr.proto";
+
+message TTypeInfo {
+    optional uint32 PgTypeId = 1;
+    optional string PgTypeMod = 2;
+}
