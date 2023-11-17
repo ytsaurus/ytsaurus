@@ -2594,7 +2594,7 @@ void TJob::InitializeArtifacts()
         // Mark NBD layers with NBD export ids.
         auto nbdExportCount = 0;
         for (auto& layer : LayerArtifactKeys_) {
-            if (layer.has_filesystem()) {
+            if (layer.access_method() == TLayerAccessMethod::Nbd) {
                 auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
                 layer.set_nbd_export_id(ToString(nbdExportId));
                 ++nbdExportCount;

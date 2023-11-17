@@ -48,6 +48,7 @@ struct IVolume
 {
     virtual const TVolumeId& GetId() const = 0;
     virtual const TString& GetPath() const = 0;
+    virtual const NDataNode::TArtifactKey& GetArtifactKey() const = 0;
     virtual TFuture<void> Remove() = 0;
 };
 

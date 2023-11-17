@@ -158,4 +158,52 @@ struct TControllerAgentDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLayerAccessMethod
+{
+    static constexpr TStringBuf Local = "local";
+    static constexpr TStringBuf Nbd = "nbd";
+    static constexpr TStringBuf Default = "local";
+
+    static bool IsKnownAccessMethod(const TStringBuf& accessMethod)
+    {
+        return accessMethod == Local || accessMethod == Nbd;
+    }
+};
+
+struct TLayerFilesystem
+{
+    static constexpr TStringBuf Archive = "archive";
+    static constexpr TStringBuf Ext3 = "ext3";
+    static constexpr TStringBuf Ext4 = "ext4";
+    static constexpr TStringBuf SquashFS = "squashfs";
+    static constexpr TStringBuf Default = "archive";
+
+    static bool IsKnownFilesystem(const TStringBuf& filesystem)
+    {
+        return  filesystem == Archive ||
+                filesystem == Ext3 ||
+                filesystem == Ext4 ||
+                filesystem == SquashFS;
+    }
+
+    static bool IsCompatible(const TStringBuf& accessMethod, const TStringBuf& filesystem)
+    {
+        if (accessMethod == TLayerAccessMethod::Nbd && filesystem == Archive) {
+            return false;
+        }
+
+        if (accessMethod == TLayerAccessMethod::Local && filesystem == Ext3) {
+            return false;
+        }
+
+        if (accessMethod == TLayerAccessMethod::Local && filesystem == Ext4) {
+            return false;
+        }
+
+        return true;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent

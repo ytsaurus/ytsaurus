@@ -7137,6 +7137,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     case EObjectType::File:
                         attributeKeys.push_back("executable");
                         attributeKeys.push_back("filesystem");
+                        attributeKeys.push_back("access_method");
                         break;
 
                     case EObjectType::Table:
@@ -7224,8 +7225,30 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.Executable = file.Path.GetExecutable().value_or(file.Executable);
 
                             if (file.Layer) {
-                                // Get filesystem attribute only for layers.
-                                file.Filesystem = attributes.Find<TString>("filesystem");
+                                // Get access_method and filesystem attributes only for layers.
+                                file.AccessMethod = attributes.Find<TString>("access_method").value_or(ToString(TLayerAccessMethod::Default));
+                                file.AccessMethod->to_lower();
+                                if (!TLayerAccessMethod::IsKnownAccessMethod(*file.AccessMethod)) {
+                                    THROW_ERROR_EXCEPTION("Invalid access_method %v of a file %v",
+                                        *file.AccessMethod,
+                                        file.Path);
+                                }
+
+                                file.Filesystem = attributes.Find<TString>("filesystem").value_or(ToString(TLayerFilesystem::Default));
+                                file.Filesystem->to_lower();
+                                if (!TLayerFilesystem::IsKnownFilesystem(*file.Filesystem)) {
+                                    THROW_ERROR_EXCEPTION("Invalid filesystem %v of a file %v",
+                                        *file.Filesystem,
+                                        file.Path);
+                                }
+
+                                // Some filesystem, access_mode combinations are invalid as of now.
+                                if (!TLayerFilesystem::IsCompatible(*file.AccessMethod, *file.Filesystem)) {
+                                    THROW_ERROR_EXCEPTION("Invalid access_mode %v, filesystem %v combination of a file %v",
+                                        *file.AccessMethod,
+                                        *file.Filesystem,
+                                        file.Path);
+                                }
                             }
                             break;
 

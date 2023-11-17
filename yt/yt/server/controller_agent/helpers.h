@@ -48,6 +48,7 @@ struct TUserFile
     bool Dynamic = false;
     bool Layer = false;
     std::optional<TString> Filesystem;
+    std::optional<TString> AccessMethod;
 
     // This field is used only during file size validation only for table chunks with column selectors.
     std::vector<NChunkClient::TInputChunkPtr> Chunks;

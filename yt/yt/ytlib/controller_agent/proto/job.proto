@@ -118,7 +118,7 @@ message TFileDescriptor
     optional bool bypass_artifact_cache = 10;
     optional bool copy_file = 11;
     optional string filesystem = 12;
-    // 13 is reserved until 23.3+ version is released
+    optional string access_method = 13;
 }
 
 message TTableBlobSpec
