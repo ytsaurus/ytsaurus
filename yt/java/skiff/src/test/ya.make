@@ -4,7 +4,7 @@ JDK_VERSION(11)
 
 SIZE(SMALL)
 
-JAVA_SRCS(SRCDIR java **/*)
+DEFAULT_JUNIT_JAVA_SRCS_LAYOUT()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
 
@@ -24,4 +24,3 @@ DEPENDENCY_MANAGEMENT(
 
 LINT(extended)
 END()
-
