@@ -467,7 +467,7 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
 
     if yt_config.wait_tablet_cell_initialization:
         client.create("map_node", "//sys/queue_agents", ignore_existing=True)
-        create_queue_agent_state_tables(client, create_registration_table=True)
+        create_queue_agent_state_tables(client, create_registration_table=True, tablet_cell_bundle="default")
 
     logger.info("World initialization for local cluster completed")
 
