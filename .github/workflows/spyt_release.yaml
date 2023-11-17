@@ -115,6 +115,10 @@ jobs:
           echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
           echo "password=${{ secrets.OSSRH_PASSWORD }}" >> ~/.sbt/.ossrh_credentials
 
+      - name: Download Livy
+        run: |
+          wget https://storage.yandexcloud.net/ytsaurus-spyt/livy.tgz
+
       - name: Run sbt build
         run: |
           cd yt/spark/spark-over-yt
@@ -133,6 +137,10 @@ jobs:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
           GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
+
+      - name: Copy Livy to build
+        run: |
+          cp livy.tgz yt/spark/spark-over-yt/build_output/
 
       - name: DockerHub login
         shell: bash
@@ -201,6 +209,10 @@ jobs:
           echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
           echo "password=${{ secrets.OSSRH_PASSWORD }}" >> ~/.sbt/.ossrh_credentials
 
+      - name: Download Livy
+        run: |
+          wget https://storage.yandexcloud.net/ytsaurus-spyt/livy.tgz
+
       - name: Run sbt build
         run: |
           cd yt/spark/spark-over-yt
@@ -219,6 +231,10 @@ jobs:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
           GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
+
+      - name: Copy Livy to build
+        run: |
+          cp livy.tgz yt/spark/spark-over-yt/build_output/
 
       - name: DockerHub login
         shell: bash

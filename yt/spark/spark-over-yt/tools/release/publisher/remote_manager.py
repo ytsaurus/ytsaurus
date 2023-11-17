@@ -13,6 +13,7 @@ class PublishConfig(NamedTuple):
     specific_global_file: Optional[str]
     ignore_existing: bool
     snapshot_ttl: int
+    include_livy: bool
 
 
 class ClientBuilder(NamedTuple):

@@ -11,6 +11,13 @@ from .utils import configure_logger
 logger = configure_logger("Cluster publisher")
 
 
+def upload_livy(uploader: Client, sources_path: str):
+    logger.info("Uploading livy files")
+    uploader.mkdir("livy")
+    livy_tgz = join(sources_path, 'livy.tgz')
+    uploader.write_file(livy_tgz, "livy/livy.tgz")
+
+
 def upload_spark_fork(uploader: Client, versions: Versions, sources_path: str, publish_conf: PublishConfig):
     logger.info("Uploading spark fork files")
     ttl = publish_conf.snapshot_ttl if versions.spark_version.is_snapshot else None
@@ -71,6 +78,8 @@ def main(sources_path: str, uploader_builder: ClientBuilder, publish_conf: Publi
     versions = load_versions(sources_path)
     uploader = Client(uploader_builder)
     create_base_dirs(uploader, versions)
+    if publish_conf.include_livy:
+        upload_livy(uploader, sources_path)
     if release_level >= ReleaseLevel.SPARK_FORK and not publish_conf.skip_spark_fork:
         upload_spark_fork(uploader, versions, sources_path, publish_conf)
     if release_level >= ReleaseLevel.CLUSTER:
@@ -89,13 +98,16 @@ if __name__ == '__main__':
     parser.set_defaults(ignore_existing=False)
     parser.add_argument('--skip-spark-fork', action='store_true', dest='skip_spark_fork', help='Skip spark fork publication')
     parser.set_defaults(skip_spark_fork=False)
+    parser.add_argument('--include-livy', action='store_true', dest='include_livy', help='Include built Livy')
+    parser.set_defaults(include_livy=False)
     args = parser.parse_args()
 
     publish_conf = PublishConfig(
         skip_spark_fork=args.skip_spark_fork,
         specific_global_file=args.specific_global_file,
         ignore_existing=args.ignore_existing,
-        snapshot_ttl=14 * 24 * 60 * 60 * 1000
+        snapshot_ttl=14 * 24 * 60 * 60 * 1000,
+        include_livy=args.include_livy,
     )
     uploader_builder = ClientBuilder(
         root_path=args.root,
