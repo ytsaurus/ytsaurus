@@ -85,6 +85,11 @@ void DetachChild(
     TCypressNode* trunkParent,
     TCypressNode* child);
 
+void AttachChildToSequoiaNodeOrThrow(
+    TCypressNode* trunkParent,
+    const TString& childKey,
+    TNodeId childId);
+
 bool NodeHasKey(const TCypressNode* node);
 std::optional<TString> FindNodeKey(
     const ICypressManagerPtr& cypressManager,

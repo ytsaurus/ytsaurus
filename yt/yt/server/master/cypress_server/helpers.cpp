@@ -318,6 +318,20 @@ void DetachChild(
     child->SetParent(nullptr);
 }
 
+void AttachChildToSequoiaNodeOrThrow(
+    TCypressNode* trunkParent,
+    const TString& childKey,
+    TNodeId childId)
+{
+    auto type = trunkParent->GetType();
+    YT_VERIFY(type == EObjectType::Scion || type == EObjectType::SequoiaMapNode);
+    auto& children = trunkParent->As<TSequoiaMapNode>()->MutableChildren();
+    if (children.Contains(childKey)) {
+        THROW_ERROR_EXCEPTION("Sequoia map node already has such child: %Qv", childKey);
+    }
+    children.Insert(childKey, childId);
+}
+
 bool NodeHasKey(const TCypressNode* node)
 {
     if (node->GetType() == EObjectType::PortalExit) {

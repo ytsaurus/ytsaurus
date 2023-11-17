@@ -6,9 +6,15 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 message TReqCreateNode
 {
+    message TChild {
+        required string key = 1;
+        required NYT.NProto.TGuid id = 2;
+    }
+
     required int32 type = 1;
     required NYT.NProto.TGuid node_id = 2;
     required string path = 3;
+    repeated TChild children = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

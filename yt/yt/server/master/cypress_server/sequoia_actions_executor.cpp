@@ -1,6 +1,6 @@
 #include "sequoia_actions_executor.h"
-
 #include "cypress_manager.h"
+#include "node_proxy.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -91,6 +91,22 @@ private:
             THROW_ERROR_EXCEPTION("Type %Qv is not supported in Sequoia", type);
         }
 
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        if (request->children_size() != 0) {
+            std::vector<TStringBuf> childKeys;
+            childKeys.reserve(request->children_size());
+            std::transform(
+                request->children().begin(),
+                request->children().end(),
+                std::back_inserter(childKeys),
+                [&] (const auto& child) {
+                    return child.key();
+                });
+            if (!CheckIfValuesUnique(childKeys)) {
+                THROW_ERROR_EXCEPTION("Children keys must be unique for node %v", nodeId);
+            }
+        }
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto nodeFactory = cypressManager->CreateNodeFactory(
@@ -98,7 +114,6 @@ private:
             /*transaction*/ nullptr,
             securityManager->GetSysAccount(),
             /*options*/ {});
-        auto nodeId = FromProto<TNodeId>(request->node_id());
         // TODO(kvk1920): Remove const cast.
         auto* attributes = &NYTree::EmptyAttributes();
         auto* node = nodeFactory->CreateNode(
@@ -115,6 +130,11 @@ private:
 
         node->VerifySequoia();
         node->RefObject();
+
+        for (const auto& child : request->children()) {
+            auto childId = FromProto<TNodeId>(child.id());
+            AttachChildToSequoiaNodeOrThrow(node, child.key(), childId);
+        }
 
         nodeFactory->Commit();
     }
@@ -156,16 +176,7 @@ private:
         auto* parent = cypressManager->GetNode(TVersionedNodeId(parentId));
 
         VerifySequoiaNode(parent);
-        YT_VERIFY(
-            parent->GetType() == EObjectType::SequoiaMapNode ||
-            parent->GetType() == EObjectType::Scion);
-
-        auto& children = parent->As<TSequoiaMapNode>()->MutableChildren();
-        if (children.Contains(key)) {
-            THROW_ERROR_EXCEPTION("Sequoia map node already has such child: %Qv", key);
-        }
-
-        children.Insert(key, childId);
+        AttachChildToSequoiaNodeOrThrow(parent, key, childId);
     }
 
     void HydraCommitDetachChild(

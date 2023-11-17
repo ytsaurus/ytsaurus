@@ -509,6 +509,7 @@ public:
 public:
     using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 };
 

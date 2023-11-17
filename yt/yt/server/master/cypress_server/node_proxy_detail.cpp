@@ -2887,6 +2887,15 @@ void TCypressMapNodeProxy::ListSelf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSequoiaMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+{
+    TBase::ListSystemAttributes(descriptors);
+
+    if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+        descriptors->push_back(EInternedAttributeKey::Children);
+    }
+}
+
 bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
     NYTree::TInternedAttributeKey key,
     NYson::IYsonConsumer* consumer)
@@ -2917,6 +2926,17 @@ bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
             YT_LOG_ALERT("Sequoia node is lacking required attribute \"key\" (NodeId: %v)",
                 mapNode->GetId());
             return false;
+        case EInternedAttributeKey::Children: {
+            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                break;
+            }
+            auto fluent = BuildYsonFluently(consumer).BeginMap();
+            for (const auto& [childKey, childId] : mapNode->KeyToChild()) {
+                fluent.Item(childKey).Value(childId);
+            }
+            fluent.EndMap();
+            return true;
+        }
         default:
             break;
     }

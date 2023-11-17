@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, create, ls, get, remove
+from yt_commands import authors, create, ls, get, remove, wait
 
 from yt.common import YtError
 import pytest
@@ -13,7 +13,7 @@ class TestSequoia(YTEnvSetup):
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
 
-    NUM_SECONDARY_MASTER_CELLS = 0
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):
@@ -73,6 +73,27 @@ class TestSequoia(YTEnvSetup):
     def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
         assert ls("//tmp/a") == ["b"]
+        child_id = create("map_node", "//tmp/a/b/c/d/e/f/g/h/i", recursive=True)
+        assert ls("//tmp/a/b/c/d/e/f/g/h") == ["i"]
+        assert get("//tmp/a/b/c/d/e/f/g/h/@children") == {"i": child_id}
+        root_id = get("//tmp/a/b/c/@id")
+        assert get("//tmp/a/b/@children") == {"c": root_id}
+
+    @authors("danilalexeev")
+    def test_nodes_cell_tags(self):
+        cell_count = 1 + get("//sys/secondary_masters/@count")
+        ack_cell_tags = {}
+        key = 0
+
+        def create_and_check():
+            nonlocal key
+            create("map_node", f"//tmp/{key}")
+            cell_tag = get(f"//tmp/{key}/@native_cell_tag")
+            ack_cell_tags[cell_tag] = "ack"
+            key += 1
+            return len(ack_cell_tags) == cell_count
+
+        wait(create_and_check)
 
     @authors("danilalexeev")
     def test_escaped_symbols(self):

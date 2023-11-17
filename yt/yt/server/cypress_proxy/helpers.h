@@ -14,11 +14,9 @@ namespace NYT::NCypressProxy {
 
 std::vector<NYPath::TYPathBuf> TokenizeUnresolvedSuffix(const NYPath::TYPath& unresolvedSuffix);
 
-////////////////////////////////////////////////////////////////////////////////
+NYPath::TYPath GetJoinedNestedNodesPath(const NYPath::TYPath& parentPath, const std::vector<NYPath::TYPathBuf>& childKeys);
 
 bool IsSupportedSequoiaType(NCypressClient::EObjectType type);
-
-////////////////////////////////////////////////////////////////////////////////
 
 bool IsSequoiaCompositeNodeType(NCypressClient::EObjectType type);
 

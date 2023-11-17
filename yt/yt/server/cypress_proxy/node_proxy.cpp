@@ -32,6 +32,8 @@
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include <util/random/random.h>
+
 namespace NYT::NCypressProxy {
 
 using namespace NApi;
@@ -61,6 +63,7 @@ public:
         , Id_(id)
         , Path_(std::move(path))
         , Transaction_(std::move(transaction))
+        , CellTagShuffler_(this)
     { }
 
     virtual void ValidateType() const = 0;
@@ -236,6 +239,31 @@ protected:
             Path_,
             tokenizer.GetToken());
     }
+
+    // XXX(danilalexeev)
+    class TCellTagShuffler
+    {
+    public:
+        explicit TCellTagShuffler(TNodeProxyBase* owner)
+        {
+            auto connection = owner->Bootstrap_->GetNativeConnection();
+            CellTags_.push_back(connection->GetPrimaryMasterCellTag());
+            for (const auto& cellTag : connection->GetSecondaryMasterCellTags()) {
+                CellTags_.push_back(cellTag);
+            }
+        }
+
+        TCellTag GetCellTag() const
+        {
+            YT_VERIFY(!CellTags_.empty());
+            return CellTags_[RandomNumber(CellTags_.size())];
+        }
+
+    private:
+        std::vector<TCellTag> CellTags_;
+    };
+
+    TCellTagShuffler CellTagShuffler_;
 };
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
@@ -369,8 +397,14 @@ private:
         return Bootstrap_->GetNativeConnection()->GetMasterCellId(CellTagFromId(id));
     }
 
-    void CreateNode(EObjectType type, TObjectId id, const TYPath& path)
+    void CreateNode(
+        EObjectType type,
+        TObjectId id,
+        const TYPath& path,
+        std::vector<std::pair<TString, TObjectId>> children = {})
     {
+        YT_VERIFY(IsSequoiaCompositeNodeType(type) || children.empty());
+
         auto [parentPath, childKey] = DirNameAndBaseName(path);
         Transaction_->WriteRow(NRecords::TResolveNode{
             .Key = {.Path = MangleSequoiaPath(path)},
@@ -391,10 +425,16 @@ private:
         NCypressServer::NProto::TReqCreateNode createNodeRequest;
         createNodeRequest.set_type(ToProto<int>(type));
         ToProto(createNodeRequest.mutable_node_id(), id);
+        for (const auto& [childKey, childId] : children) {
+            auto* child = createNodeRequest.add_children();
+            child->set_key(childKey);
+            ToProto(child->mutable_id(), childId);
+        }
         createNodeRequest.set_path(path);
         Transaction_->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(createNodeRequest));
     }
 
+    //! Use only at transaction coordinator with late prepare mode.
     void AttachChild(TObjectId parentId, TObjectId childId, const TYPath& childKey)
     {
         NCypressServer::NProto::TReqAttachChild attachChildRequest;
@@ -404,22 +444,42 @@ private:
         Transaction_->AddTransactionAction(CellTagFromId(parentId), MakeTransactionActionData(attachChildRequest));
     }
 
-    TObjectId CreateSequential(
-        TObjectId parentId,
+    struct TRecursiveCreateResult
+    {
+        TString SubtreeRootKey;
+        TNodeId SubtreeRootId;
+        TObjectId DesignatedNodeId;
+    };
+
+    template <class TCallback>
+    TRecursiveCreateResult CreateRecursive(
         const TYPath& parentPath,
         const std::vector<TYPathBuf>& childKeys,
-        std::function<TCellTag(TYPathBuf)> cellTagCallback)
+        const TCallback& createDesignatedNode)
     {
-        auto childPath = parentPath;
-        for (const auto& childKey : childKeys) {
-            auto cellTag = cellTagCallback(childKey);
-            childPath = Format("%v/%v", childPath, childKey);
+        YT_ASSERT(!childKeys.empty());
+        auto designatedPath = GetJoinedNestedNodesPath(parentPath, childKeys);
+        auto designatedNodeId = createDesignatedNode(designatedPath);
+        auto designatedNodeKey = TYPath(childKeys.back());
+        auto prevChild = std::make_pair(designatedNodeKey, designatedNodeId);
+        auto nestedPath = TYPathBuf(designatedPath).Chop(designatedNodeKey.size() + 1);
+        for (auto it = std::next(childKeys.rbegin()); it != childKeys.rend(); ++it) {
+            const auto& childKey = *it;
+            auto cellTag = CellTagShuffler_.GetCellTag();
             auto childId = Transaction_->GenerateObjectId(EObjectType::SequoiaMapNode, cellTag, /*sequoia*/ true);
-            CreateNode(EObjectType::SequoiaMapNode, childId, childPath);
-            AttachChild(parentId, childId, TYPath(childKey));
-            parentId = childId;
+            CreateNode(
+                EObjectType::SequoiaMapNode,
+                childId,
+                TYPath(nestedPath),
+                /*children*/ std::vector{prevChild});
+            nestedPath.Chop(childKey.size() + 1);
+            prevChild = std::make_pair(childKey, childId);
         }
-        return parentId;
+        return TRecursiveCreateResult{
+            .SubtreeRootKey = prevChild.first,
+            .SubtreeRootId = prevChild.second,
+            .DesignatedNodeId = designatedNodeId,
+        };
     }
 
     void ValidateCreateOptions(
@@ -477,7 +537,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     if (!request->recursive() && std::ssize(pathTokens) > 1) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "Node %v has no child with key %Qv",
+            "Node %v has no child with key \"%v\"",
             Path_,
             pathTokens[0]);
     }
@@ -485,20 +545,8 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     const auto& parentPath = Path_;
     auto parentId = Id_;
 
-    auto parentCellTag = CellTagFromId(parentId);
-
     // TODO(kvk1920): Choose cell tag properly.
-    auto childCellTag = parentCellTag;
-
-    // TODO(kvk1920): Support creating sequoia nodes on secondary cells.
-    // Actually it is mostly done:
-    // 1. Scion is not required to be at the same cell as rootstock.
-    // 2. SequoiaMapNode too.
-    // Other node types haven't been supported yet.
-    auto primaryMasterCellTag = Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag();
-    if (parentCellTag != primaryMasterCellTag || childCellTag != primaryMasterCellTag) {
-        THROW_ERROR_EXCEPTION("In Sequoia nodes can be created on primary cell only");
-    }
+    auto childCellTag = CellTagShuffler_.GetCellTag();
 
     // Acquire shared lock on parent node.
     NRecords::TResolveNodeKey parentKey{
@@ -506,36 +554,28 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     };
     Transaction_->LockRow(parentKey, ELockType::SharedStrong);
 
-    TYPathBuf childKey = pathTokens.back();
-    pathTokens.pop_back();
-
-    parentId = CreateSequential(
-        parentId,
+    auto createDesignatedNode = [&] (const auto& path) {
+        auto cellTag = CellTagShuffler_.GetCellTag();
+        auto id = Transaction_->GenerateObjectId(type, cellTag, /*sequoia*/ true);
+        CreateNode(type, id, path);
+        return id;
+    };
+    auto createResult = CreateRecursive(
         parentPath,
         pathTokens,
-        [&] (TYPathBuf /*childKey*/) {
-            return childCellTag;
-        });
+        createDesignatedNode);
 
-    // NB: May differ from original path due to path rewrites.
-    auto childPath = parentPath + unresolvedSuffix;
-
-    // Generate new object id.
-    auto childId = Transaction_->GenerateObjectId(type, childCellTag, /*sequoia*/ true);
-
-    // Create child on destination cell.
-    CreateNode(type, childId, childPath);
     // Attach child on parent cell.
-    AttachChild(parentId, childId, TYPath(childKey));
+    AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey);
 
     WaitFor(Transaction_->Commit({
-            .CoordinatorCellId = GetObjectCellId(Id_),
+            .CoordinatorCellId = GetObjectCellId(parentId),
             .Force2PC = true,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
         }))
         .ThrowOnError();
 
-    ToProto(response->mutable_node_id(), childId);
+    ToProto(response->mutable_node_id(), createResult.DesignatedNodeId);
     response->set_cell_tag(ToProto<int>(childCellTag));
     context->Reply();
 }
@@ -548,7 +588,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
     {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "Node %v has no child with key %Qv",
+            "Node %v has no child with key \"%v\"",
             Path_,
             pathTokens[0]);
     }
