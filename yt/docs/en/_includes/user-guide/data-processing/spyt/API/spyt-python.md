@@ -4,7 +4,7 @@
 
 1. Write some code.
 2. Post your code and dependencies to {{product-name}}. The main `.py` file and the dependencies in `.py`, `.zip`, or `.egg`.
-3. Build a binary file and post it to {{product-name}} (Spark 3.0.1+).
+3. Build a binary file and post it to {{product-name}} (Spark 3.2.2+).
 4. Run `spark-submit-yt`.
 
 

@@ -8,13 +8,19 @@ SPYT works with Java 11 and Scala 2.12.
 
 All the dependencies are installed in SPYT automatically; therefore the `scope` value is `Provided`. They will be used for compilation only and will not be included in the `.jar` or run.
 
-```java
+All possible values for `spytVersion` can be found [here](https://github.com/ytsaurus/ytsaurus/tags) under the spyt/* or spyt-spark/* tag.
+
+```scala
+
+val sparkVersion = "3.2.2"
+val spytVersion = "1.75.2"
+
 libraryDependencies ++= Seq(
     // Spark dependencies
-    "org.apache.spark" %% "spark-core" % "3.0.1" % Provided,
-    "org.apache.spark" %% "spark-sql" % "3.0.1" % Provided,
+    "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+    "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
     // SPYT library
-    "tech.ytsaurus" %% "spark-yt-data-source" % "1.50.0" % Provided
+    "tech.ytsaurus" %% "spark-yt-data-source" % spytVersion % Provided
 )
 ```
 
