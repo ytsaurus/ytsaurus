@@ -143,6 +143,46 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query(f"select * from `<ranges=[{range_specifier}]>//tmp/dt` order by data") == data[3:8]
 
     @authors("achulkov2")
+    def test_ordered_table_partial_select(self):
+        schema = [
+            {"name": "data1", "type": "string"},
+            {"name": "data2", "type": "string"},
+            {"name": "data3", "type": "string"},
+        ]
+
+        create(
+            "table",
+            "//tmp/dt",
+            attributes={
+                "dynamic": True,
+                "schema": schema,
+                "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            },
+        )
+        sync_mount_table("//tmp/dt")
+
+        data = [{"data1": f"foo{i}", "data2": f"foo2-{i}", "data3": f"foo3-{i}"} for i in range(10)]
+
+        for i in range(0, 2):
+            insert_rows("//tmp/dt", [data[i]])
+
+        sync_flush_table("//tmp/dt")
+
+        for i in range(2, 5):
+            insert_rows("//tmp/dt", [data[i]])
+
+        sync_flush_table("//tmp/dt")
+
+        for i in range(5, 10):
+            insert_rows("//tmp/dt", [data[i]])
+
+        # Two chunks + dynamic stores.
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            assert clique.make_query("select `data1`, `data3` from `//tmp/dt` order by data1") == [{"data1": row["data1"], "data3": row["data3"]} for row in data]
+
+    @authors("achulkov2")
     def test_ordered_table_concat(self):
         schema = [
             {"name": "data", "type": "string"},
