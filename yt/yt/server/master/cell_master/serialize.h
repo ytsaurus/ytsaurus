@@ -179,6 +179,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTransientAbort_23_2)                                       (2442))  // babenko
     ((ZombieACOs)                                                   (2443))  // shakurov
     ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
+    ((FixSharedRangeMove_23_2)                                      (2445))  // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////
