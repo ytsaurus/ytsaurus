@@ -167,6 +167,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         timestamp_provider_addresses,
         master_cache_addresses,
         cypress_proxy_rpc_ports,
+        queue_agent_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config=yt_config,
@@ -206,6 +207,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         timestamp_provider_addresses,
         master_cache_addresses,
         cypress_proxy_rpc_ports,
+        queue_agent_rpc_ports,
         yt_config=yt_config)
 
     rpc_driver_config = _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url)
@@ -988,6 +990,7 @@ def _build_http_proxy_config(proxy_dir,
                              timestamp_provider_addresses,
                              master_cache_addresses,
                              cypress_proxy_rpc_ports,
+                             queue_agent_rpc_ports,
                              ports_generator,
                              logs_dir,
                              yt_config,
@@ -1001,7 +1004,8 @@ def _build_http_proxy_config(proxy_dir,
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
-        cypress_proxy_rpc_ports)
+        cypress_proxy_rpc_ports,
+        queue_agent_rpc_ports)
 
     # COMPAT(max42)
     # (22, 4) would suffice in the condition if only REX tests did not use yt binaries from package.
@@ -1051,6 +1055,7 @@ def _build_native_driver_configs(master_connection_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
                                  cypress_proxy_rpc_ports,
+                                 queue_agent_rpc_ports,
                                  yt_config):
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
@@ -1068,7 +1073,8 @@ def _build_native_driver_configs(master_connection_configs,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
-                cypress_proxy_rpc_ports))
+                cypress_proxy_rpc_ports,
+                queue_agent_rpc_ports))
         else:
             tag = secondary_cell_tags[cell_index - 1]
             cell_connection_config = {

@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from .configs_provider import _init_logging, build_configs
-from .default_config import get_dynamic_master_config
+from .default_config import get_dynamic_master_config, get_dynamic_queue_agent_config
 from .helpers import (
     read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
@@ -204,7 +204,7 @@ class YTInstance(object):
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache",
-                            "tablet-balancer", "replicated-table-tracker"]
+                            "tablet-balancer", "replicated-table-tracker", "queue-agent"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
@@ -314,6 +314,7 @@ class YTInstance(object):
                 "chaos_node": self._make_service_dirs("chaos_node", self.yt_config.chaos_node_count),
                 "master_cache": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
                 "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
+                "queue_agent": self._make_service_dirs("queue_agent", self.yt_config.queue_agent_count),
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count),
                 "tablet_balancer": self._make_service_dirs("tablet_balancer", self.yt_config.tablet_balancer_count),
                 "cypress_proxy": self._make_service_dirs("cypress_proxy", self.yt_config.cypress_proxy_count),
@@ -370,7 +371,7 @@ class YTInstance(object):
             ("ytserver-controller-agent", "controller agents", self.yt_config.controller_agent_count),
             ("ytserver-cell-balancer", "cell balancers", self.yt_config.cell_balancer_count),
             (None, "secondary cells", self.yt_config.secondary_cell_count),
-            ("queue-agent", "queue agents", self.yt_config.queue_agent_count),
+            ("ytserver-queue-agent", "queue agents", self.yt_config.queue_agent_count),
             ("ytserver-tablet-balancer", "tablet balancers", self.yt_config.tablet_balancer_count),
             ("ytserver-http-proxy", "HTTP proxies", self.yt_config.http_proxy_count),
             ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count),
@@ -537,6 +538,10 @@ class YTInstance(object):
 
             patched_node_config = self._apply_nodes_dynamic_config(client)
 
+            queue_agent_dynamic_config = None
+            if self.yt_config.queue_agent_count > 0:
+                queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
+
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
                 self.start_nodes(sync=False)
             if self.yt_config.chaos_node_count > 0 and not self.yt_config.defer_chaos_node_start:
@@ -572,7 +577,9 @@ class YTInstance(object):
                             self.yt_config.meta_files_suffix,
                             client)
 
-            self._wait_for_dynamic_config(patched_node_config, client)
+            self._wait_for_nodes_dynamic_config(patched_node_config, client)
+            if queue_agent_dynamic_config is not None:
+                self._wait_for_queue_agent_dynamic_config(queue_agent_dynamic_config, client)
             self._write_environment_info_to_file()
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
@@ -598,7 +605,7 @@ class YTInstance(object):
 
         for name in ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
                      "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
-                     "tablet_balancer", "cypress_proxy", "replicated_table_tracker"]:
+                     "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -2037,6 +2044,12 @@ class YTInstance(object):
 
         logger.info("Watcher started")
 
+    def _apply_queue_agent_dynamic_config(self, client):
+        dyn_queue_agent_config = get_dynamic_queue_agent_config(self.yt_config)
+        client.create("map_node", "//sys/queue_agents", ignore_existing=True)
+        client.create("document", "//sys/queue_agents/config", attributes={"value": dyn_queue_agent_config})
+        return dyn_queue_agent_config
+
     def _apply_nodes_dynamic_config(self, client):
         patched_dyn_node_config = get_patched_dynamic_node_config(self.yt_config)
 
@@ -2044,7 +2057,7 @@ class YTInstance(object):
 
         return patched_dyn_node_config["%true"]
 
-    def _wait_for_dynamic_config(self, expected_config, client):
+    def _wait_for_nodes_dynamic_config(self, expected_config, client):
         nodes = client.list("//sys/cluster_nodes")
 
         def check():
@@ -2070,3 +2083,29 @@ class YTInstance(object):
             return True
 
         wait(check, error_message="Dynamic config from master didn't reach nodes in time")
+
+    def _wait_for_queue_agent_dynamic_config(self, expected_config, client):
+        instances = client.list("//sys/queue_agents/instances")
+
+        def config_updated_on_all_instances():
+            batch_processor = BatchProcessor(client)
+
+            responses = [
+                batch_processor.get("//sys/queue_agents/instances/{0}/orchid/dynamic_config_manager".format(instance))
+                for instance in instances
+            ]
+
+            while batch_processor.has_requests():
+                batch_processor.execute()
+
+            for response in responses:
+                if not response.is_ok():
+                    raise YtResponseError(response.get_error())
+
+                output = response.get_result()
+
+                if expected_config != output.get("applied_config"):
+                    return False
+            return True
+
+        wait(config_updated_on_all_instances)

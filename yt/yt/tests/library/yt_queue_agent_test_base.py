@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_chaos_test_base import ChaosTestBase
 
-from yt_commands import (get, set, ls, wait, create, sync_mount_table, sync_create_cells, insert_rows, exists,
+from yt_commands import (get, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, insert_rows, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica)
 
@@ -285,8 +285,10 @@ class TestQueueAgentBase(YTEnvSetup):
         cls.root_path = queue_agent_config.get("root", "//sys/queue_agents")
         cls.config_path = queue_agent_config.get("dynamic_config_path", cls.root_path + "/config")
 
-        if not exists(cls.config_path):
-            create("document", cls.config_path, attributes={"value": cls.BASE_QUEUE_AGENT_DYNAMIC_CONFIG})
+        if exists(cls.config_path):
+            remove(cls.config_path)
+
+        create("document", cls.config_path, attributes={"value": cls.BASE_QUEUE_AGENT_DYNAMIC_CONFIG})
 
         cls._apply_dynamic_config_patch(getattr(cls, "DELTA_QUEUE_AGENT_DYNAMIC_CONFIG", dict()))
 
@@ -308,7 +310,7 @@ class TestQueueAgentBase(YTEnvSetup):
     def _apply_dynamic_config_patch(cls, patch):
         config = get(cls.config_path)
         update_inplace(config, patch)
-        set(cls.config_path, config)
+        set(cls.config_path, config, force=True)
 
         instances = ls(cls.root_path + "/instances")
 

@@ -789,6 +789,35 @@ def get_queue_agent_config():
 """)
 
 
+def get_dynamic_queue_agent_config(yt_config):
+    return yson.loads(b"""
+{
+    "queue_agent" = {
+        "controller" = {
+            "enable_queue_static_export" = %true;
+            "enable_automatic_trimming" = %true;
+        };
+        "handle_replicated_objects" = %true;
+    };
+    "native_authentication_manager" = {
+        "enable_validation" = %false;
+    };
+    "cypress_synchronizer" = {
+        "write_registration_table_mapping" = %true;
+        "poll_replicated_objects" = %true;
+        "clusters" = [\""""
+                      +
+                      yt_config.cluster_name.encode('ascii')
+                      +
+                      b"""\"
+        ];
+        "policy" = "watching";
+        "chaos_replicated_table_queue_agent_stage" = "production";
+    };
+}
+""")
+
+
 def get_tablet_balancer_config():
     return yson.loads(b"""
 {
