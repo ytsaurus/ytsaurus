@@ -2792,7 +2792,7 @@ private:
         futures.reserve(artifactKeys.size());
 
         for (const auto& artifactKey : artifactKeys) {
-            YT_VERIFY(artifactKey.access_method() == NControllerAgent::TLayerAccessMethod::Local);
+            YT_VERIFY(!artifactKey.has_access_method() || artifactKey.access_method() == NControllerAgent::TLayerAccessMethod::Local);
             YT_VERIFY(artifactKey.filesystem() == NControllerAgent::TLayerFilesystem::SquashFS);
             YT_VERIFY(!artifactKey.has_nbd_export_id());
 
