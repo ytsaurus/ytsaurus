@@ -2835,7 +2835,8 @@ protected:
             MaxPartitionFactor);
     }
 
-    void SetAlertIfPartitionHeuristicsDifferSignificantly(int oldEstimation, int newEstimation) {
+    void SetAlertIfPartitionHeuristicsDifferSignificantly(int oldEstimation, int newEstimation)
+    {
         auto [min, max] = std::minmax(newEstimation, oldEstimation);
         YT_VERIFY(min > 0);
         const auto ratio = static_cast<double>(max) / static_cast<double>(min);
