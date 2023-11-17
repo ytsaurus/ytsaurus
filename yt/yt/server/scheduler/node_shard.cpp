@@ -1806,6 +1806,8 @@ void TNodeShard::ProcessHeartbeatJobs(
             OnJobAborted(job, error, EAbortReason::DisappearedFromNode);
         }
     }
+
+    ProcessJobsToAbort(response, node);
 }
 
 void TNodeShard::LogOngoingJobsOnHeartbeat(
@@ -1849,6 +1851,10 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     auto allocationState = GetAllocationState(jobStatus);
 
     const auto& address = node->GetDefaultAddress();
+
+    if (IsJobAborted(jobId, node)) {
+        return nullptr;
+    }
 
     auto job = FindJob(jobId, node);
     auto operationState = FindOperationState(operationId);
@@ -2279,6 +2285,8 @@ void TNodeShard::OnJobAborted(
         controller->OnJobAborted(job, error, /*scheduled*/ true, abortReason);
     }
 
+    EmplaceOrCrash(job->GetNode()->JobsToAbort(), job->GetId(), abortReason);
+
     UnregisterJob(job);
 }
 
@@ -2564,11 +2572,29 @@ void TNodeShard::DoInterruptJob(
     }
 }
 
+void TNodeShard::ProcessJobsToAbort(NProto::NNode::TRspHeartbeat* response, const TExecNodePtr& node)
+{
+    for (auto& [jobId, abortReason]: node->JobsToAbort()) {
+        YT_LOG_DEBUG(
+            "Sent job abort request to node (Reason: %v, JobId: %v)",
+            abortReason,
+            jobId);
+        AddAllocationToAbort(response, {jobId, abortReason});
+    }
+
+    node->JobsToAbort().clear();
+}
+
 TExecNodePtr TNodeShard::FindNodeByJob(TJobId jobId)
 {
     auto nodeId = NodeIdFromJobId(jobId);
     auto it = IdToNode_.find(nodeId);
     return it == IdToNode_.end() ? nullptr : it->second;
+}
+
+bool TNodeShard::IsJobAborted(TJobId jobId, const TExecNodePtr& node)
+{
+    return node->JobsToAbort().contains(jobId);
 }
 
 TJobPtr TNodeShard::FindJob(TJobId jobId, const TExecNodePtr& node)

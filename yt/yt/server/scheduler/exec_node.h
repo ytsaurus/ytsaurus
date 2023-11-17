@@ -41,6 +41,7 @@ class TExecNode
 {
 private:
     using TJobMap = THashMap<TJobId, TJobPtr>;
+    using TJobsToAbortMap = THashMap<TJobId, EAbortReason>;
 
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
@@ -51,6 +52,9 @@ public:
 
     //! Mapping from job id to job on this node.
     DEFINE_BYREF_RW_PROPERTY(TJobMap, IdToJob);
+
+    //! Jobs that were aborted by scheduler.
+    DEFINE_BYREF_RW_PROPERTY(TJobsToAbortMap, JobsToAbort);
 
     //! A set of scheduling tags assigned to this node.
     DEFINE_BYREF_RO_PROPERTY(TBooleanFormulaTags, Tags);
