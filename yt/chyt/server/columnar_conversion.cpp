@@ -276,7 +276,7 @@ i64 CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
     return result;
 }
 
-DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
@@ -481,7 +481,7 @@ DB::MutableColumnPtr ConvertFloatYTColumnToCHColumn(
     return ConvertFloatingPointYTColumnToCHColumn<float>(ytColumn);
 }
 
-DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumn(
+DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     return ConvertStringLikeYTColumnToCHColumnImpl(ytColumn);
