@@ -2,7 +2,7 @@
 
 В данном разделе рассказано о том, как создавать пулы, управлять ресурсами и настройками вычислительных пулов в системе {{product-name}} на примере CLI и веб-интерфейса.
 
-## Общие сведения { #common } 
+## Общие сведения { #common }
 
 В системе {{product-name}} реализована возможность управлять вычислительными пулами, поддерживаются такие действия с пулами, как:
 
@@ -30,7 +30,7 @@
 
 ### Валидация
 
-При валидации система {{product-name}} проверяет типы атрибутов, ограничение `max_operation_count >= max_running_operation_count`, количество тегов в списке `allowed_profiling_tags` (не более 200), отсутствие подпулов в fifo-пулах и согласованность гарантий на ресурсы. 
+При валидации система {{product-name}} проверяет типы атрибутов, ограничение `max_operation_count >= max_running_operation_count`, количество тегов в списке `allowed_profiling_tags` (не более 200), отсутствие подпулов в fifo-пулах и согласованность гарантий на ресурсы.
 
 Согласованность гарантий на ресурсы означает, что по каждому ресурсу сумма гарантий потомков не должна превышать гарантию родителя. Если на подпуле выставлена ненулевая гарантия на некоторый ресурс, то она должна быть выставлена и у родителя. При этом допускается, что у пула ненулевая гарантия выставлена на более, чем одном ресурсе.
 
@@ -47,25 +47,25 @@ yt create scheduler_pool --attributes='{pool_tree=physical;name=project-subpool1
 Пример изменения веса для созданного пула:
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@weight 10
+$ yt set //sys/pool_trees/physical/project-root/project-subpool1/@weight 10
 ```
 
 Первичное выставление гарантии пула при условии, что у родителя имеется нераспределенная гарантия:
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources '{cpu=50}'
+$ yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources '{cpu=50}'
 ```
 
 Для изменения уже выставленной гарантии можно изменить конкретный параметр:
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources/cpu 100
+$ yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources/cpu 100
 ```
 
 Перемещение производится стандартным образом:
 
 ```bash
-yt move //sys/pool_trees/physical/project-root/project-subpool1 //sys/pool_trees/new-project/new-subpool
+$ yt move //sys/pool_trees/physical/project-root/project-subpool1 //sys/pool_trees/new-project/new-subpool
 ```
 Переименование через перемещение поддерживается.
 При перемещении происходит валидация.
@@ -73,7 +73,7 @@ yt move //sys/pool_trees/physical/project-root/project-subpool1 //sys/pool_trees
 Атрибуты выставляются стандартным образом:
 
 ```bash
-yt set //sys/pool_trees/my_pool_tree/project_pool/@max_operation_count 10
+$ yt set //sys/pool_trees/my_pool_tree/project_pool/@max_operation_count 10
 ```
 При выставлении атрибутов происходит валидация.
 
@@ -81,14 +81,14 @@ yt set //sys/pool_trees/my_pool_tree/project_pool/@max_operation_count 10
 
 Управление пулами в веб-интерфейсе осуществляется в разделе `Scheduling`.
 
-Для создания подпула необходимо перейти в родительский пул, нажав на его имя. Далее нужно нажать кнопку `Create pool` и заполнить все обязательные поля в форме, после этого нажать `Confirm`. 
+Для создания подпула необходимо перейти в родительский пул, нажав на его имя. Далее нужно нажать кнопку `Create pool` и заполнить все обязательные поля в форме, после этого нажать `Confirm`.
 
 Пример формы по созданию пула представлен на рисунке.
 
 ![](../../../../../images/manage_pool_01.png)
 
 
-Для редактирования настроек пула необходимо нажать на карандаш в строке с именем пула в правой части экрана как показано на рисунке. 
+Для редактирования настроек пула необходимо нажать на карандаш в строке с именем пула в правой части экрана как показано на рисунке.
 
 ![](../../../../../images/manage_pool_04.png)
 
@@ -100,7 +100,7 @@ yt set //sys/pool_trees/my_pool_tree/project_pool/@max_operation_count 10
 
 В разделе `Resource Limits` можно выставить верхнее ограничение для пула, если, например, необходимо, чтобы пул не выходил за потребление в 100 ядер. По умолчанию верхнего ограничения для пулов не существует, доступные пулу ресурсы ограничены мощностью кластера.
 
-В разделе `Other Settings` приведены дополнительные настройки, в частности запрет на запуск операций в пуле. 
+В разделе `Other Settings` приведены дополнительные настройки, в частности запрет на запуск операций в пуле.
 
 {% note info "Примечание" %}
 
