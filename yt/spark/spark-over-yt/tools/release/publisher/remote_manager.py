@@ -9,21 +9,22 @@ logger = configure_logger("Remote manager")
 
 
 class PublishConfig(NamedTuple):
-    skip_spark_fork: bool
-    specific_global_file: Optional[str]
-    ignore_existing: bool
-    snapshot_ttl: int
-    include_livy: bool
+    skip_spark_fork: bool = False
+    specific_global_file: Optional[str] = None
+    ignore_existing: bool = False
+    snapshot_ttl: int = 14 * 24 * 60 * 60 * 1000
+    include_livy: bool = False
 
 
 class ClientBuilder(NamedTuple):
-    root_path: str
+    root_path: str = "//home/spark"
+    yt_client: Optional[YtClient] = None
 
 
 class Client:
     def __init__(self, client_builder: ClientBuilder):
         from yt.wrapper.default_config import get_config_from_env
-        self.yt_client = YtClient(config=get_config_from_env())
+        self.yt_client = client_builder.yt_client or YtClient(config=get_config_from_env())
         self.root_path = client_builder.root_path
 
     def resolve_from_root(self, path):

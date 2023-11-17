@@ -23,6 +23,8 @@ def _make_executables(directory):
 
 def _extract_resources(resource_key_prefix: str, remove_prefix: str, destination_dir: str):
     from library.python import resource
+    if len(remove_prefix) > 0 and remove_prefix[-1] != '/':
+        logger.warn("Last symbol in remove_prefix is not '/', you may try unpack to machine's root")
     logger.debug(f"Finding resource files with prefix {resource_key_prefix}")
     resource_paths = resource.resfs_files(resource_key_prefix)
     logger.debug(f"Found {len(resource_paths)} files. Extracting...")

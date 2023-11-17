@@ -139,7 +139,7 @@ def _parse_memory(memory_str):
 
 
 def _wait_op_start(op, operation_path, client):
-    for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
+    for state in op.get_state_monitor(TimeWatcher(5.0, 5.0, 0.0)):
         if state.is_running() and exists(operation_path, client=client):
             return op
         elif state.is_unsuccessfully_finished():

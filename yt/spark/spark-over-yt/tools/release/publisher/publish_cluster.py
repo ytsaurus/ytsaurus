@@ -106,7 +106,6 @@ if __name__ == '__main__':
         skip_spark_fork=args.skip_spark_fork,
         specific_global_file=args.specific_global_file,
         ignore_existing=args.ignore_existing,
-        snapshot_ttl=14 * 24 * 60 * 60 * 1000,
         include_livy=args.include_livy,
     )
     uploader_builder = ClientBuilder(

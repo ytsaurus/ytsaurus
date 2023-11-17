@@ -163,6 +163,13 @@ class SparkSubmissionClient(object):
     def get_app_status(self, driver_id):
         return ApplicationStatus.from_string(self._jclient.getStringApplicationStatus(driver_id))
 
+    def wait_final(self, app_id, ping_period=5):
+        status = self.get_status(app_id)
+        while not SubmissionStatus.is_final(status):
+            status = self.get_status(app_id)
+            time.sleep(ping_period)
+        return status
+
 
 class SubmissionStatus(Enum):
     SUBMITTED = "SUBMITTED"

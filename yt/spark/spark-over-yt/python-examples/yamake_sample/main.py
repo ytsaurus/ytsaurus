@@ -2,7 +2,6 @@ import argparse
 import logging
 import spyt.submit as submit
 import spyt.utils as utils
-import time
 
 
 def run_job(proxy, discovery_path, client_version):
@@ -19,11 +18,7 @@ def run_job(proxy, discovery_path, client_version):
         app_id = submission_client.submit(launcher)
         logging.info("Job submitted to cluster")
 
-        status = submission_client.get_status(app_id)
-        while not submit.SubmissionStatus.is_final(status):
-            logging.info("Waiting submission result...")
-            status = submission_client.get_status(app_id)
-            time.sleep(5)
+        status = submission_client.wait_final(app_id)
         logging.info(f"Final status: {status}")
 
 
