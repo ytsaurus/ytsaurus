@@ -143,7 +143,7 @@ yt.run_map(..., spec={"acl": [{
 Проверить наличие у пользователя определённого права на определённый узел Кипариса можно командой `check-permission`. Пример запуска:
 
 ```bash
-yt check-permission yql write //tmp
+$ yt check-permission yql write //tmp
 {
   "action" = "allow";
   "object_id" = "1-3-411012f-1888ce1f";
