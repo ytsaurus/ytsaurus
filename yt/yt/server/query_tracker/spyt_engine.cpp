@@ -43,7 +43,7 @@ public:
 
     std::optional<TString> ClientVersion;
 
-    THashMap<TString, TString> SparkConf;
+    std::optional<TString> SparkConf;
 
     REGISTER_YSON_STRUCT(TSpytSettings);
 
@@ -255,7 +255,10 @@ private:
 
     THashMap<TString, TString> GetSparkConf()
     {
-        THashMap<TString, TString> sparkConf(Settings_->SparkConf);
+        THashMap<TString, TString> sparkConf;
+        if (Settings_->SparkConf) {
+            sparkConf = ConvertTo<THashMap<TString, TString>>(TYsonString(Settings_->SparkConf.value()));
+        }
         auto versionInsert = sparkConf.emplace("spark.yt.version", GetClientVersion()).second;
         if (!versionInsert) {
             THROW_ERROR_EXCEPTION("Don't use 'spark.yt.version'. Use 'client_version' setting instead");
