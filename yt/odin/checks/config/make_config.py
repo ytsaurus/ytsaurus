@@ -111,8 +111,13 @@ def get_checks_config():
         "soft_select_timeout": 30,
         "temp_tables_path": "//sys/admin/odin/chyt_clique_liveness"
     }
-    dynamic_table_replication = {
-        "dynamic_table_replication": {"enable": True}
+    dynamic_table_replication_prestable = {
+        "dynamic_table_replication": {
+            "options": {
+                "metacluster": "pythia",
+                "replica_clusters": ["zeno", "pythia", "hume"],
+            },
+        },
     }
     skynet_manager = {
         "skynet_integration": {
@@ -841,7 +846,16 @@ def get_checks_config():
             },
             "dynamic_table_replication": {
                 "enable": False,
-                "alerts": instant_force_ok
+                "alerts": {
+                    "fast": {
+                        "period": 5,
+                        "threshold": 1,
+                    },
+                    "slow": {
+                        "period": 120,
+                        "threshold": 60,
+                    },
+                },
             },
             "skynet_integration": {
                 "enable": False,
@@ -1099,6 +1113,7 @@ def get_checks_config():
                 bundle_controller,
             ),
             "hume": deep_merge(
+                dynamic_table_replication_prestable,
                 skynet_manager,
                 codicils,
                 operations_count_hume,
@@ -1120,7 +1135,6 @@ def get_checks_config():
                 bundle_controller,
             ),
             "seneca-sas": deep_merge(
-                dynamic_table_replication,
                 snapshot_validation,
                 clock_quorum_health,
                 bundle_controller,
@@ -1146,6 +1160,7 @@ def get_checks_config():
                 bundle_controller,
             ),
             "pythia": deep_merge(
+                dynamic_table_replication_prestable,
                 snapshot_validation,
                 clock_quorum_health,
                 enable_query_tracker_alerts,
@@ -1174,7 +1189,6 @@ def get_checks_config():
                 controller_agent_operation_memory_consumption_hahn_arnold,
                 clouds,
                 codicils,
-                dynamic_table_replication,
                 skynet_manager,
                 scheduler_alerts_update_fair_share_gpu,
                 spare_tablet_nodes_big,
@@ -1186,6 +1200,7 @@ def get_checks_config():
             ),
             "zeno": deep_merge(
                 allow_unaware_nodes,
+                dynamic_table_replication_prestable,
                 snapshot_validation,
                 clock_quorum_health,
                 wide_window_quorum_health,

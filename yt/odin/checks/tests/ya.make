@@ -66,7 +66,6 @@ DEPENDS(
     yt/odin/checks/bin/unaware_nodes
     yt/odin/checks/config
     yt/odin/bin/yt_odin
-    
     yt/yt/packages/tests_package
 )
 
