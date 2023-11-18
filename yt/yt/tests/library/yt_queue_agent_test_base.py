@@ -342,6 +342,7 @@ class TestQueueAgentBase(YTEnvSetup):
             consumer_table_schema=consumer_table_schema,
             create_registration_table=True,
             create_replicated_table_mapping_table=True,
+            tablet_cell_bundle="default",
             **kwargs)
 
     def _drop_tables(self):
