@@ -58,7 +58,7 @@ class TResourceHolder::TAcquiredResources
 {
 public:
     TAcquiredResources(
-        IJobResourceManager::TImpl* jobResourceManagerImpl,
+        TJobResourceManager::TImpl* jobResourceManagerImpl,
         TMemoryUsageTrackerGuard&& userMemoryGuard,
         TMemoryUsageTrackerGuard&& systemMemoryGuard,
         ISlotPtr&& userSlot,
@@ -73,13 +73,13 @@ public:
     std::vector<int> Ports;
 
 private:
-    IJobResourceManager::TImpl* const JobResourceManagerImpl_;
+    TJobResourceManager::TImpl* const JobResourceManagerImpl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IJobResourceManager::TImpl
-    : public IJobResourceManager
+class TJobResourceManager::TImpl
+    : public TJobResourceManager
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(), ResourcesAcquired);
@@ -781,7 +781,7 @@ public:
                 gpuSlots = AcquireGpuSlots(neededResources);
             }
         } catch (const std::exception& ex) {
-            BIND(&IJobResourceManager::TImpl::OnResourcesAcquisitionFailed,
+            BIND(&TJobResourceManager::TImpl::OnResourcesAcquisitionFailed,
                 MakeStrong(this),
                 resourceHolder,
                 Passed(std::move(userSlot)),
@@ -844,7 +844,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND_NO_PROPAGATE(
-            &IJobResourceManager::TImpl::BuildOrchid,
+            &TJobResourceManager::TImpl::BuildOrchid,
             MakeStrong(this)));
     }
 
@@ -982,7 +982,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto infoOrError = WaitFor(BIND(
-            &IJobResourceManager::TImpl::DoGetStateSnapshot,
+            &TJobResourceManager::TImpl::DoGetStateSnapshot,
             MakeStrong(this))
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run());
@@ -1150,26 +1150,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobResourceManagerPtr IJobResourceManager::CreateJobResourceManager(IBootstrapBase* bootstrap)
+TJobResourceManagerPtr TJobResourceManager::CreateJobResourceManager(IBootstrapBase* bootstrap)
 {
-    return New<IJobResourceManager::TImpl>(bootstrap);
+    return New<TJobResourceManager::TImpl>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobResourceManager::TResourceAcquiringContext::TResourceAcquiringContext(
-    IJobResourceManager* resourceManager)
-    : ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(resourceManager))
+TJobResourceManager::TResourceAcquiringContext::TResourceAcquiringContext(
+    TJobResourceManager* resourceManager)
+    : ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(resourceManager))
 {
     ResourceManagerImpl_->OnResourceAcquiringStarted();
 }
 
-IJobResourceManager::TResourceAcquiringContext::~TResourceAcquiringContext()
+TJobResourceManager::TResourceAcquiringContext::~TResourceAcquiringContext()
 {
     ResourceManagerImpl_->OnResourceAcquiringFinished();
 }
 
-bool IJobResourceManager::TResourceAcquiringContext::TryAcquireResourcesFor(const TResourceHolderPtr& resourceHolder) &
+bool TJobResourceManager::TResourceAcquiringContext::TryAcquireResourcesFor(const TResourceHolderPtr& resourceHolder) &
 {
     try {
         if (!ResourceManagerImpl_->AcquireResourcesFor(resourceHolder)) {
@@ -1186,14 +1186,14 @@ bool IJobResourceManager::TResourceAcquiringContext::TryAcquireResourcesFor(cons
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceHolder::TResourceHolder(
-    IJobResourceManager* jobResourceManager,
+    TJobResourceManager* jobResourceManager,
     EResourcesConsumerType resourceConsumerType,
     TLogger logger,
     const TJobResources& resources,
     const TJobResourceAttributes& resourceAttributes,
     int portCount)
     : Logger(std::move(logger))
-    , ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(jobResourceManager))
+    , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
     , PortCount_(portCount)
     , BaseResourceUsage_(resources)
     , AdditionalResourceUsage_(ZeroJobResources())
@@ -1408,7 +1408,7 @@ bool TResourceHolder::DoSetResourceUsage(
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceHolder::TAcquiredResources::TAcquiredResources(
-    IJobResourceManager::TImpl* jobResourceManagerImpl,
+    TJobResourceManager::TImpl* jobResourceManagerImpl,
     TMemoryUsageTrackerGuard&& userMemoryGuard,
     TMemoryUsageTrackerGuard&& systemMemoryGuard,
     ISlotPtr&& userSlot,

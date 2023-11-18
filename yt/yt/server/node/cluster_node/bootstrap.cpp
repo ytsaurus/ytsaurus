@@ -559,7 +559,7 @@ public:
         return BlobReaderCache_;
     }
 
-    const IJobResourceManagerPtr& GetJobResourceManager() const override
+    const TJobResourceManagerPtr& GetJobResourceManager() const override
     {
         return JobResourceManager_;
     }
@@ -704,7 +704,7 @@ private:
     NApi::NNative::IConnectionPtr Connection_;
     IAuthenticatorPtr NativeAuthenticator_;
 
-    IJobResourceManagerPtr JobResourceManager_;
+    TJobResourceManagerPtr JobResourceManager_;
 
     TRestartManagerPtr RestartManager_;
 
@@ -930,7 +930,7 @@ private:
 
         auto localAddress = GetDefaultAddress(localRpcAddresses);
 
-        JobResourceManager_ = IJobResourceManager::CreateJobResourceManager(this);
+        JobResourceManager_ = TJobResourceManager::CreateJobResourceManager(this);
 
         RestartManager_ = New<TRestartManager>(GetControlInvoker());
 
@@ -1690,7 +1690,7 @@ const IBlobReaderCachePtr& TBootstrapBase::GetBlobReaderCache() const
     return Bootstrap_->GetBlobReaderCache();
 }
 
-const NJobAgent::IJobResourceManagerPtr& TBootstrapBase::GetJobResourceManager() const
+const NJobAgent::TJobResourceManagerPtr& TBootstrapBase::GetJobResourceManager() const
 {
     return Bootstrap_->GetJobResourceManager();
 }

@@ -410,7 +410,7 @@ public:
 private:
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     NClusterNode::IBootstrapBase* const Bootstrap_;
-    IJobResourceManagerPtr JobResourceManager_;
+    TJobResourceManagerPtr JobResourceManager_;
 
     // For converting vcpu to cpu back after getting response from scheduler.
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.

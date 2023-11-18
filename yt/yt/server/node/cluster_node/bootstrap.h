@@ -156,7 +156,7 @@ struct IBootstrapBase
     virtual const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const = 0;
 
     // Job resource manager.
-    virtual const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const = 0;
+    virtual const NJobAgent::TJobResourceManagerPtr& GetJobResourceManager() const = 0;
 
     // Restart manager for hot swap functionality.
     virtual const TRestartManagerPtr& GetRestartManager() const = 0;
@@ -292,7 +292,7 @@ public:
 
     const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
 
-    const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const override;
+    const NJobAgent::TJobResourceManagerPtr& GetJobResourceManager() const override;
 
     const TRestartManagerPtr& GetRestartManager() const override;
 

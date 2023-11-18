@@ -220,7 +220,7 @@ private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
     TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_;
 
-    IJobResourceManagerPtr JobResourceManager_;
+    TJobResourceManagerPtr JobResourceManager_;
 
     TMasterJobSensors MasterJobSensors_;
 

@@ -23,7 +23,7 @@ DEFINE_ENUM(EResourcesConsumerType,
     ((SchedulerJob)   (1))
 );
 
-class IJobResourceManager
+class TJobResourceManager
     : public TRefCounted
 {
 protected:
@@ -59,7 +59,7 @@ public:
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
-    static IJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
+    static TJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
 
     DECLARE_INTERFACE_SIGNAL(void(), ResourcesAcquired);
     DECLARE_INTERFACE_SIGNAL(void(EResourcesConsumerType, bool), ResourcesReleased);
@@ -75,7 +75,7 @@ protected:
     class TResourceAcquiringContext
     {
     public:
-        explicit TResourceAcquiringContext(IJobResourceManager* resourceManagerImpl);
+        explicit TResourceAcquiringContext(TJobResourceManager* resourceManagerImpl);
         TResourceAcquiringContext(const TResourceAcquiringContext&) = delete;
         ~TResourceAcquiringContext();
 
@@ -87,7 +87,7 @@ protected:
     };
 };
 
-DEFINE_REFCOUNTED_TYPE(IJobResourceManager)
+DEFINE_REFCOUNTED_TYPE(TJobResourceManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +104,7 @@ class TResourceHolder
 {
 public:
     TResourceHolder(
-        IJobResourceManager* jobResourceManager,
+        TJobResourceManager* jobResourceManager,
         EResourcesConsumerType resourceConsumerType,
         NLogging::TLogger logger,
         const NClusterNode::TJobResources& jobResources,
@@ -145,10 +145,10 @@ protected:
     std::vector<NClusterNode::ISlotPtr> GpuSlots_;
 
 private:
-    friend IJobResourceManager::TResourceAcquiringContext;
-    friend IJobResourceManager::TImpl;
+    friend TJobResourceManager::TResourceAcquiringContext;
+    friend TJobResourceManager::TImpl;
 
-    IJobResourceManager::TImpl* const ResourceManagerImpl_;
+    TJobResourceManager::TImpl* const ResourceManagerImpl_;
 
     const int PortCount_;
 
