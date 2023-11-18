@@ -3168,7 +3168,7 @@ private:
         }
         // COMPAT(kvk1920)
         if (node->UseImaginaryChunkLocations()) {
-            for (const auto& stats : request->chunk_statistics()) {
+            for (const auto& stats : request->per_medium_chunk_counts()) {
                 auto mediumIndex = stats.medium_index();
                 if (!FindMediumByIndex(mediumIndex)) {
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
@@ -3184,10 +3184,28 @@ private:
         } else {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
 
-            for (const auto& stats : request->statistics().chunk_locations()) {
+            for (const auto& stats : request->per_location_chunk_counts()) {
                 auto locationUuid = FromProto<TChunkLocationUuid>(stats.location_uuid());
                 auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
                 location->ReserveReplicas(stats.chunk_count());
+            }
+
+            if (request->per_location_chunk_counts().empty()) {
+                // COMPAT(kvk1920): Remove after 23.2.
+                // Heuristic estimation for the case of new masters and old data nodes.
+                TCompactMediumMap<int> locationCountByMedium;
+                TCompactMediumMap<int> replicaCountByMedium;
+                for (const auto* location : node->ChunkLocations()) {
+                    ++locationCountByMedium[location->GetEffectiveMediumIndex()];
+                }
+                for (const auto& stats : request->per_medium_chunk_counts()) {
+                    replicaCountByMedium[stats.medium_index()] = stats.chunk_count();
+                }
+                for (auto* location : node->ChunkLocations()) {
+                    auto mediumIndex = location->GetEffectiveMediumIndex();
+                    auto estimatedReplicaCount = replicaCountByMedium[mediumIndex] / locationCountByMedium[mediumIndex];
+                    location->ReserveReplicas(estimatedReplicaCount);
+                }
             }
         }
 
