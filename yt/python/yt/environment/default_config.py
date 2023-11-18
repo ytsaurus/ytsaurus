@@ -547,8 +547,6 @@ def get_node_config():
         heartbeat_period_splay = 30;
     };
 
-    use_new_heartbeats = %true;
-
     enable_fair_throttler = %true;
 }
 """)
@@ -653,8 +651,6 @@ def get_chaos_node_config():
         heartbeat_period = 100;
         heartbeat_period_splay = 30;
     };
-
-    use_new_heartbeats = %true;
 }
 """)
 

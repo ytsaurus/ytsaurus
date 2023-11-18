@@ -127,7 +127,6 @@
             "heartbeat_period_splay" = 50;
         };
     };
-    "use_new_heartbeats" = %true;
     "rpc_port" = 16207;
     "cluster_connection" = {
         "master_cell_directory_synchronizer" = {

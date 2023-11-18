@@ -563,8 +563,6 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        YT_VERIFY(rsp->use_new_heartbeats());
-
         if (Bootstrap_->NeedDataNodeBootstrap()) {
             const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
             const auto& mediumUpdater = dataNodeBootstrap->GetMediumUpdater();

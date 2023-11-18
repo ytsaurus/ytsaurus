@@ -1196,7 +1196,6 @@ private:
         }
 
         response->set_node_id(ToProto<ui32>(node->GetId()));
-        response->set_use_new_heartbeats(true);
 
         FillResponseNodeTags(response->mutable_tags(), node->Tags());
 
