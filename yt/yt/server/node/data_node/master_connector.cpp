@@ -177,15 +177,18 @@ public:
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         TChunkLocationDirectory locationDirectory(chunkStore->Locations().size());
 
-        TMediumMap<int> chunkCounts;
+        TMediumMap<int> perMediumChunkCounts;
+        THashMap<TChunkLocationUuid, int> perLocationChunkCounts;
 
         int storedChunkCount = 0;
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
-            if (chunk->GetLocation()->CanPublish() && CellTagFromId(chunk->GetId()) == cellTag) {
+            const auto& location = chunk->GetLocation();
+            if (location->CanPublish() && CellTagFromId(chunk->GetId()) == cellTag) {
                 *req->add_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
                 auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
-                ++chunkCounts[mediumIndex];
+                ++perMediumChunkCounts[mediumIndex];
+                ++perLocationChunkCounts[location->GetUuid()];
                 ++storedChunkCount;
             }
         };
@@ -194,11 +197,19 @@ public:
             addStoredChunkInfo(chunk);
         }
 
-        for (const auto& [mediumIndex, chunkCount] : chunkCounts) {
+        for (const auto& [mediumIndex, chunkCount] : perMediumChunkCounts) {
             if (chunkCount != 0) {
-                auto* mediumChunkStatistics = req->add_chunk_statistics();
-                mediumChunkStatistics->set_medium_index(mediumIndex);
-                mediumChunkStatistics->set_chunk_count(chunkCount);
+                auto* mediumChunkCount = req->add_per_medium_chunk_counts();
+                mediumChunkCount->set_medium_index(mediumIndex);
+                mediumChunkCount->set_chunk_count(chunkCount);
+            }
+        }
+
+        for (const auto& [locationUuid, chunkCount] : perLocationChunkCounts) {
+            if (chunkCount != 0) {
+                auto* locationChunkCount = req->add_per_location_chunk_counts();
+                ToProto(locationChunkCount->mutable_location_uuid(), locationUuid);
+                locationChunkCount->set_chunk_count(chunkCount);
             }
         }
 

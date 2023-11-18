@@ -52,6 +52,12 @@ message TReplicaAnnouncements
     optional bool enable_lazy_replica_announcements = 3;
 }
 
+message TLocationChunkStatistics
+{
+    required NYT.NProto.TGuid location_uuid = 1;
+    required int32 chunk_count = 2;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqFullHeartbeat
@@ -59,7 +65,9 @@ message TReqFullHeartbeat
     required int32 node_id = 1;
 
     required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
-    repeated NNodeTrackerClient.NProto.TMediumChunkStatistics chunk_statistics = 3;
+    repeated NNodeTrackerClient.NProto.TMediumChunkStatistics per_medium_chunk_counts = 3;
+    // Chunk replica counts in _this_ heartbeat.
+    repeated TLocationChunkStatistics per_location_chunk_counts = 7;
 
     repeated NYT.NProto.TGuid location_directory = 6; // TChunkLocationDirectory
     repeated NChunkClient.NProto.TChunkAddInfo chunks = 4;
