@@ -113,6 +113,7 @@ def get_checks_config():
     }
     dynamic_table_replication_prestable = {
         "dynamic_table_replication": {
+            "enable": True,
             "options": {
                 "metacluster": "pythia",
                 "replica_clusters": ["zeno", "pythia", "hume"],
