@@ -236,13 +236,18 @@ void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("multicell_reincarnation_transaction_timeout", &TThis::MulticellReincarnationTransactionTimeout)
         .Default(TDuration::Hours(1));
+
+    registrar.Parameter("ignore_account_settings", &TThis::IgnoreAccountSettings)
+        .Default(false);
 }
 
 bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
     const TDynamicChunkReincarnatorConfig& that) const noexcept
 {
-    return MinAllowedCreationTime != that.MinAllowedCreationTime ||
-        MaxVisitedChunkAncestorsPerChunk != that.MaxVisitedChunkAncestorsPerChunk;
+    return
+        MinAllowedCreationTime != that.MinAllowedCreationTime ||
+        MaxVisitedChunkAncestorsPerChunk != that.MaxVisitedChunkAncestorsPerChunk ||
+        IgnoreAccountSettings != that.IgnoreAccountSettings;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

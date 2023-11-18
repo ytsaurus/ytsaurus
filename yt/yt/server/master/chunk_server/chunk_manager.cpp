@@ -572,6 +572,11 @@ public:
         return ChunkReplicator_;
     }
 
+    const IChunkReincarnatorPtr& GetChunkReincarnator() const override
+    {
+        return ChunkReincarnator_;
+    }
+
     std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request) override
     {
         return CreateMutation(

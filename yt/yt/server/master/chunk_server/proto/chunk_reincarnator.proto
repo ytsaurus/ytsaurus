@@ -4,6 +4,14 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TChunkReincarnationOptions
+{
+    optional bool ignore_creation_time = 1;
+    optional bool ignore_account_settings = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqUpdateChunkReincarnatorTransactions
 { }
 
@@ -12,6 +20,7 @@ message TReqCreateReincarnatedChunks
     message TSubrequest
     {
         required NYT.NProto.TGuid old_chunk_id = 1;
+        optional TChunkReincarnationOptions options = 2;
     }
 
     repeated TSubrequest subrequests = 1;
@@ -25,6 +34,7 @@ message TReqReincarnateChunks
     {
         required NYT.NProto.TGuid old_chunk_id = 1;
         required NYT.NProto.TGuid new_chunk_id = 2;
+        optional TChunkReincarnationOptions options = 3;
     }
 
     repeated TSubrequest subrequests = 1;
@@ -38,6 +48,7 @@ message TReqCheckExportedChunkReincarnation
 {
     required int64 config_version = 1;
     repeated NYT.NProto.TGuid chunk_ids = 2;
+    optional TChunkReincarnationOptions options = 3;
 }
 
 message TReqCheckForeignChunkReincarnation

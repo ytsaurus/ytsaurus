@@ -180,6 +180,7 @@ DEFINE_ENUM(EMasterReign,
     ((ZombieACOs)                                                   (2443))  // shakurov
     ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
     ((LastSeenUserAttribute)                                        (2445))  // cherepashka
+    ((ChunkReincarnatorTestingUtilities_23_2)                       (2446))  // kvk1920
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -191,6 +192,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletSharedWriteLocks)                                       (2507))  // ponasenko-rs
     ((HunksForever)                                                 (2508))  // babenko
     ((ConfigurablePoolNameValidationRegex)                          (2509))  // renadeen
+    ((ChunkReincarnatorTestingUtilities)                            (2510))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

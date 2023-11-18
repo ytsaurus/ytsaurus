@@ -52,6 +52,7 @@ bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk)
             .Instant = NProfiling::GetCpuInstant(),
         });
     }
+
     return true;
 }
 

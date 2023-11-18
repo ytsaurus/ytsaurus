@@ -257,6 +257,8 @@ public:
 
     TDuration MulticellReincarnationTransactionTimeout;
 
+    bool IgnoreAccountSettings;
+
     bool ShouldRescheduleAfterChange(
         const TDynamicChunkReincarnatorConfig& that) const noexcept;
 

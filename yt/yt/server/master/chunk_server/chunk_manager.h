@@ -242,6 +242,8 @@ struct IChunkManager
 
     virtual const TChunkReplicatorPtr& GetChunkReplicator() const = 0;
 
+    virtual const IChunkReincarnatorPtr& GetChunkReincarnator() const = 0;
+
     virtual bool IsChunkReplicatorEnabled() = 0;
     virtual bool IsChunkRefreshEnabled() = 0;
     virtual bool IsChunkRequisitionUpdateEnabled() = 0;

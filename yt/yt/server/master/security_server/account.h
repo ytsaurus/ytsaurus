@@ -108,6 +108,8 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, MergeJobThrottler);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, EnableChunkReincarnation);
+
 public:
     using TNonversionedMapObjectBase<TAccount>::TNonversionedMapObjectBase;
     TAccount(TAccountId id, bool isRoot = false);

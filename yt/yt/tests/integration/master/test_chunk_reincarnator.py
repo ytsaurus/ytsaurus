@@ -1,9 +1,9 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    alter_table, concatenate, get, ls, copy, remove,
+    alter_table, concatenate, get, ls, copy,
     authors, get_singular_chunk_id, print_debug, wait,
-    create, write_table, set, read_table, exists,
+    create, write_table, set, read_table, exists, create_account,
     read_file, write_file, update_nodes_dynamic_config,
     get_active_primary_master_leader_address,
     get_active_primary_master_follower_address,
@@ -70,6 +70,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         "chunk_manager": {
             "chunk_reincarnator": {
                 "chunk_scan_period": 600,
+                "ignore_account_settings": True,
             }
         },
         "cell_master": {
@@ -90,6 +91,17 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         wait(lambda: datetime.strptime(get(f"//sys/estimated_creation_time/{chunk_id}/max"), "%Y-%m-%dT%H:%M:%S.%fZ")
              < datetime.utcnow() - timedelta(seconds=1))
 
+    def _set_min_allowed_creation_time(self, min_allowed_creation_time):
+        print_debug("setting min_allowed_creation_time:", min_allowed_creation_time)
+        set("//sys/@config/chunk_manager/chunk_reincarnator/min_allowed_creation_time",
+            str(min_allowed_creation_time))
+
+    def _enable_chunk_reincarnator(self):
+        set("//sys/@config/chunk_manager/chunk_reincarnator/enable", True)
+
+    def _disable_chunk_reincarnator(self):
+        set("//sys/@config/chunk_manager/chunk_reincarnator/enable", False)
+
     def _wait_for_reincarnation(
             self,
             table,
@@ -102,11 +114,9 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             chunk_ids = list(filter(lambda chunk: chunk in interesting_chunks, chunk_ids))
 
         if min_allowed_creation_time is not None:
-            print_debug("setting min_allowed_creation_time:", min_allowed_creation_time)
-            set("//sys/@config/chunk_manager/chunk_reincarnator/min_allowed_creation_time",
-                str(min_allowed_creation_time))
+            self._set_min_allowed_creation_time(min_allowed_creation_time)
 
-        set("//sys/@config/chunk_manager/chunk_reincarnator/enable", True)
+        self._enable_chunk_reincarnator()
 
         def chunks_reincarnated():
             new_chunk_ids = get(f"{table}/@chunk_ids")
@@ -136,46 +146,60 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             self._switch_leader(get("//sys/@cell_id"))
 
         wait(chunks_reincarnated)
-        set("//sys/@config/chunk_manager/chunk_reincarnator/enable", False)
+        self._disable_chunk_reincarnator()
 
-    def _get_chunk_info(self, chunk_id):
-        attrs = get(f"#{chunk_id}/@")
+    def _get_chunk_info(self, chunk_id, with_requisition=False):
+        while True:
+            attrs = get(f"#{chunk_id}/@")
 
-        # Change of these attributes during reincarnation is OK.
-        transient_attrs = [
-            "id",
-            "ref_counter",
-            "ephemeral_ref_counter",
-            "weak_ref_counter",
-            "estimated_creation_time",
-            "stored_replicas",
-            "last_seen_replicas",
-            "replication_status",
-            "scan_flags",
-            "creation_time",
-            "local_requisition_index",
-            "disk_space",
-            "meta_size",
-            "master_meta_size",
-            "approved_replica_count",
-            "external_requisition_indexes",
-            "staging_account",
-            "staging_transaction_id",
-            "shard_index",
-            "chunk_replicator_address",
-        ]
+            # Change of these attributes during reincarnation is OK.
+            unimportant_attrs = [
+                "id",
+                "ref_counter",
+                "ephemeral_ref_counter",
+                "weak_ref_counter",
+                "estimated_creation_time",
+                "stored_replicas",
+                "last_seen_replicas",
+                "replication_status",
+                "scan_flags",
+                "creation_time",
+                "local_requisition_index",
+                "disk_space",
+                "meta_size",
+                "master_meta_size",
+                "approved_replica_count",
+                "external_requisition_indexes",
+                "staging_account",
+                "staging_transaction_id",
+                "shard_index",
+                "chunk_replicator_address",
+                "local_requisition",
+            ]
 
-        # COMPAT(h0pless): Remove this when reincarnator will learn how to set chunk schemas
-        if "schema" in attrs:
-            attrs.pop("schema")
-        if "schema_id" in attrs:
-            attrs.pop("schema_id")
+            if not with_requisition:
+                unimportant_attrs.append("requisition")
 
-        for attr in transient_attrs:
-            if attr in attrs:
-                attrs.pop(attr)
+            # COMPAT(h0pless): Remove this when reincarnator will learn how to set chunk schemas
+            if "schema" in attrs:
+                attrs.pop("schema")
+            if "schema_id" in attrs:
+                attrs.pop("schema_id")
 
-        return attrs
+            for attr in unimportant_attrs:
+                if attr in attrs:
+                    attrs.pop(attr)
+
+            if with_requisition:
+                retry = False
+                for entry in attrs["requisition"]:
+                    if not entry.get("committed", False):
+                        retry = True
+                        break
+                if retry:
+                    continue
+
+            return attrs
 
     def _save_tables(self, *tables):
         result = {}
@@ -183,7 +207,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             result[table] = {
                 "content": read_table(table),
                 "chunks": [
-                    self._get_chunk_info(chunk)
+                    self._get_chunk_info(chunk, with_requisition=True)
                     for chunk in get(f"{table}/@chunk_ids")
                 ],
             }
@@ -193,7 +217,9 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         for table, info in tables.items():
             assert info["content"] == read_table(table)
             for chunk_id, chunk_info in zip(get(f"{table}/@chunk_ids"), info["chunks"]):
+                requisition = chunk_info.pop("requisition")
                 assert self._get_chunk_info(chunk_id) == chunk_info
+                wait(lambda: get(f"#{chunk_id}/@requisition") == requisition)
 
     def _switch_leader(self, cell_id):
         old_leader = get_active_primary_master_leader_address(self)
@@ -201,14 +227,6 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         switch_leader(cell_id, new_leader)
         wait(lambda: is_active_primary_master_follower(old_leader))
         wait(lambda: is_active_primary_master_leader(new_leader))
-
-    def setup_method(self, method):
-        super(TestChunkReincarnatorBase, self).setup_method(method)
-        set("//sys/@config/chunk_manager/chunk_reincarnator/enable", False)
-
-    def teardown_method(self, method):
-        set("//sys/@config/chunk_manager/chunk_reincarnator/enable", False)
-        super(TestChunkReincarnatorBase, self).teardown_method(method)
 
 
 ##################################################################
@@ -318,6 +336,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         wait(lambda: too_many_ancestors_counter.get_delta() >= 1)
 
         self._check_tables(tables)
+        tables = self._save_tables(*[f"//tmp/t{i}" for i in range(1, 10)])
 
         set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_ancestors_per_chunk", 220)
         too_many_ancestors_counter.reset()
@@ -388,7 +407,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
             {"key": 1, "value": "a"},
             {"key": 2, "value": "b"}
         ]
-        table = self._save_tables("//tmp/t")
+        tables = self._save_tables("//tmp/t")
 
         old_chunks = builtins.set(get("//tmp/t/@chunk_ids"))
 
@@ -398,7 +417,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 
         assert not (old_chunks & new_chunks), "Every dynamic table's chunk should be reincarnated"
 
-        self._check_tables(table)
+        self._check_tables(tables)
 
         sync_mount_table("//tmp/t")
         content = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
@@ -414,35 +433,28 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 
         non_table_chunk_counter = ReincarnatorStatistic("permanent_failures/no_table_ancestors")
 
-        set("//sys/@config/chunk_manager/chunk_reincarnator/min_allowed_creation_time", str(datetime.utcnow()))
-        set("//sys/@config/chunk_manager/chunk_reincarnator/enable", True)
+        self._set_min_allowed_creation_time(datetime.utcnow())
+        self._enable_chunk_reincarnator()
         wait(lambda: non_table_chunk_counter.get_delta() == 1)
         assert read_file("//tmp/f") == content
 
     @authors("kvk1920")
     def test_too_many_failed_jobs(self):
-        try:
-            update_nodes_dynamic_config({
-                "data_node": {"testing_options": {"fail_reincarnation_jobs": True}}
-            })
-            create("table", "//tmp/t")
-            content = [{"key": 1, "value": "1"}]
-            write_table("//tmp/t", content)
+        update_nodes_dynamic_config({
+            "data_node": {"testing_options": {"fail_reincarnation_jobs": True}}
+        })
+        self._create_table("//tmp/t")
+        content = [{"key": 1, "value": "1"}]
+        write_table("//tmp/t", content)
 
-            too_many_failed_jobs = ReincarnatorStatistic("permanent_failures/too_many_failed_jobs")
+        too_many_failed_jobs = ReincarnatorStatistic("permanent_failures/too_many_failed_jobs")
 
-            self._wait_for_chunk_obsolescence(get_singular_chunk_id("//tmp/t"))
-            set("//sys/@config/chunk_manager/chunk_reincarnator/max_failed_jobs", 2)
-            set("//sys/@config/chunk_manager/chunk_reincarnator/min_allowed_creation_time", str(datetime.utcnow()))
-            set("//sys/@config/chunk_manager/chunk_reincarnator/enable", True)
-            wait(lambda: too_many_failed_jobs.get_delta() == 1)
-            assert read_table("//tmp/t") == content
-        except Exception:
-            update_nodes_dynamic_config({
-                "data_node": {"testing_options": {"fail_reincarnation_jobs": False}}
-            })
-            remove("//sys/@config/chunk_manager/chunk_reincarnator/max_failed_jobs")
-            raise
+        self._wait_for_chunk_obsolescence(get_singular_chunk_id("//tmp/t"))
+        set("//sys/@config/chunk_manager/chunk_reincarnator/max_failed_jobs", 2)
+        self._set_min_allowed_creation_time(datetime.utcnow())
+        self._enable_chunk_reincarnator()
+        wait(lambda: too_many_failed_jobs.get_delta() == 1)
+        assert read_table("//tmp/t") == content
 
 
 ##################################################################
@@ -527,6 +539,119 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         assert new_chunks[1] != non_exported_chunk
         wait(lambda: too_many_ancestors_counter.get_delta() >= 1)
         wait(lambda: reincarnation_counter.get_delta() >= 1)
+        self._check_tables(tables)
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("exported", [False, True])
+    def test_schedule_chunk_reincarnation(self, exported):
+        self._set_min_allowed_creation_time(datetime.utcnow())
+
+        self._create_table("//tmp/native", attributes={"external": False})
+        write_table("//tmp/native", {"key": 1, "value": "a"})
+        self._create_table("//tmp/foreign", attributes={"external_cell_tag": 11})
+        concatenate(["//tmp/native"], "//tmp/foreign")
+        write_table("<append=%true>//tmp/native", {"key": 2, "value": "b"})
+
+        tables = self._save_tables("//tmp/native", "//tmp/foreign")
+
+        exported_chunk, non_exported_chunk = get("//tmp/native/@chunk_ids")
+        target_chunk = exported_chunk if exported else non_exported_chunk
+
+        self._enable_chunk_reincarnator()
+
+        set(f"#{target_chunk}/@schedule_reincarnation", {
+            "ignore_account_settings": True,
+            "ignore_creation_time": True,
+        })
+
+        wait(lambda: not exists(f"#{target_chunk}"))
+
+        self._check_tables(tables)
+
+    @authors("kvk1920")
+    def test_schedule_table_reincarnation(self):
+        self._set_min_allowed_creation_time(datetime.utcnow())
+        # Manually scheduled reincarnations can ignore account settings.
+        set("//sys/@config/chunk_manager/chunk_reincarnator/ignore_account_settings", False)
+
+        create_account("a")
+        set("//sys/accounts/a/@enable_chunk_reincarnation", True)
+        create_account("b")
+        set("//sys/accounts/b/@enable_chunk_reincarnation", False)
+
+        self._create_table("//tmp/native", attributes={"external": False, "account": "a"})
+        write_table("//tmp/native", {"key": 1, "value": "a"})
+        self._create_table("//tmp/foreign", attributes={"external_cell_tag": 11, "account": "b"})
+        concatenate(["//tmp/native"], "//tmp/foreign")
+        write_table("<append=%true>//tmp/native", {"key": 2, "value": "b"})
+
+        chunks = get("//tmp/native/@chunk_ids")
+
+        tables = self._save_tables("//tmp/native", "//tmp/foreign")
+
+        self._enable_chunk_reincarnator()
+
+        set("//tmp/native/@schedule_reincarnation", {
+            "ignore_account_settings": True,
+            "ignore_creation_time": True,
+        })
+
+        for chunk in chunks:
+            wait(lambda: not exists(f"#{chunk}"))
+
+        self._check_tables(tables)
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("native_is,deny_on", [
+        ("primary", "native"),
+        ("primary", "foreign"),
+        ("secondary", "foreign")])
+    def test_account_settings(self, native_is, deny_on):
+        create_account("allow")
+        create_account("deny")
+        set("//sys/@config/chunk_manager/chunk_reincarnator/ignore_account_settings", False)
+        set("//sys/accounts/allow/@enable_chunk_reincarnation", True)
+        assert get("//sys/accounts/allow/@enable_chunk_reincarnation")
+
+        native_cell = {"external": False} if native_is == "primary" else {"external_cell_tag": 11}
+        foreign_cell = {"external": False} if native_is == "secondary" else {"external_cell_tag": 11}
+
+        cell_a = native_cell
+        cell_b = native_cell if deny_on == "native" else foreign_cell
+
+        self._create_table("//tmp/a", attributes={"account": "allow"} | cell_a)
+        write_table("//tmp/a", {"key": "a", "value": 1})
+        self._create_table("//tmp/b", attributes={"account": "deny"} | cell_b)
+        concatenate(["//tmp/a"], "//tmp/b")
+        write_table("<append=%true>//tmp/a", {"key": "b", "value": 42})
+
+        tables = self._save_tables("//tmp/a", "//tmp/b")
+
+        chunk1, chunk2 = get("//tmp/a/@chunk_ids")
+        self._wait_for_chunk_obsolescence(chunk1)
+        self._wait_for_chunk_obsolescence(chunk2)
+
+        self._wait_for_reincarnation(
+            "//tmp/a",
+            min_allowed_creation_time=datetime.utcnow(),
+            whole_table_reincarnation=False,
+            interesting_chunks=[chunk2])
+
+        new_chunk1, new_chunk2 = get("//tmp/a/@chunk_ids")
+        assert new_chunk1 == chunk1
+        assert new_chunk2 != chunk2
+
+        self._check_tables(tables)
+
+        set("//sys/@config/chunk_manager/chunk_reincarnator/ignore_account_settings", True)
+
+        tables = self._save_tables("//tmp/a", "//tmp/b")
+
+        self._wait_for_chunk_obsolescence(new_chunk1)
+        self._wait_for_chunk_obsolescence(new_chunk2)
+
+        self._wait_for_reincarnation("//tmp/a", min_allowed_creation_time=datetime.utcnow())
+
         self._check_tables(tables)
 
     @authors("kvk1920")

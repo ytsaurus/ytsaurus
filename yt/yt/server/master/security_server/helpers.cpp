@@ -147,4 +147,17 @@ TAccessControlList DeserializeAcl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateSuperuser(const ISecurityManagerPtr& securityManager, TStringBuf key)
+{
+    auto* user = securityManager->GetAuthenticatedUser();
+    if (!securityManager->IsSuperuser(user)) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "Access denied: only superusers can change %Qv",
+            key);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSecurityServer
