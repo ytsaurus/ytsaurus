@@ -5,6 +5,7 @@ set -x
 
 script_name=$0
 ytsaurus_source_path="."
+spyt_image=""
 namespace=""
 image=""
 systest_image=""
@@ -33,6 +34,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --image)
         image="$2"
+        shift 2
+        ;;
+        --spyt-image)
+        spyt_image="$2"
         shift 2
         ;;
         --systest-image)
@@ -72,7 +77,7 @@ fi
 
 kubectl get pod -A | cut -d' ' -f1 | grep -E '[0-9]{8}-[0-9]{4}' && exit 1
 
-helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/cluster
+helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} --set SpytImagePath=${spyt_image} ${ytsaurus_source_path}/yt/systest/helm/cluster
 
 # Wait for Cypress
 helm install ${nsflags} ${name_tester} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/tester

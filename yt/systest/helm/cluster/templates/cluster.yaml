@@ -107,3 +107,14 @@ spec:
   ui:
     serviceType: NodePort
     instanceCount: 1
+
+---
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Spyt
+metadata:
+  name: myspyt
+spec:
+  ytsaurus:
+    name:
+      ytdemo
+  image: {{ .Values.SpytImagePath }}

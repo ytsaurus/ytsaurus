@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           export HOME=/root
-          bash yt/systest/scripts/systest.sh --systest-image ytsaurus/ytsaurus-systest:latest --image ytsaurus/ytsaurus-nightly:latest --namespace $(cat /root/ns) --ytsaurus-source-path $(pwd)
+          bash yt/systest/scripts/systest.sh --systest-image ytsaurus/ytsaurus-systest:latest --image ytsaurus/ytsaurus-nightly:latest --spyt-image ytsaurus/spyt:$(python3.11 yt/systest/scripts/docker_version.py -r ytsaurus/spyt) --namespace $(cat /root/ns) --ytsaurus-source-path $(pwd)
 
   shutdown-cluster:
     name: Shutdown YT
