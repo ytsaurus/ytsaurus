@@ -240,15 +240,12 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
             ++it;
         }
 
-        ColumnEvaluator_->FinalizeAggregate(id, &state, state, RowBuffer_);
-
-#if 0
-        state.Aggregate = false;
-#endif
+        TUnversionedValue finalizedState{};
+        ColumnEvaluator_->FinalizeAggregate(id, &finalizedState, state, RowBuffer_);
 
         auto columnIndex = ColumnIdToIndex_[id];
         MergedTimestamps_[columnIndex] = (it - 1)->Timestamp;
-        MergedRow_[columnIndex] = state;
+        MergedRow_[columnIndex] = finalizedState;
     }
 
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
