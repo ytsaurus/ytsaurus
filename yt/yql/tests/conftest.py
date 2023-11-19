@@ -33,8 +33,9 @@ class YqlAgent(ExternalComponent):
             "user": "yql_agent_test_user",
             "yql_agent": {
                 "gateway_config": {
-                    "mr_job_bin": "/home/gritukan/qt/usr/bin/mrjob",
-                    "mr_job_udfs_dir": "/home/gritukan/qt/usr/lib/yql",
+                    "mr_job_bin": yatest.common.binary_path("contrib/ydb/library/yql/tools/mrjob/mrjob"),
+                    "mr_job_udfs_dir":
+                        os.path.dirname(yatest.common.binary_path("contrib/ydb/library/yql/udfs/common/re2/libre2_udf.so")),
                     "cluster_mapping": [
                         {
                             "name": "primary",
@@ -46,7 +47,7 @@ class YqlAgent(ExternalComponent):
                 },
                 # Slightly change the defaults to check if they can be overwritten
                 "file_storage_config": {"max_size_mb": 1 << 13},
-                "yql_plugin_shared_library": "/home/gritukan/qt/usr/lib/yql/libyqlplugin.so",
+                "yql_plugin_shared_library": yatest.common.binary_path("yt/yql/plugin/dynamic/libyqlplugin.so"),
                 "yt_token_path": self.token_path,
             },
         }
