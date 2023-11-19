@@ -1375,7 +1375,11 @@ public:
         TTrackerStateRevision revision,
         bool snapshotRequested) override
     {
-        auto drainQueueGuard = NThreading::TracelessGuard(DrainQueueLock_);
+        auto drainQueueGuard = NThreading::TracelessTryGuard(DrainQueueLock_);
+        if (!drainQueueGuard.WasAcquired()) {
+            THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
+                "Failed to acquire update queue spinlock");
+        }
 
         if (!IsEnabled()) {
             THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
@@ -1404,7 +1408,7 @@ public:
 
                 YT_LOG_DEBUG("Rtt state provider started loading snapshot");
 
-                auto [revision, snapshot] = WaitFor(GetSnapshot())
+                auto [revision, snapshot] = WaitFor(GetSnapshotFuture())
                     .ValueOrThrow();
 
                 ClientRevision_ = revision;
@@ -1412,7 +1416,7 @@ public:
                 ToProto(result->mutable_snapshot(), snapshot);
 
                 {
-                    // NB: Some outdated actions could have been enqueued while waiting on GetSnapshot.
+                    // NB: Some outdated actions could have been enqueued while blocked on GetSnapshotFuture.
                     auto guard = Guard(ActionQueueLock_);
                     while (!ActionQueue_.empty()) {
                         YT_VERIFY(ActionQueue_.front().revision() != revision);
@@ -1662,7 +1666,7 @@ private:
         MaxActionQueueSize_ = newConfig->MaxActionQueueSize;
     }
 
-    TFuture<std::pair<TTrackerStateRevision, TReplicatedTableTrackerSnapshot>> GetSnapshot()
+    TFuture<std::pair<TTrackerStateRevision, TReplicatedTableTrackerSnapshot>> GetSnapshotFuture()
     {
         return BIND([bootstrap = Bootstrap_, this_ = MakeStrong(this), this] {
             YT_LOG_DEBUG("Started building replicated table tracker snapshot");
