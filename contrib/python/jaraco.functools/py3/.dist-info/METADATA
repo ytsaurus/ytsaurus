@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: jaraco.functools
-Version: 3.9.0
+Version: 4.0.0
 Summary: Functools like those found in stdlib
 Home-page: https://github.com/jaraco/jaraco.functools
 Author: Jason R. Coombs
@@ -13,9 +13,9 @@ Classifier: Programming Language :: Python :: 3 :: Only
 Requires-Python: >=3.8
 License-File: LICENSE
 Requires-Dist: more-itertools
-Requires-Dist: typing-extensions ; python_version < "3.11"
 Provides-Extra: docs
 Requires-Dist: sphinx >=3.5 ; extra == 'docs'
+Requires-Dist: sphinx <7.2.5 ; extra == 'docs'
 Requires-Dist: jaraco.packaging >=9.3 ; extra == 'docs'
 Requires-Dist: rst.linker >=1.9 ; extra == 'docs'
 Requires-Dist: furo ; extra == 'docs'
