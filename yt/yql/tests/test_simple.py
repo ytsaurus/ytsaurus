@@ -12,6 +12,8 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_env_setup import YTEnvSetup
 
+import time
+
 
 class TestQueriesYqlBase(YTEnvSetup):
     NUM_YQL_AGENTS = 1

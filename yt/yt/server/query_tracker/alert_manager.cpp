@@ -1,4 +1,5 @@
 #include "alert_manager.h"
+
 #include "config.h"
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -51,16 +52,15 @@ void TAlertManager::CollectAlerts()
     THashSet<NAlerts::EErrorCode> encounteredCodes;
 
     for (const auto& alert : Alerts_) {
-        auto category = static_cast<NAlerts::EErrorCode>(static_cast<int>(alert.GetCode()));
-        YT_LOG_ERROR("Alert code %v", static_cast<int>(alert.GetCode()));
+        auto code = static_cast<int>(alert.GetCode());
+        auto category = static_cast<NAlerts::EErrorCode>(code);
         YT_VERIFY(std::find(possibleAlertErrorCodes.begin(), possibleAlertErrorCodes.end(), category) != possibleAlertErrorCodes.end());
-        YT_VERIFY(encounteredCodes.insert(category).second);
+        InsertOrCrash(encounteredCodes, category);
 
         YT_LOG_WARNING(alert);
     }
 
     YT_LOG_DEBUG("Collected alerts (Count: %v)", Alerts_.size());
-
 }
 
 void TAlertManager::OnDynamicConfigChanged(const TAlertManagerDynamicConfigPtr& newConfig)

@@ -3,6 +3,7 @@
 #include "interface.h"
 
 #include <yt/yql/plugin/plugin.h>
+
 #include <util/system/dynlib.h>
 
 #include <vector>
@@ -77,7 +78,12 @@ public:
         BridgePlugin_ = BridgeCreateYqlPlugin(&bridgeOptions);
     }
 
-    TQueryResult Run(TQueryId queryId, TString impersonationUser, TString queryText, NYson::TYsonString settings, std::vector<TQueryFile> files) noexcept override
+    TQueryResult Run(
+        TQueryId queryId,
+        TString impersonationUser,
+        TString queryText,
+        NYson::TYsonString settings,
+        std::vector<TQueryFile> files) noexcept override
     {
         auto settingsString = settings ? settings.ToString() : "{}";
         auto queryIdStr = ToString(queryId);
@@ -94,7 +100,14 @@ public:
             });
         }
 
-        auto* bridgeQueryResult = BridgeRun(BridgePlugin_, queryIdStr.data(), impersonationUser.data(), queryText.data(), settingsString.data(), filesData.data(), filesData.size());
+        auto* bridgeQueryResult = BridgeRun(
+            BridgePlugin_,
+            queryIdStr.data(),
+            impersonationUser.data(),
+            queryText.data(),
+            settingsString.data(),
+            filesData.data(),
+            filesData.size());
         TQueryResult queryResult = {
             .YsonResult = ToString(bridgeQueryResult->YsonResult, bridgeQueryResult->YsonResultLength),
             .Plan = ToString(bridgeQueryResult->Plan, bridgeQueryResult->PlanLength),
@@ -105,6 +118,11 @@ public:
         };
         BridgeFreeQueryResult(bridgeQueryResult);
         return queryResult;
+    }
+
+    void Cancel(TQueryId /*queryId*/) noexcept override
+    {
+        // TODO(gritukan): Call BridgeCancel when it will be merged in the YQL repository.
     }
 
     TQueryResult GetProgress(TQueryId queryId) noexcept override

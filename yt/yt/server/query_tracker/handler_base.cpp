@@ -244,7 +244,7 @@ void TQueryHandlerBase::TryWriteProgress()
         if (const auto* errorException = dynamic_cast<const TErrorException*>(&ex)) {
             if (errorException->Error().FindMatching(NQueryTrackerClient::EErrorCode::IncarnationMismatch)) {
                 YT_LOG_INFO(ex, "Stopping trying to write query progress due to incarnation mismatch");
-                Detach();
+                Abort();
             }
         }
         YT_LOG_ERROR(ex, "Failed to write query progress");

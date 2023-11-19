@@ -10,11 +10,11 @@
 
 #include <yt/yt/client/ypath/public.h>
 
+#include <yt/yt/library/dynamic_config/config.h>
+
 #include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/library/dynamic_config/config.h>
 
 namespace NYT::NQueryTracker {
 

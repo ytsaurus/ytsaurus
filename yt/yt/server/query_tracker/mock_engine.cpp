@@ -13,6 +13,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTableClient;
+using namespace NQueryTrackerClient;
 using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -133,16 +134,12 @@ public:
         TDelayedExecutor::Cancel(DelayedCookie_);
     }
 
-    void Detach() override
-    {
-        YT_LOG_INFO("Detaching mock query");
-        TDelayedExecutor::Cancel(DelayedCookie_);
-    }
-
 private:
     TDelayedExecutorCookie DelayedCookie_;
     TMockSettingsPtr Settings_;
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 class TMockEngine
     : public IQueryEngine
@@ -153,7 +150,7 @@ public:
         , StateRoot_(std::move(stateRoot))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartQuery(NRecords::TActiveQuery activeQuery) override
     {
         return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker());
     }
@@ -168,6 +165,8 @@ private:
     const TYPath StateRoot_;
     TEngineConfigBasePtr Config_;
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 IQueryEnginePtr CreateMockEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot)
 {

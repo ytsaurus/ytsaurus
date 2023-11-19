@@ -17,7 +17,6 @@
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
-
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -36,7 +35,7 @@ namespace NYT::NQueryTracker {
 using namespace NApi;
 using namespace NYPath;
 using namespace NConcurrency;
-using namespace NRecords;
+using namespace NQueryTrackerClient::NRecords;
 using namespace NTableClient;
 using namespace NLogging;
 using namespace NTransactionClient;
@@ -138,6 +137,7 @@ private:
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
         YT_LOG_INFO("Requesting query tracker state version");
+
         auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version");
         auto rspOrError = WaitFor(asyncResult);
         if (!rspOrError.IsOK()) {
@@ -146,7 +146,7 @@ private:
         } else {
             int stateVersion = ConvertTo<int>(rspOrError.Value());
             if (stateVersion < MinRequiredStateVersion_) {
-                auto alert =TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
+                auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
                     << TErrorAttribute("version", stateVersion)
                     << TErrorAttribute("min_required_version", MinRequiredStateVersion_);
                 Alerts_ = {alert};
@@ -227,6 +227,7 @@ private:
 
         auto queryId = queryRecord.Key.QueryId;
         auto Logger = NQueryTracker::Logger.WithTag("QueryId: %v", queryId);
+
         YT_LOG_DEBUG("Starting acquisition transaction");
         auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();
@@ -254,6 +255,7 @@ private:
                 transaction->GetStartTimestamp());
             return;
         }
+
         auto newIncarnation = queryRecord.Incarnation + 1;
         YT_LOG_INFO(
             "Query is still expired, acquiring it (Timestamp: %v, Incarnation: %v, State: %v)",
@@ -294,17 +296,19 @@ private:
 
         IQueryHandlerPtr handler;
         try {
-            handler = Engines_[queryRecord.Engine]->StartOrAttachQuery(queryRecord);
+            handler = Engines_[queryRecord.Engine]->StartQuery(queryRecord);
             handler->Start();
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
             FinishQueryLoop(queryId, newIncarnation, TError(ex), EQueryState::Failed);
             return;
         }
+
         InsertOrCrash(AcquiredQueries_, std::pair{queryId, TAcquiredQuery{
             .Handler = std::move(handler),
             .Incarnation = newIncarnation,
         }});
+
         PingLoop(queryId, newIncarnation);
     }
 
@@ -338,6 +342,7 @@ private:
             auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
             YT_LOG_DEBUG("Ping transaction started (TransactionId: %v)", transaction->GetId());
+
             const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
             auto activeQueryRecord = WaitFor(
                 LookupActiveQuery(
@@ -426,10 +431,11 @@ private:
     void DetachQuery(TQueryId queryId)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
         if (auto it = AcquiredQueries_.find(queryId); it != AcquiredQueries_.end()) {
             const auto& [queryId, query] = *it;
             YT_LOG_INFO("Query detached (QueryId: %v)", queryId);
-            query.Handler->Detach();
+            query.Handler->Abort();
             AcquiredQueries_.erase(it);
         }
     }
@@ -505,7 +511,9 @@ private:
             try {
                 ValidateLease(incarnation, *activeQueryRecord, Config_->ActiveQueryLeaseTimeout);
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Query lease has expired, giving up finishing (NewIncarnation: %v, NewPingTime: %v)", activeQueryRecord->Incarnation, activeQueryRecord->PingTime);
+                YT_LOG_INFO(ex, "Query lease has expired, giving up finishing (NewIncarnation: %v, NewPingTime: %v)",
+                    activeQueryRecord->Incarnation,
+                    activeQueryRecord->PingTime);
                 return false;
             }
 
@@ -596,17 +604,19 @@ private:
     {
         ValidateIncarnation(expectedIncarnation, record);
         if (record.PingTime + leaseExpirationTimeout < TInstant::Now()) {
-                THROW_ERROR_EXCEPTION(
-                    NQueryTrackerClient::EErrorCode::IncarnationMismatch,
-                    "Query lease expired for incarnation %v",
-                    expectedIncarnation)
-                    << TErrorAttribute("incarnation", expectedIncarnation)
-                    << TErrorAttribute("ping_time", record.PingTime);
+            THROW_ERROR_EXCEPTION(
+                NQueryTrackerClient::EErrorCode::IncarnationMismatch,
+                "Query lease expired for incarnation %v",
+                expectedIncarnation)
+                << TErrorAttribute("incarnation", expectedIncarnation)
+                << TErrorAttribute("ping_time", record.PingTime);
         }
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTracker)
+
+///////////////////////////////////////////////////////////////////////////////
 
 IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,

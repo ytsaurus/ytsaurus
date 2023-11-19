@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/client/api/client.h>
 
@@ -25,6 +25,8 @@ struct IQueryTracker
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryTracker)
+
+///////////////////////////////////////////////////////////////////////////////
 
 IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,

@@ -52,12 +52,6 @@ public:
         AsyncQueryResult_.Cancel(TError("Query aborted"));
     }
 
-    void Detach() override
-    {
-        // Nothing smarter than that for now.
-        AsyncQueryResult_.Cancel(TError("Query detached"));
-    }
-
 private:
     TString Query_;
     NApi::IClientPtr QueryClient_;
@@ -77,6 +71,8 @@ private:
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 class TQlEngine
     : public IQueryEngine
 {
@@ -88,7 +84,7 @@ public:
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartQuery(NRecords::TActiveQuery activeQuery) override
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<TString>("cluster").value_or(Config_->DefaultCluster);
@@ -108,6 +104,8 @@ private:
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 IQueryEnginePtr CreateQlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
 {

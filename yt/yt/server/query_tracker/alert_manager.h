@@ -15,13 +15,14 @@ class TAlertManager
     : public TRefCounted
 {
 public:
-    explicit TAlertManager(IInvokerPtr controlInvoker);
+    DEFINE_SIGNAL(void(std::vector<TError>*), PopulateAlerts);
+
+public:
+    TAlertManager(IInvokerPtr controlInvoker);
 
     NYTree::IYPathServicePtr GetOrchidService() const;
 
     void Start();
-
-    DEFINE_SIGNAL(void(std::vector<TError>*), PopulateAlerts);
 
     void OnDynamicConfigChanged(const TAlertManagerDynamicConfigPtr& newConfig);
 

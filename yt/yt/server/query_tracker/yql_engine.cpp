@@ -105,18 +105,9 @@ public:
 
     void Abort() override
     {
-        // Nothing smarter than that for now.
         ProgressGetterExecutor_->Stop();
         StopProgressWriter();
         AsyncQueryResult_.Cancel(TError("Query aborted"));
-    }
-
-    void Detach() override
-    {
-        // Nothing smarter than that for now.
-        ProgressGetterExecutor_->Stop();
-        StopProgressWriter();
-        AsyncQueryResult_.Cancel(TError("Query detached"));
     }
 
 private:
@@ -202,6 +193,8 @@ private:
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 class TYqlEngine
     : public IQueryEngine
 {
@@ -212,7 +205,7 @@ public:
         , ControlQueue_(New<TActionQueue>("YqlEngineControl"))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartQuery(NRecords::TActiveQuery activeQuery) override
     {
         return New<TYqlQueryHandler>(
             StateClient_,
@@ -234,6 +227,8 @@ private:
     const TActionQueuePtr ControlQueue_;
     TYqlEngineConfigPtr Config_;
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
 {

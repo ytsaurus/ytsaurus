@@ -8,7 +8,6 @@ using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TDynamicConfigManager::TDynamicConfigManager(
     const TQueryTrackerServerConfigPtr& queryTrackerConfig,
     NApi::IClientPtr client,

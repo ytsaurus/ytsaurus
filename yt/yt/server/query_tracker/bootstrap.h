@@ -1,12 +1,10 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/cypress_election/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
-
-#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -15,6 +13,8 @@
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
@@ -66,7 +66,7 @@ private:
     void DoRun();
 
     //! Creates instance node with proper annotations and an orchid node at the native cluster.
-    void UpdateCypressNode();
+    void CreateCypressNode();
 
     void OnDynamicConfigChanged(
         const TQueryTrackerServerDynamicConfigPtr& oldConfig,

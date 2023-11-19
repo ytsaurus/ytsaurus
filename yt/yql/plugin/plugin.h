@@ -68,7 +68,14 @@ struct TQueryFile
 */
 struct IYqlPlugin
 {
-    virtual TQueryResult Run(TQueryId queryId, TString impersonationUser, TString queryText, TYsonString settings, std::vector<TQueryFile> files) noexcept = 0;
+    virtual TQueryResult Run(
+        TQueryId queryId,
+        TString impersonationUser,
+        TString queryText,
+        TYsonString settings,
+        std::vector<TQueryFile> files) noexcept = 0;
+    virtual void Cancel(TQueryId query) noexcept = 0;
+
     virtual TQueryResult GetProgress(TQueryId queryId) noexcept = 0;
 
     virtual ~IYqlPlugin() = default;
