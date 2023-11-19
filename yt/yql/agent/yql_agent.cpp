@@ -127,7 +127,7 @@ public:
     void CancelQuery(TQueryId queryId, const TError& error) override
     {
         YT_LOG_INFO(error, "Cancelling query (QueryId: %v)", queryId);
-        YT_ABORT();
+
         YqlPlugin_->Cancel(queryId);
     }
 
