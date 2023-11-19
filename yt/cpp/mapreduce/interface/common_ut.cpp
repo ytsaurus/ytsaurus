@@ -186,7 +186,7 @@ Y_UNIT_TEST_SUITE(Common)
 
         auto node = tableSchema.ToNode().AsList();
 
-        // There was a bug in the serialization of the type: https://github.com/ytsaurus/ytsaurus/issues/173
+        // There was a bug in the serialization of decimal type: https://github.com/ytsaurus/ytsaurus/issues/173
         {
             const auto& currentNode = node[0];
             UNIT_ASSERT_VALUES_EQUAL(currentNode.ChildAsString("type"), "any");
