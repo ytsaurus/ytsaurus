@@ -184,31 +184,31 @@ Y_UNIT_TEST_SUITE(Common)
         tableSchema.AddColumn("b", NTi::Optional(NTi::Decimal(35, 18)));
         tableSchema.AddColumn("c", NTi::List(NTi::Decimal(35, 18)));
 
-        auto node = tableSchema.ToNode().AsList();
+        auto tableSchemaNode = tableSchema.ToNode().AsList();
 
         // There was a bug in the serialization of decimal type: https://github.com/ytsaurus/ytsaurus/issues/173
         {
-            const auto& currentNode = node[0];
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.ChildAsString("type"), "any");
-            UNIT_ASSERT(currentNode.ChildAsBool("required"));
-            UNIT_ASSERT(currentNode.HasKey("type_v3"));
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.At("type_v3").ChildAsString("type_name"), "decimal");
+            const auto& currentType = tableSchemaNode[0];
+            UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "any");
+            UNIT_ASSERT(currentType.ChildAsBool("required"));
+            UNIT_ASSERT(currentType.HasKey("type_v3"));
+            UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").ChildAsString("type_name"), "decimal");
         }
         {
-            const auto& currentNode = node[1];
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.ChildAsString("type"), "any");
-            UNIT_ASSERT(!currentNode.ChildAsBool("required"));
-            UNIT_ASSERT(currentNode.HasKey("type_v3"));
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.At("type_v3").ChildAsString("type_name"), "optional");
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.At("type_v3").At("item").ChildAsString("type_name"), "decimal");
+            const auto& currentType = tableSchemaNode[1];
+            UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "any");
+            UNIT_ASSERT(!currentType.ChildAsBool("required"));
+            UNIT_ASSERT(currentType.HasKey("type_v3"));
+            UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").ChildAsString("type_name"), "optional");
+            UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").At("item").ChildAsString("type_name"), "decimal");
         }
         {
-            const auto& currentNode = node[2];
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.ChildAsString("type"), "any");
-            UNIT_ASSERT(currentNode.ChildAsBool("required"));
-            UNIT_ASSERT(currentNode.HasKey("type_v3"));
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.At("type_v3").ChildAsString("type_name"), "list");
-            UNIT_ASSERT_VALUES_EQUAL(currentNode.At("type_v3").At("item").ChildAsString("type_name"), "decimal");
+            const auto& currentType = tableSchemaNode[2];
+            UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "any");
+            UNIT_ASSERT(currentType.ChildAsBool("required"));
+            UNIT_ASSERT(currentType.HasKey("type_v3"));
+            UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").ChildAsString("type_name"), "list");
+            UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").At("item").ChildAsString("type_name"), "decimal");
         }
     }
 
