@@ -3,6 +3,7 @@ PY3TEST()
 TEST_SRCS(
     conftest.py
     test_simple.py
+    test_udfs.py
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
@@ -12,13 +13,10 @@ DEPENDS(
     yt/yql/agent/bin
 )
 
-# In open source these artifacts must be taken from YDB repo.
+# In open source these artifacts must be taken from YDB repo or extracted from Query Tracker Docker image.
 IF (NOT OPENSOURCE)
-    DEPENDS(
-        yt/yql/plugin/dynamic
-        contrib/ydb/library/yql/tools/mrjob
-        contrib/ydb/library/yql/udfs/common/re2
-    )
+    # This sandbox resource is produced by the script yt/yql/packages/build_ydb_artifacts_for_tests.sh.
+    DATA(sbr://5415383986)
 ENDIF()
 
 PEERDIR(
