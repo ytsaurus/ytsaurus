@@ -247,8 +247,6 @@ Y_UNIT_TEST_SUITE(Common)
         UNIT_ASSERT_VALUES_EQUAL(*ToTypeV3(VT_UTF8, false), *NTi::Optional(NTi::Utf8()));
     }
 
-
-
     Y_UNIT_TEST(DeserializeColumn)
     {
         auto deserialize = [] (TStringBuf yson) {
