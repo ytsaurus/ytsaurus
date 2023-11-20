@@ -2350,7 +2350,15 @@ TJobProxyConfigPtr TJob::CreateConfig()
     }
 
     if (RootVolume_ || DockerImage_) {
-        proxyConfig->Binds = Config_->RootFSBinds;
+        if (Config_->UseRootFSBinds) {
+            proxyConfig->Binds = Config_->RootFSBinds;
+        } else {
+            for (const auto& bind : Config_->RootFSBinds) {
+                if (!bind->ExternalPath.StartsWith("/yt")) {
+                    proxyConfig->Binds.push_back(bind);
+                }
+            }
+        }
 
         if (Config_->UseArtifactBinds) {
             for (const auto& artifact : Artifacts_) {
