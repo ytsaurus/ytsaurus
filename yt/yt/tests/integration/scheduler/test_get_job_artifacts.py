@@ -523,6 +523,30 @@ class TestGetJobInput(YTEnvSetup):
             with raises_yt_error("Failed to get job input"):
                 get_job_input(job_id)
 
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns(self, optimize_for):
+        create(
+            "table",
+            "//tmp/tin",
+            attributes={
+                "schema": [{"name": "a", "type": "int64"}],
+                "optimize_for": optimize_for,
+            },
+        )
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42}])
+
+        op = map(
+            in_="<rename_columns={a=b}>//tmp/tin",
+            out="//tmp/tout",
+            command="cat > {0}/$YT_JOB_ID".format(self._tmpdir)
+        )
+        job_ids = os.listdir(self._tmpdir)
+        wait_for_data_in_job_archive(op.id, job_ids)
+        for job_id in job_ids:
+            get_job_input(job_id)
+
     @authors("iskhakovt")
     @pytest.mark.parametrize("successful_jobs", [False, True])
     def test_archive_job_spec(self, successful_jobs):
