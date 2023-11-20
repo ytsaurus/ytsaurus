@@ -1776,7 +1776,7 @@ void TJob::RunWithWorkspaceBuilder()
         .UserSandboxOptions = options,
         .Slot = GetUserSlot(),
         .Job = MakeStrong(this),
-        .CommandUser = Config_->JobController->SetupCommandUser,
+        .CommandUser = DynamicConfig_->JobController->SetupCommandUser,
 
         .ArtifactDownloadOptions = MakeArtifactDownloadOptions(),
 
@@ -2025,7 +2025,7 @@ void TJob::OnJobProxyFinished(const TError& error)
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
             .RootFS = MakeWritableRootFS(),
-            .CommandUser = Config_->JobController->SetupCommandUser,
+            .CommandUser = DynamicConfig_->JobController->SetupCommandUser,
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
@@ -3069,7 +3069,7 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
         }
     };
 
-    addIfPresent(Config_->JobController->JobSetupCommand);
+    addIfPresent(DynamicConfig_->JobController->JobSetupCommand);
 
     bool needGpu = NeedGpuLayers() || Config_->JobController->GpuManager->Testing->TestSetupCommands;
     if (needGpu) {

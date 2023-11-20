@@ -289,12 +289,14 @@ class TestResourceLimitsOverrides(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "cpu_overdraft_timeout": 1000,
-                "memory_overdraft_timeout": 1000,
-                "resource_adjustment_period": 100,
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "cpu_overdraft_timeout": 1000,
+                    "memory_overdraft_timeout": 1000,
+                    "resource_adjustment_period": 100,
+                }
             }
         }
     }

@@ -80,7 +80,7 @@ void TResourceLimitsConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("cpu_per_tablet_slot", &TThis::CpuPerTabletSlot)
-        .Default();
+        .Default(1.0);
 
     registrar.Parameter("node_cpu_weight", &TThis::NodeCpuWeight)
         .GreaterThanOrEqual(0.01)
@@ -370,9 +370,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
             if (nodeDedicatedCpuNode) {
                 config->ResourceLimits->NodeDedicatedCpu = nodeDedicatedCpuNode->GetValue<double>();
             }
-        }
-        if (!config->ResourceLimits->CpuPerTabletSlot) {
-            config->ResourceLimits->CpuPerTabletSlot = config->ExecNode->JobController->CpuPerTabletSlot;
         }
         if (!config->InstanceLimitsUpdatePeriod) {
             auto resourceLimitsUpdatePeriodNode = config->ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("resource_limits_update_period");

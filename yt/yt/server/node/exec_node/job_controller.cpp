@@ -114,8 +114,9 @@ public:
 
 public:
     TJobController(IBootstrapBase* bootstrap)
-        : Config_(bootstrap->GetConfig()->ExecNode->JobController)
-        , Bootstrap_(bootstrap)
+        : Bootstrap_(bootstrap)
+        , StaticConfig_(bootstrap->GetConfig()->ExecNode->JobController)
+        , DynamicConfig_(New<TJobControllerDynamicConfig>())
         , Profiler_("/job_controller")
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
         , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
@@ -125,7 +126,6 @@ public:
         , JobProxyMaxMemoryGauge_(Profiler_.Gauge("/job_proxy_max_memory"))
         , UserJobMaxMemoryGauge_(Profiler_.Gauge("/user_job_max_memory"))
     {
-        YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
@@ -147,23 +147,24 @@ public:
         JobResourceManager_->SubscribeResourceUsageOverdrafted(
             BIND_NO_PROPAGATE(&TJobController::OnResourceUsageOverdrafted, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
+        auto dynamicConfig = GetDynamicConfig();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::OnProfiling, MakeWeak(this)),
-            Config_->ProfilingPeriod);
+            dynamicConfig->ProfilingPeriod);
         ProfilingExecutor_->Start();
 
         ResourceAdjustmentExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::AdjustResources, MakeWeak(this)),
-            Config_->ResourceAdjustmentPeriod);
+            dynamicConfig->ResourceAdjustmentPeriod);
         ResourceAdjustmentExecutor_->Start();
 
         RecentlyRemovedJobCleaner_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::CleanRecentlyRemovedJobs, MakeWeak(this)),
-            Config_->RecentlyRemovedJobsCleanPeriod);
+            dynamicConfig->RecentlyRemovedJobsCleanPeriod);
         RecentlyRemovedJobCleaner_->Start();
 
         // Do not set period initially to defer start.
@@ -177,17 +178,13 @@ public:
         auto buildInfoReadyEvent = JobProxyBuildInfoUpdater_->GetExecutedEvent();
 
         // Actual start and fetch initial job proxy build info immediately. No need to call ScheduleOutOfBand.
-        JobProxyBuildInfoUpdater_->SetPeriod(Config_->JobProxyBuildInfoUpdatePeriod);
+        JobProxyBuildInfoUpdater_->SetPeriod(dynamicConfig->JobProxyBuildInfoUpdatePeriod);
 
         // Wait synchronously for one update in order to get some reasonable value in CachedJobProxyBuildInfo_.
         // Note that if somebody manages to request orchid before this field is set, this will result to nullptr
         // dereference.
         WaitFor(buildInfoReadyEvent)
             .ThrowOnError();
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(
-            BIND_NO_PROPAGATE(&TJobController::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TJobPtr FindJob(TJobId jobId) const override
@@ -289,7 +286,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return GetDynamicConfig()->DisableJobProxyProfiling.value_or(Config_->DisableJobProxyProfiling);
+        return GetDynamicConfig()->DisableJobProxyProfiling;
     }
 
     NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const override
@@ -303,10 +300,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto config = DynamicConfig_.Acquire();
-        YT_VERIFY(config);
-
-        return config;
+        return DynamicConfig_.Acquire();
     }
 
     TBuildInfoPtr GetBuildInfo() const override
@@ -397,8 +391,6 @@ public:
             jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
         }
 
-
-
         for (const auto& job : jobsToRemove) {
             RemoveJob(job, NControllerAgent::TReleaseJobFlags{});
         }
@@ -407,16 +399,34 @@ public:
             .AsVoid();
     }
 
+    void OnDynamicConfigChanged(
+        const TJobControllerDynamicConfigPtr& /*oldConfig*/,
+        const TJobControllerDynamicConfigPtr& newConfig) override
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        DynamicConfig_.Store(newConfig);
+
+        ProfilingExecutor_->SetPeriod(
+            newConfig->ProfilingPeriod);
+        ResourceAdjustmentExecutor_->SetPeriod(
+            newConfig->ResourceAdjustmentPeriod);
+        RecentlyRemovedJobCleaner_->SetPeriod(
+            newConfig->RecentlyRemovedJobsCleanPeriod);
+        JobProxyBuildInfoUpdater_->SetPeriod(
+            newConfig->JobProxyBuildInfoUpdatePeriod);
+    }
+
 private:
-    const TIntrusivePtr<const TJobControllerConfig> Config_;
     NClusterNode::IBootstrapBase* const Bootstrap_;
+    const TJobControllerConfigPtr StaticConfig_;
+    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_;
+
     TJobResourceManagerPtr JobResourceManager_;
 
     // For converting vcpu to cpu back after getting response from scheduler.
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
     double LastHeartbeatCpuToVCpuFactor_ = 1.0;
-
-    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_{New<TJobControllerDynamicConfig>()};
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, TJobPtr> JobMap_;
@@ -579,7 +589,7 @@ private:
             ? &jobSpecExt->user_job_spec()
             : nullptr;
 
-        resources.DiskSpaceRequest = Bootstrap_->GetConfig()->ExecNode->MinRequiredDiskSpace;
+        resources.DiskSpaceRequest = GetDynamicConfig()->MinRequiredDiskSpace;
         if (userJobSpec) {
             // COMPAT(ignat)
             if (userJobSpec->has_disk_space_limit()) {
@@ -657,30 +667,6 @@ private:
             resourceAttributes,
             std::move(jobInfo.JobSpec),
             controllerAgentDescriptor);
-    }
-
-    void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
-    {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
-
-        auto jobControllerConfig = newNodeConfig->ExecNode->JobController;
-        YT_ASSERT(jobControllerConfig);
-        DynamicConfig_.Store(jobControllerConfig);
-
-        ProfilingExecutor_->SetPeriod(
-            jobControllerConfig->ProfilingPeriod.value_or(
-                Config_->ProfilingPeriod));
-        ResourceAdjustmentExecutor_->SetPeriod(
-            jobControllerConfig->ResourceAdjustmentPeriod.value_or(
-                Config_->ResourceAdjustmentPeriod));
-        RecentlyRemovedJobCleaner_->SetPeriod(
-            jobControllerConfig->RecentlyRemovedJobsCleanPeriod.value_or(
-                Config_->RecentlyRemovedJobsCleanPeriod));
-        JobProxyBuildInfoUpdater_->SetPeriod(
-            jobControllerConfig->JobProxyBuildInfoUpdatePeriod.value_or(
-                Config_->JobProxyBuildInfoUpdatePeriod));
     }
 
     void OnProfiling()
@@ -1255,7 +1241,7 @@ private:
 
         const bool requestOperationInfosForJobs =
             TInstant::Now() > LastOperationInfosRequestTime_ +
-                DynamicConfig_.Acquire()->OperationInfosRequestPeriod;
+                GetDynamicConfig()->OperationInfosRequestPeriod;
         THashSet<TOperationId> operationIdsToRequestInfo;
 
         for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
@@ -1524,7 +1510,7 @@ private:
             jobType);
 
         auto jobSpecExtId = TJobSpecExt::job_spec_ext;
-        auto waitingJobTimeout = Config_->WaitingJobsTimeout;
+        auto waitingJobTimeout = GetDynamicConfig()->WaitingJobsTimeout;
 
         YT_VERIFY(jobSpec.HasExtension(jobSpecExtId));
         const auto& jobSpecExt = jobSpec.GetExtension(jobSpecExtId);
@@ -1754,24 +1740,21 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return GetDynamicConfig()->MemoryOverdraftTimeout.value_or(
-            Config_->MemoryOverdraftTimeout);
+        return GetDynamicConfig()->MemoryOverdraftTimeout;
     }
 
     TDuration GetCpuOverdraftTimeout() const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return GetDynamicConfig()->CpuOverdraftTimeout.value_or(
-            Config_->CpuOverdraftTimeout);
+        return GetDynamicConfig()->CpuOverdraftTimeout;
     }
 
     TDuration GetRecentlyRemovedJobsStoreTimeout() const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return GetDynamicConfig()->RecentlyRemovedJobsStoreTimeout.value_or(
-            Config_->RecentlyRemovedJobsStoreTimeout);
+        return GetDynamicConfig()->RecentlyRemovedJobsStoreTimeout;
     }
 
     void CleanRecentlyRemovedJobs()
@@ -1924,7 +1907,7 @@ private:
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job");
                 job->Interrupt(
-                    DynamicConfig_.Acquire()->DisabledJobsInterruptionTimeout,
+                    GetDynamicConfig()->DisabledJobsInterruptionTimeout,
                     EInterruptReason::JobsDisabledOnNode,
                     /*preemptionReason*/ {},
                     /*preemptedFor*/ {});
@@ -2029,8 +2012,7 @@ private:
                     }
                 };
 
-                auto removalDelay = GetDynamicConfig()->UnknownOperationJobsRemovalDelay.value_or(
-                    Config_->UnknownOperationJobsRemovalDelay);
+                auto removalDelay = GetDynamicConfig()->UnknownOperationJobsRemovalDelay;
 
                 YT_LOG_DEBUG(
                     "Schedule delayed removal of job (JobId: %v, Delay: %v)",

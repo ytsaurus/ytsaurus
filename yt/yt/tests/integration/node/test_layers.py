@@ -701,18 +701,25 @@ class TestJobSetup(YTEnvSetup):
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
-            "job_controller": {
-                "job_setup_command": {
-                    "path": "/static-bin/static-bash",
-                    "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
-                }
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
             },
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    }
+                },
+            },
+        }
     }
 
     USE_PORTO = True

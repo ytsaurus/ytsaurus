@@ -391,6 +391,10 @@ def get_node_config():
 {
     orchid_cache_update_period = 0;
 
+    resource_limits = {
+        cpu_per_tablet_slot = 0.0;
+    };
+
     master_cache_service = {
         capacity = 16777216;
         rate_limit = 100;
@@ -478,7 +482,6 @@ def get_node_config():
         job_proxy_heartbeat_period = 200;
 
         job_controller = {
-            cpu_per_tablet_slot = 0.0;
             unknown_operation_jobs_removal_delay = 5000;
         };
     };

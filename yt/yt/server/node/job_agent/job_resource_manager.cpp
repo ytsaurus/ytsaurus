@@ -121,13 +121,12 @@ public:
 
     void Initialize() override
     {
+        auto dynamicConfig = DynamicConfig_.Acquire();
+
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TImpl::OnProfiling, MakeWeak(this)),
-            Config_->ProfilingPeriod);
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-            dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+            dynamicConfig->ProfilingPeriod);
 
         if (Config_->MappedMemoryController) {
             ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
@@ -140,8 +139,11 @@ public:
             MemoryPressureDetector_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetJobInvoker(),
                 BIND_NO_PROPAGATE(&TImpl::CheckMemoryPressure, MakeWeak(this)),
-                DynamicConfig_.Acquire()->MemoryPressureDetector->CheckPeriod);
+                dynamicConfig->MemoryPressureDetector->CheckPeriod);
         }
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+            dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Start() override
@@ -166,8 +168,7 @@ public:
         DynamicConfig_.Store(jobControllerConfig);
 
         ProfilingExecutor_->SetPeriod(
-            jobControllerConfig->ProfilingPeriod.value_or(
-                Config_->ProfilingPeriod));
+            jobControllerConfig->ProfilingPeriod);
 
         if (MemoryPressureDetector_) {
             MemoryPressureDetector_->SetPeriod(jobControllerConfig->MemoryPressureDetector->CheckPeriod);

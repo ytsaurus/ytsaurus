@@ -1575,13 +1575,22 @@ class TestSsdPriorityPreemption(YTEnvSetup):
             "job_controller": {
                 "resource_limits": {"user_slots": 2, "cpu": 2.0},
             },
-            "min_required_disk_space": 0,
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False,
             }
         }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "min_required_disk_space": 0,
+                },
+            },
+        },
     }
 
     USE_PORTO = True

@@ -369,6 +369,9 @@ private:
             }
         }
 
+        JobController_->OnDynamicConfigChanged(
+            oldConfig->ExecNode->JobController,
+            newConfig->ExecNode->JobController);
         SlotManager_->OnDynamicConfigChanged(
             oldConfig->ExecNode->SlotManager,
             newConfig->ExecNode->SlotManager);

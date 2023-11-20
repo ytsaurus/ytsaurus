@@ -569,33 +569,18 @@ void TShellCommandConfig::Register(TRegistrar registrar)
 
 void TJobControllerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("gpu_manager", &TThis::GpuManager)
+        .DefaultNew();
+
+    // JRM config goes below:
+    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
+
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
 
-    // Make it greater than interrupt preemption timeout.
-    registrar.Parameter("waiting_jobs_timeout", &TThis::WaitingJobsTimeout)
-        .Default(TDuration::Seconds(30));
-
-    registrar.Parameter("memory_overdraft_timeout", &TThis::MemoryOverdraftTimeout)
-        .Default(TDuration::Minutes(5));
-
-    registrar.Parameter("cpu_overdraft_timeout", &TThis::CpuOverdraftTimeout)
-        .Default(TDuration::Minutes(10));
-
-    registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
-        .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("resource_adjustment_period", &TThis::ResourceAdjustmentPeriod)
-        .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("recently_removed_jobs_clean_period", &TThis::RecentlyRemovedJobsCleanPeriod)
-        .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("recently_removed_jobs_store_timeout", &TThis::RecentlyRemovedJobsStoreTimeout)
-        .Default(TDuration::Seconds(60));
-
-    registrar.Parameter("cpu_per_tablet_slot", &TThis::CpuPerTabletSlot)
-        .Default(1.0);
+    registrar.Parameter("free_memory_watermark", &TThis::FreeMemoryWatermark)
+        .Default(0)
+        .GreaterThanOrEqual(0);
 
     registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
         .Default();
@@ -612,15 +597,23 @@ void TJobControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("port_set", &TThis::PortSet)
         .Default();
 
-    registrar.Parameter("gpu_manager", &TThis::GpuManager)
-        .DefaultNew();
-
     registrar.Parameter("mapped_memory_controller", &TThis::MappedMemoryController)
         .Default();
+}
 
-    registrar.Parameter("free_memory_watermark", &TThis::FreeMemoryWatermark)
-        .Default(0)
-        .GreaterThanOrEqual(0);
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobControllerDynamicConfig::Register(TRegistrar registrar)
+{
+    // Make it greater than interrupt preemption timeout.
+    registrar.Parameter("waiting_jobs_timeout", &TThis::WaitingJobsTimeout)
+        .Default(TDuration::Seconds(30));
+
+    registrar.Parameter("cpu_overdraft_timeout", &TThis::CpuOverdraftTimeout)
+        .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("min_required_disk_space", &TThis::MinRequiredDiskSpace)
+        .Default(100_MB);
 
     registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
         .Default();
@@ -628,22 +621,42 @@ void TJobControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("setup_command_user", &TThis::SetupCommandUser)
         .Default("root");
 
+    registrar.Parameter("memory_overdraft_timeout", &TThis::MemoryOverdraftTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("resource_adjustment_period", &TThis::ResourceAdjustmentPeriod)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("recently_removed_jobs_clean_period", &TThis::RecentlyRemovedJobsCleanPeriod)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("recently_removed_jobs_store_timeout", &TThis::RecentlyRemovedJobsStoreTimeout)
+        .Default(TDuration::Seconds(60));
+
+    registrar.Parameter("gpu_manager", &TThis::GpuManager)
+        .DefaultNew();
+
     registrar.Parameter("job_proxy_build_info_update_period", &TThis::JobProxyBuildInfoUpdatePeriod)
         .Default(TDuration::Seconds(5));
 
     registrar.Parameter("disable_job_proxy_profiling", &TThis::DisableJobProxyProfiling)
         .Default(false);
 
+    registrar.Parameter("job_proxy", &TThis::JobProxy)
+        .Default();
+
+    registrar.Parameter("operation_infos_request_period", &TThis::OperationInfosRequestPeriod)
+        .Default(TDuration::Seconds(5));
+
     registrar.Parameter("unknown_operation_jobs_removal_delay", &TThis::UnknownOperationJobsRemovalDelay)
         .Default(TDuration::Minutes(1));
-}
 
-////////////////////////////////////////////////////////////////////////////////
+    registrar.Parameter("disabled_jobs_interruption_timeout", &TThis::DisabledJobsInterruptionTimeout)
+        .Default(TDuration::Minutes(1))
+        .GreaterThan(TDuration::Zero());
 
-void TJobControllerDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("cpu_overdraft_timeout", &TThis::CpuOverdraftTimeout)
-        .Default();
+    // JRM config goes below:
+    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
 
     registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
         .Default();
@@ -651,51 +664,14 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_cpu_to_vcpu_factor", &TThis::EnableCpuToVCpuFactor)
         .Default(false);
 
-    registrar.Parameter("account_master_memory_request", &TThis::AccountMasterMemoryRequest)
-        .Default(true);
-
     registrar.Parameter("cpu_model_to_cpu_to_vcpu_factor", &TThis::CpuModelToCpuToVCpuFactor)
         .Default();
 
-    registrar.Parameter("memory_overdraft_timeout", &TThis::MemoryOverdraftTimeout)
-        .Default();
-
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
-        .Default();
-
-    registrar.Parameter("resource_adjustment_period", &TThis::ResourceAdjustmentPeriod)
-        .Default();
-
-    registrar.Parameter("recently_removed_jobs_clean_period", &TThis::RecentlyRemovedJobsCleanPeriod)
-        .Default();
-
-    registrar.Parameter("recently_removed_jobs_store_timeout", &TThis::RecentlyRemovedJobsStoreTimeout)
-        .Default();
-
-    registrar.Parameter("gpu_manager", &TThis::GpuManager)
-        .DefaultNew();
-
-    registrar.Parameter("job_proxy_build_info_update_period", &TThis::JobProxyBuildInfoUpdatePeriod)
-        .Default();
-
-    registrar.Parameter("disable_job_proxy_profiling", &TThis::DisableJobProxyProfiling)
-        .Default();
-
-    registrar.Parameter("job_proxy", &TThis::JobProxy)
-        .Default();
+        .Default(TDuration::Seconds(5));
 
     registrar.Parameter("memory_pressure_detector", &TThis::MemoryPressureDetector)
         .DefaultNew();
-
-    registrar.Parameter("operation_infos_request_period", &TThis::OperationInfosRequestPeriod)
-        .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("unknown_operation_jobs_removal_delay", &TThis::UnknownOperationJobsRemovalDelay)
-        .Default();
-
-    registrar.Parameter("disabled_jobs_interruption_timeout", &TThis::DisabledJobsInterruptionTimeout)
-        .Default(TDuration::Minutes(1))
-        .GreaterThan(TDuration::Zero());
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {
@@ -797,8 +773,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_preparation_timeout", &TThis::JobProxyPreparationTimeout)
         .Default(TDuration::Minutes(3));
 
-    registrar.Parameter("min_required_disk_space", &TThis::MinRequiredDiskSpace)
-        .Default(100_MB);
     registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
         .Default(TDuration::Minutes(15));
 

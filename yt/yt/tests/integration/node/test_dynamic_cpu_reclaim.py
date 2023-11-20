@@ -99,10 +99,19 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         "exec_node": {
             "job_controller": {
                 "resource_limits": {"cpu": 1.5, "user_slots": 2},
-                "cpu_overdraft_timeout": 1000,
-                "resource_adjustment_period": 1000,
             }
         }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "cpu_overdraft_timeout": 1000,
+                    "resource_adjustment_period": 1000,
+                }
+            }
+        },
     }
 
     USE_PORTO = True
@@ -232,9 +241,18 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
         "exec_node": {
             "job_controller": {
                 "resource_limits": {"memory": 512 * 1024 * 1024},
-                "resource_adjustment_period": 1000,
             }
         }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "resource_adjustment_period": 1000,
+                },
+            },
+        },
     }
 
     @authors("renadeen")

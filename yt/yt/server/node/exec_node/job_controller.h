@@ -88,6 +88,10 @@ public:
 
     virtual void OnJobMemoryThrashing(TJobId jobId) = 0;
 
+    virtual void OnDynamicConfigChanged(
+        const TJobControllerDynamicConfigPtr& oldConfig,
+        const TJobControllerDynamicConfigPtr& newConfig) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobRegistered);
     DECLARE_INTERFACE_SIGNAL(
         void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),

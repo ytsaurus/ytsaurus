@@ -36,10 +36,6 @@ class TestGpuJobSetup(YTEnvSetup):
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
-                "job_setup_command": {
-                    "path": "/static-bin/static-bash",
-                    "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
-                },
                 "gpu_manager": {
                     # For to GPU manager to initialize properly.
                     "testing": {
@@ -61,6 +57,10 @@ class TestGpuJobSetup(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    },
                     "gpu_manager": {
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
@@ -184,12 +184,6 @@ class TestSkipGpuJobSetup(YTEnvSetup):
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
-            "job_controller": {
-                "job_setup_command": {
-                    "path": "/static-bin/static-bash",
-                    "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
-                },
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -202,6 +196,10 @@ class TestSkipGpuJobSetup(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    },
                     "gpu_manager": {
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
@@ -265,10 +263,6 @@ class TestGpuLayer(YTEnvSetup):
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
-                "job_setup_command": {
-                    "path": "/static-bin/static-bash",
-                    "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
-                },
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
                     "driver_version": "test_version",
@@ -292,6 +286,10 @@ class TestGpuLayer(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    },
                     "gpu_manager": {
                         "driver_layer_fetch_period": 10000,
                     },
@@ -509,10 +507,6 @@ class TestCudaLayer(YTEnvSetup):
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
-                "job_setup_command": {
-                    "path": "/static-bin/static-bash",
-                    "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
-                },
                 "gpu_manager": {
                     "driver_version": "0",
                     "cuda_toolkit_min_driver_version": {"0": "0"},
@@ -526,6 +520,19 @@ class TestCudaLayer(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    },
                 },
             },
         },
@@ -770,22 +777,29 @@ class TestSetupUser(YTEnvSetup):
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
-            "job_controller": {
-                "job_setup_command": {
-                    "path": "/static-bin/static-bash",
-                    "args": [
-                        "-c",
-                        "/static-bin/static-id -u > /playground/setup_output_file",
-                    ],
-                },
-                "setup_command_user": "2019",
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
             },
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": [
+                            "-c",
+                            "/static-bin/static-id -u > /playground/setup_output_file",
+                        ],
+                    },
+                    "setup_command_user": "2019",
+                },
+            },
+        }
     }
     USE_PORTO = True
 

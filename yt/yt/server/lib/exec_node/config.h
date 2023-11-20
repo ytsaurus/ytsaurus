@@ -571,22 +571,14 @@ class TJobControllerConfig
     : public NYTree::TYsonStruct
 {
 public:
+    TGpuManagerConfigPtr GpuManager;
+
+    // JRM Config goes below:
+    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
+
     NJobAgent::TResourceLimitsConfigPtr ResourceLimits;
-    TDuration WaitingJobsTimeout;
-
-    TDuration CpuOverdraftTimeout;
-    TDuration MemoryOverdraftTimeout;
-
-    TDuration ProfilingPeriod;
-
-    TDuration ResourceAdjustmentPeriod;
-
-    TDuration RecentlyRemovedJobsCleanPeriod;
-    TDuration RecentlyRemovedJobsStoreTimeout;
 
     i64 FreeMemoryWatermark;
-
-    double CpuPerTabletSlot;
 
     std::optional<double> CpuToVCpuFactor;
     std::optional<TString> CpuModel;
@@ -596,18 +588,7 @@ public:
     int PortCount;
     std::optional<THashSet<int>> PortSet;
 
-    TGpuManagerConfigPtr GpuManager;
-
     NJobAgent::TMappedMemoryControllerConfigPtr MappedMemoryController;
-
-    std::optional<TShellCommandConfigPtr> JobSetupCommand;
-    TString SetupCommandUser;
-
-    TDuration JobProxyBuildInfoUpdatePeriod;
-
-    bool DisableJobProxyProfiling;
-
-    TDuration UnknownOperationJobsRemovalDelay;
 
     REGISTER_YSON_STRUCT(TJobControllerConfig);
 
@@ -622,36 +603,47 @@ class TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> CpuOverdraftTimeout;
-    std::optional<double> CpuToVCpuFactor;
-    bool EnableCpuToVCpuFactor;
-    bool AccountMasterMemoryRequest;
+    TDuration WaitingJobsTimeout;
 
-    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
-    std::optional<TDuration> MemoryOverdraftTimeout;
+    TDuration CpuOverdraftTimeout;
 
-    std::optional<TDuration> ProfilingPeriod;
+    i64 MinRequiredDiskSpace;
 
-    std::optional<TDuration> ResourceAdjustmentPeriod;
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
+    TString SetupCommandUser;
 
-    std::optional<TDuration> RecentlyRemovedJobsCleanPeriod;
-    std::optional<TDuration> RecentlyRemovedJobsStoreTimeout;
+    TDuration MemoryOverdraftTimeout;
 
-    std::optional<TDuration> JobProxyBuildInfoUpdatePeriod;
+    TDuration ResourceAdjustmentPeriod;
 
-    std::optional<bool> DisableJobProxyProfiling;
+    TDuration RecentlyRemovedJobsCleanPeriod;
+    TDuration RecentlyRemovedJobsStoreTimeout;
+
+    TDuration JobProxyBuildInfoUpdatePeriod;
+
+    bool DisableJobProxyProfiling;
 
     TGpuManagerDynamicConfigPtr GpuManager;
 
     NJobProxy::TJobProxyDynamicConfigPtr JobProxy;
 
-    NJobAgent::TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
-
     TDuration OperationInfosRequestPeriod;
 
-    std::optional<TDuration> UnknownOperationJobsRemovalDelay;
+    TDuration UnknownOperationJobsRemovalDelay;
 
     TDuration DisabledJobsInterruptionTimeout;
+
+    // JRM Config goes below:
+    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
+
+    std::optional<double> CpuToVCpuFactor;
+    bool EnableCpuToVCpuFactor;
+
+    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
+
+    TDuration ProfilingPeriod;
+
+    NJobAgent::TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
 
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
@@ -733,8 +725,6 @@ public:
     TDuration NodeDirectoryPrepareBackoffTime;
 
     TDuration JobProxyPreparationTimeout;
-
-    i64 MinRequiredDiskSpace;
 
     TDuration WaitingForJobCleanupTimeout;
 

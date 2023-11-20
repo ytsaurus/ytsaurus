@@ -906,8 +906,17 @@ class TestPorts(YTEnvSetup):
             "job_controller": {
                 "start_port": 20000,
                 "port_count": 3,
-                "waiting_jobs_timeout": 1000,
                 "resource_limits": {"user_slots": 2, "cpu": 2},
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "waiting_jobs_timeout": 1000,
+                },
             },
         },
     }
