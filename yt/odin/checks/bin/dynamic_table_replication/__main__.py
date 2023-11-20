@@ -263,6 +263,9 @@ def run_check(yt_client, logger, options, states):
                     elif e.inner.contains_code(1723):  # SyncReplicaIsNotInSyncMode
                         logger.warning("Encountered SyncReplicaIsNotInSyncMode error; will retry")
                         return False
+                    elif e.inner.contains_code(1732):  # SyncReplicaNotInSync
+                        logger.warning("Encountered SyncReplicaNotInSync error; will retry")
+                        return False
                 raise e
             return True
         wait_for_result(_write, "rows to get written", raise_metacluster_error=True)

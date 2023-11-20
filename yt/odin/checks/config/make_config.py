@@ -1153,6 +1153,7 @@ def get_checks_config():
                 snapshot_validation,
                 clock_quorum_health,
                 bundle_controller,
+                dynamic_table_replication_stable,
             ),
             "seneca-klg": deep_merge(
                 snapshot_validation,
@@ -1181,7 +1182,8 @@ def get_checks_config():
                 snapshot_validation,
                 enable_query_tracker_alerts,
                 clock_quorum_health,
-                bundle_controller
+                bundle_controller,
+                dynamic_table_replication_stable,
             ),
             "nash": deep_merge(
                 snapshot_validation,
