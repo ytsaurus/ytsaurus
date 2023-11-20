@@ -109,7 +109,7 @@ private:
     {
         TNonversionedMapObjectProxyBase::ValidateChildNameAvailability(childName);
 
-        if (Bootstrap_->GetSecurityManager()->FindAccountByName(childName, false /*activeLifeStageOnly*/)) {
+        if (Bootstrap_->GetSecurityManager()->FindAccountByName(childName, /*activeLifeStageOnly*/ false)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Account %Qv already exists",
@@ -199,6 +199,10 @@ private:
             .SetReplicated(true)
             .SetRemovable(true)
             .SetPresent(account->GetFolderId().has_value()));
+
+        descriptors->emplace_back(EInternedAttributeKey::EnableChunkReincarnation)
+            .SetWritable(true)
+            .SetReplicated(true);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -343,6 +347,11 @@ private:
                 }
             }
 
+            case EInternedAttributeKey::EnableChunkReincarnation:
+                BuildYsonFluently(consumer)
+                    .Value(account->GetEnableChunkReincarnation());
+                return true;
+
             default:
                 break;
         }
@@ -431,6 +440,10 @@ private:
                 account->SetFolderId(std::move(newFolderId));
                 return true;
             }
+
+            case EInternedAttributeKey::EnableChunkReincarnation:
+                account->SetEnableChunkReincarnation(ConvertTo<bool>(value));
+                return true;
 
             default:
                 break;

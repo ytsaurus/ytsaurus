@@ -251,14 +251,12 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
     Save(context, ClusterResourceLimits_);
     Save(context, AllowChildrenLimitOvercommit_);
     Save(context, MergeJobRateLimit_);
-    Save(context, AbcConfig_.operator bool());
-    if (AbcConfig_) {
-        Save(context, *AbcConfig_);
-    }
+    TNullableIntrusivePtrSerializer<>::Save(context, AbcConfig_);
     Save(context, FolderId_);
     Save(context, ChunkMergerNodeTraversalConcurrency_);
     Save(context, AllowUsingChunkMerger_);
     Save(context, ChunkMergerCriteria_);
+    Save(context, EnableChunkReincarnation_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
@@ -271,13 +269,8 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     Load(context, ClusterResourceLimits_);
     Load(context, AllowChildrenLimitOvercommit_);
     Load(context, MergeJobRateLimit_);
-
-    if (Load<bool>(context)) {
-        AbcConfig_ = New<TAbcConfig>();
-        Load(context, *AbcConfig_);
-    }
+    TNullableIntrusivePtrSerializer<>::Load(context, AbcConfig_);
     Load(context, FolderId_);
-
     Load(context, ChunkMergerNodeTraversalConcurrency_);
 
     // COMPAT(aleksandra-zh)
@@ -298,6 +291,13 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     }
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= EMasterReign::ChunkReincarnatorTestingUtilities_23_2) {
+        Load(context, EnableChunkReincarnation_);
+    } else {
+        EnableChunkReincarnation_ = false;
+    }
 }
 
 TAccountStatistics& TAccount::LocalStatistics()

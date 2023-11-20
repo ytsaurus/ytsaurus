@@ -153,6 +153,7 @@
     XX(EffectiveMountConfig, effective_mount_config) \
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
     XX(EnableByUserProfiling, enable_by_user_profiling) \
+    XX(EnableChunkReincarnation, enable_chunk_reincarnation) \
     XX(EnableConsistentChunkReplicaPlacement, enable_consistent_chunk_replica_placement) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
@@ -448,6 +449,8 @@
     XX(SharedToSkynet, shared_to_skynet) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
     XX(ResolveCached, resolve_cached) \
+    XX(SecondaryIndices, secondary_indices) \
+    XX(ScheduleReincarnation, schedule_reincarnation) \
     XX(SecurityTags, security_tags) \
     XX(ShardId, shard_id) \
     XX(ShardIndex, shard_index) \

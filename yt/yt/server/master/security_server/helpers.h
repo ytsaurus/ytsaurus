@@ -61,6 +61,9 @@ TAccessControlList DeserializeAcl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Validates modification for those attributes which can be set only by superusers.
+void ValidateSuperuser(const ISecurityManagerPtr& securityManager, TStringBuf key);
+
 } // namespace NYT::NSecurityServer
 
 #define HELPERS_INL_H_

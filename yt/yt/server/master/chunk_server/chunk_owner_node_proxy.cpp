@@ -4,6 +4,7 @@
 #include "chunk_view.h"
 #include "chunk_manager.h"
 #include "chunk_owner_node_proxy.h"
+#include "chunk_reincarnator.h"
 #include "chunk_visitor.h"
 #include "config.h"
 #include "helpers.h"
@@ -25,9 +26,10 @@
 
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/master/security_server/access_log.h>
+#include <yt/yt/server/master/security_server/helpers.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/security_tags.h>
-#include <yt/yt/server/master/security_server/access_log.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 
@@ -675,6 +677,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::VersionedResourceUsage)
         .SetPresent(!isTrunk));
+    descriptors->emplace_back(EInternedAttributeKey::ScheduleReincarnation)
+        .SetWritable(!isExternal)
+        .SetPresent(false);
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -1149,6 +1154,22 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             auto enable = ConvertTo<bool>(value);
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
             node->SetEnableSkynetSharing(enable);
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ScheduleReincarnation: {
+            auto* node = GetThisImpl<TChunkOwnerBase>();
+            if (node->IsExternal()) {
+                THROW_ERROR_EXCEPTION("Reincarnation cannot be scheduled for external chunk owners");
+            }
+
+            ValidateSuperuser(Bootstrap_->GetSecurityManager(), key.Unintern());
+
+            const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
+            chunkReincarnator->ScheduleReincarnation(
+                node->GetChunkList(),
+                DeserializeChunkReincarnationOptions(ConvertToNode(value)));
 
             return true;
         }

@@ -3,6 +3,7 @@
 #include "private.h"
 #include "chunk.h"
 #include "chunk_manager.h"
+#include "chunk_reincarnator.h"
 #include "chunk_replicator.h"
 #include "job.h"
 #include "job_registry.h"
@@ -25,6 +26,7 @@
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/helpers.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
@@ -58,6 +60,7 @@ using namespace NTableClient;
 using namespace NJournalClient;
 using namespace NNodeTrackerServer;
 using namespace NConcurrency;
+using namespace NSecurityServer;
 
 using NChunkClient::NProto::TMiscExt;
 using NTableClient::NProto::TBoundaryKeysExt;
@@ -231,6 +234,9 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaId)
             .SetPresent(chunkSchema.operator bool()));
+        descriptors->emplace_back(EInternedAttributeKey::ScheduleReincarnation)
+            .SetWritable(!isForeign)
+            .SetPresent(false);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -1101,6 +1107,30 @@ private:
         }
 
         return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::ScheduleReincarnation: {
+                auto* chunk = GetThisImpl<TChunk>();
+                if (chunk->IsForeign()) {
+                    THROW_ERROR_EXCEPTION("Reincarnation can be scheduled for native chunks only");
+                }
+
+                ValidateSuperuser(Bootstrap_->GetSecurityManager(), key.Unintern());
+
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
+                chunkReincarnator->ScheduleReincarnation(
+                    chunk,
+                    DeserializeChunkReincarnationOptions(ConvertToNode(value)));
+
+                return true;
+            }
+        }
+
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override

@@ -53,13 +53,52 @@ static const auto& Logger = ChunkServerLogger.WithTag("ChunkReincarnator");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FromProto(
+    TChunkReincarnationOptions* options,
+    const NProto::TChunkReincarnationOptions& protoOptions)
+{
+    *options = {
+        .IgnoreCreationTime = protoOptions.ignore_creation_time(),
+        .IgnoreAccountSettings = protoOptions.ignore_account_settings(),
+    };
+}
+
+void ToProto(
+    NProto::TChunkReincarnationOptions* protoOptions,
+    const TChunkReincarnationOptions& options)
+{
+    protoOptions->set_ignore_creation_time(options.IgnoreCreationTime);
+    protoOptions->set_ignore_account_settings(options.IgnoreAccountSettings);
+}
+
+TChunkReincarnationOptions DeserializeChunkReincarnationOptions(INodePtr node)
+{
+    TChunkReincarnationOptions options;
+    auto map = node->AsMap();
+    if (auto child = map->FindChild("ignore_creation_time")) {
+        options.IgnoreCreationTime = child->AsBoolean()->GetValue();
+        map->RemoveChild(child);
+    }
+    if (auto child = map->FindChild("ignore_account_settings")) {
+        options.IgnoreAccountSettings = child->AsBoolean()->GetValue();
+        map->RemoveChild(child);
+    }
+    auto otherOptions = map->GetKeys();
+    if (!otherOptions.empty()) {
+        THROW_ERROR_EXCEPTION("Unrecognized chunk reincarnation options")
+            << TErrorAttribute("unrecognized_options", otherOptions);
+    }
+    return options;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EReincarnationResult,
     ((OK)                      (0))
     ((Transient)               (1))
     // Permanent failures.
     ((TooManyAncestors)        (2))
     ((DynamicTableChunk)       (3))
-    ((Teleportations)          (4)) // TODO(kvk1920): Remove this error.
     ((NoTableAncestors)        (5))
     ((GenericPermanentFailure) (6))
     ((WrongChunkFormat)        (7))
@@ -67,9 +106,7 @@ DEFINE_ENUM(EReincarnationResult,
     // Exported chunk reincarnation check.
     ((NoSuchChunk)             (9))
     ((InvalidTransaction)     (10))
-    // For testing only.
-    ((TestingTransientFalure) (11))
-    ((TestingPermanentFalure) (12))
+    ((ReincarnationDisabled)  (11))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +126,6 @@ const std::pair<const char*, EReincarnationResult> ReincarnationMetrics[] = {
     {"/chunk_reincarnator/permanently_failed_reincarnations", EReincarnationResult::GenericPermanentFailure},
     {"/chunk_reincarnator/permanent_failures/too_many_ancestors", EReincarnationResult::TooManyAncestors},
     {"/chunk_reincarnator/permanent_failures/dynamic_table_chunk", EReincarnationResult::DynamicTableChunk},
-    {"/chunk_reincarnator/permanent_failures/teleportations", EReincarnationResult::Teleportations},
     {"/chunk_reincarnator/permanent_failures/no_table_ancestors", EReincarnationResult::NoTableAncestors},
     {"/chunk_reincarnator/permanent_failures/wrong_chunk_format", EReincarnationResult::WrongChunkFormat},
     {"/chunk_reincarnator/permanent_failures/too_many_failed_jobs", EReincarnationResult::TooManyFailedJobs},
@@ -469,7 +505,8 @@ TReincarnationJob::TReincarnationJob(
     TNode* node,
     TNodePtrWithReplicaAndMediumIndexList sourceReplicas,
     TNodePtrWithReplicaAndMediumIndexList targetReplicas,
-    int mediumIndex)
+    int mediumIndex,
+    TChunkReincarnationOptions reincarnationOptions)
     : TJob(
         jobId,
         EJobType::ReincarnateChunk,
@@ -479,6 +516,7 @@ TReincarnationJob::TReincarnationJob(
         newChunkIdWithIndexes)
     , OldChunkId_(oldChunk->GetId())
     , NewChunkId_(newChunkIdWithIndexes.Id)
+    , ReincarnationOptions_(reincarnationOptions)
     , SourceReplicas_(std::move(sourceReplicas))
     , TargetReplicas_(std::move(targetReplicas))
     , MediumIndex_(mediumIndex)
@@ -671,8 +709,6 @@ public:
                 /*reschedulerReincarnations*/ true),
             config->TransactionUpdatePeriod);
 
-        YT_LOG_DEBUG("Chunk reincarnation scanning started");
-
         CancelScheduledReincarnationsAndRestartTransaction();
 
         YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
@@ -722,10 +758,68 @@ public:
         ExportedChunkReincarnationCheckRegistry_.UnregisterChunk(chunk->GetId());
     }
 
+    void ScheduleReincarnation(TChunkTree* chunkTree, TChunkReincarnationOptions options) override
+    {
+        if (!IsLeader() || !IsEnabled()) {
+            return;
+        }
+
+        const auto initialTraverseBudget =
+            static_cast<i64>(GetDynamicConfig()->MaxVisitedChunkAncestorsPerChunk) *
+            GetDynamicConfig()->MaxVisitedChunkAncestorsPerChunk;
+
+        auto traverseBudget = initialTraverseBudget;
+
+        THashSet<TChunkTree*> seen;
+        std::vector<TChunkTree*> pending;
+        std::vector<TChunkId> chunks;
+
+        auto visitChild = [&] (TChunkTree* chunkTree) {
+            if (chunkTree->IsForeign()) {
+                return;
+            }
+
+            if (traverseBudget < 0) {
+                THROW_ERROR_EXCEPTION("Failed to schedule chunk tree reincarnation; traverse budget exceeded")
+                    << TErrorAttribute("traverse_budget", initialTraverseBudget);
+            }
+
+            --traverseBudget;
+
+            if (seen.insert(chunkTree).second) {
+                pending.push_back(chunkTree);
+            }
+        };
+
+        visitChild(chunkTree);
+
+        while (!pending.empty()) {
+            auto* chunkTree = pending.back();
+            pending.pop_back();
+
+            switch (chunkTree->GetType()) {
+                case EObjectType::Chunk:
+                case EObjectType::ErasureChunk:
+                    ChunkScanner_.EnqueueChunk({chunkTree->AsChunk(), options});
+                    break;
+                case EObjectType::ChunkList:
+                    for (auto* child : chunkTree->AsChunkList()->Children()) {
+                        visitChild(child);
+                    }
+                    break;
+                case EObjectType::ChunkView:
+                    visitChild(chunkTree->AsChunkView()->GetUnderlyingTree());
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    TChunkScanner ChunkScanner_;
+    TChunkScannerWithPayload<TChunkReincarnationOptions> ChunkScanner_;
     TPeriodicExecutorPtr ChunkScanExecutor_;
 
     //! This class is responsible for tracking exported chunk reincarnation
@@ -740,17 +834,19 @@ private:
         // NB: It's a caller's responsibility to fill cell set. The main reason
         // for that is to avoid code duplication: caller likely needs to
         // traverse all cell tags the chunk is exported to.
-        TCellTagSet* RegisterChunk(TChunk* chunk)
+        TCellTagSet* RegisterChunk(TChunk* chunk, TChunkReincarnationOptions options)
         {
             YT_ASSERT(chunk->IsExported());
 
             Previous_.erase(chunk->GetId());
             auto [it, inserted] = Current_.insert({chunk->GetId(), {}});
             if (!inserted) {
-                it->second.clear();
+                it->second.UncheckedCells.clear();
             }
 
-            return &it->second;
+            it->second.Options = options;
+
+            return &it->second.UncheckedCells;
         }
 
         bool UnregisterChunk(TChunkId chunkId)
@@ -784,7 +880,7 @@ private:
                 }
             }
 
-            auto& cellTagSet = chunkIt->second;
+            auto& cellTagSet = chunkIt->second.UncheckedCells;
             cellTagSet.erase(foreignCellTag);
             if (cellTagSet.empty()) {
                 hashMap->erase(chunkIt);
@@ -796,8 +892,8 @@ private:
 
         void Rotate(const auto& onChunkExpired)
         {
-            for (const auto& [chunkId, cellTagSet] : Previous_) {
-                onChunkExpired(chunkId);
+            for (const auto& [chunkId, chunkInfo] : Previous_) {
+                onChunkExpired(chunkId, chunkInfo.Options);
             }
             Previous_.clear();
             Previous_.swap(Current_);
@@ -810,7 +906,12 @@ private:
         }
 
     private:
-        using TPendingChecks = THashMap<TChunkId, TCellTagSet>;
+        struct TChunkInfo
+        {
+            TCellTagSet UncheckedCells;
+            TChunkReincarnationOptions Options;
+        };
+        using TPendingChecks = THashMap<TChunkId, TChunkInfo>;
         TPendingChecks Previous_;
         TPendingChecks Current_;
     };
@@ -823,7 +924,8 @@ private:
         TJobId JobId;
         TChunkId OldChunkId;
         TChunkId NewChunkId;
-        int MediumIndex = 0;
+        int MediumIndex;
+        TChunkReincarnationOptions Options;
     };
     std::queue<TJobInfo> ScheduledJobs_;
     TFailedJobRegistry FailedJobRegistry_;
@@ -939,7 +1041,7 @@ private:
     }
 
     void DoReincarnateChunks(
-        TRange<std::pair<TChunkId, TChunkId>> chunks,
+        TRange<std::tuple<TChunkId, TChunkId, TChunkReincarnationOptions>> chunks,
         std::vector<std::pair<TChunk*, TChunk*>>* exportedChunks = nullptr)
     {
         YT_VERIFY(HasMutationContext());
@@ -947,25 +1049,25 @@ private:
             return;
         }
 
-        auto isNative = CellTagFromId(chunks[0].first) == Bootstrap_->GetCellTag();
+        auto isNative = CellTagFromId(std::get<0>(chunks[0])) == Bootstrap_->GetCellTag();
 
         YT_VERIFY(exportedChunks || !isNative);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& config = GetDynamicConfig();
 
-        auto maybeRescheduleChunk = [&] (TChunk* chunk) {
+        auto maybeRescheduleChunk = [&] (TChunk* chunk, TChunkReincarnationOptions options) {
             if (isNative && IsLeader()) {
                 YT_LOG_DEBUG(
                     "Rescheduling chunk reincarnation (ChunkId: %v)",
                     chunk->GetId());
-                RescheduleReincarnation(chunk);
+                RescheduleReincarnation(chunk, options);
             }
         };
 
         TChunkAncestorTraverser traverser(Bootstrap_);
 
-        for (auto [oldChunkId, newChunkId] : chunks) {
+        for (auto [oldChunkId, newChunkId, options] : chunks) {
             auto* oldChunk = chunkManager->FindChunk(oldChunkId);
             if (!IsObjectAlive(oldChunk)) {
                 YT_LOG_DEBUG(
@@ -991,7 +1093,7 @@ private:
                     "New chunk is not alive; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
                     oldChunk->GetId(),
                     newChunkId);
-                maybeRescheduleChunk(oldChunk);
+                maybeRescheduleChunk(oldChunk, options);
                 continue;
             }
 
@@ -1001,7 +1103,7 @@ private:
                     "New chunk is not confirmed; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
                     oldChunk->GetId(),
                     newChunkId);
-                maybeRescheduleChunk(oldChunk);
+                maybeRescheduleChunk(oldChunk, options);
                 continue;
             }
 
@@ -1024,7 +1126,7 @@ private:
             }
 
             if (result != EReincarnationResult::OK) {
-                maybeRescheduleChunk(oldChunk);
+                maybeRescheduleChunk(oldChunk, options);
                 YT_LOG_DEBUG(
                     "Failed to replace reincarnated chunk "
                     "(ChunkId: %v, NewChunkId: %v, ReincarnationResult: %v)",
@@ -1096,7 +1198,7 @@ private:
     }
 
     // Transient.
-    void RescheduleReincarnation(TChunk* chunk)
+    void RescheduleReincarnation(TChunk* chunk, TChunkReincarnationOptions options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
@@ -1105,11 +1207,14 @@ private:
         // can be called from
         // `TExportedChunkReincarnationCheckRegistry::Unregister`.
 
-        ChunkScanner_.EnqueueChunk(chunk);
+        ChunkScanner_.EnqueueChunk({.Chunk = chunk, .Payload = options});
     }
 
     // Transient.
-    void ScheduleChunkReplacement(TChunkId oldChunkId, TChunkId newChunkId)
+    void ScheduleChunkReplacement(
+        TChunkId oldChunkId,
+        TChunkId newChunkId,
+        TChunkReincarnationOptions options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
@@ -1123,7 +1228,7 @@ private:
 
         auto* newChunk = chunkManager->FindChunk(newChunkId);
         if (!IsObjectAlive(newChunk)) {
-            RescheduleReincarnation(oldChunk);
+            RescheduleReincarnation(oldChunk, options);
             return;
         }
 
@@ -1202,7 +1307,7 @@ private:
         auto* newChunk = chunkManager->FindChunk(newChunkId);
         if (!IsObjectAlive(newChunk)) {
             OnReincarnationFinished(EReincarnationResult::Transient);
-            RescheduleReincarnation(oldChunk);
+            RescheduleReincarnation(oldChunk, jobInfo.Options);
             return;
         }
 
@@ -1292,7 +1397,8 @@ private:
             context->GetNode(),
             std::move(sourceReplicas),
             std::move(targetReplicas),
-            mediumIndex);
+            mediumIndex,
+            jobInfo.Options);
         context->ScheduleJob(job);
 
         YT_LOG_DEBUG("Chunk reincarnation job scheduled (JobId: %v, Address: %v, OldChunkId: %v, NewChunkId: %v)",
@@ -1384,7 +1490,7 @@ private:
         OnReincarnationFinished(result);
 
         if (result == EReincarnationResult::Transient) {
-            RescheduleReincarnation(chunk);
+            RescheduleReincarnation(chunk, job->GetReincarnationOptions());
         } else {
             YT_VERIFY(result == EReincarnationResult::TooManyFailedJobs);
             YT_LOG_DEBUG("Chunk reincarnation failed due too many failed jobs (ChunkId: %v)", job->OldChunkId());
@@ -1409,7 +1515,7 @@ private:
             job->NewChunkId());
 
         if (IsEnabled()) {
-            ScheduleChunkReplacement(job->OldChunkId(), job->NewChunkId());
+            ScheduleChunkReplacement(job->OldChunkId(), job->NewChunkId(), job->GetReincarnationOptions());
         }
     }
 
@@ -1420,12 +1526,13 @@ private:
 
         if (rescheduleReincarnations) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            ExportedChunkReincarnationCheckRegistry_.Rotate([&, this] (TChunkId chunkId) {
-                auto* chunk = chunkManager->FindChunk(chunkId);
-                if (IsObjectAlive(chunk)) {
-                    RescheduleReincarnation(chunk);
-                }
-            });
+            ExportedChunkReincarnationCheckRegistry_.Rotate(
+                [&, this] (TChunkId chunkId, TChunkReincarnationOptions options) {
+                    auto* chunk = chunkManager->FindChunk(chunkId);
+                    if (IsObjectAlive(chunk)) {
+                        RescheduleReincarnation(chunk, options);
+                    }
+                });
         }
 
         CreateMutation(
@@ -1474,7 +1581,7 @@ private:
             // To prevent uncontrolled |ScheduledJobs_|'s growth.
             ssize(chunksToReincarnate) + ssize(exportedChunks) + ssize(ScheduledJobs_) < 2 * config->MaxRunningJobCount)
         {
-            auto* chunk = ChunkScanner_.DequeueChunk();
+            auto [chunk, options] = ChunkScanner_.DequeueChunk();
 
             if (!IsObjectAlive(chunk)) {
                 continue;
@@ -1488,7 +1595,7 @@ private:
                 chunk->GetId(),
                 NProfiling::GetInstant()).second;
 
-            if (estimatedCreationTime > config->MinAllowedCreationTime) {
+            if (!options.IgnoreCreationTime && estimatedCreationTime > config->MinAllowedCreationTime) {
                 continue;
             }
 
@@ -1512,11 +1619,17 @@ private:
                 case EChunkFormat::FileDefault:
                     break;
                 default:
-                    YT_LOG_DEBUG("Chunk cannot be reincarnated: wrong format (ChunkId: %v, Format: %v)",
+                    YT_LOG_DEBUG("Chunk has unsuitable format; skipping (ChunkId: %v, Format: %v)",
                         chunk->GetId(),
                         chunk->GetChunkFormat());
                     OnReincarnationFinished(EReincarnationResult::WrongChunkFormat);
                     continue;
+            }
+
+            if (!(config->IgnoreAccountSettings || options.IgnoreAccountSettings)) {
+                if (!IsReincarnationAllowedByAccountSettings(chunk)) {
+                    continue;
+                }
             }
 
             auto result = traverser.TryPrepareChunkReincarnation(
@@ -1583,6 +1696,16 @@ private:
         }
     }
 
+    bool IsReincarnationAllowedByAccountSettings(TChunk* chunk)
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+        const auto& requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
+        return std::all_of(requisition.begin(), requisition.end(), [] (const TRequisitionEntry& entry) {
+            return entry.Account->GetEnableChunkReincarnation();
+        });
+    }
+
     void HydraCheckExportedChunkReincarnation(
         NProto::TReqCheckExportedChunkReincarnation* request)
     {
@@ -1610,7 +1733,9 @@ private:
             YT_ASSERT(chunk->IsExported());
 
             auto* cellTags = IsLeader()
-                ? ExportedChunkReincarnationCheckRegistry_.RegisterChunk(chunk)
+                ? ExportedChunkReincarnationCheckRegistry_.RegisterChunk(
+                    chunk,
+                    FromProto<TChunkReincarnationOptions>(request->options()))
                 : nullptr;
 
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
@@ -1632,10 +1757,6 @@ private:
             request.set_config_version(ConfigVersion_);
             ToProto(request.mutable_chunk_ids(), chunkIds);
             multicellManager->PostToMaster(request, cellTag);
-            YT_LOG_TRACE(
-                "Posting foreign chunk reincarnation check request "
-                "(ForeignCellTag: %v, ConfigVersion: %v, ChunkIds: %v)",
-                cellTag, ConfigVersion_, chunkIds);
         }
     }
 
@@ -1756,6 +1877,7 @@ private:
                         result);
                     logged = true;
                     [[fallthrough]];
+                case EReincarnationResult::ReincarnationDisabled: [[fallthrough]];
                 case EReincarnationResult::TooManyAncestors: [[fallthrough]];
                 case EReincarnationResult::DynamicTableChunk:
                     // We don't want to handle the same chunk multiple times.
@@ -1823,12 +1945,13 @@ private:
                 for (const auto& subrequest : request->subrequests()) {
                     auto oldChunkId = FromProto<TChunkId>(subrequest.old_chunk_id());
                     auto* oldChunk = chunkManager->FindChunk(oldChunkId);
+                    auto options = FromProto<TChunkReincarnationOptions>(subrequest.options());
 
                     if (!IsObjectAlive(oldChunk)) {
                         continue;
                     }
 
-                    RescheduleReincarnation(oldChunk);
+                    RescheduleReincarnation(oldChunk, options);
                 }
             }
 
@@ -1915,12 +2038,13 @@ private:
 
         TChunkAncestorTraverser traverser(Bootstrap_);
 
-        std::vector<std::pair<TChunkId, TChunkId>> parsedSubrequests;
+        std::vector<std::tuple<TChunkId, TChunkId, TChunkReincarnationOptions>> parsedSubrequests;
         parsedSubrequests.reserve(request->subrequests_size());
         for (const auto& subrequest : request->subrequests()) {
             parsedSubrequests.emplace_back(
                 FromProto<TChunkId>(subrequest.old_chunk_id()),
-                FromProto<TChunkId>(subrequest.new_chunk_id()));
+                FromProto<TChunkId>(subrequest.new_chunk_id()),
+                FromProto<TChunkReincarnationOptions>(subrequest.options()));
         }
 
         std::vector<std::pair<TChunk*, TChunk*>> multicellReincarnations;
@@ -2021,12 +2145,13 @@ private:
             return;
         }
 
-        std::vector<std::pair<TChunkId, TChunkId>> parsedSubrequests;
+        std::vector<std::tuple<TChunkId, TChunkId, TChunkReincarnationOptions>> parsedSubrequests;
         parsedSubrequests.reserve(request->subrequests().size());
         for (const auto& subrequest : request->subrequests()) {
             parsedSubrequests.emplace_back(
                 FromProto<TChunkId>(subrequest.old_chunk_id()),
-                FromProto<TChunkId>(subrequest.new_chunk_id()));
+                FromProto<TChunkId>(subrequest.new_chunk_id()),
+                TChunkReincarnationOptions{});
         }
 
         DoReincarnateChunks(parsedSubrequests);
