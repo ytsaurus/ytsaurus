@@ -38,8 +38,6 @@ struct IMasterCellChunkStatisticsPieceCollector
 
     virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     virtual void Load(NCellMaster::TLoadContext& context) = 0;
-
-    virtual void OnAfterSnapshotLoaded() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterCellChunkStatisticsPieceCollector)

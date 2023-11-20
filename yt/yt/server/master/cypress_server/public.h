@@ -114,13 +114,6 @@ DEFINE_ENUM(ELockKeyKind,
     (Attribute)
 );
 
-// COMPAT(h0pless): Remove this after schema cmigration is complete.
-DEFINE_ENUM(ESchemaMigrationMode,
-    (AllSchemas)
-    (EmptySchemaOnly)
-    (None)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

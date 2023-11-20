@@ -547,11 +547,7 @@ private:
         // COMPAT(cherepashka)
         if (context.GetVersion() < EMasterReign::ChaosManagerSnapshotSaveAndLoadMovement) {
             Load(context, *AlienClusterRegistry_);
-
-            // COMPAT(ponasenko-rs)
-            if (context.GetVersion() >= EMasterReign::UseMetadataCellIds) {
-                Load(context, EnabledMetadataClusters_);
-            }
+            Load(context, EnabledMetadataClusters_);
         }
 
         // COMPAT(cherepashka, achulkov2)

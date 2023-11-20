@@ -2622,16 +2622,6 @@ private:
     TCypressShardId RootShardId_;
     TCypressShard* RootShard_ = nullptr;
 
-    // COMPAT(shakurov)
-    bool NeedFixNodeStatistics_ = false;
-
-    // COMPAT(h0pless): Remove this after schema migration is complete.
-    ESchemaMigrationMode SchemaExportMode_ = ESchemaMigrationMode::None;
-
-    // COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters, RefactorSchemaExport
-    bool NeedRecomputeMasterTableSchemaRefCounters_ = false;
-    bool NeedRecomputeMasterTableSchemaExportRefCounters_ = false;
-
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
@@ -2691,21 +2681,6 @@ private:
             }
             object->Namespace()->RegisterMember(object);
         }
-
-        NeedFixNodeStatistics_ = context.GetVersion() < EMasterReign::FixClonedTrunkNodeStatistics;
-        if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
-            SchemaExportMode_ = ESchemaMigrationMode::AllSchemas;
-        } else if (context.GetVersion() < EMasterReign::ExportEmptyMasterTableSchemas) {
-            SchemaExportMode_ = ESchemaMigrationMode::EmptySchemaOnly;
-        }
-
-        if (context.GetVersion() < EMasterReign::RefactorSchemaExport) {
-            NeedRecomputeMasterTableSchemaRefCounters_ = true;
-
-            if (EMasterReign::ExportEmptyMasterTableSchemas < context.GetVersion()) {
-                NeedRecomputeMasterTableSchemaExportRefCounters_ = true;
-            }
-        }
     }
 
     void Clear() override
@@ -2729,12 +2704,6 @@ private:
         RootShard_ = nullptr;
 
         RecursiveResourceUsageCache_->Clear();
-
-        NeedFixNodeStatistics_ = false;
-        SchemaExportMode_ = ESchemaMigrationMode::None;
-
-        NeedRecomputeMasterTableSchemaRefCounters_ = false;
-        NeedRecomputeMasterTableSchemaExportRefCounters_ = false;
     }
 
     void SetZeroState() override
@@ -2825,170 +2794,6 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
-
-        // COMPAT(shakurov)
-        if (NeedFixNodeStatistics_) {
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node)) {
-                    continue;
-                }
-
-                if (!node->IsTrunk()) {
-                    continue;
-                }
-
-                if (!IsChunkOwnerType(node->GetType())) {
-                    continue;
-                }
-
-                auto* chunkOwner = node->As<TChunkOwnerBase>();
-                if (chunkOwner->IsStatisticsFixNeeded()) {
-                    YT_LOG_ALERT("Fixing chunk owner statistics (ChunkOwnerId: %v, SnapshotStatistics: %v, DeltaStatistics: %v)",
-                        chunkOwner->GetId(),
-                        chunkOwner->SnapshotStatistics(),
-                        chunkOwner->DeltaStatistics());
-                    chunkOwner->FixStatistics();
-                }
-            }
-        }
-
-        // NB: Referencing accounts are transient,
-        // thus only ref counters and export ref counters need to be recalculated here.
-        if (NeedRecomputeMasterTableSchemaRefCounters_) {
-            auto logLevel = Bootstrap_->GetConfig()->TableManager->AlertOnMasterTableSchemaRefCounterMismatch
-                ? ELogLevel::Alert
-                : ELogLevel::Error;
-
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            if (NeedRecomputeMasterTableSchemaExportRefCounters_) {
-                tableManager->RecomputeMasterTableSchemaExportRefCounters(logLevel);
-            }
-            tableManager->RecomputeMasterTableSchemaRefCounters(logLevel);
-        }
-
-        // This needs to be done for 2 reasons:
-        //   - Empty schema has artificial export counters to all cells, which need to be dealt with.
-        //   - Schema updates will use the same protocol as new migration, which also export refs it.
-        if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly) {
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
-            emptySchema->ResetExportRefCounters();
-        }
-
-        // COMPAT(h0pless): Remove this after schema migration is complete.
-        if (SchemaExportMode_ != ESchemaMigrationMode::None) {
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            if (SchemaExportMode_ == ESchemaMigrationMode::AllSchemas) {
-                // This has been done during the first export.
-                tableManager->TransformForeignSchemaIdsToNative();
-            }
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            auto* emptySchema = Bootstrap_->GetTableManager()->GetEmptyMasterTableSchema();
-
-            auto maybeUpdateEmptySchema = [&] (TSchemafulNode* schemafulNode) {
-                auto* schema = schemafulNode->GetSchema();
-                if (!multicellManager->IsPrimaryMaster() && schema && *schema->AsTableSchema() == *emptySchema->AsTableSchema()) {
-                    tableManager->SetTableSchema(schemafulNode, emptySchema);
-                    return emptySchema;
-                }
-                return schema;
-            };
-
-            THashMap<TVersionedNodeId, TMasterTableSchema*> nodeIdToSchema;
-            THashMap<TCellTag, std::vector<TVersionedNodeId>> cellTagToNodeIds;
-            for (auto [nodeId, node] : NodeMap_) {
-                // We need to export all nodes, even zombies because schemas are unexported during node destruction.
-                if (!node->IsNative()) {
-                    continue;
-                }
-
-                auto nodeType = node->GetType();
-                // Updating schemas on chaos replicated tables separately.
-                // Thankfully, chaos replicated tables are never externalized.
-                if (nodeType == EObjectType::ChaosReplicatedTable) {
-                    auto* table = node->As<NChaosServer::TChaosReplicatedTableNode>();
-                    auto* schema = table->GetSchema();
-                    if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly) {
-                        maybeUpdateEmptySchema(table);
-                    }
-
-                    if (!schema) {
-                        tableManager->SetTableSchema(table, emptySchema);
-                    }
-                    continue;
-                }
-
-                if (!IsTableType(node->GetType())) {
-                    continue;
-                }
-
-                auto* table = node->As<TTableNode>();
-                auto* schema = table->GetSchema();
-
-                // Possible on opaque tables.
-                if (!schema) {
-                    continue;
-                }
-
-                YT_VERIFY(IsObjectAlive(schema));
-                if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly) {
-                    schema = maybeUpdateEmptySchema(table);
-                }
-
-                if (!node->IsExternal()) {
-                    continue;
-                }
-
-                if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly &&
-                    *schema->AsTableSchema() != *emptySchema->AsTableSchema()) {
-                    continue;
-                }
-
-                EmplaceOrCrash(nodeIdToSchema, nodeId, schema);
-                cellTagToNodeIds[table->GetExternalCellTag()].push_back(nodeId);
-            }
-
-            auto sendRequestAndLog = [&] (TCellTag cellTag, NProto::TReqSetTableSchemas& req) {
-                YT_LOG_DEBUG("Sending SetTableSchemas request (DestinationCellTag: %v, RequestSize: %v",
-                    cellTag, req.subrequests_size());
-                multicellManager->PostToMaster(req, cellTag);
-                req.clear_subrequests();
-            };
-
-            const auto maxBatchSize = 10000;
-            NProto::TReqSetTableSchemas req;
-            for (auto [cellTag, nodeIds] : cellTagToNodeIds) {
-                YT_LOG_DEBUG("Started schema migration (DestinationCellTag: %v)", cellTag);
-
-                auto batchSize = 0;
-                auto previousId = NullObjectId;
-                std::sort(nodeIds.begin(), nodeIds.end());
-                for (auto nodeId : nodeIds) {
-                    if (batchSize >= maxBatchSize && previousId != nodeId.ObjectId) {
-                        sendRequestAndLog(cellTag, req);
-                        batchSize = 0;
-                    }
-
-                    auto* subrequest = req.add_subrequests();
-                    auto* schema = nodeIdToSchema.find(nodeId)->second;
-
-                    YT_VERIFY(SchemaExportMode_ == ESchemaMigrationMode::AllSchemas || schema == emptySchema);
-
-                    ToProto(subrequest->mutable_table_node_id(), nodeId.ObjectId);
-                    ToProto(subrequest->mutable_transaction_id(), nodeId.TransactionId);
-                    ToProto(subrequest->mutable_schema_id(), schema->GetId());
-
-                    tableManager->ExportMasterTableSchema(schema, cellTag);
-
-                    previousId = nodeId.ObjectId;
-                    ++batchSize;
-                }
-                if (batchSize > 0) {
-                    sendRequestAndLog(cellTag, req);
-                }
-            }
-        }
     }
 
     void InitBuiltins()

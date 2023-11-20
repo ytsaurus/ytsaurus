@@ -222,23 +222,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetOverlayed(Load<bool>(context));
     SetStripedErasure(Load<bool>(context));
     SetSealable(Load<bool>(context));
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::HistoricallyNonVital) {
-        SetHistoricallyNonVital(Load<bool>(context));
-    } else {
-        SetHistoricallyNonVital(false);
-    }
+    SetHistoricallyNonVital(Load<bool>(context));
 
     auto parents = Load<TCompactVector<TChunkTree*, TypicalChunkParentCount>>(context);
     for (auto* parent : parents) {
         ++Parents_[parent];
-    }
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::DropChunkExpirationTracker) {
-        // Used to be expiration time.
-        Load<TInstant>(context);
     }
 
     if (Load<bool>(context)) {
@@ -808,37 +796,7 @@ void TChunk::TPerCellExportData::Load(TLoadContext& context)
 
     if (context.GetVersion() < EMasterReign::GetRidOfCellIndex) {
         std::unique_ptr<TLegacyCellIndexToChunkExportData> legacyExportData;
-        // COMPAT(shakurov)
-        if (context.GetVersion() < EMasterReign::SimplerChunkExportDataSaveLoad) {
-            auto exportCounter = Load<ui8>(context);
-            if (exportCounter > 0) {
-                legacyExportData = std::make_unique<TLegacyCellIndexToChunkExportData>();
-
-                // 255 is a special marker that was never in trunk. It was only used
-                // in the 22.4 branch to facilitate migration from fixed-length
-                // array to variable-size map - while preserving snapshot
-                // compatibility and avoiding reign promotion.
-                if (exportCounter == 255) {
-                    Load(context, *legacyExportData);
-                    YT_VERIFY(hasNonZeroExportCounter(*legacyExportData));
-                } else {
-                    TLegacyChunkExportDataList32 legacyExportDataList{};
-                    TPodSerializer::Load(context, legacyExportDataList);
-                    YT_VERIFY(std::any_of(
-                            legacyExportDataList.begin(), legacyExportDataList.end(),
-                            [] (auto data) { return data.RefCounter != 0; }));
-                    for (auto cellIndex = 0; cellIndex < 32; ++cellIndex) {
-                        auto data = legacyExportDataList[cellIndex];
-                        if (data.RefCounter != 0) {
-                            legacyExportData->emplace(cellIndex, data);
-                        }
-                    }
-                }
-            } // Else leave `legacyExportData` null.
-        } else {
-            TUniquePtrSerializer<>::Load(context, legacyExportData);
-        }
-
+        TUniquePtrSerializer<>::Load(context, legacyExportData);
         if (legacyExportData) {
             YT_VERIFY(hasNonZeroExportCounter(*legacyExportData));
             Ptr_ = reinterpret_cast<uintptr_t>(legacyExportData.release()) | LegacyExportDataMask;
@@ -975,16 +933,6 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Loa
     using NYT::Load;
 
     Load(context, StoredReplicas);
-
-    // COMPAT(kvk1920, gritukan)
-    if (context.GetVersion() < EMasterReign::RemoveCacheMedium) {
-        auto cachedReplicasPresented = Load<bool>(context);
-        if (cachedReplicasPresented) {
-            // Cached replicas are simply dropped.
-            Load<THashSet<TChunkLocationPtrWithReplicaInfo>>(context);
-        }
-    }
-
     Load(context, LastSeenReplicas);
     Load(context, CurrentLastSeenReplicaIndex);
     Load(context, ApprovedReplicaCount);

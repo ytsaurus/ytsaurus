@@ -90,22 +90,12 @@ void TTabletBase::Load(TLoadContext& context)
         auto mountRevision = Load<NHydra::TRevision>(context);
         Servant_.SetMountRevision(mountRevision);
 
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
-            Load(context, SettingsRevision_);
-        }
+        Load(context, SettingsRevision_);
 
-        // COMPAT(alexelexa)
-        if (context.GetVersion() >= EMasterReign::AddTabletMountTime) {
-            Servant_.SetMountTime(Load<TInstant>(context));
-        }
+        Servant_.SetMountTime(Load<TInstant>(context));
     } else {
         Load(context, Servant_);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
-            Load(context, SettingsRevision_);
-        }
+        Load(context, SettingsRevision_);
     }
 
     Load(context, WasForcefullyUnmounted_);

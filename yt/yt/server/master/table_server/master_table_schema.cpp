@@ -58,38 +58,21 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     auto tableSchema = Load<TTableSchema>(context);
+    if (IsObjectAlive(this)) {
+        const auto& tableManager = context.GetBootstrap()->GetTableManager();
 
-    // COMPAT(h0pless)
-    if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
-        if (IsObjectAlive(this)) {
-            const auto& tableManager = context.GetBootstrap()->GetTableManager();
+        if (IsNative()) {
             SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
         } else {
+            // Imported schemas require no registration because reverse
+            // index for imported schemas is not necessary.
             TableSchema_ = New<TTableSchema>(std::move(tableSchema));
         }
     } else {
-        if (IsObjectAlive(this)) {
-            const auto& tableManager = context.GetBootstrap()->GetTableManager();
-
-            if (IsNative()) {
-                SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
-            } else {
-                // Imported schemas require no registration because reverse
-                // index for imported schemas is not necessary.
-                TableSchema_ = New<TTableSchema>(std::move(tableSchema));
-            }
-        } else {
-            TableSchema_ = New<TTableSchema>(std::move(tableSchema));
-        }
-
-        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
-            if (Load<bool>(context)) {
-                CellTagToExportCount_ = Load<TCellTagToExportRefcount>(context);
-            }
-        } else {
-            Load(context, CellTagToExportCount_);
-        }
+        TableSchema_ = New<TTableSchema>(std::move(tableSchema));
     }
+
+    Load(context, CellTagToExportCount_);
 
     if (context.GetVersion() >= EMasterReign::AddChunkSchemas) {
         Load(context, ReferencingAccounts_);

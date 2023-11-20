@@ -139,18 +139,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, TablesWithBackupCheckpoints_);
     Load(context, Depth_);
     Load(context, Upload_);
-    // COMPAT(h0pless)
-    if (context.GetVersion() >= EMasterReign::TooManyLocksCheck) {
-        Load(context, RecursiveLockCount_);
-    }
-
+    Load(context, RecursiveLockCount_);
     Load(context, NativeCommitMutationRevision_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::CypressTransactions) {
-        Load(context, IsCypressTransaction_);
-    }
-
+    Load(context, IsCypressTransaction_);
     Load(context, AccountResourceUsageLeases_);
     Load(context, IsSequoiaTransaction_);
     Load(context, SequoiaWriteSet_);

@@ -93,7 +93,7 @@ private:
         TDynamicTableAttributes();
 
         void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context, NTabletServer::TTabletOwnerBase* tabletOwner);
+        void Load(NCellMaster::TLoadContext& context);
 
         void CopyFrom(const TDynamicTableAttributes* other);
         void BeginCopy(NCypressServer::TBeginCopyContext* context) const;

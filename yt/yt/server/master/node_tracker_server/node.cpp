@@ -56,7 +56,6 @@ using namespace NYTree;
 using namespace NProfiling;
 
 using NHydra::HasMutationContext;
-using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -627,36 +626,12 @@ void TNode::Save(TSaveContext& context) const
 void TNode::Load(TLoadContext& context)
 {
     TObject::Load(context);
+    TMaintenanceTarget::Load(context);
 
     using NYT::Load;
 
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::MaintenanceRequests) {
-        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
-            if (Load<bool>(context)) {
-                Y_UNUSED(SetMaintenanceFlag(type, /*user*/ "", /*instant*/ TInstant::Zero()));
-            }
-        }
-    } else {
-        TMaintenanceTarget::Load(context);
-    }
-
     Load(context, NodeAddresses_);
-
-    // COMPAT(aleksandra-zh).
-    if (context.GetVersion() >= EMasterReign::ReliableNodeStateGossip) {
-        Load(context, MulticellDescriptors_);
-    } else {
-        using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
-        TMulticellStates multicellStates;
-        Load(context, multicellStates);
-
-        MulticellDescriptors_.clear();
-        MulticellDescriptors_.reserve(multicellStates.size());
-        for (const auto& [cellTag, state] : multicellStates) {
-            MulticellDescriptors_.emplace(cellTag, TCellNodeDescriptor{state, TCellNodeStatistics(), false});
-        }
-    }
+    Load(context, MulticellDescriptors_);
 
     Load(context, UserTags_);
     Load(context, NodeTags_);
@@ -715,16 +690,8 @@ void TNode::Load(TLoadContext& context)
     Load(context, ExecNodeIsNotDataNode_);
     Load(context, ReplicaEndorsements_);
     Load(context, ConsistentReplicaPlacementTokenCount_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::SplitNodeDisposal) {
-        Load(context, NextDisposedLocationIndex_);
-    }
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::ReliableNodeStateGossip) {
-        Load(context, LastGossipState_);
-    }
+    Load(context, NextDisposedLocationIndex_);
+    Load(context, LastGossipState_);
 
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();

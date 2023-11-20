@@ -39,13 +39,7 @@ void TChaosCellBundle::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, *ChaosOptions_);
-
-    // COMPAT(ponasenko-rs)
-    if (context.GetVersion() >= EMasterReign::UseMetadataCellIds) {
-        Load(context, MetadataCells_);
-    } else {
-        MetadataCells_ = {Load<TChaosCell*>(context)};
-    }
+    Load(context, MetadataCells_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
