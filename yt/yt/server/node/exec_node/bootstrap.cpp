@@ -107,7 +107,7 @@ public:
 
         ChunkCache_ = New<TChunkCache>(GetConfig()->DataNode, this);
 
-        DynamicConfig_ = New<TClusterNodeDynamicConfig>();
+        DynamicConfig_.Store(New<TClusterNodeDynamicConfig>());
 
         JobProxySolomonExporter_ = New<TSolomonExporter>(
             GetConfig()->ExecNode->JobProxySolomonExporter,
@@ -248,7 +248,7 @@ public:
 
     TClusterNodeDynamicConfigPtr GetDynamicConfig() const override
     {
-        return DynamicConfig_;
+        return DynamicConfig_.Acquire();
     }
 
     TNbdConfigPtr GetNbdConfig() const override
@@ -293,7 +293,9 @@ private:
 
     TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
 
-    TClusterNodeDynamicConfigPtr DynamicConfig_;
+    //! TODO(arkady-e1ppa): Get rid of unneeded options in ExecNode config.
+    //! then remove GetDynamicConfig method and make this non-atomic again.
+    TAtomicIntrusivePtr<TClusterNodeDynamicConfig> DynamicConfig_;
 
     TActionQueuePtr NbdQueue_;
     NYT::NNbd::INbdServerPtr NbdServer_;
@@ -372,7 +374,8 @@ private:
         SchedulerConnector_->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         GetControllerAgentConnectorPool()->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         JobReporter_->OnDynamicConfigChanged(oldConfig->ExecNode->JobReporter, newConfig->ExecNode->JobReporter);
-        DynamicConfig_ = newConfig;
+
+        DynamicConfig_.Store(newConfig);
     }
 
     static EDataNodeThrottlerKind GetDataNodeThrottlerKind(EExecNodeThrottlerKind kind)
