@@ -39,8 +39,6 @@ bool IsSupportedSequoiaType(EObjectType type)
     return IsSequoiaCompositeNodeType(type) || IsScalarType(type);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsSequoiaCompositeNodeType(EObjectType type)
 {
     return type == EObjectType::SequoiaMapNode || type == EObjectType::Scion;

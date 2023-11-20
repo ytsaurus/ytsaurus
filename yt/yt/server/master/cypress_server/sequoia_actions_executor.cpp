@@ -201,10 +201,10 @@ private:
         // TODO(cherepashka): In future DetachChild should remove child from parent node proxy.
         auto& children = parent->As<TSequoiaMapNode>()->MutableChildren();
         if (!children.Contains(request->key())) {
-            YT_LOG_FATAL("Sequoia map node has no such child: %Qv", request->key());
+            YT_LOG_FATAL("Missing sequoia map node has no such child (Key: %v)", request->key());
         }
-        auto child = children.KeyToChild().find(request->key());
-        children.Remove(request->key(), child->second);
+        auto childIt = children.KeyToChild().find(request->key());
+        children.Remove(request->key(), childIt->second);
     }
 
     void HydraPrepareRemoveNode(
