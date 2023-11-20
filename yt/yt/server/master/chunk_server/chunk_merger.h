@@ -240,7 +240,7 @@ private:
     // COMPAT(aleksandra-zh)
     bool NeedRestorePersistentStatistics_ = false;
 
-    THashMap<NSecurityServer::TAccountId, std::vector<TDuration>> NodeMergeDurations_;
+    THashMap<NSecurityServer::TAccountId, std::vector<TDuration>> AccountIdToNodeMergeDurations_;
     THashMap<NObjectClient::TObjectId, int> NodeToRescheduleCount_;
 
     void IncrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
@@ -321,7 +321,7 @@ private:
         const NChunkClient::NProto::TDataStatistics& oldStatistics,
         const NChunkClient::NProto::TDataStatistics& newStatistics);
 
-    void RemoveNodeFromRescheduleCounterMap(NCypressClient::TObjectId nodeId);
+    void RemoveNodeFromRescheduleCounterMap(NCypressClient::TNodeId nodeId);
 
     void HydraCreateChunks(NProto::TReqCreateChunks* request);
     void HydraReplaceChunks(NProto::TReqReplaceChunks* request);

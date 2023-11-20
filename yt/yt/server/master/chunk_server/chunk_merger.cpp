@@ -779,7 +779,7 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto getAccountTag = [&] (TAccountId accountId) {
         auto* account = securityManager->FindAccount(accountId);
-        return IsObjectAlive(account) ? account->GetName() : "<" + ToString(accountId) + ">";
+        return IsObjectAlive(account) ? account->GetName() : Format("<%v>", accountId);
     };
 
     for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
@@ -825,13 +825,13 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     }
     buffer->AddCounter("/chunk_merger_auto_merge_fallback_count", AutoMergeFallbackJobCount_);
 
-    for (const auto& [accountId, sessionDurations] : NodeMergeDurations_) {
+    for (const auto& [accountId, sessionDurations] : AccountIdToNodeMergeDurations_) {
         TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
-        for (const auto& sessionDuration : sessionDurations) {
+        for (auto sessionDuration : sessionDurations) {
             buffer->AddGauge("/chunk_merger_average_merge_duration", sessionDuration.GetValue());
         }
     }
-    NodeMergeDurations_.clear();
+    AccountIdToNodeMergeDurations_.clear();
 }
 
 void TChunkMerger::OnJobWaiting(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks)
@@ -978,7 +978,7 @@ void TChunkMerger::Clear()
     TransactionRotator_.Clear();
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
-    NodeMergeDurations_.clear();
+    AccountIdToNodeMergeDurations_.clear();
     ConfigVersion_ = 0;
 
     OldNodesBeingMerged_.reset();
@@ -996,7 +996,7 @@ void TChunkMerger::ResetTransientState()
     RunningSessions_ = {};
     SessionsAwaitingFinalization_ = {};
     QueuesUsage_ = {};
-    NodeMergeDurations_ = {};
+    AccountIdToNodeMergeDurations_ = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -1290,7 +1290,7 @@ void TChunkMerger::FinalizeSessions()
             sessionResult.NodeId,
             sessionLifetimeDuration);
 
-        NodeMergeDurations_[sessionResult.AccountId].push_back(sessionLifetimeDuration);
+        AccountIdToNodeMergeDurations_[sessionResult.AccountId].push_back(sessionLifetimeDuration);
         SessionsAwaitingFinalization_.pop();
     }
 
@@ -1690,10 +1690,10 @@ void TChunkMerger::ValidateStatistics(
         newStatistics.data_weight());
 }
 
-void TChunkMerger::RemoveNodeFromRescheduleCounterMap(TObjectId nodeId) {
-    if (NodeToRescheduleCount_.contains(nodeId)) {
-        EraseOrCrash(NodeToRescheduleCount_, nodeId);
-    }
+void TChunkMerger::RemoveNodeFromRescheduleCounterMap(NCypressClient::TNodeId nodeId)
+{
+    // Doesn't guarantee the success of the operation, because nodeId is not always in the map when deleted.
+    NodeToRescheduleCount_.erase(nodeId);
 }
 
 void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
