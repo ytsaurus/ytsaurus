@@ -25,6 +25,7 @@ DEFINE_BIT_ENUM(EMasterCellRoles,
     ((ChunkHost)                 (0x0004))
     ((DedicatedChunkHost)        (0x0008))
     ((ExTransactionCoordinator)  (0x0010))
+    ((SequoiaNodeHost)           (0x0020))
 );
 
 DEFINE_ENUM(EMasterCellRole,
@@ -33,6 +34,7 @@ DEFINE_ENUM(EMasterCellRole,
     ((ChunkHost)                 (0x0004))
     ((DedicatedChunkHost)        (0x0008))
     ((ExTransactionCoordinator)  (0x0010))
+    ((SequoiaNodeHost)           (0x0020))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

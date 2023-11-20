@@ -14,6 +14,10 @@ class TestSequoia(YTEnvSetup):
     NUM_CYPRESS_PROXIES = 1
 
     NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        "11": {"roles": ["sequoia_node_host"]},
+    }
 
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):
@@ -81,7 +85,6 @@ class TestSequoia(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_nodes_cell_tags(self):
-        cell_count = 1 + get("//sys/secondary_masters/@count")
         ack_cell_tags = {}
         key = 0
 
@@ -91,7 +94,7 @@ class TestSequoia(YTEnvSetup):
             cell_tag = get(f"//tmp/{key}/@native_cell_tag")
             ack_cell_tags[cell_tag] = "ack"
             key += 1
-            return len(ack_cell_tags) == cell_count
+            return len(ack_cell_tags) > 1
 
         wait(create_and_check)
 

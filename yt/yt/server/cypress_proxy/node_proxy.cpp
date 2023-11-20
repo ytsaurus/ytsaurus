@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -63,7 +65,6 @@ public:
         , Id_(id)
         , Path_(std::move(path))
         , Transaction_(std::move(transaction))
-        , CellTagShuffler_(this)
     { }
 
     virtual void ValidateType() const = 0;
@@ -114,6 +115,20 @@ protected:
             EMasterChannelKind::Follower,
             CellTagFromId(id),
             Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
+    }
+
+    TCellTag GetRandomSequoiaNodeHostCellTag() const
+    {
+        auto connection = Bootstrap_->GetNativeConnection();
+
+        YT_LOG_DEBUG("Started synchronizing master cell directory");
+        const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
+        WaitFor(cellDirectorySynchronizer->RecentSync())
+            .ThrowOnError();
+        YT_LOG_DEBUG("Master cell directory synchronized successfully");
+
+        return connection->GetRandomMasterCellTagWithRoleOrThrow(
+            NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
     void RemoveNode(
@@ -239,31 +254,6 @@ protected:
             Path_,
             tokenizer.GetToken());
     }
-
-    // XXX(danilalexeev)
-    class TCellTagShuffler
-    {
-    public:
-        explicit TCellTagShuffler(TNodeProxyBase* owner)
-        {
-            auto connection = owner->Bootstrap_->GetNativeConnection();
-            CellTags_.push_back(connection->GetPrimaryMasterCellTag());
-            for (const auto& cellTag : connection->GetSecondaryMasterCellTags()) {
-                CellTags_.push_back(cellTag);
-            }
-        }
-
-        TCellTag GetCellTag() const
-        {
-            YT_VERIFY(!CellTags_.empty());
-            return CellTags_[RandomNumber(CellTags_.size())];
-        }
-
-    private:
-        std::vector<TCellTag> CellTags_;
-    };
-
-    TCellTagShuffler CellTagShuffler_;
 };
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
@@ -465,7 +455,7 @@ private:
         auto nestedPath = TYPathBuf(designatedPath).Chop(designatedNodeKey.size() + 1);
         for (auto it = std::next(childKeys.rbegin()); it != childKeys.rend(); ++it) {
             const auto& childKey = *it;
-            auto cellTag = CellTagShuffler_.GetCellTag();
+            auto cellTag = GetRandomSequoiaNodeHostCellTag();
             auto childId = Transaction_->GenerateObjectId(EObjectType::SequoiaMapNode, cellTag, /*sequoia*/ true);
             CreateNode(
                 EObjectType::SequoiaMapNode,
@@ -545,9 +535,6 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     const auto& parentPath = Path_;
     auto parentId = Id_;
 
-    // TODO(kvk1920): Choose cell tag properly.
-    auto childCellTag = CellTagShuffler_.GetCellTag();
-
     // Acquire shared lock on parent node.
     NRecords::TResolveNodeKey parentKey{
         .Path = MangleSequoiaPath(parentPath),
@@ -555,7 +542,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     Transaction_->LockRow(parentKey, ELockType::SharedStrong);
 
     auto createDesignatedNode = [&] (const auto& path) {
-        auto cellTag = CellTagShuffler_.GetCellTag();
+        auto cellTag = GetRandomSequoiaNodeHostCellTag();
         auto id = Transaction_->GenerateObjectId(type, cellTag, /*sequoia*/ true);
         CreateNode(type, id, path);
         return id;
@@ -575,6 +562,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
         }))
         .ThrowOnError();
 
+    auto childCellTag = CellTagFromId(createResult.DesignatedNodeId);
     ToProto(response->mutable_node_id(), createResult.DesignatedNodeId);
     response->set_cell_tag(ToProto<int>(childCellTag));
     context->Reply();

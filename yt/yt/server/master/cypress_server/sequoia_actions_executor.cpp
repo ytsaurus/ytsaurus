@@ -86,12 +86,19 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto roles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
+        if (None(roles & EMasterCellRoles::SequoiaNodeHost) && IsSequoiaId(nodeId)) {
+            THROW_ERROR_EXCEPTION("This cell cannot host Sequoia nodes");
+        }
+
         auto type = CheckedEnumCast<EObjectType>(request->type());
         if (type != EObjectType::SequoiaMapNode && !IsScalarType(type)) {
             THROW_ERROR_EXCEPTION("Type %Qv is not supported in Sequoia", type);
         }
 
-        auto nodeId = FromProto<TNodeId>(request->node_id());
         if (request->children_size() != 0) {
             std::vector<TStringBuf> childKeys;
             childKeys.reserve(request->children_size());

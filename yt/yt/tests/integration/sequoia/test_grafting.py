@@ -29,6 +29,10 @@ class TestGrafting(YTEnvSetup):
     NUM_CYPRESS_PROXIES = 1
 
     NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        "11": {"roles": ["sequoia_node_host"]},
+    }
 
     def _resolve_path(self, path):
         rows = lookup_rows("//sys/sequoia/resolve_node", [{"path": mangle_path(path)}])
@@ -156,6 +160,9 @@ class TestGraftingTmpCleanup(YTEnvSetup):
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 0
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+    }
 
     PATHS_TO_CHECK = []
 

@@ -28,6 +28,8 @@
 
 #include <yt/yt/library/auth_server/public.h>
 
+#include <yt/yt/client/cell_master_client/public.h>
+
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/core/logging/public.h>
@@ -52,6 +54,8 @@ struct IConnection
     virtual NObjectClient::TCellId GetPrimaryMasterCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
+    virtual NObjectClient::TCellTag GetRandomMasterCellTagWithRoleOrThrow(
+        NCellMasterClient::EMasterCellRole role) const = 0;
     virtual NObjectClient::TCellId GetMasterCellId(NObjectClient::TCellTag cellTag) const = 0;
 
     virtual const NQueryClient::IEvaluatorPtr& GetQueryEvaluator() = 0;

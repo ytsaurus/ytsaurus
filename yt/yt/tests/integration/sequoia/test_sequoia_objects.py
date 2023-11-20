@@ -22,6 +22,10 @@ def sequoia_tables_empty():
 
 class TestSequoiaReplicas(YTEnvSetup):
     USE_SEQUOIA = True
+    NUM_SECONDARY_MASTER_CELLS = 0
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+    }
     NUM_NODES = 9
 
     TABLE_MEDIUM = "table_medium"

@@ -43,6 +43,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    NObjectClient::TCellTag GetRandomMasterCellTagWithRoleOrThrow(NCellMasterClient::EMasterCellRole /*role*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
     NObjectClient::TCellId GetMasterCellId(NObjectClient::TCellTag /*cellTag*/) const override
     {
         YT_UNIMPLEMENTED();

@@ -474,6 +474,12 @@ public:
         return MasterCellDirectory_->GetSecondaryMasterCellTags();
     }
 
+    TCellTag GetRandomMasterCellTagWithRoleOrThrow(NCellMasterClient::EMasterCellRole role) const override
+    {
+        auto cellId = MasterCellDirectory_->GetRandomMasterCellWithRoleOrThrow(role);
+        return CellTagFromId(cellId);
+    }
+
     TCellId GetMasterCellId(TCellTag cellTag) const override
     {
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
