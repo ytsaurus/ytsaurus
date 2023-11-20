@@ -240,7 +240,7 @@ public:
             CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
         ClusterDirectory_ = New<TClusterDirectory>(Options_);
-        ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
+        ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
             this,
             ClusterDirectory_);
@@ -638,7 +638,7 @@ public:
         return (ClusterDirectoryOverride_ ? ClusterDirectoryOverride_ : ClusterDirectory_);
     }
 
-    const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
+    const NHiveClient::IClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
     {
         return ClusterDirectorySynchronizer_;
     }
@@ -846,7 +846,7 @@ private:
     // We assume that cluster directories are allocated in a singleton-like fashion throughout the life of the process.
     // TODO(achulkov2, max42): Make cluster directories actual singletons?
     TClusterDirectoryPtr ClusterDirectoryOverride_;
-    TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
+    IClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TMediumDirectoryPtr MediumDirectory_;
     TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
@@ -1181,7 +1181,7 @@ IConnectionPtr GetRemoteConnectionOrThrow(
             THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
         }
 
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true))
+        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*immediately*/ true))
             .ThrowOnError();
     }
 

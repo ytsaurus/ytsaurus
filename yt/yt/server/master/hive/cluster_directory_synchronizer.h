@@ -6,6 +6,7 @@
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/server/master/cell_master/public.h>
 
 namespace NYT::NHiveServer {
@@ -13,7 +14,7 @@ namespace NYT::NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IClusterDirectorySynchronizer
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Starts periodic syncs.
     virtual void Start() = 0;
@@ -23,7 +24,7 @@ struct IClusterDirectorySynchronizer
 
     //! Returns a future that gets set with the next sync.
     //! Starts the synchronizer if not started yet.
-    virtual TFuture<void> Sync(bool force = false) = 0;
+    virtual TFuture<void> Sync(bool immediately = false) = 0;
 
     //! Reconfigure synchronizer.
     virtual void Reconfigure(const TClusterDirectorySynchronizerConfigPtr& config) = 0;

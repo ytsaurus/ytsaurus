@@ -5,7 +5,7 @@
 
 #include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/yt/server/lib/hive/config.h>
+#include <yt/yt/ytlib/misc/synchronizer_detail.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/server/lib/hive/config.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
@@ -35,23 +37,22 @@ using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HiveServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TClusterDirectorySynchronizer
     : public IClusterDirectorySynchronizer
+    , public TSynchronizerBase
 {
 public:
     TClusterDirectorySynchronizer(
         TClusterDirectorySynchronizerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         NHiveClient::TClusterDirectoryPtr clusterDirectory)
-        : Bootstrap_(bootstrap)
-        , SyncExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ClusterDirectorySynchronizer),
-            BIND(&TClusterDirectorySynchronizer::OnSync, MakeWeak(this)),
-            config->SyncPeriod))
+        : TSynchronizerBase(
+            bootstrap->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ClusterDirectorySynchronizer),
+            TPeriodicExecutorOptions{
+                .Period = config->SyncPeriod,
+            },
+            HiveServerLogger)
+        , Bootstrap_(bootstrap)
         , ObjectManager_(Bootstrap_->GetObjectManager())
         , MulticellManager_(Bootstrap_->GetMulticellManager())
         , CellTag_(MulticellManager_->GetPrimaryCellTag())
@@ -61,24 +62,17 @@ public:
 
     void Start() override
     {
-        auto guard = Guard(SpinLock_);
-        DoStart();
+        TSynchronizerBase::Start();
     }
 
     void Stop() override
     {
-        auto guard = Guard(SpinLock_);
-        DoStop();
+        TSynchronizerBase::Stop();
     }
 
-    TFuture<void> Sync(bool force) override
+    TFuture<void> Sync(bool immediately) override
     {
-        auto guard = Guard(SpinLock_);
-        if (Stopped_) {
-            return MakeFuture(TError("Cluster directory synchronizer is stopped"));
-        }
-        DoStart(force);
-        return SyncPromise_.ToFuture();
+        return TSynchronizerBase::Sync(immediately);
     }
 
     void Reconfigure(const TClusterDirectorySynchronizerConfigPtr& config) override
@@ -91,41 +85,13 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    const TPeriodicExecutorPtr SyncExecutor_;
     const NObjectServer::IObjectManagerPtr ObjectManager_;
     const NCellMaster::IMulticellManagerPtr MulticellManager_;
     const NObjectClient::TCellTag CellTag_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     TAtomicIntrusivePtr<TClusterDirectorySynchronizerConfig> Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    bool Started_ = false;
-    bool Stopped_= false;
-    TPromise<void> SyncPromise_ = NewPromise<void>();
-
-    void DoStart(bool force = false)
-    {
-        if (Started_) {
-            if (force) {
-                SyncExecutor_->ScheduleOutOfBand();
-            }
-            return;
-        }
-        Started_ = true;
-        SyncExecutor_->Start();
-        SyncExecutor_->ScheduleOutOfBand();
-    }
-
-    void DoStop()
-    {
-        if (Stopped_) {
-            return;
-        }
-        Stopped_ = true;
-        SyncExecutor_->Stop();
-    }
-
-    void DoSync()
+    void DoSync() override
     {
         try {
             YT_LOG_DEBUG("Started synchronizing cluster directory");
@@ -172,39 +138,28 @@ private:
                 ClusterDirectory_->UpdateDirectory(rsp->cluster_directory());
             }
 
+            Synchronized_.Fire(TError());
             YT_LOG_DEBUG("Finished synchronizing cluster directory");
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error synchronizing cluster directory")
-                << ex;
-        }
-    }
-
-    void OnSync()
-    {
-        TError error;
-        try {
-            DoSync();
-            Synchronized_.Fire(TError());
-        } catch (const std::exception& ex) {
-            error = TError(ex);
+            auto error = TError(ex);
             Synchronized_.Fire(error);
-            YT_LOG_DEBUG(error);
+            THROW_ERROR_EXCEPTION("Error synchronizing cluster directory")
+                << error;
         }
-
-        auto guard = Guard(SpinLock_);
-        auto syncPromise = NewPromise<void>();
-        std::swap(syncPromise, SyncPromise_);
-        guard.Release();
-        syncPromise.Set(error);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IClusterDirectorySynchronizerPtr CreateClusterDirectorySynchronizer(
     TClusterDirectorySynchronizerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap,
     NHiveClient::TClusterDirectoryPtr clusterDirectory)
 {
-    return New<TClusterDirectorySynchronizer>(std::move(config), bootstrap, std::move(clusterDirectory));
+    return New<TClusterDirectorySynchronizer>(
+        std::move(config),
+        bootstrap,
+        std::move(clusterDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

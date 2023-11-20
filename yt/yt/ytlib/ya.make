@@ -287,6 +287,7 @@ SRCS(
     misc/config.cpp
     misc/memory_reference_tracker.cpp
     misc/memory_usage_tracker.cpp
+    misc/synchronizer_detail.cpp
 
     new_table_client/column_block_manager.cpp
     new_table_client/memory_helpers.cpp
