@@ -174,6 +174,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicateAlienClusterRegistry_23_1)                           (2359))  // ponasenko-rs
     ((FixTransientAbort_23_1)                                       (2360))  // babenko
     ((ZombieACOs_23_1)                                              (2361))  // shakurov
+    ((ConfigurablePoolNameValidationRegex)                          (2362))  // renadeen
 );
 
 ////////////////////////////////////////////////////////////////////////////////

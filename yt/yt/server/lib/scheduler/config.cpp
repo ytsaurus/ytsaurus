@@ -660,6 +660,9 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_async_operation_event_logging", &TThis::EnableAsyncOperationEventLogging)
         .Default(true);
 
+    registrar.Parameter("ephemeral_pool_name_regex", &TThis::EphemeralPoolNameRegex)
+        .Default("[-_a-z0-9:A-Z]+");
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));

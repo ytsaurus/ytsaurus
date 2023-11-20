@@ -1227,6 +1227,25 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         set("//sys/schemas/scheduler_pool/@acl/end", make_ace("allow", "u", "administer"))
         create_pool("abc:nirvana", pool_tree="my_tree", wait_for_orchid=False, authenticated_user="u")
 
+    def test_custom_pool_name_regex_validation(self):
+        create_user("u")
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        set("//sys/pool_trees/my_tree/@acl", [make_ace("allow", "u", "write")])
+
+        with raises_yt_error("must match regular expression"):
+            create_pool(
+                "a.b",
+                pool_tree="my_tree",
+                wait_for_orchid=False,
+                authenticated_user="u")
+
+        set("//sys/@config/scheduler_pool_manager", {"pool_name_regex_for_users": "[a-z.]+"})
+        create_pool(
+            "a.b",
+            authenticated_user="u",
+            pool_tree="my_tree",
+            wait_for_orchid=False)
+
     def test_write_on_root_allows_to_create_remove_pool_trees(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_user("u")

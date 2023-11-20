@@ -21,6 +21,7 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -2244,6 +2245,9 @@ private:
         }
 
         if (!pool) {
+            // Validate pool name only if pool does not exist.
+            ValidatePoolName(poolName.GetSpecifiedPoolName(), Host_->GetEphemeralPoolNameRegex());
+
             pool = GetPoolOrParent(poolName, operation->GetAuthenticatedUser()).Get();
         }
 

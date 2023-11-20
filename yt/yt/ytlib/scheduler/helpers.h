@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <contrib/libs/re2/re2/re2.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,12 +127,8 @@ TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPoolNameValidationLevel,
-    (NonStrict)
-    (Strict))
-
-TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);
-void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);
+TError CheckPoolName(const TString& poolName, const re2::RE2& regex);
+void ValidatePoolName(const TString& poolName, const re2::RE2& regex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -97,6 +97,8 @@ public:
             Host_->GetControlInvoker(EControlQueue::CommonPeriodicActivity),
             BIND(&TFairShareStrategy::UpdateSchedulerTreeAlerts, MakeWeak(this)),
             Config_->SchedulerTreeAlertsUpdatePeriod);
+
+        EphemeralPoolNameRegex_.emplace(Config_->EphemeralPoolNameRegex);
     }
 
     void OnUpdateResourceUsages()
@@ -568,6 +570,12 @@ public:
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
         SchedulerTreeAlertsUpdateExecutor_->SetPeriod(Config_->SchedulerTreeAlertsUpdatePeriod);
+
+        EphemeralPoolNameRegex_.emplace(Config_->EphemeralPoolNameRegex);
+        if (!EphemeralPoolNameRegex_->ok()) {
+            THROW_ERROR_EXCEPTION("Bad regular expression provided in scheduler config")
+                << TErrorAttribute("regex", Config_->EphemeralPoolNameRegex);
+        }
     }
 
     void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
@@ -1418,6 +1426,9 @@ private:
 
     bool Connected_ = false;
 
+    // NB: re2::RE2 does not have default constructor.
+    std::optional<re2::RE2> EphemeralPoolNameRegex_;
+
     struct TPoolTreeDescription
     {
         TString Name;
@@ -1556,10 +1567,6 @@ private:
                 "to be scheduled in multiple fair-share trees");
         }
 
-        for (const auto& [_, poolName]: pools) {
-            ValidatePoolName(poolName.GetSpecifiedPoolName());
-        }
-
         std::vector<TFuture<void>> futures;
 
         for (const auto& [treeId, pool] : pools) {
@@ -1568,6 +1575,11 @@ private:
         }
 
         return AllSucceeded(futures);
+    }
+
+    const re2::RE2& GetEphemeralPoolNameRegex() const override
+    {
+        return *EphemeralPoolNameRegex_;
     }
 
     TFairShareStrategyOperationStatePtr FindOperationState(TOperationId operationId) const
