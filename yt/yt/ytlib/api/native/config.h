@@ -148,6 +148,8 @@ public:
 
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 
+    NChaosClient::TChaosCellDirectorySynchronizerConfigPtr ChaosCellDirectorySynchronizer;
+
     NTransactionClient::TClockManagerConfigPtr ClockManager;
 
     TAsyncExpiringCacheConfigPtr SyncReplicaCache;
@@ -190,7 +192,6 @@ public:
 
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
-    NChaosClient::TChaosCellDirectorySynchronizerConfigPtr ChaosCellDirectorySynchronizer;
     NDiscoveryClient::TDiscoveryConnectionConfigPtr DiscoveryConnection;
     NQueueClient::TQueueAgentConnectionConfigPtr QueueAgent;
     NQueryTrackerClient::TQueryTrackerConnectionConfigPtr QueryTracker;
