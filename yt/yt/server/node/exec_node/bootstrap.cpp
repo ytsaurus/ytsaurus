@@ -113,12 +113,6 @@ public:
             GetConfig()->ExecNode->JobProxySolomonExporter,
             New<TSolomonRegistry>());
 
-        auto nbdConfig = GetNbdConfig();
-        if (nbdConfig && nbdConfig->Enabled) {
-            NbdQueue_ = New<TActionQueue>("Nbd");
-            NbdServer_ = CreateNbdServer(nbdConfig, NbdQueue_->GetInvoker());
-        }
-
         if (GetConfig()->EnableFairThrottler) {
             Throttlers_[EExecNodeThrottlerKind::JobIn] = ClusterNodeBootstrap_->GetInThrottler("job_in");
             Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = ClusterNodeBootstrap_->GetInThrottler("artifact_cache_in");
@@ -172,6 +166,12 @@ public:
 
     void Run() override
     {
+        auto nbdConfig = DynamicConfig_.Acquire()->ExecNode->Nbd;
+        if (nbdConfig && nbdConfig->Enabled) {
+            NbdQueue_ = New<TActionQueue>("Nbd");
+            NbdServer_ = CreateNbdServer(nbdConfig, NbdQueue_->GetInvoker());
+        }
+
         SetNodeByYPath(
             GetOrchidRoot(),
             "/exec_node",
@@ -249,15 +249,6 @@ public:
     TClusterNodeDynamicConfigPtr GetDynamicConfig() const override
     {
         return DynamicConfig_.Acquire();
-    }
-
-    TNbdConfigPtr GetNbdConfig() const override
-    {
-        auto config = GetDynamicConfig()->ExecNode->Nbd;
-        if (!config) {
-            config = GetConfig()->ExecNode->Nbd;
-        }
-        return config;
     }
 
     NYT::NNbd::INbdServerPtr GetNbdServer() const override
@@ -360,6 +351,8 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+
         if (!GetConfig()->EnableFairThrottler) {
             for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
                 auto dataNodeThrottlerKind = GetDataNodeThrottlerKind(kind);

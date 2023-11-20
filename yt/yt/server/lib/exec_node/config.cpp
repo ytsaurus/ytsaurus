@@ -816,9 +816,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("sensor_dump_timeout", &TThis::SensorDumpTimeout)
         .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("nbd", &TThis::Nbd)
-        .Default();
-
     registrar.Preprocessor([] (TThis* config) {
         // 10 user jobs containers per second by default.
         config->UserJobContainerCreationThrottler->Limit = 10;

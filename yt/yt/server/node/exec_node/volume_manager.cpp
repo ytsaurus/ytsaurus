@@ -2822,7 +2822,7 @@ private:
             artifactKey.data_source().path(),
             artifactKey.filesystem());
 
-        auto nbdConfig = Bootstrap_->GetNbdConfig();
+        auto nbdConfig = DynamicConfig_->GetConfig()->ExecNode->Nbd;
         auto nbdServer = Bootstrap_->GetNbdServer();
 
         if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {

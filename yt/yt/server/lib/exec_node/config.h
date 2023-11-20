@@ -764,8 +764,6 @@ public:
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
 
-    TNbdConfigPtr Nbd;
-
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 
     static void Register(TRegistrar registrar);
