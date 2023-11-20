@@ -146,7 +146,24 @@ void TTabletCellBundle::Load(TLoadContext& context)
         Load(context, *AbcConfig_);
     }
     Load(context, FolderId_);
-    Load(context, BundleControllerTargetConfig_);
+
+    // COMPAT(capone212)
+    if (context.GetVersion() >= EMasterReign::BundleControllerConfigAttribute) {
+        Load(context, BundleControllerTargetConfig_);
+    } else if (Attributes_) {
+        auto& attributesSet = Attributes_->Attributes();
+        auto it = attributesSet.find(EInternedAttributeKey::BundleControllerTargetConfig.Unintern());
+        if (it != attributesSet.end()) {
+            YT_LOG_INFO("Moving bundle attribute from user attributes to system attributes"
+                "(ObjectId: %v, AttributeKey: %v, AttributeValue: %v)",
+                Id_,
+                EInternedAttributeKey::BundleControllerTargetConfig.Unintern(),
+                ConvertToYsonString(it->second, EYsonFormat::Text));
+
+            BundleControllerTargetConfig_ = std::move(it->second);
+            Attributes_->Remove(EInternedAttributeKey::BundleControllerTargetConfig.Unintern());
+        }
+    }
 }
 
 void TTabletCellBundle::OnProfiling(TTabletCellBundleProfilingCounters* counters)

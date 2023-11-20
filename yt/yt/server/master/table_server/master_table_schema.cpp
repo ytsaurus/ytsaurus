@@ -58,21 +58,38 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     auto tableSchema = Load<TTableSchema>(context);
-    if (IsObjectAlive(this)) {
-        const auto& tableManager = context.GetBootstrap()->GetTableManager();
 
-        if (IsNative()) {
+    // COMPAT(h0pless)
+    if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
+        if (IsObjectAlive(this)) {
+            const auto& tableManager = context.GetBootstrap()->GetTableManager();
             SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
         } else {
-            // Imported schemas require no registration because reverse
-            // index for imported schemas is not necessary.
             TableSchema_ = New<TTableSchema>(std::move(tableSchema));
         }
     } else {
-        TableSchema_ = New<TTableSchema>(std::move(tableSchema));
-    }
+        if (IsObjectAlive(this)) {
+            const auto& tableManager = context.GetBootstrap()->GetTableManager();
 
-    Load(context, CellTagToExportCount_);
+            if (IsNative()) {
+                SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
+            } else {
+                // Imported schemas require no registration because reverse
+                // index for imported schemas is not necessary.
+                TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+            }
+        } else {
+            TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+        }
+
+        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
+            if (Load<bool>(context)) {
+                CellTagToExportCount_ = Load<TCellTagToExportRefcount>(context);
+            }
+        } else {
+            Load(context, CellTagToExportCount_);
+        }
+    }
 
     if (context.GetVersion() >= EMasterReign::AddChunkSchemas) {
         Load(context, ReferencingAccounts_);

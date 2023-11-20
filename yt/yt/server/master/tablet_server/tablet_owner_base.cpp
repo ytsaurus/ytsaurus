@@ -56,8 +56,11 @@ void TTabletOwnerBase::TTabletOwnerAttributes::Load(TLoadContext& context)
     Load(context, CurrentMountTransactionId);
     Load(context, TabletStatistics);
     Load(context, InMemoryMode);
-    Load(context, SettingsUpdateRevision);
-    Load(context, RemountNeededTabletCount);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
+        Load(context, SettingsUpdateRevision);
+        Load(context, RemountNeededTabletCount);
+    }
 }
 
 void TTabletOwnerBase::TTabletOwnerAttributes::CopyFrom(const TTabletOwnerAttributes* other)

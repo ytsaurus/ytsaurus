@@ -349,8 +349,11 @@ void TObject::Load(NCellMaster::TLoadContext& context)
         SetForeign();
     }
     Load(context, Aevum_);
-    Load(context, AttributeRevision_);
-    Load(context, ContentRevision_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::ObjectRevisions) {
+        Load(context, AttributeRevision_);
+        Load(context, ContentRevision_);
+    }
 }
 
 void TObject::SaveEctoplasm(TStreamSaveContext& context) const

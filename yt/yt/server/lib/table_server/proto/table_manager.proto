@@ -59,3 +59,9 @@ message TReqUnimportMasterTableSchema
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(h0pless): RefactorSchemaExport
+message TReqTakeArtificialRef
+{
+    repeated NYT.NProto.TGuid schema_ids = 1;
+}

@@ -23,6 +23,8 @@ using namespace NHydra;
 using namespace NProfiling;
 using namespace NProto;
 
+using NYT::ToProto;
+
 static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,6 +150,15 @@ protected:
     {
         TMasterAutomatonPart::OnStopLeading();
         TransientClear();
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        for (const auto& statisticsPieceCollector : StatisticsPieceCollectors_) {
+            statisticsPieceCollector->OnAfterSnapshotLoaded();
+        }
     }
 
 private:
@@ -381,10 +392,16 @@ private:
 
     void Load(NCellMaster::TLoadContext& context)
     {
+        if (context.GetVersion() < EMasterReign::MasterCellChunkStatisticsCollector) {
+            Running_ = false;
+            return;
+        }
+
         using NYT::Load;
 
         auto statisticsPieceCollectorCount = Load<size_t>(context);
         YT_VERIFY(statisticsPieceCollectorCount == StatisticsPieceCollectors_.size());
+
         for (const auto& collector : StatisticsPieceCollectors_) {
             collector->Load(context);
         }

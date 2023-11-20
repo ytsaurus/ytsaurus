@@ -148,10 +148,17 @@ public:
         RegisterMethod(BIND(&TTableManager::HydraImportMasterTableSchema, Unretained(this)));
         RegisterMethod(BIND(&TTableManager::HydraUnimportMasterTableSchema, Unretained(this)));
 
+        // COMPAT(h0pless): RefactorSchemaExport
+        RegisterMethod(BIND(&TTableManager::HydraTakeArtificialRef, Unretained(this)));
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
         objectManager->RegisterHandler(CreateTableCollocationTypeHandler(Bootstrap_, &TableCollocationMap_));
         objectManager->RegisterHandler(CreateSecondaryIndexTypeHandler(Bootstrap_, &SecondaryIndexMap_));
+
+        // COMPAT(h0pless): Remove this after empty schema migration is complete.
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        PrimaryCellEmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, primaryCellTag, 0xffffffffffffffff);
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
@@ -1250,6 +1257,12 @@ private:
 
     TMasterTableSchema::TNativeTableSchemaToObjectMap NativeTableSchemaToObjectMap_;
 
+    // COMPAT(h0pless): Remove this after empty schema migration is complete.
+    TMasterTableSchemaId PrimaryCellEmptyMasterTableSchemaId_;
+
+    // COMPAT(h0pless): RefactorSchemaExport
+    bool NeedTakeArtificialRef_ = false;
+
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
 
@@ -1567,6 +1580,21 @@ private:
         objectManager->UnrefObject(schema);
     }
 
+    void HydraTakeArtificialRef(NProto::TReqTakeArtificialRef* request)
+    {
+        YT_LOG_DEBUG("Received TakeArtificialRef request (RequestSize: %v)",
+            request->schema_ids_size());
+        for (auto protoSchemaId : request->schema_ids()) {
+            auto schemaId = FromProto<TMasterTableSchemaId>(protoSchemaId);
+            auto* schema = GetMasterTableSchema(schemaId);
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            // All imported schemas should have an artificial ref.
+            // This is done to make sure that native cell is managing their lifetime.
+            objectManager->RefObject(schema);
+        }
+    }
+
     void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1583,6 +1611,8 @@ private:
         Consumers_.clear();
 
         NeedToAddReplicatedQueues_ = false;
+
+        NeedTakeArtificialRef_ = false;
     }
 
     void SetZeroState() override
@@ -1621,6 +1651,55 @@ private:
         Load(context, Consumers_);
 
         NeedToAddReplicatedQueues_ = context.GetVersion() < EMasterReign::QueueReplicatedTablesList;
+
+        auto schemaExportMode = ESchemaMigrationMode::None;
+        if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
+            schemaExportMode = ESchemaMigrationMode::AllSchemas;
+        } else if (context.GetVersion() < EMasterReign::ExportEmptyMasterTableSchemas) {
+            schemaExportMode = ESchemaMigrationMode::EmptySchemaOnly;
+        }
+
+        if (EMasterReign::ExportMasterTableSchemas < context.GetVersion() &&
+            context.GetVersion() < EMasterReign::RefactorSchemaExport)
+        {
+            NeedTakeArtificialRef_ = true;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        // COMPAT(h0pless): Remove this after schema cmigration is complete.
+        if (schemaExportMode == ESchemaMigrationMode::None) {
+            return;
+        }
+
+        if (schemaExportMode == ESchemaMigrationMode::AllSchemas || multicellManager->IsPrimaryMaster()) {
+            // Just load schemas as usual.
+            EmptyMasterTableSchema_ = GetMasterTableSchema(EmptyMasterTableSchemaId_);
+            YT_VERIFY(EmptyMasterTableSchema_->IsNative());
+        } else if (schemaExportMode == ESchemaMigrationMode::EmptySchemaOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto* oldEmptyMasterTableSchema = GetMasterTableSchema(PrimaryCellEmptyMasterTableSchemaId_);
+
+            // Un-import old empty schema.
+            NativeTableSchemaToObjectMap_.erase(oldEmptyMasterTableSchema->GetNativeTableSchemaToObjectMapIterator());
+            oldEmptyMasterTableSchema->ResetNativeTableSchemaToObjectMapIterator();
+            // The above iterator reset should've retained the actual
+            // TTableSchema inside the old object.
+
+            // Historically, this schema hasn't been flagged as foreign, even
+            // though it actually is.
+            oldEmptyMasterTableSchema->SetForeign();
+
+            // Allow it to die peacefully if need be.
+            objectManager->UnrefObject(oldEmptyMasterTableSchema);
+            oldEmptyMasterTableSchema->ResetExportRefCounters();
+
+            // Replace new empty schema with an even newer one.
+            EmptyMasterTableSchema_ = DoCreateMasterTableSchema(
+                EmptyTableSchema,
+                EmptyMasterTableSchemaId_,
+                /* isNative */ true);
+            YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
+        }
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -1873,6 +1952,52 @@ private:
                     if (replicatedTableNode->IsTrackedQueueObject()) {
                         RegisterQueue(replicatedTableNode);
                     }
+                }
+            }
+        }
+
+        if (NeedTakeArtificialRef_) {
+            THashMap<TCellTag, std::vector<TMasterTableSchemaId>> cellTagToExportedSchemaIds;
+            for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+                if (!IsObjectAlive(schema)) {
+                    continue;
+                }
+                if (!schema->IsNative()) {
+                    continue;
+                }
+
+                const auto& cellTagToExportCount = schema->CellTagToExportCount();
+                for (const auto& [cellTag, refCounter] : cellTagToExportCount) {
+                    cellTagToExportedSchemaIds[cellTag].push_back(schemaId);
+                }
+            }
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto sendRequestAndLog = [&] (TCellTag cellTag, NProto::TReqTakeArtificialRef& req) {
+                YT_LOG_DEBUG("Sending TakeArtificialRef request (DestinationCellTag: %v, RequestSize: %v)",
+                    cellTag,
+                    req.schema_ids_size());
+                multicellManager->PostToMaster(req, cellTag);
+                req.clear_schema_ids();
+            };
+
+            const auto maxBatchSize = 10000;
+            for (const auto& [cellTag, schemaIds] : cellTagToExportedSchemaIds) {
+                auto batchSize = 0;
+                NProto::TReqTakeArtificialRef req;
+                for (auto schemaId : schemaIds) {
+                    auto subreq = req.add_schema_ids();
+                    ToProto(subreq, schemaId);
+                    ++batchSize;
+
+                    if (batchSize >= maxBatchSize) {
+                        sendRequestAndLog(cellTag, req);
+                        batchSize = 0;
+                    }
+                }
+
+                if (batchSize != 0) {
+                    sendRequestAndLog(cellTag, req);
                 }
             }
         }

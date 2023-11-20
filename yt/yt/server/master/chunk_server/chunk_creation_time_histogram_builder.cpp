@@ -45,6 +45,10 @@ public:
 
     void PersistentClear() noexcept override
     {
+        // NB: `Load()` may be not called if snapshot does not contain chunk
+        // creation time histogram builder.
+        NeedBuildHistogramFromSnapshot_ = true;
+
         Bounds_ = GetDynamicConfig()->CreationTimeHistogramBucketBounds;
         // TODO(gritukan): Fix dynamic config manager and make sure that bounds are never empty.
         if (Bounds_.empty()) {
@@ -137,7 +141,6 @@ public:
     {
         using NYT::Save;
 
-        YT_VERIFY(!Bounds_.empty());
         Save(context, Bounds_);
 
         {
@@ -149,9 +152,12 @@ public:
 
     void Load(NCellMaster::TLoadContext& context) override
     {
+        NeedBuildHistogramFromSnapshot_ = context.GetVersion() < EMasterReign::FixChunkCreationTimeHistogramAgain;
+
         using NYT::Load;
 
         Load(context, Bounds_);
+        // COMPAT(gritukan): EMasterReign::FixChunkCreationTimeHistograms
         YT_VERIFY(!Bounds_.empty());
 
         InitializeHistogram();
@@ -159,11 +165,32 @@ public:
         THistogramSnapshot snapshot;
         Load(context, snapshot.Bounds);
         Load(context, snapshot.Values);
-        Histogram_.LoadSnapshot(std::move(snapshot));
+        if (!NeedBuildHistogramFromSnapshot_) {
+            Histogram_.LoadSnapshot(std::move(snapshot));
+        }
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        if (!NeedBuildHistogramFromSnapshot_) {
+            return;
+        }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        for (auto [chunkId, chunk] : chunkManager->Chunks()) {
+            if (!chunk->IsJournal()) {
+                Histogram_.Add(GetCreationTime(chunk).MillisecondsFloat());
+            }
+        }
+
+        YT_LOG_DEBUG("Chunk creation time histogram built");
     }
 
 private:
     TBootstrap* const Bootstrap_;
+
+    // COMPAT(kvk1920): EMasterReign::MasterCellChunkStatisticsCollector
+    bool NeedBuildHistogramFromSnapshot_ = true;
 
     // Persistent.
     std::vector<TInstant> Bounds_;
@@ -211,6 +238,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 IMasterCellChunkStatisticsPieceCollectorPtr CreateChunkCreationTimeHistogramBuilder(
     TBootstrap* bootstrap)

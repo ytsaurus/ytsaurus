@@ -27,6 +27,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = SecurityServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -268,8 +272,23 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     TNullableIntrusivePtrSerializer<>::Load(context, AbcConfig_);
     Load(context, FolderId_);
     Load(context, ChunkMergerNodeTraversalConcurrency_);
-    Load(context, AllowUsingChunkMerger_);
-    Load(context, ChunkMergerCriteria_);
+
+    // COMPAT(aleksandra-zh)
+    const auto& attributeName = EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency.Unintern();
+    if (auto value = FindAttribute(attributeName)) {
+        YT_VERIFY(Attributes_->Remove(attributeName));
+        YT_LOG_INFO("Dropping custom chunk merger traversal concurrency value (Value: %v, AccountId: %v)",
+            *value,
+            GetId());
+    }
+
+    if (context.GetVersion() >= EMasterReign::AllowSettingChunkMergerMode) {
+        Load(context, AllowUsingChunkMerger_);
+    }
+
+    if (context.GetVersion() >= EMasterReign::SupportAccountChunkMergerCriteria) {
+        Load(context, ChunkMergerCriteria_);
+    }
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 
