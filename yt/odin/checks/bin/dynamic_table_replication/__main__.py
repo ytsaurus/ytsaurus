@@ -253,9 +253,16 @@ def run_check(yt_client, logger, options, states):
             try:
                 metacluster_client.insert_rows(replicated_table_path, [row], **insert_options)
             except MetaClusterError as e:
-                if isinstance(e.inner, YtError) and e.inner.contains_code(1714):  # NoSyncReplicas
-                    logger.warning("Encountered NoSyncReplicas error; will retry")
-                    return False
+                if isinstance(e.inner, YtError):
+                    if e.inner.contains_code(1714):  # NoSyncReplicas
+                        logger.warning("Encountered NoSyncReplicas error; will retry")
+                        return False
+                    elif e.inner.contains_code(1724):  # SyncReplicaIsNotWritten
+                        logger.warning("Encountered SyncReplicaIsNotWritten error; will retry")
+                        return False
+                    elif e.inner.contains_code(1723):  # SyncReplicaIsNotInSyncMode
+                        logger.warning("Encountered SyncReplicaIsNotInSyncMode error; will retry")
+                        return False
                 raise e
             return True
         wait_for_result(_write, "rows to get written", raise_metacluster_error=True)

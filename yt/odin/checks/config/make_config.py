@@ -111,6 +111,15 @@ def get_checks_config():
         "soft_select_timeout": 30,
         "temp_tables_path": "//sys/admin/odin/chyt_clique_liveness"
     }
+    dynamic_table_replication_stable = {
+        "dynamic_table_replication": {
+            "enable": True,
+            "options": {
+                "metacluster": "markov",
+                "replica_clusters": ["seneca-vla", "markov"],
+            },
+        },
+    }
     dynamic_table_replication_prestable = {
         "dynamic_table_replication": {
             "enable": True,
