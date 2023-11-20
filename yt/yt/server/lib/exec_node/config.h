@@ -629,6 +629,9 @@ public:
 
     bool EnableJobEnvironmentResurrection;
 
+    // COMPAT(psushin): only works in porto environment.
+    bool ShouldCloseDescriptors;
+
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

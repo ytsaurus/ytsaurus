@@ -675,6 +675,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
         .Default(false);
+
+    registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
