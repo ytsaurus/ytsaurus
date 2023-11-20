@@ -327,14 +327,14 @@ class TLayerLocation
 public:
     TLayerLocation(
         TLayerLocationConfigPtr locationConfig,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
         const TString& id)
         : TDiskLocation(locationConfig, id, ExecNodeLogger)
         , Config_(locationConfig)
-        , DynamicConfig_(dynamicConfig)
+        , DynamicConfigManager_(dynamicConfigManager)
         , VolumeExecutor_(std::move(volumeExecutor))
         , LayerExecutor_(std::move(layerExecutor))
         , LocationQueue_(New<TActionQueue>(id))
@@ -466,7 +466,7 @@ public:
 
         YT_LOG_ERROR(error, "Volume manager disabled; terminating");
 
-        if (DynamicConfig_->GetConfig()->DataNode->AbortOnLocationDisabled) {
+        if (DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled) {
             TProgram::Abort(EProgramExitCode::ProgramError);
         }
     }
@@ -533,7 +533,7 @@ public:
 
 private:
     const TLayerLocationConfigPtr Config_;
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IPortoExecutorPtr VolumeExecutor_;
     const IPortoExecutorPtr LayerExecutor_;
 
@@ -628,7 +628,7 @@ private:
             if (!fileIds.contains(id)) {
                 YT_LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
-                auto async = DynamicConfig_
+                auto async = DynamicConfigManager_
                     ->GetConfig()
                     ->ExecNode
                     ->VolumeManager
@@ -934,7 +934,7 @@ private:
 
             DoFinalizeLayerImport(layerMeta, tag);
 
-            if (auto delay = DynamicConfig_->GetConfig()->ExecNode->VolumeManager->DelayAfterLayerImported) {
+            if (auto delay = DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->DelayAfterLayerImported) {
                 TDelayedExecutor::WaitForDuration(*delay);
             }
 
@@ -951,7 +951,7 @@ private:
 
             Disable(error);
 
-            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);
@@ -984,7 +984,7 @@ private:
                 isSquashfsLayer);
 
             if (!isSquashfsLayer) {
-                auto async = DynamicConfig_
+                auto async = DynamicConfigManager_
                     ->GetConfig()
                     ->ExecNode
                     ->VolumeManager
@@ -1010,7 +1010,7 @@ private:
                 << ex;
             Disable(error);
 
-            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);
@@ -1099,7 +1099,7 @@ private:
                 volumeId) << ex;
             Disable(error);
 
-            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);
@@ -1256,7 +1256,7 @@ private:
                 << ex;
             Disable(error);
 
-            if (DynamicConfig_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);
@@ -1388,14 +1388,14 @@ public:
     TTmpfsLayerCache(
         IBootstrap* const bootstrap,
         TTmpfsLayerCacheConfigPtr config,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         const TString& cacheName,
         IPortoExecutorPtr portoExecutor,
         TAbsorbLayerCallback absorbLayer)
         : Config_(std::move(config))
-        , DynamicConfig_(std::move(dynamicConfig))
+        , DynamicConfigManager_(std::move(dynamicConfigManager))
         , ControlInvoker_(std::move(controlInvoker))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , CacheName_(cacheName)
@@ -1471,7 +1471,7 @@ public:
 
             TmpfsLocation_ = New<TLayerLocation>(
                 std::move(locationConfig),
-                DynamicConfig_,
+                DynamicConfigManager_,
                 nullptr,
                 PortoExecutor_,
                 PortoExecutor_,
@@ -1525,7 +1525,7 @@ public:
 
 private:
     const TTmpfsLayerCacheConfigPtr Config_;
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const TString CacheName_;
@@ -1763,7 +1763,7 @@ class TLayerCache
 public:
     TLayerCache(
         const TVolumeManagerConfigPtr& config,
-        const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfig,
+        const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
         std::vector<TLayerLocationPtr> layerLocations,
         IPortoExecutorPtr tmpfsExecutor,
         IVolumeChunkCachePtr chunkCache,
@@ -1777,7 +1777,7 @@ public:
                 : 0),
             ExecNodeProfiler.WithPrefix("/layer_cache"))
         , Config_(config)
-        , DynamicConfig_(dynamicConfig)
+        , DynamicConfigManager_(dynamicConfigManager)
         , ChunkCache_(chunkCache)
         , ControlInvoker_(controlInvoker)
         , LayerLocations_(std::move(layerLocations))
@@ -1794,7 +1794,7 @@ public:
         RegularTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
             Config_->RegularTmpfsLayerCache,
-            DynamicConfig_,
+            DynamicConfigManager_,
             ControlInvoker_,
             memoryUsageTracker,
             "regular",
@@ -1804,7 +1804,7 @@ public:
         NirvanaTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
             Config_->NirvanaTmpfsLayerCache,
-            DynamicConfig_,
+            DynamicConfigManager_,
             ControlInvoker_,
             memoryUsageTracker,
             "nirvana",
@@ -1912,7 +1912,7 @@ public:
 
 private:
     const TVolumeManagerConfigPtr Config_;
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IVolumeChunkCachePtr ChunkCache_;
     const IInvokerPtr ControlInvoker_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
@@ -2352,14 +2352,14 @@ class TPortoVolumeManager
 public:
     TPortoVolumeManager(
         NDataNode::TDataNodeConfigPtr config,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IVolumeChunkCachePtr chunkCache,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* const bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
-        , DynamicConfig_(std::move(dynamicConfig))
+        , DynamicConfigManager_(std::move(dynamicConfigManager))
         , ChunkCache_(std::move(chunkCache))
         , ControlInvoker_(std::move(controlInvoker))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
@@ -2381,7 +2381,7 @@ public:
             try {
                 auto location = New<TLayerLocation>(
                     locationConfig,
-                    DynamicConfig_,
+                    DynamicConfigManager_,
                     Config_->DiskHealthChecker,
                     CreatePortoExecutor(
                         Config_->VolumeManager->PortoExecutor,
@@ -2430,7 +2430,7 @@ public:
             ExecNodeProfiler.WithPrefix("/tmpfs_layers/porto"));
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
-            DynamicConfig_,
+            DynamicConfigManager_,
             Locations_,
             tmpfsExecutor,
             ChunkCache_,
@@ -2530,7 +2530,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
     const TDataNodeConfigPtr Config_;
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IVolumeChunkCachePtr ChunkCache_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
@@ -2758,7 +2758,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 
 TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     TDataNodeConfigPtr config,
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     IVolumeChunkCachePtr chunkCache,
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
@@ -2766,7 +2766,7 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
 {
     auto volumeManager = New<TPortoVolumeManager>(
         std::move(config),
-        std::move(dynamicConfig),
+        std::move(dynamicConfigManager),
         std::move(chunkCache),
         std::move(controlInvoker),
         std::move(memoryUsageTracker),

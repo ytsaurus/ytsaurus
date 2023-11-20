@@ -80,7 +80,7 @@ DEFINE_REFCOUNTED_TYPE(IVolumeManager)
 //! including population of on-disk and tmpfs layer cache.
 TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     NDataNode::TDataNodeConfigPtr config,
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     IVolumeChunkCachePtr chunkCache,
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
