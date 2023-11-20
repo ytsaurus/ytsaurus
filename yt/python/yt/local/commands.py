@@ -82,7 +82,7 @@ def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare
     if start_proxy:
         logger.info("HTTP proxy addresses: %s", environment.get_http_proxy_addresses())
         if "localhost" not in environment.get_proxy_address():
-            logger.info("UI address: %s", LOCAL_MODE_URL_PATTERN.format(local_mode_address=environment.get_proxy_address()))
+            logger.info("UI address: http://%s", LOCAL_MODE_URL_PATTERN.format(local_mode_address=environment.get_proxy_address()))
     if start_rpc_proxy:
         logger.info("GRPC proxy address: %s", environment.get_grpc_proxy_address())
 
