@@ -184,32 +184,35 @@ Y_UNIT_TEST_SUITE(Common)
         tableSchema.AddColumn("b", NTi::Optional(NTi::Decimal(35, 18)));
         tableSchema.AddColumn("c", NTi::List(NTi::Decimal(35, 18)));
 
-        auto tableSchemaNode = tableSchema.ToNode().AsList();
+        auto tableSchemaNode = tableSchema.ToNode();
+        const auto& tableSchemaNodeList = tableSchemaNode.AsList();
 
         // There was a bug in the serialization of decimal type: https://github.com/ytsaurus/ytsaurus/issues/173
         {
-            const auto& currentType = tableSchemaNode[0];
-            UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "any");
+            const auto& currentType = tableSchemaNodeList[0];
+            UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "string");
             UNIT_ASSERT(currentType.ChildAsBool("required"));
             UNIT_ASSERT(currentType.HasKey("type_v3"));
             UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").ChildAsString("type_name"), "decimal");
         }
         {
-            const auto& currentType = tableSchemaNode[1];
-            UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "any");
+            const auto& currentType = tableSchemaNodeList[1];
+            UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "string");
             UNIT_ASSERT(!currentType.ChildAsBool("required"));
             UNIT_ASSERT(currentType.HasKey("type_v3"));
             UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").ChildAsString("type_name"), "optional");
             UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").At("item").ChildAsString("type_name"), "decimal");
         }
         {
-            const auto& currentType = tableSchemaNode[2];
+            const auto& currentType = tableSchemaNodeList[2];
             UNIT_ASSERT_VALUES_EQUAL(currentType.ChildAsString("type"), "any");
             UNIT_ASSERT(currentType.ChildAsBool("required"));
             UNIT_ASSERT(currentType.HasKey("type_v3"));
             UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").ChildAsString("type_name"), "list");
             UNIT_ASSERT_VALUES_EQUAL(currentType.At("type_v3").At("item").ChildAsString("type_name"), "decimal");
         }
+
+        UNIT_ASSERT_EQUAL(tableSchema, TTableSchema::FromNode(tableSchemaNode));
     }
 
     Y_UNIT_TEST(TColumnSchema_TypeV3)
@@ -237,7 +240,7 @@ Y_UNIT_TEST_SUITE(Common)
         {
             auto column = TColumnSchema().Type(NTi::Decimal(35, 18));
             UNIT_ASSERT_VALUES_EQUAL(column.Required(), true);
-            UNIT_ASSERT_VALUES_EQUAL(column.Type(), VT_ANY);
+            UNIT_ASSERT_VALUES_EQUAL(column.Type(), VT_STRING);
         }
     }
 

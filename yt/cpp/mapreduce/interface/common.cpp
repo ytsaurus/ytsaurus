@@ -248,7 +248,7 @@ static std::pair<EValueType, bool> Simplify(const NTi::TTypePtr& type)
         case ETypeName::Json:
             return {VT_JSON, true};
         case ETypeName::Decimal:
-            return {VT_ANY, true};
+            return {VT_STRING, true};
         case ETypeName::Uuid:
             break;
         case ETypeName::Yson:
