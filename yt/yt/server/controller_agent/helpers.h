@@ -47,8 +47,8 @@ struct TUserFile
     NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     bool Dynamic = false;
     bool Layer = false;
-    std::optional<TString> Filesystem;
-    std::optional<TString> AccessMethod;
+    std::optional<ELayerAccessMethod> AccessMethod;
+    std::optional<ELayerFilesystem> Filesystem;
 
     // This field is used only during file size validation only for table chunks with column selectors.
     std::vector<NChunkClient::TInputChunkPtr> Chunks;

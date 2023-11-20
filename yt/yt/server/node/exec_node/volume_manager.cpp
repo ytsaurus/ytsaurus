@@ -85,6 +85,9 @@ using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
 
+using NControllerAgent::ELayerAccessMethod;
+using NControllerAgent::ELayerFilesystem;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecNodeLogger;
@@ -1141,7 +1144,7 @@ private:
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         }
         builder.AppendFormat("&export=%v", artifactKey.nbd_export_id());
-        builder.AppendFormat("&fs-type=%v", artifactKey.filesystem());
+        builder.AppendFormat("&fs-type=%v", ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())));
         volumeProperties["storage"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
@@ -2403,7 +2406,7 @@ public:
 private:
     const TVolumeMeta VolumeMeta_;
     const TArtifactKey ArtifactKey_;
-    // We store chunk cache artifact here to make sure that SquashFS file outlives SqushFS volume.
+    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
     const IVolumeArtifactPtr ChunkCacheArtifact_;
     const TLayerLocationPtr Location_;
 
@@ -2572,10 +2575,10 @@ public:
         for (auto i = 0; i < ssize(artifactKeys); ++i) {
             const auto& artifactKey = artifactKeys[i];
 
-            if (artifactKey.access_method() == NControllerAgent::TLayerAccessMethod::Nbd) {
+            if (FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd) {
                 nbdArtifactPositions.push_back(i);
                 nbdArtifactKeys.push_back(artifactKey);
-            } else if (artifactKey.filesystem() == NControllerAgent::TLayerFilesystem::SquashFS) {
+            } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
                 squashFSArtifactPositions.push_back(i);
                 squashFSArtifactKeys.push_back(artifactKey);
             } else {
@@ -2733,8 +2736,8 @@ private:
         futures.reserve(artifactKeys.size());
 
         for (const auto& artifactKey : artifactKeys) {
-            YT_VERIFY(!artifactKey.has_access_method() || artifactKey.access_method() == NControllerAgent::TLayerAccessMethod::Local);
-            YT_VERIFY(!artifactKey.has_filesystem() || artifactKey.filesystem() == NControllerAgent::TLayerFilesystem::Archive);
+            YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+            YT_VERIFY(!artifactKey.has_filesystem() || FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::Archive);
             YT_VERIFY(!artifactKey.has_nbd_export_id());
             futures.push_back(LayerCache_->PrepareLayer(artifactKey, downloadOptions, tag).As<TOverlayData>());
         }
@@ -2757,7 +2760,7 @@ private:
         futures.reserve(artifactKeys.size());
 
         for (const auto& artifactKey : artifactKeys) {
-            YT_VERIFY(artifactKey.access_method() == NControllerAgent::TLayerAccessMethod::Nbd);
+            YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
             YT_VERIFY(artifactKey.has_filesystem());
             YT_VERIFY(artifactKey.has_nbd_export_id());
 
@@ -2792,14 +2795,14 @@ private:
         futures.reserve(artifactKeys.size());
 
         for (const auto& artifactKey : artifactKeys) {
-            YT_VERIFY(!artifactKey.has_access_method() || artifactKey.access_method() == NControllerAgent::TLayerAccessMethod::Local);
-            YT_VERIFY(artifactKey.filesystem() == NControllerAgent::TLayerFilesystem::SquashFS);
+            YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+            YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
             YT_VERIFY(!artifactKey.has_nbd_export_id());
 
             auto downloadFuture = ChunkCache_->DownloadArtifact(artifactKey, downloadOptions);
             auto volumeFuture = downloadFuture.Apply(
                 BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
-                    // We pass chunkCacheArtifact here to save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
+                    // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
                     return this_->CreateSquashFSVolume(tag, artifactKey, chunkCacheArtifact);
                 }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
 

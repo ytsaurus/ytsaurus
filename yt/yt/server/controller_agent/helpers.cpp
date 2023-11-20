@@ -202,12 +202,12 @@ void BuildFileSpec(
     }
 
     if (file.Layer) {
-        if (file.Filesystem) {
-            descriptor->set_filesystem(*file.Filesystem);
+        if (file.AccessMethod) {
+            descriptor->set_access_method(ToProto<int>(*file.AccessMethod));
         }
 
-        if (file.AccessMethod) {
-            descriptor->set_access_method(*file.AccessMethod);
+        if (file.Filesystem) {
+            descriptor->set_filesystem(ToProto<int>(*file.Filesystem));
         }
     }
 }

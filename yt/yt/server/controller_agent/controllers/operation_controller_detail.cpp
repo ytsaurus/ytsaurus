@@ -7226,24 +7226,26 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                             if (file.Layer) {
                                 // Get access_method and filesystem attributes only for layers.
-                                file.AccessMethod = attributes.Find<TString>("access_method").value_or(ToString(TLayerAccessMethod::Default));
-                                file.AccessMethod->to_lower();
-                                if (!TLayerAccessMethod::IsKnownAccessMethod(*file.AccessMethod)) {
-                                    THROW_ERROR_EXCEPTION("Invalid access_method %v of a file %v",
+                                auto accessMethod = attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local));
+                                try {
+                                    file.AccessMethod = TEnumTraits<ELayerAccessMethod>::FromString(accessMethod);
+                                } catch (const std::exception& ex) {
+                                    THROW_ERROR_EXCEPTION("Unknown access_method %v of a file %v",
                                         *file.AccessMethod,
-                                        file.Path);
+                                        file.Path) << ex;
                                 }
 
-                                file.Filesystem = attributes.Find<TString>("filesystem").value_or(ToString(TLayerFilesystem::Default));
-                                file.Filesystem->to_lower();
-                                if (!TLayerFilesystem::IsKnownFilesystem(*file.Filesystem)) {
-                                    THROW_ERROR_EXCEPTION("Invalid filesystem %v of a file %v",
+                                auto filesystem = attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive));
+                                try {
+                                    file.Filesystem = TEnumTraits<ELayerFilesystem>::FromString(filesystem);
+                                } catch (const std::exception& ex) {
+                                    THROW_ERROR_EXCEPTION("Unknown filesystem %v of a file %v",
                                         *file.Filesystem,
-                                        file.Path);
+                                        file.Path) << ex;
                                 }
 
-                                // Some filesystem, access_mode combinations are invalid as of now.
-                                if (!TLayerFilesystem::IsCompatible(*file.AccessMethod, *file.Filesystem)) {
+                                // Some access_method, filesystem combinations are invalid as of now.
+                                if (!AreCompatible(*file.AccessMethod, *file.Filesystem)) {
                                     THROW_ERROR_EXCEPTION("Invalid access_mode %v, filesystem %v combination of a file %v",
                                         *file.AccessMethod,
                                         *file.Filesystem,

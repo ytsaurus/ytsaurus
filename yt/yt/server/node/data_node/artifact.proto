@@ -11,9 +11,9 @@ message TArtifactKey
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 6;
     required NYT.NChunkClient.NProto.TDataSource data_source = 7;
     optional bool is_squashfs_image = 8 [default = false];
-    optional string filesystem = 9;
-    optional string nbd_export_id = 10;
-    optional string access_method = 11;
+    optional int32 access_method = 9;   // ELayerAccessMethod
+    optional int32 filesystem = 10;     // ELayerFilesystem
+    optional string nbd_export_id = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -158,51 +158,36 @@ struct TControllerAgentDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLayerAccessMethod
+DEFINE_ENUM(ELayerAccessMethod,
+    ((Unknown)  (1)     ("unknown"))
+    ((Local)    (2)     ("local"))
+    ((Nbd)      (3)     ("nbd"))
+);
+
+DEFINE_ENUM(ELayerFilesystem,
+    ((Unknown)      (1)     ("unknown"))
+    ((Archive)      (2)     ("archive"))
+    ((Ext3)         (3)     ("ext3"))
+    ((Ext4)         (4)     ("ext4"))
+    ((SquashFS)     (5)     ("squashfs"))
+);
+
+inline bool AreCompatible(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
 {
-    static constexpr TStringBuf Local = "local";
-    static constexpr TStringBuf Nbd = "nbd";
-    static constexpr TStringBuf Default = "local";
-
-    static bool IsKnownAccessMethod(const TStringBuf& accessMethod)
-    {
-        return accessMethod == Local || accessMethod == Nbd;
-    }
-};
-
-struct TLayerFilesystem
-{
-    static constexpr TStringBuf Archive = "archive";
-    static constexpr TStringBuf Ext3 = "ext3";
-    static constexpr TStringBuf Ext4 = "ext4";
-    static constexpr TStringBuf SquashFS = "squashfs";
-    static constexpr TStringBuf Default = "archive";
-
-    static bool IsKnownFilesystem(const TStringBuf& filesystem)
-    {
-        return  filesystem == Archive ||
-                filesystem == Ext3 ||
-                filesystem == Ext4 ||
-                filesystem == SquashFS;
-    }
-
-    static bool IsCompatible(const TStringBuf& accessMethod, const TStringBuf& filesystem)
-    {
-        if (accessMethod == TLayerAccessMethod::Nbd && filesystem == Archive) {
+    if (accessMethod == ELayerAccessMethod::Nbd) {
+        if (filesystem == ELayerFilesystem::Archive) {
             return false;
         }
-
-        if (accessMethod == TLayerAccessMethod::Local && filesystem == Ext3) {
-            return false;
-        }
-
-        if (accessMethod == TLayerAccessMethod::Local && filesystem == Ext4) {
-            return false;
-        }
-
-        return true;
     }
-};
+
+    if (accessMethod == ELayerAccessMethod::Local) {
+        if (filesystem == ELayerFilesystem::Ext3 || filesystem == ELayerFilesystem::Ext4) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

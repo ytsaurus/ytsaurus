@@ -117,8 +117,8 @@ message TFileDescriptor
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
     optional bool bypass_artifact_cache = 10;
     optional bool copy_file = 11;
-    optional string filesystem = 12;
-    optional string access_method = 13;
+    optional int32 access_method = 12;  // ELayerAccessMethod
+    optional int32 filesystem = 13;     // ELayerFilesystem
 }
 
 message TTableBlobSpec
