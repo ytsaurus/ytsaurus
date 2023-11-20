@@ -124,11 +124,11 @@ public:
             .Run();
     }
 
-    void CancelQuery(TQueryId queryId, const TError& error) override
+    void AbortQuery(TQueryId queryId, const TError& error) override
     {
-        YT_LOG_INFO(error, "Cancelling query (QueryId: %v)", queryId);
+        YT_LOG_INFO(error, "Aborting query (QueryId: %v)", queryId);
 
-        YqlPlugin_->Cancel(queryId);
+        YqlPlugin_->Abort(queryId);
     }
 
     TRspGetQueryProgress GetQueryProgress(TQueryId queryId) override

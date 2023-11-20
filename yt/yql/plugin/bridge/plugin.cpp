@@ -120,9 +120,9 @@ public:
         return queryResult;
     }
 
-    void Cancel(TQueryId /*queryId*/) noexcept override
+    void Abort(TQueryId /*queryId*/) noexcept override
     {
-        // TODO(gritukan): Call BridgeCancel when it will be merged in the YQL repository.
+        // TODO(gritukan): Call BridgeAbort when it will be merged in the YQL repository.
     }
 
     TQueryResult GetProgress(TQueryId queryId) noexcept override

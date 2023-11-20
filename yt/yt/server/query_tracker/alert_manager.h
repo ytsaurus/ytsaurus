@@ -18,7 +18,7 @@ public:
     DEFINE_SIGNAL(void(std::vector<TError>*), PopulateAlerts);
 
 public:
-    TAlertManager(IInvokerPtr controlInvoker);
+    explicit TAlertManager(IInvokerPtr controlInvoker);
 
     NYTree::IYPathServicePtr GetOrchidService() const;
 

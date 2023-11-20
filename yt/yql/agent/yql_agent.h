@@ -34,7 +34,7 @@ struct IYqlAgent
         const TString& impersonationUser,
         const NYqlClient::NProto::TReqStartQuery& request) = 0;
 
-    virtual void CancelQuery(TQueryId queryId, const TError& error) = 0;
+    virtual void AbortQuery(TQueryId queryId, const TError& error) = 0;
 
     virtual NYqlClient::NProto::TRspGetQueryProgress GetQueryProgress(TQueryId queryId) = 0;
 };

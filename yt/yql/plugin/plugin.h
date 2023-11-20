@@ -74,7 +74,7 @@ struct IYqlPlugin
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) noexcept = 0;
-    virtual void Cancel(TQueryId query) noexcept = 0;
+    virtual void Abort(TQueryId query) noexcept = 0;
 
     virtual TQueryResult GetProgress(TQueryId queryId) noexcept = 0;
 
