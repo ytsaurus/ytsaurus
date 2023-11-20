@@ -13,8 +13,7 @@ ENDIF()
 
 SIZE(MEDIUM)
 
-JAVA_SRCS(SRCDIR java **/*)
-JAVA_SRCS(SRCDIR resources **/*)
+DEFAULT_JUNIT_JAVA_SRCS_LAYOUT()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
 

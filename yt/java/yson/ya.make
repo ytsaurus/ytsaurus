@@ -16,7 +16,7 @@ PEERDIR(
     yt/java/annotations
 )
 
-JAVA_SRCS(SRCDIR src/main/java **/*)
+DEFAULT_JAVA_SRCS_LAYOUT()
 
 # Added automatically to remove dependency on default contrib versions
 DEPENDENCY_MANAGEMENT(
