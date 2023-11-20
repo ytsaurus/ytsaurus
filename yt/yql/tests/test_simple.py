@@ -236,7 +236,7 @@ class TestQueriesYql(TestQueriesYqlBase):
             file_storage_config = config["yql_agent"]["file_storage_config"]
             assert file_storage_config["retry_count"] == 3
             assert file_storage_config["max_files"] == 1 << 13
-            # The default should be overwritten from 1 << 14
+            # The default should be overwritten from 1 << 14.
             assert file_storage_config["max_size_mb"] == 1 << 13
 
 

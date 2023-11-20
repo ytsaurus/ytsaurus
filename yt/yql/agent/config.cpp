@@ -163,6 +163,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         gatewaySettings = MergeDefaultSettings(gatewaySettings->AsList(), DefaultGatewaySettings);
         YT_VERIFY(gatewayConfig->AddChild("default_settings", std::move(gatewaySettings)));
 
+        gatewayConfig->AddChild("cluster_mapping", GetEphemeralNodeFactory()->CreateList());
         for (const auto& cluster : gatewayConfig->GetChildOrThrow("cluster_mapping")->AsList()->GetChildren()) {
             auto clusterMap = cluster->AsMap();
             auto settings = clusterMap->FindChild("settings");

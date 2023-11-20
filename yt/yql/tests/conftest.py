@@ -53,7 +53,7 @@ class YqlAgent(ExternalComponent):
                     ],
                     "default_settings": [{"name": "DefaultCalcMemoryLimit", "value": "2G"}]
                 },
-                # Slightly change the defaults to check if they can be overwritten
+                # Slightly change the defaults to check if they can be overwritten.
                 "file_storage_config": {"max_size_mb": 1 << 13},
                 "yql_plugin_shared_library": self.get_artifact_path("libyqlplugin.so"),
                 "yt_token_path": self.token_path,
