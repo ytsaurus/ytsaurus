@@ -1229,7 +1229,7 @@ TOperationId TNodeShard::FindOperationIdByAllocationId(TAllocationId allocationI
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     // COMPAT(pogorelov): JobId is currently equal to allocationId.
-    const auto& job = FindJob(TJobId(allocationId));
+    const auto& job = FindJob(TJobId(allocationId.Underlying()));
     if (job) {
         return job->GetOperationId();
     }
@@ -1720,7 +1720,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             operationId,
             specFetchError);
 
-        if (auto job = FindJob(allocationId)) {
+        if (auto job = FindJob(allocationId.Underlying())) {
             auto error = (TError("Failed to get job spec")
                 << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed))
                 << specFetchError;
@@ -1852,11 +1852,11 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     const auto& address = node->GetDefaultAddress();
 
-    if (IsJobAborted(jobId, node)) {
+    if (IsJobAborted(TJobId(jobId.Underlying()), node)) {
         return nullptr;
     }
 
-    auto job = FindJob(jobId, node);
+    auto job = FindJob(jobId.Underlying(), node);
     auto operationState = FindOperationState(operationId);
 
     if (!job) {
@@ -1872,9 +1872,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         if ((operationState && !operationState->JobsReady) ||
             WaitingForRegisterOperationIds_.contains(operationId))
         {
-            if (operationState && !operationState->OperationUnreadyLoggedJobIds.contains(jobId)) {
+            if (operationState && !operationState->OperationUnreadyLoggedJobIds.contains(jobId.Underlying())) {
                 YT_LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
-                operationState->OperationUnreadyLoggedJobIds.insert(jobId);
+                operationState->OperationUnreadyLoggedJobIds.insert(jobId.Underlying());
             }
             return nullptr;
         }
@@ -1940,7 +1940,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     switch (allocationState) {
         case EAllocationState::Finished: {
             if (auto error = FromProto<TError>(jobStatus->result().error());
-                ParseAbortReason(error, jobId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
+                ParseAbortReason(error, jobId.Underlying(), Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
             {
                 YT_LOG_DEBUG("Node has failed to get job spec, abort job");
 
@@ -2579,7 +2579,8 @@ void TNodeShard::ProcessJobsToAbort(NProto::NNode::TRspHeartbeat* response, cons
             "Sent job abort request to node (Reason: %v, JobId: %v)",
             abortReason,
             jobId);
-        AddAllocationToAbort(response, {jobId, abortReason});
+        //! Allocation id is equal to job id.
+        AddAllocationToAbort(response, {TAllocationId(jobId), abortReason});
     }
 
     node->JobsToAbort().clear();

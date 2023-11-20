@@ -46,7 +46,7 @@ using NYT::ToProto;
 TAllocationId AllocationIdFromJobId(TJobId jobId)
 {
     // Job id is currently equal to allocation id.
-    return jobId;
+    return TAllocationId(jobId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

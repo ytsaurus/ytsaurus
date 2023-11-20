@@ -3475,7 +3475,7 @@ void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary
         abortedAllocationSummary.Id);
 
     // Allocation id is currently equal to job id.
-    const auto& joblet = FindJoblet(abortedAllocationSummary.Id);
+    const auto& joblet = FindJoblet(abortedAllocationSummary.Id.Underlying());
     if (!joblet) {
         YT_LOG_DEBUG(
             "Joblet is not found, ignore allocation aborted event (JobId: %v)",
@@ -9090,7 +9090,7 @@ TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
 
     // Job id is currently equal to allocation id.
-    TJobId jobId = allocationId;
+    TJobId jobId = allocationId.Underlying();
 
     if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
         Sleep(*getJobSpecDelay);

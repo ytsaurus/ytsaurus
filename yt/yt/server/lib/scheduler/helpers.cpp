@@ -34,7 +34,7 @@ TJobId GenerateJobId(TCellTag tag, TNodeId nodeId)
 
 TNodeId NodeIdFromAllocationId(TAllocationId allocationId)
 {
-    return TNodeId(allocationId.Parts32[0]);
+    return TNodeId(allocationId.Underlying().Parts32[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -730,7 +730,7 @@ TAllocationId TJob::GetAllocationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetId();
+    return TAllocationId(GetId());
 }
 
 TOperationId TJob::GetOperationId() const

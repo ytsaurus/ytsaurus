@@ -94,7 +94,7 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::
 
 TJobId FromAllocationId(TAllocationId allocationId)
 {
-    return allocationId;
+    return TJobId(allocationId.Underlying());
 }
 
 } // namespace
@@ -1373,7 +1373,7 @@ private:
         for (const auto& protoAllocationToAbort : response->allocations_to_abort()) {
             auto allocationToAbort = ParseAllocationToAbort(protoAllocationToAbort);
 
-            if (auto job = FindJob(allocationToAbort.AllocationId)) {
+            if (auto job = FindJob(allocationToAbort.AllocationId.Underlying())) {
                 YT_LOG_WARNING(
                     "Scheduler requested to abort allocation (AllocationId: %v)",
                     allocationToAbort.AllocationId);
