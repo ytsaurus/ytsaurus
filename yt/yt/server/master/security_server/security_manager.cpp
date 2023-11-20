@@ -19,6 +19,7 @@
 #include "user_proxy.h"
 #include "security_tags.h"
 #include "ace_iterator.h"
+#include "user_activity_tracker.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -447,6 +448,7 @@ class TSecurityManager
 public:
     explicit TSecurityManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SecurityManager)
+        , UserActivityTracker_(New<TUserActivityTracker>(bootstrap))
         , RequestTracker_(New<TRequestTracker>(Bootstrap_->GetConfig()->SecurityManager->UserThrottler, bootstrap))
     {
         RegisterLoader(
@@ -497,6 +499,7 @@ public:
         RegisterMethod(BIND(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
         RegisterMethod(BIND(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
+        RegisterMethod(BIND(&TSecurityManager::HydraUpdateUserActivityStatistics, Unretained(this)));
     }
 
     void Initialize() override
@@ -1540,6 +1543,8 @@ public:
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
         auto* user = DoCreateUser(id, name);
         if (user) {
+            user->SetLastSeenTime(GetCurrentMutationContext()->GetTimestamp());
+
             YT_LOG_DEBUG("User created (User: %v)", name);
             LogStructuredEventFluently(Logger, ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::UserCreated)
@@ -2547,6 +2552,10 @@ public:
             return;
         }
         RequestTracker_->ChargeUser(user, workload);
+        if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
+            UserActivityTracker_->OnUserSeen(user);
+        }
+
         UserCharged_.Fire(user, workload);
     }
 
@@ -2646,6 +2655,7 @@ private:
     friend class TNetworkProjectTypeHandler;
     friend class TProxyRoleTypeHandler;
 
+    const TUserActivityTrackerPtr UserActivityTracker_;
     const TRequestTrackerPtr RequestTracker_;
 
     const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
@@ -3970,6 +3980,7 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         RequestTracker_->Start();
+        UserActivityTracker_->Start();
     }
 
     void OnLeaderActive() override
@@ -4033,6 +4044,7 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         RequestTracker_->Stop();
+        UserActivityTracker_->Stop();
 
         if (AccountStatisticsGossipExecutor_) {
             AccountStatisticsGossipExecutor_->Stop();
@@ -4057,8 +4069,8 @@ private:
         TMasterAutomatonPart::OnStopFollowing();
 
         RequestTracker_->Stop();
+        UserActivityTracker_->Stop();
     }
-
 
     void CommitAccountMasterMemoryUsage()
     {
@@ -4214,6 +4226,26 @@ private:
     {
         if (MustRecomputeMembershipClosure_) {
             DoRecomputeMembershipClosure();
+        }
+    }
+
+    void HydraUpdateUserActivityStatistics(NProto::TReqUpdateUserActivityStatistics* request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
+
+        for (const auto& update : request->updates()) {
+            auto userId = FromProto<TUserId>(update.user_id());
+            auto* user = FindUser(userId);
+            if (!IsObjectAlive(user)) {
+                continue;
+            }
+
+            // Update last seen time.
+            auto lastSeenTime = FromProto<TInstant>(update.last_seen());
+            if (lastSeenTime > user->GetLastSeenTime()) {
+                user->SetLastSeenTime(lastSeenTime);
+            }
         }
     }
 

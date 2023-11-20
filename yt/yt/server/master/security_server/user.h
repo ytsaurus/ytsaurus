@@ -217,6 +217,9 @@ public:
     //! password changes.
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, PasswordRevision);
 
+    //! Time of the last user's activity.
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
+
     int GetRequestQueueSize() const;
     void SetRequestQueueSize(int size);
     void ResetRequestQueueSize();

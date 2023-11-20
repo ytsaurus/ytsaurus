@@ -57,7 +57,7 @@ void TCypressManagerConfig::Register(TRegistrar registrar)
 void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("statistics_flush_period", &TThis::StatisticsFlushPeriod)
-        .GreaterThan(TDuration())
+        .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(1));
     registrar.Parameter("max_node_child_count", &TThis::MaxNodeChildCount)
         .GreaterThan(20)

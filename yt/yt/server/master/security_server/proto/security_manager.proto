@@ -1,0 +1,20 @@
+package NYT.NSecurityServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TUserActivityStatisticsUpdate
+{
+    required NYT.NProto.TGuid user_id = 1;
+    required int64 last_seen = 2;
+}
+
+message TReqUpdateUserActivityStatistics
+{
+    repeated TUserActivityStatisticsUpdate updates = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

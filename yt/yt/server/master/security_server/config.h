@@ -53,6 +53,9 @@ public:
 
     bool ForbidIrreversibleAclChanges;
 
+    //! Period between user statistics commits.
+    TDuration UserStatisticsFlushPeriod;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);

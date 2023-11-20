@@ -5,6 +5,7 @@
 #include "subject_proxy_detail.h"
 #include "user.h"
 #include "helpers.h"
+#include "yt/yt/experiments/journal_reader/private.h"
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
@@ -19,10 +20,12 @@
 
 namespace NYT::NSecurityServer {
 
+using namespace NApi;
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
 using namespace NConcurrency;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +102,7 @@ private:
             .SetRemovable(true)
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::PasswordRevision);
+        descriptors->push_back(EInternedAttributeKey::LastSeenTime);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -244,6 +248,45 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        auto* user = GetThisImpl();
+        switch (key) {
+            case EInternedAttributeKey::LastSeenTime: {
+                std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
+                if (IsPrimaryMaster()) {
+                    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                    auto portalCellTags = multicellManager->GetRoleMasterCells(NCellMaster::EMasterCellRole::CypressNodeHost);
+
+                    for (const auto& portalCellTag : portalCellTags) {
+                        if (portalCellTag == multicellManager->GetCellTag()) {
+                            continue;
+                        }
+
+                        auto proxy = CreateObjectServiceReadProxy(
+                            Bootstrap_->GetRootClient(),
+                            EMasterChannelKind::Follower,
+                            portalCellTag);
+                        asyncResults.push_back(proxy.Execute(TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
+                    }
+                }
+
+                return AllSucceeded(asyncResults).Apply(
+                    BIND([initialLastSeenTime = user->GetLastSeenTime()](const std::vector<TYPathProxy::TRspGetPtr>& results) {
+                        auto lastSeenTime = initialLastSeenTime;
+                        for (const auto& result : results) {
+                            lastSeenTime = std::max(lastSeenTime, ConvertTo<TInstant>(TYsonString(result->value())));
+                        }
+                        return BuildYsonStringFluently().Value(lastSeenTime);
+                    }));
+            }
+
+            default:
+                break;
+        }
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override

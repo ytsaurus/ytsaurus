@@ -49,6 +49,10 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forbid_irreversible_changes", &TThis::ForbidIrreversibleAclChanges)
         .Default(false);
+
+    registrar.Parameter("user_statistics_flush_period", &TThis::UserStatisticsFlushPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
