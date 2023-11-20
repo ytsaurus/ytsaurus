@@ -13,19 +13,14 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TGlobalChunkScanner::TGlobalChunkScanner(
-    IObjectManagerPtr objectManager,
     bool journal,
     TLogger logger)
-    : ObjectManager_(std::move(objectManager))
-    , Journal_(journal)
+    : Journal_(journal)
     , Logger(logger)
 { }
 
-TGlobalChunkScanner::TGlobalChunkScanner(
-    IObjectManagerPtr objectManager,
-    bool journal)
+TGlobalChunkScanner::TGlobalChunkScanner(bool journal)
     : TGlobalChunkScanner(
-        std::move(objectManager),
         journal,
         ChunkServerLogger.WithTag("Journal: %v", journal))
 { }
@@ -160,12 +155,12 @@ void TGlobalChunkScanner::RecomputeActiveGlobalChunkScanIndex()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkScanner::TChunkScanner(
-    IObjectManagerPtr objectManager,
+namespace NDetail {
+
+TChunkScannerBase::TChunkScannerBase(
     EChunkScanKind kind,
     bool journal)
     : TGlobalChunkScanner(
-        std::move(objectManager),
         journal,
         ChunkServerLogger.WithTag("Kind: %v, Journal: %v",
             kind,
@@ -175,92 +170,37 @@ TChunkScanner::TChunkScanner(
     YT_VERIFY(kind != EChunkScanKind::GlobalStatisticsCollector);
 }
 
-void TChunkScanner::Stop(int shardIndex)
+bool TChunkScannerBase::IsObjectAlive(TChunk* chunk)
 {
-    TGlobalChunkScanner::Stop(shardIndex);
-
-    // If there are no more active shards, we clear the queue to drop all the
-    // ephemeral references. Since queue may be huge, destruction is offloaded
-    // into separate thread. Otherwise, queue is not changed. Note that queue
-    // now may contain chunks from non-active shards. We have to properly handle
-    // them during chunk dequeueing.
-    if (ActiveShardIndices_.none()) {
-        std::queue<TQueueEntry> queue;
-        std::swap(Queue_, queue);
-        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
-            BIND([queue = std::move(queue)] { Y_UNUSED(queue); }));
-    }
+    return NObjectServer::IsObjectAlive(chunk);
 }
 
-bool TChunkScanner::EnqueueChunk(TChunk* chunk, int errorCount)
+int TChunkScannerBase::GetShardIndex(TChunk* chunk)
 {
-    auto shardIndex = chunk->GetShardIndex();
-    if (!ActiveShardIndices_.test(shardIndex)) {
-        return false;
-    }
+    return chunk->GetShardIndex();
+}
 
-    if (chunk->GetScanFlag(Kind_)) {
-        return false;
-    }
+bool TChunkScannerBase::GetScanFlag(TChunk* chunk) const
+{
+    return chunk->GetScanFlag(Kind_);
+}
+
+void TChunkScannerBase::ClearScanFlag(TChunk* chunk)
+{
+    chunk->ClearScanFlag(Kind_);
+}
+
+void TChunkScannerBase::SetScanFlag(TChunk* chunk)
+{
     chunk->SetScanFlag(Kind_);
-    Queue_.push({
-        TEphemeralObjectPtr<TChunk>(chunk),
-        NProfiling::GetCpuInstant(),
-        errorCount
-    });
-    return true;
 }
 
-std::pair<TChunk*, int> TChunkScanner::DequeueChunk()
+bool TChunkScannerBase::IsRelevant(TChunk* chunk) const
 {
-    if (TGlobalChunkScanner::HasUnscannedChunk()) {
-        return {TGlobalChunkScanner::DequeueChunk(), 0};
-    }
-
-    if (Queue_.empty()) {
-        return {nullptr, 0};
-    }
-
-    const auto& front = Queue_.front();
-    auto* chunk = front.Chunk.Get();
-    auto errorCount = front.ErrorCount;
-    auto relevant = false;
-    if (IsObjectAlive(chunk)) {
-        relevant = ActiveShardIndices_.test(chunk->GetShardIndex());
-        if (relevant) {
-            YT_ASSERT(chunk->GetScanFlag(Kind_));
-            chunk->ClearScanFlag(Kind_);
-        } else {
-            YT_ASSERT(!chunk->GetScanFlag(Kind_));
-        }
-    }
-
-    Queue_.pop();
-
-    if (relevant) {
-        return {chunk, errorCount};
-    }
-
-    return {nullptr, 0};
+    return ActiveShardIndices_.test(chunk->GetShardIndex());
 }
 
-bool TChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
-{
-    if (TGlobalChunkScanner::HasUnscannedChunk()) {
-        return true;
-    }
-
-    if (!Queue_.empty() && Queue_.front().Instant < deadline) {
-        return true;
-    }
-
-    return false;
-}
-
-int TChunkScanner::GetQueueSize() const
-{
-    return std::ssize(Queue_) + TGlobalChunkScanner::GetQueueSize();
-}
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

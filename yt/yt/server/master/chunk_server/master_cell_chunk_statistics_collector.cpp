@@ -41,7 +41,7 @@ public:
             bootstrap,
             EAutomatonThreadQueue::MasterCellChunkStatisticsCollector)
         , StatisticsPieceCollectors_(std::move(statisticsPieceCollectors))
-        , ChunkScanner_(Bootstrap_->GetObjectManager(), /*journal*/ false)
+        , ChunkScanner_(/*journal*/ false)
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
