@@ -4,8 +4,8 @@ import logging
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
 
-from yt.wrapper import YtClient
-from spyt import utils as spark_utils
+from yt.wrapper import YtClient  # noqa: E402
+from spyt import utils as spark_utils  # noqa: E402
 
 
 def main(raw_args=None):
@@ -65,4 +65,5 @@ def set_workers_count(yt_client: YtClient, discovery_path, workers_count):
     yt_client.update_operation_parameters(info.workers_operation, params)
 
 
-main()
+if __name__ == '__main__':
+    main()

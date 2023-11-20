@@ -1,41 +1,31 @@
 #!/usr/bin/env python
 import argparse
-import importlib.machinery
-import importlib.util
+from importlib import import_module
 import inspect
 import logging
 import os
 import subprocess
-import sys
 
 
 logger = logging.getLogger(__name__)
 
 
-def import_path(path):
-    # Workaround for importing dashed non .py names of files
-    module_name = os.path.basename(path).replace('-', '_')
-    source_file_loader = importlib.machinery.SourceFileLoader(module_name, path)
-    spec = importlib.util.spec_from_loader(module_name, source_file_loader)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    sys.modules[module_name] = module
-    return module
-
-
 def run(command, args):
-    required_module = "spark-{}-yt".format(command)
+    required_file = "spark-{}-yt".format(command)
     module = None
     try:
-        module = import_path(required_module)
-    except OSError as e:
+        required_module = "yt.spark.spark-over-yt.data-source.src.main.bin." + required_file
+        module = import_module(required_module)
+    except ImportError as e:
         logger.info(f"Cannot import required module: {e}")
     if module is not None:
+        # Arcadia python
         module.main(args)
     else:
+        # Pip installation
         logger.info("Fallback to subprocess run")
         script_directory = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-        script = os.path.join(script_directory, required_module)
+        script = os.path.join(script_directory, required_file)
         subprocess.run([script] + args)
 
 
