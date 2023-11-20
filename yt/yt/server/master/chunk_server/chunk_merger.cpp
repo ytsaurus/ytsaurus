@@ -451,7 +451,8 @@ private:
         }
 
         auto* table = Node_->As<TTableNode>();
-        return !table->IsDynamic();
+        auto schema = table->GetSchema()->AsTableSchema();
+        return !table->IsDynamic() && !schema->HasHunkColumns();
     }
 
     bool MaybeAddChunk(TChunk* chunk, TChunkList* parent)
@@ -691,6 +692,13 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
     auto* table = trunkChunkOwner->As<TTableNode>();
     if (table->IsDynamic()) {
         YT_LOG_DEBUG("Chunk merging is not supported for dynamic tables (ChunkOwnerId: %v)",
+            trunkChunkOwner->GetId());
+        return;
+    }
+
+    auto schema = table->GetSchema()->AsTableSchema();
+    if (schema->HasHunkColumns()) {
+        YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk columns (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
         return;
     }

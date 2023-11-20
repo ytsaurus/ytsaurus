@@ -1331,6 +1331,46 @@ class TestChunkMerger(YTEnvSetup):
             selected_items = [item for item in nodes_being_merged_by_alive_accounts if item["tags"]["account"] == accounts[i]]
             assert get_entire_number(selected_items) == 2.0
 
+    @authors("cherepashka")
+    def test_prohibition_of_merging_chunks_with_hunk_columns(self):
+        schema = [
+            {"name": "column", "type": "string", "sort_order": "ascending"},
+            {"name": "hunk_column", "type": "any", "max_inline_hunk_size": 5},
+        ]
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", {"column": "123456"})
+        chunk_ids = get("//tmp/t/@chunk_ids")
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        assert not get("//tmp/t/@is_being_merged")
+        assert get("//tmp/t/@chunk_ids") == chunk_ids
+
+    @authors("cherepashka")
+    def test_alter_with_hunk_columns(self):
+        schema = [
+            {"name": "column", "type": "string", "sort_order": "ascending"},
+        ]
+
+        schema_with_hunk_columns = [
+            {"name": "column", "type": "string", "sort_order": "ascending"},
+            {"name": "hunk_column", "type": "any", "max_inline_hunk_size": 5},
+        ]
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", {"column": "123456"})
+        chunk_ids = get("//tmp/t/@chunk_ids")
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        alter_table("//tmp/t", schema=schema_with_hunk_columns)
+
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        assert get("//tmp/t/@chunk_ids") == chunk_ids
+
 
 class TestChunkMergerMulticell(TestChunkMerger):
     NUM_TEST_PARTITIONS = 6

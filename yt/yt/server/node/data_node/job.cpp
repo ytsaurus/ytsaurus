@@ -1568,6 +1568,12 @@ private:
 
     TChunkReadContext GetChunkReadContext(const IMetaAggregatingWriterPtr& writer)
     {
+        THROW_ERROR_EXCEPTION_IF(
+            Schema_->HasHunkColumns(),
+            NChunkClient::EErrorCode::IncompatibleChunkMetas,
+            "Chunk has hunk columns in schema, merge is prohibited (ChunkId: %v)",
+            writer->GetChunkId());
+
         auto chunkMeta = writer->GetChunkMeta();
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
 
