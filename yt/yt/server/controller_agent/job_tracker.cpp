@@ -2267,7 +2267,7 @@ void TJobTracker::OnAllocationsAborted(
         }
 
         // Allocation id is currently equal to allocation id;
-        auto jobId = abortedAllocationSummary.Id;
+        auto jobId = abortedAllocationSummary.Id.Underlying();
         if (!nodeInfo->Jobs.Jobs.contains(jobId) && !nodeInfo->Jobs.JobsToConfirm.contains(jobId)) {
             logSendingEventToOperationController("Scheduler aborted empty allocation");
             emptyAllocations.push_back(std::move(abortedAllocationSummary));

@@ -1735,7 +1735,7 @@ public:
 
         if (requestedAllocationInfo.NodeDescriptor) {
             // JobId is currently equal to AllocationId.
-            result.NodeDescriptor = WaitFor(GetJobNode(TJobId(allocationId)))
+            result.NodeDescriptor = WaitFor(GetJobNode(TJobId(allocationId.Underlying())))
                 .ValueOrThrow();
         }
 
