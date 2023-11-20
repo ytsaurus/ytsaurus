@@ -94,7 +94,12 @@ type ReadRetryOptions struct {
 //
 // By default read requests are served from followers.
 type MasterReadOptions struct {
-	ReadFrom ReadKind `http:"read_from"`
+	ReadFrom                        ReadKind       `http:"read_from"`
+	DisablePerUserCache             *bool          `http:"disable_per_user_cache,omitnil"`
+	ExpireAfterSuccessfulUpdateTime *yson.Duration `http:"expire_after_successful_update_time,omitnil"`
+	ExpireAfterFailedUpdateTime     *yson.Duration `http:"expire_after_failed_update_time,omitnil"`
+	CacheStickyGroupSize            *int32         `http:"cache_sticky_group_size,omitnil"`
+	SuccessStalenessBound           *yson.Duration `http:"success_staleness_bound,omitnil"`
 }
 
 type PrerequisiteRevision struct {

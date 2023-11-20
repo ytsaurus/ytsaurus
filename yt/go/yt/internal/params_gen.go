@@ -58,6 +58,26 @@ func writeMasterReadOptions(w *yson.Writer, o *yt.MasterReadOptions) {
 	}
 	w.MapKeyString("read_from")
 	w.Any(o.ReadFrom)
+	if o.DisablePerUserCache != nil {
+		w.MapKeyString("disable_per_user_cache")
+		w.Any(o.DisablePerUserCache)
+	}
+	if o.ExpireAfterSuccessfulUpdateTime != nil {
+		w.MapKeyString("expire_after_successful_update_time")
+		w.Any(o.ExpireAfterSuccessfulUpdateTime)
+	}
+	if o.ExpireAfterFailedUpdateTime != nil {
+		w.MapKeyString("expire_after_failed_update_time")
+		w.Any(o.ExpireAfterFailedUpdateTime)
+	}
+	if o.CacheStickyGroupSize != nil {
+		w.MapKeyString("cache_sticky_group_size")
+		w.Any(o.CacheStickyGroupSize)
+	}
+	if o.SuccessStalenessBound != nil {
+		w.MapKeyString("success_staleness_bound")
+		w.Any(o.SuccessStalenessBound)
+	}
 }
 
 func writePrerequisiteOptions(w *yson.Writer, o *yt.PrerequisiteOptions) {

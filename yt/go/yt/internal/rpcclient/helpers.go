@@ -199,7 +199,12 @@ func convertMasterReadOptions(opts *yt.MasterReadOptions) *rpc_proxy.TMasterRead
 	}
 
 	return &rpc_proxy.TMasterReadOptions{
-		ReadFrom: convertReadKind(opts.ReadFrom),
+		ReadFrom:                        convertReadKind(opts.ReadFrom),
+		DisablePerUserCache:             opts.DisablePerUserCache,
+		ExpireAfterSuccessfulUpdateTime: convertDuration(opts.ExpireAfterSuccessfulUpdateTime),
+		ExpireAfterFailedUpdateTime:     convertDuration(opts.ExpireAfterFailedUpdateTime),
+		CacheStickyGroupSize:            opts.CacheStickyGroupSize,
+		SuccessStalenessBound:           convertDuration(opts.SuccessStalenessBound),
 	}
 }
 
