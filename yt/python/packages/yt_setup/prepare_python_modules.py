@@ -64,13 +64,17 @@ def cp_r_755(src, dst):
 def fix_type_info_package(type_info_path):
     for root, dirs, files in os.walk(type_info_path):
         for file in files:
-            with open(os.path.join(root, file)) as fin:
-                data = fin.read()
-            data = data.replace(
-                "import six\n",
-                "import yt.packages.six as six\n")
-            with open(os.path.join(root, file), "w") as fout:
-                fout.write(data)
+            try:
+                with open(os.path.join(root, file)) as fin:
+                    data = fin.read()
+                data = data.replace(
+                    "import six\n",
+                    "import yt.packages.six as six\n")
+                with open(os.path.join(root, file), "w") as fout:
+                    fout.write(data)
+            except BaseException as ex:
+                logger.error("Failed while patching file %s %s", os.path.join(root, file), ex)
+                raise
 
 
 def prepare_python_modules(

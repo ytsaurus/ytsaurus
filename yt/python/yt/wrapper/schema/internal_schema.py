@@ -1,13 +1,13 @@
 from .types import (is_yt_dataclass, Annotation,
                     _is_py_type_compatible_with_ti_type, _check_ti_types_compatible,
                     _is_py_type_optional, _get_py_time_types)
+from .types import typing  # noqa
 from . import types
 from .helpers import check_schema_module_available, is_schema_module_available
 from ..errors import YtError
 
 import copy
 import datetime
-import typing  # noqa
 
 import yt.type_info as ti
 import yt.logger as logger
