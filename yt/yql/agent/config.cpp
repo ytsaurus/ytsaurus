@@ -8,6 +8,9 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <array>
+#include <utility>
+
 namespace NYT::NYqlAgent {
 
 using namespace NSecurityClient;
@@ -18,7 +21,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr std::pair<TStringBuf, TStringBuf> DefaultGatewaySettings[] = {
+constexpr std::array<std::pair<TStringBuf, TStringBuf>, 56> DefaultGatewaySettings{{
     {"DefaultCalcMemoryLimit", "1G"},
     {"EvaluationTableSizeLimit", "1M"},
     {"DefaultMaxJobFails", "5"},
@@ -75,12 +78,12 @@ constexpr std::pair<TStringBuf, TStringBuf> DefaultGatewaySettings[] = {
     {"_ForceJobSizeAdjuster", "true"},
     {"_EnableWriteReorder", "true"},
     {"_EnableYtPartitioning", "true"},
-};
+}};
 
-constexpr std::pair<TStringBuf, TStringBuf> DefaultClusterSettings[] = {
+constexpr std::array<std::pair<TStringBuf, TStringBuf>, 2> DefaultClusterSettings{{
     {"QueryCacheChunkLimit", "100000"},
     {"_UseKeyBoundApi", "true"},
-};
+}};
 
 ////////////////////////////////////////////////////////////////////////////////
 
