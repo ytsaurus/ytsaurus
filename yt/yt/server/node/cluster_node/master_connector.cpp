@@ -446,6 +446,8 @@ private:
             return;
         }
 
+        Bootstrap_->CompleteNodeRegistration();
+
         MasterConnected_.Fire(GetNodeId());
 
         YT_LOG_INFO("Successfully registered at primary master (NodeId: %v)",

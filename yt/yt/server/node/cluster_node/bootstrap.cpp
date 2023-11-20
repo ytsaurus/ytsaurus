@@ -1087,21 +1087,6 @@ private:
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        YT_LOG_INFO("Fetching dynamic config for the first time");
-
-        auto firstDynamicConfigReceivedEvent = DynamicConfigManager_->GetConfigLoadedFuture();
-        DynamicConfigManager_->Start();
-        {
-            auto error = WaitFor(firstDynamicConfigReceivedEvent);
-
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for the first dynamic config update");
-        }
-
-        YT_LOG_INFO("Dynamic config received");
-
         if (IsCellarNode() || IsTabletNode()) {
             BundleDynamicConfigManager_->Start();
         }
@@ -1174,7 +1159,21 @@ private:
 
         // Do not start subsystems until everything is initialized.
 
+        YT_LOG_INFO("Loading dynamic config for the first time");
+
+        // Start MasterConnector to register at Master.
         MasterConnector_->Start();
+
+        {
+            auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for the first dynamic config loaded");
+        }
+
+        YT_LOG_INFO("Dynamic config loaded");
 
         DoValidateConfig();
 
@@ -1235,6 +1234,27 @@ private:
     {
         EnabledOutThrottlers_.insert(bucket);
         return OutThrottler_->CreateBucketThrottler(bucket, Config_->OutThrottlers[bucket]);
+    }
+
+    void CompleteNodeRegistration() override
+    {
+        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+
+        if (DynamicConfigManager_->GetConfigLoadedFuture().IsSet()) {
+            return;
+        }
+
+        // We must start DynamicConfigManager after we have been registered at master
+        // so that we can fetch correct tags and properly apply dynamic config.
+        DynamicConfigManager_->Start();
+        {
+            auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for the first dynamic config loaded during node registration compelition");
+        }
     }
 
     void ReconfigureFairThrottlers(

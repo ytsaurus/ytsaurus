@@ -204,6 +204,9 @@ struct IBootstrap
         const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const = 0;
 
     virtual void SetDecommissioned(bool decommissioned) = 0;
+
+    //! One-shot. Then No-Op.
+    virtual void CompleteNodeRegistration() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
