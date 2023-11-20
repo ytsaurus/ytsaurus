@@ -11,35 +11,31 @@ namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterDirectorySynchronizer
-    : public TRefCounted
+struct IClusterDirectorySynchronizer
+    : public virtual TRefCounted
 {
-public:
-    TClusterDirectorySynchronizer(
-        TClusterDirectorySynchronizerConfigPtr config,
-        NApi::IConnectionPtr directoryConnection,
-        TClusterDirectoryPtr clusterDirectory);
-    ~TClusterDirectorySynchronizer();
-
     //! Starts periodic syncs.
-    void Start();
+    virtual void Start() = 0;
 
     //! Stops periodic syncs.
-    void Stop();
+    virtual void Stop() = 0;
 
     //! Returns a future that gets set with the next sync.
     //! Starts the synchronizer if not started yet.
-    TFuture<void> Sync(bool force = false);
+    virtual TFuture<void> Sync(bool force = false) = 0;
 
     //! Raised with each synchronization (either successful or not).
-    DECLARE_SIGNAL(void(const TError&), Synchronized);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    DECLARE_INTERFACE_SIGNAL(void(const TError&), Synchronized);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizer)
+DEFINE_REFCOUNTED_TYPE(IClusterDirectorySynchronizer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IClusterDirectorySynchronizerPtr CreateClusterDirectorySynchronizer(
+    TClusterDirectorySynchronizerConfigPtr config,
+    NApi::IConnectionPtr directoryConnection,
+    TClusterDirectoryPtr clusterDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

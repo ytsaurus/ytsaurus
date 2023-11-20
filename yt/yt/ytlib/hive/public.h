@@ -31,7 +31,7 @@ DECLARE_REFCOUNTED_STRUCT(ICellDirectory)
 DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TClusterDirectory)
-DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizer)
+DECLARE_REFCOUNTED_STRUCT(IClusterDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TClientDirectory)
 

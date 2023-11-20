@@ -67,7 +67,7 @@ struct IConnection
     virtual const NChaosClient::IChaosCellDirectorySynchronizerPtr& GetChaosCellDirectorySynchronizer() = 0;
 
     virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const = 0;
-    virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() = 0;
+    virtual const NHiveClient::IClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() = 0;
 
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
     virtual const NChunkClient::TMediumDirectorySynchronizerPtr& GetMediumDirectorySynchronizer() = 0;

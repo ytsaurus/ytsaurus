@@ -91,7 +91,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
+    const NHiveClient::IClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
     {
         YT_UNIMPLEMENTED();
     }

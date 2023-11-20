@@ -11,7 +11,7 @@ namespace NYT::NHiveClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICellDirectorySynchronizer
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Starts periodic syncs.
     virtual void Start() = 0;
@@ -32,7 +32,7 @@ ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
     NObjectClient::TCellIdList sourceOrTruthCellIds,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

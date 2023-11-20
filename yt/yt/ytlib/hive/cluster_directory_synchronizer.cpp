@@ -3,6 +3,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/misc/synchronizer_detail.h>
+
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/client.h>
 
@@ -19,50 +21,42 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HiveClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TClusterDirectorySynchronizer::TImpl
-    : public TRefCounted
+class TClusterDirectorySynchronizer
+    : public IClusterDirectorySynchronizer
+    , public TSynchronizerBase
 {
 public:
-    TImpl(
+    TClusterDirectorySynchronizer(
         TClusterDirectorySynchronizerConfigPtr config,
         IConnectionPtr directoryConnection,
         TClusterDirectoryPtr clusterDirectory)
-        : Config_(std::move(config))
+        : TSynchronizerBase(
+            NRpc::TDispatcher::Get()->GetLightInvoker(),
+            TPeriodicExecutorOptions{
+                .Period = config->SyncPeriod,
+            },
+            HiveClientLogger)
+        , Config_(std::move(config))
         , DirectoryConnection_(std::move(directoryConnection))
         , ClusterDirectory_(std::move(clusterDirectory))
-        , SyncExecutor_(New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TImpl::OnSync, MakeWeak(this)),
-            Config_->SyncPeriod))
     { }
 
-    void Start()
+    void Start() override
     {
-        auto guard = Guard(SpinLock_);
-        DoStart();
+        TSynchronizerBase::Start();
     }
 
-    void Stop()
+    void Stop() override
     {
-        auto guard = Guard(SpinLock_);
-        DoStop();
+        TSynchronizerBase::Stop();
     }
 
-    TFuture<void> Sync(bool force)
+    TFuture<void> Sync(bool immediately) override
     {
-        auto guard = Guard(SpinLock_);
-        if (Stopped_) {
-            return MakeFuture(TError("Cluster directory synchronizer is stopped"));
-        }
-        DoStart(force);
-        return SyncPromise_.ToFuture();
+        return TSynchronizerBase::Sync(immediately);
     }
 
-    DEFINE_SIGNAL(void(const TError&), Synchronized);
+    DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);
 
 private:
     const TClusterDirectorySynchronizerConfigPtr Config_;
@@ -71,35 +65,7 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    bool Started_ = false;
-    bool Stopped_= false;
-    TPromise<void> SyncPromise_ = NewPromise<void>();
-
-
-    void DoStart(bool force = false)
-    {
-        if (Started_) {
-            if (force) {
-                SyncExecutor_->ScheduleOutOfBand();
-            }
-            return;
-        }
-        Started_ = true;
-        SyncExecutor_->Start();
-        SyncExecutor_->ScheduleOutOfBand();
-    }
-
-    void DoStop()
-    {
-        if (Stopped_) {
-            return;
-        }
-        Stopped_ = true;
-        YT_UNUSED_FUTURE(SyncExecutor_->Stop());
-    }
-
-    void DoSync()
+    void DoSync() override
     {
         try {
             NTracing::TNullTraceContextGuard nullTraceContext;
@@ -130,62 +96,29 @@ private:
             clusterDirectory->UpdateDirectory(*meta.ClusterDirectory);
 
             YT_LOG_DEBUG("Finished synchronizing cluster directory");
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error synchronizing cluster directory")
-                << ex;
-        }
-    }
 
-    void OnSync()
-    {
-        TError error;
-        try {
-            DoSync();
             Synchronized_.Fire(TError());
         } catch (const std::exception& ex) {
-            error = TError(ex);
+            auto error = TError(ex);
             Synchronized_.Fire(error);
-            YT_LOG_DEBUG(error);
+            THROW_ERROR_EXCEPTION("Error synchronizing cluster directory")
+                << error;
         }
-
-        auto guard = Guard(SpinLock_);
-        auto syncPromise = NewPromise<void>();
-        std::swap(syncPromise, SyncPromise_);
-        guard.Release();
-        syncPromise.Set(error);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDirectorySynchronizer::TClusterDirectorySynchronizer(
+IClusterDirectorySynchronizerPtr CreateClusterDirectorySynchronizer(
     TClusterDirectorySynchronizerConfigPtr config,
     IConnectionPtr directoryConnection,
     TClusterDirectoryPtr clusterDirectory)
-    : Impl_(New<TImpl>(
+{
+    return New<TClusterDirectorySynchronizer>(
         std::move(config),
         std::move(directoryConnection),
-        std::move(clusterDirectory)))
-{ }
-
-TClusterDirectorySynchronizer::~TClusterDirectorySynchronizer() = default;
-
-void TClusterDirectorySynchronizer::Start()
-{
-    Impl_->Start();
+        std::move(clusterDirectory));
 }
-
-void TClusterDirectorySynchronizer::Stop()
-{
-    Impl_->Stop();
-}
-
-TFuture<void> TClusterDirectorySynchronizer::Sync(bool force)
-{
-    return Impl_->Sync(force);
-}
-
-DELEGATE_SIGNAL(TClusterDirectorySynchronizer, void(const TError&), Synchronized, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

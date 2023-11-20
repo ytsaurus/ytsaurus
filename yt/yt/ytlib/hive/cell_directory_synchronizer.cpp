@@ -3,6 +3,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/misc/synchronizer_detail.h>
+
 #include <yt/yt/ytlib/hive/private.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/hive_service_proxy.h>
@@ -19,54 +21,45 @@ namespace NYT::NHiveClient {
 using namespace NConcurrency;
 using namespace NObjectClient;
 
-using NYT::ToProto;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectorySynchronizer
     : public ICellDirectorySynchronizer
+    , public TSynchronizerBase
 {
 public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
         TCellIdList sourceOfTruthCellIds,
-        const NLogging::TLogger& logger)
-        : Config_(std::move(config))
+        NLogging::TLogger logger)
+        : TSynchronizerBase(
+            NRpc::TDispatcher::Get()->GetLightInvoker(),
+            TPeriodicExecutorOptions{
+                .Period = config->SyncPeriod,
+                .Splay = config->SyncPeriodSplay
+            },
+            std::move(logger))
+        , Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , SourceOfTruthCellIds_(std::move(sourceOfTruthCellIds))
-        , Logger(logger)
-        , SyncExecutor_(New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
-            TPeriodicExecutorOptions{
-                .Period = Config_->SyncPeriod,
-                .Splay = Config_->SyncPeriodSplay
-            }))
-        , RandomGenerator_(TInstant::Now().GetValue())
     { }
 
     void Start() override
     {
-        auto guard = Guard(SpinLock_);
-        DoStart();
+        TSynchronizerBase::Start();
     }
 
     void Stop() override
     {
-        auto guard = Guard(SpinLock_);
-        DoStop();
+        TSynchronizerBase::Stop();
     }
 
     TFuture<void> Sync() override
     {
-        auto guard = Guard(SpinLock_);
-        if (Stopped_) {
-            return MakeFuture(TError("Cell directory synchronizer is stopped"));
-        }
-        DoStart();
-        return SyncPromise_.ToFuture();
+        return TSynchronizerBase::Sync(/*immediately*/ false);
     }
 
 private:
@@ -74,37 +67,9 @@ private:
     const ICellDirectoryPtr CellDirectory_;
     const TCellIdList SourceOfTruthCellIds_;
 
-    const NLogging::TLogger Logger;
-    const TPeriodicExecutorPtr SyncExecutor_;
+    TRandomGenerator RandomGenerator_{TInstant::Now().GetValue()};
 
-    TRandomGenerator RandomGenerator_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    bool Started_ = false;
-    bool Stopped_ = false;
-    TPromise<void> SyncPromise_ = NewPromise<void>();
-
-
-    void DoStart()
-    {
-        if (Started_) {
-            return;
-        }
-        Started_ = true;
-        SyncExecutor_->Start();
-        SyncExecutor_->ScheduleOutOfBand();
-    }
-
-    void DoStop()
-    {
-        if (Stopped_) {
-            return;
-        }
-        Stopped_ = true;
-        YT_UNUSED_FUTURE(SyncExecutor_->Stop());
-    }
-
-    void DoSync()
+    void DoSync() override
     {
         try {
             YT_LOG_DEBUG("Started synchronizing cell directory");
@@ -143,23 +108,6 @@ private:
                 << ex;
         }
     }
-
-    void OnSync()
-    {
-        TError error;
-        try {
-            DoSync();
-        } catch (const std::exception& ex) {
-            error = TError(ex);
-            YT_LOG_DEBUG(error);
-        }
-
-        auto guard = Guard(SpinLock_);
-        auto syncPromise = NewPromise<void>();
-        std::swap(syncPromise, SyncPromise_);
-        guard.Release();
-        syncPromise.Set(error);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,13 +116,13 @@ ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
     TCellIdList sourceOfTruthCellIds,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
 {
     return New<TCellDirectorySynchronizer>(
         std::move(config),
         std::move(cellDirectory),
         std::move(sourceOfTruthCellIds),
-        logger);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
