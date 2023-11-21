@@ -213,7 +213,11 @@ public:
         DB::MutableColumnPtr intermediateColumn;
         switch (v1Type) {
             case ESimpleLogicalValueType::Any:
-                TYsonExtractingConverterBase::ConsumeYtColumn(column);
+                if (Settings_->DefaultYsonFormat == EYsonFormat::Binary) {
+                    ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column));
+                } else {
+                    TYsonExtractingConverterBase::ConsumeYtColumn(column);
+                }
                 return;
             case ESimpleLogicalValueType::String:
             case ESimpleLogicalValueType::Utf8:
@@ -409,7 +413,7 @@ public:
             LogicalType == ESimpleLogicalValueType::String ||
             LogicalType == ESimpleLogicalValueType::Utf8)
         {
-            ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column));
+            ReplaceColumnTypeChecked<DB::MutableColumnPtr>(Column_, ConvertStringLikeYTColumnToCHColumn(column));
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
             // AssumeNothingColumn()->insertDefault(column);
         } else {

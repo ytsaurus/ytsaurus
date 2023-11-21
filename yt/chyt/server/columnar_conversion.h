@@ -14,7 +14,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumn(
+DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
 DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);

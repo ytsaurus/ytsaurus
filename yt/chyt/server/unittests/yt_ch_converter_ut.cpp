@@ -266,6 +266,10 @@ TEST_F(TTestYTCHConversion, TestAnyPassthrough)
         "{foo={bar={baz=42}}}",
     };
 
+    for (auto& yson : ysons) {
+        yson = ToString(ConvertToYsonString(TYsonString(yson), EYsonFormat::Binary));
+    }
+
     auto logicalType = SimpleLogicalType(ESimpleLogicalValueType::Any);
     TComplexTypeFieldDescriptor descriptor(logicalType);
 
