@@ -22,6 +22,23 @@ from datetime import datetime, timedelta
 import pytest
 import builtins
 
+################################################################################
+
+
+def sorted_requisition(requisition):
+    def key(entry):
+        return (
+            entry["account"],
+            entry["medium"],
+            entry["replication_policy"]["replication_factor"],
+            entry["replication_policy"]["data_parts_only"],
+            entry["committed"])
+
+    return sorted(requisition, key=key)
+
+
+################################################################################
+
 
 class ReincarnatorStatistic:
     def __init__(self, counter):
@@ -79,6 +96,17 @@ class TestChunkReincarnatorBase(YTEnvSetup):
     }
 
     ERASURE_CODEC = None
+
+    def _build_requisition_entry(self, account="tmp"):
+        return {
+            "account": account,
+            "medium": "default",
+            "replication_policy": {
+                "replication_factor": 3 if self.ERASURE_CODEC is None else 1,
+                "data_parts_only": False,
+            },
+            "committed": True,
+        }
 
     def _create_table(self, path, *, attributes=None):
         print_debug("create table with erasure codec:", self.ERASURE_CODEC)
@@ -148,7 +176,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         wait(chunks_reincarnated)
         self._disable_chunk_reincarnator()
 
-    def _get_chunk_info(self, chunk_id, with_requisition=False):
+    def _get_chunk_info(self, chunk_id):
         while True:
             attrs = get(f"#{chunk_id}/@")
 
@@ -174,11 +202,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
                 "staging_transaction_id",
                 "shard_index",
                 "chunk_replicator_address",
-                "local_requisition",
             ]
-
-            if not with_requisition:
-                unimportant_attrs.append("requisition")
 
             # COMPAT(h0pless): Remove this when reincarnator will learn how to set chunk schemas
             if "schema" in attrs:
@@ -190,16 +214,26 @@ class TestChunkReincarnatorBase(YTEnvSetup):
                 if attr in attrs:
                     attrs.pop(attr)
 
-            if with_requisition:
-                retry = False
-                for entry in attrs["requisition"]:
-                    if not entry.get("committed", False):
-                        retry = True
-                        break
-                if retry:
-                    continue
-
             return attrs
+
+    def _wait_for_requisition(self, expected, *, chunk=None, table=None):
+        assert int(chunk is None) + int(table is None) == 1
+        if chunk:
+            expected = sorted_requisition(expected)
+            wait(lambda: sorted_requisition(get(f"#{chunk}/@requisition")) == expected, timeout=15)
+        else:
+            for chunk in get(f"{table}/@chunk_ids"):
+                self._wait_for_requisition(expected, chunk=chunk)
+
+    def _wait_for_external_requisition(self, chunk_id, expected):
+        def sorted_external_requisition(external_requisition):
+            return {
+                cell_tag: sorted_requisition(requisition)
+                for cell_tag, requisition in external_requisition.items()
+            }
+
+        expected = sorted_external_requisition(expected)
+        wait(lambda: sorted_external_requisition(get(f"#{chunk_id}/@external_requisitions")) == expected, timeout=15)
 
     def _save_tables(self, *tables):
         result = {}
@@ -207,7 +241,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             result[table] = {
                 "content": read_table(table),
                 "chunks": [
-                    self._get_chunk_info(chunk, with_requisition=True)
+                    self._get_chunk_info(chunk)
                     for chunk in get(f"{table}/@chunk_ids")
                 ],
             }
@@ -217,9 +251,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         for table, info in tables.items():
             assert info["content"] == read_table(table)
             for chunk_id, chunk_info in zip(get(f"{table}/@chunk_ids"), info["chunks"]):
-                requisition = chunk_info.pop("requisition")
                 assert self._get_chunk_info(chunk_id) == chunk_info
-                wait(lambda: get(f"#{chunk_id}/@requisition") == requisition)
 
     def _switch_leader(self, cell_id):
         old_leader = get_active_primary_master_leader_address(self)
@@ -244,9 +276,11 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         ], table_writer={"upload_replication_factor": 1})
 
         statistics = ReincarnatorStatistic("successful_reincarnations")
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         tables = self._save_tables("//tmp/t")
         self._wait_for_chunk_obsolescence(get_singular_chunk_id("//tmp/t"))
         self._wait_for_reincarnation("//tmp/t", datetime.utcnow())
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         self._check_tables(tables)
         wait(lambda: statistics.get_delta() == 1)
 
@@ -272,6 +306,11 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         assert len(t2_chunks) == 2 and chunk1 == t2_chunks[0]
         chunk2 = t2_chunks[1]
 
+        def wait_for_requisition():
+            for i in range(1, 3):
+                self._wait_for_requisition([self._build_requisition_entry()], table=f"//tmp/t{i}")
+
+        wait_for_requisition()
         tables = self._save_tables("//tmp/t1", "//tmp/t2")
 
         self._wait_for_reincarnation("//tmp/t1", ts)
@@ -279,6 +318,8 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         new_chunk1 = get_singular_chunk_id("//tmp/t1")
         assert chunk1 != new_chunk1
         assert [new_chunk1, chunk2] == get("//tmp/t2/@chunk_ids")
+
+        wait_for_requisition()
         self._check_tables(tables)
         wait(lambda: statistic.get_delta() == 1)
 
@@ -293,6 +334,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 
         statistic = ReincarnatorStatistic("successful_reincarnations")
 
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         tables = self._save_tables("//tmp/t")
 
         for chunk in get("//tmp/t/@chunk_ids"):
@@ -300,6 +342,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         self._wait_for_reincarnation("//tmp/t", datetime.utcnow())
 
         wait(lambda: statistic.get_delta() == 4)
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         self._check_tables(tables)
 
     @authors("kvk1920")
@@ -322,6 +365,11 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         # chunk1 has many ancestors.
         set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_ancestors_per_chunk", 10)
 
+        def wait_for_requisition():
+            for i in range(1, 10):
+                self._wait_for_requisition([self._build_requisition_entry()], table=f"//tmp/t{i}")
+
+        wait_for_requisition()
         tables = self._save_tables(*[f"//tmp/t{i}" for i in range(1, 10)])
 
         self._wait_for_chunk_obsolescence(chunk2)
@@ -335,6 +383,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         assert new_chunks[0] == chunk1
         wait(lambda: too_many_ancestors_counter.get_delta() >= 1)
 
+        wait_for_requisition()
         self._check_tables(tables)
         tables = self._save_tables(*[f"//tmp/t{i}" for i in range(1, 10)])
 
@@ -347,6 +396,8 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         too_many_ancestors_counter.reset()
         assert too_many_ancestors_counter.get_delta() == 0
         wait(lambda: reincarnation_counter.get_delta() >= 1)
+
+        wait_for_requisition()
         self._check_tables(tables)
 
     @authors("kvk1920")
@@ -373,6 +424,8 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         chunk1, chunk2 = get("//tmp/static/@chunk_ids")
         assert chunk1 == get_singular_chunk_id("//tmp/dynamic")
 
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/static")
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/dynamic")
         tables = self._save_tables("//tmp/static", "//tmp/dynamic")
         self._wait_for_chunk_obsolescence(get("//tmp/static/@chunk_ids/-1"))
         self._wait_for_reincarnation("//tmp/static", datetime.utcnow(), whole_table_reincarnation=not mount)
@@ -384,6 +437,8 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
             assert chunk1 != get("//tmp/static/@chunk_ids/0")
         assert chunk2 != get("//tmp/static/@chunk_ids/1")
 
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/static")
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/dynamic")
         self._check_tables(tables)
         if mount:
             wait(lambda: dynamic_table_chunks.get_delta() == 1)
@@ -407,6 +462,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
             {"key": 1, "value": "a"},
             {"key": 2, "value": "b"}
         ]
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         tables = self._save_tables("//tmp/t")
 
         old_chunks = builtins.set(get("//tmp/t/@chunk_ids"))
@@ -417,6 +473,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 
         assert not (old_chunks & new_chunks), "Every dynamic table's chunk should be reincarnated"
 
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         self._check_tables(tables)
 
         sync_mount_table("//tmp/t")
@@ -487,9 +544,18 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         reincarnations = ReincarnatorStatistic("successful_reincarnations")
         teleported = ReincarnatorStatistic("teleported_reincarnations")
 
+        def wait_for_requisitions(native, foreign):
+            for chunk in (native, foreign):
+                self._wait_for_requisition([self._build_requisition_entry()], chunk=chunk)
+            self._wait_for_external_requisition(foreign, {
+                "10" if on_primary else "11": [self._build_requisition_entry()]
+            })
+
+        wait_for_requisitions(native_chunk, foreign_chunk)
         tables = self._save_tables("//tmp/t1", "//tmp/t2")
         self._wait_for_reincarnation("//tmp/t2", datetime.utcnow(), inject_leader_switch=True)
 
+        wait_for_requisitions(get("//tmp/t2/@chunk_ids")[0], get_singular_chunk_id("//tmp/t1"))
         self._check_tables(tables)
         wait(lambda: reincarnations.get_delta() == 2, timeout=10)
         wait(lambda: teleported.get_delta() == 1, timeout=10)
@@ -524,6 +590,14 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         set("//sys/@config/chunk_manager/chunk_reincarnator/max_visited_chunk_ancestors_per_chunk", 6)
 
+        def wait_for_requisitions(exported, non_exported):
+            for chunk in (exported, non_exported):
+                self._wait_for_requisition([self._build_requisition_entry()], chunk=chunk)
+            self._wait_for_external_requisition(exported, {
+                "11" if on_primary else "10": [self._build_requisition_entry()]
+            })
+
+        wait_for_requisitions(exported_chunk, non_exported_chunk)
         tables = self._save_tables("//tmp/native", *[f"//tmp/foreign{i}" for i in range(1, 10)])
         self._wait_for_chunk_obsolescence(exported_chunk)
         self._wait_for_chunk_obsolescence(non_exported_chunk)
@@ -539,6 +613,7 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         assert new_chunks[1] != non_exported_chunk
         wait(lambda: too_many_ancestors_counter.get_delta() >= 1)
         wait(lambda: reincarnation_counter.get_delta() >= 1)
+        wait_for_requisitions(*new_chunks)
         self._check_tables(tables)
 
     @authors("kvk1920")
@@ -552,20 +627,33 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         concatenate(["//tmp/native"], "//tmp/foreign")
         write_table("<append=%true>//tmp/native", {"key": 2, "value": "b"})
 
-        tables = self._save_tables("//tmp/native", "//tmp/foreign")
+        def get_target_chunk():
+            exported_chunk, non_exported_chunk = get("//tmp/native/@chunk_ids")
+            return exported_chunk if exported else non_exported_chunk
 
-        exported_chunk, non_exported_chunk = get("//tmp/native/@chunk_ids")
-        target_chunk = exported_chunk if exported else non_exported_chunk
+        def wait_for_requisition():
+            target_chunk = get_target_chunk()
+            self._wait_for_requisition([self._build_requisition_entry()], chunk=target_chunk)
+            external_requisition = {}
+            for cell_tag in get(f"#{target_chunk}/@exports"):
+                external_requisition[cell_tag] = [self._build_requisition_entry()]
+            if external_requisition:
+                self._wait_for_external_requisition(target_chunk, external_requisition)
+
+        wait_for_requisition()
+        tables = self._save_tables("//tmp/native", "//tmp/foreign")
 
         self._enable_chunk_reincarnator()
 
-        set(f"#{target_chunk}/@schedule_reincarnation", {
+        set(f"#{get_target_chunk()}/@schedule_reincarnation", {
             "ignore_account_settings": True,
             "ignore_creation_time": True,
         })
 
+        target_chunk = get_target_chunk()
         wait(lambda: not exists(f"#{target_chunk}"))
 
+        wait_for_requisition()
         self._check_tables(tables)
 
     @authors("kvk1920")
@@ -587,6 +675,18 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         chunks = get("//tmp/native/@chunk_ids")
 
+        def wait_for_requisition():
+            exported, non_exported = get("//tmp/native/@chunk_ids")
+            self._wait_for_requisition([
+                self._build_requisition_entry("a"),
+                self._build_requisition_entry("b"),
+            ], chunk=exported)
+            self._wait_for_requisition([self._build_requisition_entry("a")], chunk=non_exported)
+            self._wait_for_external_requisition(exported, {
+                "11": [self._build_requisition_entry("b")]
+            })
+
+        wait_for_requisition()
         tables = self._save_tables("//tmp/native", "//tmp/foreign")
 
         self._enable_chunk_reincarnator()
@@ -599,6 +699,7 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         for chunk in chunks:
             wait(lambda: not exists(f"#{chunk}"))
 
+        wait_for_requisition()
         self._check_tables(tables)
 
     @authors("kvk1920")
@@ -625,6 +726,18 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         concatenate(["//tmp/a"], "//tmp/b")
         write_table("<append=%true>//tmp/a", {"key": "b", "value": 42})
 
+        def wait_for_requisition():
+            shared_chunk, unique_chunk = get("//tmp/a/@chunk_ids")
+            self._wait_for_requisition(
+                [self._build_requisition_entry("allow"), self._build_requisition_entry("deny")],
+                chunk=shared_chunk)
+            self._wait_for_requisition([self._build_requisition_entry("allow")], chunk=unique_chunk)
+            if deny_on == "foreign":
+                self._wait_for_external_requisition(shared_chunk, {
+                    "11" if native_is == "primary" else "10": [self._build_requisition_entry("deny")]
+                })
+
+        wait_for_requisition()
         tables = self._save_tables("//tmp/a", "//tmp/b")
 
         chunk1, chunk2 = get("//tmp/a/@chunk_ids")
@@ -641,10 +754,12 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         assert new_chunk1 == chunk1
         assert new_chunk2 != chunk2
 
+        wait_for_requisition()
         self._check_tables(tables)
 
         set("//sys/@config/chunk_manager/chunk_reincarnator/ignore_account_settings", True)
 
+        wait_for_requisition()
         tables = self._save_tables("//tmp/a", "//tmp/b")
 
         self._wait_for_chunk_obsolescence(new_chunk1)
@@ -652,6 +767,7 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         self._wait_for_reincarnation("//tmp/a", min_allowed_creation_time=datetime.utcnow())
 
+        wait_for_requisition()
         self._check_tables(tables)
 
     @authors("kvk1920")
@@ -668,14 +784,25 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         old_chunks = get("//tmp/native/@chunk_ids")
 
+        def wait_for_requisitions():
+            for chunk in get("//tmp/native/@chunk_ids"):
+                self._wait_for_requisition([self._build_requisition_entry()], chunk=chunk)
+                self._wait_for_external_requisition(chunk, {
+                    "11": [self._build_requisition_entry()],
+                    "12": [self._build_requisition_entry()],
+                })
+
+        wait_for_requisitions()
         tables = self._save_tables("//tmp/native", "//tmp/foreign1", "//tmp/foreign2")
         self._wait_for_reincarnation("//tmp/native", datetime.utcnow(), inject_leader_switch=True)
 
+        wait_for_requisitions()
         self._check_tables(tables)
         wait(lambda: reincarnations.get_delta() == 1, timeout=10)
         wait(lambda: teleportations.get_delta() == 2, timeout=10)
         # Unused chunks should be removed.
-        wait(lambda: all(not exists(f"#{chunk_id}") for chunk_id in old_chunks), timeout=10)
+        for chunk in old_chunks:
+            wait(lambda: not exists(f"#{chunk}"), timeout=10)
 
     @authors("kvk1920")
     def test_chunk_reincarnation_check_failed_on_foreign_cell(self):
@@ -707,6 +834,15 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         exported_dynamic_chunk, static_chunk = get("//tmp/native/@chunk_ids")
 
+        def wait_for_requisition():
+            exported, non_exported = get("//tmp/native/@chunk_ids")
+            for chunk in (exported, non_exported):
+                self._wait_for_requisition([self._build_requisition_entry()], chunk=chunk)
+            self._wait_for_external_requisition(exported, {
+                "11": [self._build_requisition_entry()],
+            })
+
+        wait_for_requisition()
         tables = self._save_tables("//tmp/native", "//tmp/foreign_static", "//tmp/foreign_dynamic")
 
         sync_create_cells(1)
@@ -741,6 +877,7 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         wait(lambda: teleportations.get_delta() == 1, timeout=10)
         wait(lambda: dynamic_tables.get_delta() == 1, timeout=10)
 
+        wait_for_requisition()
         self._check_tables(tables)
 
 
@@ -772,6 +909,7 @@ class TestChunkReincarnationLeaderSwitch(TestChunkReincarnatorBase):
 
         statistic = ReincarnatorStatistic("successful_reincarnations")
 
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         tables = self._save_tables("//tmp/t")
 
         for chunk in get("//tmp/t/@chunk_ids"):
@@ -780,4 +918,5 @@ class TestChunkReincarnationLeaderSwitch(TestChunkReincarnatorBase):
                                      inject_leader_switch=True)
 
         wait(lambda: statistic.get_delta() == 4)
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         self._check_tables(tables)
