@@ -3498,11 +3498,6 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
 
     auto jobId = jobSummary->Id;
 
-    YT_LOG_DEBUG(
-        "Process running job (JobId: %v, HasStatistics: %v)",
-        jobId,
-        static_cast<bool>(jobSummary->Statistics));
-
     if (Spec_->TestingOperationOptions->CrashControllerAgent) {
         bool canCrashControllerAgent = false;
         {
@@ -5972,9 +5967,10 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
     auto jobId = jobSummary->Id;
 
     YT_LOG_DEBUG(
-        "Job info received from node (JobId: %v, JobState: %v, FinishTime: %v)",
+        "Job info received from node (JobId: %v, JobState: %v, HasStatistics: %v, FinishTime: %v)",
         jobId,
         jobSummary->State,
+        static_cast<bool>(jobSummary->Statistics),
         jobSummary->FinishTime);
 
     auto joblet = FindJoblet(jobId);
@@ -5998,20 +5994,12 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
         OnJobStarted(joblet);
     }
 
-    if (jobSummary->State == EJobState::Waiting) {
-        YT_LOG_DEBUG(
-            "Received waiting job info, skip it (JobId: %v)",
-            jobId);
-
-        return;
-    }
-
-    if (jobSummary->State == EJobState::Running) {
-        OnJobRunning(SummaryCast<TRunningJobSummary>(std::move(jobSummary)));
-        return;
-    }
-
     switch (jobSummary->State) {
+        case EJobState::Waiting:
+            break;
+        case EJobState::Running:
+            OnJobRunning(SummaryCast<TRunningJobSummary>(std::move(jobSummary)));
+            break;
         case EJobState::Completed:
             OnJobCompleted(
                 SummaryCast<TCompletedJobSummary>(std::move(jobSummary)));
