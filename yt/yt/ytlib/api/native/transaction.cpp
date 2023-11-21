@@ -1155,21 +1155,21 @@ private:
 
             int indexTableCount = tableInfo->Indices.size();
 
-            std::vector<TFuture<TTableMountInfoPtr>> futureIndexTableInfos;
-            futureIndexTableInfos.reserve(indexTableCount);
+            std::vector<TFuture<TTableMountInfoPtr>> indexTableInfoFutures;
+            indexTableInfoFutures.reserve(indexTableCount);
             for (const auto& indexInfo : tableInfo->Indices) {
-                futureIndexTableInfos.push_back(Connection_
+                indexTableInfoFutures.push_back(Connection_
                     ->GetTableMountCache()
                     ->GetTableInfo(FromObjectId(indexInfo.TableId)));
 
                 if (indexInfo.Kind != ESecondaryIndexKind::FullSync) {
-                    THROW_ERROR_EXCEPTION("Unexpected secondary index kind, expected %v",
-                        ESecondaryIndexKind::FullSync)
-                        << TErrorAttribute("secondary_index_kind", indexInfo.Kind);
+                    THROW_ERROR_EXCEPTION("Unexpected secondary index kind: expected %Qlv, actual %Qlv",
+                        ESecondaryIndexKind::FullSync,
+                        indexInfo.Kind);
                 }
             }
 
-            auto indexTableInfos = WaitForUnique(AllSucceeded(futureIndexTableInfos))
+            auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
                 .ValueOrThrow();
 
             for (const auto& column : tableInfo->Schemas[ETableSchemaKind::Primary]->Columns()) {
@@ -1187,11 +1187,6 @@ private:
                     *indexTableInfos[index]->Schemas[ETableSchemaKind::Lookup],
                     NameTable_,
                     /*allowMissingKeyColumns*/ true);
-            }
-
-            THashSet<ui16> tableLookupIdSet;
-            for (const auto& column : tableInfo->Schemas[ETableSchemaKind::Lookup]->Columns()) {
-                tableLookupIdSet.insert(NameTable_->GetIdOrRegisterName(column.Name()));
             }
 
             struct TSecondaryIndicesLookupBufferTag { };
@@ -1227,6 +1222,7 @@ private:
             }
 
             auto keyRange = MakeSharedRange(std::move(lookupKeys), std::move(rowBuffer));
+
             TLookupRowsOptions lookupRowsOptions;
             lookupRowsOptions.KeepMissingRows = true;
 
@@ -1262,7 +1258,7 @@ private:
                     secondaryModifications.push_back(TRowModification{
                         ERowModificationType::Write,
                         rowToWrite.ToTypeErasedRow(),
-                        TLockMask()
+                        TLockMask(),
                     });
                 };
                 auto deleteRow = [&] (TUnversionedRow row) {
@@ -1275,7 +1271,7 @@ private:
                     secondaryModifications.push_back(TRowModification{
                         ERowModificationType::Delete,
                         rowToDelete.ToTypeErasedRow(),
-                        TLockMask()
+                        TLockMask(),
                     });
                 };
 

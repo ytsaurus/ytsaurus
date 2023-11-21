@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/client/tablet_client/public.h>
 
 namespace NYT::NTableServer {

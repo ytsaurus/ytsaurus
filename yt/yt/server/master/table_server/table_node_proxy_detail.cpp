@@ -1904,7 +1904,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     for (const auto* index : trunkTable->SecondaryIndices()) {
         auto* protoIndexInfo = response->add_indices();
         ToProto(protoIndexInfo->mutable_index_table_id(), index->GetIndexTable()->GetId());
-        protoIndexInfo->set_index_kind(static_cast<int>(index->GetKind()));
+        protoIndexInfo->set_index_kind(ToProto<i32>(index->GetKind()));
     }
 
     if (trunkTable->IsReplicated()) {

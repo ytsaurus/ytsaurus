@@ -1431,7 +1431,7 @@ private:
         response->set_start_timestamp(transaction->GetStartTimestamp());
         response->set_atomicity(static_cast<NApi::NRpcProxy::NProto::EAtomicity>(transaction->GetAtomicity()));
         response->set_durability(static_cast<NApi::NRpcProxy::NProto::EDurability>(transaction->GetDurability()));
-        response->set_timeout(static_cast<i64>(transaction->GetTimeout().GetValue()));
+        response->set_timeout(ToProto<i64>(transaction->GetTimeout().GetValue()));
         if (transaction->GetType() == ETransactionType::Tablet) {
             response->set_sequence_number_source_id(NextSequenceNumberSourceId_++);
         }
@@ -1513,14 +1513,14 @@ private:
                     ToProto(protoReplica->mutable_replica_id(), replica->ReplicaId);
                     protoReplica->set_cluster_name(replica->ClusterName);
                     protoReplica->set_replica_path(replica->ReplicaPath);
-                    protoReplica->set_mode(static_cast<i32>(replica->Mode));
+                    protoReplica->set_mode(ToProto<i32>(replica->Mode));
                 }
                 response->set_physical_path(tableMountInfo->PhysicalPath);
 
                 for (const auto& indexInfo : tableMountInfo->Indices) {
                     auto* protoIndexInfo = response->add_indices();
                     ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
-                    protoIndexInfo->set_index_kind(static_cast<int>(indexInfo.Kind));
+                    protoIndexInfo->set_index_kind(ToProto<i32>(indexInfo.Kind));
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
@@ -2789,7 +2789,7 @@ private:
         if (request->has_cursor_time()) {
             options.CursorTime = FromProto<TInstant>(request->cursor_time());
         }
-        options.CursorDirection = static_cast<EOperationSortDirection>(request->cursor_direction());
+        options.CursorDirection = FromProto<EOperationSortDirection>(request->cursor_direction());
         if (request->has_user_filter()) {
             options.UserFilter = request->user_filter();
         }
@@ -2913,8 +2913,8 @@ private:
             options.TaskName = request->task_name();
         }
 
-        options.SortField = static_cast<EJobSortField>(request->sort_field());
-        options.SortOrder = static_cast<EJobSortDirection>(request->sort_order());
+        options.SortField = FromProto<EJobSortField>(request->sort_field());
+        options.SortOrder = FromProto<EJobSortDirection>(request->sort_order());
 
         options.Limit = request->limit();
         options.Offset = request->offset();
@@ -2923,7 +2923,7 @@ private:
         options.IncludeControllerAgent = request->include_controller_agent();
         options.IncludeArchive = request->include_archive();
 
-        options.DataSource = static_cast<EDataSource>(request->data_source());
+        options.DataSource = FromProto<EDataSource>(request->data_source());
         options.RunningJobsLookbehindPeriod = FromProto<TDuration>(request->running_jobs_lookbehind_period());
 
         context->SetRequestInfo(
@@ -4812,7 +4812,7 @@ private:
         if (request->has_user()) {
             user = request->user();
         }
-        auto permission = static_cast<EPermission>(request->permission());
+        auto permission = FromProto<EPermission>(request->permission());
         auto acl = ConvertToNode(TYsonString(request->acl()));
 
         TCheckPermissionByAclOptions options;
