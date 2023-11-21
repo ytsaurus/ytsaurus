@@ -1839,4 +1839,53 @@ TEST_F(TFairShareUpdateTest, TestProposedIntegralSharePrecisionError)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TFairShareUpdateTest, TestCrashInAdjustProposedIntegralShareOnUpdateBurstPoolIntegralShares)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto limitedStrongGuaranteeParent = CreateSimplePool("parent", /*strongGuaranteeCpu*/ 50.0);
+    limitedStrongGuaranteeParent->AttachParent(rootElement.Get());
+
+    TJobResources parentResourceLimits;
+    parentResourceLimits.SetCpu(55);
+    parentResourceLimits.SetMemory(totalResourceLimits.GetMemory());
+    parentResourceLimits.SetUserSlots(totalResourceLimits.GetUserSlots());
+    limitedStrongGuaranteeParent->SetResourceLimits(parentResourceLimits);
+
+
+    auto burstChild1 = CreateIntegralPool("pool1", EIntegralGuaranteeType::Burst, /*flowCpu*/ 10.0, /*burstCpu*/ 10.0);
+    burstChild1->AttachParent(limitedStrongGuaranteeParent.Get());
+
+    auto burstChild2 = CreateIntegralPool("pool2", EIntegralGuaranteeType::Burst, /*flowCpu*/ 10.0, /*burstCpu*/ 10.0);
+    burstChild2->AttachParent(limitedStrongGuaranteeParent.Get());
+
+    TJobResources resourceDemand;
+    resourceDemand.SetUserSlots(5);
+    resourceDemand.SetCpu(5);
+    resourceDemand.SetMemory(50_MB);
+
+    auto op1 = CreateOperation(burstChild1.Get(), resourceDemand);
+    auto op2 = CreateOperation(burstChild2.Get(), resourceDemand);
+
+    {
+        auto now = TInstant::Now();
+        DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
+
+        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
+
+        // First pool gets integral guarantees until the gap between parent's limit and strong guarantee is filled.
+        EXPECT_EQ(unit * 0, burstChild1->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(unit * 0.5, burstChild1->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, burstChild1->Attributes().FairShare.WeightProportional);
+
+        // The gap is filled by first pool. Second pool gets only weight proportional share.
+        EXPECT_EQ(unit * 0, burstChild2->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(unit * 0, burstChild2->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0.5, burstChild2->Attributes().FairShare.WeightProportional);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NVectorHdrf
