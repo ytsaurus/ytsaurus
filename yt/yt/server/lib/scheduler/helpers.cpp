@@ -32,6 +32,12 @@ TJobId GenerateJobId(TCellTag tag, TNodeId nodeId)
         nodeId.Underlying());
 }
 
+TJobId JobIdFromAllocationId(TAllocationId allocationId)
+{
+    // Allocation id is currently equal to allocation id.
+    return TJobId(allocationId.Underlying());
+}
+
 TNodeId NodeIdFromAllocationId(TAllocationId allocationId)
 {
     return TNodeId(allocationId.Underlying().Parts32[0]);

@@ -414,8 +414,11 @@ private:
     TExecNodePtr FindNodeByJob(TJobId jobId);
 
     bool IsJobAborted(TJobId jobId, const TExecNodePtr& node);
+
     TJobPtr FindJob(TJobId jobId, const TExecNodePtr& node);
+    TJobPtr FindJob(TAllocationId allocationId, const TExecNodePtr& node);
     TJobPtr FindJob(TJobId jobId);
+    TJobPtr FindJob(TAllocationId allocationId);
     TJobPtr GetJobOrThrow(TJobId jobId);
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);

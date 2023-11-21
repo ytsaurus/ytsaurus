@@ -15,6 +15,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+TJobId JobIdFromAllocationId(TAllocationId allocationId);
 NNodeTrackerClient::TNodeId NodeIdFromAllocationId(TAllocationId allocationId);
 
 ////////////////////////////////////////////////////////////////////////////////
