@@ -270,6 +270,17 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     }).AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
                 });
 
+                std::optional<std::vector<TString>> columnsToRead;
+                if (!columnFilter.IsUniversal()) {
+                    columnsToRead = std::vector<TString>{};
+                    columnsToRead->reserve(columnFilter.GetIndexes().size());
+                    for (auto columnIndex : columnFilter.GetIndexes()) {
+                        columnsToRead->emplace_back(nameTable->GetName(columnIndex));
+                    }
+                } else {
+                    columnsToRead = dataSource.Columns();
+                }
+
                 auto createReader = BIND([=] {
                     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                     if (TypeFromId(chunkId) == EObjectType::OrderedDynamicTabletStore) {
@@ -281,7 +292,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nameTable,
                             chunkReaderHost,
                             chunkReadOptions,
-                            dataSource.Columns(),
+                            columnsToRead,
                             multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                                 DefaultRemoteDynamicStoreReaderMemoryEstimate),
                             createChunkReaderFromSpecAsync));
