@@ -184,7 +184,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NRpc::IChannelPtr GetYqlAgentChannelOrThrow(const TString& /*stage*/) const override
+    NRpc::IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& /*stage*/) const override
     {
         YT_UNIMPLEMENTED();
     }

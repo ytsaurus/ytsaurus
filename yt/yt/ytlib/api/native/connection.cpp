@@ -550,7 +550,7 @@ public:
         return QueueConsumerRegistrationManager_;
     }
 
-    IChannelPtr GetYqlAgentChannelOrThrow(const TString& stage) const override
+    IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& stage) const override
     {
         auto clusterConnection = MakeStrong(this);
         auto clusterStage = stage;
@@ -563,7 +563,7 @@ public:
         auto config = clusterConnection->Config_.Acquire();
         const auto& stages = config->YqlAgent->Stages;
         if (auto iter = stages.find(clusterStage); iter != stages.end()) {
-            return CreateYqlAgentChannel(iter->second->Channel);
+            return CreateYqlAgentChannelProvider(iter->second->Channel);
         } else {
             THROW_ERROR_EXCEPTION("YQL agent stage %Qv is not found in cluster directory", stage);
         }
@@ -986,7 +986,7 @@ private:
         }
     }
 
-    IChannelPtr CreateYqlAgentChannel(TYqlAgentChannelConfigPtr config) const
+    IRoamingChannelProviderPtr CreateYqlAgentChannelProvider(TYqlAgentChannelConfigPtr config) const
     {
         auto endpointDescription = "YqlAgent";
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -994,17 +994,11 @@ private:
                 .Item("yql_agent").Value(true)
             .EndMap());
 
-        auto channel = CreateBalancingChannel(
+        return CreateBalancingChannelProvider(
             config,
             ChannelFactory_,
             std::move(endpointDescription),
             std::move(endpointAttributes));
-
-        // TODO(max42): make customizable.
-        constexpr auto timeout = TDuration::Days(1);
-        channel = CreateDefaultTimeoutChannel(std::move(channel), timeout);
-
-        return channel;
     }
 
     void SetupTvmIdSynchronization()
