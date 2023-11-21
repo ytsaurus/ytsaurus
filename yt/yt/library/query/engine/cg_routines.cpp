@@ -43,6 +43,8 @@
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 #include <library/cpp/xdelta3/state/merge.h>
 
 #include <util/charset/utf8.h>
@@ -75,6 +77,7 @@ using namespace NProfiling;
 using namespace NWebAssembly;
 using namespace NYson;
 using namespace NYTree;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1987,6 +1990,220 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkReplica
+{
+    TChunkId Uuid;
+    i64 Index;
+    i64 NodeId;
+
+    auto operator<=>(const TChunkReplica& other) const
+    {
+        return std::tie(Uuid, Index, NodeId) <=> std::tie(other.Uuid, other.Index, other.NodeId);
+    }
+};
+
+TCompactVector<TChunkReplica, 3> Unite(const TCompactVector<TChunkReplica, 3>& first, const TCompactVector<TChunkReplica, 3>& second)
+{
+    TCompactVector<TChunkReplica, 3> result;
+    result.insert(result.end(), first.begin(), first.end());
+    result.insert(result.end(), second.begin(), second.end());
+
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end(), [] (const TChunkReplica& lhs, const TChunkReplica& rhs) {
+        return (lhs.Uuid == rhs.Uuid && lhs.Index == rhs.Index);
+    }), result.end());
+
+    return result;
+}
+
+TCompactVector<TChunkReplica, 3> Filter(const TCompactVector<TChunkReplica, 3>& first, const TCompactVector<TChunkReplica, 3>& second)
+{
+    TCompactVector<TChunkReplica, 3> result;
+    auto it = first.begin();
+    auto jt = second.begin();
+    while (it < first.end()) {
+        if (jt == second.end() || *it < *jt) {
+            result.push_back(*it);
+            ++it;
+        } else if (*jt < *it) {
+            ++jt;
+        } else {
+            ++it;
+            ++jt;
+        }
+    }
+    return result;
+}
+
+TYsonItem Consume(TYsonPullParserCursor* cursor, EYsonItemType type)
+{
+    auto current = cursor->GetCurrent();
+    if (current.GetType() != type) {
+        THROW_ERROR_EXCEPTION("Unexpected yson item type: expected %Qlv, got %Qlv",
+            type,
+            current.GetType());
+    }
+    cursor->Next();
+    return current;
+}
+
+TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
+{
+    TChunkReplica replica;
+
+    Consume(cursor, EYsonItemType::BeginList);
+
+    replica.Uuid = TGuid::FromString(Consume(cursor, EYsonItemType::StringValue).UncheckedAsString());
+    replica.Index = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
+    replica.NodeId = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
+
+    Consume(cursor, EYsonItemType::EndList);
+
+    return replica;
+}
+
+void ParseDelta(
+    TUnversionedValue* delta,
+    TCompactVector<TChunkReplica, 3>* replicasToAdd,
+    TCompactVector<TChunkReplica, 3>* replicasToRemove)
+{
+    if (delta->Type == EValueType::Null) {
+        return;
+    }
+
+    TMemoryInput input(delta->Data.String, delta->Length);
+    TYsonPullParser parser(&input, EYsonType::ListFragment);
+    TYsonPullParserCursor cursor(&parser);
+
+    if (!cursor.TryConsumeFragmentStart()) {
+        THROW_ERROR_EXCEPTION("Error parsing yson as list fragment");
+    }
+
+    Consume(&cursor, EYsonItemType::BeginList);
+    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
+        replicasToAdd->push_back(ParseReplica(cursor));
+    });
+    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
+        replicasToRemove->push_back(ParseReplica(cursor));
+    });
+    Consume(&cursor, EYsonItemType::EndList);
+}
+
+auto ParseState(
+    TUnversionedValue* state,
+    TCompactVector<TChunkReplica, 3>* replicas)
+{
+    if (state->Type == EValueType::Null) {
+        return;
+    }
+
+    TMemoryInput input(state->Data.String, state->Length);
+    TYsonPullParser parser(&input, EYsonType::ListFragment);
+    TYsonPullParserCursor cursor(&parser);
+
+    if (!cursor.TryConsumeFragmentStart()) {
+        THROW_ERROR_EXCEPTION("Error parsing yson as list fragment");
+    }
+
+    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
+        replicas->push_back(ParseReplica(cursor));
+    });
+}
+
+void DumpReplicas(TYsonWriter& writer, const TCompactVector<TChunkReplica, 3>& replicas)
+{
+    writer.OnBeginList();
+    for (const auto& replica : replicas) {
+        writer.OnListItem();
+        writer.OnBeginList();
+            writer.OnListItem();
+                writer.OnStringScalar(ToString(replica.Uuid));
+            writer.OnListItem();
+                writer.OnInt64Scalar(replica.Index);
+            writer.OnListItem();
+                writer.OnInt64Scalar(replica.NodeId);
+        writer.OnEndList();
+    }
+    writer.OnEndList();
+};
+
+auto GetApproximateOutputLength(const TCompactVector<TChunkReplica, 3>& replicas)
+{
+    return (sizeof(TChunkReplica) + 20) * replicas.size() + 10;
+}
+
+void ReplicaSetMerge(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state1,
+    TUnversionedValue* state2)
+{
+    if (state1->Type == EValueType::Null) {
+        *result = *state2;
+        return;
+    }
+
+    TCompactVector<TChunkReplica, 3> replicasToAdd1;
+    TCompactVector<TChunkReplica, 3> replicasToRemove1;
+
+    TCompactVector<TChunkReplica, 3> replicasToAdd2;
+    TCompactVector<TChunkReplica, 3> replicasToRemove2;
+
+    ParseDelta(state1, &replicasToAdd1, &replicasToRemove1);
+    ParseDelta(state2, &replicasToAdd2, &replicasToRemove2);
+
+    auto replicasToAdd = Filter(Unite(replicasToAdd1, replicasToAdd2), replicasToRemove2);
+
+    auto approximateLength = GetApproximateOutputLength(replicasToAdd);
+    char* permanentData = AllocateBytes(context, approximateLength);
+
+    TMemoryOutput output(permanentData, approximateLength);
+    TYsonWriter writer(&output, EYsonFormat::Binary);
+
+    writer.OnBeginList();
+    DumpReplicas(writer, replicasToAdd);
+    // Replicas to remove is empty list.
+    DumpReplicas(writer, {});
+    writer.OnEndList();
+
+    writer.Flush();
+
+    auto length = output.Buf() - permanentData;
+
+    result->Type = EValueType::Any;
+    result->Length = length;
+    result->Data.String = permanentData;
+}
+
+void ReplicaSetFinalize(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state)
+{
+    TCompactVector<TChunkReplica, 3> replicasToAdd;
+    TCompactVector<TChunkReplica, 3> replicasToRemove;
+
+    ParseDelta(state, &replicasToAdd, &replicasToRemove);
+
+    auto approximateLength = GetApproximateOutputLength(replicasToAdd);
+    char* permanentData = AllocateBytes(context, approximateLength);
+
+    TMemoryOutput output(permanentData, approximateLength);
+    TYsonWriter writer(&output, EYsonFormat::Binary);
+
+    DumpReplicas(writer, replicasToAdd);
+
+    writer.Flush();
+
+    auto length = output.Buf() - permanentData;
+
+    result->Type = EValueType::Any;
+    result->Length = length;
+    result->Data.String = permanentData;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(dtorilov): Add unit-test.
 void HasPermissions(
     TExpressionContext* /*context*/,
@@ -2287,6 +2504,8 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HyperLogLogAdd);
     REGISTER_ROUTINE(HyperLogLogMerge);
     REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
+    REGISTER_ROUTINE(ReplicaSetMerge);
+    REGISTER_ROUTINE(ReplicaSetFinalize);
     REGISTER_ROUTINE(HasPermissions);
     REGISTER_ROUTINE(YsonLength);
     REGISTER_ROUTINE(LikeOpHelper);

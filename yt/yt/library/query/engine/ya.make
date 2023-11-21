@@ -131,6 +131,16 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/replica_set.cpp
+    NAME replica_set
+    SYMBOLS
+        _yt_replica_set_init
+        _yt_replica_set_update
+        _yt_replica_set_merge
+        _yt_replica_set_finalize
+)
+
+LLVM_BC(
     udf/first.c
     NAME first
     SYMBOLS
