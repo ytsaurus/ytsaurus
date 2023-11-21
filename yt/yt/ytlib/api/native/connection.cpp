@@ -266,12 +266,12 @@ public:
             Logger);
 
         ChaosCellDirectorySynchronizer_ = CreateChaosCellDirectorySynchronizer(
-            config->ChaosCellDirectorySynchronizer,
+            StaticConfig_->ChaosCellDirectorySynchronizer,
             CellDirectory_,
             this,
             Logger);
 
-        if (StaticConfig_->ReplicationCardCache || config->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
+        if (StaticConfig_->ReplicationCardCache || StaticConfig_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
             ChaosCellDirectorySynchronizer_->Start();
         }
 
