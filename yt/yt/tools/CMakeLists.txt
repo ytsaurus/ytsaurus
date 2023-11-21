@@ -7,6 +7,7 @@
 
 
 add_subdirectory(cuda_core_dump_injection)
+add_subdirectory(dump_changelog)
 add_subdirectory(dump_chunk_meta)
 add_subdirectory(recode_table_chunk)
 add_subdirectory(run_codec)

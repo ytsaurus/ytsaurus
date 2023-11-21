@@ -1,5 +1,6 @@
 RECURSE(
     cuda_core_dump_injection
+    dump_changelog
     dump_chunk_meta
     dynamic_tables
     prepare_scheduling_usage

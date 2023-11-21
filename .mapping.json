@@ -1013,6 +1013,7 @@
   "yt/yt/tests/integration/yt_fibers_printer/gdbtest/CMakeLists.txt":"",
   "yt/yt/tools/CMakeLists.txt":"",
   "yt/yt/tools/cuda_core_dump_injection/CMakeLists.txt":"",
+  "yt/yt/tools/dump_changelog/CMakeLists.txt":"",
   "yt/yt/tools/dump_chunk_meta/CMakeLists.txt":"",
   "yt/yt/tools/recode_table_chunk/CMakeLists.txt":"",
   "yt/yt/tools/run_codec/CMakeLists.txt":"",
