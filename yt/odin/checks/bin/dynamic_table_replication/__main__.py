@@ -277,7 +277,17 @@ def run_check(yt_client, logger, options, states):
             return list(yt_client.lookup_rows(replica_table_path, keys)) == rows
         wait_for_result(_check, "rows to get replicated")
 
-        assert list(metacluster_client.lookup_rows(replicated_table_path, keys)) == rows
+        def _lookup():
+            try:
+                assert list(metacluster_client.lookup_rows(replicated_table_path, keys)) == rows
+                return True
+            except MetaClusterError as e:
+                if isinstance(e.inner, YtError):
+                    if e.inner.contains_code(1736):  # NoInSyncReplicas
+                        logger.warning("Encountered NoInSyncReplicas error; will retry")
+                        return False
+                raise e
+        wait_for_result(_lookup, "lookup from metacluster")
 
     def check_incoming_replication_enabled():
         assert is_replica_cluster()

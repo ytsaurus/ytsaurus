@@ -116,7 +116,7 @@ def get_checks_config():
             "enable": True,
             "options": {
                 "metacluster": "markov",
-                "replica_clusters": ["seneca-vla", "markov"],
+                "replica_clusters": ["seneca-vla", "markov", "seneca-sas", "hahn", "arnold"],
             },
         },
     }
@@ -1102,6 +1102,7 @@ def get_checks_config():
                 enable_discovery,
                 enable_nightly_compression_arnold,
                 bundle_controller,
+                dynamic_table_replication_stable,
             ),
             "landau": deep_merge(
                 snapshot_validation,
@@ -1148,6 +1149,7 @@ def get_checks_config():
                 snapshot_validation,
                 clock_quorum_health,
                 bundle_controller,
+                dynamic_table_replication_stable,
             ),
             "seneca-vla": deep_merge(
                 snapshot_validation,
@@ -1209,6 +1211,7 @@ def get_checks_config():
                 destroyed_replicas_size_hahn_arnold,
                 enable_discovery,
                 enable_nightly_compression_hahn,
+                dynamic_table_replication_stable,
             ),
             "zeno": deep_merge(
                 allow_unaware_nodes,
