@@ -38,3 +38,16 @@ class TestUdfs(TestQueriesYqlBase):
             }
         ]
         assert_items_equal(result, expected_result)
+
+    @authors("max42")
+    def test_rename_members(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        expected_rows = [{"b": 42}]
+        write_table("//tmp/t", rows)
+        query = start_query("yql", "select * from (select RenameMembers(TableRow(), [('a', 'b')]) from `//tmp/t`) flatten columns;")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(expected_rows, result)

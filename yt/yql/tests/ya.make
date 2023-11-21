@@ -16,7 +16,7 @@ DEPENDS(
 # In open source these artifacts must be taken from YDB repo or extracted from Query Tracker Docker image.
 IF (NOT OPENSOURCE)
     # This sandbox resource is produced by the script yt/yql/packages/build_ydb_artifacts_for_tests.sh.
-    DATA(sbr://5415383986)
+    DATA(sbr://5421404916)
 ENDIF()
 
 PEERDIR(
