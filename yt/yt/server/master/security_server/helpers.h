@@ -62,7 +62,11 @@ TAccessControlList DeserializeAcl(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Validates modification for those attributes which can be set only by superusers.
-void ValidateSuperuser(const ISecurityManagerPtr& securityManager, TStringBuf key);
+void ValidateSuperuserOnAttributeModification(
+    const ISecurityManagerPtr& securityManager,
+    TStringBuf attribute);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
 

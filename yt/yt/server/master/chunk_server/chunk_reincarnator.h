@@ -27,7 +27,7 @@ void ToProto(
     NProto::TChunkReincarnationOptions* protoOptions,
     const TChunkReincarnationOptions& options);
 
-TChunkReincarnationOptions DeserializeChunkReincarnationOptions(NYTree::INodePtr node);
+void Deserialize(TChunkReincarnationOptions& options, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

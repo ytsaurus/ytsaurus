@@ -181,6 +181,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
     ((LastSeenUserAttribute)                                        (2445))  // cherepashka
     ((ChunkReincarnatorTestingUtilities_23_2)                       (2446))  // kvk1920
+    ((ChunkReincarnatorMinorFixes)                                  (2447))  // kvk1920
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch

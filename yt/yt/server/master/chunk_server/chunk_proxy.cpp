@@ -1118,13 +1118,11 @@ private:
                     THROW_ERROR_EXCEPTION("Reincarnation can be scheduled for native chunks only");
                 }
 
-                ValidateSuperuser(Bootstrap_->GetSecurityManager(), key.Unintern());
+                ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
 
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
-                chunkReincarnator->ScheduleReincarnation(
-                    chunk,
-                    DeserializeChunkReincarnationOptions(ConvertToNode(value)));
+                chunkReincarnator->ScheduleReincarnation(chunk, ConvertTo<TChunkReincarnationOptions>(value));
 
                 return true;
             }

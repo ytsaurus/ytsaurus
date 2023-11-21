@@ -1125,12 +1125,12 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 THROW_ERROR_EXCEPTION("Reincarnation cannot be scheduled for external chunk owners");
             }
 
-            ValidateSuperuser(Bootstrap_->GetSecurityManager(), key.Unintern());
+            ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
 
             const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
             chunkReincarnator->ScheduleReincarnation(
                 node->GetChunkList(),
-                DeserializeChunkReincarnationOptions(ConvertToNode(value)));
+                ConvertTo<TChunkReincarnationOptions>(value));
 
             return true;
         }
