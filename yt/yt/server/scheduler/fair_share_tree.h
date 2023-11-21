@@ -62,6 +62,8 @@ struct IFairShareTreeHost
     virtual bool IsConnected() const = 0;
 
     virtual void SetSchedulerTreeAlert(const TString& treeId, ESchedulerAlertType alertType, const TError& alert) = 0;
+
+    virtual const re2::RE2& GetEphemeralPoolNameRegex() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

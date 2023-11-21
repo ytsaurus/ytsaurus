@@ -2352,12 +2352,6 @@ void TOperationFairShareTreeRuntimeParametersUpdate::Register(TRegistrar registr
         .Default();
     registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
         .Optional();
-
-    registrar.Postprocessor([] (TOperationFairShareTreeRuntimeParametersUpdate* update) {
-        if (update->Pool.has_value()) {
-            ValidatePoolName(*update->Pool);
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2383,9 +2377,6 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TOperationRuntimeParametersUpdate* update) {
         if (update->Acl.has_value()) {
             ValidateOperationAcl(*update->Acl);
-        }
-        if (update->Pool.has_value()) {
-            ValidatePoolName(*update->Pool);
         }
     });
 }

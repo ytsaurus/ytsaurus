@@ -181,6 +181,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
     ((LastSeenUserAttribute)                                        (2445))  // cherepashka
     ((ChunkReincarnatorTestingUtilities_23_2)                       (2446))  // kvk1920
+    ((ConfigurablePoolNameValidationRegex_23_2)                     (2447))  // renadeen
 );
 
 ////////////////////////////////////////////////////////////////////////////////

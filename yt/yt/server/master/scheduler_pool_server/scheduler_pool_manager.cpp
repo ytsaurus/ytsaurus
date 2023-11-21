@@ -70,7 +70,7 @@ public:
 
     TSchedulerPoolTree* CreatePoolTree(TString treeName)
     {
-        ValidatePoolName(treeName);
+        ValidatePoolName(treeName, *PoolNameRegexForAdministrators_);
 
         if (FindPoolTreeObjectByName(treeName)) {
             THROW_ERROR_EXCEPTION(
@@ -331,6 +331,41 @@ public:
         transaction.Commit();
     }
 
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    {
+        const auto& config = GetDynamicConfig();
+
+        if (!PoolNameRegexForAdministrators_ ||
+            PoolNameRegexForAdministrators_->pattern() != config->PoolNameRegexForAdministrators)
+        {
+            PoolNameRegexForAdministrators_.emplace(config->PoolNameRegexForAdministrators);
+        }
+
+        if (!PoolNameRegexForUsers_ ||
+            PoolNameRegexForUsers_->pattern() != config->PoolNameRegexForUsers)
+        {
+            PoolNameRegexForUsers_.emplace(config->PoolNameRegexForUsers);
+        }
+    }
+
+    void ValidateSchedulerPoolName(const TString& name)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* schema = Bootstrap_->GetObjectManager()->FindSchema(EObjectType::SchedulerPool);
+        auto* user = securityManager->GetAuthenticatedUser();
+        const re2::RE2& validationRegex = securityManager->CheckPermission(schema, user, EPermission::Administer).Action == ESecurityAction::Deny
+            ? *PoolNameRegexForUsers_
+            : *PoolNameRegexForAdministrators_;
+
+        if (!validationRegex.ok()) {
+            THROW_ERROR_EXCEPTION("Pool name validation regular expression is malformed")
+                << TErrorAttribute("regular_expression", validationRegex.pattern())
+                << TErrorAttribute("inner_error", validationRegex.error());
+        }
+
+        ValidatePoolName(name, validationRegex);
+    }
+
 private:
     class TCommandTransaction
     {
@@ -422,6 +457,10 @@ private:
 
     THashSet<TInternedAttributeKey> KnownPoolAttributes_;
     THashSet<TInternedAttributeKey> KnownPoolTreeAttributes_;
+
+    // NB: re2::RE2 does not have default constructor.
+    std::optional<re2::RE2> PoolNameRegexForAdministrators_;
+    std::optional<re2::RE2> PoolNameRegexForUsers_;
 
     void OnAfterSnapshotLoaded() override
     {
@@ -524,14 +563,7 @@ public:
 
     void ValidateObjectName(const TString& name) override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* schema = Bootstrap_->GetObjectManager()->FindSchema(EObjectType::SchedulerPool);
-        auto* user = securityManager->GetAuthenticatedUser();
-        auto validationLevel = securityManager->CheckPermission(schema, user, EPermission::Administer).Action == ESecurityAction::Deny
-            ? EPoolNameValidationLevel::Strict
-            : EPoolNameValidationLevel::NonStrict;
-
-        ValidatePoolName(name, validationLevel);
+        Owner_->ValidateSchedulerPoolName(name);
     }
 
     TString GetRootPath(const TSchedulerPool* rootPool) const override
@@ -673,6 +705,9 @@ void TSchedulerPoolManager::Initialize()
 {
     Bootstrap_->GetObjectManager()->RegisterHandler(New<TSchedulerPoolTypeHandler>(this));
     Bootstrap_->GetObjectManager()->RegisterHandler(New<TSchedulerPoolTreeTypeHandler>(this));
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(BIND(&TSchedulerPoolManager::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
