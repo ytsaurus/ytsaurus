@@ -1228,8 +1228,7 @@ TOperationId TNodeShard::FindOperationIdByAllocationId(TAllocationId allocationI
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    // COMPAT(pogorelov): JobId is currently equal to allocationId.
-    const auto& job = FindJob(TJobId(allocationId.Underlying()));
+    const auto& job = FindJob(allocationId);
     if (job) {
         return job->GetOperationId();
     }
@@ -1720,7 +1719,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             operationId,
             specFetchError);
 
-        if (auto job = FindJob(allocationId.Underlying())) {
+        if (auto job = FindJob(allocationId)) {
             auto error = (TError("Failed to get job spec")
                 << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed))
                 << specFetchError;
@@ -1856,7 +1855,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         return nullptr;
     }
 
-    auto job = FindJob(jobId.Underlying(), node);
+    auto job = FindJob(jobId, node);
     auto operationState = FindOperationState(operationId);
 
     if (!job) {
@@ -2605,6 +2604,11 @@ TJobPtr TNodeShard::FindJob(TJobId jobId, const TExecNodePtr& node)
     return it == idToJob.end() ? nullptr : it->second;
 }
 
+TJobPtr TNodeShard::FindJob(TAllocationId allocationId, const TExecNodePtr& node)
+{
+    return FindJob(JobIdFromAllocationId(allocationId), node);
+}
+
 TJobPtr TNodeShard::FindJob(TJobId jobId)
 {
     auto node = FindNodeByJob(jobId);
@@ -2612,6 +2616,11 @@ TJobPtr TNodeShard::FindJob(TJobId jobId)
         return nullptr;
     }
     return FindJob(jobId, node);
+}
+
+TJobPtr TNodeShard::FindJob(TAllocationId allocationId)
+{
+    return FindJob(JobIdFromAllocationId(allocationId));
 }
 
 TJobPtr TNodeShard::GetJobOrThrow(TJobId jobId)
