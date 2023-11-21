@@ -16,7 +16,7 @@ from .format import YtFormatReadError
 
 import yt.logger as logger
 
-from yt.common import join_exceptions
+from yt.common import join_exceptions, YT_NULL_TRANSACTION_ID as null_transaction_id
 
 try:
     from yt.packages.six.moves import xrange
@@ -86,7 +86,10 @@ def process_read_exception(exception):
 
 
 class FakeTransaction(object):
-    def __enter__(self):
+    def __init__(self):
+        self.transaction_id = null_transaction_id
+
+    def __enter__(self): 
         return self
 
     def __exit__(self, type, value, traceback):
