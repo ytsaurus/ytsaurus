@@ -48,6 +48,11 @@ public:
             .AddLongOption("stderr-path", "stderr path")
             .StoreResult(&StderrPath_)
             .Optional();
+        Opts_
+            .AddLongOption("do-not-close-descriptors", "disable machinery to close desctiptors on startup")
+            .NoArgument()
+            .SetFlag(&DoNotCloseDescriptors_)
+            .Optional();
     }
 
 protected:
@@ -60,12 +65,14 @@ protected:
     {
         TThread::SetCurrentThreadName("JobProxyMain");
 
+        if (!DoNotCloseDescriptors_) {
+            CloseAllDescriptors();
+        }
         EnableShutdownLoggingToStderr();
         ConfigureUids();
         ConfigureIgnoreSigpipe();
         EnablePhdrCache();
         ConfigureCrashHandler();
-        CloseAllDescriptors();
         ConfigureAllocator({
             .TCMallocOptimizeSize = true,
         });
@@ -106,6 +113,7 @@ private:
     NJobTrackerClient::TOperationId OperationId_;
     NJobTrackerClient::TJobId JobId_;
     TString StderrPath_ = "stderr";
+    bool DoNotCloseDescriptors_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -208,6 +208,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_jobs_timeout", &TThis::DisableJobsTimeout)
         .Default(TDuration::Minutes(10));
 
+    registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
+        .Default(false);
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
 }

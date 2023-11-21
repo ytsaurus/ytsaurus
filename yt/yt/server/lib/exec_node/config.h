@@ -281,6 +281,9 @@ public:
 
     TDuration DisableJobsTimeout;
 
+    // COMPAT(psushin): temporary flag to disable CloseAllDescriptors machinery.
+    bool ShouldCloseDescriptors;
+
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;
 

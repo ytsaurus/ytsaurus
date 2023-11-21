@@ -435,13 +435,17 @@ public:
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_spawn",
-            ExecNodeProfiler.WithPrefix("/job_environment/porto")))
+            ExecNodeProfiler.WithPrefix("/job_envir onment/porto")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_destroy",
             ExecNodeProfiler.WithPrefix("/job_environment/porto_destroy")))
-        , ContainerDestroyFailureCounter(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
-    { }
+        , ContainerDestroyFailureCounter_(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        const auto& slotManagerConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+        ShouldCloseDescriptors_.store(slotManagerConfig->ShouldCloseDescriptors);
+    }
 
     void OnDynamicConfigChanged(
         const TSlotManagerDynamicConfigPtr& oldConfig,
@@ -461,12 +465,19 @@ public:
             }
         }
 
+        ShouldCloseDescriptors_.store(newConfig->ShouldCloseDescriptors);
+
         UpdateIdleCpuFraction(newConfig->IdleCpuFraction);
 
-        if (oldConfig->EnableNumaNodeScheduling &&
-            !newConfig->EnableNumaNodeScheduling)
-        {
+        if (oldConfig->EnableNumaNodeScheduling && !newConfig->EnableNumaNodeScheduling) {
             ClearSlotCpuSets();
+        }
+    }
+
+    void AddArguments(TProcessBasePtr process, int /*slotIndex*/) override
+    {
+        if (!ShouldCloseDescriptors_.load()) {
+            process->AddArguments({"--do-not-close-descriptors"});
         }
     }
 
@@ -607,11 +618,13 @@ private:
     //! Porto connection used for container destruction, which is
     //! possibly a long operation and requires additional retries.
     IPortoExecutorPtr DestroyPortoExecutor_;
-    NProfiling::TCounter ContainerDestroyFailureCounter;
+    NProfiling::TCounter ContainerDestroyFailureCounter_;
 
     IInstancePtr SelfInstance_;
     IInstancePtr MetaInstance_;
     IInstancePtr MetaIdleInstance_;
+
+    std::atomic_bool ShouldCloseDescriptors_;
 
     double CpuLimit_;
     double IdleCpuLimit_;
@@ -658,7 +671,7 @@ private:
             }
 
             if (!destroyed) {
-                ContainerDestroyFailureCounter.Increment(1);
+                ContainerDestroyFailureCounter_.Increment(1);
                 TDelayedExecutor::WaitForDuration(Config_->ContainerDestructionBackoff);
             }
         }
