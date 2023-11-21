@@ -19,6 +19,7 @@ using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NObjectClient;
+using namespace NTracing;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -180,16 +181,21 @@ private:
 
     void DoSyncObserved()
     {
+        int observedCellCount = 0;
+
         try {
-            YT_LOG_DEBUG("Started synchronizing chaos cells in cell directory");
+            YT_LOG_DEBUG("Started synchronizing observed chaos cells in cell directory");
 
             std::vector<TCellTag> cellTags;
             {
                 auto guard = Guard(SpinLock_);
 
                 if (ObservedCells_.empty()) {
+                    YT_LOG_DEBUG("Skip synchronizing observed chaos cells as no observed cells found");
                     return;
                 }
+
+                observedCellCount = std::ssize(ObservedCells_);
 
                 cellTags.reserve(ObservedCells_.size());
                 for (auto [cellTag, cellId] : ObservedCells_) {
@@ -199,7 +205,7 @@ private:
 
             auto connection = Connection_.Lock();
             if (!connection) {
-                THROW_ERROR_EXCEPTION("Unable to synchronize chaos cells in cell directory: connection terminated");
+                THROW_ERROR_EXCEPTION("Unable to synchronize observed chaos cells in cell directory: connection terminated");
             }
 
             auto masterChannel = connection->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
@@ -245,15 +251,18 @@ private:
                 CellDirectory_->ReconfigureCell(descriptor);
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error synchronizing chaos cells in cell directory")
+            THROW_ERROR_EXCEPTION("Error synchronizing observed chaos cells in cell directory")
                 << ex;
         }
 
-        YT_LOG_DEBUG("Finished synchronizing chaos cells in cell directory");
+        YT_LOG_DEBUG("Finished synchronizing observed chaos cells in cell directory (ObservedCellCount: %v)",
+            observedCellCount);
     }
 
     void OnSync()
     {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosCellDirectorySync"));
+
         TError error;
         TPromise<void> syncPromise;
 
