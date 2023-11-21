@@ -56,7 +56,7 @@ message TLocationChunkStatistics
 {
     required NYT.NProto.TGuid location_uuid = 1;
     required int32 chunk_count = 2;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
