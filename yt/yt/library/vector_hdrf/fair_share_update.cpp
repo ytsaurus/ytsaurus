@@ -1583,11 +1583,9 @@ TResourceVector TFairShareUpdateExecutor::GetHierarchicalAvailableLimitsShare(co
     auto resultLimitsShare = TResourceVector::Ones();
     while (!current->IsRoot()) {
         const auto& limitsShare = current->Attributes().LimitsShare;
-        const auto& effectiveGuaranteeShare = TResourceVector::Min(
-            current->Attributes().GetGuaranteeShare(),
-            current->Attributes().DemandShare);
+        const auto& guaranteeShare = current->Attributes().GetGuaranteeShare();
 
-        resultLimitsShare = TResourceVector::Min(resultLimitsShare, limitsShare - effectiveGuaranteeShare);
+        resultLimitsShare = TResourceVector::Min(resultLimitsShare, limitsShare - guaranteeShare);
         YT_VERIFY(Dominates(resultLimitsShare, TResourceVector::Zero()));
 
         current = current->GetParentElement();
