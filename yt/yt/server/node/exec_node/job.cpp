@@ -1759,9 +1759,10 @@ void TJob::RunWithWorkspaceBuilder()
     std::vector<TDevice> devices = GetGpuDevices();
 
     std::vector<TBind> binds;
-    binds.reserve(Config_->RootFSBinds.size());
+    auto rootFsBinds = GetRootFsBinds();
+    binds.reserve(rootFsBinds.size());
 
-    for (const auto& bind : Config_->RootFSBinds) {
+    for (const auto& bind : rootFsBinds) {
         binds.push_back(TBind{
             .SourcePath = bind->ExternalPath,
             .TargetPath = bind->InternalPath,
@@ -2309,6 +2310,23 @@ void TJob::PrepareNodeDirectory()
     YT_LOG_INFO("Finish preparing node directory");
 }
 
+std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
+{
+    if (Config_->UseRootFSBinds) {
+        return Config_->RootFSBinds;
+    } else {
+        std::vector<NJobProxy::TBindConfigPtr> binds;
+
+        for (const auto& bind : Config_->RootFSBinds) {
+            if (!bind->ExternalPath.StartsWith("/yt")) {
+                binds.push_back(bind);
+            }
+        }
+
+        return binds;
+    }
+}
+
 TJobProxyConfigPtr TJob::CreateConfig()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -2350,15 +2368,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
     }
 
     if (RootVolume_ || DockerImage_) {
-        if (Config_->UseRootFSBinds) {
-            proxyConfig->Binds = Config_->RootFSBinds;
-        } else {
-            for (const auto& bind : Config_->RootFSBinds) {
-                if (!bind->ExternalPath.StartsWith("/yt")) {
-                    proxyConfig->Binds.push_back(bind);
-                }
-            }
-        }
+        proxyConfig->Binds = GetRootFsBinds();
 
         if (Config_->UseArtifactBinds) {
             for (const auto& artifact : Artifacts_) {
@@ -3084,12 +3094,13 @@ NContainers::TRootFS TJob::MakeWritableRootFS()
     YT_VERIFY(RootVolume_);
 
     NContainers::TRootFS rootFS;
+    auto rootFsBinds = GetRootFsBinds();
 
     rootFS.RootPath = RootVolume_->GetPath();
     rootFS.IsRootReadOnly = false;
-    rootFS.Binds.reserve(Config_->RootFSBinds.size());
+    rootFS.Binds.reserve(rootFsBinds.size());
 
-    for (const auto& bind : Config_->RootFSBinds) {
+    for (const auto& bind : rootFsBinds) {
         rootFS.Binds.push_back(TBind{
             .SourcePath = bind->ExternalPath,
             .TargetPath = bind->InternalPath,
