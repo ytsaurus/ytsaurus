@@ -85,6 +85,9 @@ using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
 
+using NControllerAgent::ELayerAccessMethod;
+using NControllerAgent::ELayerFilesystem;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecNodeLogger;
@@ -117,14 +120,6 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     if (config->Path.empty()) {
         THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
             << TErrorAttribute("type_name", artifactKey.GetTypeName())
-            << TErrorAttribute("filesystem", artifactKey.filesystem())
-            << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
-    }
-
-    if (artifactKey.filesystem() != "ext4" && artifactKey.filesystem() != "squashfs") {
-        THROW_ERROR_EXCEPTION("Unexpected filesystem for filesystem layer")
-            << TErrorAttribute("type_name", artifactKey.GetTypeName())
-            << TErrorAttribute("file_path", artifactKey.data_source().path())
             << TErrorAttribute("filesystem", artifactKey.filesystem())
             << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
     }
@@ -250,8 +245,8 @@ public:
         : Variant_(std::move(layer))
     { }
 
-    explicit TOverlayData(TNbdVolumePtr nbdVolume)
-        : Variant_(std::move(nbdVolume))
+    explicit TOverlayData(IVolumePtr volume)
+        : Variant_(std::move(volume))
     { }
 
     const TString& GetPath() const;
@@ -267,20 +262,20 @@ public:
         return std::get<TLayerPtr>(Variant_);
     }
 
-    bool IsNbdVolume() const
+    bool IsVolume() const
     {
         return !IsLayer();
     }
 
-    const TNbdVolumePtr& GetNbdVolume() const
+    const IVolumePtr& GetVolume() const
     {
-        return std::get<TNbdVolumePtr>(Variant_);
+        return std::get<IVolumePtr>(Variant_);
     }
 
     TFuture<void> Remove();
 
 private:
-    std::variant<TLayerPtr, TNbdVolumePtr> Variant_;
+    std::variant<TLayerPtr, IVolumePtr> Variant_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -415,6 +410,16 @@ public:
         const std::vector<TOverlayData>& overlayDataArray)
     {
         return BIND(&TLayerLocation::DoCreateOverlayVolume, MakeStrong(this), tag, options, overlayDataArray)
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run();
+    }
+
+    TFuture<TVolumeMeta> CreateSquashFSVolume(
+        TGuid tag,
+        const TArtifactKey& artifactKey,
+        const TString& squashFSFilePath)
+    {
+        return BIND(&TLayerLocation::DoCreateSquashFSVolume, MakeStrong(this), tag, artifactKey, squashFSFilePath)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -1139,7 +1144,7 @@ private:
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         }
         builder.AppendFormat("&export=%v", artifactKey.nbd_export_id());
-        builder.AppendFormat("&fs-type=%v", artifactKey.filesystem());
+        builder.AppendFormat("&fs-type=%v", ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())));
         volumeProperties["storage"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
@@ -1204,6 +1209,31 @@ private:
             tag,
             std::move(volumeMeta),
             std::move(volumeProperties));
+    }
+
+    TVolumeMeta DoCreateSquashFSVolume(
+        TGuid tag,
+        const TArtifactKey& artifactKey,
+        const TString& squashFSFilePath)
+    {
+        ValidateEnabled();
+
+        THashMap<TString, TString> volumeProperties {
+            {"backend", "squash"},
+            {"read_only", "true"},
+            {"layers", squashFSFilePath}
+        };
+
+        TVolumeMeta volumeMeta;
+        volumeMeta.set_type(ToProto<int>(EVolumeType::SquashFS));
+        volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
+        volumeMeta.add_layer_paths(squashFSFilePath);
+
+        return DoCreateVolume(
+            tag,
+            std::move(volumeMeta),
+            std::move(volumeProperties)
+        );
     }
 
     void DoRemoveVolume(const TVolumeId& volumeId)
@@ -2165,17 +2195,89 @@ DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNbdVolume
+    : public IVolume
+{
+public:
+    TNbdVolume(
+        TVolumeMeta&& meta,
+        const TArtifactKey& artifactKey,
+        TLayerLocationPtr location,
+        INbdServerPtr nbdServer)
+        : VolumeMeta_(std::move(meta))
+        , ArtifactKey_(artifactKey)
+        , Location_(std::move(location))
+        , NbdServer_(std::move(nbdServer))
+    { }
+
+    ~TNbdVolume()
+    {
+        Remove();
+    }
+
+    TFuture<void> Remove() override
+    {
+        if (RemoveFuture_) {
+            return RemoveFuture_;
+        }
+
+        const auto& volumeId = GetId();
+        YT_LOG_DEBUG("Removing NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
+            volumeId,
+            ArtifactKey_.nbd_export_id(),
+            ArtifactKey_.data_source().path());
+
+        // At first remove volume, then unregister export.
+        auto future = Location_->RemoveVolume(volumeId);
+        RemoveFuture_ = future.Apply(BIND([volumeId=volumeId, layer=ArtifactKey_, nbdServer=NbdServer_]() {
+            YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
+                volumeId,
+                layer.nbd_export_id(),
+                layer.data_source().path());
+
+            nbdServer->TryUnregisterDevice(layer.nbd_export_id());
+        }));
+
+        return RemoveFuture_;
+    }
+
+    const TVolumeId& GetId() const override
+    {
+        return VolumeMeta_.Id;
+    }
+
+    const TString& GetPath() const override
+    {
+        return VolumeMeta_.MountPath;
+    }
+
+    const TArtifactKey& GetArtifactKey() const override
+    {
+        return ArtifactKey_;
+    }
+
+private:
+    const TVolumeMeta VolumeMeta_;
+    const TArtifactKey ArtifactKey_;
+    const TLayerLocationPtr Location_;
+    const INbdServerPtr NbdServer_;
+
+    TFuture<void> RemoveFuture_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOverlayVolume
     : public IVolume
 {
 public:
     TOverlayVolume(
-        const TVolumeMeta& meta,
-        TPortoVolumeManagerPtr owner,
+        TVolumeMeta&& meta,
         TLayerLocationPtr location,
         std::vector<TOverlayData> overlayDataArray)
-        : VolumeMeta_(meta)
-        , Owner_(std::move(owner))
+        : VolumeMeta_(std::move(meta))
         , Location_(std::move(location))
         , OverlayDataArray_(std::move(overlayDataArray))
     { }
@@ -2191,11 +2293,11 @@ public:
             return RemoveFuture_;
         }
 
-        auto volumeId = GetId();
+        const auto& volumeId = GetId();
         YT_LOG_DEBUG("Removing Overlay volume (VolumeId: %v)", volumeId);
 
         // At first remove overlay volume, then remove constituent volumes and layers.
-        auto future = Location_->RemoveVolume(VolumeMeta_.Id);
+        auto future = Location_->RemoveVolume(volumeId);
         RemoveFuture_ = future.Apply(BIND([volumeId=volumeId, overlayDataArray=OverlayDataArray_]() mutable {
             YT_LOG_DEBUG("Removed Overlay volume (VolumeId: %v)", volumeId);
 
@@ -2220,6 +2322,12 @@ public:
         return VolumeMeta_.MountPath;
     }
 
+    const TArtifactKey& GetArtifactKey() const override
+    {
+        static TArtifactKey empty;
+        return empty;
+    }
+
     const std::vector<TOverlayData>& GetoverlayDataArray() const
     {
         return OverlayDataArray_;
@@ -2227,7 +2335,6 @@ public:
 
 private:
     const TVolumeMeta VolumeMeta_;
-    const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
     // Holds volumes and layers (so that they are not destroyed) while they are needed.
     const std::vector<TOverlayData> OverlayDataArray_;
@@ -2240,24 +2347,22 @@ DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNbdVolume
+class TSquashFSVolume
     : public IVolume
 {
 public:
-    TNbdVolume(
-        const TVolumeMeta& meta,
+    TSquashFSVolume(
+        TVolumeMeta&& meta,
         const TArtifactKey& artifactKey,
-        TPortoVolumeManagerPtr owner,
-        TLayerLocationPtr location,
-        INbdServerPtr nbdServer)
-        : VolumeMeta_(meta)
+        IVolumeArtifactPtr chunkCacheArtifact,
+        TLayerLocationPtr location)
+        : VolumeMeta_(std::move(meta))
         , ArtifactKey_(artifactKey)
-        , Owner_(std::move(owner))
+        , ChunkCacheArtifact_(std::move(chunkCacheArtifact))
         , Location_(std::move(location))
-        , NbdServer_(nbdServer)
     { }
 
-    ~TNbdVolume()
+    ~TSquashFSVolume()
     {
         Remove();
     }
@@ -2268,21 +2373,16 @@ public:
             return RemoveFuture_;
         }
 
-        auto volumeId = GetId();
-        YT_LOG_DEBUG("Removing NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
+        const auto& volumeId = GetId();
+        const auto& volumePath = GetPath();
+        YT_LOG_DEBUG("Removing SquashFS volume (VolumeId: %v, VolumePath: %v)",
             volumeId,
-            ArtifactKey_.nbd_export_id(),
-            ArtifactKey_.data_source().path());
+            volumePath);
 
-        // At first remove volume, then unregister export.
-        auto future = Location_->RemoveVolume(VolumeMeta_.Id);
-        RemoveFuture_ = future.Apply(BIND([volumeId=volumeId, layer=ArtifactKey_, nbdServer=NbdServer_]() {
-            YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
+        RemoveFuture_ = Location_->RemoveVolume(volumeId).Apply(BIND([volumeId=volumeId, volumePath=volumePath]() {
+            YT_LOG_DEBUG("Removed SquashFS volume (VolumeId: %v, VolumePath: %v)",
                 volumeId,
-                layer.nbd_export_id(),
-                layer.data_source().path());
-
-            nbdServer->TryUnregisterDevice(layer.nbd_export_id());
+                volumePath);
         }));
 
         return RemoveFuture_;
@@ -2298,7 +2398,7 @@ public:
         return VolumeMeta_.MountPath;
     }
 
-    const TArtifactKey& GetArtifactKey() const
+    const TArtifactKey& GetArtifactKey() const override
     {
         return ArtifactKey_;
     }
@@ -2306,14 +2406,15 @@ public:
 private:
     const TVolumeMeta VolumeMeta_;
     const TArtifactKey ArtifactKey_;
-    const TPortoVolumeManagerPtr Owner_;
+    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
+    const IVolumeArtifactPtr ChunkCacheArtifact_;
     const TLayerLocationPtr Location_;
-    const INbdServerPtr NbdServer_;
 
     TFuture<void> RemoveFuture_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TNbdVolume)
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2323,7 +2424,7 @@ const TString& TOverlayData::GetPath() const
         return std::get<TLayerPtr>(Variant_)->GetPath();
     }
 
-    return std::get<TNbdVolumePtr>(Variant_)->GetPath();
+    return std::get<IVolumePtr>(Variant_)->GetPath();
 }
 
 const TArtifactKey& TOverlayData::GetArtifactKey() const
@@ -2332,7 +2433,7 @@ const TArtifactKey& TOverlayData::GetArtifactKey() const
         return std::get<TLayerPtr>(Variant_)->GetKey();
     }
 
-    return std::get<TNbdVolumePtr>(Variant_)->GetArtifactKey();
+    return std::get<IVolumePtr>(Variant_)->GetArtifactKey();
 }
 
 TFuture<void> TOverlayData::Remove()
@@ -2341,7 +2442,7 @@ TFuture<void> TOverlayData::Remove()
         return VoidFuture;
     }
 
-    return GetNbdVolume()->Remove();
+    return GetVolume()->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2467,27 +2568,33 @@ public:
 
         std::vector<int> nbdArtifactPositions;
         std::vector<TArtifactKey> nbdArtifactKeys;
-        std::vector<int> overlayArtifactPositions;
-        std::vector<TArtifactKey> overlayArtifactKeys;
+        std::vector<int> squashFSArtifactPositions;
+        std::vector<TArtifactKey> squashFSArtifactKeys;
+        std::vector<int> archiveArtifactPositions;
+        std::vector<TArtifactKey> archiveArtifactKeys;
         for (auto i = 0; i < ssize(artifactKeys); ++i) {
             const auto& artifactKey = artifactKeys[i];
-            if (artifactKey.has_filesystem()) {
+
+            if (FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd) {
                 nbdArtifactPositions.push_back(i);
                 nbdArtifactKeys.push_back(artifactKey);
+            } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
+                squashFSArtifactPositions.push_back(i);
+                squashFSArtifactKeys.push_back(artifactKey);
             } else {
-                overlayArtifactPositions.push_back(i);
-                overlayArtifactKeys.push_back(artifactKey);
+                archiveArtifactPositions.push_back(i);
+                archiveArtifactKeys.push_back(artifactKey);
             }
         }
 
         std::vector<TFuture<TOverlayData>> overlayDataFutures;
         overlayDataFutures.resize(artifactKeys.size());
 
-        if (!overlayArtifactKeys.empty()) {
-            auto futures = PrepareLayers(tag, overlayArtifactKeys, downloadOptions);
-            YT_VERIFY(overlayArtifactKeys.size() == futures.size());
+        if (!archiveArtifactKeys.empty()) {
+            auto futures = PrepareLayers(tag, archiveArtifactKeys, downloadOptions);
+            YT_VERIFY(archiveArtifactKeys.size() == futures.size());
             for (auto i = 0; i < ssize(futures); ++i) {
-                auto position = overlayArtifactPositions[i];
+                auto position = archiveArtifactPositions[i];
                 overlayDataFutures[position] = std::move(futures[i]);
             }
         }
@@ -2497,6 +2604,15 @@ public:
             YT_VERIFY(nbdArtifactKeys.size() == futures.size());
             for (auto i = 0; i < ssize(futures); ++i) {
                 auto position = nbdArtifactPositions[i];
+                overlayDataFutures[position] = std::move(futures[i]);
+            }
+        }
+
+        if (!squashFSArtifactKeys.empty()) {
+            auto futures = PrepareSquashFSVolumes(tag, squashFSArtifactKeys, downloadOptions);
+            YT_VERIFY(squashFSArtifactKeys.size() == futures.size());
+            for (auto i = 0; i < ssize(futures); ++i) {
+                auto position = squashFSArtifactPositions[i];
                 overlayDataFutures[position] = std::move(futures[i]);
             }
         }
@@ -2604,6 +2720,31 @@ private:
         return future;
     }
 
+    //! Download and extract tar archives (tar layers).
+    std::vector<TFuture<TOverlayData>> PrepareLayers(
+        TGuid tag,
+        const std::vector<TArtifactKey>& artifactKeys,
+        const TArtifactDownloadOptions& downloadOptions)
+    {
+        YT_VERIFY(!artifactKeys.empty());
+
+        YT_LOG_DEBUG("Prepare layers (Tag: %v, Artifacts: %v)",
+            tag,
+            artifactKeys.size());
+
+        std::vector<TFuture<TOverlayData>> futures;
+        futures.reserve(artifactKeys.size());
+
+        for (const auto& artifactKey : artifactKeys) {
+            YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+            YT_VERIFY(!artifactKey.has_filesystem() || FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::Archive);
+            YT_VERIFY(!artifactKey.has_nbd_export_id());
+            futures.push_back(LayerCache_->PrepareLayer(artifactKey, downloadOptions, tag).As<TOverlayData>());
+        }
+
+        return futures;
+    }
+
     //! Create NBD volumes.
     std::vector<TFuture<TOverlayData>> PrepareNbdVolumes(
         TGuid tag,
@@ -2619,6 +2760,7 @@ private:
         futures.reserve(artifactKeys.size());
 
         for (const auto& artifactKey : artifactKeys) {
+            YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
             YT_VERIFY(artifactKey.has_filesystem());
             YT_VERIFY(artifactKey.has_nbd_export_id());
 
@@ -2637,14 +2779,15 @@ private:
         return futures;
     }
 
-    std::vector<TFuture<TOverlayData>> PrepareLayers(
+    //! Download SquashFS files and create volumes from them.
+    std::vector<TFuture<TOverlayData>> PrepareSquashFSVolumes(
         TGuid tag,
         const std::vector<TArtifactKey>& artifactKeys,
         const TArtifactDownloadOptions& downloadOptions)
     {
         YT_VERIFY(!artifactKeys.empty());
 
-        YT_LOG_DEBUG("Prepare layers (Tag: %v, Artifacts: %v)",
+        YT_LOG_DEBUG("Prepare SquashFS volumes (Tag: %v, Artifacts: %v)",
             tag,
             artifactKeys.size());
 
@@ -2652,8 +2795,18 @@ private:
         futures.reserve(artifactKeys.size());
 
         for (const auto& artifactKey : artifactKeys) {
-            YT_VERIFY(!artifactKey.has_filesystem());
-            futures.push_back(LayerCache_->PrepareLayer(artifactKey, downloadOptions, tag).As<TOverlayData>());
+            YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+            YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
+            YT_VERIFY(!artifactKey.has_nbd_export_id());
+
+            auto downloadFuture = ChunkCache_->DownloadArtifact(artifactKey, downloadOptions);
+            auto volumeFuture = downloadFuture.Apply(
+                BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
+                    // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
+                    return this_->CreateSquashFSVolume(tag, artifactKey, chunkCacheArtifact);
+                }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
+
+            futures.push_back(std::move(volumeFuture));
         }
 
         return futures;
@@ -2686,15 +2839,14 @@ private:
             .ValueOrThrow();
 
         auto volume = New<TNbdVolume>(
-            volumeMeta,
+            std::move(volumeMeta),
             artifactKey,
-            this,
-            location,
-            nbdServer);
+            std::move(location),
+            std::move(nbdServer));
 
         YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Path: %v, Filesytem: %v)",
             tag,
-            volumeMeta.Id,
+            volume->GetId(),
             artifactKey.nbd_export_id(),
             artifactKey.data_source().path(),
             artifactKey.filesystem());
@@ -2707,7 +2859,7 @@ private:
         const TUserSandboxOptions& options,
         const std::vector<TOverlayData>& overlayDataArray)
     {
-        YT_LOG_INFO("All layers and NBD volumes have been prepared (Tag: %v, OverlayDataArraySize: %v)",
+        YT_LOG_INFO("All layers and volumes have been prepared (Tag: %v, OverlayDataArraySize: %v)",
             tag,
             overlayDataArray.size());
 
@@ -2723,9 +2875,9 @@ private:
                     tag,
                     volumeOrLayer.GetLayer()->GetMeta().Id);
             } else {
-                YT_LOG_DEBUG("Using NBD volume to create new Overlay volume (Tag: %v, VolumeId: %v)",
+                YT_LOG_DEBUG("Using volume to create new Overlay volume (Tag: %v, VolumeId: %v)",
                     tag,
-                    volumeOrLayer.GetNbdVolume()->GetId());
+                    volumeOrLayer.GetVolume()->GetId());
             }
         }
 
@@ -2734,14 +2886,42 @@ private:
             .ValueOrThrow();
 
         auto volume = New<TOverlayVolume>(
-            volumeMeta,
-            this,
-            location,
+            std::move(volumeMeta),
+            std::move(location),
             std::move(overlayDataArray));
 
         YT_LOG_DEBUG("Created Overlay volume (Tag: %v, VolumeId: %v)",
             tag,
-            volumeMeta.Id);
+            volume->GetId());
+
+        return volume;
+    }
+
+    TSquashFSVolumePtr CreateSquashFSVolume(
+        TGuid tag,
+        const TArtifactKey& artifactKey,
+        IVolumeArtifactPtr chunkCacheArtifact)
+    {
+        auto squashFSFilePath = chunkCacheArtifact->GetFileName();
+
+        YT_LOG_DEBUG("Creating SquashFS volume (Tag: %v, SquashFSFilePath: %v)",
+            tag,
+            squashFSFilePath);
+
+        auto location = PickLocation();
+        auto volumeMeta = WaitFor(location->CreateSquashFSVolume(tag, artifactKey, squashFSFilePath))
+            .ValueOrThrow();
+
+        auto volume = New<TSquashFSVolume>(
+            std::move(volumeMeta),
+            artifactKey,
+            std::move(chunkCacheArtifact),
+            std::move(location));
+
+        YT_LOG_INFO("Created SquashFS volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
+            tag,
+            volume->GetId(),
+            squashFSFilePath);
 
         return volume;
     }

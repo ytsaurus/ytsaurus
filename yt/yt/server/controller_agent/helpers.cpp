@@ -135,6 +135,10 @@ void TUserFile::Persist(const TPersistenceContext& context)
     if (context.GetVersion() >= ESnapshotVersion::AddFilesystemAttribute) {
         Persist(context, Filesystem);
     }
+
+    if (context.GetVersion() >= ESnapshotVersion::AddAccessMethodAttribute) {
+        Persist(context, AccessMethod);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,13 +201,13 @@ void BuildFileSpec(
         }
     }
 
-    if (file.Filesystem) {
-        switch (file.Type) {
-            case EObjectType::File:
-                descriptor->set_filesystem(*file.Filesystem);
-                break;
-            default:
-                YT_ABORT();
+    if (file.Layer) {
+        if (file.AccessMethod) {
+            descriptor->set_access_method(ToProto<int>(*file.AccessMethod));
+        }
+
+        if (file.Filesystem) {
+            descriptor->set_filesystem(ToProto<int>(*file.Filesystem));
         }
     }
 }

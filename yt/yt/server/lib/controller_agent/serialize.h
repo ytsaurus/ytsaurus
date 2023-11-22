@@ -31,6 +31,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 23.2 starts here
     ((AddChunkSchemas)                      (301300))
     ((AddFilesystemAttribute)               (301301))
+    ((AddAccessMethodAttribute)             (301302))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

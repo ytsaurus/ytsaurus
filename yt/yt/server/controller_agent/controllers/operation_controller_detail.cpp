@@ -7119,6 +7119,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     case EObjectType::File:
                         attributeKeys.push_back("executable");
                         attributeKeys.push_back("filesystem");
+                        attributeKeys.push_back("access_method");
                         break;
 
                     case EObjectType::Table:
@@ -7206,8 +7207,32 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.Executable = file.Path.GetExecutable().value_or(file.Executable);
 
                             if (file.Layer) {
-                                // Get filesystem attribute only for layers.
-                                file.Filesystem = attributes.Find<TString>("filesystem");
+                                // Get access_method and filesystem attributes only for layers.
+                                auto accessMethod = attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local));
+                                try {
+                                    file.AccessMethod = TEnumTraits<ELayerAccessMethod>::FromString(accessMethod);
+                                } catch (const std::exception& ex) {
+                                    THROW_ERROR_EXCEPTION("Unknown access_method %v of a file %v",
+                                        *file.AccessMethod,
+                                        file.Path) << ex;
+                                }
+
+                                auto filesystem = attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive));
+                                try {
+                                    file.Filesystem = TEnumTraits<ELayerFilesystem>::FromString(filesystem);
+                                } catch (const std::exception& ex) {
+                                    THROW_ERROR_EXCEPTION("Unknown filesystem %v of a file %v",
+                                        *file.Filesystem,
+                                        file.Path) << ex;
+                                }
+
+                                // Some access_method, filesystem combinations are invalid as of now.
+                                if (!AreCompatible(*file.AccessMethod, *file.Filesystem)) {
+                                    THROW_ERROR_EXCEPTION("Invalid access_mode %v, filesystem %v combination of a file %v",
+                                        *file.AccessMethod,
+                                        *file.Filesystem,
+                                        file.Path);
+                                }
                             }
                             break;
 

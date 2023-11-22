@@ -415,7 +415,7 @@ public:
                 *fetchedFromCache = false;
             }
         } else {
-            YT_LOG_INFO("Artifact is already being downloaded");
+            YT_LOG_INFO("Artifact is either found in cache or is being downloaded");
             if (fetchedFromCache) {
                 *fetchedFromCache = true;
             }
