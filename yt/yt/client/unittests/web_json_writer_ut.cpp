@@ -52,6 +52,8 @@ protected:
     TStringStream OutputStream_;
     ISchemalessFormatWriterPtr Writer_;
 
+    const TString ValueColumnName_ = "value";
+
     void CreateStandardWriter(const std::vector<TTableSchemaPtr>& schemas = {New<TTableSchema>()})
     {
         Writer_ = CreateWriterForWebJson(
@@ -328,7 +330,7 @@ TEST_F(TWriterForWebJson, ReplaceAnyWithNull)
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
-TEST_F(TWriterForWebJson, SkipSystemColumns)
+TEST_F(TWriterForWebJson, NotSkipSystemColumns)
 {
     Config_->SkipSystemColumns = false;
 
@@ -339,6 +341,7 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
             {TableIndexColumnName, 0},
             {RowIndexColumnName, 1},
             {TabletIndexColumnName, 2},
+            {ValueColumnName_, 3},
         }).Get(),
     });
     EXPECT_TRUE(written);
@@ -360,6 +363,10 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
                     "\"$$tablet_index\":{"
                         "\"$type\":\"int64\","
                         "\"$value\":\"2\""
+                    "},"
+                    "\"value\":{"
+                        "\"$type\":\"int64\","
+                        "\"$value\":\"3\""
                     "}"
                 "}"
             "],"
@@ -368,7 +375,92 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
             "\"all_column_names\":["
                 "\"$row_index\","
                 "\"$table_index\","
-                "\"$tablet_index\""
+                "\"$tablet_index\","
+                "\"value\""
+            "]"
+        "}";
+
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
+}
+
+TEST_F(TWriterForWebJson, SkipSystemColumns)
+{
+    Config_->SkipSystemColumns = true;
+
+    CreateStandardWriter();
+
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {TableIndexColumnName, 0},
+            {RowIndexColumnName, 1},
+            {TabletIndexColumnName, 2},
+            {ValueColumnName_, 3}
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
+    WaitFor(Writer_->Close())
+        .ThrowOnError();
+
+    TString expectedOutput =
+        "{"
+            "\"rows\":["
+                "{"
+                    "\"value\":{"
+                        "\"$type\":\"int64\","
+                        "\"$value\":\"3\""
+                    "}"
+                "}"
+            "],"
+            "\"incomplete_columns\":\"false\","
+            "\"incomplete_all_column_names\":\"false\","
+            "\"all_column_names\":["
+                "\"value\""
+            "]"
+        "}";
+
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
+}
+
+TEST_F(TWriterForWebJson, NotSkipRequestedSystemColumns)
+{
+    Config_->SkipSystemColumns = true;
+    Config_->ColumnNames = std::vector<TString>({TabletIndexColumnName, ValueColumnName_});
+
+    CreateStandardWriter();
+
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {TableIndexColumnName, 0},
+            {RowIndexColumnName, 1},
+            {TabletIndexColumnName, 2},
+            {ValueColumnName_, 3}
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
+    WaitFor(Writer_->Close())
+        .ThrowOnError();
+
+    TString expectedOutput =
+        "{"
+            "\"rows\":["
+                "{"
+                    "\"$$tablet_index\":{"
+                        "\"$type\":\"int64\","
+                        "\"$value\":\"2\""
+                    "},"
+                    "\"value\":{"
+                        "\"$type\":\"int64\","
+                        "\"$value\":\"3\""
+                    "}"
+                "}"
+            "],"
+            "\"incomplete_columns\":\"false\","
+            "\"incomplete_all_column_names\":\"false\","
+            "\"all_column_names\":["
+                "\"$tablet_index\","
+                "\"value\""
             "]"
         "}";
 

@@ -58,6 +58,11 @@ public:
         return AcceptByMaxCount(columnId);
     }
 
+    bool IsRequestedColumnName(TStringBuf columnName)
+    {
+        return Names_ && AcceptByNames(columnName);
+    }
+
 private:
     const int MaxSelectedColumnCount_;
     std::optional<THashSet<TString>> Names_;
@@ -600,9 +605,11 @@ void TWriterForWebJson<TValueWriter>::Flush()
 template <typename TValueWriter>
 bool TWriterForWebJson<TValueWriter>::TryRegisterColumn(ui16 columnId, TStringBuf columnName)
 {
-    if (SkipSystemColumn(columnName)) {
+    // Don't skip system column if it was requested.
+    if (SkipSystemColumn(columnName) && !ColumnFilter_.IsRequestedColumnName(columnName)) {
         return false;
     }
+
 
     if (std::ssize(AllColumnIdToName_) < Config_->MaxAllColumnNamesCount) {
         AllColumnIdToName_[columnId] = columnName;
