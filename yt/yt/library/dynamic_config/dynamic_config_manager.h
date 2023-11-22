@@ -88,6 +88,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TError UpdateError_;
     TError UnrecognizedOptionError_;
+    NYTree::IMapNodePtr UnrecognizedOptions_;
     TInstant LastConfigUpdateTime_;
     TInstant LastConfigChangeTime_;
     NYTree::IMapNodePtr AppliedConfigNode_;
