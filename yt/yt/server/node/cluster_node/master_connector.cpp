@@ -446,8 +446,6 @@ private:
             return;
         }
 
-        Bootstrap_->CompleteNodeRegistration();
-
         MasterConnected_.Fire(GetNodeId());
 
         YT_LOG_INFO("Successfully registered at primary master (NodeId: %v)",
@@ -564,6 +562,8 @@ private:
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
+
+        Bootstrap_->CompleteNodeRegistration();
 
         if (Bootstrap_->NeedDataNodeBootstrap()) {
             const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
