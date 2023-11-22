@@ -520,6 +520,7 @@
     XX(TotalStatistics, total_statistics) \
     XX(TransactionId, transaction_id) \
     XX(Transient, transient) \
+    XX(TransientMasterMemoryUsage, transient_master_memory_usage) \
     XX(TreatAsQueueConsumer, treat_as_queue_consumer) \
     XX(Tree, tree) \
     XX(TrimmedChildCount, trimmed_child_count) \

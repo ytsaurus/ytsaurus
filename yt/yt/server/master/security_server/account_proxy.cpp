@@ -203,6 +203,10 @@ private:
         descriptors->emplace_back(EInternedAttributeKey::EnableChunkReincarnation)
             .SetWritable(true)
             .SetReplicated(true);
+
+        if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+            descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TransientMasterMemoryUsage));
+        }
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -350,6 +354,14 @@ private:
             case EInternedAttributeKey::EnableChunkReincarnation:
                 BuildYsonFluently(consumer)
                     .Value(account->GetEnableChunkReincarnation());
+                return true;
+
+            case EInternedAttributeKey::TransientMasterMemoryUsage:
+                if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(account->DetailedMasterMemoryUsage());
                 return true;
 
             default:
