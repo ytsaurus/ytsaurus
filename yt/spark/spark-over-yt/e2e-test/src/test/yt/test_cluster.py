@@ -13,9 +13,9 @@ class TestSpytCluster(SpytTestBase):
         assert_items_equal(ls(self.SPYT_ROOT_PATH), ["bin", "conf", "spark", "spyt"])
 
     @authors("alex-shishkin")
-    @pytest.mark.timeout(60)
+    @pytest.mark.timeout(45)
     def test_cluster_startup(self):
-        with SpytCluster() as cluster:
+        with SpytCluster(self.SPARK_USER, self.SPARK_TOKEN) as cluster:
             assert_items_equal(ls(cluster.discovery_path),
                                ["discovery", "logs"])
             assert_items_equal(ls(cluster.discovery_path + "/discovery"),

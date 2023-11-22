@@ -35,7 +35,6 @@ def _extract_resources(resource_key_prefix: str, remove_prefix: str, destination
         os.makedirs(os.path.dirname(destination_path), exist_ok=True)
         with open(destination_path, 'bw') as out:
             out.write(resource.resfs_read(resource_path))
-        logger.debug(f"Extracted {resource_path} to {destination_path}")
 
 
 def _extract_spark():
