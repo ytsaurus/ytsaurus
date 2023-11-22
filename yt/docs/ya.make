@@ -4,6 +4,7 @@ DOCS_VARS(
     version=0
     audience=public
     product-name=YTsaurus
+    source-root=https://github.com/ytsaurus/ytsaurus/tree/main
 )
 
 DOCS_DIR(
