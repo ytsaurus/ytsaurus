@@ -298,6 +298,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
     {
         auto guard = Guard(SpinLock_);
+        std::swap(UnrecognizedOptions_, unrecognizedOptions);
         std::swap(UnrecognizedOptionError_, unrecognizedOptionsError);
     }
 
@@ -325,12 +326,15 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
     TInstant lastConfigUpdateTime;
     TInstant lastConfigChangeTime;
     std::vector<TError> errors;
+    NYTree::IMapNodePtr unrecognizedOptions;
+
     {
         auto guard = Guard(SpinLock_);
         configNode = AppliedConfigNode_;
         config = AppliedConfig_;
         lastConfigUpdateTime = LastConfigUpdateTime_;
         lastConfigChangeTime = LastConfigChangeTime_;
+        unrecognizedOptions = UnrecognizedOptions_;
         errors = LockedGetErrors(guard);
     }
 
@@ -345,6 +349,7 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
             .Item("last_config_update_time").Value(lastConfigUpdateTime)
             .Item("last_config_change_time").Value(lastConfigChangeTime)
             .Item("errors").Value(errors)
+            .OptionalItem("unrecognized_options", unrecognizedOptions)
         .EndMap();
 }
 
