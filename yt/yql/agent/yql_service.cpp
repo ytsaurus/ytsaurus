@@ -43,8 +43,16 @@ private:
             : TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
-        context->SetRequestInfo("QueryId: %v, Async: %v, BuildRowsets: %v, RowCountLimit: %v", queryId, request->async(), request->build_rowsets(), request->row_count_limit());
+        context->SetRequestInfo("QueryId: %v, Async: %v, BuildRowsets: %v, RowCountLimit: %v",
+            queryId,
+            request->async(),
+            request->build_rowsets(),
+            request->row_count_limit());
         context->SetResponseInfo("QueryId: %v", queryId);
+
+        context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+            YqlAgent_->CancelQuery(queryId, error);
+        }));
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);
 
@@ -76,6 +84,8 @@ private:
         context->Reply();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent)
 {

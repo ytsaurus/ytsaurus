@@ -8,8 +8,6 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
-
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
@@ -23,16 +21,21 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/library/monitoring/http_integration.h>
-#include <yt/yt/library/monitoring/monitoring_manager.h>
-
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/library/program/build_attributes.h>
-#include <yt/yt/library/program/config.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/client/table_client/public.h>
+
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
+
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/core/bus/server.h>
 
@@ -44,8 +47,6 @@
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
-
-#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
@@ -114,6 +115,8 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
     YT_LOG_INFO(
         "Starting persistent query agent process (NativeCluster: %v, User: %v)",
         Config_->ClusterConnection->Static->ClusterName,
@@ -222,7 +225,7 @@ void TBootstrap::DoRun()
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 
-    UpdateCypressNode();
+    CreateCypressNode();
 }
 
 void TBootstrap::CreateStateTablesIfNeeded()
@@ -245,19 +248,17 @@ void TBootstrap::CreateStateTablesIfNeeded()
             .ThrowOnError();
 
         while (true) {
-            try {
-                WaitFor(NativeClient_->MountTable(Config_->Root + "/" + tableName))
-                    .ThrowOnError();
+            auto error = WaitFor(NativeClient_->MountTable(Config_->Root + "/" + tableName));
+            if (error.IsOK()) {
                 break;
-            } catch (const std::exception& ex) {
-                if (TError(ex).FindMatching(NTabletClient::EErrorCode::InvalidTabletState)) {
-                    YT_LOG_DEBUG("Concurrent state table mount call detected, skipping mounting");
-                    return;
-                }
-                YT_LOG_ERROR(ex, "Error creating state tables, backing off");
-                constexpr TDuration backoffDuration = TDuration::MilliSeconds(300);
-                TDelayedExecutor::WaitForDuration(backoffDuration);
+            } else if (error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState)) {
+                YT_LOG_DEBUG(error, "Concurrent state table mount call detected, skipping mounting");
+                break;
             }
+
+            YT_LOG_ERROR(error, "Error creating state tables, backing off");
+            constexpr auto backoffDuration = TDuration::MilliSeconds(300);
+            TDelayedExecutor::WaitForDuration(backoffDuration);
         }
     };
     createTable(NQueryTrackerClient::NRecords::TActiveQueryDescriptor::Get()->GetSchema(), "active_queries");
@@ -271,7 +272,7 @@ void TBootstrap::CreateStateTablesIfNeeded()
         .ThrowOnError();
 }
 
-void TBootstrap::UpdateCypressNode()
+void TBootstrap::CreateCypressNode()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -291,8 +292,8 @@ void TBootstrap::UpdateCypressNode()
 
     while (true) {
         auto error = WaitFor(registrar->CreateNodes());
-
         if (error.IsOK()) {
+            YT_LOG_DEBUG("Successfully registered instance in Cypress");
             break;
         } else {
             YT_LOG_DEBUG(error, "Error updating Cypress node");

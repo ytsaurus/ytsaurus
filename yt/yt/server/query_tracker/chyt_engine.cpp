@@ -110,13 +110,6 @@ public:
         AsyncQueryResult_.Cancel(TError("Query aborted"));
     }
 
-    void Detach() override
-    {
-        // Nothing smarter than that for now.
-        Cancelled_ = true;
-        AsyncQueryResult_.Cancel(TError("Query detached"));
-    }
-
 private:
     const TChytSettingsPtr Settings_;
     TString Clique_;
@@ -298,6 +291,8 @@ private:
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 class TChytEngine
     : public IQueryEngine
 {
@@ -310,9 +305,16 @@ public:
         , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker());
+        return New<TChytQueryHandler>(
+            StateClient_,
+            StateRoot_,
+            ChytConfig_,
+            ChannelFactory_,
+            activeQuery,
+            ClusterDirectory_,
+            ControlQueue_->GetInvoker());
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override

@@ -139,6 +139,7 @@ public:
     void Start() override
     {
         YT_LOG_DEBUG("Starting SPYT query");
+
         AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run();
@@ -148,17 +149,8 @@ public:
     void Abort() override
     {
         YT_LOG_DEBUG("Aborting SPYT query (SessionUrl: %v)", SessionUrl_);
-        AsyncQueryResult_.Cancel(TError("Query aborted"));
-        // After Abort() call there is Detach() call always. But double closing request is not the error.
-        if (!SessionUrl_.Empty()) {
-            CloseSession();
-        }
-    }
 
-    void Detach() override
-    {
-        YT_LOG_DEBUG("Detaching SPYT query (SessionUrl: %v)", SessionUrl_);
-        AsyncQueryResult_.Cancel(TError("Query detached"));
+        AsyncQueryResult_.Cancel(TError("Query aborted"));
         if (!SessionUrl_.Empty()) {
             CloseSession();
         }
@@ -439,6 +431,8 @@ private:
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 class TSpytEngine
     : public IQueryEngine
 {
@@ -450,7 +444,7 @@ public:
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartQuery(NRecords::TActiveQuery activeQuery) override
     {
         return New<TSpytQueryHandler>(
             StateClient_,
@@ -473,6 +467,8 @@ private:
     TSpytEngineConfigPtr Config_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)
 {

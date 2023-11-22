@@ -112,18 +112,9 @@ public:
 
     void Abort() override
     {
-        // Nothing smarter than that for now.
         ProgressGetterExecutor_->Stop();
         StopProgressWriter();
         AsyncQueryResult_.Cancel(TError("Query aborted"));
-    }
-
-    void Detach() override
-    {
-        // Nothing smarter than that for now.
-        ProgressGetterExecutor_->Stop();
-        StopProgressWriter();
-        AsyncQueryResult_.Cancel(TError("Query detached"));
     }
 
 private:
@@ -222,7 +213,7 @@ public:
         , ControlQueue_(New<TActionQueue>("YqlEngineControl"))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartQuery(NRecords::TActiveQuery activeQuery) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

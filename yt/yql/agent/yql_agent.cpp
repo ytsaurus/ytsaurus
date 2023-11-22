@@ -110,13 +110,25 @@ public:
         const TYqlAgentDynamicConfigPtr& /*newConfig*/) override
     { }
 
-    TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& impersonationUser, const TReqStartQuery& request) override
+    TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(
+        TQueryId queryId,
+        const TString& impersonationUser,
+        const TReqStartQuery& request) override
     {
-        YT_LOG_INFO("Starting query (QueryId: %v, ImpersonationUser: %v)", queryId, impersonationUser);
+        YT_LOG_INFO("Starting query (QueryId: %v, ImpersonationUser: %v)",
+            queryId,
+            impersonationUser);
 
         return BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, impersonationUser, request)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
+    }
+
+    void AbortQuery(TQueryId queryId, const TError& error) override
+    {
+        YT_LOG_INFO(error, "Aborting query (QueryId: %v)", queryId);
+
+        YqlPlugin_->Abort(queryId);
     }
 
     TRspGetQueryProgress GetQueryProgress(TQueryId queryId) override
@@ -238,6 +250,8 @@ private:
         *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
     };
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IYqlAgentPtr CreateYqlAgent(
     TSingletonsConfigPtr singletonsConfig,

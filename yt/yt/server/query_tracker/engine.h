@@ -25,11 +25,6 @@ struct IQueryHandler
 
     //! A call that must abort query in the underlying system.
     virtual void Abort() = 0;
-
-    //! A call indicating that query incarnation promoted and we are not responsible
-    //! for this query any more. Handler must terminate its tracking state without aborting
-    //! the query.
-    virtual void Detach() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryHandler)
@@ -39,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(IQueryHandler)
 struct IQueryEngine
     : public TRefCounted
 {
-    virtual IQueryHandlerPtr StartOrAttachQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) = 0;
+    virtual IQueryHandlerPtr StartQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) = 0;
 
     virtual void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) = 0;
 };
