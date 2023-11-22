@@ -142,7 +142,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 
 template <class TKey, class TValue, class THash>
 std::vector<typename TSyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
-TSyncSlruCacheBase<TKey, TValue, THash>::GetAll()
+TSyncSlruCacheBase<TKey, TValue, THash>::GetAll() const
 {
     std::vector<TValuePtr> result;
     result.reserve(GetSize());
@@ -154,6 +154,12 @@ TSyncSlruCacheBase<TKey, TValue, THash>::GetAll()
         }
     }
     return result;
+}
+
+template <class TKey, class TValue, class THash>
+i64 TSyncSlruCacheBase<TKey, TValue, THash>::GetCapacity() const
+{
+    return Capacity_.load();
 }
 
 template <class TKey, class TValue, class THash>

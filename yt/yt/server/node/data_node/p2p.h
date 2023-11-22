@@ -49,7 +49,7 @@ struct TP2PSession
 
 class TP2PBlockCache
     : public virtual TRefCounted
-    , private TMemoryTrackingSyncSlruCacheBase<NChunkClient::TBlockId, TP2PBlock>
+    , public TMemoryTrackingSyncSlruCacheBase<NChunkClient::TBlockId, TP2PBlock>
 {
 public:
     TP2PBlockCache(
@@ -71,6 +71,8 @@ public:
         TChunkId chunkId,
         const std::vector<int>& blockIndices);
 
+    TP2PConfigPtr Config();
+
 private:
     TP2PConfigPtr Config_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ConfigLock_);
@@ -90,8 +92,6 @@ private:
     NProfiling::TCounter MissedBlocks_;
 
     void CleanupOldSessions();
-
-    TP2PConfigPtr Config();
 };
 
 DEFINE_REFCOUNTED_TYPE(TP2PBlockCache)
@@ -152,7 +152,7 @@ DEFINE_REFCOUNTED_TYPE(TP2PChunk)
 
 class TP2PSnooper
     : public virtual TRefCounted
-    , private TMemoryTrackingSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>
+    , public TMemoryTrackingSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>
 {
 public:
     TP2PSnooper(
@@ -192,6 +192,8 @@ public:
 
     i64 GetWeight(const TP2PChunkPtr& value) const override;
 
+    TP2PConfigPtr GetConfig();
+
 private:
     const TP2PConfigPtr Config_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
@@ -218,8 +220,6 @@ private:
     NProfiling::TCounter HitBytes_;
 
     TPeerList AllocatePeers();
-
-    TP2PConfigPtr GetConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TP2PSnooper)

@@ -42,7 +42,8 @@ public:
     using TValuePtr = TIntrusivePtr<TValue>;
 
     int GetSize() const;
-    std::vector<TValuePtr> GetAll();
+    std::vector<TValuePtr> GetAll() const;
+    i64 GetCapacity() const;
 
     TValuePtr Find(const TKey& key);
 

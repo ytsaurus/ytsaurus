@@ -231,6 +231,7 @@ public:
             GetConfig()->DataNode->P2P,
             P2PActionQueue_->GetInvoker(),
             this);
+        GetMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::P2P, P2PBlockCache_->GetCapacity() + P2PSnooper_->GetCapacity());
 
         TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
 
@@ -485,6 +486,7 @@ private:
         P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
         P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
+        GetMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::P2P, P2PBlockCache_->GetCapacity() + P2PSnooper_->GetCapacity());
 
         ChunkStore_->UpdateConfig(newConfig->DataNode);
 

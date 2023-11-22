@@ -66,9 +66,9 @@ TP2PBlockCache::TP2PBlockCache(
 void TP2PBlockCache::UpdateConfig(const TP2PConfigPtr& config)
 {
     if (config) {
-        TMemoryTrackingSyncSlruCacheBase<TBlockId, TP2PBlock>::Reconfigure(config->BlockCacheOverride);
+        TSyncSlruCacheBase<TBlockId, TP2PBlock>::Reconfigure(config->BlockCacheOverride);
     } else {
-        TMemoryTrackingSyncSlruCacheBase<TBlockId, TP2PBlock>::Reconfigure(New<TSlruCacheDynamicConfig>());
+        TSyncSlruCacheBase<TBlockId, TP2PBlock>::Reconfigure(New<TSlruCacheDynamicConfig>());
     }
 
     {

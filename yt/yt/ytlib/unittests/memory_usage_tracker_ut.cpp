@@ -192,6 +192,7 @@ TEST(TMemoryUsageTrackerTest, EntryWeightUpdate)
 
     EXPECT_GE(250, cache->GetSize());
     EXPECT_GE(cache->GetSize() * 4, tracker->WithCategory(EMemoryCategory::BlockCache)->GetUsed());
+    tracker->ClearTrackers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
