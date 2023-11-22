@@ -97,6 +97,11 @@ public:
         const TGpuManagerDynamicConfigPtr& oldConfig,
         const TGpuManagerDynamicConfigPtr& newConfig);
 
+    bool ShouldTestResource() const;
+    bool ShouldTestExtraGpuCheckCommandFailure() const;
+    bool ShouldTestLayers() const;
+    bool ShouldTestSetupCommands() const;
+
 private:
     IBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr StaticConfig_;

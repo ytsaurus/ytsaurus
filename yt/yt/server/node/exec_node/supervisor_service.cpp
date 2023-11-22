@@ -85,49 +85,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
-
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
-
-
-    TGuid RegisterThrottlingRequest(TFuture<void> future)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-        auto id = TGuid::Create();
-        YT_VERIFY(OutstandingThrottlingRequests_.emplace(id, future).second);
-        // Remove future from outstanding requests after it was set + timeout.
-        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& /* error */) {
-            TDelayedExecutor::Submit(
-                BIND(&TSupervisorService::EvictThrottlingRequest, this_, id).Via(Bootstrap_->GetJobInvoker()),
-                Bootstrap_->GetDynamicConfig()->ExecNode->JobThrottler->MaxBackoffTime * 2);
-        }));
-        return id;
-    }
-
-    void EvictThrottlingRequest(TGuid id)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-        YT_LOG_DEBUG("Outstanding throttling request evicted (ThrottlingRequestId: %v)",
-            id);
-        YT_VERIFY(OutstandingThrottlingRequests_.erase(id) == 1);
-    }
-
-    TFuture<void> FindThrottlingRequest(TGuid id)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-        auto it = OutstandingThrottlingRequests_.find(id);
-        return it == OutstandingThrottlingRequests_.end() ? TFuture<void>() : it->second;
-    }
-
-    TFuture<void> GetThrottlingRequestOrThrow(TGuid id)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-        auto future = FindThrottlingRequest(id);
-        if (!future) {
-            THROW_ERROR_EXCEPTION("Unknown throttling request %v", id);
-        }
-        return future;
-    }
 
     const IThroughputThrottlerPtr& GetJobThrottler(EJobThrottlerType throttlerType)
     {
@@ -383,7 +341,7 @@ private:
         if (auto optionalResult = future.TryGet()) {
             optionalResult->ThrowOnError();
         } else {
-            auto throttlingRequestId = RegisterThrottlingRequest(future);
+            auto throttlingRequestId = Bootstrap_->GetJobController()->RegisterThrottlingRequest(future);
 
             ToProto(response->mutable_throttling_request_id(), throttlingRequestId);
             context->SetResponseInfo("ThrottlingRequestId: %v", throttlingRequestId);
@@ -398,7 +356,7 @@ private:
 
         context->SetRequestInfo("ThrottlingRequestId: %v", throttlingRequestId);
 
-        auto future = GetThrottlingRequestOrThrow(throttlingRequestId);
+        auto future = Bootstrap_->GetJobController()->GetThrottlingRequestOrThrow(throttlingRequestId);
         auto optionalResult = future.TryGet();
         if (optionalResult) {
             optionalResult->ThrowOnError();

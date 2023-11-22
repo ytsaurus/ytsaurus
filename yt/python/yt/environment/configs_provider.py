@@ -825,9 +825,6 @@ def _build_node_configs(node_dirs,
         set_at(config, "exec_node/slot_manager/locations", [
             {"path": os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}
         ])
-        set_at(config, "exec_node/root_fs_binds", [
-            {"external_path": node_dirs[index], "internal_path": node_dirs[index]}
-        ])
 
         changelog_config = {
             "preallocate_size": 2 ** 20,

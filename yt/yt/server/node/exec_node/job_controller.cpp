@@ -417,6 +417,45 @@ public:
             newConfig->JobProxyBuildInfoUpdatePeriod);
     }
 
+    TGuid RegisterThrottlingRequest(TFuture<void> future) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+        auto id = TGuid::Create();
+        YT_VERIFY(OutstandingThrottlingRequests_.emplace(id, future).second);
+        // Remove future from outstanding requests after it was set + timeout.
+        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& /* error */) {
+            TDelayedExecutor::Submit(
+                BIND(&TJobController::EvictThrottlingRequest, this_, id).Via(Bootstrap_->GetJobInvoker()),
+                GetDynamicConfig()->JobCommon->JobThrottler->MaxBackoffTime * 2);
+        }));
+        return id;
+    }
+
+    TFuture<void> GetThrottlingRequestOrThrow(TGuid id) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+        auto future = FindThrottlingRequest(id);
+        if (!future) {
+            THROW_ERROR_EXCEPTION("Unknown throttling request %v", id);
+        }
+        return future;
+    }
+
+    void EvictThrottlingRequest(TGuid id)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_LOG_DEBUG("Outstanding throttling request evicted (ThrottlingRequestId: %v)",
+            id);
+        YT_VERIFY(OutstandingThrottlingRequests_.erase(id) == 1);
+    }
+
+    TFuture<void> FindThrottlingRequest(TGuid id)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+        auto it = OutstandingThrottlingRequests_.find(id);
+        return it == OutstandingThrottlingRequests_.end() ? TFuture<void>() : it->second;
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
     const TJobControllerConfigPtr StaticConfig_;
@@ -474,6 +513,8 @@ private:
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
     TInstant LastOperationInfosRequestTime_;
+
+    THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -1527,7 +1568,8 @@ private:
                 resourceAttributes,
                 std::move(jobSpec),
                 controllerAgentDescriptor,
-                Bootstrap_->GetExecNodeBootstrap());
+                Bootstrap_->GetExecNodeBootstrap(),
+                GetDynamicConfig()->JobCommon);
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             YT_LOG_DEBUG(

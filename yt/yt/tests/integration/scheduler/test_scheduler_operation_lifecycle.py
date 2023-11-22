@@ -1230,8 +1230,19 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
-            "test_job_error_truncation": True,
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "test_job_error_truncation": True,
+                    }
+                }
+            }
+        }
     }
 
     DELTA_SCHEDULER_CONFIG = {

@@ -33,7 +33,6 @@ class TestGpuJobSetup(YTEnvSetup):
         },
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -57,9 +56,12 @@ class TestGpuJobSetup(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    "job_common": {
+                        "use_artifact_binds": True,
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                        },
                     },
                     "gpu_manager": {
                         "job_setup_command": {
@@ -182,7 +184,6 @@ class TestSkipGpuJobSetup(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -196,9 +197,12 @@ class TestSkipGpuJobSetup(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    "job_common": {
+                        "use_artifact_binds": True,
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                        },
                     },
                     "gpu_manager": {
                         "job_setup_command": {
@@ -260,7 +264,6 @@ class TestGpuLayer(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -286,9 +289,12 @@ class TestGpuLayer(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    "job_common": {
+                        "use_artifact_binds": True,
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                        },
                     },
                     "gpu_manager": {
                         "driver_layer_fetch_period": 10000,
@@ -381,7 +387,6 @@ class TestGpuLayerUpdate(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -407,6 +412,9 @@ class TestGpuLayerUpdate(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
+                    "job_common": {
+                        "use_artifact_binds": True,
+                    },
                     "gpu_manager": {
                         "driver_layer_fetch_period": 10000,
                     },
@@ -504,7 +512,6 @@ class TestCudaLayer(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -529,9 +536,12 @@ class TestCudaLayer(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                    "job_common": {
+                        "use_artifact_binds": True,
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                        },
                     },
                 },
             },
@@ -653,7 +663,6 @@ class TestForceCudaLayer(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -678,6 +687,9 @@ class TestForceCudaLayer(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
+                    "job_common": {
+                        "use_artifact_binds": True,
+                    },
                     "gpu_manager": {
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
@@ -775,7 +787,6 @@ class TestSetupUser(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -789,14 +800,17 @@ class TestSetupUser(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": [
-                            "-c",
-                            "/static-bin/static-id -u > /playground/setup_output_file",
-                        ],
+                    "job_common": {
+                        "use_artifact_binds": True,
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": [
+                                "-c",
+                                "/static-bin/static-id -u > /playground/setup_output_file",
+                            ],
+                        },
+                        "setup_command_user": "2019",
                     },
-                    "setup_command_user": "2019",
                 },
             },
         }
@@ -950,7 +964,6 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -974,6 +987,18 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_repeat_delay": 10,
             },
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "use_artifact_binds": True,
+                    },
+                },
+            },
+        }
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -1298,7 +1323,6 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -1317,6 +1341,18 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
                 },
             },
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "use_artifact_binds": True,
+                    },
+                },
+            },
+        }
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {

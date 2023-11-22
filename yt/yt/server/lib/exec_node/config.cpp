@@ -247,13 +247,7 @@ void TUserJobSensor::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserJobMonitoringConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("sensors", &TThis::Sensors)
-        .Default();
-}
-
-const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefaultSensors()
+const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringDynamicConfig::GetDefaultSensors()
 {
     static const auto DefaultSensors = ConvertTo<THashMap<TString, TUserJobSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
@@ -393,12 +387,20 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefault
     return DefaultSensors;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sensors", &TThis::Sensors)
         .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        auto defaultSensors = GetDefaultSensors();
+
+        for (const auto& [sensorName, sensor] : config->Sensors) {
+            defaultSensors[sensorName] = sensor;
+        }
+
+        config->Sensors = std::move(defaultSensors);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,6 +572,64 @@ void TShellCommandConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobCommonConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_artifact_binds", &TThis::UseArtifactBinds)
+        .Default(false);
+    registrar.Parameter("use_root_fs_binds", &TThis::UseRootFSBinds)
+        .Default(true);
+
+    registrar.Parameter("root_fs_binds", &TThis::RootFSBinds)
+        .Default();
+
+    registrar.Parameter("node_directory_prepare_retry_count", &TThis::NodeDirectoryPrepareRetryCount)
+        .Default(10);
+
+    registrar.Parameter("node_directory_prepare_backoff_time", &TThis::NodeDirectoryPrepareBackoffTime)
+        .Default(TDuration::Seconds(3));
+
+    registrar.Parameter("job_proxy_preparation_timeout", &TThis::JobProxyPreparationTimeout)
+        .Default(TDuration::Minutes(3));
+
+    registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
+        .Default(TDuration::Minutes(15));
+
+    registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
+        .Default();
+
+    registrar.Parameter("test_job_error_truncation", &TThis::TestJobErrorTruncation)
+        .Default(false);
+
+    registrar.Parameter("memory_tracker_cache_period", &TThis::MemoryTrackerCachePeriod)
+        .Default(TDuration::MilliSeconds(100));
+
+    registrar.Parameter("smaps_memory_tracker_cache_period", &TThis::SMapsMemoryTrackerCachePeriod)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
+        .DefaultNew();
+
+    registrar.Parameter("sensor_dump_timeout", &TThis::SensorDumpTimeout)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("treat_job_proxy_failure_as_abort", &TThis::TreatJobProxyFailureAsAbort)
+        .Default(false);
+
+    registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
+        .Default();
+
+    registrar.Parameter("setup_command_user", &TThis::SetupCommandUser)
+        .Default("root");
+
+    registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
+        .Default();
+
+    registrar.Parameter("job_throttler", &TThis::JobThrottler)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobControllerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("gpu_manager", &TThis::GpuManager)
@@ -618,12 +678,6 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_required_disk_space", &TThis::MinRequiredDiskSpace)
         .Default(100_MB);
 
-    registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
-        .Default();
-
-    registrar.Parameter("setup_command_user", &TThis::SetupCommandUser)
-        .Default("root");
-
     registrar.Parameter("memory_overdraft_timeout", &TThis::MemoryOverdraftTimeout)
         .Default(TDuration::Minutes(5));
 
@@ -657,6 +711,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disabled_jobs_interruption_timeout", &TThis::DisabledJobsInterruptionTimeout)
         .Default(TDuration::Minutes(1))
         .GreaterThan(TDuration::Zero());
+
+    registrar.Parameter("job_common", &TThis::JobCommon)
+        .DefaultNew();
 
     // JRM config goes below:
     // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
@@ -760,31 +817,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_common_root_fs_quota", &TThis::UseCommonRootFSQuota)
         .Default(false);
 
-    registrar.Parameter("use_artifact_binds", &TThis::UseArtifactBinds)
-        .Default(false);
-    registrar.Parameter("use_root_fs_binds", &TThis::UseRootFSBinds)
-        .Default(true);
-
-    registrar.Parameter("root_fs_binds", &TThis::RootFSBinds)
-        .Default();
-
-    registrar.Parameter("node_directory_prepare_retry_count", &TThis::NodeDirectoryPrepareRetryCount)
-        .Default(10);
-    registrar.Parameter("node_directory_prepare_backoff_time", &TThis::NodeDirectoryPrepareBackoffTime)
-        .Default(TDuration::Seconds(3));
-
-    registrar.Parameter("job_proxy_preparation_timeout", &TThis::JobProxyPreparationTimeout)
-        .Default(TDuration::Minutes(3));
-
-    registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
-        .Default(TDuration::Minutes(15));
-
-    registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
-        .Default();
-
-    registrar.Parameter("test_job_error_truncation", &TThis::TestJobErrorTruncation)
-        .Default(false);
-
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
 
@@ -797,27 +829,17 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("do_not_set_user_id", &TThis::DoNotSetUserId)
         .Default(false);
 
-    registrar.Parameter("memory_tracker_cache_period", &TThis::MemoryTrackerCachePeriod)
-        .Default(TDuration::MilliSeconds(100));
-    registrar.Parameter("smaps_memory_tracker_cache_period", &TThis::SMapsMemoryTrackerCachePeriod)
-        .Default(TDuration::Seconds(5));
-
     registrar.Parameter("check_user_job_memory_limit", &TThis::CheckUserJobMemoryLimit)
         .Default(true);
 
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
 
-    registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
-        .DefaultNew();
-
     registrar.Parameter("job_proxy_authentication_manager", &TThis::JobProxyAuthenticationManager)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)
         .DefaultNew();
-    registrar.Parameter("sensor_dump_timeout", &TThis::SensorDumpTimeout)
-        .Default(TDuration::Seconds(5));
 
     registrar.Preprocessor([] (TThis* config) {
         // 10 user jobs containers per second by default.
@@ -850,11 +872,6 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
         .DefaultNew();
 
-    registrar.Parameter("job_proxy_preparation_timeout", &TThis::JobProxyPreparationTimeout)
-        .Default(TDuration::Minutes(3));
-
-    registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
-        .Default();
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
@@ -872,20 +889,8 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
         .Default(false);
 
-    registrar.Parameter("treat_job_proxy_failure_as_abort", &TThis::TreatJobProxyFailureAsAbort)
-        .Default(false);
-
-    registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
-        .DefaultNew();
-
-    registrar.Parameter("job_throttler", &TThis::JobThrottler)
-        .DefaultNew();
-
     registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
         .DefaultNew();
-
-    registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
-        .Default();
 
     registrar.Parameter("nbd", &TThis::Nbd)
         .Default();

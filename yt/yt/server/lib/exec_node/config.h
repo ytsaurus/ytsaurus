@@ -333,28 +333,13 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSensor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobMonitoringConfig
+class TUserJobMonitoringDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
     THashMap<TString, TUserJobSensorPtr> Sensors;
 
     static const THashMap<TString, TUserJobSensorPtr>& GetDefaultSensors();
-
-    REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUserJobMonitoringDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    THashMap<TString, TUserJobSensorPtr> Sensors;
 
     REGISTER_YSON_STRUCT(TUserJobMonitoringDynamicConfig);
 
@@ -570,6 +555,58 @@ DEFINE_REFCOUNTED_TYPE(TShellCommandConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobCommonConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool UseArtifactBinds;
+    bool UseRootFSBinds;
+
+    //! Bind mounts added for all user job containers.
+    //! Should include ChunkCache if artifacts are passed by symlinks.
+    std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
+
+    int NodeDirectoryPrepareRetryCount;
+
+    TDuration NodeDirectoryPrepareBackoffTime;
+
+    TDuration JobProxyPreparationTimeout;
+
+    TDuration WaitingForJobCleanupTimeout;
+
+    std::optional<TDuration> JobPrepareTimeLimit;
+
+    //! This option is used for testing purposes only.
+    //! Adds inner errors for failed jobs.
+    bool TestJobErrorTruncation;
+
+    TDuration MemoryTrackerCachePeriod;
+
+    TDuration SMapsMemoryTrackerCachePeriod;
+
+    TUserJobMonitoringDynamicConfigPtr UserJobMonitoring;
+
+    TDuration SensorDumpTimeout;
+
+    bool TreatJobProxyFailureAsAbort;
+
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
+    TString SetupCommandUser;
+
+    std::optional<int> StatisticsOutputTableCountLimit;
+
+    //! Job throttler config, eg. its RPC timeout and backoff.
+    NJobProxy::TJobThrottlerConfigPtr JobThrottler;
+
+    REGISTER_YSON_STRUCT(TJobCommonConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobCommonConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobControllerConfig
     : public NYTree::TYsonStruct
 {
@@ -612,9 +649,6 @@ public:
 
     i64 MinRequiredDiskSpace;
 
-    std::optional<TShellCommandConfigPtr> JobSetupCommand;
-    TString SetupCommandUser;
-
     TDuration MemoryOverdraftTimeout;
 
     TDuration ResourceAdjustmentPeriod;
@@ -635,6 +669,8 @@ public:
     TDuration UnknownOperationJobsRemovalDelay;
 
     TDuration DisabledJobsInterruptionTimeout;
+
+    TJobCommonConfigPtr JobCommon;
 
     // JRM Config goes below:
     // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
@@ -717,25 +753,6 @@ public:
     bool TestRootFS;
     bool EnableArtifactCopyTracking;
     bool UseCommonRootFSQuota;
-    bool UseArtifactBinds;
-    bool UseRootFSBinds;
-
-    //! Bind mounts added for all user job containers.
-    //! Should include ChunkCache if artifacts are passed by symlinks.
-    std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
-
-    int NodeDirectoryPrepareRetryCount;
-    TDuration NodeDirectoryPrepareBackoffTime;
-
-    TDuration JobProxyPreparationTimeout;
-
-    TDuration WaitingForJobCleanupTimeout;
-
-    std::optional<TDuration> JobPrepareTimeLimit;
-
-    //! This option is used for testing purposes only.
-    //! Adds inner errors for failed jobs.
-    bool TestJobErrorTruncation;
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
@@ -749,15 +766,9 @@ public:
 
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
 
-    TDuration MemoryTrackerCachePeriod;
-    TDuration SMapsMemoryTrackerCachePeriod;
-
-    TUserJobMonitoringConfigPtr UserJobMonitoring;
-
     NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
 
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
-    TDuration SensorDumpTimeout;
 
     //! This option can disable memory limit check for user jobs.
     //! Used in arcadia tests, since it's almost impossible to set
@@ -793,14 +804,11 @@ public:
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
-    std::optional<TDuration> WaitingForJobCleanupTimeout;
     TDuration SlotReleaseTimeout;
 
     bool AbortOnFreeVolumeSynchronizationFailed;
 
     bool AbortOnFreeSlotSynchronizationFailed;
-
-    std::optional<TDuration> JobProxyPreparationTimeout;
 
     bool AbortOnJobsDisabled;
 
@@ -808,16 +816,7 @@ public:
 
     bool AbortOnOperationWithLayerFailed;
 
-    bool TreatJobProxyFailureAsAbort;
-
-    TUserJobMonitoringDynamicConfigPtr UserJobMonitoring;
-
-    //! Job throttler config, eg. its RPC timeout and backoff.
-    NJobProxy::TJobThrottlerConfigPtr JobThrottler;
-
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
-
-    std::optional<int> StatisticsOutputTableCountLimit;
 
     // NB(yuryalekseev): At the moment dynamic NBD config is used only to create
     // NBD server during startup or to dynamically enable/disable creation of NBD volumes.

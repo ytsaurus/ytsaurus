@@ -475,11 +475,7 @@ def get_node_config():
             };
         };
 
-        node_directory_prepare_backoff_time = 100;
-
         job_prepare_time_limit = 60000;
-
-        job_proxy_heartbeat_period = 200;
 
         job_controller = {
             unknown_operation_jobs_removal_delay = 5000;
@@ -595,8 +591,6 @@ def get_chaos_node_config():
                 cpu = 0;
             };
         };
-
-        node_directory_prepare_backoff_time = 100;
     };
 
     tablet_node = {
@@ -681,8 +675,14 @@ def get_dynamic_node_config():
             abort_on_jobs_disabled = %true;
 
             job_controller = {
+                "job_common" = {
+                    use_artifact_binds = %true;
+                    node_directory_prepare_backoff_time = 100;
+                };
                 operation_infos_request_period = 1000;
             };
+
+            job_proxy_heartbeat_period = 200;
 
             controller_agent_connector = {
                 heartbeat_period = 100;

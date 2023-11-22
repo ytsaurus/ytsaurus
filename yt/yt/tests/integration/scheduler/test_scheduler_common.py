@@ -1703,7 +1703,11 @@ class TestJobStatisticsPorto(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "exec_node": {
-                "statistics_output_table_count_limit": 1,
+                "job_controller": {
+                    "job_common": {
+                        "statistics_output_table_count_limit": 1,
+                    },
+                },
             },
         })
 

@@ -2297,21 +2297,24 @@ class TestUserJobMonitoring(YTEnvSetup):
 
     @authors("ignat")
     def test_dynamic_config(self):
-        update_nodes_dynamic_config(
-            {
-                "exec_node": {
-                    "user_job_monitoring": {
-                        "sensors": {
-                            "my_memory_reserve": {
-                                "source": "statistics",
-                                "path": "/user_job/memory_reserve",
-                                "type": "gauge",
-                                "profiling_name": "/my_job/memory_reserve",
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "user_job_monitoring": {
+                            "sensors": {
+                                "my_memory_reserve": {
+                                    "source": "statistics",
+                                    "path": "/user_job/memory_reserve",
+                                    "type": "gauge",
+                                    "profiling_name": "/my_job/memory_reserve",
+                                }
                             }
                         }
-                    }
-                }
-            })
+                    },
+                },
+            }
+        })
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
@@ -2465,7 +2468,12 @@ class TestHealExecNode(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "exec_node": {
-                "waiting_for_job_cleanup_timeout": 500,
+                "job_controller": {
+                    "job_common": {
+                        "waiting_for_job_cleanup_timeout": 500,
+                    }
+                }
+
             },
         })
 
@@ -2685,7 +2693,6 @@ class TestConsecutiveJobAborts(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
@@ -3118,7 +3125,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -3254,6 +3260,11 @@ class TestSlotManagerResurrect(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "job_proxy_preparation_timeout": 2000
+                    },
+                },
                 "slot_manager": {
                     "enable_numa_node_scheduling": True,
                     "job_environment": {
@@ -3263,7 +3274,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
                         }
                     }
                 },
-                "job_proxy_preparation_timeout": 2000
             },
         })
 

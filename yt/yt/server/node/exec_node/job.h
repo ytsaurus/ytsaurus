@@ -79,7 +79,8 @@ public:
         const NClusterNode::TJobResourceAttributes& resourceAttributes,
         NControllerAgent::NProto::TJobSpec&& jobSpec,
         TControllerAgentDescriptor agentDescriptor,
-        IBootstrap* bootstrap);
+        IBootstrap* bootstrap,
+        const TJobCommonConfigPtr& commonConfig);
 
     ~TJob();
 
@@ -245,8 +246,7 @@ private:
     TControllerAgentDescriptor ControllerAgentDescriptor_;
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
-    const TExecNodeConfigPtr Config_;
-    const TExecNodeDynamicConfigPtr DynamicConfig_;
+    const TJobCommonConfigPtr CommonConfig_;
     const IInvokerPtr Invoker_;
     const TInstant StartTime_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
@@ -535,7 +535,8 @@ TJobPtr CreateJob(
     const NClusterNode::TJobResourceAttributes& resourceAttributes,
     NControllerAgent::NProto::TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
-    IBootstrap* bootstrap);
+    IBootstrap* bootstrap,
+    const TJobCommonConfigPtr& commonConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

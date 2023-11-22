@@ -220,6 +220,34 @@ void TGpuManager::OnDynamicConfigChanged(
     DynamicConfig_.Store(std::move(newConfig));
 }
 
+bool TGpuManager::ShouldTestResource() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_->Testing->TestResource;
+}
+
+bool TGpuManager::ShouldTestExtraGpuCheckCommandFailure() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_->Testing->TestExtraGpuCheckCommandFailure;
+}
+
+bool TGpuManager::ShouldTestLayers() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_->Testing->TestLayers;
+}
+
+bool TGpuManager::ShouldTestSetupCommands() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_->Testing->TestSetupCommands;
+}
+
 TDuration TGpuManager::GetHealthCheckTimeout() const
 {
     return DynamicConfig_.Acquire()->HealthCheckTimeout;

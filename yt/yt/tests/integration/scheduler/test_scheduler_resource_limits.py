@@ -1042,7 +1042,18 @@ class TestPorts(YTEnvSetup):
 @authors("don-dron")
 class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "use_artifact_binds": True,
+                    },
+                },
+            },
+        },
+    }
+
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        config["exec_node"]["use_artifact_binds"] = True
         config["exec_node"]["use_common_root_fs_quota"] = True

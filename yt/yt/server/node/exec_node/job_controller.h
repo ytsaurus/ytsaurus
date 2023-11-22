@@ -92,6 +92,9 @@ public:
         const TJobControllerDynamicConfigPtr& oldConfig,
         const TJobControllerDynamicConfigPtr& newConfig) = 0;
 
+    virtual TGuid RegisterThrottlingRequest(TFuture<void> future) = 0;
+    virtual TFuture<void> GetThrottlingRequestOrThrow(TGuid id) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobRegistered);
     DECLARE_INTERFACE_SIGNAL(
         void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),

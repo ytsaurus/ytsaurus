@@ -13,6 +13,7 @@ from yt_helpers import profiler_factory
 import pytest
 
 import os
+import sys
 import time
 
 from collections import Counter
@@ -23,7 +24,6 @@ class TestLayers(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -590,7 +590,6 @@ class TestTmpfsLayerCache(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -699,7 +698,6 @@ class TestJobSetup(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -713,10 +711,12 @@ class TestJobSetup(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "job_controller": {
-                    "job_setup_command": {
-                        "path": "/static-bin/static-bash",
-                        "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
-                    }
+                    "job_common": {
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
+                        }
+                    },
                 },
             },
         }
@@ -735,6 +735,10 @@ class TestJobSetup(YTEnvSetup):
 
     def test_setup_cat(self):
         self.setup_files()
+
+        config = get("//sys/cluster_nodes/@config")
+
+        print(f"Dynamic config is {config}", file=sys.stderr)
 
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
@@ -765,7 +769,6 @@ class TestJobSetup(YTEnvSetup):
 class TestSquashfsLayers(TestLayers):
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "use_artifact_binds": True,
             "test_root_fs": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
@@ -789,7 +792,6 @@ class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -824,15 +826,25 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "test_root_fs": True,
-            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
             },
-            "waiting_for_job_cleanup_timeout": 5000,
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "waiting_for_job_cleanup_timeout": 5000,
+                    },
+                },
+            },
+        }
     }
 
     USE_PORTO = True

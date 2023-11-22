@@ -155,7 +155,8 @@ TJob::TJob(
     const NClusterNode::TJobResourceAttributes& resourceAttributes,
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    const TJobCommonConfigPtr& commonConfig)
     : TResourceHolder(
         bootstrap->GetJobResourceManager().Get(),
         EResourcesConsumerType::SchedulerJob,
@@ -173,8 +174,7 @@ TJob::TJob(
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(this))
-    , Config_(Bootstrap_->GetConfig()->ExecNode)
-    , DynamicConfig_(Bootstrap_->GetDynamicConfig()->ExecNode)
+    , CommonConfig_(commonConfig)
     , Invoker_(Bootstrap_->GetJobInvoker())
     , StartTime_(TInstant::Now())
     , TrafficMeter_(New<TTrafficMeter>(
@@ -197,13 +197,7 @@ TJob::TJob(
 
     PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_);
 
-    SupportedMonitoringSensors_ = TUserJobMonitoringConfig::GetDefaultSensors();
-    for (const auto& [sensorName, sensor] : Config_->UserJobMonitoring->Sensors) {
-        SupportedMonitoringSensors_[sensorName] = sensor;
-    }
-    for (const auto& [sensorName, sensor] : DynamicConfig_->UserJobMonitoring->Sensors) {
-        SupportedMonitoringSensors_[sensorName] = sensor;
-    }
+    SupportedMonitoringSensors_ = CommonConfig_->UserJobMonitoring->Sensors;
 
     TrafficMeter_->Start();
 
@@ -263,7 +257,7 @@ void TJob::DoStart()
                         prepareTimeLimit);
                 }
 
-                if (auto prepareTimeLimit = Config_->JobPrepareTimeLimit) {
+                if (auto prepareTimeLimit = CommonConfig_->JobPrepareTimeLimit) {
                     TDelayedExecutor::Submit(
                         BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), *prepareTimeLimit, /*fatal*/ true)
                             .Via(Invoker_),
@@ -501,8 +495,7 @@ void TJob::Terminate(EJobState finalState, TError error)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto doTerminate = [&] {
-        auto timeout = DynamicConfig_->WaitingForJobCleanupTimeout.value_or(
-            Config_->WaitingForJobCleanupTimeout);
+        auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         SetJobPhase(EJobPhase::WaitingForCleanup);
         Finalize(finalState, std::move(error));
@@ -1623,7 +1616,7 @@ void TJob::DoSetResult(
 
     YT_LOG_DEBUG("Set job result (Error: %v)", error);
 
-    if (Config_->TestJobErrorTruncation) {
+    if (CommonConfig_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
                 error.MutableInnerErrors()->push_back(TError("Test error " + ToString(index)));
@@ -1720,7 +1713,7 @@ std::vector<TDevice> TJob::GetGpuDevices()
         }
 
         // We should not explicitly exclude test device that does not actually exists.
-        if (!deviceFound && !Config_->JobController->GpuManager->Testing->TestResource) {
+        if (!deviceFound && !Bootstrap_->GetGpuManager()->ShouldTestResource()) {
             // Exclude device explicitly.
             devices.emplace_back(TDevice{
                 .DeviceName = deviceName,
@@ -1777,7 +1770,7 @@ void TJob::RunWithWorkspaceBuilder()
         .UserSandboxOptions = options,
         .Slot = GetUserSlot(),
         .Job = MakeStrong(this),
-        .CommandUser = DynamicConfig_->JobController->SetupCommandUser,
+        .CommandUser = CommonConfig_->SetupCommandUser,
 
         .ArtifactDownloadOptions = MakeArtifactDownloadOptions(),
 
@@ -1934,9 +1927,7 @@ void TJob::RunJobProxy()
             &TJob::OnJobProxyPreparationTimeout,
             MakeWeak(this))
         .Via(Invoker_),
-        DynamicConfig_->JobProxyPreparationTimeout
-            ? DynamicConfig_->JobProxyPreparationTimeout.value()
-            : Config_->JobProxyPreparationTimeout);
+        CommonConfig_->JobProxyPreparationTimeout);
 }
 
 void TJob::OnJobProxyPreparationTimeout()
@@ -1979,8 +1970,7 @@ void TJob::OnWaitingForCleanupTimeout()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
-        auto timeout = DynamicConfig_->WaitingForJobCleanupTimeout.value_or(
-            Config_->WaitingForJobCleanupTimeout);
+        auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         auto error = TError("Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
@@ -2026,13 +2016,13 @@ void TJob::OnJobProxyFinished(const TError& error)
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
             .RootFS = MakeWritableRootFS(),
-            .CommandUser = DynamicConfig_->JobController->SetupCommandUser,
+            .CommandUser = CommonConfig_->SetupCommandUser,
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
             .GpuCheckType = EGpuCheckType::Extra,
             .CurrentStartIndex = SetupCommandCount_,
-            .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->Testing->TestExtraGpuCheckCommandFailure,
+            .TestExtraGpuCheckCommandFailure = Bootstrap_->GetGpuManager()->ShouldTestExtraGpuCheckCommandFailure(),
             .GpuDevices = GetGpuDevices()
         };
 
@@ -2286,7 +2276,7 @@ void TJob::PrepareNodeDirectory()
             break;
         }
 
-        if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
+        if (attempt >= CommonConfig_->NodeDirectoryPrepareRetryCount) {
             YT_LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)",
                 *unresolvedNodeId);
             break;
@@ -2295,7 +2285,7 @@ void TJob::PrepareNodeDirectory()
         YT_LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
             *unresolvedNodeId,
             attempt);
-        TDelayedExecutor::WaitForDuration(Config_->NodeDirectoryPrepareBackoffTime);
+        TDelayedExecutor::WaitForDuration(CommonConfig_->NodeDirectoryPrepareBackoffTime);
     }
 
     try {
@@ -2312,12 +2302,12 @@ void TJob::PrepareNodeDirectory()
 
 std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
 {
-    if (Config_->UseRootFSBinds) {
-        return Config_->RootFSBinds;
+    if (CommonConfig_->UseRootFSBinds) {
+        return CommonConfig_->RootFSBinds;
     } else {
         std::vector<NJobProxy::TBindConfigPtr> binds;
 
-        for (const auto& bind : Config_->RootFSBinds) {
+        for (const auto& bind : CommonConfig_->RootFSBinds) {
             if (!bind->ExternalPath.StartsWith("/yt")) {
                 binds.push_back(bind);
             }
@@ -2354,8 +2344,8 @@ TJobProxyConfigPtr TJob::CreateConfig()
     }
 
     proxyConfig->MemoryTracker->MemoryStatisticsCachePeriod = proxyConfig->MemoryTracker->UseSMapsMemoryTracker
-        ? Config_->SMapsMemoryTrackerCachePeriod
-        : Config_->MemoryTrackerCachePeriod;
+        ? CommonConfig_->SMapsMemoryTrackerCachePeriod
+        : CommonConfig_->MemoryTrackerCachePeriod;
 
     proxyConfig->JobTestingOptions = JobTestingOptions_;
     proxyConfig->SlotIndex = GetUserSlot()->GetSlotIndex();
@@ -2370,7 +2360,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
     if (RootVolume_ || DockerImage_) {
         proxyConfig->Binds = GetRootFsBinds();
 
-        if (Config_->UseArtifactBinds) {
+        if (CommonConfig_->UseArtifactBinds) {
             for (const auto& artifact : Artifacts_) {
                 // Artifact is passed into the job via bind.
                 if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
@@ -2502,17 +2492,17 @@ TJobProxyConfigPtr TJob::CreateConfig()
         }
     }
 
-    proxyConfig->JobThrottler = CloneYsonStruct(DynamicConfig_->JobThrottler);
+    proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
     if (!JobSpecExt_->enable_prefetching_job_throttler()) {
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
     YT_LOG_DEBUG("Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
-        DynamicConfig_->JobThrottler->BandwidthPrefetch->Enable,
+        CommonConfig_->JobThrottler->BandwidthPrefetch->Enable,
         JobSpecExt_->enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
 
-    proxyConfig->StatisticsOutputTableCountLimit = DynamicConfig_->StatisticsOutputTableCountLimit;
+    proxyConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
 
     return proxyConfig;
 }
@@ -2538,7 +2528,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     options.HasRootFSQuota = false;
-    options.EnableArtifactBinds = Config_->UseArtifactBinds;
+    options.EnableArtifactBinds = CommonConfig_->UseArtifactBinds;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
 
@@ -2592,7 +2582,7 @@ void TJob::InitializeArtifacts()
             YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
         }
 
-        bool needGpuLayers = NeedGpuLayers() || Config_->JobController->GpuManager->Testing->TestLayers;
+        bool needGpuLayers = NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestLayers();
 
         if (needGpuLayers && UserJobSpec_->enable_gpu_layers()) {
             if (UserJobSpec_->layers().empty()) {
@@ -2853,7 +2843,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
                     return EAbortReason::ResourceOverdraft;
 
                 default: {
-                    if (DynamicConfig_->TreatJobProxyFailureAsAbort) {
+                    if (CommonConfig_->TreatJobProxyFailureAsAbort) {
                         return EAbortReason::JobProxyFailed;
                     }
                     break;
@@ -3079,9 +3069,9 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
         }
     };
 
-    addIfPresent(DynamicConfig_->JobController->JobSetupCommand);
+    addIfPresent(CommonConfig_->JobSetupCommand);
 
-    bool needGpu = NeedGpuLayers() || Config_->JobController->GpuManager->Testing->TestSetupCommands;
+    bool needGpu = NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestSetupCommands();
     if (needGpu) {
         auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
         result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());
@@ -3329,7 +3319,7 @@ TFuture<TSharedRef> TJob::DumpSensors()
     })
         .AsyncVia(Invoker_)
         .Run()
-        .WithTimeout(Config_->SensorDumpTimeout);
+        .WithTimeout(CommonConfig_->SensorDumpTimeout);
 }
 
 bool TJob::NeedsGpuCheck() const
@@ -3346,7 +3336,8 @@ TJobPtr CreateJob(
     const NClusterNode::TJobResourceAttributes& resourceAttributes,
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    const TJobCommonConfigPtr& commonConfig)
 {
     return NewWithOffloadedDtor<TJob>(
         bootstrap->GetJobInvoker(),
@@ -3356,7 +3347,8 @@ TJobPtr CreateJob(
         resourceAttributes,
         std::move(jobSpec),
         std::move(agentDescriptor),
-        bootstrap);
+        bootstrap,
+        commonConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

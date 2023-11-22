@@ -379,7 +379,6 @@ private:
         SchedulerConnector_->OnDynamicConfigChanged(
             oldConfig->ExecNode->SchedulerConnector,
             newConfig->ExecNode->SchedulerConnector);
-        // TODO(arkady-e1ppa): Move this to JobController::OnDynamicConfigChanged
         GpuManager_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobController->GpuManager,
             newConfig->ExecNode->JobController->GpuManager);
