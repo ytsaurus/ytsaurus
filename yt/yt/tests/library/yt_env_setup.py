@@ -291,6 +291,7 @@ class YTEnvSetup(object):
 
     NUM_REMOTE_CLUSTERS = 0
     NUM_TEST_PARTITIONS = 1
+    CLASS_TEST_LIMIT = 8 * 60  # limits all test cases in class duration inside partition (seconds)
     NODE_IO_ENGINE_TYPE = None  # use "thread_pool" or "uring"
     NODE_USE_DIRECT_IO_FOR_READS = "never"
 
@@ -869,7 +870,7 @@ class YTEnvSetup(object):
         gc.collect()
 
         class_duration = time() - cls._start_time
-        class_limit = (16 * 60) if is_asan_build() else (8 * 60)
+        class_limit = (2 if is_asan_build() else 1) * cls.CLASS_TEST_LIMIT
 
         if class_duration > class_limit:
             pytest.fail(
