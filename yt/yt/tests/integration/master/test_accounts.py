@@ -1780,6 +1780,34 @@ class TestAccounts(AccountsTestSuiteBase):
         remove("//tmp/dir1")
         wait(lambda: self._get_master_memory_usage("a") == 0)
 
+    @authors("danilalexeev")
+    def test_transient_master_memory(self):
+        limits = self._build_resource_limits(
+            node_count=10,
+            chunk_count=40,
+            disk_space=9001,
+            master_memory=1000,
+        )
+
+        def get_transient_master_memory_usage(account, memory_type):
+            master_memory = get("//sys/accounts/{}/@transient_master_memory_usage/{}".format(account, memory_type))
+            assert master_memory >= 0
+            return master_memory
+
+        create_account("child", attributes={"resource_limits": limits})
+        create_account("parent", attributes={"resource_limits": limits})
+
+        create("table", "//tmp/t", attributes={"account": "child"})
+        write_table("//tmp/t", {"a": 0xbe, "b": 0xbebe, "c": 0xbebebe})
+        wait(lambda: get_transient_master_memory_usage("child", "nodes") > 0)
+
+        set('//sys/accounts/child/@parent_name', "parent")
+        wait(lambda: get_transient_master_memory_usage("parent", "nodes")
+             == get_transient_master_memory_usage("child", "nodes"))
+
+        remove("//tmp/t")
+        wait(lambda: get_transient_master_memory_usage("parent", "nodes") == 0)
+
     @authors("shakurov")
     def test_master_memory_schema_accounting(self):
         create_account("a")

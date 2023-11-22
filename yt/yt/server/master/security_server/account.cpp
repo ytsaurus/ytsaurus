@@ -398,15 +398,20 @@ void TAccount::AttachChild(const TString& key, TAccount* child) noexcept
     const auto& childResourceUsage = child->ClusterStatistics().ResourceUsage;
     const auto& childCommittedResourceUsage = child->ClusterStatistics().CommittedResourceUsage;
 
+    const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
+
     for (auto* account = this; account; account = account->GetParent()) {
         auto& localStatistics = account->LocalStatistics();
         auto& clusterStatistics = account->ClusterStatistics();
+        auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
         localStatistics.ResourceUsage += childLocalResourceUsage;
         clusterStatistics.ResourceUsage += childResourceUsage;
 
         localStatistics.CommittedResourceUsage += childLocalCommittedResourceUsage;
         clusterStatistics.CommittedResourceUsage += childCommittedResourceUsage;
+
+        masterMemoryUsage += childMasterMemoryUsage;
     }
 }
 
@@ -420,15 +425,20 @@ void TAccount::DetachChild(TAccount* child) noexcept
     const auto& childResourceUsage = child->ClusterStatistics().ResourceUsage;
     const auto& childCommittedResourceUsage = child->ClusterStatistics().CommittedResourceUsage;
 
+    const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
+
     for (auto* account = this; account; account = account->GetParent()) {
         auto& localStatistics = account->LocalStatistics();
         auto& clusterStatistics = account->ClusterStatistics();
+        auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
         localStatistics.ResourceUsage -= childLocalResourceUsage;
         clusterStatistics.ResourceUsage -= childResourceUsage;
 
         localStatistics.CommittedResourceUsage -= childLocalCommittedResourceUsage;
         clusterStatistics.CommittedResourceUsage -= childCommittedResourceUsage;
+
+        masterMemoryUsage -= childMasterMemoryUsage;
     }
 }
 
