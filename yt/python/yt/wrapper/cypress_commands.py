@@ -131,6 +131,51 @@ def set(path, value, format=None, recursive=False, force=None, suppress_transact
         client=client)
 
 
+class _CrosscellCopyMoveRetrier(Retrier):
+    def __init__(self, method, params, client):
+        self.method = method
+        self.params = params
+        self.client = client
+
+        retry_config = get_config(client)["proxy"]["retries"]
+        chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
+        super(_CrosscellCopyMoveRetrier, self).__init__(
+            retry_config=retry_config,
+            exceptions=get_retriable_errors(),
+            chaos_monkey=default_chaos_monkey(chaos_monkey_enable)
+        )
+
+    def action(self):
+        title = "Python wrapper: {}".format(self.method)
+        with Transaction(attributes={"title": title}, client=self.client):
+            set_param(self.params, "enable_cross_cell_copying", True)
+            return make_formatted_request(self.method, self.params, format=None, allow_retries=False, client=self.client)
+
+    def except_action(self, error, attempt):
+        logger.warning("Copy/move failed with error %s", repr(error))
+
+    @classmethod
+    def copy(cls, params, client):
+        return cls._method("copy", params, client)
+
+    @classmethod
+    def move(cls, params, client):
+        return cls._method("move", params, client)
+
+    @classmethod
+    def _method(cls, method, params, client):
+        try:
+            # copy/move without any extra protection
+            set_param(params, "enable_cross_cell_copying", False)
+            return make_formatted_request(method, params, format=None, client=client)
+        except YtResponseError as ex:
+            if ex.is_prohibited_cross_cell_copy():
+                # copy/move from portal, make it retryable
+                return cls(method, params, client).run()
+            else:
+                raise
+
+
 def copy(source_path, destination_path,
          recursive=None, force=None, ignore_existing=None, lock_existing=None,
          preserve_account=None, preserve_owner=None, preserve_acl=None,
@@ -175,8 +220,12 @@ def copy(source_path, destination_path,
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
-    set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
-    return make_formatted_request("copy", params, format=None, client=client)
+
+    if enable_cross_cell_copying is None:
+        return _CrosscellCopyMoveRetrier.copy(params, client)
+    else:
+        set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
+        return make_formatted_request("copy", params, format=None, client=client)
 
 
 def move(source_path, destination_path,
@@ -217,8 +266,12 @@ def move(source_path, destination_path,
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
-    set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
-    return make_formatted_request("move", params, format=None, client=client)
+
+    if enable_cross_cell_copying is None:
+        return _CrosscellCopyMoveRetrier.move(params, client)
+    else:
+        set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
+        return make_formatted_request("move", params, format=None, client=client)
 
 
 class _ConcatenateRetrier(Retrier):

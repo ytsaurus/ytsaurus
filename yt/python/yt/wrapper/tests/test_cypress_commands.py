@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from .conftest import authors
-from .helpers import TEST_DIR, set_config_option
+from .helpers import TEST_DIR, set_config_option, inject_http_error
 
 import yt.json_wrapper as json
 import yt.yson as yson
@@ -13,7 +13,7 @@ try:
 except ImportError:
     from six import PY3
 
-from yt.common import datetime_to_string
+from yt.common import datetime_to_string, YtResponseError
 import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper as yt
 from yt.wrapper.schema import TableSchema, ColumnSchema
@@ -31,6 +31,7 @@ import datetime
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestCypressCommands(object):
+
     @authors("ignat")
     def test_ypath(self):
         path = yt.TablePath("<append=%false;sort-by=[key]>//my/table")
@@ -835,3 +836,96 @@ class TestCypressCommands(object):
         yt.create("table", path, recursive=True, attributes={"schema": expected_schema})
         retrieved_schema = yt.get_table_schema(path)
         assert expected_schema == retrieved_schema
+
+
+@pytest.mark.usefixtures("test_environment_multicell")
+class TestCypressCommandsMulticell(object):
+
+    def _create_portal(self, path_in, portal_cell_tag_id):
+        entrance_id = yt.create("portal_entrance", path_in, attributes={"exit_cell_tag": portal_cell_tag_id})
+        assert yt.get(path_in + "&/@type") == "portal_entrance"
+        assert yt.get(path_in + "&/@path") == path_in
+
+        assert yt.exists("//sys/portal_entrances/{}".format(entrance_id))
+
+        exit_id = yt.get(path_in + "&/@exit_node_id")
+        assert yt.get("#{}/@type".format(exit_id)) == "portal_exit"
+        assert yt.get("#{}/@entrance_node_id".format(exit_id)) == entrance_id
+        assert yt.get("#{}/@inherit_acl".format(exit_id))
+        assert yt.get("#{}/@path".format(exit_id)) == path_in
+
+        assert yt.exists("//sys/portal_exits/{}".format(exit_id))
+
+        return True
+
+    @authors("denvr")
+    def test_portal_copy(self):
+        assert self._create_portal("//tmp/some_portal", 2)
+        table_beyond_portal = "//tmp/some_portal/dark_table"
+        table_beyond_portal_2 = "//tmp/some_portal/darkest_table"
+        table_no_portal = "//tmp/regula_table"
+        yt.create("table", table_beyond_portal)
+        yt.write_table(table_beyond_portal, [{"foo": "bar"}, {"foo": "qwe"}])
+        assert len(list(yt.read_table(table_beyond_portal))) == 2
+        yt.copy(table_beyond_portal, table_no_portal)
+        assert len(list(yt.read_table(table_no_portal))) == 2
+        yt.remove(table_no_portal)
+
+        with pytest.raises(YtResponseError) as ex:
+            yt.copy(table_beyond_portal, table_no_portal, enable_cross_cell_copying=False)
+        assert ex.value.is_prohibited_cross_cell_copy()
+        assert not yt.exists(table_no_portal)
+
+        yt.copy(table_beyond_portal, table_no_portal, enable_cross_cell_copying=True)
+        assert len(list(yt.read_table(table_no_portal))) == 2
+        yt.remove(table_no_portal)
+
+        client = yt.YtClient(config=yt.config.config)
+
+        # copy
+        client.copy(table_beyond_portal, table_beyond_portal_2)
+        assert client.exists(table_beyond_portal)
+        assert client.exists(table_beyond_portal_2)
+        client.remove(table_beyond_portal_2)
+
+        # copy with retry at start
+        client.config["proxy"]["retries"]["count"] = 3  # even than "interrupt_every"
+        with inject_http_error(client, filter_url="api/v4/start_transaction", interrupt_every=0) as transaction_calls_cnt:
+            with inject_http_error(client, filter_url="api/v4/copy", interrupt_from=0, interrupt_till=3, interrupt_every=2, raise_connection_reset=True) as copy_calls_cnt:
+                # 1 attempt (enable_cross_cell_copying=False) - fail by test
+                # 2 retry in make_formatted_request (enable_cross_cell_copying=False) - fail by server
+                # 3 switch to transaction mode with enable_cross_cell_copying=True - ok
+                client.copy(table_beyond_portal, table_no_portal)
+        assert transaction_calls_cnt.filtered_total_calls == 1
+        assert copy_calls_cnt.filtered_total_calls == 3
+        assert copy_calls_cnt.filtered_raises == 1
+        assert len(list(client.read_table(table_no_portal))) == 2
+        client.remove(table_no_portal)
+
+        # copy with retry inside transaction
+        client.config["proxy"]["retries"]["count"] = 3  # even than "interrupt_every"
+        with inject_http_error(client, filter_url="api/v4/start_transaction", interrupt_every=0) as transaction_calls_cnt:
+            with inject_http_error(client, filter_url="api/v4/copy", interrupt_from=1, interrupt_till=3, interrupt_every=2, raise_connection_reset=True) as copy_calls_cnt:
+                # 1 attempt with enable_cross_cell_copying=False - fail by server
+                # 2 switch to transaction mode with enable_cross_cell_copying=True - fail by test
+                # 3 retry with new transaction switch to transaction mode with enable_cross_cell_copying=True - ok
+                client.copy(table_beyond_portal, table_no_portal)
+        assert transaction_calls_cnt.filtered_total_calls == 2
+        assert copy_calls_cnt.filtered_total_calls == 3
+        assert copy_calls_cnt.filtered_raises == 1
+        assert len(list(client.read_table(table_no_portal))) == 2
+        client.remove(table_no_portal)
+
+        # move
+        client.move(table_beyond_portal, table_beyond_portal_2)
+        assert not client.exists(table_beyond_portal)
+        assert client.exists(table_beyond_portal_2)
+        client.move(table_beyond_portal_2, table_beyond_portal)
+
+        client.config["proxy"]["retries"]["count"] = 3  # even than "interrupt_every"
+        with inject_http_error(client, filter_url="api/v4/move", interrupt_from=0, interrupt_till=3, interrupt_every=2, raise_connection_reset=True) as calls_cnt:
+            client.move(table_beyond_portal, table_no_portal)
+        assert not client.exists(table_beyond_portal)
+        assert calls_cnt.filtered_total_calls == 3
+        assert calls_cnt.filtered_raises == 1
+        assert len(list(client.read_table(table_no_portal))) == 2

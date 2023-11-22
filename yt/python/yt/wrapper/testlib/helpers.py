@@ -7,6 +7,8 @@ except ImportError:
     from six import iteritems, integer_types, text_type, binary_type, b, PY3
     from six.moves import xrange
 
+from yt.packages import requests
+
 from yt.test_helpers import wait, get_tests_sandbox
 from yt.test_helpers.job_events import JobEvents
 
@@ -281,3 +283,55 @@ def failing_heavy_request(module, n_fails, assert_exhausted=True):
 def random_string(length):
     char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
     return "".join(random.choice(char_set) for _ in xrange(length))
+
+
+@contextmanager
+def inject_http_error(client, filter_url=None, interrupt_from=0, interrupt_till=3, interrupt_every=2, raise_connection_reset=False, raise_custom_exception=None):
+    """Raises RuntimeError or ConnectionError("Connection aborted.") every N http request. Modifies client.config retries
+         filter_url - which urls will intercepted
+         interrupt_from/interrupt_till - "window" in filtered requests
+         interrupt_every - raise every N filtered request
+       Returns Counters with stat
+         total_calls - total http reqeusts
+         filtered_total_calls - http requests matched by "filter_url"
+         filtered_raises - how many times exception rised
+    """
+    class Counters(object):
+        total_calls = 0  # type: int
+        filtered_total_calls = 0  # type: int
+        filtered_raises = 0  # type: int
+        filtered_bypasses = 0  # type: int
+
+    if not client._requests_session:
+        yt.http_helpers._get_session(client)
+
+    cnt = Counters()
+    reqeust_session_send_orig = client._requests_session.send
+
+    client.config["write_retries"]["backoff"]["policy"] = "constant_time"
+    client.config["write_retries"]["backoff"]["constant_time"] = 0
+
+    def send_wrapper(*args, **kwargs):
+        cnt.total_calls += 1
+        if (filter_url is not None and args[0].url and filter_url in args[0].url):
+            cnt.filtered_total_calls += 1
+            if cnt.filtered_total_calls > interrupt_from \
+                    and interrupt_every and not (cnt.filtered_total_calls - interrupt_from - 1) % interrupt_every \
+                    and cnt.filtered_total_calls < interrupt_till:
+                cnt.filtered_raises += 1
+                if raise_custom_exception:
+                    raise raise_custom_exception
+                elif raise_connection_reset:
+                    # PY3: raise_custom_exception=requests.ConnectionError("Connection aborted.", ConnectionResetError(104, "Connection reset by peer"))
+                    # PY2: raise_custom_exception=requests.ConnectionError("Connection aborted.", socket.error(errno.ECONNRESET))
+                    raise requests.ConnectionError("Connection aborted.")
+                else:
+                    raise RuntimeError()
+            else:
+                cnt.filtered_bypasses += 1
+
+        return reqeust_session_send_orig(*args, **kwargs)
+
+    client._requests_session.send = send_wrapper
+    yield cnt
+    client._requests_session.send = reqeust_session_send_orig
