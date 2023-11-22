@@ -81,6 +81,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NodeTabletSlotsDisabled)      (1403))
     ((NodeFilterMismatch)           (1404))
     ((CellDidNotAppearWithinTimeout)(1405))
+    ((NodeDoesNotExist)             (1406))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

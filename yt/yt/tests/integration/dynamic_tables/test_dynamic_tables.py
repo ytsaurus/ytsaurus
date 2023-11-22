@@ -1,6 +1,7 @@
 from yt_env_setup import (
     parametrize_external,
     Restarter,
+    NODES_SERVICE,
     MASTERS_SERVICE,
     is_asan_build,
 )
@@ -708,6 +709,54 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         assert not exists("//tmp/t1/@profiling_mode")
         assert get("//tmp/t1/@profiling_tag") == "custom"
+
+    @authors("gritukan")
+    def test_revoke_cell_from_nonexistent_node(self):
+        # Never revoke tablet cell due to peer revocation timeout.
+        set("//sys/@config/tablet_manager/peer_revocation_timeout", 10**8)
+
+        nodes = list(get("//sys/cluster_nodes"))
+        node_a, node_b = nodes[0], nodes[1]
+        set(f"//sys/cluster_nodes/{node_a}/@user_tags", ["my_tag"])
+
+        config = {
+            node_a: {
+                "cellar_node": {
+                    "master_connector": {
+                        "heartbeat_period": 10**7,
+                        "heartbeat_period_splay": 0,
+                    },
+                },
+            },
+            f"!{node_a}": {},
+        }
+
+        set("//sys/cluster_nodes/@config", config)
+
+        # Wait for dynamic config apply and allow node_a to send last heartbeat.
+        time.sleep(3)
+
+        create_tablet_cell_bundle("my_bundle", attributes={"node_tag_filter": "my_tag"})
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "my_bundle"})
+
+        # Tablet cell should become assigned to node_a but should not be running
+        # since heartbeats are stuck.
+        time.sleep(3)
+        assert get(f"#{cell_id}/@peers")[0]["address"] == node_a
+        assert get(f"#{cell_id}/@health") == "failed"
+
+        # Make node_b feasible for tablet cell.
+        set(f"//sys/cluster_nodes/{node_b}/@user_tags", ["my_tag"])
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get(f"//sys/cluster_nodes/{node_a}/@state") == "offline")
+            id = get(f"//sys/cluster_nodes/{node_a}/@id")
+            remove(f"//sys/cluster_nodes/{node_a}")
+            wait(lambda: not exists("#" + id))
+            wait(lambda: "address" not in get(f"#{cell_id}/@peers")[0])
+
+        wait(lambda: get(f"#{cell_id}/@health") == "good")
+        assert get(f"#{cell_id}/@peers")[0]["address"] == node_b
 
 
 ##################################################################
