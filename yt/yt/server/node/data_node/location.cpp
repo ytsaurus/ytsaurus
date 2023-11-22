@@ -1137,6 +1137,19 @@ void TChunkLocation::UnlockChunk(TChunkId chunkId)
     }
 }
 
+void TChunkLocation::UnlockChunkLocks()
+{
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+
+    auto state = GetState();
+    YT_LOG_FATAL_IF(
+        state != ELocationState::Disabling,
+        "Remove location chunk locks should be called when state is equal to ELocationState::Disabling");
+
+    auto guard = Guard(LockedChunksLock_);
+    LockedChunkIds_.clear();
+}
+
 void TChunkLocation::OnHealthCheckFailed(const TError& error)
 {
     ScheduleDisable(error);
@@ -1848,7 +1861,6 @@ void TStoreLocation::RemoveLocationChunks()
     try {
         for (const auto& chunk : locationChunks) {
             ChunkStore_->UnregisterChunk(chunk);
-            UnlockChunk(chunk->GetId());
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Cannot complete unregister chunk futures")
@@ -1902,8 +1914,10 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
             // Additional removal of chunks that were recorded in unfinished sessions.
             RemoveLocationChunks();
+            UnlockChunkLocks();
             ResetLocationStatistic();
             ChunkStoreHost_->ScheduleMasterHeartbeat();
+            YT_LOG_INFO("Location disabling finished");
         } catch (const std::exception& ex) {
             YT_LOG_FATAL(ex, "Location disabling error");
         }

@@ -627,7 +627,7 @@ std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& l
     return chunks;
 }
 
-TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
+TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -636,9 +636,14 @@ TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
         ->RegisterAction(
             BIND([=, this, this_ = MakeStrong(this)] () {
                 ChunkRemovalScheduled_.Fire(chunk);
+
+                if (startRemoveDelay) {
+                    TDelayedExecutor::WaitForDuration(*startRemoveDelay);
+                }
+
                 return chunk->ScheduleRemove()
                     .Apply(BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));
-            }));
+            }).AsyncVia(ControlInvoker_));
 }
 
 std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLocation(

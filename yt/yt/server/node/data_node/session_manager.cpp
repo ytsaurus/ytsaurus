@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/library/ytprof/heap_profiler.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NDataNode {
@@ -31,6 +33,9 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NYTProf;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +48,7 @@ TSessionManager::TSessionManager(
     IBootstrap* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
+    , OrchidService_(CreateOrchidService())
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
@@ -50,6 +56,42 @@ TSessionManager::TSessionManager(
     DataNodeProfiler.AddFuncGauge("/write_sessions_disabled", MakeStrong(this), [this] {
         return DisableWriteSessions_.load() ? 1.0 : 0.0;
     });
+}
+
+void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
+{
+    const auto memorySnapshot = GetMemoryUsageSnapshot();
+
+    YT_VERIFY(memorySnapshot);
+
+    auto sessionIdToUsage = memorySnapshot->GetUsage(SessionIdAllocationTag);
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("sessions")
+            .DoListFor(
+                sessionIdToUsage.begin(),
+                sessionIdToUsage.end(),
+                [&] (TFluentList fluent, const auto& sessionToUsage) {
+                    fluent
+                        .Item()
+                        .BeginMap()
+                            .Item("session_id").Value(sessionToUsage->first)
+                            .Item("heap_usage").Value(sessionToUsage->second)
+                        .EndMap();
+            })
+        .EndMap();
+}
+
+IYPathServicePtr TSessionManager::CreateOrchidService()
+{
+    return IYPathService::FromProducer(BIND(&TSessionManager::BuildOrchid, MakeStrong(this)))
+        ->Via(Bootstrap_->GetControlInvoker());
+}
+
+IYPathServicePtr TSessionManager::GetOrchidService()
+{
+    return OrchidService_;
 }
 
 void TSessionManager::Initialize()

@@ -3,6 +3,7 @@
 #include "ally_replica_manager.h"
 #include "job_controller.h"
 #include "location_manager.h"
+#include "session_manager.h"
 
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -30,6 +31,9 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
     mapService->AddChild(
         "location_manager",
         bootstrap->GetLocationManager()->GetOrchidService());
+    mapService->AddChild(
+        "session_manager",
+        bootstrap->GetSessionManager()->GetOrchidService());
     mapService->AddChild(
         "stored_chunks",
         CreateStoredChunkMapService(

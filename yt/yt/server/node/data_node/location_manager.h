@@ -81,7 +81,7 @@ private:
 
     void PopulateAlerts(std::vector<TError>* alerts);
 
-    void BuildOrchid(NYT::NYson::IYsonConsumer* consumer);
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
 
     std::vector<TGuid> DoResurrectLocations(const THashSet<TGuid>& locationUuids);
 

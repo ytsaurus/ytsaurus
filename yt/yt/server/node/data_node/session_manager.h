@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -52,9 +55,12 @@ public:
     //! Cancel all location sessions.
     void CancelLocationSessions(const TChunkLocationPtr& location);
 
+    NYTree::IYPathServicePtr GetOrchidService();
+
 private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
+    const NYTree::IYPathServicePtr OrchidService_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TSessionId, ISessionPtr> SessionMap_;
@@ -72,6 +78,10 @@ private:
     void OnMasterDisconnected();
 
     void OnChunkRemovalScheduled(const IChunkPtr& chunk);
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
+
+    NYTree::IYPathServicePtr CreateOrchidService();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSessionManager)

@@ -96,6 +96,7 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NProfiling;
+using namespace NTracing;
 
 using NChunkClient::TChunkReaderStatistics;
 using NYT::ToProto;
@@ -269,9 +270,15 @@ private:
         return DynamicConfigManager_->GetConfig()->DataNode;
     }
 
+    void SetSessionIdAllocationTag(TTraceContextPtr context, TString sessionId)
+    {
+        context->SetAllocationTags({{SessionIdAllocationTag, sessionId}});
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("StartChunk"), ToString(sessionId));
 
         TSessionOptions options;
         options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -298,6 +305,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("FinishChunk"), ToString(sessionId));
+
         auto blockCount = request->has_block_count() ? std::make_optional(request->block_count()) : std::nullopt;
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
@@ -347,6 +356,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("CancelChunk"), ToString(sessionId));
+
         bool waitForCancelation = request->wait_for_cancelation();
 
         context->SetRequestInfo("ChunkId: %v",
@@ -371,6 +382,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("PingSession"), ToString(sessionId));
 
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
@@ -389,6 +401,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("PutBlocks"), ToString(sessionId));
+
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
@@ -463,6 +477,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("SendBlocks"), ToString(sessionId));
+
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
@@ -496,6 +512,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("FlushBlocks"), ToString(sessionId));
+
         int blockIndex = request->block_index();
 
         context->SetRequestInfo("BlockId: %v:%v",
@@ -529,6 +547,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdateP2PBlocks)
     {
         auto sessionId = FromProto<TGuid>(request->session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("UpdateP2PBlocks"), ToString(sessionId));
 
         context->SetRequestInfo("SessionId: %v, Iteration: %v, ReceivedBlockCount: %v",
             sessionId,
@@ -786,6 +805,8 @@ private:
             ? FromProto<TReadSessionId>(request->read_session_id())
             : TReadSessionId{};
 
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("GetBlockSet"), ToString(readSessionId));
+
         context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, FetchFromCache: %v, "
             "FetchFromDisk: %v, Workload: %v",
             chunkId,
@@ -929,6 +950,12 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto readSessionId = request->has_read_session_id()
+            ? FromProto<TReadSessionId>(request->read_session_id())
+            : TReadSessionId{};
+
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("GetBlockRange"), ToString(readSessionId));
+
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
@@ -1035,6 +1062,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
     {
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("GetChunkFragmentSet"), ToString(readSessionId));
+
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto useDirectIO = request->use_direct_io();
 
@@ -1250,8 +1279,8 @@ private:
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
                             response->mutable_chunk_reader_statistics()->set_data_io_requests(dataIORequests);
-                            if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
-                                NTracing::FlushCurrentTraceContextElapsedTime();
+                            if (const auto* traceContext = TryGetCurrentTraceContext()) {
+                                FlushCurrentTraceContextElapsedTime();
                                 response->mutable_chunk_reader_statistics()->set_remote_cpu_time(
                                     traceContext->GetElapsedTime().GetValue());
                             }
@@ -1280,6 +1309,8 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
+        SetSessionIdAllocationTag(GetOrCreateTraceContext("LookupRows"), ToString(readSessionId));
+
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto populateCache = request->populate_cache();
         auto enableHashChunkIndex = request->enable_hash_chunk_index();
@@ -1373,8 +1404,8 @@ private:
                 response->set_fetched_rows(true);
 
                 const auto& chunkReaderStatistics = chunkReadSession->GetChunkReaderStatistics();
-                if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
-                    NTracing::FlushCurrentTraceContextElapsedTime();
+                if (const auto* traceContext = TryGetCurrentTraceContext()) {
+                    FlushCurrentTraceContextElapsedTime();
                     chunkReaderStatistics->RemoteCpuTime.fetch_add(
                         traceContext->GetElapsedTime().GetValue(),
                         std::memory_order::relaxed);

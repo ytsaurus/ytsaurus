@@ -426,6 +426,7 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RemoveChunkJob)
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
@@ -434,6 +435,8 @@ private:
     const TRemoveChunkJobSpecExt JobSpecExt_;
 
     const TChunkId ChunkId_;
+
+    const TRemoveChunkJobDynamicConfigPtr DynamicConfig_;
 
     void DoRun() override
     {
@@ -444,11 +447,12 @@ private:
         auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
-        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v)",
+        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
             mediumIndex,
             replicas,
             replicasExpirationDeadline,
-            chunkIsDead);
+            chunkIsDead,
+            DynamicConfig_->DelayBeforeStartRemoveChunk);
 
         // TODO(ifsmirnov, akozhikhov): Consider DRT here.
 
@@ -463,7 +467,7 @@ private:
         }
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
-        WaitFor(chunkStore->RemoveChunk(chunk))
+        WaitFor(chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk))
             .ThrowOnError();
 
         // Wait for the removal notification to be delivered to master.

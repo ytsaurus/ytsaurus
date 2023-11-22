@@ -581,6 +581,24 @@ DEFINE_REFCOUNTED_TYPE(TLocationHealthCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRemoveChunkJobDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    // COMPAT(danilalexeev)
+    bool WaitForIncrementalHeartbeatBarrier;
+
+    std::optional<TDuration> DelayBeforeStartRemoveChunk;
+
+    REGISTER_YSON_STRUCT(TRemoveChunkJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoveChunkJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicateChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -999,6 +1017,7 @@ public:
 
     TIOThroughputMeterConfigPtr IOThroughputMeter;
 
+    TRemoveChunkJobDynamicConfigPtr RemoveChunkJob;
     TReplicateChunkJobDynamicConfigPtr ReplicateChunkJob;
     TMergeChunksJobDynamicConfigPtr MergeChunksJob;
     TRepairChunkJobDynamicConfigPtr RepairChunkJob;
