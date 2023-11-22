@@ -270,6 +270,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
     // for the same path we can get an error "no such node".
     // Retry is needed if a given path still exists.
 
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
+
+    auto limit = request->has_limit()
+        ? std::make_optional(request->limit())
+        : std::nullopt;
+
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+        limit,
+        attributeFilter);
+
     // TODO(kvk1920): Generalize request redirection.
     auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
 
@@ -287,12 +299,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
 {
+    auto recursive = request->recursive();
+    auto force = request->force();
+
+    context->SetRequestInfo("Recursive: %v, Force: %v",
+        recursive,
+        force);
+
     if (auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader()); !unresolvedSuffix.empty()) {
         HandleUnresolvedSuffixOnRemoval(context, request, response, unresolvedSuffix);
         return;
     }
 
-    if (request->force()) {
+    if (force) {
         // TODO(kvk1920): Current cypress behaviour is just to ignore some errors.
         THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
     }
@@ -323,7 +342,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
 
     // NB: For non-recursive removal we have to check if directory is empty.
     // This can be done via requesting just 2 rows.
-    auto selectedRowsLimit = request->recursive() ? std::nullopt : std::optional(2);
+    auto selectedRowsLimit = recursive ? std::nullopt : std::optional(2);
 
     auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TResolveNodeKey>(
         {
@@ -334,7 +353,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
         .ValueOrThrow();
     YT_VERIFY(nodesToRemove.size() >= 1);
 
-    if (!request->recursive() && nodesToRemove.size() > 1) {
+    if (!recursive && nodesToRemove.size() > 1) {
         THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
     }
 
@@ -496,9 +515,29 @@ private:
 
 DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
 {
-    ValidateCreateOptions(context, request);
-
     auto type = CheckedEnumCast<EObjectType>(request->type());
+    auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
+    auto recursive = request->recursive();
+    auto force = request->force();
+    auto ignoreTypeMismatch = request->ignore_type_mismatch();
+    // TODO(h0pless): Decide what to do with hint id here.
+    auto hintId = FromProto<TNodeId>(request->hint_id());
+    auto transactionId = GetTransactionId(context->RequestHeader());
+
+    context->SetRequestInfo(
+        "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
+        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, TransactionId: %v",
+        type,
+        ignoreExisting,
+        lockExisting,
+        recursive,
+        force,
+        ignoreTypeMismatch,
+        hintId,
+        transactionId);
+
+    ValidateCreateOptions(context, request);
 
     if (type == EObjectType::SequoiaMapNode) {
         THROW_ERROR_EXCEPTION("%Qlv is internal type and should not be used directly; use %Qlv instead",
@@ -524,7 +563,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
             "%v already exists",
             Path_);
     }
-    if (!request->recursive() && std::ssize(pathTokens) > 1) {
+    if (!recursive && std::ssize(pathTokens) > 1) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
             "Node %v has no child with key \"%v\"",
@@ -570,6 +609,18 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
 
 DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
 {
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
+
+    auto limit = request->has_limit()
+        ? std::make_optional(request->limit())
+        : std::nullopt;
+
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+        limit,
+        attributeFilter);
+
     auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
     if (auto pathTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
         !pathTokens.empty())
@@ -581,18 +632,9 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
             pathTokens[0]);
     }
 
-    auto limit = request->has_limit()
-        ? std::make_optional(request->limit())
-        : std::nullopt;
-
-    auto mangledPath = MangleSequoiaPath(Path_);
-    Transaction_->LockRow(
-        NRecords::TResolveNodeKey{.Path = mangledPath},
-        ELockType::SharedStrong);
-
     auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildrenNodesKey>(
         {
-            Format("parent_path = %Qv", mangledPath),
+            Format("parent_path = %Qv", MangleSequoiaPath(Path_)),
         },
         limit))
         .ValueOrThrow();

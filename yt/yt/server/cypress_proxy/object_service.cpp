@@ -270,7 +270,7 @@ private:
             auto& subrequest = Subrequests_[index];
             if (subrequest.PredictedSequoia || subrequest.ForcedSequoia) {
                 const auto& sequoiaService = Owner_->Bootstrap_->GetSequoiaService();
-                auto rspFuture = ExecuteVerb(sequoiaService, subrequest.RequestMessage);
+                auto rspFuture = ExecuteVerb(sequoiaService, subrequest.RequestMessage, CypressProxyLogger);
                 auto rsp = WaitFor(rspFuture)
                     .ValueOrThrow();
                 TSharedRefArrayBuilder messageBuilder(rsp.size());

@@ -73,11 +73,44 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
-        if (GetTransactionId(context->RequestHeader())) {
-            THROW_ERROR_EXCEPTION("Rootstocks cannot be created in transaction");
+        auto type = CheckedEnumCast<EObjectType>(request->type());
+        auto ignoreExisting = request->ignore_existing();
+        auto lockExisting = request->lock_existing();
+        auto recursive = request->recursive();
+        auto force = request->force();
+        auto ignoreTypeMismatch = request->ignore_type_mismatch();
+        auto hintId = FromProto<TNodeId>(request->hint_id());
+        auto transactionId = GetTransactionId(context->RequestHeader());
+
+        context->SetRequestInfo(
+            "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
+            "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, TransactionId: %v",
+            type,
+            ignoreExisting,
+            lockExisting,
+            recursive,
+            force,
+            ignoreTypeMismatch,
+            hintId,
+            transactionId);
+
+        // TODO(h0pless): Support flags / rewrite errors.
+        if (ignoreExisting) {
+            THROW_ERROR_EXCEPTION("Rootstock creation with \"ignore_existing\" flag is not supported in Sequoia yet");
+        }
+        if (ignoreTypeMismatch) {
+            THROW_ERROR_EXCEPTION("Rootstock creation with \"ignore_type_mismatch\" flag is not supported in Sequoia yet");
+        }
+        if (lockExisting) {
+            THROW_ERROR_EXCEPTION("Rootstock creation with \"lock_existing\" flag is not supported in Sequoia yet");
+        }
+        if (hintId) {
+            THROW_ERROR_EXCEPTION("Cannot specify rootstock id during creation");
         }
 
-        auto type = CheckedEnumCast<EObjectType>(request->type());
+        if (transactionId) {
+            THROW_ERROR_EXCEPTION("Rootstocks cannot be created in transaction");
+        }
 
         YT_VERIFY(type == EObjectType::Rootstock);
 
