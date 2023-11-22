@@ -1079,13 +1079,39 @@ private:
     {
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
+        HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+
+        NMonitoring::Initialize(
+            HttpServer_,
+            Config_->SolomonExporter,
+            &MonitoringManager_,
+            &OrchidRoot_);
+
         YT_LOG_INFO(
             "Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
             GetValues(localRpcAddresses),
             Config_->ClusterConnection->Static->PrimaryMaster->Addresses,
             Config_->Tags);
 
-        HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        // Do not start subsystems until everything is initialized.
+
+        YT_LOG_INFO("Loading dynamic config for the first time");
+
+        // Start MasterConnector to register at Master.
+        MasterConnector_->Start();
+
+        {
+            auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for the first dynamic config loaded");
+        }
+
+        YT_LOG_INFO("Dynamic config loaded");
+
+        DoValidateConfig();
 
         if (IsCellarNode() || IsTabletNode()) {
             BundleDynamicConfigManager_->Start();
@@ -1099,12 +1125,6 @@ private:
         Connection_->GetNodeDirectorySynchronizer()->Start();
 
         Connection_->GetClusterDirectorySynchronizer()->Start();
-
-        NMonitoring::Initialize(
-            HttpServer_,
-            Config_->SolomonExporter,
-            &MonitoringManager_,
-            &OrchidRoot_);
 
         SetNodeByYPath(
             OrchidRoot_,
@@ -1156,26 +1176,6 @@ private:
         YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
 
         YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-
-        // Do not start subsystems until everything is initialized.
-
-        YT_LOG_INFO("Loading dynamic config for the first time");
-
-        // Start MasterConnector to register at Master.
-        MasterConnector_->Start();
-
-        {
-            auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for the first dynamic config loaded");
-        }
-
-        YT_LOG_INFO("Dynamic config loaded");
-
-        DoValidateConfig();
 
         if (IsCellarNode()) {
             CellarNodeBootstrap_->Run();
