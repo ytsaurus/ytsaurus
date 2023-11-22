@@ -107,7 +107,6 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-        ConfigureAllocator();
 
         if (HandleSetsidOptions()) {
             return;
@@ -218,6 +217,7 @@ protected:
             }
         }
 
+        ConfigureAllocator({.SnapshotUpdatePeriod = config->HeapProfiler->SnapshotUpdatePeriod});
         ConfigureNativeSingletons(config);
         StartDiagnosticDump(config);
 

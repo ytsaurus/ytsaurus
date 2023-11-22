@@ -8,6 +8,10 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto SessionIdAllocationTag = "session_id";
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline const NLogging::TLogger DataNodeLogger("DataNode");
 inline const NProfiling::TProfiler DataNodeProfiler("/data_node");
 inline const NProfiling::TProfiler LocationProfiler("/location");

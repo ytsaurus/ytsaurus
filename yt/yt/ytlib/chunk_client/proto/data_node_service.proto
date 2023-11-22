@@ -249,6 +249,7 @@ message TReqGetBlockRange
     required int32 block_count = 3;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     optional bool populate_cache = 5 [default = true];
+    optional NYT.NProto.TGuid read_session_id = 6;
 }
 
 message TRspGetBlockRange

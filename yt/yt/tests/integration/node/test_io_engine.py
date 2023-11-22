@@ -58,6 +58,16 @@ class TestIoEngine(YTEnvSetup):
     def get_pending_write_memory(self, node):
         return get("//sys/cluster_nodes/{}/@statistics/memory/pending_disk_write/used".format(node))
 
+    def get_session_summary_allocation(self, node):
+        sessions = get("//sys/cluster_nodes/{}/orchid/data_node/session_manager/sessions".format(node))
+
+        sum = 0
+
+        for session in sessions:
+            sum += session['heap_usage']
+
+        return sum
+
     def check_node_sensors(self, node_sensors):
         for sensor in node_sensors:
             value = sensor.get()
@@ -113,6 +123,37 @@ class TestIoEngine(YTEnvSetup):
         read_table("//tmp/test")
 
         wait(lambda: any(self.get_pending_read_memory(node) > 1024 for node in nodes))
+
+    @authors("don-dron")
+    @pytest.mark.skip(reason="The tcmalloc's patch 'user_data.patch' does NOT process user_data in StackTrace's hash")
+    def test_read_write_session_allocation_tracking(self):
+        REPLICATION_FACTOR = 1
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "track_memory_after_session_completion": True,
+                "testing_options": {
+                    "delay_before_blob_session_block_free": 100000,
+                },
+            },
+        })
+
+        nodes = ls("//sys/cluster_nodes")
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        ys = [{"key": "x" * (8 * 1024)} for i in range(1024)]
+        write_table("//tmp/test", ys)
+
+        wait(lambda: any(self.get_session_summary_allocation(node) > 1024 for node in nodes))
+
+        read_table("//tmp/test")
+
+        wait(lambda: any(self.get_session_summary_allocation(node) > 1024 for node in nodes))
 
     @authors("prime")
     def test_dynamic_sick_detector(self):
