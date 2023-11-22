@@ -588,6 +588,8 @@ public:
     // COMPAT(danilalexeev)
     bool WaitForIncrementalHeartbeatBarrier;
 
+    std::optional<TDuration> DelayBeforeStartRemoveChunk;
+
     REGISTER_YSON_STRUCT(TRemoveChunkJobDynamicConfig);
 
     static void Register(TRegistrar registrar);

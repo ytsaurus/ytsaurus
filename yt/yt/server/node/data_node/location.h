@@ -425,6 +425,8 @@ protected:
     i64 GetReadThrottlingLimit() const;
     i64 GetWriteThrottlingLimit() const;
 
+    void UnlockChunkLocks();
+
     void RemoveChunkFilesPermanently(TChunkId chunkId);
 
     TFuture<void> SynchronizeActions();

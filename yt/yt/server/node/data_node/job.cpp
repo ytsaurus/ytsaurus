@@ -446,11 +446,12 @@ private:
         auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
-        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v)",
+        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
             mediumIndex,
             replicas,
             replicasExpirationDeadline,
-            chunkIsDead);
+            chunkIsDead,
+            DynamicConfig_->DelayBeforeStartRemoveChunk);
 
         // TODO(ifsmirnov, akozhikhov): Consider DRT here.
 
@@ -465,7 +466,7 @@ private:
         }
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
-        WaitFor(chunkStore->RemoveChunk(chunk))
+        WaitFor(chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk))
             .ThrowOnError();
 
         if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {

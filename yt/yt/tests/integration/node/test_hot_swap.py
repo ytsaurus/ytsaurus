@@ -6,7 +6,7 @@ from yt_commands import (
     authors, wait, create_access_control_object_namespace,
     ls, get, create, set, make_ace, create_access_control_object,
     create_user, exists, get_singular_chunk_id,
-    update_nodes_dynamic_config,
+    update_nodes_dynamic_config, remove, write_table,
     write_file, disable_chunk_locations,
     resurrect_chunk_locations)
 
@@ -100,6 +100,68 @@ class TestHotSwap(YTEnvSetup):
             }
         }
     }
+
+    @authors("don-dron")
+    def test_location_disable_and_remove_job_race(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "remove_chunk_job" : {
+                    "delay_before_start_remove_chunk": 20000
+                },
+                "abort_on_location_disabled": False,
+                "publish_disabled_locations": True
+            }
+        })
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 2
+
+        create("table", "//tmp/t")
+
+        create("table", "//tmp/f")
+
+        def can_write(key="a"):
+            try:
+                write_table("//tmp/f", [{"key": key}])
+                return True
+            except YtError:
+                return False
+
+        for node in nodes:
+            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/restart_manager".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/restart_manager/need_restart".format(node)))
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
+        wait(lambda: can_write())
+
+        ys = [{"key": "x" * (4 * 1024)} for i in range(1024)]
+        write_table("//tmp/t", ys)
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            def chunk_count():
+                count = 0
+                for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                    count = count + get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid))
+                return count
+            wait(lambda: chunk_count() != 0)
+
+        remove("//tmp/t")
+
+        for node_id in ls("//sys/cluster_nodes"):
+            wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/removal_slots".format(node_id)) != 0)
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(disable_chunk_locations(node, [location_uuid])) > 0)
+
+        wait(lambda: not can_write())
+
+        for node_id in ls("//sys/cluster_nodes"):
+            wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/removal_slots".format(node_id)) == 0)
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(resurrect_chunk_locations(node, [location_uuid])) > 0)
+
+        wait(lambda: can_write())
 
     @authors("don-dron")
     def test_resurrect_chunk_locations(self):

@@ -132,7 +132,7 @@ public:
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
-    TFuture<void> RemoveChunk(const IChunkPtr& chunk);
+    TFuture<void> RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay = {});
 
     //! Triggers medium change for all chunks in location.
     void ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex);
