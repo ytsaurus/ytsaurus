@@ -182,6 +182,7 @@ DEFINE_ENUM(EMasterReign,
     ((LastSeenUserAttribute)                                        (2445))  // cherepashka
     ((ChunkReincarnatorTestingUtilities_23_2)                       (2446))  // kvk1920
     ((ConfigurablePoolNameValidationRegex_23_2)                     (2447))  // renadeen
+    ((ChunkReincarnatorMinorFixes)                                  (2448))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
