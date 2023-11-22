@@ -368,8 +368,7 @@ private:
             const auto& queuePartitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
             // Partition should not be erroneous and previous row should exist.
             if (consumerPartitionSnapshot->Error.IsOK() &&
-                consumerPartitionSnapshot->NextRowIndex > queuePartitionSnapshot->LowerRowIndex &&
-                consumerPartitionSnapshot->NextRowIndex <= queuePartitionSnapshot->UpperRowIndex)
+                consumerPartitionSnapshot->NextRowIndex > queuePartitionSnapshot->LowerRowIndex)
             {
                 tabletAndRowIndices.emplace_back(partitionIndex, consumerPartitionSnapshot->NextRowIndex - 1);
             }
