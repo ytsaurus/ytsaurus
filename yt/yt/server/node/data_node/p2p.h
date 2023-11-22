@@ -135,7 +135,7 @@ struct TP2PChunk
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BlocksLock);
     std::vector<TBlockAccessCounter> Blocks;
-    TMemoryUsageTrackerGuard BlocksMemoryTrackerGuard;
+    i64 Weight = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersLock);
     i64 DistributedSize = 0;
@@ -143,8 +143,7 @@ struct TP2PChunk
     TPeerList Peers;
 
     void Reserve(
-        size_t size,
-        IMemoryUsageTrackerPtr memoryTracker);
+        size_t size);
 };
 
 DEFINE_REFCOUNTED_TYPE(TP2PChunk)
@@ -153,7 +152,7 @@ DEFINE_REFCOUNTED_TYPE(TP2PChunk)
 
 class TP2PSnooper
     : public virtual TRefCounted
-    , private TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>
+    , private TMemoryTrackingSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>
 {
 public:
     TP2PSnooper(
@@ -190,6 +189,8 @@ public:
 
     std::vector<TP2PChunkPtr> GetHotChunks() const;
     void CoolChunk(const TP2PChunkPtr& chunk);
+
+    i64 GetWeight(const TP2PChunkPtr& value) const override;
 
 private:
     const TP2PConfigPtr Config_;

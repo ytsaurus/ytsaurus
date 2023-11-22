@@ -244,17 +244,13 @@ TP2PChunk::TP2PChunk(NChunkClient::TChunkId blockId)
 { }
 
 void TP2PChunk::Reserve(
-    size_t size,
-    IMemoryUsageTrackerPtr memoryTracker)
+    size_t size)
 {
     auto guard = WriterGuard(BlocksLock);
     if (Blocks.size() < size) {
         Blocks.resize(size);
 
-        auto byteSize = sizeof(Blocks) + size * sizeof(TBlockAccessCounter);
-        BlocksMemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
-            memoryTracker,
-            byteSize);
+        Weight = sizeof(Blocks) + size * sizeof(TBlockAccessCounter);
     }
 }
 
@@ -263,11 +259,11 @@ void TP2PChunk::Reserve(
 TP2PSnooper::TP2PSnooper(
     TP2PConfigPtr config,
     IMemoryUsageTrackerPtr memoryTracker)
-    : TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>(
+    : TMemoryTrackingSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>(
         config->RequestCache,
+        memoryTracker,
         P2PProfiler.WithPrefix("/request_cache"))
     , Config_(std::move(config))
-    , MemoryUsageTracker_(std::move(memoryTracker))
     , ThrottledBytes_(P2PProfiler.Counter("/throttled_bytes"))
     , ThrottledLargeBlockBytes_(P2PProfiler.Counter("/throttled_large_block_bytes"))
     , DistributedBytes_(P2PProfiler.Counter("/distributed_bytes"))
@@ -290,6 +286,11 @@ void TP2PSnooper::UpdateConfig(const TP2PConfigPtr& config)
     TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>::Reconfigure(cacheConfig);
 
     DynamicConfig_.Store(config);
+}
+
+i64 TP2PSnooper::GetWeight(const TP2PChunkPtr& value) const
+{
+    return value->Weight;
 }
 
 TP2PConfigPtr TP2PSnooper::GetConfig()
@@ -319,9 +320,8 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
     }
 
     chunk->LastAccessTime = NProfiling::GetCpuInstant();
-    chunk->Reserve(
-        *std::max_element(blockIndices.begin(), blockIndices.end()) + 1,
-        config->TrackMemoryOfChunkBlocksBuffer ? MemoryUsageTracker_ : nullptr);
+    chunk->Reserve(*std::max_element(blockIndices.begin(), blockIndices.end()) + 1);
+    UpdateWeight(chunk);
 
     std::vector<TP2PSuggestion> suggestions;
 
@@ -525,10 +525,12 @@ std::vector<TP2PChunkPtr> TP2PSnooper::GetHotChunks() const
 
 void TP2PSnooper::CoolChunk(const TP2PChunkPtr& chunk)
 {
+    // Update cache entry weight.
     {
         auto guard = WriterGuard(chunk->BlocksLock);
         chunk->Blocks.clear();
-        chunk->BlocksMemoryTrackerGuard.Release();
+        chunk->Weight = 0;
+        UpdateWeight(chunk);
     }
 
     {
@@ -536,9 +538,11 @@ void TP2PSnooper::CoolChunk(const TP2PChunkPtr& chunk)
         chunk->Peers = {};
     }
 
-    auto guard = Guard(ChunkLock_);
-    HotChunks_.erase(chunk);
-    chunk->Hot = false;
+    {
+        auto guard = Guard(ChunkLock_);
+        HotChunks_.erase(chunk);
+        chunk->Hot = false;
+    }
 }
 
 TPeerList TP2PSnooper::AllocatePeers()

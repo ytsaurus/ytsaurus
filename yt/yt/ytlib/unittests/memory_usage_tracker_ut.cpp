@@ -2,6 +2,10 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/misc/sync_cache.h>
+
+#include <util/random/fast.h>
+
 namespace NYT {
 namespace {
 
@@ -13,6 +17,37 @@ const std::vector<ECategory> TestCategories = {
     ECategory::BlockCache,
     ECategory::Query,
     ECategory::P2P,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TTestValue)
+
+struct TTestValue
+    : TSyncCacheValueBase<TString, TTestValue>
+{
+public:
+    using TSyncCacheValueBase::TSyncCacheValueBase;
+
+    i64 Weight = 1;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestValue)
+
+class TTestMemoryTrackingCache
+    : public TMemoryTrackingSyncSlruCacheBase<TString, TTestValue>
+{
+public:
+    explicit TTestMemoryTrackingCache(
+        TSlruCacheConfigPtr config,
+        IMemoryUsageTrackerPtr memoryTracker)
+        : TMemoryTrackingSyncSlruCacheBase(config, memoryTracker)
+    { }
+
+    virtual i64 GetWeight(const TTestValuePtr& value) const
+    {
+        return value->Weight;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +64,20 @@ INodeMemoryTrackerPtr CreateTracker(i64 totalLimit, std::vector<i64> categoryLim
     }
 
     return CreateNodeMemoryTracker(totalLimit, limits);
+}
+
+TSharedRef CreateRandomReference(TFastRng64& rnd, i64 size)
+{
+    TString s;
+    s.resize(size, '*');
+
+    for (i64 index = 0; index < size; ++index) {
+        s[index] = (char)rnd.GenRand64();
+    }
+
+    auto output = TSharedRef::FromString(s);
+    YT_ASSERT(static_cast<i64>(output.Size()) == size);
+    return output;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +159,39 @@ TEST(TMemoryUsageTrackerTest, LimitlessCategory)
     EXPECT_EQ(tracker->GetLimit(ECategory::P2P), 3000);
 
     tracker->ClearTrackers();
+}
+
+TEST(TMemoryUsageTrackerTest, EntryWeightUpdate)
+{
+    TFastRng64 rng(27);
+    auto tracker = CreateTracker(3000, {1000, 1000, 1000});
+
+    auto config = New<TSlruCacheConfig>();
+    config->Capacity = 1000;
+
+    auto cache = New<TTestMemoryTrackingCache>(config, tracker->WithCategory(EMemoryCategory::BlockCache));
+    for (; cache->GetSize() < 990;) {
+        cache->TryInsert(New<TTestValue>(TString(CreateRandomReference(rng,  256).ToStringBuf())));
+    }
+
+    EXPECT_GE(990, cache->GetSize());
+    EXPECT_GE(cache->GetSize() * 1, tracker->WithCategory(EMemoryCategory::BlockCache)->GetUsed());
+
+    for (auto& value : cache->GetAll()) {
+        value->Weight *= 2;
+        cache->UpdateWeight(value);
+    }
+
+    EXPECT_GE(500, cache->GetSize());
+    EXPECT_GE(cache->GetSize() * 2, tracker->WithCategory(EMemoryCategory::BlockCache)->GetUsed());
+
+    for (auto& value : cache->GetAll()) {
+        value->Weight *= 2;
+        cache->UpdateWeight(value);
+    }
+
+    EXPECT_GE(250, cache->GetSize());
+    EXPECT_GE(cache->GetSize() * 4, tracker->WithCategory(EMemoryCategory::BlockCache)->GetUsed());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
