@@ -190,19 +190,26 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return BIND(&TJobWorkspaceBuilder::DoPrepareSandboxDirectories, MakeStrong(this))
+    auto future = BIND(&TJobWorkspaceBuilder::DoPrepareSandboxDirectories, MakeStrong(this))
         .AsyncVia(Invoker_)
         .Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
-        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) -> TJobWorkspaceBuildingResult {
             YT_LOG_INFO(result, "Job workspace building finished");
 
             ResultHolder_.LastBuildError = result;
             Context_.Slot.Reset();
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
+
+    future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TJobWorkspaceBuildingResult>&) {
+        // Drop reference to close race with check in TJob::Cleanup() on cancellation.
+        Context_.Slot.Reset();
+    }));
+
+    return future;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -642,9 +649,6 @@ private:
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCriImageDescriptor>& imageOrError) {
                     if (!imageOrError.IsOK()) {
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
-
-                        // FIXME(khlebnikov): Drop reference to fix race with check in TJob::Cleanup() on cancellation.
-                        Context_.Slot = nullptr;
 
                         THROW_ERROR_EXCEPTION(EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
                             << TErrorAttribute("docker_image", *dockerImage)

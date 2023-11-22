@@ -106,10 +106,6 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         PreparationCanceled_ = true;
-
-        for (const auto& future : PreparationFutures_) {
-            future.Cancel(TError("Job preparation canceled"));
-        }
     }
 
     TFuture<void> RunJobProxy(
@@ -394,7 +390,6 @@ private:
     //! Used for unix socket name generation, to communicate between node and job proxies.
     const TString NodeTag_;
 
-    std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
 
     const TString JobProxyUnixDomainSocketPath_;
@@ -424,11 +419,10 @@ private:
             YT_LOG_DEBUG("Running preparation action (ActionName: %v", actionName);
 
             auto future = action();
-            auto preparationFuture = future.template As<void>();
-            PreparationFutures_.push_back(uncancelable
-                ? preparationFuture.ToUncancelable()
-                : preparationFuture);
-            return future;
+
+            return uncancelable
+                ? future.ToUncancelable()
+                : future;
         }
     }
 };
