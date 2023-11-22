@@ -93,6 +93,8 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();
+    registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
+        .DefaultNew();
     registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
@@ -135,8 +137,6 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cell_directory", &TThis::CellDirectory)
         .DefaultNew();
     registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
-        .DefaultNew();
-    registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
         .DefaultNew();
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
