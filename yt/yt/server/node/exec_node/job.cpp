@@ -2760,7 +2760,9 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
     }
 
     // This is most probably user error, still we don't want to make it fatal.
-    if (resultError.FindMatching(NExecNode::EErrorCode::LayerUnpackingFailed)) {
+    if (resultError.FindMatching(NExecNode::EErrorCode::LayerUnpackingFailed) ||
+        resultError.FindMatching(NExecNode::EErrorCode::DockerImagePullingFailed))
+    {
         return std::nullopt;
     }
 
