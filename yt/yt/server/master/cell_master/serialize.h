@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicateAlienClusterRegistry_23_1)                           (2359))  // ponasenko-rs
     ((FixTransientAbort_23_1)                                       (2360))  // babenko
     ((ZombieACOs_23_1)                                              (2361))  // shakurov
+    ((ConfigurablePoolNameValidationRegex_23_1)                     (3262))  // renadeen
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
@@ -181,7 +182,8 @@ DEFINE_ENUM(EMasterReign,
     ((ReinitializeRootResourceLimits_23_2)                          (2444))  // kvk1920
     ((LastSeenUserAttribute)                                        (2445))  // cherepashka
     ((ChunkReincarnatorTestingUtilities_23_2)                       (2446))  // kvk1920
-    ((ChunkReincarnatorMinorFixes)                                  (2447))  // kvk1920
+    ((ConfigurablePoolNameValidationRegex_23_2)                     (2447))  // renadeen
+    ((ChunkReincarnatorMinorFixes)                                  (2448))  // kvk1920
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
