@@ -13,7 +13,7 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/roaming_channel.h>
 
 namespace NYT::NQueryTracker {
 
@@ -73,7 +73,6 @@ public:
         , Connection_(connection)
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
-        , YqlServiceProxy_(Connection_->GetYqlAgentChannelOrThrow(Stage_))
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
 
@@ -81,7 +80,15 @@ public:
     {
         YT_LOG_DEBUG("Starting YQL query (Stage: %v)", Stage_);
 
-        auto req = YqlServiceProxy_.StartQuery();
+        auto channelProvider = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
+        auto serviceName = TYqlServiceProxy::GetDescriptor().ServiceName;
+        YqlServiceChannel_ = WaitForFast(channelProvider->GetChannel(std::move(serviceName)))
+            .ValueOrThrow();
+        // TODO(max42, gritukan): Implement long polling for YQL queries.
+        YqlServiceChannel_ = CreateDefaultTimeoutChannel(YqlServiceChannel_, TDuration::Days(1));
+
+        TYqlServiceProxy proxy(YqlServiceChannel_);
+        auto req = proxy.StartQuery();
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         auto* yqlRequest = req->mutable_yql_request();
         req->set_row_count_limit(Config_->RowCountLimit);
@@ -127,14 +134,15 @@ private:
     const TYqlSettingsPtr Settings_;
     const TString Stage_;
     const IInvokerPtr ProgressInvoker_;
-    TYqlServiceProxy YqlServiceProxy_;
+    IChannelPtr YqlServiceChannel_;
     TPeriodicExecutorPtr ProgressGetterExecutor_;
 
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
 
     void GetProgress()
     {
-        auto req = YqlServiceProxy_.GetQueryProgress();
+        TYqlServiceProxy proxy(YqlServiceChannel_);
+        auto req = proxy.GetQueryProgress();
         ToProto(req->mutable_query_id(), QueryId_);
 
         auto rspOrError = WaitFor(req->Invoke());
@@ -202,6 +210,8 @@ private:
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 class TYqlEngine
     : public IQueryEngine
 {
@@ -214,6 +224,8 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return New<TYqlQueryHandler>(
             StateClient_,
             StateRoot_,
@@ -225,6 +237,8 @@ public:
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Config_ = DynamicPointerCast<TYqlEngineConfig>(config);
     }
 
@@ -233,7 +247,11 @@ private:
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
     TYqlEngineConfigPtr Config_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
 {

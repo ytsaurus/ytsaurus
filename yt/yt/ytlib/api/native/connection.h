@@ -116,7 +116,7 @@ struct IConnection
     virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
     virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
-    virtual NRpc::IChannelPtr GetYqlAgentChannelOrThrow(const TString& stage) const = 0;
+    virtual NRpc::IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
