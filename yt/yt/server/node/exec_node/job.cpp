@@ -512,7 +512,7 @@ void TJob::Terminate(EJobState finalState, TError error)
                 .Via(Invoker_),
             timeout);
         ArtifactsFuture_.Cancel(TError("Job terminated"));
-        WorkspaceFuture_.Cancel(TError("Job terminated"));
+        WorkspaceBuildingFuture_.Cancel(TError("Job preparation canceled"));
 
         if (const auto& slot = GetUserSlot()) {
             slot->CancelPreparation();
@@ -1829,8 +1829,8 @@ void TJob::RunWithWorkspaceBuilder()
 
     auto workspaceFuture = workspaceBuilder->Run();
     workspaceFuture.Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
-            .Via(Invoker_));
-    WorkspaceFuture_ = workspaceFuture.AsVoid();
+        .Via(Invoker_));
+    WorkspaceBuildingFuture_ = workspaceFuture.AsVoid();
 }
 
 void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)
