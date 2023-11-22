@@ -16,7 +16,7 @@ from yt_type_helpers import make_schema
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, update
+from yt.common import YtError
 import yt.yson as yson
 
 from yt_driver_bindings import Driver
