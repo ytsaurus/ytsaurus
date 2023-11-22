@@ -109,6 +109,9 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
+    registrar.Parameter("connection_name", &TThis::ConnectionName)
+        .Alias("name")
+        .Default("default");
     registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
         .DefaultNew();
 }
