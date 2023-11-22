@@ -798,10 +798,12 @@ void TOperationControllerBase::InitializeStructures()
 
     if (auto stderrTablePath = GetStderrTablePath()) {
         StderrTable_ = New<TOutputTable>(*stderrTablePath, EOutputTableType::Stderr);
+        DataFlowGraph_->RegisterVertex(TDataFlowGraph::StderrDescriptor);
     }
 
     if (auto coreTablePath = GetCoreTablePath()) {
         CoreTable_ = New<TOutputTable>(*coreTablePath, EOutputTableType::Core);
+        DataFlowGraph_->RegisterVertex(TDataFlowGraph::CoreDescriptor);
     }
 
     InitUpdatingTables();
@@ -3097,28 +3099,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
         // Validate all node ids of the output chunks and populate the local node directory.
         // In case any id is not known, abort the job.
-        const auto& globalNodeDirectory = Host->GetNodeDirectory();
         for (const auto& chunkSpec : jobResultExt.output_chunk_specs()) {
-            auto replicas = GetReplicasFromChunkSpec(chunkSpec);
-            for (auto replica : replicas) {
-                auto nodeId = replica.GetNodeId();
-                if (InputNodeDirectory_->FindDescriptor(nodeId)) {
-                    continue;
-                }
-
-                const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
-                if (!descriptor) {
-                    YT_LOG_DEBUG("Job is considered aborted since its output contains unresolved node id "
-                        "(JobId: %v, NodeId: %v)",
-                        jobId,
-                        nodeId);
-                    auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
-                    OnJobAborted(std::move(abortedJobSummary));
-                    return;
-                }
-
-                InputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
-            }
+            RegisterOutputChunkReplicas(*jobSummary, chunkSpec);
         }
     }
 
@@ -8176,19 +8158,26 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
 
     const auto& jobResultExt = jobSummary.GetJobResultExt();
 
-    YT_VERIFY(jobResultExt.has_stderr_table_boundary_keys());
+    YT_VERIFY(jobResultExt.has_stderr_result());
 
-    const auto& boundaryKeys = jobResultExt.stderr_table_boundary_keys();
-    if (boundaryKeys.empty()) {
+    const auto& stderrResult = jobResultExt.stderr_result();
+    if (stderrResult.empty()) {
         return;
     }
-    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, StderrTable_->GetStreamDescriptorTemplate(), RowBuffer);
+    auto key = BuildBoundaryKeysFromOutputResult(stderrResult, StderrTable_->GetStreamDescriptorTemplate(), RowBuffer);
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
         YT_LOG_DEBUG("Dropping empty stderr chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
            joblet->JobId,
            joblet->NodeDescriptor.Address,
            chunkListId);
         return;
+    }
+
+    for (const auto& chunkSpec : stderrResult.chunk_specs()) {
+        RegisterOutputChunkReplicas(jobSummary, chunkSpec);
+
+        auto chunk = New<TInputChunk>(chunkSpec);
+        RegisterLivePreviewChunk(TDataFlowGraph::StderrDescriptor, /*index*/ 0, std::move(chunk));
     }
 
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
@@ -8221,14 +8210,14 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
             coreInfo.cuda());
     }
 
-    if (!jobResultExt.has_core_table_boundary_keys()) {
+    if (!jobResultExt.has_core_result()) {
         return;
     }
-    const auto& boundaryKeys = jobResultExt.core_table_boundary_keys();
-    if (boundaryKeys.empty()) {
+    const auto& coreResult = jobResultExt.core_result();
+    if (coreResult.empty()) {
         return;
     }
-    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, CoreTable_->GetStreamDescriptorTemplate(), RowBuffer);
+    auto key = BuildBoundaryKeysFromOutputResult(coreResult, CoreTable_->GetStreamDescriptorTemplate(), RowBuffer);
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
         YT_LOG_DEBUG("Dropping empty core chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
            joblet->JobId,
@@ -8237,6 +8226,13 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         return;
     }
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
+
+    for (const auto& chunkSpec : coreResult.chunk_specs()) {
+        RegisterOutputChunkReplicas(jobSummary, chunkSpec);
+
+        auto chunk = New<TInputChunk>(chunkSpec);
+        RegisterLivePreviewChunk(TDataFlowGraph::CoreDescriptor, /*index*/ 0, std::move(chunk));
+    }
 
     YT_LOG_DEBUG("Core chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
         joblet->JobId,
@@ -10864,6 +10860,36 @@ bool TOperationControllerBase::ShouldProcessJobEvents() const
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout)
 {
     Host->InterruptJob(jobId, interruptionReason, timeout);
+}
+
+void TOperationControllerBase::RegisterOutputChunkReplicas(
+    const TJobSummary& jobSummary,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec)
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    const auto& globalNodeDirectory = Host->GetNodeDirectory();
+
+    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
+    for (auto replica : replicas) {
+        auto nodeId = replica.GetNodeId();
+        if (InputNodeDirectory_->FindDescriptor(nodeId)) {
+            continue;
+        }
+
+        const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
+        if (!descriptor) {
+            YT_LOG_DEBUG("Job is considered aborted since its output contains unresolved node id "
+                "(JobId: %v, NodeId: %v)",
+                jobSummary.Id,
+                nodeId);
+            auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::Other);
+            OnJobAborted(std::move(abortedJobSummary));
+            return;
+        }
+
+        InputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

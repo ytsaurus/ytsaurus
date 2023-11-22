@@ -28,6 +28,8 @@ public:
 
     static TVertexDescriptor SourceDescriptor;
     static TVertexDescriptor SinkDescriptor;
+    static TVertexDescriptor CoreDescriptor;
+    static TVertexDescriptor StderrDescriptor;
 
     TDataFlowGraph();
     ~TDataFlowGraph();
@@ -37,6 +39,8 @@ public:
     NYTree::IYPathServicePtr GetService() const;
 
     void Persist(const TPersistenceContext& context);
+
+    void RegisterVertex(const TVertexDescriptor& vertex);
 
     void RegisterEdge(
         const TVertexDescriptor& from,

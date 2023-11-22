@@ -517,6 +517,39 @@ class TestStderrTable(YTEnvSetup):
         assert get("//tmp/t_stderr/@sorted")
         assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]
 
+    @authors("gritukan")
+    def test_new_live_preview(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_stderr")
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
+
+        spec = get_stderr_spec("//tmp/t_stderr")
+        spec["data_size_per_job"] = 1
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; echo GG >&2"),
+            spec=spec,
+        )
+
+        jobs = wait_breakpoint(job_count=3)
+        release_breakpoint(job_id=jobs[0])
+
+        live_preview_path = op.get_path() + "/controller_orchid/data_flow_graph/vertices/stderr/live_previews/0"
+
+        def check():
+            try:
+                expect_to_find_in_stderr_table(live_preview_path, ["GG\n"])
+                return True
+            except YtError:
+                return False
+
+        wait(check)
+
+        op.abort()
+
 
 ##################################################################
 
@@ -785,8 +818,10 @@ class TestCoreTable(YTEnvSetup):
 
         return result
 
-    def _get_core_table_content(self, decompress_sparse_core_dump=True, assert_rows_number_geq=0):
-        rows = read_table(self.CORE_TABLE, verbose=False)
+    def _get_core_table_content(self, decompress_sparse_core_dump=True, assert_rows_number_geq=0, path=None):
+        if not path:
+            path = self.CORE_TABLE
+        rows = read_table(path, verbose=False)
         assert len(rows) >= assert_rows_number_geq
         content = {}
         last_key = None
@@ -1185,6 +1220,28 @@ class TestCoreTable(YTEnvSetup):
 
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
+
+    @authors("gritukan")
+    @skip_if_porto
+    def test_new_live_preview(self):
+        op, job_ids = self._start_operation(2)
+
+        ret_dict = {}
+        t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
+        t.join()
+
+        release_breakpoint(job_id=job_ids[0])
+
+        def check():
+            try:
+                core_table_path = op.get_path() + "/controller_orchid/data_flow_graph/vertices/core/live_previews/0"
+                return self._get_core_table_content(path=core_table_path) == {job_ids[0]: [ret_dict["core_data"]]}
+            except YtError:
+                return False
+
+        wait(check)
+
+        op.abort()
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")

@@ -1451,6 +1451,10 @@ private:
     void ReportJobCookieToArchive(const TJobletPtr& joblet);
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);
 
+    void RegisterOutputChunkReplicas(
+        const TJobSummary& jobSummary,
+        const NChunkClient::NProto::TChunkSpec& chunkSpec);
+
     //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IPersistentChunkPoolInput

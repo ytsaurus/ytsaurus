@@ -28,8 +28,12 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVirtualStaticTable::TVirtualStaticTable(const THashSet<NChunkClient::TInputChunkPtr>& chunks, TNodeDirectoryPtr nodeDirectory)
+TVirtualStaticTable::TVirtualStaticTable(
+    const THashSet<NChunkClient::TInputChunkPtr>& chunks,
+    TTableSchemaPtr schema,
+    TNodeDirectoryPtr nodeDirectory)
     : Chunks_(chunks)
+    , Schema_(std::move(schema))
     , NodeDirectory_(std::move(nodeDirectory))
 { }
 
@@ -108,6 +112,10 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 void TVirtualStaticTable::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     descriptors->push_back(EInternedAttributeKey::Schema);
+    descriptors->push_back(EInternedAttributeKey::Sorted);
+    if (Schema_->IsSorted()) {
+        descriptors->push_back(EInternedAttributeKey::SortedBy);
+    }
     descriptors->push_back(EInternedAttributeKey::SchemaMode);
     descriptors->push_back(EInternedAttributeKey::ChunkCount);
     descriptors->push_back(EInternedAttributeKey::Dynamic);
@@ -124,8 +132,18 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
     switch (key) {
         case EInternedAttributeKey::Schema:
             BuildYsonFluently(consumer)
-                .Value(TTableSchema());
+                .Value(Schema_);
             return true;
+        case EInternedAttributeKey::Sorted:
+            BuildYsonFluently(consumer)
+                .Value(Schema_->IsSorted());
+            return true;
+        case EInternedAttributeKey::SortedBy:
+            if (Schema_->IsSorted()) {
+                BuildYsonFluently(consumer)
+                    .Value(Schema_->GetKeyColumns());
+                return true;
+            }
         case EInternedAttributeKey::SchemaMode:
             BuildYsonFluently(consumer)
                 .Value(ETableSchemaMode::Weak);
@@ -145,6 +163,8 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         default:
             return false;
     }
+
+    return false;
 }
 
 TFuture<TYsonString> TVirtualStaticTable::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)

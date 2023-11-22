@@ -372,7 +372,7 @@ void TUserJobWriteController::PopulateResult(TJobResultExt* jobResultExt)
 void TUserJobWriteController::PopulateStderrResult(NControllerAgent::NProto::TJobResultExt* jobResultExt)
 {
     if (StderrTableWriter_) {
-        *jobResultExt->mutable_stderr_table_boundary_keys() = StderrTableWriter_->GetOutputResult();
+        *jobResultExt->mutable_stderr_result() = StderrTableWriter_->GetOutputResult();
     }
 }
 

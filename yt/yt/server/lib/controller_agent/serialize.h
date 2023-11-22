@@ -32,6 +32,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AddChunkSchemas)                      (301300))
     ((AddFilesystemAttribute)               (301301))
     ((AddAccessMethodAttribute)             (301302))
+    ((VirtualTableSchema)                   (301303))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

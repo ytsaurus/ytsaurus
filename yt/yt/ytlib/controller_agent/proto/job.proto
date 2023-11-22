@@ -459,10 +459,10 @@ message TJobResultExt
     // Used for reordering chunks from operations that produce sorted output.
     repeated TOutputResult output_boundary_keys = 9;
 
-    optional TOutputResult stderr_table_boundary_keys = 10;
+    optional TOutputResult stderr_result = 10;
 
     repeated TCoreInfo core_infos = 11;
-    optional TOutputResult core_table_boundary_keys = 12;
+    optional TOutputResult core_result = 12;
 
     // NB: these fields are used only if job is interrupted.
     repeated NYT.NChunkClient.NProto.TChunkSpec unread_chunk_specs = 14;

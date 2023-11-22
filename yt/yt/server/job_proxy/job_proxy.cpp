@@ -1475,10 +1475,10 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
     auto* jobResultExt = jobResult->MutableExtension(TJobResultExt::job_result_ext);
 
     // If we were provided with stderr_table_spec we are expected to write stderr and provide some results.
-    if (userJobSpec.has_stderr_table_spec() && !jobResultExt->has_stderr_table_boundary_keys()) {
+    if (userJobSpec.has_stderr_table_spec() && !jobResultExt->has_stderr_result()) {
         // If error occurred during user job initialization, stderr blob table writer may not have been created at all.
         YT_LOG_WARNING("Stderr table boundary keys are absent");
-        auto* stderrBoundaryKeys = jobResultExt->mutable_stderr_table_boundary_keys();
+        auto* stderrBoundaryKeys = jobResultExt->mutable_stderr_result();
         stderrBoundaryKeys->set_sorted(true);
         stderrBoundaryKeys->set_unique_keys(true);
         stderrBoundaryKeys->set_empty(true);

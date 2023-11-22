@@ -367,7 +367,7 @@ public:
 
             ToProto(jobResultExt->mutable_core_infos(), coreResult.CoreInfos);
             YT_VERIFY(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
-            ToProto(jobResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
+            ToProto(jobResultExt->mutable_core_result(), coreResult.BoundaryKeys);
         }
 
         if (ShellManager_) {
