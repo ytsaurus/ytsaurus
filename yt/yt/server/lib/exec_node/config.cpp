@@ -576,8 +576,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_artifact_binds", &TThis::UseArtifactBinds)
         .Default(false);
-    registrar.Parameter("use_root_fs_binds", &TThis::UseRootFSBinds)
-        .Default(true);
 
     registrar.Parameter("root_fs_binds", &TThis::RootFSBinds)
         .Default();

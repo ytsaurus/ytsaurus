@@ -528,7 +528,6 @@ public:
     bool EnableArtifactCopyTracking;
     bool UseCommonRootFSQuota;
     bool UseArtifactBinds;
-    bool UseRootFSBinds;
 
     //! Bind mounts added for all user job containers.
     //! Should include ChunkCache if artifacts are passed by symlinks.
