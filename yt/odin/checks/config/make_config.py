@@ -770,6 +770,7 @@ def get_checks_config():
                         "yp-sas-test": 99,
                         "yp-vla": 199,
                         "yp-xdc": 200,
+                        "yp-adm-pre": 9023,
                         "zeno": 94,
                         "lyapunov-alpha": 6889,
                         "lyapunov-beta": 6890,
@@ -1230,6 +1231,7 @@ def get_checks_config():
             ),
             "ofd-xdc": deep_merge(disable_remote_copy, snapshot_validation),
             "yp-sas-test": spare_tablet_nodes_small,
+            "yp-adm-pre": spare_tablet_nodes_small,
             "yp-man-pre": spare_tablet_nodes_small,
             "yp-vlx": spare_tablet_nodes_small,
             "lyapunov-alpha": deep_merge(
@@ -1265,7 +1267,7 @@ def get_checks_config():
     }
 
     yp_clusters = ["yp-sas-test", "yp-man-pre", "yp-sas", "yp-man", "yp-myt", "yp-iva",
-                   "yp-vla", "yp-xdc", "yp-vlx", "yp-klg"]
+                   "yp-vla", "yp-xdc", "yp-vlx", "yp-klg", "yp-adm-pre"]
     for cluster in yp_clusters:
         config["cluster_overrides"][cluster] = deep_merge(
             config["cluster_overrides"].get(cluster, {}),
