@@ -28,6 +28,7 @@ DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterCacheConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressProxyConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TClockServersConfig)
+DECLARE_REFCOUNTED_CLASS(TSequoiaConnectionConfig)
 
 DECLARE_REFCOUNTED_CLASS(TConnectionStaticConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionDynamicConfig)

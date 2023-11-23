@@ -2755,12 +2755,14 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->SelectRows<NRecords::TLocationReplicas>({
-                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                Format("node_id = %v", nodeId),
-                Format("id_hash = %v", locationUuid.Parts32[0]),
-                Format("location_uuid = %Qv", locationUuid),
-            });
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& readyClient) {
+                return readyClient->SelectRows<NRecords::TLocationReplicas>({
+                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                    Format("node_id = %v", nodeId),
+                    Format("id_hash = %v", locationUuid.Parts32[0]),
+                    Format("location_uuid = %Qv", locationUuid),
+                });
+            }));
     }
 
     TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const override
@@ -2774,10 +2776,12 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->SelectRows<NRecords::TLocationReplicas>({
-                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                Format("node_id = %v", nodeId),
-            });
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& readyClient) {
+                return readyClient->SelectRows<NRecords::TLocationReplicas>({
+                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                    Format("node_id = %v", nodeId),
+                });
+            }));
     }
 
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
@@ -3345,7 +3349,7 @@ private:
         YT_VERIFY(request.replicas_size() > 0);
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaClientOrThrow()
             ->StartTransaction()
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
@@ -3400,7 +3404,7 @@ private:
         YT_VERIFY(request.added_chunks_size() + request.removed_chunks_size() > 0);
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaClientOrThrow()
             ->StartTransaction()
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
@@ -5274,7 +5278,7 @@ private:
         };
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaClientOrThrow()
             ->SelectRows<NRecords::TChunkReplicas>({
                 buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
                     builder->AppendFormat("%v", chunkId.Parts32[0]);

@@ -91,6 +91,26 @@ void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSequoiaConnectionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
+        .Default();
+
+    registrar.Parameter("sequoia_path", &TThis::SequoiaPath)
+        .Default("//sys/sequoia");
+
+    registrar.Parameter("account", &TThis::Account)
+        .Default("sequoia");
+
+    registrar.Parameter("bundle", &TThis::Bundle)
+        .Default("sequoia");
+
+    registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
+        .Default(TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TConnectionStaticConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("networks", &TThis::Networks)
@@ -349,10 +369,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("hydra_admin_channel", &TThis::HydraAdminChannel)
         .DefaultNew();
 
-    registrar.Parameter("sequoia_path", &TThis::SequoiaPath)
-        .Default("//sys/sequoia");
-    registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
-        .Default(TDuration::Minutes(1));
+    registrar.Parameter("sequoia_connection", &TThis::SequoiaConnection)
+        .DefaultNew();
 
     registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)
         .Default(false);

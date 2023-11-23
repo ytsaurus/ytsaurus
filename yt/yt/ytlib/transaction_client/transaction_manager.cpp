@@ -15,6 +15,7 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_tracker.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -94,6 +95,7 @@ private:
     const TString User_;
     const IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
+    const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const TCellTrackerPtr DownedCellTracker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -957,15 +959,18 @@ private:
     {
         auto supervisorParticipantCellIds = GetSupervisorParticipantIds();
         auto supervisorPrepareOnlyParticipantCellIds = GetSupervisorPrepareOnlyParticipantIds();
-        YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v, "
-            "ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v)",
+        YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v, ParticipantCellIds: %v, "
+            "PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, AllowAlienCoordinator: %v)",
             Id_,
             CoordinatorCellId_,
             supervisorParticipantCellIds,
             supervisorPrepareOnlyParticipantCellIds,
-            options.CellIdsToSyncWithBeforePrepare);
+            options.CellIdsToSyncWithBeforePrepare,
+            options.AllowAlienCoordinator);
 
-        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
+        auto coordinatorChannel = options.AllowAlienCoordinator
+            ? GetParticipantChannelOrThrow(CoordinatorCellId_)
+            : Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
         auto req = proxy.CommitTransaction();
         req->SetUser(Owner_->User_);
@@ -1020,13 +1025,12 @@ private:
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
             THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Connection destroyed");
-
         }
 
         std::vector<TCellId> candidateIds;
         auto coordinatorCellTag = connection->GetPrimaryMasterCellTag();
         for (auto cellId : GetRegisteredParticipantIds()) {
-            if (CellTagFromId(cellId) == coordinatorCellTag) {
+            if (CellTagFromId(cellId) == coordinatorCellTag || options.AllowAlienCoordinator) {
                 candidateIds.push_back(cellId);
             }
         }
@@ -1052,7 +1056,7 @@ private:
         }
 
         YT_VERIFY(CoordinatorCellId_);
-        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
+        auto coordinatorChannel = GetParticipantChannelOrThrow(CoordinatorCellId_);
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCheckDownedParticipantsRetryChecker());
         auto req = proxy.GetDownedParticipants();
         req->SetUser(Owner_->User_);
@@ -1159,6 +1163,38 @@ private:
                 cellId));
     }
 
+    IChannelPtr GetParticipantChannelOrThrow(TCellId cellId)
+    {
+        auto channel = Owner_->CellDirectory_->FindChannelByCellId(cellId);
+        if (channel) {
+            return channel;
+        }
+
+        auto connection = Owner_->ClusterDirectory_->FindConnection(CellTagFromId(cellId));
+        if (!connection) {
+            THROW_ERROR_EXCEPTION("No cell with id %v is known");
+        }
+
+        return connection->GetCellDirectory()->GetChannelByCellIdOrThrow(cellId);
+    }
+
+    // NB: This is potentially dangerous for clusters with different clocks.
+    IChannelPtr FindParticipantChannel(TCellId cellId)
+    {
+        auto channel = Owner_->CellDirectory_->FindChannelByCellId(cellId);
+        if (channel) {
+            return channel;
+        }
+
+        auto connection = Owner_->ClusterDirectory_->FindConnection(CellTagFromId(cellId));
+        if (!connection) {
+            return nullptr;
+        }
+
+        return connection->GetCellDirectory()->FindChannelByCellId(cellId);
+    }
+
+
     TFuture<void> DoPingTransaction(const TTransactionPingOptions& options = {})
     {
         std::vector<TFuture<void>> asyncResults;
@@ -1171,7 +1207,7 @@ private:
                 Id_,
                 cellId);
 
-            auto channel = Owner_->CellDirectory_->FindChannelByCellId(cellId);
+            auto channel = FindParticipantChannel(cellId);
             if (!channel) {
                 continue;
             }
@@ -1352,7 +1388,7 @@ private:
 
     TFuture<void> DoAbortTransaction(TCellId cellId, const TTransactionAbortOptions& options)
     {
-        auto channel = Owner_->CellDirectory_->FindChannelByCellId(cellId);
+        auto channel = FindParticipantChannel(cellId);
         if (!channel) {
             return VoidFuture;
         }
@@ -1499,6 +1535,7 @@ TTransactionManager::TImpl::TImpl(
     , User_(user)
     , ClockManager_(connection->GetClockManager())
     , CellDirectory_(connection->GetCellDirectory())
+    , ClusterDirectory_(connection->GetClusterDirectory())
     , DownedCellTracker_(connection->GetDownedCellTracker())
 { }
 

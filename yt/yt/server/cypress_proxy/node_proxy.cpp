@@ -111,7 +111,7 @@ protected:
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
     {
         return CreateObjectServiceReadProxy(
-            Bootstrap_->GetNativeClient(),
+            Bootstrap_->GetNativeRootClient(),
             EMasterChannelKind::Follower,
             CellTagFromId(id),
             Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
@@ -233,7 +233,7 @@ protected:
             SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + unresolvedSuffix);
 
             auto objectWriteProxy = CreateObjectServiceWriteProxy(
-                Bootstrap_->GetNativeClient(),
+                Bootstrap_->GetNativeRootClient(),
                 CellTagFromId(Id_));
 
             auto masterResponse = WaitFor(objectWriteProxy.Execute(std::move(newRequest)))

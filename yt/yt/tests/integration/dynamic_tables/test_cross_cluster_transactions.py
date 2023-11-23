@@ -65,10 +65,7 @@ class TestCrossClusterTransactions(YTEnvSetup):
 
         commit_transaction(tx)
 
-        assert_items_equal(
-            select_rows("* from [//tmp/primary]", driver=self.primary_driver),
-            PRIMARY_ROWS,
-        )
+        assert_items_equal(select_rows("* from [//tmp/primary]", driver=self.primary_driver), PRIMARY_ROWS)
         assert_items_equal(select_rows("* from [//tmp/remote]", driver=self.remote_driver), REMOTE_ROWS)
 
 

@@ -87,7 +87,8 @@ struct ISequoiaTransaction
 
     virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
     virtual const ISequoiaClientPtr& GetClient() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetNativeClient() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetNativeRootClient() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetGroundRootClient() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaTransaction)
