@@ -1,7 +1,7 @@
 JAVA_CONTRIB_PROXY()
 
 PEERDIR(
-    contrib/java/io/netty/netty-transport/4.1.97.Final
+    contrib/java/io/netty/netty-transport/4.1.101.Final
 )
 
 END()
@@ -83,4 +83,5 @@ RECURSE(
     4.1.94.Final
     4.1.97.Final
     4.1.55.Final
+    4.1.101.Final
 )
