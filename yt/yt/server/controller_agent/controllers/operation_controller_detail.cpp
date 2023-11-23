@@ -4159,6 +4159,13 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
+        try {
+            FinalizeFeatures();
+            CommitFeatures();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to finalize and commit features");
+        }
+
         std::vector<TOutputTablePtr> tables;
         if (StderrTable_ && StderrTable_->IsPrepared()) {
             tables.push_back(StderrTable_);
@@ -4167,29 +4174,27 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
             tables.push_back(CoreTable_);
         }
 
-        try {
-            StartDebugCompletionTransaction();
-            if (!tables.empty()) {
+        if (!tables.empty()) {
+            YT_VERIFY(DebugTransaction);
+
+            try {
+                StartDebugCompletionTransaction();
                 BeginUploadOutputTables(tables);
                 AttachOutputChunks(tables);
                 EndUploadOutputTables(tables);
-            }
-            FinalizeFeatures();
-            CommitFeatures();
-            CommitDebugCompletionTransaction();
+                CommitDebugCompletionTransaction();
 
-            if (DebugTransaction) {
                 WaitFor(DebugTransaction->Commit())
                     .ThrowOnError();
                 debugTransactionCommitted = true;
+            } catch (const std::exception& ex) {
+                // Bad luck we can't commit transaction.
+                // Such a pity can happen for example if somebody aborted our transaction manually.
+                YT_LOG_ERROR(ex, "Failed to commit debug transaction");
+                // Intentionally do not wait for abort.
+                // Transaction object may be in incorrect state, we need to abort using only transaction id.
+                YT_UNUSED_FUTURE(AttachTransaction(DebugTransaction->GetId(), Client)->Abort());
             }
-        } catch (const std::exception& ex) {
-            // Bad luck we can't commit transaction.
-            // Such a pity can happen for example if somebody aborted our transaction manually.
-            YT_LOG_ERROR(ex, "Failed to commit debug transaction");
-            // Intentionally do not wait for abort.
-            // Transaction object may be in incorrect state, we need to abort using only transaction id.
-            YT_UNUSED_FUTURE(AttachTransaction(DebugTransaction->GetId(), Client)->Abort());
         }
     }
 
