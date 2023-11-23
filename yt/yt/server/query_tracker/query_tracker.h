@@ -19,9 +19,9 @@ struct IQueryTracker
 {
     virtual void Start() = 0;
 
-    virtual void OnDynamicConfigChanged(const TQueryTrackerDynamicConfigPtr& config) = 0;
+    virtual void Reconfigure(const TQueryTrackerDynamicConfigPtr& config) = 0;
 
-    virtual void PopulateAlerts(std::vector<TError>* alerts) const = 0;
+    virtual void PopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryTracker)

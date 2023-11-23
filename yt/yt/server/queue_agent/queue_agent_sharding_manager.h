@@ -25,7 +25,7 @@ struct IQueueAgentShardingManager
         const TQueueAgentShardingManagerDynamicConfigPtr& oldConfig,
         const TQueueAgentShardingManagerDynamicConfigPtr& newConfig) = 0;
 
-    virtual void PopulateAlerts(std::vector<TError>* alerts) const = 0;
+    virtual void PopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueAgentShardingManager)

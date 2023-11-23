@@ -303,6 +303,19 @@ def get_latest_version():
     return MIGRATION.get_latest_version()
 
 
+# Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
+def create_tables_latest_version(client, override_tablet_cell_bundle="default", shard_count=1, state_path=DEFAULT_STATE_PATH):
+    """ Creates query tracker tables of latest version """
+
+    MIGRATION.create_tables(
+        client=client,
+        target_version=MIGRATION.get_latest_version(),
+        tables_path=state_path,
+        shard_count=shard_count,
+        override_tablet_cell_bundle=override_tablet_cell_bundle
+    )
+
+
 def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform query tracker state")
     parser.add_argument("--force", action="store_true", default=False)

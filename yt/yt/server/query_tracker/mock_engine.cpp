@@ -158,7 +158,7 @@ public:
         return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker());
     }
 
-    void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = config;
     }

@@ -20,18 +20,18 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   yt-chyt-client
   yt-library-dynamic_config
   yt-library-clickhouse_discovery
-  yt-yt-ytlib
   yt-library-coredumper
   server-lib-admin
+  server-lib-alert_manager
   server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
   library-query-engine
   library-query-row_comparer
+  yt-yt-ytlib
   yt-ytlib-query_tracker_client
 )
 target_sources(yt-server-query_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/alert_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/chyt_engine.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/config.cpp

@@ -96,7 +96,7 @@ public:
         return New<TQlQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker());
     }
 
-    void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = DynamicPointerCast<TQLEngineConfig>(config);
     }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/lib/alert_manager/helpers.h>
+
 #include <yt/yt/ytlib/query_tracker_client/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -17,7 +19,6 @@ using NQueryTrackerClient::TQueryId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger AlertManagerLogger("AlertManager");
 inline const NLogging::TLogger QueryTrackerLogger("QueryTracker");
 inline const NProfiling::TProfiler QueryTrackerProfiler = NProfiling::TProfiler("/query_tracker").WithGlobal();
 
@@ -36,9 +37,6 @@ YT_DEFINE_ERROR_ENUM(
 } // namespace NAlerts
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TAlertManager)
-DECLARE_REFCOUNTED_CLASS(TAlertManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TQueryTracker)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerDynamicConfig)

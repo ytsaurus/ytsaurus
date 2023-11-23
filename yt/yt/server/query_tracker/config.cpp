@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/alert_manager/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/security_client/public.h>
@@ -7,14 +9,6 @@
 namespace NYT::NQueryTracker {
 
 using namespace NSecurityClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TAlertManagerDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("alert_collection_period", &TThis::AlertCollectionPeriod)
-        .Default(TDuration::MilliSeconds(500));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,8 +114,6 @@ void TQueryTrackerServerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("root", &TThis::Root)
         .Default("//sys/query_tracker");
-    registrar.Parameter("create_state_tables_on_startup", &TThis::CreateStateTablesOnStartup)
-        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {

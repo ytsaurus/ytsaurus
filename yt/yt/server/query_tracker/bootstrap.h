@@ -59,7 +59,7 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
-    TAlertManagerPtr AlertManager_;
+    NAlertManager::IAlertManagerPtr AlertManager_;
 
     IQueryTrackerPtr QueryTracker_;
 

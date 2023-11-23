@@ -22,12 +22,12 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   yt-client-federated
   yt-yt-ytlib
   server-lib-admin
+  server-lib-alert_manager
   server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
 )
 target_sources(yt-server-queue_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/alert_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/consumer_controller.cpp

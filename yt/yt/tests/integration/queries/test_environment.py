@@ -2,7 +2,11 @@ from conftest_lib.conftest_queries import QueryTracker
 
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import wait, authors, ls, YtError
+from yt.environment.init_query_tracker_state import get_latest_version
+
+from yt.common import YtError
+
+from yt_commands import wait, authors, ls, get, set, assert_yt_error
 
 import yt_error_codes
 
@@ -41,3 +45,17 @@ class TestEnvironment(YTEnvSetup):
         with QueryTracker(self.Env, 2):
             self._check_liveness(2)
         self._check_cleanliness()
+
+    @authors("mpereskokova")
+    def test_alerts(self, query_tracker):
+        alerts_path = f"//sys/query_tracker/instances/{query_tracker.addresses[0]}/orchid/alerts"
+        version_path = "//sys/query_tracker/@version"
+        latest_version = get_latest_version()
+
+        assert get(version_path) == latest_version
+        assert len(get(alerts_path)) == 0
+
+        set(version_path, latest_version - 1)
+        wait(lambda: "query_tracker_invalid_state" in get(alerts_path))
+        assert_yt_error(YtError.from_dict(get(alerts_path)["query_tracker_invalid_state"]),
+                        "Min required state version is not met")

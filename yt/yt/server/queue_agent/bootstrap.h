@@ -69,7 +69,7 @@ private:
     NDiscoveryClient::IDiscoveryClientPtr DiscoveryClient_;
     NCypressElection::ICypressElectionManagerPtr ElectionManager_;
 
-    TAlertManagerPtr AlertManager_;
+    NAlertManager::IAlertManagerPtr AlertManager_;
 
     NQueueClient::TDynamicStatePtr DynamicState_;
 

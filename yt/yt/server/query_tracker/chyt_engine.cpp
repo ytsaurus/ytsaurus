@@ -315,7 +315,7 @@ public:
         return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker());
     }
 
-    void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         ChytConfig_ = DynamicPointerCast<TChytEngineConfig>(config);
     }

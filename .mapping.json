@@ -919,6 +919,7 @@
   "yt/yt/server/job_proxy/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/CMakeLists.txt":"",
   "yt/yt/server/lib/admin/CMakeLists.txt":"",
+  "yt/yt/server/lib/alert_manager/CMakeLists.txt":"",
   "yt/yt/server/lib/cell_server/CMakeLists.txt":"",
   "yt/yt/server/lib/cellar_agent/CMakeLists.txt":"",
   "yt/yt/server/lib/chaos_cache/CMakeLists.txt":"",

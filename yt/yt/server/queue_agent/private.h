@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/lib/alert_manager/helpers.h>
+
 #include <yt/yt/ytlib/queue_client/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
@@ -12,7 +14,6 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger AlertManagerLogger("AlertManager");
 inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
 inline const NLogging::TLogger QueueAgentShardingManagerLogger("QueueAgentShardingManager");
 inline const NLogging::TLogger CypressSynchronizerLogger("CypressSynchronizer");
@@ -40,9 +41,6 @@ YT_DEFINE_ERROR_ENUM(
 } // namespace NAlerts
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TAlertManager)
-DECLARE_REFCOUNTED_CLASS(TAlertManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)

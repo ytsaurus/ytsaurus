@@ -2,13 +2,9 @@ from yt_queries import start_query
 
 from yt.environment.helpers import assert_items_equal
 
-from yt.environment.init_query_tracker_state import get_latest_version
-
-from yt.common import YtError
-
 from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
-                         write_file, create_pool, wait, get, set, assert_yt_error, ls)
+                         write_file, create_pool, wait, get, set, ls)
 
 from yt_env_setup import YTEnvSetup
 
@@ -196,20 +192,6 @@ class TestQueriesYql(TestQueriesYqlBase):
         query.track()
         result = query.read_result(0)
         assert_items_equal([{"column": "test_file_content"}], result)
-
-    @authors("mpereskokova")
-    def test_alerts(self, query_tracker, yql_agent):
-        alerts_path = f"//sys/query_tracker/instances/{query_tracker.addresses[0]}/orchid/alerts"
-        version_path = "//sys/query_tracker/@version"
-        latest_version = get_latest_version()
-
-        assert get(version_path) == latest_version
-        assert len(get(alerts_path)) == 0
-
-        set(version_path, latest_version - 1)
-        wait(lambda: "query_tracker_invalid_state" in get(alerts_path))
-        assert_yt_error(YtError.from_dict(get(alerts_path)["query_tracker_invalid_state"]),
-                        "Min required state version is not met")
 
     @authors("apollo1321")
     def test_config_defaults(self, query_tracker, yql_agent):

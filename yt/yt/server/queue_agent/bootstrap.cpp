@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "private.h"
-#include "alert_manager.h"
 #include "queue_agent.h"
 #include "cypress_synchronizer.h"
 #include "dynamic_config_manager.h"
@@ -63,6 +62,7 @@
 namespace NYT::NQueueAgent {
 
 using namespace NAdmin;
+using namespace NAlertManager;
 using namespace NBus;
 using namespace NElection;
 using namespace NHydra;
@@ -178,7 +178,7 @@ void TBootstrap::DoRun()
 
     DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
 
-    AlertManager_ = New<TAlertManager>(ControlInvoker_);
+    AlertManager_ = CreateAlertManager(ControlInvoker_);
 
     QueueAgentShardingManager_ = CreateQueueAgentShardingManager(
         ControlInvoker_,
@@ -327,7 +327,7 @@ void TBootstrap::OnDynamicConfigChanged(
 
     std::vector<TFuture<void>> asyncUpdateComponents{
         BIND(
-            &TAlertManager::OnDynamicConfigChanged,
+            &IAlertManager::Reconfigure,
             AlertManager_,
             oldConfig->AlertManager,
             newConfig->AlertManager)

@@ -3,6 +3,8 @@ from yt_commands import (
     set, get_connection_config, wait, get)
 from yt.environment import ExternalComponent
 
+import yt.environment.init_query_tracker_state as init_query_tracker_state
+
 import pytest
 
 
@@ -18,6 +20,12 @@ class QueryTracker(ExternalComponent):
     LOWERCASE_NAME = "query_tracker"
     DASHED_NAME = "query-tracker"
     PLURAL_HUMAN_READABLE_NAME = "query trackers"
+
+    def __init__(self, env, count):
+        super().__init__(env, count)
+
+        yt_client = env.create_native_client()
+        init_query_tracker_state.create_tables_latest_version(yt_client)
 
     @staticmethod
     def get_default_config():

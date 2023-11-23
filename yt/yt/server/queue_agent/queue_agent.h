@@ -59,7 +59,7 @@ public:
         const TQueueAgentDynamicConfigPtr& oldConfig,
         const TQueueAgentDynamicConfigPtr& newConfig);
 
-    void PopulateAlerts(std::vector<TError>* alerts) const;
+    void PopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const;
 
     // IObjectStore implementation.
 
@@ -115,7 +115,7 @@ private:
 
     TEnumIndexedVector<EObjectKind, NYTree::INodePtr> ObjectServiceNodes_;
 
-    std::vector<TError> Alerts_;
+    std::vector<NAlertManager::TAlert> Alerts_;
 
     NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const;
 
@@ -131,7 +131,7 @@ private:
     //! Stops periodic passes and destroys all controllers.
     void DoStop();
 
-    void DoPopulateAlerts(std::vector<TError>* alerts) const;
+    void DoPopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const;
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 

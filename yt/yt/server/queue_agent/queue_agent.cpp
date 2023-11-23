@@ -37,6 +37,7 @@ namespace NYT::NQueueAgent {
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NOrchid;
+using namespace NAlertManager;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NDiscoveryClient;
@@ -192,7 +193,7 @@ void TQueueAgent::Start()
     PassExecutor_->Start();
 }
 
-void TQueueAgent::PopulateAlerts(std::vector<TError>* alerts) const
+void TQueueAgent::PopulateAlerts(std::vector<TAlert>* alerts) const
 {
     WaitFor(
         BIND(&TQueueAgent::DoPopulateAlerts, MakeStrong(this), alerts)
@@ -201,7 +202,7 @@ void TQueueAgent::PopulateAlerts(std::vector<TError>* alerts) const
         .ThrowOnError();
 }
 
-void TQueueAgent::DoPopulateAlerts(std::vector<TError>* alerts) const
+void TQueueAgent::DoPopulateAlerts(std::vector<TAlert>* alerts) const
 {
     VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -329,7 +330,7 @@ void TQueueAgent::Pass()
             NAlerts::EErrorCode::QueueAgentPassFailed,
             "Error while reading dynamic state")
             << error;
-        Alerts_ = {alert};
+        Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
         return;
     }
     auto queueRows = asyncQueueRows.GetUnique().Value();

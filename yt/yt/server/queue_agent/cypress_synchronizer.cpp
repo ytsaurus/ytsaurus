@@ -14,6 +14,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NAlertManager;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NHiveClient;
@@ -77,7 +78,7 @@ public:
         , Logger(logger)
     { }
 
-    std::vector<TError> Build()
+    std::vector<TAlert> Build()
     {
         if (DynamicConfigSnapshot_->Policy == ECypressSynchronizerPolicy::Polling && (DynamicConfigSnapshot_->PollReplicatedObjects || DynamicConfigSnapshot_->WriteReplicatedTableMapping)) {
             THROW_ERROR_EXCEPTION("Cypress synchronizer cannot work with replicated objects in polling mode");
@@ -255,7 +256,7 @@ private:
     TObjectRowList RowsToDelete_;
     TObjectRowList RowsToWrite_;
 
-    std::vector<TError> Alerts_;
+    std::vector<TAlert> Alerts_;
 
     void ListObjectChanges()
     {
@@ -337,11 +338,11 @@ private:
         }
 
         if (!clusterRevisionFetchingAlerts.empty()) {
-            Alerts_.push_back(
+            Alerts_.push_back(CreateAlert<NAlerts::EErrorCode>(
                 TError(
                     NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
                     "Error fetching object revisions from clusters")
-                    << clusterRevisionFetchingAlerts);
+                    << clusterRevisionFetchingAlerts));
         }
     }
 
@@ -404,11 +405,11 @@ private:
         }
 
         if (!clusterRevisionFetchingAlerts.empty()) {
-            Alerts_.push_back(
+            Alerts_.push_back(CreateAlert<NAlerts::EErrorCode>(
                 TError(
                     NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
                     "Error retrieving queue agent object revisions from clusters")
-                    << clusterRevisionFetchingAlerts);
+                    << clusterRevisionFetchingAlerts));
         }
     }
 
@@ -659,11 +660,11 @@ private:
         }
 
         if (!clusterAttributeFetchingAlerts.empty()) {
-            Alerts_.push_back(
+            Alerts_.push_back(CreateAlert<NAlerts::EErrorCode>(
                 TError(
                     NAlerts::EErrorCode::CypressSynchronizerUnableToFetchAttributes,
                     "Error fetching attributes from clusters")
-                    << clusterAttributeFetchingAlerts);
+                    << clusterAttributeFetchingAlerts));
         }
     }
 
@@ -817,7 +818,7 @@ public:
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
                 "Error performing cypress synchronizer pass")
                 << TError(ex);
-            Alerts_ = {alert};
+            Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
         }
 
         YT_LOG_DEBUG("Pass finished (PassIndex: %v)", PassIndex_);
@@ -839,7 +840,7 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
-    void PopulateAlerts(std::vector<TError>* alerts) const override
+    void PopulateAlerts(std::vector<TAlert>* alerts) const override
     {
         WaitFor(
             BIND(&TCypressSynchronizer::DoPopulateAlerts, MakeStrong(this), alerts)
@@ -866,7 +867,7 @@ private:
     //! Index of the current pass iteration.
     i64 PassIndex_ = -1;
 
-    std::vector<TError> Alerts_;
+    std::vector<TAlert> Alerts_;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
@@ -880,7 +881,7 @@ private:
         .EndMap();
     }
 
-    void DoPopulateAlerts(std::vector<TError>* alerts) const
+    void DoPopulateAlerts(std::vector<TAlert>* alerts) const
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 

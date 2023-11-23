@@ -1,6 +1,5 @@
 #include "bootstrap.h"
 
-#include "alert_manager.h"
 #include "query_tracker.h"
 #include "config.h"
 #include "private.h"
@@ -59,6 +58,7 @@
 namespace NYT::NQueryTracker {
 
 using namespace NAdmin;
+using namespace NAlertManager;
 using namespace NBus;
 using namespace NHydra;
 using namespace NMonitoring;
@@ -149,7 +149,7 @@ void TBootstrap::DoRun()
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-    AlertManager_ = New<TAlertManager>(ControlInvoker_);
+    AlertManager_ = CreateAlertManager(ControlInvoker_);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -198,10 +198,6 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         NativeAuthenticator_));
 
-    if (Config_->CreateStateTablesOnStartup) {
-        CreateStateTablesIfNeeded();
-    }
-
     QueryTracker_ = CreateQueryTracker(
         DynamicConfigManager_->GetConfig()->QueryTracker,
         SelfAddress_,
@@ -223,52 +219,6 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 
     UpdateCypressNode();
-}
-
-void TBootstrap::CreateStateTablesIfNeeded()
-{
-    auto createTable = [&] (const TTableSchemaPtr& schema, TStringBuf tableName) {
-        TCreateNodeOptions options;
-        options.IgnoreExisting = true;
-        options.Attributes = ConvertToAttributes(BuildYsonNodeFluently()
-            .BeginMap()
-                .Item("schema").Value(schema)
-                .Item("dynamic").Value(true)
-                .Item("min_data_ttl").Value(0)
-                .Item("merge_rows_on_flush").Value(true)
-            .EndMap());
-
-        WaitFor(NativeClient_->CreateNode(
-            Config_->Root + "/" + tableName,
-            EObjectType::Table,
-            options))
-            .ThrowOnError();
-
-        while (true) {
-            try {
-                WaitFor(NativeClient_->MountTable(Config_->Root + "/" + tableName))
-                    .ThrowOnError();
-                break;
-            } catch (const std::exception& ex) {
-                if (TError(ex).FindMatching(NTabletClient::EErrorCode::InvalidTabletState)) {
-                    YT_LOG_DEBUG("Concurrent state table mount call detected, skipping mounting");
-                    return;
-                }
-                YT_LOG_ERROR(ex, "Error creating state tables, backing off");
-                constexpr TDuration backoffDuration = TDuration::MilliSeconds(300);
-                TDelayedExecutor::WaitForDuration(backoffDuration);
-            }
-        }
-    };
-    createTable(NQueryTrackerClient::NRecords::TActiveQueryDescriptor::Get()->GetSchema(), "active_queries");
-    createTable(NQueryTrackerClient::NRecords::TFinishedQueryDescriptor::Get()->GetSchema(), "finished_queries");
-    createTable(NQueryTrackerClient::NRecords::TFinishedQueryByStartTimeDescriptor::Get()->GetSchema(), "finished_queries_by_start_time");
-    createTable(NQueryTrackerClient::NRecords::TFinishedQueryResultDescriptor::Get()->GetSchema(), "finished_query_results");
-
-    WaitFor(NativeClient_->SetNode(
-        Config_->Root + "/@version",
-        ConvertToYsonString(Config_->MinRequiredStateVersion)))
-        .ThrowOnError();
 }
 
 void TBootstrap::UpdateCypressNode()
@@ -307,10 +257,10 @@ void TBootstrap::OnDynamicConfigChanged(
     ReconfigureNativeSingletons(Config_, newConfig);
 
     if (AlertManager_) {
-        AlertManager_->OnDynamicConfigChanged(newConfig->AlertManager);
+        AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
     }
     if (QueryTracker_) {
-        QueryTracker_->OnDynamicConfigChanged(newConfig->QueryTracker);
+        QueryTracker_->Reconfigure(newConfig->QueryTracker);
     }
 
     YT_LOG_DEBUG(

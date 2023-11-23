@@ -33,6 +33,7 @@
 
 namespace NYT::NQueryTracker {
 
+using namespace NAlertManager;
 using namespace NApi;
 using namespace NYPath;
 using namespace NConcurrency;
@@ -75,7 +76,7 @@ public:
         Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
         // This is a correct call, despite being virtual call in constructor.
-        TQueryTracker::OnDynamicConfigChanged(config);
+        TQueryTracker::Reconfigure(config);
     }
 
     void Start() override
@@ -84,37 +85,38 @@ public:
         HealthCheckExecutor_->Start();
     }
 
-    void OnDynamicConfigChanged(const TQueryTrackerDynamicConfigPtr& config) override
+    void Reconfigure(const TQueryTrackerDynamicConfigPtr& config) override
     {
         Config_ = config;
         AcquisitionExecutor_->SetPeriod(config->ActiveQueryAcquisitionPeriod);
-        Engines_[EQueryEngine::Mock]->OnDynamicConfigChanged(config->MockEngine);
-        Engines_[EQueryEngine::Ql]->OnDynamicConfigChanged(config->QlEngine);
-        Engines_[EQueryEngine::Yql]->OnDynamicConfigChanged(config->YqlEngine);
-        Engines_[EQueryEngine::Chyt]->OnDynamicConfigChanged(config->ChytEngine);
-        Engines_[EQueryEngine::Spyt]->OnDynamicConfigChanged(config->SpytEngine);
+        Engines_[EQueryEngine::Mock]->Reconfigure(config->MockEngine);
+        Engines_[EQueryEngine::Ql]->Reconfigure(config->QlEngine);
+        Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine);
+        Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine);
+        Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine);
     }
 
-    void PopulateAlerts(std::vector<TError>* alerts) const override
+    void PopulateAlerts(std::vector<TAlert>* alerts) const override
     {
         WaitFor(
             BIND(&TQueryTracker::DoPopulateAlerts, MakeStrong(this), alerts)
-            .AsyncVia(ControlInvoker_)
-            .Run())
-            .ThrowOnError();
+                .AsyncVia(ControlInvoker_)
+                .Run())
+                .ThrowOnError();
     }
 
 private:
-    std::vector<TError> Alerts_;
-    TQueryTrackerDynamicConfigPtr Config_;
-    TString SelfAddress_;
-    IInvokerPtr ControlInvoker_;
-    IClientPtr StateClient_;
-    TYPath StateRoot_;
+    const TString SelfAddress_;
+    const IInvokerPtr ControlInvoker_;
+    const IClientPtr StateClient_;
+    const TYPath StateRoot_;
     const int MinRequiredStateVersion_;
 
-    TPeriodicExecutorPtr AcquisitionExecutor_;
-    TPeriodicExecutorPtr HealthCheckExecutor_;
+    const TPeriodicExecutorPtr AcquisitionExecutor_;
+    const TPeriodicExecutorPtr HealthCheckExecutor_;
+
+    std::vector<TAlert> Alerts_;
+    TQueryTrackerDynamicConfigPtr Config_;
 
     THashMap<EQueryEngine, IQueryEnginePtr> Engines_;
 
@@ -126,7 +128,7 @@ private:
 
     THashMap<TQueryId, TAcquiredQuery> AcquiredQueries_;
 
-    void DoPopulateAlerts(std::vector<TError>* alerts) const
+    void DoPopulateAlerts(std::vector<TAlert>* alerts) const
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -138,18 +140,20 @@ private:
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
         YT_LOG_INFO("Requesting query tracker state version");
-        auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version");
+        TGetNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::MasterCache;
+        auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version", options);
         auto rspOrError = WaitFor(asyncResult);
         if (!rspOrError.IsOK()) {
             auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Failed getting state version") << rspOrError;
-            Alerts_ = {alert};
+            Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
         } else {
             int stateVersion = ConvertTo<int>(rspOrError.Value());
             if (stateVersion < MinRequiredStateVersion_) {
-                auto alert =TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
+                auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
                     << TErrorAttribute("version", stateVersion)
                     << TErrorAttribute("min_required_version", MinRequiredStateVersion_);
-                Alerts_ = {alert};
+                Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
             }
         }
      }

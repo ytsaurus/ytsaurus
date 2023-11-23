@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/alert_manager/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/discovery_client/config.h>
@@ -13,14 +15,6 @@
 namespace NYT::NQueueAgent {
 
 using namespace NSecurityClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TAlertManagerDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("alert_collection_period", &TThis::AlertCollectionPeriod)
-        .Default(TDuration::MilliSeconds(500));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

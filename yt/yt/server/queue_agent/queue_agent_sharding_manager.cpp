@@ -15,6 +15,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NAlertManager;
 using namespace NConcurrency;
 using namespace NDiscoveryClient;
 using namespace NQueueClient;
@@ -79,7 +80,7 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
-    void PopulateAlerts(std::vector<TError>* alerts) const override
+    void PopulateAlerts(std::vector<TAlert>* alerts) const override
     {
         WaitFor(
             BIND(&TQueueAgentShardingManager::DoPopulateAlerts, MakeStrong(this), alerts)
@@ -106,7 +107,7 @@ private:
     //! Index of the current pass iteration.
     i64 PassIndex_ = -1;
 
-    std::vector<TError> Alerts_;
+    std::vector<TAlert> Alerts_;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
@@ -120,7 +121,7 @@ private:
         .EndMap();
     }
 
-    void DoPopulateAlerts(std::vector<TError>* alerts) const
+    void DoPopulateAlerts(std::vector<TAlert>* alerts) const
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -145,7 +146,7 @@ private:
                 NAlerts::EErrorCode::QueueAgentShardingManagerPassFailed,
                 "Error performing queue agent manager pass")
                 << ex;
-            Alerts_ = {alert};
+            Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
             return;
         }
     }

@@ -20,21 +20,6 @@ namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlertManagerDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    TDuration AlertCollectionPeriod;
-
-    REGISTER_YSON_STRUCT(TAlertManagerDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TAlertManagerDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TEngineConfigBase
     : public NYTree::TYsonStruct
 {
@@ -161,8 +146,6 @@ public:
 
     TString Root;
 
-    bool CreateStateTablesOnStartup;
-
     REGISTER_YSON_STRUCT(TQueryTrackerServerConfig);
 
     static void Register(TRegistrar registrar);
@@ -176,7 +159,7 @@ class TQueryTrackerServerDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
 public:
-    TAlertManagerDynamicConfigPtr AlertManager;
+    NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
     TQueryTrackerDynamicConfigPtr QueryTracker;
 
     REGISTER_YSON_STRUCT(TQueryTrackerServerDynamicConfig);

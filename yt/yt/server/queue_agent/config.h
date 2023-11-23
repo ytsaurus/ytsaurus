@@ -22,21 +22,6 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlertManagerDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    TDuration AlertCollectionPeriod;
-
-    REGISTER_YSON_STRUCT(TAlertManagerDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TAlertManagerDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCypressSynchronizerConfig
     : public NYTree::TYsonStruct
 {
@@ -218,7 +203,7 @@ public:
     NDiscoveryClient::TMemberClientConfigPtr MemberClient;
     NDiscoveryClient::TDiscoveryClientConfigPtr DiscoveryClient;
 
-    TAlertManagerDynamicConfigPtr AlertManager;
+    NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
     TQueueAgentShardingManagerDynamicConfigPtr QueueAgentShardingManager;
     TQueueAgentDynamicConfigPtr QueueAgent;
     TCypressSynchronizerDynamicConfigPtr CypressSynchronizer;

@@ -3,7 +3,6 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    alert_manager.cpp
     bootstrap.cpp
     config.cpp
     consumer_controller.cpp
@@ -32,6 +31,7 @@ PEERDIR(
     yt/yt/ytlib
 
     yt/yt/server/lib/admin
+    yt/yt/server/lib/alert_manager
     yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc

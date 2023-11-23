@@ -41,7 +41,7 @@ struct IQueryEngine
 {
     virtual IQueryHandlerPtr StartOrAttachQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) = 0;
 
-    virtual void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) = 0;
+    virtual void Reconfigure(const TEngineConfigBasePtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryEngine)

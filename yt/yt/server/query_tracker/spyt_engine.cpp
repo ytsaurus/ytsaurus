@@ -461,7 +461,7 @@ public:
             ControlQueue_->GetInvoker());
     }
 
-    void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = DynamicPointerCast<TSpytEngineConfig>(config);
     }

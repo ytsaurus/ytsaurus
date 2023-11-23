@@ -235,7 +235,7 @@ public:
             ControlQueue_->GetInvoker());
     }
 
-    void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

@@ -7,6 +7,7 @@
 
 
 add_subdirectory(admin)
+add_subdirectory(alert_manager)
 add_subdirectory(cell_server)
 add_subdirectory(cellar_agent)
 add_subdirectory(chaos_cache)
