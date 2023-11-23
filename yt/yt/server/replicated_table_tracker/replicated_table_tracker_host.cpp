@@ -37,6 +37,7 @@ static const auto& Logger = ReplicatedTableTrackerLogger;
 TReplicatedTableTrackerHostCounters::TReplicatedTableTrackerHostCounters()
 {
     auto profiler = ReplicatedTableTrackerProfiler
+        .WithSparse()
         .WithPrefix("/rtt_host");
 
     LoadFromSnapshotCounter = profiler.Counter("/load_from_snapshot_count");
@@ -276,8 +277,10 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
     }
 
     int snapshotCount = 0;
+    int updateActionCount = 0;
     for (const auto& responseOrError : responseOrErrors) {
         snapshotCount += responseOrError.Value()->has_snapshot();
+        updateActionCount += responseOrError.Value()->update_actions_size();
     }
 
     if (!loadFromSnapshot && snapshotCount != 0 && snapshotCount < std::ssize(futures)) {
@@ -287,7 +290,7 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
     }
 
     Counters_.LoadFromSnapshotCounter.Increment(snapshotCount);
-    Counters_.ReceivedActionCounter.Increment(std::ssize(responseOrErrors) - snapshotCount);
+    Counters_.ReceivedActionCounter.Increment(updateActionCount);
 
     if (snapshotCount != 0) {
         TReplicatedTableTrackerSnapshot snapshot;

@@ -606,6 +606,7 @@ public:
             , Enabled_(data.Enabled)
             , TrackingEnabled_(data.TrackingEnabled)
         {
+            YT_VERIFY(ReplicatedTable_);
             State_ = data.Mode == ETableReplicaMode::Sync
                 ? EReplicaState::BadSync
                 : EReplicaState::BadAsync;
@@ -668,12 +669,6 @@ public:
             return ReplicatedTable_;
         }
 
-        void ResetReplicatedTable()
-        {
-            YT_VERIFY(ReplicatedTable_);
-            ReplicatedTable_ = nullptr;
-        }
-
         EReplicaState GetState() const
         {
             return State_;
@@ -712,7 +707,7 @@ public:
 
         bool ShouldTrack() const
         {
-            return Enabled_ && TrackingEnabled_ && ReplicatedTable_;
+            return Enabled_ && TrackingEnabled_;
         }
 
         std::optional<TDuration> GetReplicaLagTime() const
@@ -808,6 +803,7 @@ public:
 
                 if (CurrentBundleName_.IsOK()) {
                     ReplicaModeSwitchCounter_ = TableTracker_->GetProfiler()
+                        .WithSparse()
                         .WithTag("tablet_cell_bundle", CurrentBundleName_.Value())
                         .WithTag("table_path", TablePath_)
                         .WithTag("replica_cluster", ClusterName_)
@@ -1052,6 +1048,16 @@ public:
             return &ReplicaIds_;
         }
 
+        bool ReadyForDeletion() const
+        {
+            return ReplicaIds_.empty() && Destroyed_;
+        }
+
+        void MarkDestroyed()
+        {
+            YT_VERIFY(!std::exchange(Destroyed_, true));
+        }
+
     private:
         TNewReplicatedTableTracker* const TableTracker_;
 
@@ -1061,6 +1067,8 @@ public:
 
         TTableCollocationId CollocationId_;
         THashSet<TTableReplicaId> ReplicaIds_;
+
+        bool Destroyed_ = false;
     };
 
 private:
@@ -1581,14 +1589,15 @@ private:
                 tableId);
 
             auto* table = GetTable(tableId);
-            for (auto replicaId : *table->GetReplicaIds()) {
-                GetReplica(replicaId)->ResetReplicatedTable();
-            }
             if (table->GetCollocationId() != NullObjectId) {
                 auto& collocation = GetOrCrash(IdToCollocation_, table->GetCollocationId());
                 EraseOrCrash(collocation.TableIds, tableId);
             }
-            EraseOrCrash(IdToTable_, tableId);
+
+            table->MarkDestroyed();
+            if (table->ReadyForDeletion()) {
+                EraseOrCrash(IdToTable_, tableId);
+            }
         }));
     }
 
@@ -1656,7 +1665,11 @@ private:
 
             if (auto* replica = FindReplica(replicaId)) {
                 if (auto* replicatedTable = replica->GetReplicatedTable()) {
-                    EraseOrCrash(*GetTable(replicatedTable->GetId())->GetReplicaIds(), replicaId);
+                    YT_VERIFY(IdToTable_.contains(replicatedTable->GetId()));
+                    EraseOrCrash(*replicatedTable->GetReplicaIds(), replicaId);
+                    if (replicatedTable->ReadyForDeletion()) {
+                        EraseOrCrash(IdToTable_, replicatedTable->GetId());
+                    }
                 }
                 EraseOrCrash(IdToReplica_, replicaId);
             }
