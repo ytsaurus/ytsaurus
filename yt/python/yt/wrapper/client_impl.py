@@ -2471,7 +2471,7 @@ class YtClient(ClientState):
         Starts transaction.
 
         :param str parent_transaction: parent transaction id.
-        :param int timeout: transaction lifetime singe last ping in milliseconds.
+        :param int timeout: transaction lifetime since last ping in milliseconds.
         :param str type: could be either "master" or "tablet"
         :param bool sticky: EXPERIMENTAL, do not use it, unless you have been told to do so.
         :param dict attributes: attributes

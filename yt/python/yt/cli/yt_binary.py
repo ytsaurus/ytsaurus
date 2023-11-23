@@ -1623,7 +1623,7 @@ def add_start_tx_parser(add_parser):
     parser = add_parser("start-tx", start_tx)
     add_structured_argument(parser, "--attributes")
     parser.add_argument("--timeout", type=int,
-                        help="transaction lifetime singe last ping in milliseconds")
+                        help="transaction lifetime since last ping in milliseconds")
 
 
 def transaction_args(parser):
