@@ -585,11 +585,7 @@ private:
         } else {
             switch (CheckedEnumCast<EDataSourceType>(key.data_source().type())) {
                 case EDataSourceType::File:
-                    if (artifactDownloadOptions.Converter) {
-                        downloader = &TImpl::DownloadAndConvertFile;
-                    } else {
-                        downloader = &TImpl::DownloadFile;
-                    }
+                    downloader = &TImpl::DownloadFile;
                     break;
                 case EDataSourceType::UnversionedTable:
                 case EDataSourceType::VersionedTable:
@@ -909,9 +905,6 @@ private:
         if (!key.format().empty()) {
             return false;
         }
-        if (key.is_squashfs_image()) {
-            return false;
-        }
 
         const auto& chunk = key.chunk_specs(0);
         if (chunk.has_lower_limit() && !IsTrivial(chunk.lower_limit())) {
@@ -1118,60 +1111,6 @@ private:
         }
     }
 
-    void DownloadAndConvertFile(
-        const TArtifactKey& key,
-        const TCacheLocationPtr& location,
-        TChunkId chunkId,
-        TSessionCounterGuard /*sessionCounterGuard*/,
-        TLockedChunkGuard lockedChunkGuard,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
-        const TClientChunkReadOptions& chunkReadOptions,
-        TInsertCookie cookie)
-    {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
-
-        try {
-            std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
-
-            auto readerOptions = New<TMultiChunkReaderOptions>();
-            readerOptions->EnableP2P = true;
-
-            auto chunkReaderHost = New<TChunkReaderHost>(
-                Bootstrap_->GetClient(),
-                Bootstrap_->GetLocalDescriptor(),
-                Bootstrap_->GetBlockCache(),
-                /*chunkMetaCache*/ nullptr,
-                /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
-                Bootstrap_->GetReadRpsOutThrottler(),
-                artifactDownloadOptions.TrafficMeter);
-            auto reader = CreateFileMultiChunkReader(
-                GetArtifactCacheReaderConfig(),
-                readerOptions,
-                std::move(chunkReaderHost),
-                chunkReadOptions,
-                chunkSpecs,
-                FromProto<NChunkClient::TDataSource>(key.data_source()));
-
-            auto chunk = ProduceArtifactFile(
-                key,
-                location,
-                chunkId,
-                std::move(lockedChunkGuard),
-                [&] (IOutputStream* /*output*/, const TString& filename) {
-                    auto inputStream = CreateFileReaderAdapter(reader);
-                    // TODO(prime@): throttle input stream
-                    artifactDownloadOptions.Converter(inputStream, filename);
-                });
-            cookie.EndInsert(chunk);
-        } catch (const std::exception& ex) {
-            auto error = TError("Error downloading file into cache")
-                << ex;
-            cookie.Cancel(error);
-            YT_LOG_WARNING(error);
-        }
-    }
-
     void DownloadFile(
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
@@ -1196,9 +1135,7 @@ private:
                 location,
                 chunkId,
                 std::move(lockedChunkGuard),
-                [&] (IOutputStream* output, const TString& /*filename*/) {
-                    producer(output);
-                });
+                producer);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
@@ -1277,9 +1214,7 @@ private:
                 location,
                 chunkId,
                 std::move(lockedChunkGuard),
-                [producer] (IOutputStream* output, const TString& /*filename*/) {
-                    producer(output);
-                });
+                producer);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
@@ -1406,7 +1341,7 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId,
         TLockedChunkGuard lockedChunkGuard,
-        const std::function<void(IOutputStream*, const TString&)>& producer)
+        const std::function<void(IOutputStream*)>& producer)
     {
         VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
@@ -1446,7 +1381,7 @@ private:
 
         PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
 
-        producer(&checkedOutput, tempDataFileName);
+        producer(&checkedOutput);
 
         if (Bootstrap_->GetIOTracker()->IsEnabled()) {
             Bootstrap_->GetIOTracker()->Enqueue(

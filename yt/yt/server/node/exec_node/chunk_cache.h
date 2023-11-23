@@ -28,13 +28,6 @@ struct TArtifactDownloadOptions
     NChunkClient::TTrafficMeterPtr TrafficMeter;
 
     std::vector<TString> WorkloadDescriptorAnnotations;
-
-    using TArtifactConverter =
-        TCallback<void(NConcurrency::IAsyncZeroCopyInputStreamPtr, TString)>;
-
-    TArtifactConverter Converter;
-
-    std::optional<bool> ConvertLayerToSquashFS;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

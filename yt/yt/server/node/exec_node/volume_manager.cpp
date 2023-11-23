@@ -368,14 +368,7 @@ public:
 
     TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
     {
-        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag, false)
-            .AsyncVia(LocationQueue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<TLayerMeta> MountSquashfsLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
-    {
-        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag, true)
+        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -387,9 +380,9 @@ public:
             .Run();
     }
 
-    void RemoveLayer(const TLayerId& layerId, bool isSquashfsLayer)
+    void RemoveLayer(const TLayerId& layerId)
     {
-        BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId, isSquashfsLayer)
+        BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId)
             .Via(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -859,7 +852,7 @@ private:
             tag);
     }
 
-    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag, bool squashfs)
+    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
     {
         ValidateEnabled();
 
@@ -885,50 +878,33 @@ private:
             auto layerDirectory = GetLayerPath(id);
             i64 layerSize = 0;
 
-            if (squashfs) {
-                THashMap<TString, TString> properties;
-                properties["backend"] = "squash";
-                properties["layers"] = archivePath;
-                properties["read_only"] = "true";
-
-                layerSize = NFS::GetPathStatistics(archivePath).Size;
-
-                YT_LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v, Path: %v)",
-                    id, tag, layerDirectory);
-
-                RunTool<TCreateDirectoryAsRootTool>(layerDirectory);
-
-                WaitFor(VolumeExecutor_->CreateVolume(layerDirectory, properties))
-                    .ValueOrThrow();
-            } else {
-                try {
-                    YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
-                        layerDirectory,
-                        tag);
-
-                    TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
-                    WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_))
-                        .ThrowOnError();
-                } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
-                        id,
-                        archivePath,
-                        tag);
-                    THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
-                        << ex;
-                }
-
-                auto config = New<TGetDirectorySizesAsRootConfig>();
-                config->Paths = {layerDirectory};
-                config->IgnoreUnavailableFiles = true;
-                config->DeduplicateByINodes = false;
-
-                layerSize = RunTool<TGetDirectorySizesAsRootTool>(config).front();
-                YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
-                    id,
-                    layerSize,
+            try {
+                YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
+                    layerDirectory,
                     tag);
+
+                TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
+                WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_))
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
+                    id,
+                    archivePath,
+                    tag);
+                THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
+                    << ex;
             }
+
+            auto config = New<TGetDirectorySizesAsRootConfig>();
+            config->Paths = {layerDirectory};
+            config->IgnoreUnavailableFiles = true;
+            config->DeduplicateByINodes = false;
+
+            layerSize = RunTool<TGetDirectorySizesAsRootTool>(config).front();
+            YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
+                id,
+                layerSize,
+                tag);
 
             TLayerMeta layerMeta;
             layerMeta.Path = layerDirectory;
@@ -964,7 +940,7 @@ private:
         }
     }
 
-    void DoRemoveLayer(const TLayerId& layerId, bool isSquashfsLayer)
+    void DoRemoveLayer(const TLayerId& layerId)
     {
         ValidateEnabled();
 
@@ -975,29 +951,23 @@ private:
             auto guard = Guard(SpinLock_);
 
             if (!Layers_.contains(layerId)) {
-                YT_LOG_FATAL("Layer already removed (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
+                YT_LOG_FATAL("Layer already removed (LayerId: %v, LayerPath: %v)",
                     layerId,
-                    layerPath,
-                    isSquashfsLayer);
+                    layerPath);
             }
         }
 
         try {
-            YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
+            YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)",
                 layerId,
-                layerPath,
-                isSquashfsLayer);
+                layerPath);
 
-            if (!isSquashfsLayer) {
-                auto async = DynamicConfigManager_
-                    ->GetConfig()
-                    ->ExecNode
-                    ->VolumeManager
-                    ->EnableAsyncLayerRemoval;
-                LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async);
-            } else {
-                LayerExecutor_->UnlinkVolume(layerPath, "self");
-            }
+            auto async = DynamicConfigManager_
+                ->GetConfig()
+                ->ExecNode
+                ->VolumeManager
+                ->EnableAsyncLayerRemoval;
+            LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async);
 
             NFS::Remove(layerMetaPath);
 
@@ -1356,7 +1326,7 @@ public:
             LayerMeta_.Id,
             LayerMeta_.Path);
 
-        Location_->RemoveLayer(LayerMeta_.Id, static_cast<bool>(UnderlyingArtifact_));
+        Location_->RemoveLayer(LayerMeta_.Id);
     }
 
     const TString& GetCypressPath() const
@@ -1379,11 +1349,6 @@ public:
         return LayerMeta_;
     }
 
-    void SetUnderlyingArtifact(IVolumeArtifactPtr chunk)
-    {
-        UnderlyingArtifact_ = std::move(chunk);
-    }
-
     void IncreaseHitCount()
     {
         HitCount_.fetch_add(1);
@@ -1397,7 +1362,6 @@ public:
 private:
     const TLayerMeta LayerMeta_;
     const TLayerLocationPtr Location_;
-    IVolumeArtifactPtr UnderlyingArtifact_;
     std::atomic<int> HitCount_;
 };
 
@@ -1877,23 +1841,10 @@ public:
             return MakeFuture(layer);
         }
 
-        if (downloadOptions.ConvertLayerToSquashFS) {
-            artifactKey.set_is_squashfs_image(*downloadOptions.ConvertLayerToSquashFS);
-        } else if (Config_->ConvertLayersToSquashfs) {
-            artifactKey.set_is_squashfs_image(true);
-        }
-
         auto cookie = BeginInsert(artifactKey);
         auto value = cookie.GetValue();
         if (cookie.IsActive()) {
-            TFuture<TLayerPtr> asyncLayer;
-            if (artifactKey.is_squashfs_image()) {
-                asyncLayer = DownloadAndConvertLayer(artifactKey, downloadOptions, tag);
-            } else {
-                asyncLayer = DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr);
-            }
-
-            asyncLayer
+            DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr)
                 .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
                     if (layerOrError.IsOK()) {
                         cookie.EndInsert(layerOrError.Value());
@@ -1985,118 +1936,6 @@ private:
             : findLayer(NirvanaTmpfsLayerCache_, "nirvana");
     }
 
-    TString GetTar2SquashPath() const
-    {
-        if (Config_->UseBundledTar2Squash) {
-            static TFile preparedTar2Squash = [] () {
-                auto file = MemfdCreate("tar2squash");
-                auto binary = NResource::Find("/tar2squash");
-                file.Write(binary.Data(), binary.Size());
-                return file;
-            }();
-
-            return Format("/proc/self/fd/%d", preparedTar2Squash.GetHandle());
-        } else if (Config_->Tar2SquashToolPath) {
-            return Config_->Tar2SquashToolPath;
-        } else {
-            THROW_ERROR_EXCEPTION("SquashFS conversion tool is not found");
-        }
-    }
-
-    void ConvertSquashfs(const IAsyncZeroCopyInputStreamPtr& input, TString outputFilename) const
-    {
-        auto converter = New<TSimpleProcess>(GetTar2SquashPath());
-        converter->AddArgument("--weak-sync");
-        converter->AddArgument(outputFilename);
-        converter->AddEnvVar("GOMAXPROCS=1");
-
-        auto converterInput = converter->GetStdInWriter();
-        auto converterErr = converter->GetStdErrReader();
-
-        auto done = converter->Spawn();
-
-        auto asyncFullStderr = BIND([converterErr] {
-            std::vector<TSharedRef> blobs;
-            while (true) {
-                auto blob = TSharedMutableRef::Allocate(64_KB);
-                auto n = WaitFor(converterErr->Read(blob))
-                    .ValueOrThrow();
-
-                if (n == 0) {
-                    break;
-                }
-
-                blobs.push_back(blob.Slice(0, n));
-            }
-
-            return MergeRefsToString(blobs);
-        })
-            .AsyncVia(GetCurrentInvoker())
-            .Run();
-
-        auto throwError = [&] (const auto& ex) {
-            auto fullStderr = WaitFor(asyncFullStderr)
-                .ValueOrThrow();
-
-            THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer conversion failed")
-                << TErrorAttribute("tar2squash_error", fullStderr)
-                << ex;
-        };
-
-        while (auto block = WaitFor(input->Read()).ValueOrThrow()) {
-            YT_LOG_DEBUG("Copying block");
-
-            try {
-                WaitFor(converterInput->Write(block))
-                    .ThrowOnError();
-            } catch (const std::exception& ex) {
-                throwError(ex);
-            }
-        }
-
-        try {
-            YT_LOG_DEBUG("Finishing");
-
-            WaitFor(converterInput->Close())
-                .ThrowOnError();
-
-            WaitFor(done)
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            throwError(ex);
-        }
-    }
-
-    TFuture<TLayerPtr> DownloadAndConvertLayer(
-        const TArtifactKey& artifactKey,
-        TArtifactDownloadOptions downloadOptions,
-        TGuid tag)
-    {
-        YT_LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactPath: %v)",
-            tag,
-            artifactKey.data_source().path());
-
-        downloadOptions.Converter = BIND(&TLayerCache::ConvertSquashfs, MakeStrong(this));
-
-        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(
-                BIND([=, this, this_= MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
-                    YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
-                        tag,
-                        artifactKey.data_source().path());
-
-                    auto location = PickLocation();
-                    auto layerMeta = WaitFor(location->MountSquashfsLayer(artifactKey, artifactChunk->GetFileName(), tag))
-                        .ValueOrThrow();
-
-                    YT_LOG_DEBUG("New squashfs Porto layer initialized (LayerId: %v, Tag: %v)", layerMeta.Id, tag);
-                    auto layer = New<TLayer>(layerMeta, artifactKey, location);
-                    layer->SetUnderlyingArtifact(artifactChunk);
-                    return layer;
-                })
-                .AsyncVia(GetCurrentInvoker()));
-    }
-
     TFuture<TLayerPtr> DownloadAndImportLayer(
         const TArtifactKey& artifactKey,
         const TArtifactDownloadOptions& downloadOptions,
@@ -2134,7 +1973,7 @@ private:
                       // and then copy into in-memory.
 
                       auto finally = Finally(BIND([=] () {
-                          location->RemoveLayer(layerMeta.Id, false);
+                          location->RemoveLayer(layerMeta.Id);
                       }));
 
                       auto tmpfsLayerMeta = WaitFor(targetLocation->InternalizeLayer(layerMeta, tag))

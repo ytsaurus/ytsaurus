@@ -9694,10 +9694,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), jobSpecConfig->Monitoring->SensorNames);
     }
 
-    if (Spec_->EnableSquashFS) {
-        jobSpec->set_enable_squashfs(*Spec_->EnableSquashFS);
-    }
-
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 

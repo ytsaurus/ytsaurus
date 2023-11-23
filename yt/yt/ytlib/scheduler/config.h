@@ -1063,9 +1063,6 @@ public:
     //! This option is not expected to be set by users manually.
     bool EnablePrefetchingJobThrottler;
 
-    //! Use SquashFS for layer storage.
-    std::optional<bool> EnableSquashFS;
-
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 
     //! Delay for performing sanity checks for operations (useful in tests).

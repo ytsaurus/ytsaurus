@@ -2651,10 +2651,6 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
         .TrafficMeter = TrafficMeter_,
     };
 
-    if (UserJobSpec_ && UserJobSpec_->has_enable_squashfs()) {
-        options.ConvertLayerToSquashFS = UserJobSpec_->enable_squashfs();
-    }
-
     return options;
 }
 

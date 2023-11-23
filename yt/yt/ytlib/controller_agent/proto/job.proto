@@ -280,7 +280,7 @@ message TUserJobSpec
     // Disables networking inside the job.
     optional bool disable_network = 67;
 
-    optional bool enable_squashfs = 65;
+    // 65 is free
 
     // Memory size reserved for job proxy. Used in tests for checking job proxy memory overdraft.
     optional int64 job_proxy_memory_reserve = 66;

@@ -372,15 +372,6 @@ void TVolumeManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_disk_quota", &TThis::EnableDiskQuota)
         .Default(true);
 
-    registrar.Parameter("tar2squash_tool_path", &TThis::Tar2SquashToolPath)
-        .Default("tar2squash");
-
-    registrar.Parameter("use_bundled_tar2squash", &TThis::UseBundledTar2Squash)
-        .Default(true);
-
-    registrar.Parameter("convert_layers_to_squashfs", &TThis::ConvertLayersToSquashfs)
-        .Default(false);
-
     registrar.Parameter("regular_tmpfs_layer_cache", &TThis::RegularTmpfsLayerCache)
         .Alias("tmpfs_layer_cache")
         .DefaultNew();

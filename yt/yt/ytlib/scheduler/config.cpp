@@ -763,9 +763,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_prefetching_job_throttler", &TThis::EnablePrefetchingJobThrottler)
         .Default(false);
 
-    registrar.Parameter("enable_squashfs", &TThis::EnableSquashFS)
-        .Default();
-
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 
