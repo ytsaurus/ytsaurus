@@ -171,7 +171,8 @@ private:
 
     IJobEnvironmentPtr JobEnvironment_;
 
-    THashSet<int> FreeSlots_;
+    //! We maintain queue for distributing job logs evenly among slots.
+    TRingQueue<int> FreeSlots_;
     int UsedIdleSlotCount_ = 0;
 
     double IdlePolicyRequestedCpu_ = 0;
