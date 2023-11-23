@@ -21,7 +21,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>, 56>({
+constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
     {"DefaultCalcMemoryLimit", "1G"},
     {"EvaluationTableSizeLimit", "1M"},
     {"DefaultMaxJobFails", "5"},
@@ -80,7 +80,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"_EnableYtPartitioning", "true"},
 });
 
-constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>, 2>({
+constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
     {"QueryCacheChunkLimit", "100000"},
     {"_UseKeyBoundApi", "true"},
 });
