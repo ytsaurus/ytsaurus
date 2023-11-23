@@ -15,7 +15,7 @@ import socket
 try:
     from yt.packages.urllib3.poolmanager import PoolManager, proxy_from_url
     from yt.packages.urllib3.response import HTTPResponse
-    from yt.packages.urllib3.util import parse_url
+    from yt.packages.urllib3.util import parse_url, proxy as util_proxy
     from yt.packages.urllib3.util import Timeout as TimeoutSauce
     from yt.packages.urllib3.util.retry import Retry
     from yt.packages.urllib3.exceptions import ClosedPoolError
@@ -33,7 +33,7 @@ try:
 except ImportError:
     from urllib3.poolmanager import PoolManager, proxy_from_url
     from urllib3.response import HTTPResponse
-    from urllib3.util import parse_url
+    from urllib3.util import parse_url, proxy as util_proxy
     from urllib3.util import Timeout as TimeoutSauce
     from urllib3.util.retry import Retry
     from urllib3.exceptions import ClosedPoolError
@@ -504,7 +504,19 @@ class HTTPAdapter(BaseAdapter):
 
                 low_conn = conn._get_conn(timeout=timeout.connect_timeout)
 
+                parsed_url = parse_url(url)
+                destination_scheme = parsed_url.scheme
+
                 try:
+                    http_tunnel_required = util_proxy.connection_requires_http_tunnel(
+                        conn.proxy, conn.proxy_config, destination_scheme
+                    )
+                    is_new_proxy_conn = conn.proxy is not None and not getattr(
+                        low_conn, "sock", None
+                    )
+                    if is_new_proxy_conn and http_tunnel_required:
+                        conn._prepare_proxy(low_conn)
+
                     skip_host = 'Host' in request.headers
                     low_conn.putrequest(request.method,
                                         url,
