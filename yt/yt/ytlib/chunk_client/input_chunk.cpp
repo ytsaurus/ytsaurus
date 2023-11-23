@@ -69,7 +69,9 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         UniqueKeys_ = IsSortedDynamicStore();
         TabletId_ = GetTabletIdFromChunkSpec(chunkSpec);
     } else {
-        YT_VERIFY(FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table);
+        YT_VERIFY(
+            FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table ||
+            FromProto<EChunkType>(chunkMeta.type()) == EChunkType::File);
         ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
     }
 }
@@ -117,6 +119,11 @@ bool TInputChunkBase::IsSortedDynamicStore() const
 bool TInputChunkBase::IsOrderedDynamicStore() const
 {
     return TypeFromId(ChunkId_) == EObjectType::OrderedDynamicTabletStore;
+}
+
+bool TInputChunkBase::IsFile() const
+{
+    return ChunkFormat_ == EChunkFormat::FileDefault;
 }
 
 // Intentionally used.
@@ -275,6 +282,11 @@ i64 TInputChunk::GetRowCount() const
 
 i64 TInputChunk::GetDataWeight() const
 {
+    if (IsFile()) {
+        // NB(coteeq): Files do not have rows, but they are somewhat equivalent to one giant string,
+        //             so let's define file's data weight as its uncompressed size.
+        return TotalUncompressedDataSize_;
+    }
     auto rowCount = GetRowCount();
     auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
     return std::max<i64>(std::ceil(TotalDataWeight_ * ColumnSelectivityFactor_ * rowSelectivityFactor), rowCount);

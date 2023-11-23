@@ -137,6 +137,8 @@ struct TOutputTable
 
     int TableIndex;
 
+    bool IsFile() const;
+
     TOutputStreamDescriptorPtr GetStreamDescriptorTemplate(int tableIndex = -1);
 
     bool IsBeginUploadCompleted() const;

@@ -82,6 +82,36 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void ValidateRemoteCopyTablesTypes(const auto& tables, const auto& errorLabel)
+{
+    YT_VERIFY(!tables.empty());
+
+    auto anyTable = tables[0];
+    auto type = anyTable->Type;
+
+    if (type != EObjectType::Table && type != EObjectType::File) {
+        THROW_ERROR_EXCEPTION("Only files and tables are allowed, but %v has type %Qlv",
+            anyTable->GetPath(),
+            type);
+    }
+    for (const auto& table : tables) {
+        if (table->Type != type) {
+            THROW_ERROR_EXCEPTION("%v must be of the same type, but %v has type %Qlv and %v has type %Qlv",
+                errorLabel,
+                anyTable->GetPath(),
+                type,
+                table->GetPath(),
+                table->Type);
+        }
+    }
+}
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOrderedControllerBase
     : public TOperationControllerBase
 {
@@ -1130,6 +1160,28 @@ private:
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks_;
 
     IAttributeDictionaryPtr InputTableAttributes_;
+
+    void ValidateInputTablesTypes() const override
+    {
+        ValidateRemoteCopyTablesTypes(InputTables_, "Inputs");
+    }
+
+    void ValidateUpdatingTablesTypes() const override
+    {
+        ValidateRemoteCopyTablesTypes(InputTables_, "Inputs");
+        if (StderrTable_ && StderrTable_->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION(
+                "Stderr table %v has wrong type: expected %Qlv, but got %Qlv",
+                EObjectType::Table,
+                StderrTable_->Type);
+        }
+        if (CoreTable_ && CoreTable_->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION(
+                "Core table %v has wrong type: expected %Qlv, but got %Qlv",
+                EObjectType::Table,
+                CoreTable_->Type);
+        }
+    }
 
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {

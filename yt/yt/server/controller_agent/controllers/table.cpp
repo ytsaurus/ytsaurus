@@ -12,6 +12,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 using namespace NYTree;
 using namespace NTableClient;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +68,12 @@ TOutputTable::TOutputTable(NYPath::TRichYPath path, EOutputTableType outputType)
     : TTableBase(std::move(path))
     , OutputType(outputType)
 { }
+
+
+bool TOutputTable::IsFile() const
+{
+    return Type == EObjectType::File;
+}
 
 bool TOutputTable::IsBeginUploadCompleted() const
 {
