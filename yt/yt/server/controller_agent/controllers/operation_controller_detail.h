@@ -689,6 +689,8 @@ protected:
     // Preparation.
     void RegisterInputChunk(const NChunkClient::TInputChunkPtr& inputChunk);
     void LockInputTables();
+    virtual void ValidateInputTablesTypes() const;
+    virtual void ValidateUpdatingTablesTypes() const;
     void GetInputTablesAttributes();
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
@@ -1325,7 +1327,8 @@ private:
         const NApi::NNative::IClientPtr& client,
         const std::vector<NChunkClient::TUserObject*>& tables,
         NTransactionClient::TTransactionId defaultTransactionId,
-        EOutputTableType outputTableType);
+        EOutputTableType outputTableType,
+        NCypressClient::EObjectType desiredType);
 
     virtual void OnExecNodesUpdated();
 

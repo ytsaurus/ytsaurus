@@ -1031,7 +1031,8 @@ void TOperationControllerBase::CreateOutputTables(
     const NApi::NNative::IClientPtr& client,
     const std::vector<TUserObject*>& tables,
     TTransactionId defaultTransactionId,
-    EOutputTableType outputTableType)
+    EOutputTableType outputTableType,
+    EObjectType desiredType)
 {
     std::vector<TUserObject*> tablesToCreate;
     for (auto* table : tables) {
@@ -1053,7 +1054,7 @@ void TOperationControllerBase::CreateOutputTables(
     for (auto* table : tablesToCreate) {
         auto req = TCypressYPathProxy::Create(table->Path.GetPath());
         req->set_ignore_existing(true);
-        req->set_type(ToProto<int>(EObjectType::Table));
+        req->set_type(ToProto<int>(desiredType));
 
         NCypressClient::SetTransactionId(req, table->TransactionId.value_or(defaultTransactionId));
         GenerateMutationId(req);
@@ -1097,11 +1098,16 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Process output and stderr tables.
     if (!OutputTables_.empty()) {
-        auto userObjectList = MakeUserObjectList(OutputTables_);
-        CreateOutputTables(OutputClient, userObjectList, OutputTransaction->GetId(), EOutputTableType::Output);
+        auto userObjectsList = MakeUserObjectList(OutputTables_);
+        CreateOutputTables(
+            OutputClient,
+            userObjectsList,
+            OutputTransaction->GetId(),
+            EOutputTableType::Output,
+            InputTables_.empty() ? EObjectType::Table : InputTables_[0]->Type);
         GetUserObjectBasicAttributes(
             OutputClient,
-            userObjectList,
+            userObjectsList,
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -1110,7 +1116,12 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     }
 
     if (StderrTable_) {
-        CreateOutputTables(Client, {StderrTable_.Get()}, DebugTransaction->GetId(), EOutputTableType::Stderr);
+        CreateOutputTables(
+            Client,
+            {StderrTable_.Get()},
+            DebugTransaction->GetId(),
+            EOutputTableType::Stderr,
+            EObjectType::Table);
         GetUserObjectBasicAttributes(
             Client,
             {StderrTable_.Get()},
@@ -1122,7 +1133,12 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     }
 
     if (CoreTable_) {
-        CreateOutputTables(Client, {CoreTable_.Get()}, DebugTransaction->GetId(), EOutputTableType::Core);
+        CreateOutputTables(
+            Client,
+            {CoreTable_.Get()},
+            DebugTransaction->GetId(),
+            EOutputTableType::Core,
+            EObjectType::Table);
         GetUserObjectBasicAttributes(
             Client,
             {CoreTable_.Get()},
@@ -1134,19 +1150,14 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     }
 
     {
+        ValidateUpdatingTablesTypes();
+
         THashSet<TObjectId> updatingTableIds;
         for (const auto& table : UpdatingTables_) {
-            const auto& path = table->GetPath();
-            if (table->Type != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    path,
-                    EObjectType::Table,
-                    table->Type);
-            }
             bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
             if (!insertedNew) {
                 THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                    path);
+                    table->GetPath());
             }
         }
 
@@ -2857,13 +2868,15 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     GenerateMutationId(req);
                     *req->mutable_statistics() = table->DataStatistics;
 
-                    // COMPAT(h0pless): remove this when masters will receive schema in BeginUpload.
-                    ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
-                    req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
+                    if (!table->IsFile()) {
+                        // COMPAT(h0pless): remove this when masters will receive schema in BeginUpload.
+                        ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
+                        req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
 
-                    req->set_optimize_for(ToProto<int>(table->TableUploadOptions.OptimizeFor));
-                    if (table->TableUploadOptions.ChunkFormat) {
-                        req->set_chunk_format(ToProto<int>(*table->TableUploadOptions.ChunkFormat));
+                        req->set_optimize_for(ToProto<int>(table->TableUploadOptions.OptimizeFor));
+                        if (table->TableUploadOptions.ChunkFormat) {
+                            req->set_chunk_format(ToProto<int>(*table->TableUploadOptions.ChunkFormat));
+                        }
                     }
                     req->set_compression_codec(ToProto<int>(table->TableUploadOptions.CompressionCodec));
                     req->set_erasure_codec(ToProto<int>(table->TableUploadOptions.ErasureCodec));
@@ -5779,9 +5792,10 @@ void TOperationControllerBase::FetchInputTables()
             }
         }
 
-        if (inputChunk->GetRowCount() > 0) {
+        if (inputChunk->GetRowCount() > 0 || inputChunk->IsFile()) {
             // Input chunks may have zero row count in case of unsensible read range with coinciding
             // lower and upper row index. We skip such chunks.
+            // NB(coteeq): File chunks have zero rows as well, but we want to be able to remote_copy them.
             table->Chunks.emplace_back(inputChunk);
             for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
                 totalExtensionSize += extension.data().size();
@@ -5801,7 +5815,7 @@ void TOperationControllerBase::FetchInputTables()
 
             if (hasColumnSelectors) {
                 inputChunk->SetValuesPerRow(table->Path.GetColumns()->size());
-            } else if (table->Schema->GetStrict()) {
+            } else if (table->Schema && table->Schema->GetStrict()) {
                 inputChunk->SetValuesPerRow(table->Schema->Columns().size());
             }
         }
@@ -6004,6 +6018,30 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
     }
 }
 
+void TOperationControllerBase::ValidateInputTablesTypes() const
+{
+    for (const auto& table : InputTables_) {
+        if (table->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                table->GetPath(),
+                EObjectType::Table,
+                table->Type);
+        }
+    }
+}
+
+void TOperationControllerBase::ValidateUpdatingTablesTypes() const
+{
+    for (const auto& table : UpdatingTables_) {
+        if (table->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                table->GetPath(),
+                EObjectType::Table,
+                table->Type);
+        }
+    }
+}
+
 void TOperationControllerBase::GetInputTablesAttributes()
 {
     YT_LOG_INFO("Getting input tables attributes");
@@ -6019,14 +6057,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
             .PopulateSecurityTags = true
         });
 
-    for (const auto& table : InputTables_) {
-        if (table->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                table->GetPath(),
-                EObjectType::Table,
-                table->Type);
-        }
-    }
+    ValidateInputTablesTypes();
 
     std::vector<TYsonString> omittedInaccessibleColumnsList;
     for (const auto& table : InputTables_) {
@@ -6094,28 +6125,38 @@ void TOperationControllerBase::GetInputTablesAttributes()
         }
     }
 
-    // Fetch the schemas based on schema IDs. We didn't fetch the schemas initially to allow deduplication
-    // if there are multiple tables sharing same schema.
-    for (const auto& [table, attributes] : tableAttributes) {
-        table->SchemaId = attributes->Get<TGuid>("schema_id");
+    bool needFetchSchemas = !InputTables_.empty() && InputTables_[0]->Type == EObjectType::Table;
+
+    if (needFetchSchemas) {
+        // Fetch the schemas based on schema IDs. We didn't fetch the schemas initially to allow deduplication
+        // if there are multiple tables sharing same schema.
+        for (const auto& [table, attributes] : tableAttributes) {
+            table->SchemaId = attributes->Get<TGuid>("schema_id");
+        }
+
+        FetchTableSchemas(
+            InputClient,
+            MakeRange(InputTables_),
+            [] (const auto& table) { return table->ExternalTransactionId; },
+            /*fetchFromExternalCells*/ true);
     }
-    FetchTableSchemas(
-        InputClient,
-        MakeRange(InputTables_),
-        [] (const auto& table) { return table->ExternalTransactionId; },
-        /*fetchFromExternalCells*/ true);
 
     bool haveTablesWithEnabledDynamicStoreRead = false;
 
     for (const auto& [table, attributes] : tableAttributes) {
+        table->ChunkCount = attributes->Get<int>("chunk_count");
+        table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
+        table->Account = attributes->Get<TString>("account");
+        if (table->Type == EObjectType::File) {
+            // NB(coteeq): Files have none of the folllowing attributes.
+            continue;
+        }
+
         table->Dynamic = attributes->Get<bool>("dynamic");
         if (table->Schema->IsSorted()) {
             table->Comparator = table->Schema->ToComparator();
         }
         table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-        table->ChunkCount = attributes->Get<int>("chunk_count");
-        table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
-        table->Account = attributes->Get<TString>("account");
 
         haveTablesWithEnabledDynamicStoreRead |= attributes->Get<bool>("enable_dynamic_store_read", false);
 
@@ -6228,29 +6269,37 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
     YT_LOG_DEBUG("Finished fetching output tables schema information from primary cell");
 
-    // Fetch the schemas based on schema IDs. We didn't fetch the schemas initially to allow deduplication
-    // if there are multiple tables sharing same schema.
-    for (const auto& [table, attributes] : tableAttributes) {
-        table->SchemaId = attributes->Get<TGuid>("schema_id");
-    }
+    bool needFetchSchemas = !UpdatingTables_.empty() && !UpdatingTables_[0]->IsFile();
+    if (needFetchSchemas) {
+        // Fetch the schemas based on schema IDs. We didn't fetch the schemas initially to allow deduplication
+        // if there are multiple tables sharing same schema.
+        for (const auto& [table, attributes] : tableAttributes) {
+            table->SchemaId = attributes->Get<TGuid>("schema_id");
+        }
 
-    // TODO(h0pless): Try fetching schema from external cells.
-    // With schemas being externalized it became possible to do so.
-    FetchTableSchemas(
-        OutputClient,
-        MakeRange(UpdatingTables_),
-        [this] (const auto& table) { return GetTransactionForOutputTable(table)->GetId(); },
-        /*fetchFromExternalCells*/ false);
+        // TODO(h0pless): Try fetching schema from external cells.
+        // With schemas being externalized it became possible to do so.
+        FetchTableSchemas(
+            OutputClient,
+            MakeRange(UpdatingTables_),
+            [this] (const auto& table) { return GetTransactionForOutputTable(table)->GetId(); },
+            /*fetchFromExternalCells*/ false);
+    }
 
     for (const auto& [table, attributes] : tableAttributes) {
         const auto& path = table->Path;
 
-        table->Dynamic = attributes->Get<bool>("dynamic");
-        table->TableUploadOptions = GetTableUploadOptions(
-            path,
-            *attributes,
-            table->Schema,
-            0); // Here we assume zero row count, we will do additional check later.
+        if (table->IsFile()) {
+            table->TableUploadOptions = GetFileUploadOptions(path, *attributes);
+            continue;
+        } else {
+            table->Dynamic = attributes->Get<bool>("dynamic");
+            table->TableUploadOptions = GetTableUploadOptions(
+                path,
+                *attributes,
+                table->Schema,
+                0); // Here we assume zero row count, we will do additional check later.
+        }
 
         // Will be used by AddOutputTableSpecs.
         table->TableUploadOptions.SchemaId = table->SchemaId;
@@ -6470,6 +6519,9 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         YT_LOG_DEBUG("Finished fetching output tables schema from external cells");
 
         for (const auto& [table, attributes] : tableAttributes) {
+            if (table->IsFile()) {
+                continue;
+            }
             auto receivedSchemaId = attributes->GetAndRemove<TGuid>("schema_id");
             if (receivedSchemaId != table->SchemaId) {
                 THROW_ERROR_EXCEPTION(
@@ -6648,17 +6700,19 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 GenerateMutationId(req);
                 req->Tag() = table;
 
-                auto schemaChanged = table->OriginalTableSchemaRevision != table->TableUploadOptions.TableSchema.GetRevision();
-                if (!schemaChanged) {
-                    YT_VERIFY(table->TableUploadOptions.SchemaId);
-                    ToProto(req->mutable_table_schema_id(), table->TableUploadOptions.SchemaId);
-                } else {
-                    // Sending schema, since in this case it might be not registered on master yet.
-                    YT_LOG_DEBUG("Sending full table schema to master during begin upload");
-                    ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
-                }
+                if (!table->IsFile()) {
+                    auto schemaChanged = table->OriginalTableSchemaRevision != table->TableUploadOptions.TableSchema.GetRevision();
+                    if (!schemaChanged) {
+                        YT_VERIFY(table->TableUploadOptions.SchemaId);
+                        ToProto(req->mutable_table_schema_id(), table->TableUploadOptions.SchemaId);
+                    } else {
+                        // Sending schema, since in this case it might be not registered on master yet.
+                        YT_LOG_DEBUG("Sending full table schema to master during begin upload");
+                        ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
+                    }
 
-                req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
+                    req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
+                }
                 req->set_update_mode(ToProto<int>(table->TableUploadOptions.UpdateMode));
                 req->set_lock_mode(ToProto<int>(table->TableUploadOptions.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v from operation %v",

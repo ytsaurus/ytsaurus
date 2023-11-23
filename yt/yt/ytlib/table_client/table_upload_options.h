@@ -74,6 +74,10 @@ TTableUploadOptions GetTableUploadOptions(
     const TTableSchemaPtr& schema,
     i64 rowCount);
 
+TTableUploadOptions GetFileUploadOptions(
+    const NYPath::TRichYPath& path,
+    const NYTree::IAttributeDictionary& cypressTableAttributes);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

@@ -14,9 +14,10 @@ from yt_commands import (
     multicell_sleep, set_banned_flag, sorted_dicts,
     raises_yt_error, get_driver,
     create_pool, update_pool_tree_config_option,
-    update_controller_agent_config)
+    update_controller_agent_config,
+    write_file, read_file)
 
-from yt_helpers import skip_if_no_descending
+from yt_helpers import skip_if_no_descending, skip_if_old
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
 
@@ -858,6 +859,115 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    def _create_inout_files(self, chunks):
+        create("file", "//tmp/in.txt", driver=self.remote_driver)
+        create("file", "//tmp/out.txt")
+
+        for _ in range(chunks):
+            write_file("<append=%true>//tmp/in.txt", b"remote_text.", driver=self.remote_driver)
+            write_file("<append=%true>//tmp/out.txt", b"local_text.")
+
+        assert len(get("//tmp/in.txt/@chunk_ids", driver=self.remote_driver)) == chunks
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("append", ["%true", "%false"])
+    @pytest.mark.parametrize("chunks", [1, 2])
+    def test_copy_file(self, append, chunks):
+        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
+        self._create_inout_files(chunks)
+
+        local_content = read_file("//tmp/out.txt") if append == "%true" else b""
+        remote_content = read_file("//tmp/in.txt", driver=self.remote_driver)
+
+        op = remote_copy(
+            in_="//tmp/in.txt",
+            out=f"<append={append}>//tmp/out.txt",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+            }
+        )
+
+        jobs_count = op.get_statistics()["data"]["input"]["data_weight"][0]["summary"]["count"]
+        assert jobs_count == 1
+
+        assert read_file("//tmp/out.txt") == local_content + remote_content
+        assert len(get("//tmp/out.txt/@chunk_ids")) == chunks * (2 if append == "%true" else 1)
+
+    @authors("coteeq")
+    def test_copy_file_create_destination(self):
+        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
+        self._create_inout_files(2)
+        remove("//tmp/out.txt")
+
+        remote_content = read_file("//tmp/in.txt", driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/in.txt",
+            out="<create=%true>//tmp/out.txt",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+            }
+        )
+
+        assert read_file("//tmp/out.txt") == remote_content
+        assert len(get("//tmp/out.txt/@chunk_ids")) == 2
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("constraint", ["job_count", "data_weight"])
+    def test_copy_file_job_constraints(self, constraint):
+        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
+        self._create_inout_files(4)
+
+        remote_content = read_file("//tmp/in.txt", driver=self.remote_driver)
+
+        if constraint == "data_weight":
+            spec_patch = {"data_weight_per_job": len(remote_content) // 2}
+        else:
+            spec_patch = {"job_count": 2}
+
+        op = remote_copy(
+            in_="//tmp/in.txt",
+            out="//tmp/out.txt",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                **spec_patch,
+            }
+        )
+
+        assert op.get_job_count("completed") == 2
+
+        assert read_file("//tmp/out.txt") == remote_content
+
+    @authors("coteeq")
+    def test_copy_file_copy_attributes(self):
+        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
+        self._create_inout_files(1)
+        create("file", "//tmp/out2.txt")
+
+        set("//tmp/in.txt/@custom_attr1", "attr_value1", driver=self.remote_driver)
+        set("//tmp/in.txt/@custom_attr2", "attr_value2", driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/in.txt",
+            out="//tmp/out.txt",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "copy_attributes": True},
+        )
+
+        assert get("//tmp/out.txt/@custom_attr1") == "attr_value1"
+        assert get("//tmp/out.txt/@custom_attr2") == "attr_value2"
+
+        remote_copy(
+            in_="//tmp/in.txt",
+            out="//tmp/out2.txt",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "copy_attributes": True,
+                "attribute_keys": ["custom_attr2"],
+            },
+        )
+
+        assert not exists("//tmp/out2.txt/@custom_attr1")
+        assert get("//tmp/out2.txt/@custom_attr2") == "attr_value2"
 
 ##################################################################
 

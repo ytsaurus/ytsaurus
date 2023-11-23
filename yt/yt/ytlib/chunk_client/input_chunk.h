@@ -81,6 +81,7 @@ public:
     bool IsDynamicStore() const;
     bool IsSortedDynamicStore() const;
     bool IsOrderedDynamicStore() const;
+    bool IsFile() const;
 
 private:
     void CheckOffsets();

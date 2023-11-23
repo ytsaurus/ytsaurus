@@ -326,6 +326,37 @@ TTableUploadOptions GetTableUploadOptions(
     return result;
 }
 
+TTableUploadOptions GetFileUploadOptions(
+    const TRichYPath& path,
+    const IAttributeDictionary& cypressTableAttributes)
+{
+
+    auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
+    auto enableStripedErasure = cypressTableAttributes.Get<bool>("enable_striped_erasure", false);
+    auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+
+    TTableUploadOptions result;
+
+    if (path.GetAppend() && path.GetCompressionCodec()) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+    result.CompressionCodec = path.GetCompressionCodec().value_or(compressionCodec);
+
+    if (path.GetAppend() && path.GetErasureCodec()) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+    result.ErasureCodec = path.GetErasureCodec().value_or(erasureCodec);
+
+    result.EnableStripedErasure = enableStripedErasure;
+    result.SecurityTags = path.GetSecurityTags();
+    result.LockMode = path.GetAppend() ? ELockMode::Shared : ELockMode::Exclusive;
+    result.UpdateMode = path.GetAppend() ? EUpdateMode::Append : EUpdateMode::Overwrite;
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
