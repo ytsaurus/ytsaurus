@@ -626,8 +626,8 @@ bool TSlotManager::Disable(const TError& error)
         Alerts_[ESlotManagerAlertType::GenericPersistentError] = std::move(wrappedError);
     }
 
-    auto config = Bootstrap_->GetDynamicConfig()->ExecNode;
-    auto timeout = config->SlotReleaseTimeout;
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    auto timeout = dynamicConfig->SlotReleaseTimeout;
 
     auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs()
         .WithTimeout(timeout));
@@ -636,7 +636,7 @@ bool TSlotManager::Disable(const TError& error)
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .WithTimeout(timeout));
         YT_LOG_FATAL_IF(
-            config->AbortOnFreeVolumeSynchronizationFailed && !result.IsOK(),
+            dynamicConfig->AbortOnFreeVolumeSynchronizationFailed && !result.IsOK(),
             result,
             "Free volume synchronization failed");
         YT_LOG_ERROR_IF(
@@ -645,7 +645,7 @@ bool TSlotManager::Disable(const TError& error)
             "Free volume synchronization failed");
     }
 
-    YT_LOG_FATAL_IF(config->AbortOnFreeSlotSynchronizationFailed && !syncResult.IsOK(), syncResult, "Free slot synchronization failed");
+    YT_LOG_FATAL_IF(dynamicConfig->AbortOnFreeSlotSynchronizationFailed && !syncResult.IsOK(), syncResult, "Free slot synchronization failed");
     YT_LOG_ERROR_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
 
     YT_LOG_WARNING("Disable slot manager finished");
@@ -865,6 +865,20 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
         }
         DefaultMediumIndex_ = descriptor->Index;
     }
+}
+
+NYTree::INodePtr TSlotManager::GetJobEnvironmentConfig() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_->JobEnvironment;
+}
+
+bool TSlotManager::ShouldSetUserId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return !StaticConfig_->DoNotSetUserId;
 }
 
 bool TSlotManager::IsResettableAlertType(ESlotManagerAlertType alertType)

@@ -2008,7 +2008,7 @@ class YTInstance(object):
                 log_config_path = "logging/writers/debug/file_name"
                 result.append(get_value_from_config(config, log_config_path, service))
                 if service == "node":
-                    job_proxy_log_config_path = "exec_node/job_proxy_logging/writers/debug/file_name"
+                    job_proxy_log_config_path = "exec_node/job_proxy/job_proxy_logging/writers/debug/file_name"
                     result.append(get_value_from_config(config, job_proxy_log_config_path, service))
 
             extract_debug_log_paths("driver", {"logging": self.configs["driver_logging"]}, log_paths)

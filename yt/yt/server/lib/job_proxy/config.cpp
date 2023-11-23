@@ -83,7 +83,7 @@ void TBindConfig::Register(TRegistrar registrar)
         .Default(true);
 }
 
-void TJobProxyConfig::Register(TRegistrar registrar)
+void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
 

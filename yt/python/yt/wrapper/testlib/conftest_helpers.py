@@ -240,7 +240,9 @@ def test_environment_with_porto(request):
                         "type": "porto",
                     },
                 },
-                "test_poll_job_shell": True,
+                "job_proxy": {
+                    "test_poll_job_shell": True,
+                },
             }
         },
         need_suid=True

@@ -39,7 +39,7 @@ class TJobProxy
 {
 public:
     TJobProxy(
-        TJobProxyConfigPtr config,
+        TJobProxyInternalConfigPtr config,
         NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId);
 
@@ -84,7 +84,7 @@ public:
     bool TrySetCpuGuarantee(double cpuShare);
 
 private:
-    const TJobProxyConfigPtr Config_;
+    const TJobProxyInternalConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
     const NJobTrackerClient::TJobId JobId_;
 
@@ -191,7 +191,7 @@ private:
     void OnArtifactsPrepared();
 
     // IJobHost implementation.
-    TJobProxyConfigPtr GetConfig() const override;
+    TJobProxyInternalConfigPtr GetConfig() const override;
     IUserJobEnvironmentPtr CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const override;
     NJobTrackerClient::TOperationId GetOperationId() const override;
 

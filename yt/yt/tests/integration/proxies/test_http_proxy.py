@@ -642,7 +642,9 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_poll_job_shell": True,
+            "job_proxy": {
+                "test_poll_job_shell": True,
+            },
         },
     }
 

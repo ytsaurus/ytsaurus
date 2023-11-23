@@ -201,7 +201,7 @@ public:
         return JobReporter_;
     }
 
-    const TJobProxyConfigPtr& GetJobProxyConfigTemplate() const override
+    const TJobProxyInternalConfigPtr& GetJobProxyConfigTemplate() const override
     {
         return JobProxyConfigTemplate_;
     }
@@ -267,7 +267,7 @@ private:
 
     TJobReporterPtr JobReporter_;
 
-    TJobProxyConfigPtr JobProxyConfigTemplate_;
+    TJobProxyInternalConfigPtr JobProxyConfigTemplate_;
 
     TChunkCachePtr ChunkCache_;
 
@@ -295,7 +295,7 @@ private:
     {
         auto localAddress = NNet::BuildServiceAddress(NNet::GetLoopbackAddress(), GetConfig()->RpcPort);
 
-        JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyConfig>();
+        JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyInternalConfig>();
 
         // Singletons.
         JobProxyConfigTemplate_->FiberStackPoolSizes = GetConfig()->FiberStackPoolSizes;
@@ -309,32 +309,32 @@ private:
         JobProxyConfigTemplate_->OriginalClusterConnection = JobProxyConfigTemplate_->ClusterConnection->Clone();
         JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
-        JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxyAuthenticationManager;
+        JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
         JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
         JobProxyConfigTemplate_->SupervisorConnection->Address = localAddress;
 
-        JobProxyConfigTemplate_->SupervisorRpcTimeout = GetConfig()->ExecNode->SupervisorRpcTimeout;
+        JobProxyConfigTemplate_->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
 
-        JobProxyConfigTemplate_->HeartbeatPeriod = GetConfig()->ExecNode->JobProxyHeartbeatPeriod;
+        JobProxyConfigTemplate_->HeartbeatPeriod = GetConfig()->ExecNode->JobProxy->JobProxyHeartbeatPeriod;
 
-        JobProxyConfigTemplate_->SendHeartbeatBeforeAbort = GetConfig()->ExecNode->JobProxySendHeartbeatBeforeAbort;
+        JobProxyConfigTemplate_->SendHeartbeatBeforeAbort = GetConfig()->ExecNode->JobProxy->JobProxySendHeartbeatBeforeAbort;
 
-        JobProxyConfigTemplate_->JobEnvironment = GetConfig()->ExecNode->SlotManager->JobEnvironment;
+        JobProxyConfigTemplate_->JobEnvironment = SlotManager_->GetJobEnvironmentConfig();
 
-        JobProxyConfigTemplate_->Logging = GetConfig()->ExecNode->JobProxyLogging;
-        JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxyJaeger;
-        JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxyStderrPath;
-        JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->ExecutorStderrPath;
-        JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->TestRootFS;
-        JobProxyConfigTemplate_->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->AlwaysAbortOnMemoryReserveOverdraft;
+        JobProxyConfigTemplate_->Logging = GetConfig()->ExecNode->JobProxy->JobProxyLogging;
+        JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxy->JobProxyJaeger;
+        JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyStderrPath;
+        JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->ExecutorStderrPath;
+        JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;
+        JobProxyConfigTemplate_->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->JobProxy->AlwaysAbortOnMemoryReserveOverdraft;
 
-        JobProxyConfigTemplate_->CoreWatcher = GetConfig()->ExecNode->CoreWatcher;
+        JobProxyConfigTemplate_->CoreWatcher = GetConfig()->ExecNode->JobProxy->CoreWatcher;
 
-        JobProxyConfigTemplate_->TestPollJobShell = GetConfig()->ExecNode->TestPollJobShell;
+        JobProxyConfigTemplate_->TestPollJobShell = GetConfig()->ExecNode->JobProxy->TestPollJobShell;
 
-        JobProxyConfigTemplate_->DoNotSetUserId = GetConfig()->ExecNode->DoNotSetUserId;
-        JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->CheckUserJobMemoryLimit;
+        JobProxyConfigTemplate_->DoNotSetUserId = !SlotManager_->ShouldSetUserId();
+        JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->JobProxy->CheckUserJobMemoryLimit;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
             JobProxyConfigTemplate_->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
@@ -344,7 +344,7 @@ private:
             JobProxyConfigTemplate_->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
         }
 
-        JobProxyConfigTemplate_->DnsOverRpcResolver = CloneYsonStruct(GetConfig()->ExecNode->JobProxyDnsOverRpcResolver);
+        JobProxyConfigTemplate_->DnsOverRpcResolver = CloneYsonStruct(GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver);
     }
 
     void OnDynamicConfigChanged(

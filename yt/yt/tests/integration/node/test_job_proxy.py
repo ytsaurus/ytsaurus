@@ -166,10 +166,12 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy_authentication_manager": {
-                "enable_authentication": True,
-                "cypress_token_authenticator": {
-                    "secure": True,
+            "job_proxy": {
+                "job_proxy_authentication_manager": {
+                    "enable_authentication": True,
+                    "cypress_token_authenticator": {
+                        "secure": True,
+                    },
                 },
             },
         }

@@ -117,7 +117,9 @@ class TestDisabledMemoryLimit(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "check_user_job_memory_limit": False
+            "job_proxy": {
+                "check_user_job_memory_limit": False,
+            },
         }
     }
 
@@ -154,8 +156,10 @@ class TestMemoryReserveFactor(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "always_abort_on_memory_reserve_overdraft": True,
-            "job_proxy_send_heartbeat_before_abort": True,
+            "job_proxy": {
+                "job_proxy_send_heartbeat_before_abort": True,
+                "always_abort_on_memory_reserve_overdraft": True,
+            },
         }
     }
 
@@ -233,9 +237,11 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "always_abort_on_memory_reserve_overdraft": True,
-            "job_proxy_heartbeat_period": 500,
-            "job_proxy_send_heartbeat_before_abort": True,
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 500,
+                "job_proxy_send_heartbeat_before_abort": True,
+                "always_abort_on_memory_reserve_overdraft": True,
+            },
         }
     }
 
@@ -1053,7 +1059,3 @@ class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
             },
         },
     }
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        config["exec_node"]["use_common_root_fs_quota"] = True

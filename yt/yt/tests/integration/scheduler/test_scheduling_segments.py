@@ -88,9 +88,10 @@ class TestSchedulingSegments(YTEnvSetup):
                     },
                 },
             },
-
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
         },
-        "job_proxy_heartbeat_period": 100,
     }
 
     SCHEDULING_SEGMENTS = [
@@ -947,8 +948,10 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                     },
                 },
             },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
         },
-        "job_proxy_heartbeat_period": 100,
     }
 
     SCHEDULING_SEGMENTS = [
@@ -1866,8 +1869,10 @@ class TestRunningJobStatistics(YTEnvSetup):
                     },
                 },
             },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
         },
-        "job_proxy_heartbeat_period": 100,
     }
 
     SCHEDULING_SEGMENTS = [

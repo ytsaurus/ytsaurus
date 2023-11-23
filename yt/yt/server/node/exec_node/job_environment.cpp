@@ -89,7 +89,7 @@ public:
     }
 
     TFuture<void> RunJobProxy(
-        const TJobProxyConfigPtr& config,
+        const TJobProxyInternalConfigPtr& config,
         ESlotType slotType,
         int slotIndex,
         const TString& workingDirectory,
@@ -271,13 +271,13 @@ protected:
         Alert_.Store(alert);
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode;
+        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
 
         if (dynamicConfig->AbortOnJobsDisabled) {
             TProgram::Abort(EProgramExitCode::ProgramError);
         }
 
-        if (dynamicConfig->SlotManager->EnableJobEnvironmentResurrection) {
+        if (dynamicConfig->EnableJobEnvironmentResurrection) {
             BIND(&TSlotManager::Disable, Bootstrap_->GetSlotManager())
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(error);
@@ -297,7 +297,7 @@ private:
     }
 
     virtual TProcessBasePtr CreateJobProxyProcess(
-        const TJobProxyConfigPtr& /*config*/,
+        const TJobProxyInternalConfigPtr& /*config*/,
         int /*slotIndex*/,
         ESlotType /*slotType*/,
         TJobId /*jobId*/)
@@ -378,7 +378,7 @@ private:
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
     TProcessBasePtr CreateJobProxyProcess(
-        const TJobProxyConfigPtr& /*config*/,
+        const TJobProxyInternalConfigPtr& /*config*/,
         int /*slotIndex*/,
         ESlotType /*slotType*/,
         TJobId /*jobId*/) override
@@ -841,7 +841,7 @@ private:
     }
 
     TProcessBasePtr CreateJobProxyProcess(
-        const TJobProxyConfigPtr& /*config*/,
+        const TJobProxyInternalConfigPtr& /*config*/,
         int slotIndex,
         ESlotType slotType,
         TJobId jobId) override
@@ -1061,7 +1061,7 @@ private:
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 
     TProcessBasePtr CreateJobProxyProcess(
-        const TJobProxyConfigPtr& config,
+        const TJobProxyInternalConfigPtr& config,
         int slotIndex,
         ESlotType /*slotType*/,
         TJobId jobId) override

@@ -276,7 +276,9 @@ class TestGetJob(_TestGetJobCommon):
     }
 
     DELTA_NODE_CONFIG = update(_TestGetJobBase.DELTA_NODE_CONFIG, {
-        "job_proxy_heartbeat_period":  100,
+        "job_proxy": {
+            "job_proxy_heartbeat_period":  100,
+        },
     })
 
     @authors("gritukan")

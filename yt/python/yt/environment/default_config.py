@@ -475,6 +475,11 @@ def get_node_config():
             };
         };
 
+        job_proxy_heartbeat_period = 200;
+        job_proxy = {
+            job_proxy_heartbeat_period = 200;
+        };
+
         job_prepare_time_limit = 60000;
 
         job_controller = {
@@ -678,11 +683,10 @@ def get_dynamic_node_config():
                 "job_common" = {
                     use_artifact_binds = %true;
                     node_directory_prepare_backoff_time = 100;
+                    job_prepare_time_limit = 60000;
                 };
                 operation_infos_request_period = 1000;
             };
-
-            job_proxy_heartbeat_period = 200;
 
             controller_agent_connector = {
                 heartbeat_period = 100;
@@ -702,6 +706,10 @@ def get_dynamic_node_config():
             master_connector = {
                 heartbeat_period = 100;
                 heartbeat_splay = 30;
+            };
+
+            slot_manager = {
+                abort_on_jobs_disabled = %true;
             };
         };
     };

@@ -2048,7 +2048,9 @@ class TestUserJobMonitoring(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy_heartbeat_period": 100,
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -2692,8 +2694,6 @@ class TestConsecutiveJobAborts(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -2703,6 +2703,9 @@ class TestConsecutiveJobAborts(YTEnvSetup):
                         "test_gpu_count": 1,
                     },
                 },
+            },
+            "job_proxy": {
+                "test_root_fs": True,
             },
             "slot_manager": {
                 "job_environment": {
@@ -3117,15 +3120,15 @@ class TestSlotManagerResurrect(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "abort_on_jobs_disabled": False,
+                "slot_manager": {
+                    "abort_on_jobs_disabled": False,
+                },
             }
         }
     }
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -3133,6 +3136,9 @@ class TestSlotManagerResurrect(YTEnvSetup):
                         "api_timeout": 1000
                     },
                 },
+            },
+            "job_proxy": {
+                "test_root_fs": True,
             },
         },
     }

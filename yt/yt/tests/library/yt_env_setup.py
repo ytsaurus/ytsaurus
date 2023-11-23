@@ -1784,8 +1784,8 @@ def get_porto_delta_node_config():
 def get_custom_rootfs_delta_node_config():
     return {
         "exec_node": {
-            "do_not_set_user_id": True,
             "slot_manager": {
+                "do_not_set_user_id": True,
                 "job_environment": {
                     "use_exec_from_layer": True,
                 },

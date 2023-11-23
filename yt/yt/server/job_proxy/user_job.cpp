@@ -521,7 +521,7 @@ private:
 
     const TUserJobSpec& UserJobSpec_;
 
-    const TJobProxyConfigPtr Config_;
+    const TJobProxyInternalConfigPtr Config_;
     const NScheduler::TJobIOConfigPtr JobIOConfig_;
     const IUserJobEnvironmentPtr UserJobEnvironment_;
 

@@ -876,19 +876,20 @@ def _build_node_configs(node_dirs,
         config["logging"] = _init_logging(logs_dir, "node-{0}".format(index), yt_config, has_structured_logs=True)
 
         log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
+
         set_at(
             config,
-            "exec_node/job_proxy_logging",
+            "exec_node/job_proxy/job_proxy_logging",
             _init_logging(logs_dir, log_name, yt_config)
         )
         set_at(
             config,
-            "exec_node/job_proxy_stderr_path",
+            "exec_node/job_proxy/job_proxy_stderr_path",
             os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index)),
         )
         set_at(
             config,
-            "exec_node/executor_stderr_path",
+            "exec_node/job_proxy/executor_stderr_path",
             os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
         )
 
@@ -1717,7 +1718,7 @@ def init_jaeger_collector(config, name, process_tags):
         })
 
         if name == "node":
-            set_at(config, "exec_node/job_proxy_jaeger", {
+            set_at(config, "exec_node/job_proxy/job_proxy_jaeger", {
                 "service_name": "job_proxy",
                 "flush_period": 100,
                 "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},

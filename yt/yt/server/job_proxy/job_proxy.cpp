@@ -165,7 +165,7 @@ void FillStatistics(auto& req, const IJobPtr& job, const TStatistics& enrichedSt
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
-    TJobProxyConfigPtr config,
+    TJobProxyInternalConfigPtr config,
     TOperationId operationId,
     TJobId jobId)
     : Config_(std::move(config))
@@ -1115,7 +1115,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         environmentOptions);
 }
 
-TJobProxyConfigPtr TJobProxy::GetConfig() const
+TJobProxyInternalConfigPtr TJobProxy::GetConfig() const
 {
     return Config_;
 }

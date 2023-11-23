@@ -150,7 +150,7 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyConfig
+class TJobProxyInternalConfig
     : public TNativeServerConfig
 {
 public:
@@ -254,12 +254,12 @@ public:
     //! Supports ability to use direct connection to masters.
     NApi::NNative::TConnectionCompoundConfigPtr OriginalClusterConnection;
 
-    REGISTER_YSON_STRUCT(TJobProxyConfig);
+    REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TJobProxyInternalConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

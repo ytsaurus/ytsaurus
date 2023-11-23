@@ -109,7 +109,7 @@ public:
     }
 
     TFuture<void> RunJobProxy(
-        NJobProxy::TJobProxyConfigPtr config,
+        NJobProxy::TJobProxyInternalConfigPtr config,
         TJobId jobId,
         TOperationId operationId) override
     {

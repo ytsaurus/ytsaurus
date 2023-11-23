@@ -23,8 +23,9 @@ class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -589,8 +590,9 @@ class TestTmpfsLayerCache(YTEnvSetup):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -697,8 +699,9 @@ class TestJobSetup(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -769,8 +772,9 @@ class TestJobSetup(YTEnvSetup):
 class TestSquashfsLayers(TestLayers):
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -791,8 +795,9 @@ class TestSquashfsLayers(TestLayers):
 class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -825,8 +830,9 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",

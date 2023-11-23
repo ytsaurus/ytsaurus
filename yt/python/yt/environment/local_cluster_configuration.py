@@ -166,7 +166,9 @@ NODE_CONFIG_PATCHES = [
 DYNAMIC_NODE_CONFIG_PATCHES = [
     {
         "exec_node": {
-            "job_proxy_heartbeat_period": 100,
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
             "scheduler_connector": {
                 "heartbeat_period": 100,
                 "heartbeat_splay": 50

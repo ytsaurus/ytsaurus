@@ -375,8 +375,10 @@ class TestListSpeculativeJobs(YTEnvSetup):
                 "max_repeat_delay": 10,
             },
             "job_controller": {"resource_limits": {"user_slots": 4, "cpu": 4.0}},
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
         },
-        "job_proxy_heartbeat_period": 100,
     }
 
     DELTA_SCHEDULER_CONFIG = {

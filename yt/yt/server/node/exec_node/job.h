@@ -445,7 +445,7 @@ private:
     // Preparation.
     void PrepareNodeDirectory();
 
-    NJobProxy::TJobProxyConfigPtr CreateConfig();
+    NJobProxy::TJobProxyInternalConfigPtr CreateConfig();
     std::vector<NJobProxy::TBindConfigPtr> GetRootFsBinds();
 
     void PrepareSandboxDirectories();

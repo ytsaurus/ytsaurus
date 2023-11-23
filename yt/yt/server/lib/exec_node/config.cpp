@@ -142,21 +142,33 @@ void TSlotManagerTestingConfig::Register(TRegistrar registrar)
 void TSlotManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("locations", &TThis::Locations);
+
     registrar.Parameter("enable_tmpfs", &TThis::EnableTmpfs)
         .Default(true);
+
     registrar.Parameter("detached_tmpfs_umount", &TThis::DetachedTmpfsUmount)
         .Default(true);
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
+
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
+
     registrar.Parameter("enable_read_write_copy", &TThis::EnableReadWriteCopy)
+        .Default(false);
+
+    registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
+        .Default(false);
+
+    registrar.Parameter("do_not_set_user_id", &TThis::DoNotSetUserId)
         .Default(false);
 
     registrar.Parameter("disk_resources_update_period", &TThis::DiskResourcesUpdatePeriod)
         .Alias("disk_info_update_period")
         .Default(TDuration::Seconds(5));
+
     registrar.Parameter("slot_location_statistics_update_period", &TThis::SlotLocationStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(30));
 
@@ -211,6 +223,18 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
 
+   registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
+        .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
+        .Default(true);
+
+    registrar.Parameter("abort_on_free_slot_synchronization_failed", &TThis::AbortOnFreeSlotSynchronizationFailed)
+        .Default(true);
+
+    registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
+        .Default(false);
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
 }
@@ -219,11 +243,17 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
 void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("delay_after_layer_imported", &TThis::DelayAfterLayerImported)
+        .Default();
+
     registrar.Parameter("enable_async_layer_removal", &TThis::EnableAsyncLayerRemoval)
         .Default(true);
 
-    registrar.Parameter("delay_after_layer_imported", &TThis::DelayAfterLayerImported)
-        .Default();
+    registrar.Parameter("abort_on_operation_with_volume_failed", &TThis::AbortOnOperationWithVolumeFailed)
+        .Default(true);
+
+    registrar.Parameter("abort_on_operation_with_layer_failed", &TThis::AbortOnOperationWithLayerFailed)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -772,6 +802,53 @@ void TNbdConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProxyConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("job_proxy_logging", &TThis::JobProxyLogging)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_jaeger", &TThis::JobProxyJaeger)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_dns_over_rpc_resolver", &TThis::JobProxyDnsOverRpcResolver)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_authentication_manager", &TThis::JobProxyAuthenticationManager)
+        .DefaultNew();
+
+    registrar.Parameter("core_watcher", &TThis::CoreWatcher)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
+        .Default();
+
+    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
+        .Default();
+
+    registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
+        .Default(TDuration::Seconds(30));
+
+    registrar.Parameter("job_proxy_heartbeat_period", &TThis::JobProxyHeartbeatPeriod)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("job_proxy_send_heartbeat_before_abort", &TThis::JobProxySendHeartbeatBeforeAbort)
+        .Default(false);
+
+    registrar.Parameter("test_root_fs", &TThis::TestRootFS)
+        .Default(false);
+
+    registrar.Parameter("test_poll_job_shell", &TThis::TestPollJobShell)
+        .Default(false);
+
+    registrar.Parameter("check_user_job_memory_limit", &TThis::CheckUserJobMemoryLimit)
+        .Default(true);
+
+    registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TExecNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_manager", &TThis::SlotManager)
@@ -782,61 +859,13 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .Alias("statistics_reporter")
         .DefaultNew();
 
-    registrar.Parameter("job_proxy_logging", &TThis::JobProxyLogging)
-        .DefaultNew();
-    registrar.Parameter("job_proxy_jaeger", &TThis::JobProxyJaeger)
-        .DefaultNew();
-    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
-        .Default();
-
-    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
-        .Default();
-
-    registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
-        .Default(TDuration::Seconds(30));
-    registrar.Parameter("job_prober_rpc_timeout", &TThis::JobProberRpcTimeout)
-        .Default(TDuration::Seconds(300));
-
-    registrar.Parameter("job_proxy_heartbeat_period", &TThis::JobProxyHeartbeatPeriod)
-        .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("job_proxy_send_heartbeat_before_abort", &TThis::JobProxySendHeartbeatBeforeAbort)
-        .Default(false);
-
-    registrar.Parameter("job_proxy_dns_over_rpc_resolver", &TThis::JobProxyDnsOverRpcResolver)
-        .DefaultNew();
-
-    registrar.Parameter("test_root_fs", &TThis::TestRootFS)
-        .Default(false);
-
-    registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
-        .Default(false);
-
-    registrar.Parameter("use_common_root_fs_quota", &TThis::UseCommonRootFSQuota)
-        .Default(false);
-
-    registrar.Parameter("core_watcher", &TThis::CoreWatcher)
-        .DefaultNew();
-
     registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
         .DefaultNew();
 
-    registrar.Parameter("test_poll_job_shell", &TThis::TestPollJobShell)
-        .Default(false);
-
-    registrar.Parameter("do_not_set_user_id", &TThis::DoNotSetUserId)
-        .Default(false);
-
-    registrar.Parameter("check_user_job_memory_limit", &TThis::CheckUserJobMemoryLimit)
-        .Default(true);
-
-    registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
-        .Default(false);
-
-    registrar.Parameter("job_proxy_authentication_manager", &TThis::JobProxyAuthenticationManager)
+    registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)
         .DefaultNew();
 
-    registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)
+    registrar.Parameter("job_proxy", &TThis::JobProxy)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
@@ -869,23 +898,6 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
         .DefaultNew();
-
-    registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
-        .Default(TDuration::Minutes(20));
-
-    registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
-        .Default(true);
-
-    registrar.Parameter("abort_on_free_slot_synchronization_failed", &TThis::AbortOnFreeSlotSynchronizationFailed)
-        .Default(true);
-
-    registrar.Parameter("abort_on_operation_with_volume_failed", &TThis::AbortOnOperationWithVolumeFailed)
-        .Default(true);
-    registrar.Parameter("abort_on_operation_with_layer_failed", &TThis::AbortOnOperationWithLayerFailed)
-        .Default(true);
-
-    registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
-        .Default(false);
 
     registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
         .DefaultNew();

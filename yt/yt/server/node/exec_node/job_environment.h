@@ -24,7 +24,7 @@ struct IJobEnvironment
     virtual void Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
 
     virtual TFuture<void> RunJobProxy(
-        const NJobProxy::TJobProxyConfigPtr& config,
+        const NJobProxy::TJobProxyInternalConfigPtr& config,
         ESlotType slotType,
         int slotIndex,
         const TString& workingDirectory,

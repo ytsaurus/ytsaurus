@@ -496,7 +496,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 }
             }
 
-            if (Bootstrap_->GetConfig()->ExecNode->EnableArtifactCopyTracking) {
+            if (SlotManagerStaticConfig_->EnableArtifactCopyTracking) {
                 auto length = sourceFile.GetLength();
                 auto delta = TInstant::Now().MicroSeconds() - copyFileStart;
 
@@ -1149,7 +1149,7 @@ void TSlotLocation::BuildSlotRootDirectory(int slotIndex)
     std::optional<int> uid;
     int nodeUid = getuid();
 
-    if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
+    if (!Bootstrap_->IsSimpleEnvironment() && !SlotManagerStaticConfig_->DoNotSetUserId) {
         uid = SlotIndexToUserId_(slotIndex);
     }
 

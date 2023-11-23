@@ -52,7 +52,7 @@ struct TJobSpecEnvironmentOptions
 struct IJobHost
     : public virtual TRefCounted
 {
-    virtual TJobProxyConfigPtr GetConfig() const = 0;
+    virtual TJobProxyInternalConfigPtr GetConfig() const = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const = 0;
 
     virtual NJobTrackerClient::TOperationId GetOperationId() const = 0;

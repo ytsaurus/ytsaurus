@@ -26,7 +26,7 @@ static const auto& Logger = JobProxyLogger;
 
 class TJobProxyProgram
     : public TProgram
-    , public TProgramConfigMixin<TJobProxyConfig>
+    , public TProgramConfigMixin<TJobProxyInternalConfig>
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
 {

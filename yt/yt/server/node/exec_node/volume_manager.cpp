@@ -932,7 +932,7 @@ private:
 
             Disable(error);
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithLayerFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);
@@ -985,7 +985,7 @@ private:
                 << ex;
             Disable(error);
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithLayerFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);
@@ -1074,7 +1074,7 @@ private:
                 volumeId) << ex;
             Disable(error);
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithVolumeFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);
@@ -1256,7 +1256,7 @@ private:
                 << ex;
             Disable(error);
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
+            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithVolumeFailed) {
                 YT_ABORT();
             } else {
                 THROW_ERROR(error);

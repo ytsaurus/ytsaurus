@@ -32,8 +32,6 @@ class TestGpuJobSetup(YTEnvSetup):
             "enable_unrecognized_options_alert": True,
         },
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     # For to GPU manager to initialize properly.
@@ -43,6 +41,9 @@ class TestGpuJobSetup(YTEnvSetup):
                         "test_setup_commands": True,
                     },
                 },
+            },
+            "job_proxy": {
+                "test_root_fs": True,
             },
             "slot_manager": {
                 "job_environment": {
@@ -183,8 +184,9 @@ class TestSkipGpuJobSetup(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -263,8 +265,9 @@ class TestGpuLayer(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "job_controller": {
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
@@ -386,8 +389,9 @@ class TestGpuLayerUpdate(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "job_controller": {
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
@@ -511,8 +515,9 @@ class TestCudaLayer(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -662,8 +667,9 @@ class TestForceCudaLayer(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -786,8 +792,9 @@ class TestSetupUser(YTEnvSetup):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -963,8 +970,9 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -1322,8 +1330,9 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
+            "job_proxy": {
+                "test_root_fs": True,
+            },
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",

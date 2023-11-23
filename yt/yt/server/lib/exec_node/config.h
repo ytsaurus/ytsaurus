@@ -236,6 +236,12 @@ public:
 
     bool EnableReadWriteCopy;
 
+    bool EnableArtifactCopyTracking;
+
+    //! If set, user job will not receive uid.
+    //! For testing purposes only.
+    bool DoNotSetUserId;
+
     //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
     i64 FileCopyChunkSize;
 
@@ -284,6 +290,14 @@ public:
     // COMPAT(psushin): temporary flag to disable CloseAllDescriptors machinery.
     bool ShouldCloseDescriptors;
 
+    TDuration SlotReleaseTimeout;
+
+    bool AbortOnFreeVolumeSynchronizationFailed;
+
+    bool AbortOnFreeSlotSynchronizationFailed;
+
+    bool AbortOnJobsDisabled;
+
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;
 
@@ -300,10 +314,14 @@ class TVolumeManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool EnableAsyncLayerRemoval;
-
     //! For testing.
     std::optional<TDuration> DelayAfterLayerImported;
+
+    bool EnableAsyncLayerRemoval;
+
+    bool AbortOnOperationWithVolumeFailed;
+
+    bool AbortOnOperationWithLayerFailed;
 
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
@@ -693,7 +711,7 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNbdClientConfig
-    : public virtual NYTree::TYsonStruct
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration Timeout;
@@ -708,7 +726,7 @@ DEFINE_REFCOUNTED_TYPE(TNbdClientConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNbdConfig
-    : public virtual NYTree::TYsonStruct
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
@@ -725,49 +743,36 @@ DEFINE_REFCOUNTED_TYPE(TNbdConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecNodeConfig
-    : public virtual NYTree::TYsonStruct
+class TJobProxyConfig
+    : public NYTree::TYsonStruct
 {
 public:
-    TSlotManagerConfigPtr SlotManager;
-    TJobControllerConfigPtr JobController;
-    TJobReporterConfigPtr JobReporter;
-
     NLogging::TLogManagerConfigPtr JobProxyLogging;
+
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
+
+    NDns::TDnsOverRpcResolverConfigPtr JobProxyDnsOverRpcResolver;
+
+    NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
+
+    NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
+
     std::optional<TString> JobProxyStderrPath;
     std::optional<TString> ExecutorStderrPath;
 
     TDuration SupervisorRpcTimeout;
-    TDuration JobProberRpcTimeout;
 
     TDuration JobProxyHeartbeatPeriod;
 
     bool JobProxySendHeartbeatBeforeAbort;
 
-    NDns::TDnsOverRpcResolverConfigPtr JobProxyDnsOverRpcResolver;
-
     //! This is a special testing option.
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
-    bool EnableArtifactCopyTracking;
-    bool UseCommonRootFSQuota;
-
-    NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
     //! This option is used for testing purposes only.
     //! It runs job shell under root user instead of slot user.
     bool TestPollJobShell;
-
-    //! If set, user job will not receive uid.
-    //! For testing purposes only.
-    bool DoNotSetUserId;
-
-    NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
-
-    NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
-
-    NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
 
     //! This option can disable memory limit check for user jobs.
     //! Used in arcadia tests, since it's almost impossible to set
@@ -776,6 +781,31 @@ public:
 
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
+
+    REGISTER_YSON_STRUCT(TJobProxyConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExecNodeConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TSlotManagerConfigPtr SlotManager;
+
+    TJobControllerConfigPtr JobController;
+
+    TJobReporterConfigPtr JobReporter;
+
+    NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
+
+    NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
+
+    TJobProxyConfigPtr JobProxy;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 
@@ -801,19 +831,8 @@ public:
     TJobReporterDynamicConfigPtr JobReporter;
 
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
+
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
-
-    TDuration SlotReleaseTimeout;
-
-    bool AbortOnFreeVolumeSynchronizationFailed;
-
-    bool AbortOnFreeSlotSynchronizationFailed;
-
-    bool AbortOnJobsDisabled;
-
-    bool AbortOnOperationWithVolumeFailed;
-
-    bool AbortOnOperationWithLayerFailed;
 
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
 

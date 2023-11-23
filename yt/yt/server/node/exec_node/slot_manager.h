@@ -142,6 +142,18 @@ public:
      */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    NYTree::INodePtr GetJobEnvironmentConfig() const;
+
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    bool ShouldSetUserId() const;
+
     bool IsJobEnvironmentResurrectionEnabled();
 
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);

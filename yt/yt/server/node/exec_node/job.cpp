@@ -2305,7 +2305,7 @@ std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
     return CommonConfig_->RootFSBinds;
 }
 
-TJobProxyConfigPtr TJob::CreateConfig()
+TJobProxyInternalConfigPtr TJob::CreateConfig()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 

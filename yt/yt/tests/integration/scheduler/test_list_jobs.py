@@ -92,8 +92,10 @@ class TestListJobsBase(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,  # msec
+            },
         },
-        "job_proxy_heartbeat_period": 100,  # msec
     }
 
     DELTA_SCHEDULER_CONFIG = {

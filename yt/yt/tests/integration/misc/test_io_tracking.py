@@ -2382,7 +2382,9 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
             },
         },
         "exec_node": {
-            "job_proxy_heartbeat_period": 100,
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
         },
     }
 
