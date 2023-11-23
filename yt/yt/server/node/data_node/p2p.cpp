@@ -246,7 +246,6 @@ TP2PChunk::TP2PChunk(NChunkClient::TChunkId blockId)
 void TP2PChunk::Reserve(
     size_t size)
 {
-    auto guard = WriterGuard(BlocksLock);
     if (Blocks.size() < size) {
         Blocks.resize(size);
 
@@ -320,8 +319,12 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
     }
 
     chunk->LastAccessTime = NProfiling::GetCpuInstant();
-    chunk->Reserve(*std::max_element(blockIndices.begin(), blockIndices.end()) + 1);
-    UpdateWeight(chunk);
+
+    {
+        auto guard = WriterGuard(chunk->BlocksLock);
+        chunk->Reserve(*std::max_element(blockIndices.begin(), blockIndices.end()) + 1);
+        UpdateWeight(chunk);
+    }
 
     std::vector<TP2PSuggestion> suggestions;
 
