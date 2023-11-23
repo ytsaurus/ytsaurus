@@ -13,6 +13,7 @@ target_link_libraries(yql-plugin-bridge INTERFACE
   contrib-libs-cxxsupp
   yutil
   yt-yql-plugin
+  yt-yt-core
 )
 
 add_global_library_for(yql-plugin-bridge.global yql-plugin-bridge)
@@ -21,6 +22,7 @@ target_link_libraries(yql-plugin-bridge.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yql-plugin
+  yt-yt-core
 )
 target_sources(yql-plugin-bridge.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yql/plugin/bridge/plugin.cpp

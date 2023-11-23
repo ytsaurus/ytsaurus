@@ -30,8 +30,6 @@ using namespace NLogging;
 
 const auto& Logger = YqlAgentLogger;
 
-const auto RequiredABIVersion = 0;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlAgent
@@ -82,7 +80,6 @@ public:
         }
 
         NYqlPlugin::TYqlPluginOptions options{
-            .RequiredABIVersion = RequiredABIVersion,
             .SingletonsConfig = singletonsConfigString,
             .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
             .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
