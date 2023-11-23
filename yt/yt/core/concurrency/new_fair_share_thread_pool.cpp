@@ -253,6 +253,8 @@ struct TExecutionPool
     const TEventTimer ExecTimeCounter;
     const TEventTimer TotalTimeCounter;
     const NProfiling::TTimeCounter CumulativeTimeCounter;
+    // Execution pool is retained for some after last usage to flush profiling counters.
+    std::atomic<TCpuInstant> LastUsageTime = 0;
 
     // Action count is used to decide wether to reset excess time or not.
     size_t ActionCountInQueue = 0;
@@ -430,8 +432,8 @@ public:
             }
         }
 
-        if (bucket->Pool) {
-            UnlinkBucketQueue_.Enqueue(bucket->Pool);
+        if (auto* pool = bucket->Pool) {
+            UnlinkBucketQueue_.Enqueue(pool);
         }
     }
 
@@ -611,7 +613,7 @@ private:
         return mappingIt->second.get();
     }
 
-    void ConsumeInvokeQueue()
+    void ConsumeInvokeQueue(TCpuInstant currentInstant)
     {
         VERIFY_SPINLOCK_AFFINITY(MainLock_);
 
@@ -679,12 +681,18 @@ private:
             }
         });
 
-        UnlinkBucketQueue_.DequeueAll(true, [&] (TExecutionPool* pool) {
+        UnlinkBucketQueue_.DequeueAll(false, [&] (TExecutionPool* pool) {
             YT_VERIFY(pool->BucketRefs > 0);
             if (--pool->BucketRefs == 0) {
-                auto poolIt = PoolMapping_.find(pool->PoolName);
-                YT_VERIFY(poolIt != PoolMapping_.end() && poolIt->second.get() == pool);
-                PoolMapping_.erase(poolIt);
+                auto lastUsageTime = pool->LastUsageTime.load(std::memory_order_acquire);
+                if (CpuDurationToDuration(currentInstant - lastUsageTime) > TDuration::Seconds(30)) {
+                    auto poolIt = PoolMapping_.find(pool->PoolName);
+                    YT_VERIFY(poolIt != PoolMapping_.end() && poolIt->second.get() == pool);
+                    PoolMapping_.erase(poolIt);
+                } else {
+                    ++pool->BucketRefs;
+                    UnlinkBucketQueue_.Enqueue(pool);
+                }
             }
         });
     }
@@ -863,7 +871,7 @@ private:
 
         YT_LOG_TRACE("Consuming invoke queue");
 
-        ConsumeInvokeQueue();
+        ConsumeInvokeQueue(currentInstant);
 
         int fetchedActions = 0;
         int otherActionCount = 0;
@@ -951,6 +959,7 @@ private:
             auto bucketToUndef = std::move(threadState.BucketToUnref);
             if (bucketToUndef) {
                 auto* pool = bucketToUndef->Pool;
+                pool->LastUsageTime.store(cpuInstant, std::memory_order_release);
                 pool->SizeCounter.Record(threadState.LastActionsInQueue);
                 pool->DequeuedCounter.Increment(1);
                 pool->ExecTimeCounter.Record(threadState.TimeFromStart);
