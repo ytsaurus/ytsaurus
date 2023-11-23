@@ -841,7 +841,22 @@ class TestCypressCommands(object):
 @pytest.mark.usefixtures("test_environment_multicell")
 class TestCypressCommandsMulticell(object):
 
+    PORTAL1_ENTRANCE = '//tmp/some_portal'
+    TMP_DIR = '//tmp/tmp_dir'
+    PORTAL1_CELL_ID = 2
+
+    def setup(self):
+        assert self._create_portal(self.PORTAL1_ENTRANCE, self.PORTAL1_CELL_ID)
+        yt.create("map_node", self.TMP_DIR)
+
+    def teardown(self):
+        for t in yt.list(self.PORTAL1_ENTRANCE):
+            yt.remove(self.PORTAL1_ENTRANCE + "/" + t, force=True, recursive=True)
+        yt.remove(self.TMP_DIR, force=True, recursive=True)
+
     def _create_portal(self, path_in, portal_cell_tag_id):
+        if yt.exists(path_in):
+            return True
         entrance_id = yt.create("portal_entrance", path_in, attributes={"exit_cell_tag": portal_cell_tag_id})
         assert yt.get(path_in + "&/@type") == "portal_entrance"
         assert yt.get(path_in + "&/@path") == path_in
@@ -859,11 +874,10 @@ class TestCypressCommandsMulticell(object):
         return True
 
     @authors("denvr")
-    def test_portal_copy(self):
-        assert self._create_portal("//tmp/some_portal", 2)
-        table_beyond_portal = "//tmp/some_portal/dark_table"
-        table_beyond_portal_2 = "//tmp/some_portal/darkest_table"
-        table_no_portal = "//tmp/regula_table"
+    def test_portal_copy_retries(self):
+        table_beyond_portal = self.PORTAL1_ENTRANCE + "/dark_table"
+        table_beyond_portal_2 = self.PORTAL1_ENTRANCE + "/darkest_table"
+        table_no_portal = self.TMP_DIR + "/regula_table"
         yt.create("table", table_beyond_portal)
         yt.write_table(table_beyond_portal, [{"foo": "bar"}, {"foo": "qwe"}])
         assert len(list(yt.read_table(table_beyond_portal))) == 2
@@ -929,3 +943,23 @@ class TestCypressCommandsMulticell(object):
         assert calls_cnt.filtered_total_calls == 3
         assert calls_cnt.filtered_raises == 1
         assert len(list(client.read_table(table_no_portal))) == 2
+
+    @authors("denvr")
+    def test_portal_copy_flags(self):
+        table_beyond_portal = self.PORTAL1_ENTRANCE + "/dark_table_2"
+        yt.create("table", table_beyond_portal)
+        yt.write_table(table_beyond_portal, [{"foo": "bar"}, {"foo": "qwe"}])
+
+        table_no_portal = self.TMP_DIR + "/regula_table_2"
+        yt.create("table", table_no_portal)
+        assert yt.row_count(table_beyond_portal) == 2
+        assert yt.row_count(table_no_portal) == 0
+
+        with pytest.raises(YtResponseError) as ex:
+            yt.copy(table_beyond_portal, table_no_portal)
+        assert ex.value.contains_text("already exists")
+        assert yt.row_count(table_no_portal) == 0
+
+        yt.copy(table_beyond_portal, table_no_portal, force=True)
+        assert yt.row_count(table_beyond_portal) == 2
+        assert yt.row_count(table_no_portal) == 2
