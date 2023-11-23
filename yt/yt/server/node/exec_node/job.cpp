@@ -2302,19 +2302,7 @@ void TJob::PrepareNodeDirectory()
 
 std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
 {
-    if (CommonConfig_->UseRootFSBinds) {
-        return CommonConfig_->RootFSBinds;
-    } else {
-        std::vector<NJobProxy::TBindConfigPtr> binds;
-
-        for (const auto& bind : CommonConfig_->RootFSBinds) {
-            if (!bind->ExternalPath.StartsWith("/yt")) {
-                binds.push_back(bind);
-            }
-        }
-
-        return binds;
-    }
+    return CommonConfig_->RootFSBinds;
 }
 
 TJobProxyConfigPtr TJob::CreateConfig()
