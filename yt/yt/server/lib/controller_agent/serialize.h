@@ -33,6 +33,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AddFilesystemAttribute)               (301301))
     ((AddAccessMethodAttribute)             (301302))
     ((VirtualTableSchema)                   (301303))
+    ((UnwrapTimestamp)                      (301304))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
