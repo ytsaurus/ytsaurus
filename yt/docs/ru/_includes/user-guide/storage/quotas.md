@@ -50,7 +50,7 @@
 Вычислительные мощности для обработки данных привязаны к [пулам](../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) (кроме tablet_cell_bundle).
 Настройки вычислительного пула, включая гарантии и лимиты на количество операций можно посмотреть на странице **Scheduling**, вкладка **Details**, раздел **CPU**, колонка `Strong guar`.
 
-{% if audience == public %}
+{% if audience == "public" %}
 
 В том случае, когда проект использует динамические таблицы в production, для изоляции от других пользователей необходимо завести отдельный `tablet_cell_bundle`. [Tablet_cell_bundle](../../../user-guide/dynamic-tables/overview.md#tablet_cell_bundles) представляет собой группу контейнеров (инстансов), которая отвечает за обработку запросов к динамическим таблицам проекта.
 
@@ -62,7 +62,7 @@
 
 {% endnote %}
 
-{% if audience == internal %}
+{% if audience == "internal" %}
 
 {% note warning "Внимание" %}
 

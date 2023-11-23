@@ -111,7 +111,7 @@
 
 {% note info "Примечание" %}
 
-Если ваше приложение подразумевает большой I/O с кластера {{% if audience == internal %}}(скажем, сопоставимый с LogBroker или выгрузкой поисковой базы){{% endif %}}, то обратитесь на рассылку {{%if lang == ru%}}[yt@](mailto:community_ru@ytsaurus.tech){{% else %}}[yt@](mailto:community@ytsaurus.tech){{% endif %}} за консультацией по балансировке нагрузки.
+Если ваше приложение подразумевает большой I/O с кластера{% if audience == "internal" %} (скажем, сопоставимый с LogBroker или выгрузкой поисковой базы){% endif %}, то обратитесь на рассылку {%if lang == ru%}[yt@](mailto:community_ru@ytsaurus.tech){% else %}[yt@](mailto:community@ytsaurus.tech){% endif %} за консультацией по балансировке нагрузки.
 
 {% endnote %}
 

@@ -410,9 +410,9 @@ public class ModifyRowsExample {
 
 Для работы через Python необходимо установить пакет с биндингами, pypi-пакет называется ytsaurus-rpc-driver. После этого необходимо указать в качестве бэкенда rpc.
 
-{{% if audience == internal %}}
+{% if audience == "internal" %}
 В Аркадии нужно добавить PEERDIR на yt/python/client_with_rpc (вместо yt/python/client).
-{{% endif %}}
+{% endif %}
 
 Работа с динамическими таблицами:
 

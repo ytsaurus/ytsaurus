@@ -1,9 +1,9 @@
 
-{% if audience == internal %}
+{% if audience == "internal" %}
 
 #### **Q: Как получить вычислительную или дисковую квоту в {{product-name}}?**
 
-**A:** Для получения новой квоты или расширения одной из текущих необходимо заполнить форму. Ссылки на формы для различных случаев приведены в разделе [Запрос и получение ресурсов](../../user-guide/storage/quota-request.md).
+**A:** Для получения новой квоты или расширения одной из текущих необходимо заполнить форму. Ссылки на формы для различных случаев приведены в разделе [Запрос и получение ресурсов](../../../user-guide/storage/quota-request.md).
 
 ------
 
@@ -102,8 +102,6 @@ Python 2.7.3
 
 ------
 
-<!--{% if audience == public %}-->
-
 #### **Q: Что делать, если запрос Python обёртки падает с "gaierror(-2, 'Name or service not known')"?**
 
 **A:** Если возникла ошибка вида:
@@ -114,8 +112,6 @@ Python 2.7.3
 `env | grep YT_`
 Для того, чтобы убрать переменную `YT_FORCE_IPV4` из окружения:
 `unset YT_FORCE_IPV4`
-
-<!--{% endif %}-->
 
 ------
 #### **Q: Что делать, если возникает ошибка «Account "..." is over disk space limit (node count limit, etc)»?**
@@ -131,7 +127,7 @@ Python 2.7.3
 1. Посмотрите в корзину (`//tmp/trash/by-account/<account_name>`). Для этого стоит перейти по указанному пути в разделе **Navigation** в веб-интерфейсе;
 2. Поищите с помощью `yt find` таблицы под вашим аккаунтом в `//tmp` и связных с вами проектных директориях. Обратите внимание, что `yt find` не заходит в директории, в которые у вас нет доступа;
 3. Обратитесь к администратору системы.
-{% if audience == internal %}
+{% if audience == "internal" %}
 4. Данные могут быть удалены из Кипариса, но использоваться выполняющимися операциями. Такие операции можно поискать с помощью скрипта [find_top_operations](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/scripts/find_top_operations), например так: `./find_top_operations --proxy hahn --in-account dev`
 {% endif %}
 
@@ -238,13 +234,15 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 Для ограничения нагрузки было введено искусственное ограничение: операции RemoteCopy должны запускаться в пуле с лимитом на `user_slots` не более `2000`.
 Если в пуле планируется запускать только RemoteCopy, то достаточно выставить это ограничение для пула
 `yt set //sys/pools/..../your_pool/@resource_limits '{user_slots=2000}'`.
-{% if audience == internal %}
+
+{% if audience == "internal" %}
+
 Более подробно: https://ignat.at.yandex-team.ru/326/
 
 ------
 #### **Q: Не создался пользователь на кластере для робота. Токен при этом получить смогли.**
 
-**A:** Для того, чтобы роботный пользователь появился на кластере необходимо запросить через [IDM](https://idm.yandex-team.ru/) доступ роботу в одну из групп в соответствующей системе [IDM](https://idm.yandex-team.ru/systems#sort-by=name,f-system-status=active). Подробнее про токены можно прочесть в разделе [Как попробовать](../../quickstart.md#how-to-get-oauth-token).
+**A:** Для того, чтобы роботный пользователь появился на кластере необходимо запросить через [IDM](https://idm.yandex-team.ru/) доступ роботу в одну из групп в соответствующей системе [IDM](https://idm.yandex-team.ru/systems#sort-by=name,f-system-status=active). Подробнее про токены можно прочесть в разделе [Как попробовать](../../../quickstart.md#how-to-get-oauth-token).
 
 ------
 #### **Q: Можно ли выдать доступ через {{product-name}} ACL на ABC-сервис?**
@@ -254,14 +252,14 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 ------
 #### **Q: При запуске операции из python wrapper от роботного пользователя получаю ошибку "permission for node //tmp/yt_wrapper/file_storage is not allowed by any matching ACE"**
 
-**A:** У робота нет доступа к `/tmp`, необходимо запросить для робота роль **group member yandex**  через [IDM](https://idm.yandex-team.ru/). Подробнее можно узнать в разделе [Аутентификация](../../user-guide/storage/auth.md#getting_token_for_robot).
+**A:** У робота нет доступа к `/tmp`, необходимо запросить для робота роль **group member yandex**  через [IDM](https://idm.yandex-team.ru/). Подробнее можно узнать в разделе [Аутентификация](../../../user-guide/storage/auth.md#getting_token_for_robot).
 
 
 #### **Q: Как узнать, валиден ли токен, от какого он пользователя и принимает ли его конкретный кластер?**
 
 **A:** К примеру, если вы получили ошибку аутентификации:
-`Your authentication token was rejected by the server (X-{{product-name}}-Request-ID: 6e101e7733a31832). Please refer to http:_hahn.yt.yandex.net/auth/ for obtaining a valid token if it will not fix error: please kindly submit a request to https:_st.yandex-team.ru/createTicket?queue=YTADMINREQ`,
-следует отправить POST запрос с токеном в вызов /auth:
-`curl -H 'Authorization: OAuth ${TOKEN}' http://hahn.yt.yandex.net/auth/whoami`
+`Your authentication token was rejected by the server (X-YT-Request-ID: 6e101e7733a31832). Please refer to http:<cluster_fqdn>/auth/ for obtaining a valid token`, следует отправить HTTP-запрос с токеном в вызов /auth:
+
+`curl -H 'Authorization: OAuth ${TOKEN}' http://<cluster_fqdn>/auth/whoami`
 
 {% endif %}
