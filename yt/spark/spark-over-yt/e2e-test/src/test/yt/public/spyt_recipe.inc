@@ -1,7 +1,6 @@
 DEPENDS(
     mapreduce/yt/python/recipe
     yt/packages/latest
-    contrib/tools/python
 
     yt/spark/spark-over-yt/e2e-test/src/test/yt/data
 )
