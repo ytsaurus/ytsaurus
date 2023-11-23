@@ -30,7 +30,7 @@ ADDINCL(
     contrib/libs/sparsehash/src
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/library/query/engine

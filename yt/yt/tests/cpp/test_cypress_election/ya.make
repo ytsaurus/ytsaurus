@@ -8,7 +8,7 @@ SRCS(
     test_cypress_election.cpp
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/library/query/engine

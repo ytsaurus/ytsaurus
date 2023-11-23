@@ -1,7 +1,7 @@
 GTEST(unittester-clickhouse-server)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 ALLOCATOR(YT)
 

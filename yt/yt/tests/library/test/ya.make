@@ -14,7 +14,7 @@ DEPENDS(
     yt/yt/packages/tests_package
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/tests/library

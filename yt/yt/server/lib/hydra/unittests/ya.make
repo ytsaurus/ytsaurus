@@ -12,7 +12,7 @@ SRCS(
     unbuffered_file_changelog_ut.cpp
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/server/lib/hydra

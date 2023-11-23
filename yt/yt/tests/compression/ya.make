@@ -6,7 +6,7 @@ SIZE(MEDIUM)
 
 DEPENDS(yt/yt/tools/run_codec)
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(yt/python/yt/environment/arcadia_interop)
 

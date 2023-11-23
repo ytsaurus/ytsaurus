@@ -17,7 +17,7 @@ ADDINCL(
     yt/yt/tools/scheduler_simulator
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/tools/scheduler_simulator

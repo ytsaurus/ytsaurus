@@ -15,7 +15,7 @@ USE_PYTHON3()
 # This module should not be exported under CMake since it requires Python build
 NO_BUILD_IF(STRICT EXPORT_CMAKE)
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/build

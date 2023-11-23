@@ -8,7 +8,7 @@ SRCS(
     memory_reference_tracker_ut.cpp
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/core/test_framework

@@ -9,7 +9,7 @@ SRCS(
 )
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/common_tests.make.inc)
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/library/query/engine

@@ -24,7 +24,7 @@ RESOURCE(
     ${TEST_DATA_DIR}/vanilla_spec.yson /configs/vanilla_spec.yson
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/server/master

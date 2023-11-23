@@ -12,7 +12,7 @@ SRCS(
     docker_image_ut.cpp
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/server/controller_agent

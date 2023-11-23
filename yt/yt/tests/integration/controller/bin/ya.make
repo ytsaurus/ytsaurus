@@ -8,7 +8,7 @@ DEPENDS(
     yt/yt/tests/cuda_core_dump_simulator
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/tests/integration/controller

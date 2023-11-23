@@ -7,7 +7,7 @@ SIZE(SMALL)
 
 DEFAULT_JUNIT_JAVA_SRCS_LAYOUT()
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/java/yson-tree

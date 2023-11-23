@@ -23,7 +23,7 @@ ADDINCL(
 # Note that -rdynamic enabled by default in arcadia build, but we do not want to rely on it.
 LDFLAGS(-rdynamic)
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/build

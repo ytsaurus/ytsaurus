@@ -25,7 +25,7 @@ SRCS(
     chunk_index_read_controller_ut.cpp
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/client/unittests/mock

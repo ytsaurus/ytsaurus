@@ -11,7 +11,7 @@ IF(NOT EXPORT_GRADLE)
     )
 ENDIF()
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/java/type-info

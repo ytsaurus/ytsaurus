@@ -4,7 +4,7 @@ TEST_SRCS(
     signal_handlers.py
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/python/yt/testlib

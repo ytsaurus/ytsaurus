@@ -4,7 +4,7 @@ DATA(sbr://1323178467)
 
 SIZE(MEDIUM)
 
-INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/tests/library
