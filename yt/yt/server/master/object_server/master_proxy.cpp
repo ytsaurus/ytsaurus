@@ -378,10 +378,9 @@ private:
 
         response->set_use_map_instead_of_fields(true);
         for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
-            response->mutable_removed_maintenance_counts()->insert({
-                static_cast<int>(type),
-                removed[type],
-            });
+            auto* entry = response->add_removed_maintenance_counts();
+            entry->set_type(ToProto<int>(type));
+            entry->set_count(removed[type]);
         }
 
         context->Reply();

@@ -751,10 +751,8 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
     TMaintenanceCounts result;
 
     if (response->use_map_instead_of_fields()) {
-        const auto& removedMaintenanceCounts = response->removed_maintenance_counts();
-        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
-            auto it = removedMaintenanceCounts.find(static_cast<int>(type));
-            result[type] = it == removedMaintenanceCounts.end() ? 0 : it->second;
+        for (const auto& entry : response->removed_maintenance_counts()) {
+            result[CheckedEnumCast<EMaintenanceType>(entry.type())] = entry.count();
         }
     } else {
         result[EMaintenanceType::Ban] = response->ban();

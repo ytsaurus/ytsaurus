@@ -109,7 +109,13 @@ message TRspRemoveMaintenance
 
     // COMPAT(kvk1920)
     optional bool use_map_instead_of_fields = 6 [default = false];
-    map<int32, int32> removed_maintenance_counts = 7; // Key: EMaintenanceType
+
+    message TRemovedMaintenanceCount
+    {
+        required int32 type = 1; // EMaintenanceType
+        required int32 count = 2;
+    };
+    repeated TRemovedMaintenanceCount removed_maintenance_counts = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
