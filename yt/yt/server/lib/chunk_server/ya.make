@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     immutable_chunk_meta.cpp
+    public.cpp
 
     proto/job.proto
 )

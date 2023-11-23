@@ -4382,7 +4382,7 @@ private:
 
         IYPathServicePtr FindItemService(TStringBuf key) const override
         {
-            auto jobId = TJobId::FromString(key);
+            auto jobId = TJobId(TGuid::FromString(key));
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
             auto jobYPathService = IYPathService::FromProducer(buildJobYsonCallback)
                 ->Via(Scheduler_->GetControlInvoker(EControlQueue::DynamicOrchid));

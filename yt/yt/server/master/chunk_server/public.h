@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/server/lib/chunk_server/public.h>
 #include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/ytlib/chunk_client/block_id.h>
@@ -55,7 +56,6 @@ using NChunkClient::TChunkReplicaWithLocationList;
 using NChunkClient::ChunkShardCount;
 using NChunkClient::TypicalChunkLocationCount;
 
-using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 

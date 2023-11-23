@@ -382,8 +382,6 @@ public:
         jobsToRemove.reserve(std::size(JobMap_));
 
         for (TForbidContextSwitchGuard guard; const auto& [jobId, job] : JobMap_) {
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
             YT_LOG_INFO("Removing job due to fatal alert (JobId: %v)", jobId);
             job->Abort(TError("Job aborted due to fatal alert"));
 
@@ -740,8 +738,6 @@ private:
         i64 tmpfsUsage = 0;
 
         for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
-            YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
-
             if (job->GetState() != EJobState::Running || job->GetPhase() != EJobPhase::Running) {
                 continue;
             }
@@ -1100,8 +1096,6 @@ private:
         for (const auto& protoJobToStore : response->jobs_to_store()) {
             auto jobToStore = FromProto<NControllerAgent::TJobToStore>(protoJobToStore);
 
-            YT_VERIFY(TypeFromId(jobToStore.JobId) == EObjectType::SchedulerJob);
-
             if (auto job = FindJob(jobToStore.JobId)) {
                 YT_LOG_DEBUG(
                     "Agent requested to store job (JobId: %v, AgentDescriptor: %v)",
@@ -1288,8 +1282,6 @@ private:
         for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
             auto jobId = job->GetId();
 
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
             if (requestOperationInfosForJobs && !job->GetControllerAgentDescriptor()) {
                 operationIdsToRequestInfo.insert(job->GetOperationId());
             }
@@ -1414,7 +1406,7 @@ private:
         for (const auto& protoAllocationToAbort : response->allocations_to_abort()) {
             auto allocationToAbort = ParseAllocationToAbort(protoAllocationToAbort);
 
-            if (auto job = FindJob(allocationToAbort.AllocationId.Underlying())) {
+            if (auto job = FindJob(FromAllocationId(allocationToAbort.AllocationId))) {
                 YT_LOG_WARNING(
                     "Scheduler requested to abort allocation (AllocationId: %v)",
                     allocationToAbort.AllocationId);
@@ -1431,8 +1423,6 @@ private:
         for (const auto& allocationToInterrupt : response->allocations_to_interrupt()) {
             auto timeout = FromProto<TDuration>(allocationToInterrupt.timeout());
             auto jobId = FromAllocationId(FromProto<TAllocationId>(allocationToInterrupt.allocation_id()));
-
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
             if (auto job = FindJob(jobId)) {
                 YT_LOG_WARNING(
@@ -1924,8 +1914,6 @@ private:
 
         std::vector<TJobPtr> schedulerJobs;
         for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
-            YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
-
             if (job->GetState() == EJobState::Running) {
                 schedulerJobs.push_back(job);
             }
@@ -1943,8 +1931,6 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         for (const auto& job : GetJobs()) {
-            YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
-
             const auto& Logger = job->GetLogger();
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job");

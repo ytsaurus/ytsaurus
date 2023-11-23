@@ -344,6 +344,7 @@ SRCS(
     scheduler/helpers.cpp
     scheduler/job_resources_helpers.cpp
     scheduler/job_resources_with_quota.cpp
+    scheduler/public.cpp
     scheduler/scheduler_channel.cpp
 
     scheduler/proto/allocation.proto

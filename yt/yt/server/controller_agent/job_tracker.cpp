@@ -261,7 +261,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
-        auto jobId = TJobId::FromString(key);
+        auto jobId = TJobId(TGuid::FromString(key));
 
         auto nodeId = NodeIdFromJobId(jobId);
 

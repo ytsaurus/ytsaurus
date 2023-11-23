@@ -69,7 +69,7 @@ namespace {
 
 // COMPAT(pogorelov)
 
-TAllocationId GetJobId(const NProto::TAllocationStatus* status)
+TAllocationId GetAllocationId(const NProto::TAllocationStatus* status)
 {
     return FromProto<TAllocationId>(status->allocation_id());
 }
@@ -1732,10 +1732,10 @@ void TNodeShard::ProcessHeartbeatJobs(
     // Used for debug logging.
     TAllocationStateToJobList ongoingJobsByAllocationState;
     for (auto& jobStatus : *MutableJobs(request)) {
-        auto jobId = GetJobId(&jobStatus);
+        auto allocationId = GetAllocationId(&jobStatus);
 
         // COMPAT(pogorelov)
-        if (specFetchFailedAllocations.contains(jobId)) {
+        if (specFetchFailedAllocations.contains(allocationId)) {
             continue;
         }
 
@@ -1747,9 +1747,9 @@ void TNodeShard::ProcessHeartbeatJobs(
                 &jobStatus);
         } catch (const std::exception& ex) {
             if (Config_->CrashOnJobHeartbeatProcessingException) {
-                YT_LOG_FATAL(ex, "Failed to process job heartbeat (JobId: %v)", jobId);
+                YT_LOG_FATAL(ex, "Failed to process job heartbeat (JobId: %v)", allocationId);
             } else {
-                YT_LOG_WARNING(ex, "Failed to process job heartbeat (JobId: %v)", jobId);
+                YT_LOG_WARNING(ex, "Failed to process job heartbeat (JobId: %v)", allocationId);
                 throw;
             }
         }
@@ -1844,24 +1844,25 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     TRspHeartbeat* response,
     TStatus* jobStatus)
 {
-    auto jobId = GetJobId(jobStatus);
+    auto allocationId = GetAllocationId(jobStatus);
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
+    auto jobId = JobIdFromAllocationId(allocationId);
 
     auto allocationState = GetAllocationState(jobStatus);
 
     const auto& address = node->GetDefaultAddress();
 
-    if (IsJobAborted(TJobId(jobId.Underlying()), node)) {
+    if (IsJobAborted(JobIdFromAllocationId(allocationId), node)) {
         return nullptr;
     }
 
-    auto job = FindJob(jobId, node);
+    auto job = FindJob(allocationId, node);
     auto operationState = FindOperationState(operationId);
 
     if (!job) {
         auto Logger = SchedulerLogger.WithTag("Address: %v, JobId: %v, OperationId: %v, AllocationState: %v",
             address,
-            jobId,
+            allocationId,
             operationId,
             allocationState);
 
@@ -1871,9 +1872,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         if ((operationState && !operationState->JobsReady) ||
             WaitingForRegisterOperationIds_.contains(operationId))
         {
-            if (operationState && !operationState->OperationUnreadyLoggedJobIds.contains(jobId.Underlying())) {
+            if (operationState && !operationState->OperationUnreadyLoggedJobIds.contains(jobId)) {
                 YT_LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
-                operationState->OperationUnreadyLoggedJobIds.insert(jobId.Underlying());
+                operationState->OperationUnreadyLoggedJobIds.insert(jobId);
             }
             return nullptr;
         }
@@ -1884,12 +1885,12 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 break;
 
             case EAllocationState::Running:
-                AddAllocationToAbort(response, {jobId, /*AbortReason*/ std::nullopt});
+                AddAllocationToAbort(response, {allocationId, /*AbortReason*/ std::nullopt});
                 YT_LOG_DEBUG("Unknown allocation is running, abort it");
                 break;
 
             case EAllocationState::Waiting:
-                AddAllocationToAbort(response, {jobId, /*AbortReason*/ std::nullopt});
+                AddAllocationToAbort(response, {allocationId, /*AbortReason*/ std::nullopt});
                 YT_LOG_DEBUG("Unknown allocation is waiting, abort it");
                 break;
 
@@ -1923,7 +1924,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 break;
             case EAllocationState::Waiting:
             case EAllocationState::Running:
-                AddAllocationToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
+                AddAllocationToAbort(response, {allocationId, EAbortReason::JobOnUnexpectedNode});
                 YT_LOG_WARNING(
                     "Allocation status report was expected from other node, abort scheduled (ExpectedAddress: %v)",
                     node->GetDefaultAddress());
@@ -1939,7 +1940,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     switch (allocationState) {
         case EAllocationState::Finished: {
             if (auto error = FromProto<TError>(jobStatus->result().error());
-                ParseAbortReason(error, jobId.Underlying(), Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
+                ParseAbortReason(error, jobId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
             {
                 YT_LOG_DEBUG("Node has failed to get job spec, abort job");
 
@@ -2579,7 +2580,7 @@ void TNodeShard::ProcessJobsToAbort(NProto::NNode::TRspHeartbeat* response, cons
             abortReason,
             jobId);
         //! Allocation id is equal to job id.
-        AddAllocationToAbort(response, {TAllocationId(jobId), abortReason});
+        AddAllocationToAbort(response, {AllocationIdFromJobId(jobId), abortReason});
     }
 
     node->JobsToAbort().clear();

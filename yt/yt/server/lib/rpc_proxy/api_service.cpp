@@ -89,7 +89,6 @@ using namespace NChunkClient;
 using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
-using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NRpc;
@@ -2904,7 +2903,7 @@ private:
             options.WithCompetitors = request->with_competitors();
         }
         if (request->has_job_competition_id()) {
-            options.JobCompetitionId = FromProto<NJobTrackerClient::TJobId>(request->job_competition_id());
+            options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
         }
         if (request->has_with_monitoring_descriptor()) {
             options.WithMonitoringDescriptor = request->with_monitoring_descriptor();

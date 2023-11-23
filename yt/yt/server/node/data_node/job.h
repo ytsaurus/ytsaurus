@@ -38,14 +38,15 @@ public:
 
 public:
     TMasterJobBase(
-        NJobTrackerClient::TJobId jobId,
+        NChunkServer::TJobId jobId,
         const NJobTrackerClient::NProto::TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const NClusterNode::TJobResources& resourceLimits,
         const NClusterNode::TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap);
 
-    NJobTrackerClient::TJobId GetId() const noexcept override;
+    NChunkServer::TJobId GetId() const noexcept;
+    TGuid GetIdAsGuid() const noexcept override;
     NJobAgent::EJobType GetType() const;
     bool IsUrgent() const;
     const TString& GetJobTrackerAddress() const;
@@ -64,7 +65,7 @@ protected:
     IBootstrap* const Bootstrap_;
     const TDataNodeConfigPtr Config_;
 
-    const NJobTrackerClient::TJobId JobId_;
+    const NChunkServer::TJobId JobId_;
     const NJobTrackerClient::NProto::TJobSpec JobSpec_;
     const TString JobTrackerAddress_;
 
@@ -103,7 +104,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterJobBase)
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterJobBasePtr CreateJob(
-    NJobTrackerClient::TJobId jobId,
+    NChunkServer::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
     const NClusterNode::TJobResources& resourceLimits,

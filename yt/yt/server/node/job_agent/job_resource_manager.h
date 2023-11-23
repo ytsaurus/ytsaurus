@@ -135,7 +135,7 @@ public:
 
     NClusterNode::TJobResources GetResourceLimits() const noexcept;
 
-    virtual TGuid GetId() const noexcept = 0;
+    virtual TGuid GetIdAsGuid() const noexcept = 0;
 
 protected:
     NLogging::TLogger Logger;

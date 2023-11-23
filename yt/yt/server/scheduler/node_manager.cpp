@@ -327,7 +327,7 @@ TFuture<TNodeDescriptor> TNodeManager::GetJobNode(TJobId jobId)
 TFuture<void> TNodeManager::DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user)
 {
     //! Allocation id is equal to job id.
-    const auto& nodeShard = GetNodeShardByAllocationId(TAllocationId(jobId));
+    const auto& nodeShard = GetNodeShardByAllocationId(AllocationIdFromJobId(jobId));
     return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();

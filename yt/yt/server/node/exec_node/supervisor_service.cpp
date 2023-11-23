@@ -109,7 +109,6 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
         return StaticPointerCast<TJob>(std::move(job));
     }
 

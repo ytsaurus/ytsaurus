@@ -43,14 +43,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAllocationId AllocationIdFromJobId(TJobId jobId)
-{
-    // Job id is currently equal to allocation id.
-    return TAllocationId(jobId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NProto {
 
 void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)

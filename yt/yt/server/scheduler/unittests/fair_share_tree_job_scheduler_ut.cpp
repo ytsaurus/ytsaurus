@@ -931,7 +931,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestUpdatePreemptibleJobsList)
 
     std::vector<TJobId> jobIds;
     for (int i = 0; i < 150; ++i) {
-        auto jobId = TGuid::Create();
+        auto jobId = TJobId(TGuid::Create());
         jobIds.push_back(jobId);
         treeScheduler->OnJobStartedInTest(operationElementX.Get(), jobId, jobResources);
     }
@@ -1051,7 +1051,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
 
     std::vector<TJobId> jobIds;
     for (int i = 0; i < 4; ++i) {
-        auto jobId = TGuid::Create();
+        auto jobId = TJobId(TGuid::Create());
         jobIds.push_back(jobId);
         treeScheduler->OnJobStartedInTest(operationElement.Get(), jobId, jobResources);
     }
@@ -1108,7 +1108,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
 
     auto blockingOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto blockingOperationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, blockingOperation.Get(), blockingPool.Get());
-    treeScheduler->OnJobStartedInTest(blockingOperationElement.Get(), TGuid::Create(), jobResources);
+    treeScheduler->OnJobStartedInTest(blockingOperationElement.Get(), TJobId(TGuid::Create()), jobResources);
 
     jobResources.SetUserSlots(1);
     jobResources.SetCpu(1);
@@ -1129,7 +1129,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
 
     std::vector<TJobPtr> donorJobs;
     for (int i = 0; i < 15; ++i) {
-        auto job = CreateTestJob(TGuid::Create(), donorOperation->GetId(), execNode, now, jobResources);
+        auto job = CreateTestJob(TJobId(TGuid::Create()), donorOperation->GetId(), execNode, now, jobResources);
         donorJobs.push_back(job);
         treeScheduler->OnJobStartedInTest(donorOperationElement.Get(), job->GetId(), job->ResourceLimits());
     }
@@ -1288,7 +1288,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
     for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
         const int jobCount = ExpectedOperationIndicesFairShare[opIndex];
         for (int jobIndex = 0; jobIndex < jobCount; ++jobIndex) {
-            treeScheduler->OnJobStartedInTest(operationElements[opIndex].Get(), TJobId::Create(), operationJobResources);
+            treeScheduler->OnJobStartedInTest(operationElements[opIndex].Get(), TJobId(TGuid::Create()), operationJobResources);
         }
     }
 
@@ -1448,7 +1448,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(TGuid::Create(), operationJobResources, /*interruptible*/ false);
+                result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources, /*interruptible*/ false);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
                     TErrorOr<TControllerScheduleJobResultPtr>(result));
             }));
@@ -1656,7 +1656,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutBatchSchedu
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(TGuid::Create(), operationJobResources, /*interruptible*/ false);
+                result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources, /*interruptible*/ false);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
                     TErrorOr<TControllerScheduleJobResultPtr>(result));
             }));
@@ -2048,7 +2048,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestGuaranteePriorityScheduling)
     int jobCount = 0;
     for (const auto& operationElement : {operationElementA1, operationElementA2, operationElementB1, operationElementB2}) {
         for (int jobIndex = 0; jobIndex < jobCount; ++jobIndex) {
-            treeScheduler->OnJobStartedInTest(operationElement.Get(), TJobId::Create(), jobResources);
+            treeScheduler->OnJobStartedInTest(operationElement.Get(), TJobId(TGuid::Create()), jobResources);
         }
 
         ++jobCount;
@@ -2196,7 +2196,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapsho
         });
 
     // Second case: one operation has a job.
-    treeScheduler->OnJobStartedInTest(operationElementB.Get(), TJobId::Create(), jobResources);
+    treeScheduler->OnJobStartedInTest(operationElementB.Get(), TJobId(TGuid::Create()), jobResources);
 
     checkDynamicAttributes(
         TUsageWithSatisfactions{
@@ -2213,12 +2213,12 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapsho
         });
 
     // Third case: with and without usage snapshot.
-    treeScheduler->OnJobStartedInTest(operationElementA.Get(), TJobId::Create(), jobResources);
+    treeScheduler->OnJobStartedInTest(operationElementA.Get(), TJobId(TGuid::Create()), jobResources);
 
     auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
     auto resourceUsageSnapshot = BuildResourceUsageSnapshot(treeSnapshot);
 
-    treeScheduler->OnJobStartedInTest(operationElementA.Get(), TJobId::Create(), jobResources);
+    treeScheduler->OnJobStartedInTest(operationElementA.Get(), TJobId(TGuid::Create()), jobResources);
 
     checkDynamicAttributes(
         TUsageWithSatisfactions{

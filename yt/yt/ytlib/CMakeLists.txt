@@ -1277,6 +1277,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_with_quota.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/scheduler_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp

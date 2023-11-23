@@ -52,7 +52,7 @@ using NNodeTrackerClient::TNodeId;
 
 TNodeId NodeIdFromJobId(TJobId jobId)
 {
-    return NScheduler::NodeIdFromAllocationId(AllocationIdFromJobId(jobId));
+    return NScheduler::NodeIdFromAllocationId(NScheduler::AllocationIdFromJobId(jobId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

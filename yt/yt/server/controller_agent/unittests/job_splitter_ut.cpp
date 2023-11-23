@@ -78,7 +78,7 @@ void OnJobStarted(
     const TChunkStripeListPtr& stripeList,
     bool isInterruptible)
 {
-    jobSplitter->OnJobStarted(jobId, stripeList, jobId.Parts64[1], isInterruptible);
+    jobSplitter->OnJobStarted(jobId, stripeList, jobId.Underlying().Parts64[1], isInterruptible);
 }
 
 void LaunchTwoFastJobs(TJobId first, TJobId second, const std::unique_ptr<IJobSplitter>& jobSplitter)
@@ -90,13 +90,18 @@ void LaunchTwoFastJobs(TJobId first, TJobId second, const std::unique_ptr<IJobSp
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(second));
 }
 
+TJobId MakeJobId(ui64 p0, ui64 p1)
+{
+    return TJobId(TGuid(p0, p1));
+}
+
 TJobId MakeResidualSplittableJob(const std::unique_ptr<IJobSplitter>& jobSplitter)
 {
-    TJobId residualJobId = TJobId(0, 0);
+    TJobId residualJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, residualJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(residualJobId));
 
-    TJobId completedJobId = TJobId(0, 1);
+    TJobId completedJobId = MakeJobId(0, 1);
     OnJobStarted(jobSplitter, completedJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobCompleted(CreateCompletedJobSummary(completedJobId));
 
@@ -108,12 +113,12 @@ TEST(TJobSplitterTest, SplitLongAmongRunningInterruptibleJob)
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
 
-    TJobId slowJobId(0, 0);
+    TJobId slowJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, slowJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ true));
 
     // We need two fast jobs because we compare with median among running jobs.
-    LaunchTwoFastJobs(TJobId(0, 1), TJobId(0, 2), jobSplitter);
+    LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
 
     EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(slowJobId));
 }
@@ -123,7 +128,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptibleJob)
     auto jobSplittingHost = New<TChunkPoolJobSplittingHostMock>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
 
-    TJobId slowJobId(0, 0);
+    TJobId slowJobId = MakeJobId(0, 0);
 
     EXPECT_CALL(*jobSplittingHost, IsSplittable(0))
         .WillRepeatedly(Return(false));
@@ -133,7 +138,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptibleJob)
     OnJobStarted(jobSplitter, slowJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ true));
 
-    LaunchTwoFastJobs(TJobId(0, 1), TJobId(0, 2), jobSplitter);
+    LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
 
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(slowJobId));
 }
@@ -143,13 +148,13 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptibleJobWithTooSmallTota
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
 
-    TJobId slowJobId(0, 0);
+    TJobId slowJobId = MakeJobId(0, 0);
     auto smallStripeList = CreateTwoRowStripeList();
     smallStripeList->TotalDataWeight = 10;
     OnJobStarted(jobSplitter, slowJobId, smallStripeList, true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ true));
 
-    LaunchTwoFastJobs(TJobId(0, 1), TJobId(0, 2), jobSplitter);
+    LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
 
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(slowJobId));
 }
@@ -159,11 +164,11 @@ TEST(TJobSplitterTest, SplitResidualInterruptibleJob)
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
 
-    TJobId residualJobId(0, 0);
+    TJobId residualJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, residualJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(residualJobId));
 
-    TJobId completedJobId = TJobId(0, 1);
+    TJobId completedJobId = MakeJobId(0, 1);
     OnJobStarted(jobSplitter, completedJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobCompleted(CreateCompletedJobSummary(completedJobId));
 
@@ -180,11 +185,11 @@ TEST(TJobSplitterTest, SpeculateResidualNonInterruptibleJob)
     EXPECT_CALL(*jobSplittingHost, IsSplittable(Ne(0)))
         .WillRepeatedly(Return(true));
 
-    TJobId residualJobId(0, 0);
+    TJobId residualJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, residualJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(residualJobId));
 
-    TJobId completedJobId = TJobId(0, 1);
+    TJobId completedJobId = MakeJobId(0, 1);
     OnJobStarted(jobSplitter, completedJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobCompleted(CreateCompletedJobSummary(completedJobId));
 
@@ -196,11 +201,11 @@ TEST(TJobSplitterTest, DoNothingWithNotLongAndNotResidualJob)
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
 
-    TJobId slowJobId(0, 0);
+    TJobId slowJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, slowJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ false));
 
-    LaunchTwoFastJobs(TJobId(0, 1), TJobId(0, 2), jobSplitter);
+    LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
 
     EXPECT_EQ(EJobSplitterVerdict::DoNothing, jobSplitter->ExamineJob(slowJobId));
 }
@@ -210,11 +215,11 @@ TEST(TJobSplitterTest, SpeculateLongJobWithNoProgressWhenHasCompletedJobs)
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
 
-    TJobId noProgressJobId(0, 0);
+    TJobId noProgressJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, noProgressJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobRunning(CreateNoProgressJobSummary(noProgressJobId));
 
-    TJobId completedJobId = TJobId(0, 1);
+    TJobId completedJobId = MakeJobId(0, 1);
     OnJobStarted(jobSplitter, completedJobId, CreateTwoRowStripeList(), true);
     jobSplitter->OnJobCompleted(CreateCompletedJobSummary(completedJobId, /* prepareDuration */ TDuration::Seconds(1)));
 

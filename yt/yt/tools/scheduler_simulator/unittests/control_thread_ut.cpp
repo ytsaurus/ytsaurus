@@ -46,7 +46,7 @@ TJobDescription CreateJobDescription(TDuration jobDuration, const TJobResources&
 
     job.Duration = jobDuration;
     job.ResourceLimits = resourceLimits;
-    job.Id = TJobId::Create();
+    job.Id = TJobId(TGuid::Create());
     job.Type = EJobType::Vanilla;
     job.State = "completed";
 
