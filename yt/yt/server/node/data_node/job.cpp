@@ -1572,7 +1572,7 @@ private:
         THROW_ERROR_EXCEPTION_IF(
             Schema_->HasHunkColumns(),
             NChunkClient::EErrorCode::IncompatibleChunkMetas,
-            "Chunk has hunk columns in schema, merge is prohibited (ChunkId: %v)",
+            "Chunk %v has hunk columns in schema, merge is prohibited",
             writer->GetChunkId());
 
         auto chunkMeta = writer->GetChunkMeta();
