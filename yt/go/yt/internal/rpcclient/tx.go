@@ -80,7 +80,9 @@ func (t *TxInterceptor) Finished() <-chan struct{} {
 }
 
 func (t *TxInterceptor) BeginTx(
-	ctx context.Context, opts *yt.StartTxOptions) (tx yt.Tx, err error) {
+	ctx context.Context,
+	opts *yt.StartTxOptions,
+) (tx yt.Tx, err error) {
 	if err = t.pinger.CheckAlive(); err != nil {
 		return
 	}

@@ -12,7 +12,7 @@ var registry = map[string]reflect.Type{}
 //
 // Value of job is irrelevant.
 //
-// User must register all job types during initialisation.
+// User must register all job types during initialization.
 //
 //	type MyJob struct{}
 //
