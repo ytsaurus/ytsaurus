@@ -80,5 +80,6 @@ def checked_extract_spark() -> Optional[str]:
     logger.debug("Arcadia python found")
     if not extracted_spark_dir:
         extracted_spark_dir = _extract_spark()
+        os.environ["SPARK_HOME"] = extracted_spark_dir.name
     logger.debug(f"Current extracted Spark location {extracted_spark_dir}")
     return extracted_spark_dir.name

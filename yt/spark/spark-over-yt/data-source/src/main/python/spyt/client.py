@@ -9,6 +9,7 @@ require_yt_client()
 from yt.wrapper import YtClient  # noqa: E402
 from yt.wrapper.http_helpers import get_token, get_user_name  # noqa: E402
 
+from .arcadia import checked_extract_spark  # noqa: E402
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
     SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool  # noqa: E402
 from .conf import read_remote_conf, read_global_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility, \
@@ -82,7 +83,8 @@ def spark_session(num_executors=None,
                   dynamic_allocation=False,
                   spark_conf_args=None,
                   local_conf_path=Defaults.LOCAL_CONF_PATH,
-                  client=None):
+                  client=None,
+                  spyt_version=None):
     spark_session_already_existed = _spark_session_exists()
     spark = connect(
         num_executors=num_executors,
@@ -95,7 +97,8 @@ def spark_session(num_executors=None,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
         local_conf_path=local_conf_path,
-        client=client
+        client=client,
+        spyt_version=spyt_version,
     )
     exception = None
     try:
@@ -130,7 +133,8 @@ def create_yt_client_spark_conf(yt_proxy, spark_conf):
 def _configure_client_mode(spark_conf,
                            discovery_path,
                            local_conf,
-                           client=None):
+                           client=None,
+                           spyt_version=None):
     discovery = get_spark_discovery(discovery_path, local_conf)
     master = get_spark_master(discovery, rest=False, yt_client=client)
     set_conf(spark_conf, base_spark_conf(client=client, discovery=discovery))
@@ -141,7 +145,7 @@ def _configure_client_mode(spark_conf,
 
     jar_caching_enabled = parse_bool(spark_conf.get("spark.yt.jarCaching"))
 
-    spyt_version = SELF_VERSION
+    spyt_version = spyt_version or SELF_VERSION
     spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
     validate_versions_compatibility(spyt_version, spark_cluster_version)
     spark_conf.set("spark.yt.version", spyt_version)
@@ -228,7 +232,8 @@ def _build_spark_conf(num_executors=None,
                       dynamic_allocation=None,
                       spark_conf_args=None,
                       local_conf_path=None,
-                      client=None):
+                      client=None,
+                      spyt_version=None):
     from pyspark import SparkConf
 
     is_client_mode = os.getenv("IS_SPARK_CLUSTER") is None
@@ -239,7 +244,7 @@ def _build_spark_conf(num_executors=None,
         local_conf = _read_local_conf(local_conf_path)
         client = client or create_yt_client(yt_proxy, local_conf)
         app_name = app_name or "PySpark for {}".format(get_user_name(client=client) or os.getenv("USER"))
-        _configure_client_mode(spark_conf, discovery_path, local_conf, client)
+        _configure_client_mode(spark_conf, discovery_path, local_conf, client, spyt_version)
         spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
         spark_cluster_conf_path = spark_conf.get("spark.yt.cluster.confPath")
     else:
@@ -283,7 +288,8 @@ def connect(num_executors=5,
             dynamic_allocation=True,
             spark_conf_args=None,
             local_conf_path=Defaults.LOCAL_CONF_PATH,
-            client=None):
+            client=None,
+            spyt_version=None):
     from pyspark.sql import SparkSession
     conf = _build_spark_conf(
         num_executors=num_executors,
@@ -296,11 +302,14 @@ def connect(num_executors=5,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
         local_conf_path=local_conf_path,
-        client=client
+        client=client,
+        spyt_version=spyt_version,
     )
     if _spark_session_exists():
         logger.warning("SparkSession already exists and will be reused. Some configurations may not be applied. "
                        "You can use spyt.stop(spark) method to close previous session")
+
+    checked_extract_spark()
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
 
