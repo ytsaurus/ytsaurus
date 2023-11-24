@@ -167,8 +167,18 @@ def get_checks_config():
             },
         },
     }
+    disable_tablet_balancer_alerts = {
+        "tablet_balancer_alerts": {
+            "enable": False
+        }
+    }
     disable_remote_copy = {
         "remote_copy": {
+            "enable": False
+        }
+    }
+    disable_sys_clusters_sync = {
+        "sys_clusters_sync": {
             "enable": False
         }
     }
@@ -1231,7 +1241,13 @@ def get_checks_config():
             ),
             "ofd-xdc": deep_merge(disable_remote_copy, snapshot_validation),
             "yp-sas-test": spare_tablet_nodes_small,
-            "yp-adm-pre": spare_tablet_nodes_small,
+            "yp-adm-pre": deep_merge(
+                spare_tablet_nodes_small,
+                nochyt,
+                disable_remote_copy,
+                disable_sys_clusters_sync,
+                disable_tablet_balancer_alerts,
+            ),
             "yp-man-pre": spare_tablet_nodes_small,
             "yp-vlx": spare_tablet_nodes_small,
             "lyapunov-alpha": deep_merge(
