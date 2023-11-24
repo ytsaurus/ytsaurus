@@ -62,85 +62,50 @@ def main(raw_args=None):
     parser.set_defaults(enable_multi_operation_mode=False)
 
     default_enablers = SpytEnablers()
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-byop', dest='enable_byop',
-                       action='store_true')
-    group.add_argument('--disable-byop', dest='enable_byop',
-                       action='store_false')
+    add_group(parser, '--enable-byop', '--disable-byop', 'enable_byop')
     parser.set_defaults(enable_byop=default_enablers.enable_byop)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-solomon-agent', dest='enable_solomon_agent',
-                       action='store_true')
-    group.add_argument('--disable-solomon-agent', dest='enable_solomon_agent',
-                       action='store_false')
+    add_group(parser, '--enable-solomon-agent', '--disable-solomon-agent', 'enable_solomon_agent')
     parser.set_defaults(enable_solomon_agent=default_enablers.enable_solomon_agent)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-profiling',
-                       dest='enable_profiling', action='store_true')
-    group.add_argument('--disable-profiling',
-                       dest='enable_profiling', action='store_false')
+    add_group(parser, '--enable-profiling', '--disable-profiling', 'enable_profiling')
     parser.set_defaults(enable_profiling=default_enablers.enable_profiling)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-mtn', dest='enable_mtn', action='store_true')
-    group.add_argument('--disable-mtn', dest='enable_mtn',
-                       action='store_false')
+    add_group(parser, '--enable-mtn', '--disable-mtn', 'enable_mtn')
     parser.set_defaults(enable_mtn=default_enablers.enable_mtn)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--prefer-ipv6', dest='enable_preference_ipv6',
-                       action='store_true')
-    group.add_argument('--prefer-ipv4', dest='enable_preference_ipv6',
-                       action='store_false')
+    add_group(parser, '--prefer-ipv6', '--prefer-ipv4', 'enable_preference_ipv6')
     parser.set_defaults(enable_preference_ipv6=default_enablers.enable_preference_ipv6)
 
     add_group(parser, '--enable-tmpfs', '--disable-tmpfs', 'enable_tmpfs')
     parser.set_defaults(enable_tmpfs=True)
+
+    add_group(parser, '--enable-stderr-table', '--disable-stderr-table', 'enable_stderr_table')
+    parser.set_defaults(enable_stderr_table=False)
 
     add_group(parser, '--enable-tcp-proxy', '--disable-tcp-proxy', 'enable_tcp_proxy')
     parser.set_defaults(enable_tcp_proxy=default_enablers.enable_tcp_proxy)
     parser.add_argument('--tcp-proxy-range-start', required=False, default=30000, type=int)
     parser.add_argument('--tcp-proxy-range-size', required=False, default=100, type=int)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-history-server', dest='enable_history_server', action='store_true')
-    group.add_argument('--disable-history-server', dest='enable_history_server', action='store_false')
+    add_group(parser, '--enable-history-server', '--disable-history-server', 'enable_history_server')
     parser.set_defaults(enable_history_server=True)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-advanced-event-log',
-                       dest='advanced_event_log', action='store_true')
-    group.add_argument('--disable-advanced-event-log',
-                       dest='advanced_event_log', action='store_false')
+    add_group(parser, '--enable-advanced-event-log', '--disable-advanced-event-log', 'advanced_event_log')
     parser.set_defaults(advanced_event_log=False)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-rpc-job-proxy',
-                       dest='rpc_job_proxy', action='store_true')
+    add_group(parser, '--enable-rpc-job-proxy', '--disable-rpc-job-proxy', 'rpc_job_proxy')
     parser.set_defaults(rpc_job_proxy=False)
     parser.add_argument("--rpc-job-proxy-thread-pool-size", required=False, default=4, type=int)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-worker-log-transfer',
-                       dest='worker_log_transfer', action='store_true')
-    group.add_argument('--disable-worker-log-transfer',
-                       dest='worker_log_transfer', action='store_false')
+    add_group(parser, '--enable-worker-log-transfer', '--disable-worker-log-transfer', 'worker_log_transfer')
     parser.set_defaults(worker_log_transfer=False)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-worker-log-json-mode',
-                       dest='worker_log_json_mode', action='store_true')
-    group.add_argument('--disable-worker-log-json-mode',
-                       dest='worker_log_json_mode', action='store_false')
+    add_group(parser, '--enable-worker-log-json-mode', '--disable-worker-log-json-mode', 'worker_log_json_mode')
     parser.set_defaults(worker_log_json_mode=False)
 
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--disable-dedicated-driver-operation-mode',
-                       dest='dedicated_operation_mode', action='store_false')
-    group.add_argument('--enable-dedicated-driver-operation-mode',
-                       dest='dedicated_operation_mode', action='store_true')
+    add_group(parser, '--enable-dedicated-driver-operation-mode', '--disable-dedicated-driver-operation-mode',
+              'dedicated_operation_mode')
     parser.set_defaults(dedicated_operation_mode=False)
 
     subgroup = parser.add_argument_group(
@@ -249,7 +214,8 @@ def main(raw_args=None):
                         rpc_job_proxy=args.rpc_job_proxy,
                         rpc_job_proxy_thread_pool_size=args.rpc_job_proxy_thread_pool_size,
                         tcp_proxy_range_start=args.tcp_proxy_range_start,
-                        tcp_proxy_range_size=args.tcp_proxy_range_size)
+                        tcp_proxy_range_size=args.tcp_proxy_range_size,
+                        enable_stderr_table=args.enable_stderr_table)
 
 
 if __name__ == '__main__':

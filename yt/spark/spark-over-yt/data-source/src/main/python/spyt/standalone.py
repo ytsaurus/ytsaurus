@@ -355,7 +355,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                cluster_log_level, job_types, rpc_job_proxy_thread_pool_size,
                                tcp_proxy_range_start, tcp_proxy_range_size,
                                driver_op_resources=None, driver_op_discovery_script=None,
-                               extra_metrics_enabled=True, autoscaler_enabled=False, rpc_job_proxy=False):
+                               extra_metrics_enabled=True, autoscaler_enabled=False, rpc_job_proxy=False,
+                               enable_stderr_table=False):
     if job_types == [] or job_types is None:
         job_types = ['master', 'history', 'worker']
 
@@ -449,12 +450,13 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     operation_spec = config["operation_spec"]
 
-    if "master" in job_types:
-        operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
-    elif "driver" in job_types:
-        operation_spec["stderr_table_path"] = str(spark_discovery.stderr() + "_driver")
-    else:
-        operation_spec["stderr_table_path"] = str(spark_discovery.stderr()) + "_worker"
+    if enable_stderr_table:
+        if "master" in job_types:
+            operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
+        elif "driver" in job_types:
+            operation_spec["stderr_table_path"] = str(spark_discovery.stderr() + "_driver")
+        else:
+            operation_spec["stderr_table_path"] = str(spark_discovery.stderr()) + "_worker"
 
     operation_spec["pool"] = pool
     if "title" not in operation_spec:
@@ -675,7 +677,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
                         livy_driver_memory=SparkDefaultArguments.LIVY_DRIVER_MEMORY,
                         livy_max_sessions=SparkDefaultArguments.LIVY_MAX_SESSIONS, rpc_job_proxy=False,
                         rpc_job_proxy_thread_pool_size=4, tcp_proxy_range_start=30000,
-                        tcp_proxy_range_size=100):
+                        tcp_proxy_range_size=100, enable_stderr_table=False):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -736,6 +738,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     :param rpc_job_proxy_thread_pool_size: RPC proxy thread pool size
     :param tcp_proxy_range_start: start port of TCP proxy allocation range
     :param tcp_proxy_range_size: size of TCP proxy allocation range
+    :param enable_stderr_table: enables writing YT operation logs to stderr table
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
@@ -843,6 +846,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
         'rpc_job_proxy_thread_pool_size': rpc_job_proxy_thread_pool_size,
         'tcp_proxy_range_start': tcp_proxy_range_start,
         'tcp_proxy_range_size': tcp_proxy_range_size,
+        'enable_stderr_table': enable_stderr_table,
     }
 
     master_args = args.copy()
