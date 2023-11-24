@@ -9,9 +9,10 @@ RECURSE(
     examples
     docs
     docker
-    systest
-    spark/spark-over-yt
     odin
+    spark/spark-over-yt
+    styleguide
+    systest
 )
 
 

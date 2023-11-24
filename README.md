@@ -55,6 +55,6 @@ Try YTsaurus cluster [using Kubernetes](https://ytsaurus.tech/docs/en/overview/t
 
 We are glad to welcome new contributors!
 
-1. Please read the [contributor's guide](CONTRIBUTING.md).
+1. Please read the [contributor's guide](CONTRIBUTING.md) and the [styleguide](yt/styleguide/styleguide.md).
 2. We can accept your work to YTsaurus after you have signed contributor's license agreement (aka CLA).
 3. Please don't forget to add a note to your pull request, that you agree to the terms of the CLA.
