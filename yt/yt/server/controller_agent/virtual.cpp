@@ -144,6 +144,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
                     .Value(Schema_->GetKeyColumns());
                 return true;
             }
+            return false;
         case EInternedAttributeKey::SchemaMode:
             BuildYsonFluently(consumer)
                 .Value(ETableSchemaMode::Weak);
@@ -163,8 +164,6 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         default:
             return false;
     }
-
-    return false;
 }
 
 TFuture<TYsonString> TVirtualStaticTable::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)

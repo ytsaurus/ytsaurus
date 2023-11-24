@@ -26,10 +26,10 @@ class TDataFlowGraph
 public:
     using TVertexDescriptor = TString;
 
-    static TVertexDescriptor SourceDescriptor;
-    static TVertexDescriptor SinkDescriptor;
-    static TVertexDescriptor CoreDescriptor;
-    static TVertexDescriptor StderrDescriptor;
+    static const TVertexDescriptor SourceDescriptor;
+    static const TVertexDescriptor SinkDescriptor;
+    static const TVertexDescriptor CoreDescriptor;
+    static const TVertexDescriptor StderrDescriptor;
 
     TDataFlowGraph();
     ~TDataFlowGraph();
