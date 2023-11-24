@@ -200,14 +200,13 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
             YT_LOG_INFO(result, "Job workspace building finished");
 
             ResultHolder_.LastBuildError = result;
-            Context_.Slot.Reset();
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
 
     future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TJobWorkspaceBuildingResult>&) {
         // Drop reference to close race with check in TJob::Cleanup() on cancellation.
         Context_.Slot.Reset();
-    }));
+    }).Via(Invoker_));
 
     return future;
 }
