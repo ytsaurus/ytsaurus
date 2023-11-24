@@ -36,6 +36,7 @@ target_proto_messages(server-lib-chunk_server PRIVATE
 )
 target_sources(server-lib-chunk_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/public.cpp
 )
 target_proto_addincls(server-lib-chunk_server
   ./

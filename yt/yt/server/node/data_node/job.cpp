@@ -116,6 +116,7 @@ using namespace NJobTrackerClient;
 using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NChunkServer;
 using namespace NClusterNode;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
@@ -136,7 +137,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterJobBase::TMasterJobBase(
-    NJobTrackerClient::TJobId jobId,
+    NChunkServer::TJobId jobId,
     const NJobTrackerClient::NProto::TJobSpec& jobSpec,
     TString jobTrackerAddress,
     const TJobResources& resourceLimits,
@@ -213,11 +214,18 @@ void TMasterJobBase::Abort(const TError& error)
     }
 }
 
-TJobId TMasterJobBase::GetId() const noexcept
+NChunkServer::TJobId TMasterJobBase::GetId() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return JobId_;
+}
+
+TGuid TMasterJobBase::GetIdAsGuid() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return JobId_.Underlying();
 }
 
 EJobType TMasterJobBase::GetType() const
@@ -411,7 +419,7 @@ class TChunkRemovalJob
 {
 public:
     TChunkRemovalJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
@@ -488,7 +496,7 @@ class TChunkReplicationJob
 {
 public:
     TChunkReplicationJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
@@ -701,7 +709,7 @@ class TChunkRepairJob
 {
 public:
     TChunkRepairJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
@@ -1012,7 +1020,7 @@ class TSealChunkJob
 {
 public:
     TSealChunkJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         TJobSpec&& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
@@ -1293,7 +1301,7 @@ class TChunkMergeJob
 {
 public:
     TChunkMergeJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
@@ -1976,7 +1984,7 @@ class TChunkReincarnationJob
 {
 public:
     TChunkReincarnationJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
@@ -2312,7 +2320,7 @@ class TAutotomizeChunkJob
 {
 public:
     TAutotomizeChunkJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
@@ -2931,7 +2939,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterJobBasePtr CreateJob(
-    TJobId jobId,
+    NChunkServer::TJobId jobId,
     TJobSpec&& jobSpec,
     TString jobTrackerAddress,
     const TJobResources& resourceLimits,

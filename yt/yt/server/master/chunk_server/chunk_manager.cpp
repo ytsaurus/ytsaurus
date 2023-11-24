@@ -315,7 +315,7 @@ public:
         return *NodeResourceLimits_;
     }
 
-    TJobId GenerateJobId() const override
+    NChunkServer::TJobId GenerateJobId() const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->GenerateJobId();
@@ -1716,31 +1716,31 @@ public:
             &resourceLimits,
             *node);
 
-        auto removeJob = [&] (TJobId jobId) {
-            ToProto(response->add_jobs_to_remove(), TJobToRemove{jobId});
+        auto removeJob = [&] (NChunkServer::TJobId jobId) {
+            ToProto(response->add_jobs_to_remove(), TJobToRemove{ToSchedulerJobId(jobId)});
 
             if (auto job = JobRegistry_->FindJob(jobId)) {
                 JobRegistry_->OnJobFinished(job);
             }
         };
 
-        auto abortJob = [&] (TJobId jobId) {
-            AddJobToAbort(response, {jobId, /*AbortReason*/ std::nullopt});
+        auto abortJob = [&] (NChunkServer::TJobId jobId) {
+            AddJobToAbort(response, {ToSchedulerJobId(jobId), /*AbortReason*/ std::nullopt});
         };
 
         TJobControllerCallbacks jobControllerCallbacks;
 
         THashSet<TJobPtr> processedJobs;
 
-        std::vector<TJobId> waitingJobIds;
+        std::vector<NChunkServer::TJobId> waitingJobIds;
         waitingJobIds.reserve(request->jobs().size());
 
-        std::vector<TJobId> runningJobIds;
+        std::vector<NChunkServer::TJobId> runningJobIds;
         runningJobIds.reserve(request->jobs().size());
 
         // Process job events and find missing jobs.
         for (const auto& jobStatus : request->jobs()) {
-            auto jobId = FromProto<TJobId>(jobStatus.job_id());
+            auto jobId = FromProto<NChunkServer::TJobId>(jobStatus.job_id());
             auto state = CheckedEnumCast<EJobState>(jobStatus.state());
             auto jobError = FromProto<TError>(jobStatus.result().error());
             if (auto job = JobRegistry_->FindJob(jobId)) {
@@ -1936,10 +1936,10 @@ public:
         }
     }
 
-    TJobId GenerateJobId() const override
+    NChunkServer::TJobId GenerateJobId() const override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        return MakeRandomId(EObjectType::MasterJob, multicellManager->GetCellTag());
+        return NChunkServer::TJobId(MakeRandomId(EObjectType::MasterJob, multicellManager->GetCellTag()));
     }
 
     const THashSet<TChunk*>& ForeignChunks() const override

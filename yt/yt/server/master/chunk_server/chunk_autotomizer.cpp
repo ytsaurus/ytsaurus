@@ -105,7 +105,7 @@ public:
 
 public:
     TAutotomyJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         TJobEpoch jobEpoch,
         TChunkId bodyChunkId,
         const TChunkSealInfo& bodySealInfo,
@@ -200,7 +200,7 @@ struct TChunkAutotomyState
     TChunkPool ChunkPool;
 
     //! Set of alive jobs.
-    THashMap<TJobId, TAutotomyJobPtr> Jobs;
+    THashMap<NChunkServer::TJobId, TAutotomyJobPtr> Jobs;
 
     //! Last time we scheduled some job.
     TInstant LastJobScheduleTime = TInstant::Zero();
@@ -453,10 +453,10 @@ private:
     std::queue<TChunkId> ChunkRefreshQueue_;
 
     //! Set of all alive autotomy jobs.
-    THashMap<TJobId, TChunkId> JobIdToBodyChunkId_;
+    THashMap<NChunkServer::TJobId, TChunkId> JobIdToBodyChunkId_;
 
     //! Queue of created but not scheduled jobs.
-    std::queue<TJobId> PendingJobs_;
+    std::queue<NChunkServer::TJobId> PendingJobs_;
 
     //! Current job epoch.
     TJobEpoch JobEpoch_ = InvalidJobEpoch;
@@ -1053,7 +1053,7 @@ private:
         }
     }
 
-    TAutotomyJobPtr FindJob(TJobId jobId)
+    TAutotomyJobPtr FindJob(NChunkServer::TJobId jobId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
@@ -1071,7 +1071,7 @@ private:
         }
     }
 
-    TAutotomyJobPtr GetJob(TJobId jobId)
+    TAutotomyJobPtr GetJob(NChunkServer::TJobId jobId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
@@ -1098,7 +1098,7 @@ private:
         YT_LOG_DEBUG("Job registered (JobId: %v)", jobId);
     }
 
-    bool UnregisterJob(TJobId jobId)
+    bool UnregisterJob(NChunkServer::TJobId jobId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());

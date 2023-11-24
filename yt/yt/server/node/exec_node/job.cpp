@@ -139,7 +139,7 @@ namespace {
 
 TGuid MakeNbdExportId(TJobId jobId, int nbdExportIndex)
 {
-    auto nbdExportId = jobId;
+    auto nbdExportId = jobId.Underlying();
     nbdExportId.Parts32[0] = nbdExportIndex;
     return nbdExportId;
 }
@@ -726,11 +726,18 @@ TJobId TJob::GetId() const noexcept
     return Id_;
 }
 
+TGuid TJob::GetIdAsGuid() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Id_.Underlying();
+}
+
 TAllocationId TJob::GetAllocationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TAllocationId(GetId());
+    return TAllocationId(GetIdAsGuid());
 }
 
 TOperationId TJob::GetOperationId() const
@@ -3116,10 +3123,10 @@ TNodeJobReport TJob::MakeDefaultJobReport()
         report.SetFinishTime(*FinishTime_);
     }
     if (JobSpecExt_->has_job_competition_id()) {
-        report.SetJobCompetitionId(FromProto<TGuid>(JobSpecExt_->job_competition_id()));
+        report.SetJobCompetitionId(FromProto<TJobId>(JobSpecExt_->job_competition_id()));
     }
     if (JobSpecExt_->has_probing_job_competition_id()) {
-        report.SetProbingJobCompetitionId(FromProto<TGuid>(JobSpecExt_->probing_job_competition_id()));
+        report.SetProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_->probing_job_competition_id()));
     }
     if (JobSpecExt_ && JobSpecExt_->has_task_name()) {
         report.SetTaskName(JobSpecExt_->task_name());

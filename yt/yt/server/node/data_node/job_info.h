@@ -18,7 +18,7 @@ public:
     void BuildOrchid(NYTree::TFluentMap fluent) const;
 
 private:
-    NJobTrackerClient::TJobId JobId_;
+    NChunkServer::TJobId JobId_;
 
     NJobAgent::EJobState JobState_;
     NJobAgent::EJobType JobType_;
@@ -36,7 +36,7 @@ private:
     friend class TMasterJobBase;
 
     TBriefJobInfo(
-        NJobTrackerClient::TJobId jobId,
+        NChunkServer::TJobId jobId,
         NJobAgent::EJobState jobState,
         NJobAgent::EJobType jobType,
         TString jobTrackerAddress,

@@ -54,7 +54,7 @@ size_t TJobReport::EstimateSize() const
 {
     return NJobAgent::EstimateSizes(
         OperationId_,
-        JobId_,
+        JobId_.Underlying(),
         Type_,
         State_,
         StartTime_,

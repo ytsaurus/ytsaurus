@@ -25,17 +25,11 @@ using namespace NApi;
 
 TJobId GenerateJobId(TCellTag tag, TNodeId nodeId)
 {
-    return MakeId(
+    return TJobId(MakeId(
         EObjectType::SchedulerJob,
         tag,
         RandomNumber<ui64>(),
-        nodeId.Underlying());
-}
-
-TJobId JobIdFromAllocationId(TAllocationId allocationId)
-{
-    // Allocation id is currently equal to allocation id.
-    return TJobId(allocationId.Underlying());
+        nodeId.Underlying()));
 }
 
 TNodeId NodeIdFromAllocationId(TAllocationId allocationId)

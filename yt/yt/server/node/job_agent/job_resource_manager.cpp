@@ -961,7 +961,7 @@ private:
 
         for (const auto& resourceHolder : ResourceHolders_) {
             result.emplace(
-                resourceHolder->GetId(),
+                resourceHolder->GetIdAsGuid(),
                 resourceHolder->BuildResourceHolderInfo());
         }
 

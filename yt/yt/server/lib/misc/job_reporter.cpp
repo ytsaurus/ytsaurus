@@ -87,10 +87,13 @@ public:
         TYsonString briefStatisticsYsonString;
 
         TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[1], index.OperationIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
+
+        auto operationIdAsGuid = Report_.OperationId();
+        auto jobIdAsGuid = Report_.JobId().Underlying();
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], index.OperationIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], index.OperationIdLo));
+        builder.AddValue(MakeUnversionedUint64Value(jobIdAsGuid.Parts64[0], index.JobIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(jobIdAsGuid.Parts64[1], index.JobIdLo));
         if (Report_.Type()) {
             builder.AddValue(MakeUnversionedStringValue(FormatEnum(*Report_.Type()), index.Type));
         }
@@ -199,13 +202,15 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
+        auto operationIdAsGuid = Report_.OperationId();
+        auto jobIdAsGuid = Report_.JobId().Underlying();
         return FromRecord(NRecords::TOperationId{
             .Key = {
-                .JobIdHi = Report_.JobId().Parts64[0],
-                .JobIdLo = Report_.JobId().Parts64[1],
+                .JobIdHi = jobIdAsGuid.Parts64[0],
+                .JobIdLo = jobIdAsGuid.Parts64[1],
             },
-            .OperationIdHi = Report_.OperationId().Parts64[0],
-            .OperationIdLo = Report_.OperationId().Parts64[1],
+            .OperationIdHi = operationIdAsGuid.Parts64[0],
+            .OperationIdLo = operationIdAsGuid.Parts64[1],
         });
     }
 
@@ -230,10 +235,11 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
+        auto jobIdAsGuid = Report_.JobId().Underlying();
         NRecords::TJobSpecPartial record{
             .Key = {
-                .JobIdHi = Report_.JobId().Parts64[0],
-                .JobIdLo = Report_.JobId().Parts64[1],
+                .JobIdHi = jobIdAsGuid.Parts64[0],
+                .JobIdLo = jobIdAsGuid.Parts64[1],
             },
             .Spec = Report_.Spec(),
             .SpecVersion = Report_.SpecVersion(),
@@ -265,16 +271,19 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
+        auto operationIdAsGuid = Report_.OperationId();
+        auto jobIdAsGuid = Report_.JobId().Underlying();
+
         if (!Report_.Stderr()) {
             return {};
         }
 
         return FromRecord(NRecords::TJobStderr{
             .Key = {
-                .OperationIdHi = Report_.OperationId().Parts64[0],
-                .OperationIdLo = Report_.OperationId().Parts64[1],
-                .JobIdHi = Report_.JobId().Parts64[0],
-                .JobIdLo = Report_.JobId().Parts64[1],
+                .OperationIdHi = operationIdAsGuid.Parts64[0],
+                .OperationIdLo = operationIdAsGuid.Parts64[1],
+                .JobIdHi = jobIdAsGuid.Parts64[0],
+                .JobIdLo = jobIdAsGuid.Parts64[1],
             },
             .Stderr = *Report_.Stderr(),
         });
@@ -305,12 +314,15 @@ public:
             return {};
         }
 
+        auto operationIdAsGuid = Report_.OperationId();
+        auto jobIdAsGuid = Report_.JobId().Underlying();
+
         return FromRecord(NRecords::TJobFailContext{
             .Key = {
-                .OperationIdHi = Report_.OperationId().Parts64[0],
-                .OperationIdLo = Report_.OperationId().Parts64[1],
-                .JobIdHi = Report_.JobId().Parts64[0],
-                .JobIdLo = Report_.JobId().Parts64[1],
+                .OperationIdHi = operationIdAsGuid.Parts64[0],
+                .OperationIdLo = operationIdAsGuid.Parts64[1],
+                .JobIdHi = jobIdAsGuid.Parts64[0],
+                .JobIdLo = jobIdAsGuid.Parts64[1],
             },
             .FailContext = *Report_.FailContext(),
         });
@@ -343,13 +355,16 @@ public:
             return {};
         }
 
+        auto operationIdAsGuid = Report_.OperationId();
+        auto jobIdAsGuid = Report_.JobId().Underlying();
+
         return FromRecord(NRecords::TJobProfile{
             .Key = {
-                .JobIdHi = Report_.JobId().Parts64[0],
-                .JobIdLo = Report_.JobId().Parts64[1],
+                .JobIdHi = jobIdAsGuid.Parts64[0],
+                .JobIdLo = jobIdAsGuid.Parts64[1],
             },
-            .OperationIdHi = Report_.OperationId().Parts64[0],
-            .OperationIdLo = Report_.OperationId().Parts64[1],
+            .OperationIdHi = operationIdAsGuid.Parts64[0],
+            .OperationIdLo = operationIdAsGuid.Parts64[1],
             .PartIndex = 0,
             .ProfileType = profile->Type,
             .ProfileBlob = profile->Blob,

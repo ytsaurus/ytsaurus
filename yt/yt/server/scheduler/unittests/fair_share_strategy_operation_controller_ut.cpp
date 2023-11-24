@@ -554,8 +554,8 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
-    auto firstJobId = TJobId::Create();
-    auto secondJobId = TJobId::Create();
+    auto firstJobId = TJobId(TGuid::Create());
+    auto secondJobId = TJobId(TGuid::Create());
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
         ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))

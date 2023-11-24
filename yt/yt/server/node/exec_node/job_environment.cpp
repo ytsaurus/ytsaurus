@@ -784,9 +784,10 @@ private:
 
     TString GetJobContainerName(TStringBuf prefix, TJobId jobId)
     {
+        auto jobIdAsGuid = jobId.Underlying();
         return Config_->UseShortContainerNames
             ? TString(prefix)
-            : Format("%v-%x-%x", prefix, jobId.Parts32[3], jobId.Parts32[2]);
+            : Format("%v-%x-%x", prefix, jobIdAsGuid.Parts32[3], jobIdAsGuid.Parts32[2]);
     }
 
     TString GetFullJobContainerName(int slotIndex, ESlotType slotType, TStringBuf prefix, TJobId jobId)

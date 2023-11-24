@@ -161,7 +161,7 @@ private:
         YT_LOG_DEBUG(
             "Requesting job shell descriptor from controller agent (Key: %v)",
             key);
-        auto allocationId = NControllerAgent::AllocationIdFromJobId(key.JobId);
+        auto allocationId = NScheduler::AllocationIdFromJobId(key.JobId);
 
         YT_LOG_DEBUG(
             "Requesting allocation brief info (AllocationId: %v)",

@@ -8,7 +8,7 @@ using namespace NClusterNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBriefJobInfo::TBriefJobInfo(
-    NJobTrackerClient::TJobId jobId,
+    NChunkServer::TJobId jobId,
     NJobAgent::EJobState jobState,
     NJobAgent::EJobType jobType,
     TString jobTrackerAddress,

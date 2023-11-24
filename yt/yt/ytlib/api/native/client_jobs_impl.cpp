@@ -21,7 +21,7 @@ using namespace NJobProberClient;
 using namespace NJobTrackerClient;
 using namespace NConcurrency;
 
-using NControllerAgent::AllocationIdFromJobId;
+using NScheduler::AllocationIdFromJobId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

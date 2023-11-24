@@ -19,6 +19,10 @@ YT_DEFINE_STRONG_TYPEDEF(TAllocationId, TGuid);
 
 constexpr TAllocationId NullAllocationId{};
 
+// COMPAT(pogorelov): Allocation Id is currently equal to job id
+TJobId JobIdFromAllocationId(TAllocationId allocationId);
+TAllocationId AllocationIdFromJobId(TJobId jobId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NVectorHdrf::EIntegralGuaranteeType;

@@ -685,7 +685,7 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto guard = WriterGuard(AlertsLock_);
-        if (TypeFromId(job->GetId()) == EObjectType::SchedulerJob && job->GetState() == EJobState::Aborted) {
+        if (job->GetState() == EJobState::Aborted) {
             ++ConsecutiveAbortedSchedulerJobCount_;
         } else {
             ConsecutiveAbortedSchedulerJobCount_ = 0;

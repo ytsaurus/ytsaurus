@@ -158,12 +158,6 @@ private:
             "JobId: %v, InterruptionTimeout: %v",
             jobId, timeout);
 
-        if (NObjectClient::TypeFromId(jobId) != NCypressClient::EObjectType::SchedulerJob) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot interrupt job %v because it is not a scheduler job",
-                jobId);
-        }
-
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
 
         if (!job->IsInterruptible()) {

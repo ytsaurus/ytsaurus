@@ -363,9 +363,11 @@ TErrorOr<TJobSpec> TClient::TryFetchJobSpecFromJobNode(
 
 TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
 {
+    auto jobIdAsGuid = jobId.Underlying();
+
     NRecords::TOperationIdKey recordKey{
-        .JobIdHi = jobId.Parts64[0],
-        .JobIdLo = jobId.Parts64[1]
+        .JobIdHi = jobIdAsGuid.Parts64[0],
+        .JobIdLo = jobIdAsGuid.Parts64[1]
     };
     auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
@@ -410,9 +412,11 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
 TOperationId TClient::TryGetOperationId(
     TJobId jobId)
 {
+    auto jobIdAsGuid = jobId.Underlying();
+
     NRecords::TOperationIdKey recordKey{
-        .JobIdHi = jobId.Parts64[0],
-        .JobIdLo = jobId.Parts64[1]
+        .JobIdHi = jobIdAsGuid.Parts64[0],
+        .JobIdLo = jobIdAsGuid.Parts64[1]
     };
     auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
@@ -512,7 +516,7 @@ void TClient::ValidateOperationAccess(
 void TClient::ValidateOperationAccess(
     NScheduler::TOperationId operationId,
     const NSecurityClient::TSerializableAccessControlList& operationAcl,
-    NScheduler::TJobId jobId,
+    TJobId jobId,
     NYTree::EPermissionSet permissions)
 {
     NScheduler::ValidateOperationAccess(
@@ -526,7 +530,7 @@ void TClient::ValidateOperationAccess(
 }
 
 TJobSpec TClient::FetchJobSpec(
-    NScheduler::TJobId jobId,
+    TJobId jobId,
     NApi::EJobSpecSource specSource,
     NYTree::EPermissionSet requiredPermissions)
 {
@@ -864,11 +868,13 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     TJobId jobId)
 {
     try {
+        auto operationIdAsGuid = operationId;
+        auto jobIdAsGuid = jobId.Underlying();
         NRecords::TJobStderrKey recordKey{
-            .OperationIdHi = operationId.Parts64[0],
-            .OperationIdLo = operationId.Parts64[1],
-            .JobIdHi = jobId.Parts64[0],
-            .JobIdLo = jobId.Parts64[1]
+            .OperationIdHi = operationIdAsGuid.Parts64[0],
+            .OperationIdLo = operationIdAsGuid.Parts64[1],
+            .JobIdHi = jobIdAsGuid.Parts64[0],
+            .JobIdLo = jobIdAsGuid.Parts64[1]
         };
         auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
@@ -979,11 +985,13 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
     TJobId jobId)
 {
     try {
+        auto operationIdAsGuid = operationId;
+        auto jobIdAsGuid = jobId.Underlying();
         NRecords::TJobFailContextKey recordKey{
-            .OperationIdHi = operationId.Parts64[0],
-            .OperationIdLo = operationId.Parts64[1],
-            .JobIdHi = jobId.Parts64[0],
-            .JobIdLo = jobId.Parts64[1]
+            .OperationIdHi = operationIdAsGuid.Parts64[0],
+            .OperationIdLo = operationIdAsGuid.Parts64[1],
+            .JobIdHi = jobIdAsGuid.Parts64[0],
+            .JobIdLo = jobIdAsGuid.Parts64[1]
         };
 
         auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
@@ -1062,7 +1070,7 @@ static void ValidateNonNull(
     if (Y_UNLIKELY(value.Type == EValueType::Null)) {
         auto error = TError("Unexpected null value in column %Qv in job archive", name)
             << TErrorAttribute("operation_id", operationId);
-        if (jobId) {
+        if (jobId.Underlying()) {
             error = error << TErrorAttribute("job_id", jobId);
         }
         THROW_ERROR error;
@@ -1203,7 +1211,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             YT_VERIFY(jobIdLoIndex);
             ValidateNonNull(row[*jobIdHiIndex], "job_id_hi", operationId);
             ValidateNonNull(row[*jobIdLoIndex], "job_id_lo", operationId);
-            job.Id = TJobId(FromUnversionedValue<ui64>(row[*jobIdHiIndex]), FromUnversionedValue<ui64>(row[*jobIdLoIndex]));
+            job.Id = TJobId(TGuid(FromUnversionedValue<ui64>(row[*jobIdHiIndex]), FromUnversionedValue<ui64>(row[*jobIdLoIndex])));
         }
 
         if (operationIdHiIndex) {
@@ -1255,11 +1263,11 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
         }
 
         if (jobCompetitionIdIndex && row[*jobCompetitionIdIndex].Type != EValueType::Null) {
-            job.JobCompetitionId = FromUnversionedValue<TGuid>(row[*jobCompetitionIdIndex]);
+            job.JobCompetitionId = FromUnversionedValue<TJobId>(row[*jobCompetitionIdIndex]);
         }
 
         if (probingJobCompetitionIdIndex && row[*probingJobCompetitionIdIndex].Type != EValueType::Null) {
-            job.ProbingJobCompetitionId = FromUnversionedValue<TGuid>(row[*probingJobCompetitionIdIndex]);
+            job.ProbingJobCompetitionId = FromUnversionedValue<TJobId>(row[*probingJobCompetitionIdIndex]);
         }
 
         if (hasCompetitorsIndex) {
@@ -1537,10 +1545,10 @@ static void ParseJobsFromControllerAgentResponse(
         const auto& jobMapNode = jobNode->AsMap();
         auto& job = jobs->emplace_back();
         if (needJobId) {
-            job.Id = TJobId::FromString(jobIdString);
+            job.Id = TJobId(TGuid::FromString(jobIdString));
         }
         if (needOperationId) {
-            job.OperationId = operationId;
+            job.OperationId =operationId;
         }
         if (needType) {
             job.Type = jobMapNode->GetChildValueOrThrow<EJobType>("job_type");
@@ -2105,10 +2113,12 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
 
     std::vector<TUnversionedRow> keys;
     auto key = rowBuffer->AllocateUnversioned(4);
-    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], table.Index.OperationIdHi);
-    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], table.Index.OperationIdLo);
-    key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], table.Index.JobIdHi);
-    key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], table.Index.JobIdLo);
+    auto operationIdAsGuid = operationId;
+    auto jobIdAsGuid = jobId.Underlying();
+    key[0] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], table.Index.OperationIdHi);
+    key[1] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], table.Index.OperationIdLo);
+    key[2] = MakeUnversionedUint64Value(jobIdAsGuid.Parts64[0], table.Index.JobIdHi);
+    key[3] = MakeUnversionedUint64Value(jobIdAsGuid.Parts64[1], table.Index.JobIdLo);
     keys.push_back(key);
 
 

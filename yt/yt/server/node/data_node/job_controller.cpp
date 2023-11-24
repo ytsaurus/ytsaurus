@@ -32,6 +32,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NClusterNode;
+using namespace NChunkServer;
 using namespace NJobAgent;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
@@ -152,7 +153,7 @@ public:
             .Run(jobTrackerAddress, response);
     }
 
-    TMasterJobBasePtr FindJob(const TString& jobTrackerAddress, TJobId jobId) const
+    TMasterJobBasePtr FindJob(const TString& jobTrackerAddress, NChunkServer::TJobId jobId) const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -211,7 +212,7 @@ private:
 
     TMasterJobSensors MasterJobSensors_;
 
-    THashMap<TString, THashMap<TJobId, TMasterJobBasePtr>> JobMaps_;
+    THashMap<TString, THashMap<NChunkServer::TJobId, TMasterJobBasePtr>> JobMaps_;
 
     bool StartJobsScheduled_ = false;
 
@@ -237,8 +238,6 @@ private:
         auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringContext();
 
         for (const auto& job : GetJobs()) {
-            YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::MasterJob);
-
             if (job->GetState() != EJobState::Waiting) {
                 continue;
             }
@@ -257,7 +256,7 @@ private:
     }
 
     TMasterJobBasePtr CreateJob(
-        TJobId jobId,
+        NChunkServer::TJobId jobId,
         const TString& jobTrackerAddress,
         const TJobResources& resourceLimits,
         const TJobResourceAttributes& resourceAttributes,
@@ -295,7 +294,7 @@ private:
     }
 
     void RegisterJob(
-        const TJobId jobId,
+        const NChunkServer::TJobId jobId,
         const TString& jobTrackerAddress,
         const TMasterJobBasePtr& job,
         const TDuration waitingJobTimeout)
@@ -422,9 +421,8 @@ private:
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
         for (const auto& job : GetJobs(jobTrackerAddress)) {
-            auto jobId = job->GetId();
+            auto jobId = job->GetIdAsGuid();
 
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
             YT_VERIFY(job->GetJobTrackerAddress() == jobTrackerAddress);
 
             YT_VERIFY(CellTagFromId(jobId) == cellTag);
@@ -457,7 +455,7 @@ private:
 
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
             auto jobToRemove = FromProto<TJobToRemove>(protoJobToRemove);
-            auto jobId = jobToRemove.JobId;
+            auto jobId = FromSchedulerJobId(jobToRemove.JobId);
 
             if (auto job = FindJob(jobTrackerAddress, jobId)) {
                 RemoveJob(std::move(job));
@@ -470,7 +468,7 @@ private:
         for (const auto& protoJobToAbort : response->jobs_to_abort()) {
             auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
 
-            if (auto job = FindJob(jobTrackerAddress, jobToAbort.JobId)) {
+            if (auto job = FindJob(jobTrackerAddress, FromSchedulerJobId(jobToAbort.JobId))) {
                 AbortJob(job, std::move(jobToAbort));
             } else {
                 YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v)",
@@ -483,7 +481,7 @@ private:
         auto config = DynamicConfig_.Acquire();
         int attachmentIndex = 0;
         for (const auto& startInfo : response->jobs_to_start()) {
-            auto jobId = FromProto<TJobId>(startInfo.job_id());
+            auto jobId = FromProto<NChunkServer::TJobId>(startInfo.job_id());
             YT_LOG_DEBUG("Job spec received (JobId: %v, JobTrackerAddress: %v)",
                 jobId,
                 jobTrackerAddress);

@@ -267,9 +267,10 @@ public:
         const std::vector<TString>& arguments,
         const TString& workingDirectory) override
     {
+        auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
             ? Format("%v/uj", SlotContainerName_)
-            : Format("%v/uj-%x-%x", SlotContainerName_, JobId_.Parts32[3], JobId_.Parts32[2]);
+            : Format("%v/uj-%x-%x", SlotContainerName_, jobIdAsGuid.Parts32[3], jobIdAsGuid.Parts32[2]);
 
         auto launcher = CreatePortoInstanceLauncher(containerName, PortoExecutor_);
 
@@ -694,7 +695,7 @@ public:
     }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TGuid /* jobId */,
+        TJobId /* jobId */,
         const TUserJobEnvironmentOptions& options) override
     {
         if (options.RootFS) {
@@ -933,7 +934,7 @@ public:
     }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TGuid /*jobId*/,
+        TJobId /*jobId*/,
         const TUserJobEnvironmentOptions& options) override
     {
         if (options.RootFS) {

@@ -462,7 +462,7 @@ TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::Schedule
         return MakeFuture(scheduleJobResult);
     }
 
-    auto jobId = TJobId::Create();
+    auto jobId = TJobId(TGuid::Create());
     scheduleJobResult->StartDescriptor.emplace(
         jobId,
         jobToSchedule.ResourceLimits,

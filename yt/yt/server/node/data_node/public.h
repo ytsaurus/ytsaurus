@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/server/lib/chunk_server/public.h>
+
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NDataNode {
