@@ -184,33 +184,6 @@ class TestLayers(YTEnvSetup):
                 },
             )
 
-    @authors("prime")
-    def test_squashfs_spec_options(self):
-        self.setup_files()
-
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        op = map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="./static_cat; ls $YT_ROOT_FS 1>&2",
-            file="//tmp/static_cat",
-            spec={
-                "max_failed_job_count": 1,
-                "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
-                },
-                "enable_squashfs": True,
-            },
-        )
-
-        job_ids = op.list_jobs()
-        assert len(job_ids) == 1
-        for job_id in job_ids:
-            assert b"static-bin" in op.read_stderr(job_id)
-
     @authors("galtsev")
     @pytest.mark.timeout(600)
     def test_default_base_layer(self):
@@ -748,61 +721,6 @@ class TestJobSetup(YTEnvSetup):
         assert res == b"SETUP-OUTPUT\n"
 
 
-@authors("prime")
-class TestSquashfsLayers(TestLayers):
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "use_artifact_binds": True,
-            "test_root_fs": True,
-            "use_common_root_fs_quota": True,
-            "slot_manager": {
-                "job_environment": {
-                    "type": "porto",
-                },
-            },
-        },
-
-        "data_node": {
-            "volume_manager": {
-                "convert_layers_to_squashfs": True,
-                "use_bundled_tar2squash": True,
-            }
-        },
-    }
-
-
-@authors("prime")
-class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "test_root_fs": True,
-            "use_artifact_binds": True,
-            "use_common_root_fs_quota": True,
-            "slot_manager": {
-                "job_environment": {
-                    "type": "porto",
-                },
-            },
-        },
-
-        "data_node": {
-            "volume_manager": {
-                "convert_layers_to_squashfs": True,
-                "use_bundled_tar2squash": True,
-
-                "regular_tmpfs_layer_cache": {
-                    "capacity": 10 * 1024 * 1024,
-                    "layers_update_period": 100,
-                },
-                "nirvana_tmpfs_layer_cache": {
-                    "capacity": 10 * 1024 * 1024,
-                    "layers_update_period": 100,
-                }
-            }
-        },
-    }
-
-
 @authors("eshcherbin")
 class TestJobAbortDuringVolumePreparation(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -864,3 +782,86 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
 
         for alert in get("//sys/cluster_nodes/{}/@alerts".format(node)):
             assert "Scheduler jobs disabled" not in alert["message"]
+
+
+@authors("yuryalekseev")
+class TestLocalSquashFSLayers(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "test_root_fs": True,
+            "use_common_root_fs_quota": True,
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        }
+    }
+
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/corrupted_layer")
+        write_file("//tmp/corrupted_layer", open("layers/corrupted.tar.gz", "rb").read())
+
+        create("file", "//tmp/corrupted_squashfs.img")
+        write_file("//tmp/corrupted_squashfs.img", open("layers/corrupted.tar.gz", "rb").read())
+        set("//tmp/corrupted_squashfs.img/@access_method", "local")
+        set("//tmp/corrupted_squashfs.img/@filesystem", "squashfs")
+
+        create("file", "//tmp/squashfs.img")
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@access_method", "local")
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+
+    @authors("yuryalekseev")
+    def test_squashfs_layer(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="ls $YT_ROOT_FS/dir 1>&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/squashfs.img"],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            assert b"squash_file" in op.read_stderr(job_id)
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(150)
+    def test_corrupted_layer_with_squashfs_layer(self):
+        self.setup_files()
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/squashfs.img", "//tmp/corrupted_layer"],
+                    },
+                },
+            )
+
+        # YT-14186: Corrupted user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
