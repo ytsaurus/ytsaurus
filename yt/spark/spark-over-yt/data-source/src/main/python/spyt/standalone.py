@@ -363,32 +363,19 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment = config["environment"]
     default_java_home = environment["JAVA_HOME"]
 
-    if enable_tmpfs:
-        spark_home = "./tmpfs"
-    else:
-        spark_home = "."
-    livy_tgz = "livy.tgz"
-    spark_root = "{}/{}".format(spark_home, "spark")
+    spark_home = "./tmpfs" if enable_tmpfs else "."
 
-    def script_path(script):
-        return "{}/{}".format(spark_home, driver_op_discovery_script)
+    def _launcher_command(component, additional_parameters=[], xmx="512m", extra_java_opts=None, launcher_opts=""):
+        setup_spyt_env = ["./setup-spyt-env.sh", "--spark-home", spark_home] + additional_parameters
+        setup_spyt_env_cmd = " ".join(setup_spyt_env)
 
-    def _unpack_command(archive_name, dest):
-        return "tar --warning=no-unknown-keyword -xf {} -C {}".format(archive_name, dest)
-
-    def _unzip_command(archive_name, dest):
-        # COMPAT(alex-shishkin): Support clusters without spark-extra.zip
-        return "(if [ -f {} ]; then unzip -o {} -d {}; fi)".format(archive_name, archive_name, dest)
-
-    def _launcher_command(component, additional_commands=[], xmx="512m", extra_java_opts=None, launcher_opts=""):
-        create_dir = "mkdir -p {}".format(spark_home)
         java_bin = os.path.join(default_java_home, 'bin', 'java')
         extra_java_opts_str = " " + " ".join(extra_java_opts) if extra_java_opts else ""
         run_launcher = "{} -Xmx{} -cp spark-yt-launcher.jar{}".format(java_bin, xmx, extra_java_opts_str)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
-        commands = [create_dir, _unpack_command("spark.tgz", spark_home),
-                    _unzip_command("spark-extra.zip", spark_root)] + additional_commands + [
+        commands = [
+            setup_spyt_env_cmd,
             "{} {} tech.ytsaurus.spark.launcher.{}Launcher {}".format(run_launcher, spark_conf, component, launcher_opts)
         ]
         return " && ".join(commands)
@@ -443,7 +430,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     livy_launcher_opts = \
         "--driver-cores {0} --driver-memory {1} --max-sessions {2}".format(
             livy_driver_cores, livy_driver_memory, livy_max_sessions)
-    livy_command = _launcher_command("Livy", additional_commands=[_unpack_command('livy.tgz', spark_home)],
+    livy_command = _launcher_command("Livy", additional_parameters=["--enable-livy"],
                                      extra_java_opts=extra_java_opts, launcher_opts=livy_launcher_opts)
 
     user = get_user_name(client=client)
@@ -543,7 +530,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         worker_file_paths.append("//home/sashbel/profiler.zip")
         shs_file_paths.append("//home/sashbel/profiler.zip")
 
-    livy_file_paths.append("//home/spark/livy/{}".format(livy_tgz))
+    livy_file_paths.append("//home/spark/livy/livy.tgz")
 
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
 

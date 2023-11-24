@@ -58,11 +58,13 @@ class Client:
             stream = self.yt_client.read_file(full_target_path)
             file.write(stream)
 
-    def write_file(self, local_file_path: str, target_path: str) -> NoReturn:
+    def write_file(self, local_file_path: str, target_path: str, executable: bool = False) -> NoReturn:
         full_target_path = self.resolve_from_root(target_path)
-        logger.debug(f"Writing file {local_file_path} to {full_target_path}")
+        logger.debug(f"Writing {'executable' if executable else ''} file {local_file_path} to {full_target_path}")
         with open(local_file_path, 'rb') as file:
             self.yt_client.write_file(full_target_path, file)
+        if executable:
+            self.yt_client.set(full_target_path + "/@executable", True)
 
     def write_document(self, local_file_path: str, target_path: str) -> NoReturn:
         full_target_path = self.resolve_from_root(target_path)

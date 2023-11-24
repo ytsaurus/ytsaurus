@@ -56,6 +56,8 @@ object SpytPlugin extends AutoPlugin {
     val clientSpytBuild = taskKey[Unit]("Build Spyt .zip archive")
     val clusterSpytBuild = taskKey[Unit]("Build Spyt binary")
 
+    val setupSpytEnvScript = taskKey[File]("Script for preparing SPYT environment inside YT job")
+
     val spytClusterVersionFile = settingKey[File]("Spyt cluster version")
     val spytClientVersionFile = settingKey[File]("Spyt client version")
     val spytClientVersionPyFile = settingKey[File]("Spyt client version")

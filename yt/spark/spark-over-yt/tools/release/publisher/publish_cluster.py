@@ -39,6 +39,9 @@ def upload_cluster(uploader: Client, versions: Versions, sources_path: str, publ
     spark_extra_zip = join(sources_path, 'spark-extra.zip')
     uploader.write_file(spark_extra_zip, f"{bin_remote_dir(versions)}/spark-extra.zip")
 
+    setup_spyt_env = join(sources_path, 'setup-spyt-env.sh')
+    uploader.write_file(setup_spyt_env, f"{bin_remote_dir(versions)}/setup-spyt-env.sh", executable=True)
+
     uploader.link(f"{spark_remote_dir(versions)}/spark.tgz", f"{bin_remote_dir(versions)}/spark.tgz")
 
     conf_local_dir = join(sources_path, 'conf')

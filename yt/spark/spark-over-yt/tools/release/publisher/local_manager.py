@@ -68,7 +68,7 @@ def check_client_files(sources_path: str) -> bool:
 
 
 def check_cluster_files(sources_path: str) -> bool:
-    return check_existence(sources_path, ['spark-yt-launcher.jar', 'conf', 'spark-extra.zip'])
+    return check_existence(sources_path, ['spark-yt-launcher.jar', 'conf', 'spark-extra.zip', 'setup-spyt-env.sh'])
 
 
 def check_spark_files(sources_path: str) -> bool:

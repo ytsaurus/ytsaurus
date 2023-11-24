@@ -34,6 +34,7 @@ COPY ${BUILD_OUTPUT_PATH}/spyt.zip /data/
 COPY ${BUILD_OUTPUT_PATH}/spark-yt-file-system.jar /data/
 COPY ${BUILD_OUTPUT_PATH}/spark-yt-submit.jar /data/
 COPY ${BUILD_OUTPUT_PATH}/spark-extra.zip /data/
+COPY ${BUILD_OUTPUT_PATH}/setup-spyt-env.sh /data/
 COPY ${BUILD_OUTPUT_PATH}/livy.tgz /data/
 
 COPY ${PUBLISH_SCRIPTS_PATH} /scripts

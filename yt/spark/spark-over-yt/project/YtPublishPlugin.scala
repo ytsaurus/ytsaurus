@@ -74,7 +74,8 @@ object YtPublishPlugin extends AutoPlugin {
                              proxy: Option[String],
                              remoteName: Option[String] = None,
                              override val isTtlLimited: Boolean = false,
-                             override val forcedTTL: Option[Long] = None) extends YtPublishArtifact {
+                             override val forcedTTL: Option[Long] = None,
+                             isExecutable: Boolean = false) extends YtPublishArtifact {
       private def dstName: String = remoteName.getOrElse(localFile.getName)
 
       override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YTsaurusClient): Unit = {
@@ -121,6 +122,10 @@ object YtPublishPlugin extends AutoPlugin {
             writer.close().join()
           }
 
+          if (isExecutable) {
+            yt.setNode(s"$dst/@executable", YTree.booleanNode(true)).join()
+          }
+
           transaction.commit().join()
         } catch {
           case e: Throwable =>
@@ -128,7 +133,7 @@ object YtPublishPlugin extends AutoPlugin {
             throw e
         }
 
-        log.info(s"Finished upload $src to YT cluster $proxyName $dst")
+        log.info(s"Finished upload${ if (isExecutable) " executable"} $src to YT cluster $proxyName $dst")
       }
     }
 

@@ -78,11 +78,12 @@ lazy val `cluster` = (project in file("spark-cluster"))
       (`file-system` / assembly).value -> "jars",
       (`spark-patch` / Compile / packageBin).value -> "jars",
     ),
+    setupSpytEnvScript := sourceDirectory.value / "main" / "bash" / "setup-spyt-env.sh",
   )
   .settings(
     clusterSpytBuild := {
       val rootDirectory = baseDirectory.value.getParentFile
-      val files = Seq(assembly.value, zip.value)
+      val files = Seq(assembly.value, zip.value, setupSpytEnvScript.value)
       makeLinksToBuildDirectory(files, rootDirectory)
       val versionValue = (ThisBuild / spytClusterVersion).value
       val baseConfigDir = (Compile / resourceDirectory).value
@@ -123,7 +124,8 @@ lazy val `cluster` = (project in file("spark-cluster"))
 
       sparkLink ++ Seq(
         YtPublishFile(assembly.value, basePath, None, isTtlLimited = isTtlLimited),
-        YtPublishFile(zip.value, basePath, None, isTtlLimited = isTtlLimited)
+        YtPublishFile(zip.value, basePath, None, isTtlLimited = isTtlLimited),
+        YtPublishFile(setupSpytEnvScript.value, basePath, None, isTtlLimited = isTtlLimited, isExecutable = true)
       ) ++ clusterConfigArtifacts
     }
   )
