@@ -221,11 +221,11 @@ def copy(source_path, destination_path,
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
 
-    if enable_cross_cell_copying is None:
-        return _CrosscellCopyMoveRetrier.copy(params, client)
-    else:
+    if _is_batch_client(client) or enable_cross_cell_copying is not None:
         set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
         return make_formatted_request("copy", params, format=None, client=client)
+    else:
+        return _CrosscellCopyMoveRetrier.copy(params, client)
 
 
 def move(source_path, destination_path,
@@ -267,11 +267,11 @@ def move(source_path, destination_path,
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
 
-    if enable_cross_cell_copying is None:
-        return _CrosscellCopyMoveRetrier.move(params, client)
-    else:
+    if _is_batch_client(client) or enable_cross_cell_copying is not None:
         set_param(params, "enable_cross_cell_copying", enable_cross_cell_copying)
         return make_formatted_request("move", params, format=None, client=client)
+    else:
+        return _CrosscellCopyMoveRetrier.move(params, client)
 
 
 class _ConcatenateRetrier(Retrier):

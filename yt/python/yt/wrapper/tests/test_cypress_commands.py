@@ -963,3 +963,21 @@ class TestCypressCommandsMulticell(object):
         yt.copy(table_beyond_portal, table_no_portal, force=True)
         assert yt.row_count(table_beyond_portal) == 2
         assert yt.row_count(table_no_portal) == 2
+
+    @authors("denvr")
+    def test_portal_copy_batch(self):
+        table_beyond_portal = self.PORTAL1_ENTRANCE + "/dark_table_3"
+        yt.create("table", table_beyond_portal)
+        yt.write_table(table_beyond_portal, [{"foo": "bar"}, {"foo": "qwe"}])
+
+        table_no_portal = self.TMP_DIR + "/regula_table_3"
+
+        client = yt.YtClient(config=yt.config.config)
+        batch_client = client.create_batch_client()
+        res = batch_client.copy(table_beyond_portal, table_no_portal)
+        batch_client.commit_batch()
+        assert res.get_error() is None
+        assert res.is_ok()
+
+        assert yt.row_count(table_beyond_portal) == 2
+        assert yt.row_count(table_no_portal) == 2
