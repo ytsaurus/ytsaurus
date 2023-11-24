@@ -38,12 +38,12 @@ IChannelPtr CreatePeerChannel(
         std::move(realmChannelFactory),
         std::move(endpointDescription),
         std::move(endpointAttributes),
-        BIND_NO_PROPAGATE([=] (TReqDiscover* request) {
+        CreateDefaultPeerDiscovery(BIND_NO_PROPAGATE([=] (TReqDiscover* request) {
             if (checkPeerState) {
                 auto* ext = request->MutableExtension(TPeerKindExt::peer_kind_ext);
                 ext->set_peer_kind(static_cast<int>(kind));
             }
-        }));
+        })));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
