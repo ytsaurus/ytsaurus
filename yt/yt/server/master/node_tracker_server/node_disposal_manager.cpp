@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <util/generic/scope.h>
+
 namespace NYT::NNodeTrackerServer {
 
 using namespace NCellMaster;
@@ -97,7 +99,7 @@ public:
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
             // Node was being disposed location by location, but smth needs it to be disposed right now.
             if (node->GetLocalState() == ENodeState::BeingDisposed) {
-                EraseOrCrash(NodesBeingDisposed_, node->GetId());
+                EraseFromDisposalQueueOrCrash(node->GetId());
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 nodeTracker->SetNodeLocalState(node, ENodeState::Unregistered);
             }
@@ -368,6 +370,16 @@ private:
             node->GetDefaultAddress());
     }
 
+    void EraseFromDisposalQueueOrCrash(const TNodeId& nodeId)
+    {
+        EraseOrCrash(NodesBeingDisposed_, nodeId);
+        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesAwaitingDisposal &&
+            !NodesAwaitingForBeingDisposed_.empty()) {
+            InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
+            NodesAwaitingForBeingDisposed_.pop_front();
+        }
+    }
+
     void HydraStartNodeDisposal(TReqStartNodeDisposal* request)
     {
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
@@ -436,6 +448,11 @@ private:
     void HydraFinishNodeDisposal(TReqFinishNodeDisposal* request)
     {
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
+        Y_DEFER {
+            if (NodesBeingDisposed_.contains(nodeId)) {
+                EraseFromDisposalQueueOrCrash(nodeId);
+            }
+        };
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->FindNode(nodeId);
@@ -455,11 +472,6 @@ private:
         }
 
         DoFinishNodeDisposal(node);
-        EraseOrCrash(NodesBeingDisposed_, node->GetId());
-        if (!NodesAwaitingForBeingDisposed_.empty()) {
-            InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
-            NodesAwaitingForBeingDisposed_.pop_front();
-        }
     }
 };
 
