@@ -11,6 +11,19 @@ add_executable(cpp-integration-test-hydra)
 target_compile_options(cpp-integration-test-hydra PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(cpp-integration-test-hydra PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  library-query-engine
+  tests-cpp-test_base
+  server-lib-hydra
+  yt-yt-ytlib
+  yt-core-test_framework
+)
 target_link_options(cpp-integration-test-hydra PRIVATE
   -ldl
   -lrt
@@ -21,6 +34,9 @@ target_link_options(cpp-integration-test-hydra PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(cpp-integration-test-hydra PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
 )
 add_test(
   NAME
@@ -41,5 +57,8 @@ set_property(
   PROPERTY
   PROCESSORS
   4
+)
+target_allocator(cpp-integration-test-hydra
+  cpp-ytalloc-impl
 )
 vcs_info(cpp-integration-test-hydra)

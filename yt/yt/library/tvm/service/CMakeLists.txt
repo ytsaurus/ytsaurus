@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(mock)
 
 add_library(library-tvm-service)
 target_compile_options(library-tvm-service PRIVATE

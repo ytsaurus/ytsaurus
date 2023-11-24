@@ -11,6 +11,18 @@ add_executable(unittester-clickhouse-server)
 target_compile_options(unittester-clickhouse-server PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-clickhouse-server PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  cpp-testing-hook
+  yt-yt-build
+  yt-core-test_framework
+  yt-chyt-server
+)
 target_link_options(unittester-clickhouse-server PRIVATE
   -ldl
   -lrt
@@ -21,6 +33,12 @@ target_link_options(unittester-clickhouse-server PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-clickhouse-server PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/computed_columns_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/ch_yt_converter_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/yt_ch_converter_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/framework.cpp
 )
 add_test(
   NAME
@@ -41,5 +59,8 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-clickhouse-server
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-clickhouse-server)

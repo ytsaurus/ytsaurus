@@ -11,6 +11,15 @@ add_executable(yt-yt-library-tracing-unittests)
 target_compile_options(yt-yt-library-tracing-unittests PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  library-tracing-jaeger
+)
 target_link_options(yt-yt-library-tracing-unittests PRIVATE
   -ldl
   -lrt
@@ -21,6 +30,9 @@ target_link_options(yt-yt-library-tracing-unittests PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(yt-yt-library-tracing-unittests PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/unittests/sampler_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +53,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(yt-yt-library-tracing-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-yt-library-tracing-unittests)

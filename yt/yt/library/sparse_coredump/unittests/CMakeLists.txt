@@ -11,6 +11,15 @@ add_executable(unittester-core-dump)
 target_compile_options(unittester-core-dump PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-core-dump PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-library-sparse_coredump
+)
 target_link_options(unittester-core-dump PRIVATE
   -ldl
   -lrt
@@ -21,6 +30,9 @@ target_link_options(unittester-core-dump PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-core-dump PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +53,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-core-dump
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-core-dump)

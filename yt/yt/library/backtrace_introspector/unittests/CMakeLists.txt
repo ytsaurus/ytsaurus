@@ -8,6 +8,16 @@
 
 
 add_executable(yt-yt-library-backtrace_introspector-unittests)
+target_link_libraries(yt-yt-library-backtrace_introspector-unittests PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-library-backtrace_introspector
+  yt-core-test_framework
+)
 target_link_options(yt-yt-library-backtrace_introspector-unittests PRIVATE
   -ldl
   -lrt
@@ -18,6 +28,9 @@ target_link_options(yt-yt-library-backtrace_introspector-unittests PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(yt-yt-library-backtrace_introspector-unittests PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/unittests/introspect_ut.cpp
 )
 add_test(
   NAME
@@ -38,5 +51,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(yt-yt-library-backtrace_introspector-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-yt-library-backtrace_introspector-unittests)

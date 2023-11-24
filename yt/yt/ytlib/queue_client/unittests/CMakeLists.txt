@@ -11,6 +11,16 @@ add_executable(unittester-queue-client)
 target_compile_options(unittester-queue-client PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-queue-client PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-ytlib
+  yt-core-test_framework
+)
 target_link_options(unittester-queue-client PRIVATE
   -ldl
   -lrt
@@ -21,6 +31,9 @@ target_link_options(unittester-queue-client PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-queue-client PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/dynamic_state_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +54,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-queue-client
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-queue-client)

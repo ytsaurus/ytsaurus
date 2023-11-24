@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(udf)
 
 add_executable(unittester-query)
 target_compile_options(unittester-query PRIVATE
@@ -13,6 +14,20 @@ target_compile_options(unittester-query PRIVATE
 )
 target_include_directories(unittester-query PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+)
+target_link_libraries(unittester-query PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-build
+  yt-core-test_framework
+  library-query-engine
+  library-query-engine_api
+  query-unittests-udf
+  contrib-libs-sparsehash
 )
 target_link_options(unittester-query PRIVATE
   -rdynamic
@@ -25,6 +40,16 @@ target_link_options(unittester-query PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-query PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
 )
 add_test(
   NAME
@@ -45,5 +70,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-query
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-query)

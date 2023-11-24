@@ -11,6 +11,14 @@ add_executable(yt-cpp-mapreduce-http-ut)
 target_include_directories(yt-cpp-mapreduce-http-ut PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http
 )
+target_link_libraries(yt-cpp-mapreduce-http-ut PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-unittest_main
+  cpp-mapreduce-http
+)
 target_link_options(yt-cpp-mapreduce-http-ut PRIVATE
   -ldl
   -lrt
@@ -21,6 +29,11 @@ target_link_options(yt-cpp-mapreduce-http-ut PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(yt-cpp-mapreduce-http-ut PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/ut/connection_pool_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/ut/http_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/ut/simple_server.cpp
 )
 set_property(
   TARGET
@@ -54,5 +67,9 @@ set_yunittest_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(yt-cpp-mapreduce-http-ut
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-cpp-mapreduce-http-ut)

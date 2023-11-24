@@ -11,6 +11,17 @@ add_executable(unittester-tablet-balancer-lib)
 target_compile_options(unittester-tablet-balancer-lib PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-tablet-balancer-lib PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  server-lib-tablet_balancer
+  tablet_balancer-dry_run-lib
+  yt-core-test_framework
+)
 target_link_options(unittester-tablet-balancer-lib PRIVATE
   -ldl
   -lrt
@@ -21,6 +32,9 @@ target_link_options(unittester-tablet-balancer-lib PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-tablet-balancer-lib PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/balancing_helpers_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +55,8 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-tablet-balancer-lib
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-tablet-balancer-lib)

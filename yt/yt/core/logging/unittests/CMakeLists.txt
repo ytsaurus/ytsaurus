@@ -11,6 +11,17 @@ add_executable(unittester-core-logging)
 target_compile_options(unittester-core-logging PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-core-logging PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-core
+  yt-core-test_framework
+  cpp-streams-zstd
+)
 target_link_options(unittester-core-logging PRIVATE
   -ldl
   -lrt
@@ -21,6 +32,9 @@ target_link_options(unittester-core-logging PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-core-logging PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/unittests/logging_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +55,8 @@ set_property(
   PROPERTY
   PROCESSORS
   4
+)
+target_allocator(unittester-core-logging
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-core-logging)

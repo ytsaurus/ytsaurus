@@ -11,6 +11,16 @@ add_executable(unittester-fair-share-update)
 target_compile_options(unittester-fair-share-update PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-fair-share-update PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-library-vector_hdrf
+  yt-core-test_framework
+)
 target_link_options(unittester-fair-share-update PRIVATE
   -ldl
   -lrt
@@ -21,6 +31,9 @@ target_link_options(unittester-fair-share-update PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-fair-share-update PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/fair_share_update_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +54,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-fair-share-update
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(unittester-fair-share-update)

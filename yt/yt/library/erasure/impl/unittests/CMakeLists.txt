@@ -11,6 +11,17 @@ add_executable(unittester-library-erasure)
 target_compile_options(unittester-library-erasure PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-library-erasure PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-build
+  yt-core-test_framework
+  library-erasure-impl
+)
 target_link_options(unittester-library-erasure PRIVATE
   -ldl
   -lrt
@@ -21,6 +32,9 @@ target_link_options(unittester-library-erasure PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-library-erasure PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/unittests/erasure_stability_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +55,8 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-library-erasure
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-library-erasure)

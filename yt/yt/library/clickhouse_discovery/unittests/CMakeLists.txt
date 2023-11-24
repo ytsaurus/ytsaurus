@@ -11,6 +11,19 @@ add_executable(unittester-library-clickhouse-discovery)
 target_compile_options(unittester-library-clickhouse-discovery PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-library-clickhouse-discovery PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-build
+  client-unittests-mock
+  yt-yt-core
+  yt-core-test_framework
+  yt-library-clickhouse_discovery
+)
 target_link_options(unittester-library-clickhouse-discovery PRIVATE
   -ldl
   -lrt
@@ -21,6 +34,10 @@ target_link_options(unittester-library-clickhouse-discovery PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-library-clickhouse-discovery PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/discovery_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/helpers_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +58,8 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-library-clickhouse-discovery
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-library-clickhouse-discovery)

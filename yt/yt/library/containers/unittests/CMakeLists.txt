@@ -11,6 +11,16 @@ add_executable(unittester-containers)
 target_compile_options(unittester-containers PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-containers PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-build
+  yt-library-containers
+)
 target_link_options(unittester-containers PRIVATE
   -ldl
   -lrt
@@ -21,6 +31,11 @@ target_link_options(unittester-containers PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-containers PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/unittests/containers_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/unittests/process_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/unittests/porto_resource_tracker_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +56,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-containers
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-containers)

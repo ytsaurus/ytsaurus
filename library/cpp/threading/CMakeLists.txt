@@ -8,6 +8,7 @@
 
 add_subdirectory(blocking_queue)
 add_subdirectory(cron)
+add_subdirectory(equeue)
 add_subdirectory(future)
 add_subdirectory(hot_swap)
 add_subdirectory(skip_list)

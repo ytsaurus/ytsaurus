@@ -11,6 +11,19 @@ add_executable(cpp-integration-test-native-api)
 target_compile_options(cpp-integration-test-native-api PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(cpp-integration-test-native-api PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  library-query-engine
+  tests-cpp-test_base
+  yt-yt-ytlib
+  yt-core-test_framework
+  yt-library-named_value
+)
 target_link_options(cpp-integration-test-native-api PRIVATE
   -ldl
   -lrt
@@ -21,6 +34,13 @@ target_link_options(cpp-integration-test-native-api PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(cpp-integration-test-native-api PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_native_api/test_native_api.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
 )
 add_test(
   NAME
@@ -41,5 +61,8 @@ set_property(
   PROPERTY
   PROCESSORS
   4
+)
+target_allocator(cpp-integration-test-native-api
+  cpp-ytalloc-impl
 )
 vcs_info(cpp-integration-test-native-api)

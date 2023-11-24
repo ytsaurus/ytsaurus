@@ -7,3 +7,5 @@
 
 
 add_subdirectory(io)
+add_subdirectory(misc)
+add_subdirectory(server)

@@ -11,6 +11,19 @@ add_executable(cpp-integration-test-cypress-election)
 target_compile_options(cpp-integration-test-cypress-election PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(cpp-integration-test-cypress-election PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  library-query-engine
+  yt-core-test_framework
+  server-lib-cypress_election
+  tests-cpp-test_base
+  yt-yt-ytlib
+)
 target_link_options(cpp-integration-test-cypress-election PRIVATE
   -ldl
   -lrt
@@ -21,6 +34,9 @@ target_link_options(cpp-integration-test-cypress-election PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(cpp-integration-test-cypress-election PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_cypress_election/test_cypress_election.cpp
 )
 add_test(
   NAME
@@ -41,5 +57,8 @@ set_property(
   PROPERTY
   PROCESSORS
   4
+)
+target_allocator(cpp-integration-test-cypress-election
+  cpp-ytalloc-impl
 )
 vcs_info(cpp-integration-test-cypress-election)

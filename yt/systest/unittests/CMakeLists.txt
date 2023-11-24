@@ -11,6 +11,15 @@ add_executable(unittester-yt-systest)
 target_compile_options(unittester-yt-systest PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-yt-systest PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-systest
+)
 target_link_options(unittester-yt-systest PRIVATE
   -ldl
   -lrt
@@ -21,6 +30,12 @@ target_link_options(unittester-yt-systest PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-yt-systest PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/stub_dataset.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/sort_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/reduce_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/util.cpp
 )
 add_test(
   NAME
@@ -41,5 +56,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-yt-systest
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(unittester-yt-systest)

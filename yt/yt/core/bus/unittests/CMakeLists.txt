@@ -11,6 +11,17 @@ add_executable(unittester-core-bus)
 target_compile_options(unittester-core-bus PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-core-bus PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-core
+  yt-core-test_framework
+  cpp-testing-common
+)
 target_link_options(unittester-core-bus PRIVATE
   -ldl
   -lrt
@@ -21,6 +32,10 @@ target_link_options(unittester-core-bus PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-core-bus PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/unittests/bus_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/unittests/ssl_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +56,8 @@ set_property(
   PROPERTY
   PROCESSORS
   4
+)
+target_allocator(unittester-core-bus
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-core-bus)

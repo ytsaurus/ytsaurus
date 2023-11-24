@@ -11,6 +11,18 @@ add_executable(unittester-ytlib-tablet-client)
 target_compile_options(unittester-ytlib-tablet-client PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-ytlib-tablet-client PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  client-unittests-mock
+  table_client-unittests-helpers
+  yt-core-test_framework
+  yt-yt-ytlib
+)
 target_link_options(unittester-ytlib-tablet-client PRIVATE
   -ldl
   -lrt
@@ -21,6 +33,9 @@ target_link_options(unittester-ytlib-tablet-client PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-ytlib-tablet-client PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +56,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-ytlib-tablet-client
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-ytlib-tablet-client)

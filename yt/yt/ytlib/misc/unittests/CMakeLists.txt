@@ -11,6 +11,16 @@ add_executable(unittester-ytlib-memory-trackers)
 target_compile_options(unittester-ytlib-memory-trackers PRIVATE
   -Wdeprecated-this-capture
 )
+target_link_libraries(unittester-ytlib-memory-trackers PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-core-test_framework
+  yt-yt-ytlib
+)
 target_link_options(unittester-ytlib-memory-trackers PRIVATE
   -ldl
   -lrt
@@ -21,6 +31,9 @@ target_link_options(unittester-ytlib-memory-trackers PRIVATE
   -lrt
   -ldl
   -lutil
+)
+target_sources(unittester-ytlib-memory-trackers PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/unittests/memory_reference_tracker_ut.cpp
 )
 add_test(
   NAME
@@ -41,5 +54,8 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-ytlib-memory-trackers
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-ytlib-memory-trackers)
