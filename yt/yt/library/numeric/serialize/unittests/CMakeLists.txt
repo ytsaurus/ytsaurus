@@ -14,15 +14,6 @@ target_compile_options(unittester-yt-library-numeric PRIVATE
 target_include_directories(unittester-yt-library-numeric PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/serialize
 )
-target_link_libraries(unittester-yt-library-numeric PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  library-numeric-serialize
-)
 target_link_options(unittester-yt-library-numeric PRIVATE
   -ldl
   -lrt
@@ -33,9 +24,6 @@ target_link_options(unittester-yt-library-numeric PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-yt-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/serialize/unittests/double_array_ut.cpp
 )
 add_test(
   NAME
@@ -56,9 +44,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-yt-library-numeric
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(unittester-yt-library-numeric)

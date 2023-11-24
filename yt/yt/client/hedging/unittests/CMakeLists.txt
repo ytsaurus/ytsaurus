@@ -11,21 +11,6 @@ add_executable(yt-yt-client-hedging-unittests)
 target_compile_options(yt-yt-client-hedging-unittests PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(yt-yt-client-hedging-unittests PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  library-cpp-iterator
-  cpp-testing-common
-  cpp-testing-hook
-  yt-client-hedging
-  client-unittests-mock
-  yt-yt-core
-  library-profiling-solomon
-)
 target_link_options(yt-yt-client-hedging-unittests PRIVATE
   -ldl
   -lrt
@@ -36,12 +21,6 @@ target_link_options(yt-yt-client-hedging-unittests PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(yt-yt-client-hedging-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/counters_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/hedging_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/penalty_provider_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/hook.cpp
 )
 add_test(
   NAME
@@ -62,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(yt-yt-client-hedging-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-yt-client-hedging-unittests)

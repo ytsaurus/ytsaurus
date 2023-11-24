@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(mock)
 add_subdirectory(unittests)
 
 add_library(server-lib-chunk_pools)

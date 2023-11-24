@@ -11,14 +11,6 @@ add_executable(yt-cpp-mapreduce-common-ut)
 target_include_directories(yt-cpp-mapreduce-common-ut PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/common
 )
-target_link_libraries(yt-cpp-mapreduce-common-ut PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-unittest_main
-  cpp-mapreduce-common
-)
 target_link_options(yt-cpp-mapreduce-common-ut PRIVATE
   -ldl
   -lrt
@@ -28,9 +20,6 @@ target_link_options(yt-cpp-mapreduce-common-ut PRIVATE
   -lpthread
   -lrt
   -ldl
-)
-target_sources(yt-cpp-mapreduce-common-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/common/helpers_ut.cpp
 )
 set_property(
   TARGET
@@ -64,9 +53,5 @@ set_yunittest_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(yt-cpp-mapreduce-common-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-cpp-mapreduce-common-ut)

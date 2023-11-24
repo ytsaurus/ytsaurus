@@ -6,5 +6,4 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(paged_vector)
 add_subdirectory(stack_array)

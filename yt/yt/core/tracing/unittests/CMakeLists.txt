@@ -11,16 +11,6 @@ add_executable(unittester-core-tracing)
 target_compile_options(unittester-core-tracing PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-core-tracing PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-core
-  yt-core-test_framework
-)
 target_link_options(unittester-core-tracing PRIVATE
   -ldl
   -lrt
@@ -31,9 +21,6 @@ target_link_options(unittester-core-tracing PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-core-tracing PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/unittests/allocation_tags_ut.cpp
 )
 add_test(
   NAME
@@ -54,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-core-tracing
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(unittester-core-tracing)

@@ -6,23 +6,10 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(mock)
 
 add_executable(unittester-discovery-server)
 target_compile_options(unittester-discovery-server PRIVATE
   -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-discovery-server PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  server-lib-discovery_server
-  discovery_server-unittests-mock
-  yt-ytlib-distributed_throttler
-  yt-core-test_framework
 )
 target_link_options(unittester-discovery-server PRIVATE
   -ldl
@@ -34,10 +21,6 @@ target_link_options(unittester-discovery-server PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-discovery-server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/discovery_service_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/distributed_throttler_ut.cpp
 )
 add_test(
   NAME
@@ -58,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-discovery-server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
 )
 vcs_info(unittester-discovery-server)

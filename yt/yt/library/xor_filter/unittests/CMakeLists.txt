@@ -8,15 +8,6 @@
 
 
 add_executable(yt-yt-library-xor_filter-unittests)
-target_link_libraries(yt-yt-library-xor_filter-unittests PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-library-xor_filter
-)
 target_link_options(yt-yt-library-xor_filter-unittests PRIVATE
   -ldl
   -lrt
@@ -27,9 +18,6 @@ target_link_options(yt-yt-library-xor_filter-unittests PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(yt-yt-library-xor_filter-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/xor_filter/unittests/xor_filter_ut.cpp
 )
 add_test(
   NAME
@@ -50,9 +38,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(yt-yt-library-xor_filter-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-yt-library-xor_filter-unittests)

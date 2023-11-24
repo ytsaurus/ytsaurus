@@ -6,40 +6,10 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
 
 add_executable(unittester-all)
 target_compile_options(unittester-all PRIVATE
   -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-all PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  library-cpp-resource
-  yt-server-master
-  yt-server-cell_balancer
-  yt-server-clock_server
-  yt-server-controller_agent
-  yt-server-discovery_server
-  yt-server-exec
-  yt-server-http_proxy
-  yt-server-job_proxy
-  yt-server-log_tailer
-  yt-server-master_cache
-  yt-server-node
-  yt-server-rpc_proxy
-  yt-server-scheduler
-  yt-server-timestamp_provider
-  yt-server-tools
 )
 target_link_options(unittester-all PRIVATE
   -ldl
@@ -51,10 +21,6 @@ target_link_options(unittester-all PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-all PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/config_ut.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
 )
 add_test(
   NAME
@@ -75,36 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-resources(unittester-all
-  ${CMAKE_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
-  INPUTS
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/controller-agent.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/http-proxy.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/map_reduce_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/map_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/master.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/node.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/reduce_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/rpc-proxy.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/scheduler.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/sort_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/vanilla_spec.yson
-  KEYS
-  /configs/controller-agent.yson
-  /configs/http-proxy.yson
-  /configs/map_reduce_spec.yson
-  /configs/map_spec.yson
-  /configs/master.yson
-  /configs/node.yson
-  /configs/reduce_spec.yson
-  /configs/rpc-proxy.yson
-  /configs/scheduler.yson
-  /configs/sort_spec.yson
-  /configs/vanilla_spec.yson
-)
-target_allocator(unittester-all
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
 )
 vcs_info(unittester-all)

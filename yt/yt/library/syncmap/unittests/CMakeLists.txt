@@ -11,16 +11,6 @@ add_executable(yt-yt-library-syncmap-unittests)
 target_compile_options(yt-yt-library-syncmap-unittests PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(yt-yt-library-syncmap-unittests PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-core
-  yt-library-syncmap
-)
 target_link_options(yt-yt-library-syncmap-unittests PRIVATE
   -ldl
   -lrt
@@ -31,9 +21,6 @@ target_link_options(yt-yt-library-syncmap-unittests PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(yt-yt-library-syncmap-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/syncmap/unittests/map_ut.cpp
 )
 add_test(
   NAME
@@ -54,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(yt-yt-library-syncmap-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-yt-library-syncmap-unittests)

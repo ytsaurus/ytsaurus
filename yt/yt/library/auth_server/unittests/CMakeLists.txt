@@ -8,19 +8,6 @@
 
 
 add_executable(unittester-library-auth_server)
-target_link_libraries(unittester-library-auth_server PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-build
-  yt-core-test_framework
-  yt-library-auth_server
-  tvm-service-mock
-  cpp-http-server
-)
 target_link_options(unittester-library-auth_server PRIVATE
   -ldl
   -lrt
@@ -31,11 +18,6 @@ target_link_options(unittester-library-auth_server PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-library-auth_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/unittests/blackbox_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/unittests/mock_http_server.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/unittests/secret_vault_ut.cpp
 )
 add_test(
   NAME
@@ -56,8 +38,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-library-auth_server
-  cpp-ytalloc-impl
 )
 vcs_info(unittester-library-auth_server)

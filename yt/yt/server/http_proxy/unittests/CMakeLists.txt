@@ -14,15 +14,6 @@ target_compile_options(unittester-http-proxy PRIVATE
 target_include_directories(unittester-http-proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
-target_link_libraries(unittester-http-proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-server-http_proxy
-)
 target_link_options(unittester-http-proxy PRIVATE
   -ldl
   -lrt
@@ -33,10 +24,6 @@ target_link_options(unittester-http-proxy PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-http-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/helpers_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/http_proxy_ut.cpp
 )
 add_test(
   NAME
@@ -57,9 +44,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-http-proxy
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
 )
 vcs_info(unittester-http-proxy)

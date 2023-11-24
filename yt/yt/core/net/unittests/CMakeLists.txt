@@ -11,17 +11,6 @@ add_executable(unittester-core-net)
 target_compile_options(unittester-core-net PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-core-net PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-core
-  yt-core-test_framework
-  cpp-streams-zstd
-)
 target_link_options(unittester-core-net PRIVATE
   -ldl
   -lrt
@@ -32,11 +21,6 @@ target_link_options(unittester-core-net PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-core-net PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/unittests/local_address_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/unittests/net_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/unittests/network_address_ut.cpp
 )
 add_test(
   NAME
@@ -57,8 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   4
-)
-target_allocator(unittester-core-net
-  cpp-ytalloc-impl
 )
 vcs_info(unittester-core-net)

@@ -6,57 +6,10 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_executable(yt-cpp-mapreduce-interface-ut)
 target_include_directories(yt-cpp-mapreduce-interface-ut PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface
-)
-target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-unittest_main
-  cpp-mapreduce-interface
-  contrib-libs-protobuf
-  cpp-testing-unittest
-  yt_proto-yt-formats
 )
 target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
   -ldl
@@ -67,23 +20,6 @@ target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
   -lpthread
   -lrt
   -ldl
-)
-target_proto_messages(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/proto3_ut.proto
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.proto
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
-)
-target_sources(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/common_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/config_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/error_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/format_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize_ut.cpp
 )
 set_property(
   TARGET
@@ -117,22 +53,5 @@ set_yunittest_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(yt-cpp-mapreduce-interface-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-target_proto_addincls(yt-cpp-mapreduce-interface-ut
-  ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(yt-cpp-mapreduce-interface-ut
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
 )
 vcs_info(yt-cpp-mapreduce-interface-ut)

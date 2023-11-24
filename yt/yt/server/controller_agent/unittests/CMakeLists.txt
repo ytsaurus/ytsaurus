@@ -11,16 +11,6 @@ add_executable(unittester-controller-agent)
 target_compile_options(unittester-controller-agent PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-controller-agent PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-server-controller_agent
-  lib-chunk_pools-mock
-)
 target_link_options(unittester-controller-agent PRIVATE
   -ldl
   -lrt
@@ -31,13 +21,6 @@ target_link_options(unittester-controller-agent PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-controller-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/auto_merge_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_monitoring_index_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_splitter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partitions_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/docker_image_ut.cpp
 )
 add_test(
   NAME
@@ -58,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-controller-agent
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
 )
 vcs_info(unittester-controller-agent)

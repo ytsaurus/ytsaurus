@@ -12,20 +12,6 @@ add_executable(yt-yt-library-profiling-unittests)
 target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-core-test_framework
-  yt-library-profiling
-  library-profiling-solomon
-  library-profiling-tcmalloc
-  library-profiling-resource_tracker
-  library-profiling-perf
-)
 target_link_options(yt-yt-library-profiling-unittests PRIVATE
   -ldl
   -lrt
@@ -36,16 +22,6 @@ target_link_options(yt-yt-library-profiling-unittests PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(yt-yt-library-profiling-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/profiler_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/solomon_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/tag_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/cube_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/exporter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/perf_counter_ut.cpp
 )
 add_test(
   NAME
@@ -66,9 +42,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(yt-yt-library-profiling-unittests
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
 )
 vcs_info(yt-yt-library-profiling-unittests)

@@ -11,17 +11,6 @@ add_executable(unittester-library-logging)
 target_compile_options(unittester-library-logging PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-library-logging PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  server-lib-logging
-  yt-yt-client
-  yt-yt-core
-)
 target_link_options(unittester-library-logging PRIVATE
   -ldl
   -lrt
@@ -32,9 +21,6 @@ target_link_options(unittester-library-logging PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-library-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/unittests/category_registry_ut.cpp
 )
 add_test(
   NAME
@@ -55,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-library-logging
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
 )
 vcs_info(unittester-library-logging)

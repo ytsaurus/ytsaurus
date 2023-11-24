@@ -7,7 +7,6 @@
 
 
 add_subdirectory(lambda)
-add_subdirectory(mock_client)
 add_subdirectory(operation_tracker)
 add_subdirectory(parallel_io)
 add_subdirectory(table_schema)

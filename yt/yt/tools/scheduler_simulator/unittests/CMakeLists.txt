@@ -14,16 +14,6 @@ target_compile_options(unittester-scheduler-simulator PRIVATE
 target_include_directories(unittester-scheduler-simulator PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
 )
-target_link_libraries(unittester-scheduler-simulator PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-tools-scheduler_simulator
-  yt-core-test_framework
-)
 target_link_options(unittester-scheduler-simulator PRIVATE
   -ldl
   -lrt
@@ -34,10 +24,6 @@ target_link_options(unittester-scheduler-simulator PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-scheduler-simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/operation_controller_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/control_thread_ut.cpp
 )
 add_test(
   NAME
@@ -58,8 +44,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-scheduler-simulator
-  cpp-ytalloc-impl
 )
 vcs_info(unittester-scheduler-simulator)

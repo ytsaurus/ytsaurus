@@ -11,18 +11,6 @@ add_executable(unittester-ytlib-table-client)
 target_compile_options(unittester-ytlib-table-client PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-ytlib-table-client PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  client-unittests-mock
-  table_client-unittests-helpers
-  yt-core-test_framework
-  yt-yt-ytlib
-)
 target_link_options(unittester-ytlib-table-client PRIVATE
   -ldl
   -lrt
@@ -33,26 +21,6 @@ target_link_options(unittester-ytlib-table-client PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-ytlib-table-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/table_schema_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/value_consumer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_blocks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_chunks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/versioned_blocks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/versioned_chunks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/any_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/boolean_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/column_format_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/complex_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/floating_point_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/integer_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/meta_aggregating_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/null_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/string_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/timestamp_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/chunk_index_read_controller_ut.cpp
 )
 add_test(
   NAME
@@ -73,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-ytlib-table-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
 )
 vcs_info(unittester-ytlib-table-client)

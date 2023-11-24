@@ -11,16 +11,6 @@ add_executable(unittester-library-error-skeleton)
 target_compile_options(unittester-library-error-skeleton PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-library-error-skeleton PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-library-error_skeleton
-  yt-core-test_framework
-)
 target_link_options(unittester-library-error-skeleton PRIVATE
   -ldl
   -lrt
@@ -31,9 +21,6 @@ target_link_options(unittester-library-error-skeleton PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-library-error-skeleton PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/error_skeleton/unittests/skeleton_ut.cpp
 )
 add_test(
   NAME
@@ -54,8 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-library-error-skeleton
-  cpp-ytalloc-impl
 )
 vcs_info(unittester-library-error-skeleton)

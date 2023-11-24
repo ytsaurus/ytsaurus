@@ -11,16 +11,6 @@ add_executable(unittester-core-profiling)
 target_compile_options(unittester-core-profiling PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-core-profiling PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-core
-  yt-core-test_framework
-)
 target_link_options(unittester-core-profiling PRIVATE
   -ldl
   -lrt
@@ -31,10 +21,6 @@ target_link_options(unittester-core-profiling PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-core-profiling PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/unittests/timer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/unittests/timing_ut.cpp
 )
 add_test(
   NAME
@@ -55,8 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   4
-)
-target_allocator(unittester-core-profiling
-  cpp-ytalloc-impl
 )
 vcs_info(unittester-core-profiling)

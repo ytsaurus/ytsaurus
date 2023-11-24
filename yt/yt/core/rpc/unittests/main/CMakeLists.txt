@@ -11,19 +11,6 @@ add_executable(unittester-core-rpc)
 target_compile_options(unittester-core-rpc PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-core-rpc PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-core
-  core-rpc-grpc
-  rpc-unittests-lib
-  yt-core-test_framework
-  cpp-testing-common
-)
 target_link_options(unittester-core-rpc PRIVATE
   -ldl
   -lrt
@@ -34,12 +21,6 @@ target_link_options(unittester-core-rpc PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-core-rpc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/handle_channel_failure_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/roaming_channel_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/viable_peer_registry_ut.cpp
 )
 add_test(
   NAME
@@ -60,8 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-core-rpc
-  cpp-ytalloc-impl
 )
 vcs_info(unittester-core-rpc)

@@ -6,34 +6,10 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(mock)
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
 
 add_executable(unittester-client)
 target_compile_options(unittester-client PRIVATE
   -Wdeprecated-this-capture
-)
-target_link_libraries(unittester-client PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-build
-  yt-core-test_framework
-  yt-yt-core
-  yt-yt-client
-  yt-client-formats
-  client-unittests-mock
-  yt-library-named_value
-  yt_proto-yt-formats
-  library-cpp-resource
 )
 target_link_options(unittester-client PRIVATE
   -ldl
@@ -45,39 +21,6 @@ target_link_options(unittester-client PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/check_schema_compatibility_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/check_type_compatibility_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/chunk_replica_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/column_sort_schema_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/comparator_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/composite_compare_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/connection_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/farm_fingerprint_stability_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_bound_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_bound_compressor_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/logical_type_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/named_yson_token_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/uuid_text_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/time_text_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/node_directory_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/query_builder_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/read_limit_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/replication_progress_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/row_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/schema_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/table_consumer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/unordered_reader_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/unversioned_row_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/validate_logical_type_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/wire_protocol_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/ypath_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_bus_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_protocol_ut.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
 add_test(
   NAME
@@ -98,17 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-resources(unittester-client
-  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
-  INPUTS
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
-  KEYS
-  /types/good
-  /types/bad
-)
-target_allocator(unittester-client
-  cpp-ytalloc-impl
 )
 vcs_info(unittester-client)

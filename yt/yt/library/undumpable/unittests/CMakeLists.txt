@@ -11,15 +11,6 @@ add_executable(yt-yt-library-undumpable-unittests)
 target_compile_options(yt-yt-library-undumpable-unittests PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-library-undumpable
-)
 target_link_options(yt-yt-library-undumpable-unittests PRIVATE
   -ldl
   -lrt
@@ -29,9 +20,6 @@ target_link_options(yt-yt-library-undumpable-unittests PRIVATE
   -lpthread
   -lrt
   -ldl
-)
-target_sources(yt-yt-library-undumpable-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
 )
 add_test(
   NAME
@@ -52,9 +40,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(yt-yt-library-undumpable-unittests
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
 )
 vcs_info(yt-yt-library-undumpable-unittests)

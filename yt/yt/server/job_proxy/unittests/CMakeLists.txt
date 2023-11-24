@@ -11,15 +11,6 @@ add_executable(unittester-job-proxy)
 target_compile_options(unittester-job-proxy PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(unittester-job-proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-server-job_proxy
-)
 target_link_options(unittester-job-proxy PRIVATE
   -ldl
   -lrt
@@ -30,9 +21,6 @@ target_link_options(unittester-job-proxy PRIVATE
   -lrt
   -ldl
   -lutil
-)
-target_sources(unittester-job-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/unittests/asan_warning_filter_ut.cpp
 )
 add_test(
   NAME
@@ -53,9 +41,5 @@ set_property(
   PROPERTY
   PROCESSORS
   1
-)
-target_allocator(unittester-job-proxy
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
 )
 vcs_info(unittester-job-proxy)
