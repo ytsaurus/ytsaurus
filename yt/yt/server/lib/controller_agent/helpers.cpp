@@ -43,6 +43,7 @@ namespace NYT::NControllerAgent {
 using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NSecurityClient;
+using namespace NScheduler;
 using namespace NApi;
 using namespace NApi::NNative;
 
@@ -52,7 +53,7 @@ using NNodeTrackerClient::TNodeId;
 
 TNodeId NodeIdFromJobId(TJobId jobId)
 {
-    return NScheduler::NodeIdFromAllocationId(NScheduler::AllocationIdFromJobId(jobId));
+    return NodeIdFromAllocationId(AllocationIdFromJobId(jobId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,7 +239,7 @@ void ToProto(NProto::TJobToAbort* protoJobToAbort, const NControllerAgent::TJobT
 void FromProto(NControllerAgent::TJobToAbort* jobToAbort, const NProto::TJobToAbort& protoJobToAbort)
 {
     FromProto(&jobToAbort->JobId, protoJobToAbort.job_id());
-    jobToAbort->AbortReason = NYT::FromProto<NScheduler::EAbortReason>(protoJobToAbort.abort_reason());
+    jobToAbort->AbortReason = NYT::FromProto<EAbortReason>(protoJobToAbort.abort_reason());
 }
 
 void ToProto(

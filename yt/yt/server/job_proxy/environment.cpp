@@ -266,10 +266,10 @@ public:
         const std::vector<TString>& arguments,
         const TString& workingDirectory) override
     {
-        auto guidFromJobId = JobId_.Underlying();
+        auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
             ? Format("%v/uj", SlotContainerName_)
-            : Format("%v/uj-%x-%x", SlotContainerName_, guidFromJobId.Parts32[3], guidFromJobId.Parts32[2]);
+            : Format("%v/uj-%x-%x", SlotContainerName_, jobIdAsGuid.Parts32[3], jobIdAsGuid.Parts32[2]);
 
         auto launcher = CreatePortoInstanceLauncher(containerName, PortoExecutor_);
 
