@@ -4,6 +4,8 @@ RECURSE(
     tools/release
 )
 
-RECURSE_FOR_TESTS(
-    e2e-test/src/test/yt
-)
+IF (NOT OPENSOURCE)
+    RECURSE_FOR_TESTS(
+        e2e-test/src/test/yt
+    )
+ENDIF()
