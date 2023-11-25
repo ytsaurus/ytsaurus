@@ -314,9 +314,12 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
         }
 
         return ConvertTo<std::vector<TRichYPath>>(rspTag);
-    } catch (const std::exception& exc) {
-        THROW_ERROR_EXCEPTION("Failed to load docker image %v:%v", dockerImage.Image, dockerImage.Tag)
-            << exc;
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to load docker image %v:%v",
+            dockerImage.Image,
+            dockerImage.Tag)
+            << ex;
     }
 }
 

@@ -103,7 +103,9 @@ private:
             auto error = Error_.load();
             intptr_t statusCode;
             if (!grpc_error_get_int(error, GRPC_ERROR_INT_GRPC_STATUS, &statusCode)) {
-                statusCode = GRPC_STATUS_UNKNOWN;
+                // Old versions of gRPC does not provide status code for connectivity problems.
+                // For compatibility map to UNAVAILABLE which is mapped to TransportError.
+                statusCode = GRPC_STATUS_UNAVAILABLE;
             }
             TString statusDetail;
             if (!grpc_error_get_str(error, GRPC_ERROR_STR_DESCRIPTION, &statusDetail)) {

@@ -136,7 +136,7 @@ void TSlotManager::Initialize()
         VERIFY_THREAD_AFFINITY(JobThread);
 
         for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-            FreeSlots_.insert(slotIndex);
+            FreeSlots_.push(slotIndex);
         }
 
         InitializeEnvironment();
@@ -884,10 +884,9 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto slotIt = FreeSlots_.begin();
-    YT_VERIFY(slotIt != FreeSlots_.end());
-    auto slotIndex = *slotIt;
-    FreeSlots_.erase(slotIt);
+    YT_VERIFY(!FreeSlots_.empty());
+    int slotIndex = FreeSlots_.front();
+    FreeSlots_.pop();
 
     YT_LOG_DEBUG("Exec slot acquired (SlotType: %v, SlotIndex: %v)",
         slotType,
@@ -900,7 +899,8 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double request
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    EmplaceOrCrash(FreeSlots_, slotIndex);
+    FreeSlots_.push(slotIndex);
+    YT_VERIFY(std::ssize(FreeSlots_) <= SlotCount_);
 
     if (slotType == ESlotType::Idle) {
         --UsedIdleSlotCount_;

@@ -538,6 +538,11 @@ private:
                 PeerAddressString_ = PeerAddressString_.substr(5);
             }
 
+            if (PeerAddressString_.StartsWith("unix:")) {
+                PeerAddress_ = NNet::TNetworkAddress::CreateUnixDomainSocketAddress(PeerAddressString_.substr(5));
+                return true;
+            }
+
             auto address = NNet::TNetworkAddress::TryParse(PeerAddressString_);
             if (address.IsOK()) {
                 PeerAddress_ = address.Value();

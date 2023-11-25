@@ -428,7 +428,8 @@ private:
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         if (Context_.DockerImage) {
-            return MakeFuture(TError(EErrorCode::RootVolumePreparationFailed,
+            return MakeFuture(TError(
+                EErrorCode::RootVolumePreparationFailed,
                 "Docker image is not supported in Porto job environment"));
         }
 
@@ -646,9 +647,9 @@ private:
                         // FIXME(khlebnikov): Drop reference to fix race with check in TJob::Cleanup() on cancellation.
                         Context_.Slot = nullptr;
 
-                        THROW_ERROR_EXCEPTION(
-                            TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare docker image")
-                                << imageOrError);
+                        THROW_ERROR_EXCEPTION(EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
+                            << TErrorAttribute("docker_image", *dockerImage)
+                            << imageOrError;
                     }
 
                     // TODO(khlebnikov) Result image may differ from requested?

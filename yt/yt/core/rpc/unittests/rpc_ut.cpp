@@ -798,6 +798,16 @@ TYPED_TEST(TRpcTest, CustomErrorMessage)
     EXPECT_EQ("Some Error", rspOrError.GetMessage());
 }
 
+TYPED_TEST(TRpcTest, ServerStopped)
+{
+    this->Server_->Stop().Get().ThrowOnError();
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.SomeCall();
+    req->set_a(42);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
+}
+
 TYPED_TEST(TRpcTest, ConnectionLost)
 {
     TMyProxy proxy(this->CreateChannel());
