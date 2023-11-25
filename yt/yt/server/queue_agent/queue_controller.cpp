@@ -45,6 +45,7 @@ namespace NYT::NQueueAgent {
 
 using namespace NApi;
 using namespace NHydra;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NChaosClient;
 using namespace NConcurrency;
@@ -55,6 +56,7 @@ using namespace NTransactionClient;
 using namespace NQueueClient;
 using namespace NYson;
 using namespace NTracing;
+using namespace NThreading;
 using namespace NLogging;
 using namespace NObjectClient;
 
@@ -308,14 +310,6 @@ public:
                 .WithRequiredTag("queue_path", QueueRef_.Path)
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
             Logger))
-        , ExportExecutor_(New<TScheduledExecutor>(
-                Invoker_,
-                BIND(&TOrderedDynamicTableController::Export, MakeWeak(this)),
-                /*interval*/ std::nullopt))
-        , QueueExporter_(New<TQueueExporter>(
-            ClientDirectory_->GetUnderlyingClientDirectory(),
-            Invoker_,
-            Logger))
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -325,8 +319,6 @@ public:
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
 
         PassExecutor_->Start();
-        // NB: No callbacks are actually scheduled until we configure a non-null interval.
-        ExportExecutor_->Start();
 
         YT_LOG_INFO("Queue controller started");
     }
@@ -417,14 +409,17 @@ private:
     const TPeriodicExecutorPtr PassExecutor_;
     const IQueueProfileManagerPtr ProfileManager_;
 
-    TScheduledExecutorPtr ExportExecutor_;
-    TQueueExporterPtr QueueExporter_;
+    struct TQueueExport {
+        TScheduledExecutorPtr Executor;
+        TQueueExporterPtr Exporter;
+    };
 
-    void Export()
+    THashMap<TString, TQueueExport> QueueExports_;
+    TReaderWriterSpinLock QueueExportsLock_;
+
+    void Export(TString exportName)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        YT_VERIFY(QueueExporter_);
 
         if (!DynamicConfig_.Acquire()->EnableQueueStaticExport) {
             YT_LOG_DEBUG("Skipping queue static export iteration, since it is disabled controller-wide");
@@ -432,14 +427,25 @@ private:
         }
 
         const auto& staticExportConfig = QueueRow_.Load().StaticExportConfig;
-        if (!staticExportConfig) {
-            YT_LOG_DEBUG("Skipping queue static export iteration, since it is already disabled for the queue");
+        if (!staticExportConfig || staticExportConfig->find(exportName) == staticExportConfig->end()) {
+            YT_LOG_DEBUG("Skipping queue static export iteration, since it is already disabled for the queue (ExportName: %v)", exportName);
             return;
         }
 
-        auto exportError = WaitFor(QueueExporter_->RunExportIteration(
+        TQueueExporterPtr exporter;
+        {
+            auto guard = ReaderGuard(QueueExportsLock_);
+            auto queueExport = QueueExports_.find(exportName);
+            if (queueExport == QueueExports_.end()) {
+                YT_LOG_DEBUG("Skipping queue static export iteration, since there is no exporter for it (ExportName: %v)", exportName);
+                return;
+            }
+            exporter = queueExport->second.Exporter;
+        }
+
+        auto exportError = WaitFor(exporter->RunExportIteration(
             QueueRef_,
-            *staticExportConfig));
+            GetOrCrash(*staticExportConfig, exportName)));
         if (!exportError.IsOK()) {
             YT_LOG_ERROR(exportError, "Failed to perform static export for queue");
             return;
@@ -486,14 +492,59 @@ private:
             }
 
             const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
-            if (DynamicConfig_.Acquire()->EnableQueueStaticExport && staticExportConfig) {
-                ExportExecutor_->SetInterval(staticExportConfig->ExportPeriod);
+
+            auto guard = WriterGuard(QueueExportsLock_);
+
+            if (DynamicConfig_.Acquire()->EnableQueueStaticExport && staticExportConfig && CheckStaticExportConfig(*staticExportConfig)) {
+                for (const auto& [name, config] : *staticExportConfig) {
+                    if (QueueExports_.find(name) == QueueExports_.end()) {
+                        auto executor = New<TScheduledExecutor>(
+                            Invoker_,
+                            BIND(&TOrderedDynamicTableController::Export, MakeWeak(this), name),
+                            /*interval*/ std::nullopt);
+                        executor->Start();
+                        QueueExports_[name] = {
+                            .Executor = executor,
+                            .Exporter = New<TQueueExporter>(
+                                ClientDirectory_->GetUnderlyingClientDirectory(),
+                                Invoker_,
+                                Logger.WithTag("ExportName: %v", name)),
+                        };
+
+                    }
+
+                    QueueExports_[name].Executor->SetInterval(config.ExportPeriod);
+                }
+
+                // Remove unused exports.
+                std::vector<TString> unusedExportNames;
+                for (const auto& [exportName, _] : QueueExports_) {
+                    if (staticExportConfig->find(exportName) == staticExportConfig->end()) {
+                        unusedExportNames.push_back(exportName);
+                    }
+                }
+                for (const auto& name : unusedExportNames) {
+                    QueueExports_.erase(name);
+                }
             } else {
-                ExportExecutor_->SetInterval(std::nullopt);
+                QueueExports_.clear();
             }
         }
 
         YT_LOG_INFO("Queue controller pass finished");
+    }
+
+    bool CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfig>& configs) const
+    {
+        THashSet<TYPath> directories;
+        for (const auto& [_, config] : configs) {
+            if (auto [_, inserted] = directories.insert(config.ExportDirectory); !inserted) {
+                YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config.ExportDirectory);
+                return false;
+            }
+            ;
+        }
+        return true;
     }
 
     bool ShouldTrim(i64 passIndex) const

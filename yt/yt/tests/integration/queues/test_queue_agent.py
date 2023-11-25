@@ -2665,8 +2665,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table("//tmp/q")
 
         set("//tmp/q/@static_export_config", {
-            "export_directory": export_dir,
-            "export_period": 3 * 1000,
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+            }
         })
 
         cypress_orchid.wait_fresh_pass()
@@ -2708,8 +2710,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table("//tmp/q")
 
         set("//tmp/q/@static_export_config", {
-            "export_directory": export_dir,
-            "export_period": 3 * 1000,
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+            }
         })
 
         wait(lambda: len(ls(export_dir)) == 1)
@@ -2733,8 +2737,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table(queue_path)
 
         set(f"{queue_path}/@static_export_config", {
-            "export_directory": export_dir,
-            "export_period": 3 * 1000,
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+            }
         })
 
         wait(lambda: len(ls(export_dir)) == 2)
@@ -2742,6 +2748,111 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._check_export(export_dir, [["foo"] * 6], queue_path=queue_path)
 
         self.remove_export_destination(export_dir)
+
+    @authors("nadya73")
+    def test_several_exports(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_orchid = CypressSynchronizerOrchid()
+
+        export_dir_1 = "//tmp/export1"
+        export_dir_2 = "//tmp/export2"
+        export_dir_3 = "//tmp/export3"
+        create("map_node", export_dir_1)
+        create("map_node", export_dir_2)
+        create("map_node", export_dir_3)
+
+        queue_path = "//tmp/q"
+        _, queue_id = self._create_queue(queue_path)
+
+        self._create_export_destination(export_dir_1, queue_id)
+        self._create_export_destination(export_dir_2, queue_id)
+        self._create_export_destination(export_dir_3, queue_id)
+
+        set(f"{queue_path}/@static_export_config", {
+            "first": {
+                "export_directory": export_dir_1,
+                "export_period": 1 * 1000,
+            },
+            "second": {
+                "export_directory": export_dir_2,
+                "export_period": 2 * 1000,
+            },
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table(queue_path)
+
+        wait(lambda: len(ls(export_dir_1)) == 1)
+        wait(lambda: len(ls(export_dir_2)) == 1)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "bar"}] * 6)
+        self._flush_table(queue_path)
+
+        wait(lambda: len(ls(export_dir_1)) == 2)
+        wait(lambda: len(ls(export_dir_2)) == 2)
+
+        expected = [["foo"] * 6] + [["bar"] * 6]
+        self._check_export(export_dir_1, expected, queue_path=queue_path)
+        self._check_export(export_dir_2, expected, queue_path=queue_path)
+
+        set(f"{queue_path}/@static_export_config", {
+            "second": {
+                "export_directory": export_dir_2,
+                "export_period": 2 * 1000,
+            },
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "abc"}] * 6)
+        self._flush_table(queue_path)
+
+        wait(lambda: len(ls(export_dir_1)) == 2)
+        wait(lambda: len(ls(export_dir_2)) == 3)
+
+        self._check_export(export_dir_1, expected, queue_path=queue_path)
+        self._check_export(export_dir_2, expected + [["abc"] * 6], queue_path=queue_path)
+
+        set(f"{queue_path}/@static_export_config", {
+            "second": {
+                "export_directory": export_dir_2,
+                "export_period": 2 * 1000,
+            },
+            "third": {
+                "export_directory": export_dir_3,
+                "export_period": 3 * 1000,
+            },
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        wait(lambda: len(ls(export_dir_3)) == 1)
+        expected_third = [["foo"] * 6 + ["bar"] * 6 + ["abc"] * 6]
+        self._check_export(export_dir_3, expected_third, queue_path=queue_path)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "def"}] * 6)
+        self._flush_table(queue_path)
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        wait(lambda: len(ls(export_dir_2)) == 4)
+        wait(lambda: len(ls(export_dir_3)) == 2)
+
+        expected_second = expected + [["abc"] * 6] + [["def"] * 6]
+        expected_third = expected_third + [["def"] * 6]
+
+        self._check_export(export_dir_2, expected_second, queue_path=queue_path)
+        self._check_export(export_dir_3, expected_third, queue_path=queue_path)
+
+        self.remove_export_destination(export_dir_1)
+        self.remove_export_destination(export_dir_2)
+        self.remove_export_destination(export_dir_3)
 
     @authors("cherepashka", "achulkov2")
     def test_wrong_originating_queue(self):
@@ -2758,8 +2869,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table("//tmp/q")
 
         set("//tmp/q/@static_export_config", {
-            "export_directory": export_dir,
-            "export_period": 2 * 1000,
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 2 * 1000,
+            }
         })
 
         cypress_orchid.wait_fresh_pass()
@@ -2787,9 +2900,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table("//tmp/q")
 
         set("//tmp/q/@static_export_config", {
-            "export_directory": export_dir,
-            "export_period": 3 * 1000,
-            "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%d.%m.%H.%M.%S",
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+                "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%d.%m.%H.%M.%S",
+            }
         })
 
         wait(lambda: len(ls(export_dir)) == 1)
@@ -2821,8 +2936,10 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
         self._flush_table("//portals/q")
 
         set("//portals/q/@static_export_config", {
-            "export_directory": export_dir,
-            "export_period": 3 * 1000,
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+            }
         })
 
         wait(lambda: len(ls(export_dir)) == 1)

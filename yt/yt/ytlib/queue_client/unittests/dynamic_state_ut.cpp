@@ -66,7 +66,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
     auto objectId = TObjectId(GuidFromBytes(guidBytes));
 
     TString ysonAttributes = "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; "
-        "auto_trim_config={enable=%true}; queue_agent_stage=fun; static_export_config={export_period=1000;export_directory=\"//dir\"};"
+        "auto_trim_config={enable=%true}; queue_agent_stage=fun; static_export_config={default_export={export_period=1000;export_directory=\"//dir\"};};"
         + Format("id=%Qv}", objectId);
 
     CheckConversions<TQueueTableRow>(
@@ -81,7 +81,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             .Dynamic = true,
             .Sorted = false,
             .AutoTrimConfig = expectedAutoTrimConfig,
-            .StaticExportConfig = expectedStaticExportConfig,
+            .StaticExportConfig = {{{"default_export", expectedStaticExportConfig}}},
             .QueueAgentStage = "fun",
             .ObjectId = objectId,
             .SynchronizationError = TError(),
