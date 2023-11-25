@@ -250,7 +250,7 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
             responseOrError.FindMatching(NReplicatedTableTrackerClient::EErrorCode::StateRevisionMismatch))
         {
             RequestLoadingFromSnapshot();
-            THROW_ERROR_EXCEPTION("Rtt has stale state; will load from snapshot")
+            THROW_ERROR_EXCEPTION("Replicated Table Tracker has stale state; will load from snapshot")
                 << responseOrError;
         }
 
@@ -309,7 +309,7 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
             }
             CellTagToInfo_[cellTag].Revision = response->snapshot_revision();
 
-            YT_LOG_DEBUG("Rtt host received new snapshot part (CellTag: %v, Revision: %v)",
+            YT_LOG_DEBUG("RTT host received new snapshot part (CellTag: %v, Revision: %v)",
                 cellTag,
                 response->snapshot_revision());
         }
@@ -332,7 +332,7 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
                 YT_VERIFY(CellTagToInfo_[cellTag].Revision < action.revision());
                 CellTagToInfo_[cellTag].Revision = action.revision();
 
-                YT_LOG_DEBUG("Rtt host received new action (CellTag: %v, Revision: %v)",
+                YT_LOG_DEBUG("RTT host received new action (CellTag: %v, Revision: %v)",
                     cellTag,
                     action.revision());
 
@@ -371,7 +371,7 @@ TApplyChangeReplicaCommandResults TReplicatedTableTrackerHost::DoApplyChangeRepl
     const std::vector<TChangeReplicaModeCommand>& commands)
 {
     if (!TrackerEnabled_) {
-        THROW_ERROR_EXCEPTION("Disabled Rtt host will not apply change replica mode commands");
+        THROW_ERROR_EXCEPTION("Disabled Replicated Table Tracker host will not apply change replica mode commands");
     }
 
     if (LoadingFromSnapshotRequested()) {
@@ -420,7 +420,7 @@ TReplicaLagTimes TReplicatedTableTrackerHost::DoComputeReplicaLagTimes(
     const std::vector<TTableReplicaId>& replicaIds)
 {
     if (!TrackerEnabled_) {
-        THROW_ERROR_EXCEPTION("Disabled Rtt host will not compute replica lag times");
+        THROW_ERROR_EXCEPTION("Disabled Replicated Table Tracker host will not compute replica lag times");
     }
 
     if (LoadingFromSnapshotRequested()) {

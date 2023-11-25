@@ -1383,7 +1383,7 @@ public:
 
         if (!IsEnabled()) {
             THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
-                "Rtt state provider is disabled");
+                "Replicated Table Tracker state provider is disabled");
         }
 
         if (!snapshotRequested) {
@@ -1392,7 +1392,7 @@ public:
                 revision != ClientRevision_)
             {
                 THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::StateRevisionMismatch,
-                    "Rtt client state revision mismatch: %v != %v",
+                    "Replicated Table Tracker client state revision mismatch: %v != %v",
                     ClientRevision_,
                     revision);
             }
@@ -1406,7 +1406,7 @@ public:
                 ActionQueue_.clear();
                 guard.Release();
 
-                YT_LOG_DEBUG("Rtt state provider started loading snapshot");
+                YT_LOG_DEBUG("RTT state provider started loading snapshot");
 
                 auto [revision, snapshot] = WaitFor(GetSnapshotFuture())
                     .ValueOrThrow();
@@ -1427,7 +1427,7 @@ public:
                     }
                 }
 
-                YT_LOG_DEBUG("Rtt state provider finished loading snapshot (ClientRevision: %v)",
+                YT_LOG_DEBUG("RTT state provider finished loading snapshot (ClientRevision: %v)",
                     ClientRevision_);
 
                 result->clear_update_actions();
@@ -1442,11 +1442,11 @@ public:
             ActionQueue_.pop_front();
             guard.Release();
 
-            YT_LOG_DEBUG("Rtt state provider dequeued an action (Revision: %v)",
+            YT_LOG_DEBUG("RTT state provider dequeued an action (Revision: %v)",
                 action.revision());
 
             YT_LOG_ALERT_IF(action.revision() <= ClientRevision_,
-                "Rtt state provider encountered oudated action upon queue drain");
+                "RTT state provider encountered oudated action upon queue drain");
 
             ClientRevision_ = action.revision();
             *result->add_update_actions() = std::move(action);
@@ -1458,7 +1458,7 @@ public:
     {
         if (!IsEnabled()) {
             THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
-                "Rtt state provider is disabled");
+                "RTT state provider is disabled");
         }
 
         return BIND([bootstrap = Bootstrap_, replicaIds = std::move(replicaIds)] {
@@ -1486,7 +1486,7 @@ public:
     {
         if (!IsEnabled()) {
             THROW_ERROR_EXCEPTION(NReplicatedTableTrackerClient::EErrorCode::RttServiceDisabled,
-                "Rtt state provider is disabled");
+                "RTT state provider is disabled");
         }
 
         return BIND([bootstrap = Bootstrap_, commands = std::move(commands)] {
@@ -1654,7 +1654,7 @@ private:
 
         guard.Release();
 
-        YT_LOG_DEBUG("Rtt state provider enqueued new action (ActionRevision: %v, Action: %v)",
+        YT_LOG_DEBUG("RTT state provider enqueued new action (ActionRevision: %v, Action: %v)",
             revision,
             actionString);
     }

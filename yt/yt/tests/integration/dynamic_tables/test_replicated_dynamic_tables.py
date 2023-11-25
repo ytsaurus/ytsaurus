@@ -2724,7 +2724,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_collocated_replicated_tables(self):
-        # TODO(akozhikhov): Fix with new Rtt service.
+        # TODO(akozhikhov): Fix with new RTT service.
         if self.is_multicell():
             return
 

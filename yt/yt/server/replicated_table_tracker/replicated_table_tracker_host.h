@@ -74,7 +74,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SnapshotLock_);
     // NB: Null promise means no snapshot is requested. Unset promise means snapshot is requested.
-    // Set promise means host is waiting for Rtt to pick it up and shall remain idle until that.
+    // Set promise means host is waiting for RTT to pick it up and shall remain idle until that.
     TPromise<NTabletServer::TReplicatedTableTrackerSnapshot> SnapshotPromise_;
 
     struct TCellInfo

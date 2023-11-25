@@ -266,7 +266,7 @@ private:
 
     void OnLeadingStarted() const
     {
-        YT_LOG_DEBUG("Rtt instance started leading");
+        YT_LOG_DEBUG("RTT instance started leading");
 
         ReplicatedTableTrackerHost_->EnableUpdates();
         ReplicatedTableTracker_->Initialize();
@@ -275,7 +275,7 @@ private:
 
     void OnLeadingEnded() const
     {
-        YT_LOG_DEBUG("Rtt instance finished leading");
+        YT_LOG_DEBUG("RTT instance finished leading");
 
         ReplicatedTableTrackerHost_->DisableUpdates();
         ReplicatedTableTracker_->DisableTracking();

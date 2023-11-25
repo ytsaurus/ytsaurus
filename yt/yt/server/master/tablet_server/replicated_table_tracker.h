@@ -58,8 +58,8 @@ DEFINE_REFCOUNTED_TYPE(IReplicatedTableTrackerStateProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: This entity provides Rtt service with necessary Cypress state parts.
-// E.g. it stores update queue that is drained upon remote Rtt requests.
+// NB: This entity provides RTT service with necessary Cypress state parts.
+// E.g. it stores update queue that is drained upon remote RTT requests.
 IReplicatedTableTrackerStateProviderPtr CreateReplicatedTableTrackerStateProvider(
     NCellMaster::TBootstrap* bootstrap);
 
