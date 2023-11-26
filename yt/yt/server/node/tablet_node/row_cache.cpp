@@ -1,5 +1,7 @@
 #include "row_cache.h"
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/table_client/row_merger.h>
 
 namespace NYT::NTabletNode {
@@ -196,7 +198,7 @@ void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
             auto item = GetLatestRow(head);
             auto memoryBegin = GetRefCounter(item.Get());
 
-            if (IsReallocationNeeded(memoryBegin)) {
+            if (TSlabAllocator::IsReallocationNeeded(memoryBegin)) {
                 ++reallocatedRows;
                 if (auto newItem = CopyCachedRow(&Allocator_, item.Get())) {
                     newItem->Revision.store(item->Revision.load(std::memory_order::acquire), std::memory_order::release);
