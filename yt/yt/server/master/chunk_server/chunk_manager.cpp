@@ -3490,8 +3490,10 @@ private:
         YT_VERIFY(request.replicas_size() > 0);
 
         return Bootstrap_
-            ->GetSequoiaClientOrThrow()
-            ->StartTransaction()
+            ->GetSequoiaClient()
+            .Apply(BIND([] (const ISequoiaClientPtr& readyClient) {
+                return readyClient->StartTransaction();
+            }))
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
                 for (const auto& protoReplica : request.replicas()) {
@@ -3545,8 +3547,10 @@ private:
         YT_VERIFY(request.added_chunks_size() + request.removed_chunks_size() > 0);
 
         return Bootstrap_
-            ->GetSequoiaClientOrThrow()
-            ->StartTransaction()
+            ->GetSequoiaClient()
+            .Apply(BIND([] (const ISequoiaClientPtr& readyClient) {
+                return readyClient->StartTransaction();
+            }))
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
                 auto locationDirectory = ParseLocationDirectory(request);
@@ -5392,15 +5396,17 @@ private:
         };
 
         return Bootstrap_
-            ->GetSequoiaClientOrThrow()
-            ->SelectRows<NRecords::TChunkReplicas>({
-                buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                    builder->AppendFormat("%v", chunkId.Parts32[0]);
-                }),
-                buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                    builder->AppendFormat("%Qv", chunkId);
-                }),
-            });
+            ->GetSequoiaClient()
+            .Apply(BIND([buildFilter] (const ISequoiaClientPtr& readyClient) {
+                return readyClient->SelectRows<NRecords::TChunkReplicas>({
+                    buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                        builder->AppendFormat("%v", chunkId.Parts32[0]);
+                    }),
+                    buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                        builder->AppendFormat("%Qv", chunkId);
+                    }),
+                });
+            }));
     }
 
     void OnSequoiaReplicaRemoval()
