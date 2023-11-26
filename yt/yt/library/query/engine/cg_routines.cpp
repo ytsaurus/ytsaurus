@@ -27,8 +27,9 @@
 #include <yt/yt/core/yson/token.h>
 #include <yt/yt/core/yson/writer.h>
 
-#include <yt/yt/core/ytree/ypath_resolver.h>
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -1992,33 +1993,33 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
 
 struct TChunkReplica
 {
-    TChunkId Uuid;
+    TChunkId LocationUuid;
     i64 Index;
     i64 NodeId;
 
-    auto operator<=>(const TChunkReplica& other) const
-    {
-        return std::tie(Uuid, Index, NodeId) <=> std::tie(other.Uuid, other.Index, other.NodeId);
-    }
+    auto operator<=>(const TChunkReplica& other) const = default;
 };
 
-TCompactVector<TChunkReplica, 3> Unite(const TCompactVector<TChunkReplica, 3>& first, const TCompactVector<TChunkReplica, 3>& second)
+using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
+
+TChunkReplicaList UniteReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
 {
-    TCompactVector<TChunkReplica, 3> result;
+    TCompactVector<TChunkReplica, TypicalReplicaCount> result;
     result.insert(result.end(), first.begin(), first.end());
     result.insert(result.end(), second.begin(), second.end());
 
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end(), [] (const TChunkReplica& lhs, const TChunkReplica& rhs) {
-        return (lhs.Uuid == rhs.Uuid && lhs.Index == rhs.Index);
-    }), result.end());
+    SortUniqueBy(
+        result,
+        [] (const TChunkReplica& replica) {
+            return std::tie(replica.LocationUuid, replica.Index);
+        });
 
     return result;
 }
 
-TCompactVector<TChunkReplica, 3> Filter(const TCompactVector<TChunkReplica, 3>& first, const TCompactVector<TChunkReplica, 3>& second)
+TChunkReplicaList FilterReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
 {
-    TCompactVector<TChunkReplica, 3> result;
+    TChunkReplicaList result;
     auto it = first.begin();
     auto jt = second.begin();
     while (it < first.end()) {
@@ -2039,7 +2040,7 @@ TYsonItem Consume(TYsonPullParserCursor* cursor, EYsonItemType type)
 {
     auto current = cursor->GetCurrent();
     if (current.GetType() != type) {
-        THROW_ERROR_EXCEPTION("Unexpected yson item type: expected %Qlv, got %Qlv",
+        THROW_ERROR_EXCEPTION("Unexpected YSON item type: expected %Qlv, got %Qlv",
             type,
             current.GetType());
     }
@@ -2053,7 +2054,7 @@ TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
 
     Consume(cursor, EYsonItemType::BeginList);
 
-    replica.Uuid = TGuid::FromString(Consume(cursor, EYsonItemType::StringValue).UncheckedAsString());
+    replica.LocationUuid = TGuid::FromString(Consume(cursor, EYsonItemType::StringValue).UncheckedAsString());
     replica.Index = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
     replica.NodeId = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
 
@@ -2062,10 +2063,10 @@ TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
     return replica;
 }
 
-void ParseDelta(
+void ParseReplicasDelta(
     TUnversionedValue* delta,
-    TCompactVector<TChunkReplica, 3>* replicasToAdd,
-    TCompactVector<TChunkReplica, 3>* replicasToRemove)
+    TChunkReplicaList* replicasToAdd,
+    TChunkReplicaList* replicasToRemove)
 {
     if (delta->Type == EValueType::Null) {
         return;
@@ -2076,7 +2077,7 @@ void ParseDelta(
     TYsonPullParserCursor cursor(&parser);
 
     if (!cursor.TryConsumeFragmentStart()) {
-        THROW_ERROR_EXCEPTION("Error parsing yson as list fragment");
+        THROW_ERROR_EXCEPTION("Error parsing YSON as list fragment");
     }
 
     Consume(&cursor, EYsonItemType::BeginList);
@@ -2089,15 +2090,13 @@ void ParseDelta(
     Consume(&cursor, EYsonItemType::EndList);
 }
 
-auto ParseState(
-    TUnversionedValue* state,
-    TCompactVector<TChunkReplica, 3>* replicas)
+void ParseReplicas(TUnversionedValue* value, TChunkReplicaList* replicas)
 {
-    if (state->Type == EValueType::Null) {
+    if (value->Type == EValueType::Null) {
         return;
     }
 
-    TMemoryInput input(state->Data.String, state->Length);
+    TMemoryInput input(value->Data.String, value->Length);
     TYsonPullParser parser(&input, EYsonType::ListFragment);
     TYsonPullParserCursor cursor(&parser);
 
@@ -2110,26 +2109,23 @@ auto ParseState(
     });
 }
 
-void DumpReplicas(TYsonWriter& writer, const TCompactVector<TChunkReplica, 3>& replicas)
+void DumpReplicas(IYsonConsumer* consumer, const TChunkReplicaList& replicas)
 {
-    writer.OnBeginList();
-    for (const auto& replica : replicas) {
-        writer.OnListItem();
-        writer.OnBeginList();
-            writer.OnListItem();
-                writer.OnStringScalar(ToString(replica.Uuid));
-            writer.OnListItem();
-                writer.OnInt64Scalar(replica.Index);
-            writer.OnListItem();
-                writer.OnInt64Scalar(replica.NodeId);
-        writer.OnEndList();
-    }
-    writer.OnEndList();
-};
+    BuildYsonFluently(consumer)
+        .DoListFor(replicas, [] (TFluentList fluent, const TChunkReplica& replica) {
+            fluent
+                .Item()
+                .BeginList()
+                    .Item().Value(TFormattableGuid(replica.LocationUuid).ToStringBuf())
+                    .Item().Value(replica.Index)
+                    .Item().Value(replica.NodeId)
+                .EndList();
+        });
+}
 
-auto GetApproximateOutputLength(const TCompactVector<TChunkReplica, 3>& replicas)
+size_t EstimateReplicasYsonLength(const TChunkReplicaList& replicas)
 {
-    return (sizeof(TChunkReplica) + 20) * replicas.size() + 10;
+    return (MaxGuidStringSize + 2 * MaxVarInt64Size + 10) * replicas.size() + 10;
 }
 
 void ReplicaSetMerge(
@@ -2143,36 +2139,36 @@ void ReplicaSetMerge(
         return;
     }
 
-    TCompactVector<TChunkReplica, 3> replicasToAdd1;
-    TCompactVector<TChunkReplica, 3> replicasToRemove1;
+    TChunkReplicaList replicasToAdd1;
+    TChunkReplicaList replicasToRemove1;
+    ParseReplicasDelta(state1, &replicasToAdd1, &replicasToRemove1);
 
-    TCompactVector<TChunkReplica, 3> replicasToAdd2;
-    TCompactVector<TChunkReplica, 3> replicasToRemove2;
+    TChunkReplicaList replicasToAdd2;
+    TChunkReplicaList replicasToRemove2;
+    ParseReplicasDelta(state2, &replicasToAdd2, &replicasToRemove2);
 
-    ParseDelta(state1, &replicasToAdd1, &replicasToRemove1);
-    ParseDelta(state2, &replicasToAdd2, &replicasToRemove2);
+    auto replicasToAdd = FilterReplicas(UniteReplicas(replicasToAdd1, replicasToAdd2), replicasToRemove2);
 
-    auto replicasToAdd = Filter(Unite(replicasToAdd1, replicasToAdd2), replicasToRemove2);
+    auto bufferSize = EstimateReplicasYsonLength(replicasToAdd);
+    char* outputBuffer = AllocateBytes(context, bufferSize);
 
-    auto approximateLength = GetApproximateOutputLength(replicasToAdd);
-    char* permanentData = AllocateBytes(context, approximateLength);
-
-    TMemoryOutput output(permanentData, approximateLength);
+    TMemoryOutput output(outputBuffer, bufferSize);
     TYsonWriter writer(&output, EYsonFormat::Binary);
 
-    writer.OnBeginList();
-    DumpReplicas(writer, replicasToAdd);
-    // Replicas to remove is empty list.
-    DumpReplicas(writer, {});
-    writer.OnEndList();
+    BuildYsonFluently(&writer)
+        .BeginList()
+            .Item().Do([&] (auto fluent) {
+                DumpReplicas(fluent.GetConsumer(), replicasToAdd);
+            })
+            .Item().Do([] (auto fluent) {
+                // Replicas to remove is empty list.
+                DumpReplicas(fluent.GetConsumer(), {});
+            })
+        .EndList();
 
     writer.Flush();
 
-    auto length = output.Buf() - permanentData;
-
-    result->Type = EValueType::Any;
-    result->Length = length;
-    result->Data.String = permanentData;
+    *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
 }
 
 void ReplicaSetFinalize(
@@ -2180,26 +2176,22 @@ void ReplicaSetFinalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
-    TCompactVector<TChunkReplica, 3> replicasToAdd;
-    TCompactVector<TChunkReplica, 3> replicasToRemove;
+    TChunkReplicaList replicasToAdd;
+    TChunkReplicaList replicasToRemove;
 
-    ParseDelta(state, &replicasToAdd, &replicasToRemove);
+    ParseReplicasDelta(state, &replicasToAdd, &replicasToRemove);
 
-    auto approximateLength = GetApproximateOutputLength(replicasToAdd);
-    char* permanentData = AllocateBytes(context, approximateLength);
+    auto outputBufferSize = EstimateReplicasYsonLength(replicasToAdd);
+    char* outputBuffer = AllocateBytes(context, outputBufferSize);
 
-    TMemoryOutput output(permanentData, approximateLength);
+    TMemoryOutput output(outputBuffer, outputBufferSize);
     TYsonWriter writer(&output, EYsonFormat::Binary);
 
-    DumpReplicas(writer, replicasToAdd);
+    DumpReplicas(&writer, replicasToAdd);
 
     writer.Flush();
 
-    auto length = output.Buf() - permanentData;
-
-    result->Type = EValueType::Any;
-    result->Length = length;
-    result->Data.String = permanentData;
+    *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
