@@ -1109,7 +1109,7 @@ private:
     void SchedulePeriodicPing(TCellMailbox* mailbox)
     {
         TDelayedExecutor::Submit(
-            BIND(&THiveManager::OnPeriodicPingTick, MakeWeak(this), mailbox->GetCellId())
+            BIND_NO_PROPAGATE(&THiveManager::OnPeriodicPingTick, MakeWeak(this), mailbox->GetCellId())
                 .Via(EpochAutomatonInvoker_),
             Config_->PingPeriod);
     }
@@ -1125,7 +1125,7 @@ private:
 
         ReadOnlyCheckExecutor_ = New<TPeriodicExecutor>(
             EpochAutomatonInvoker_,
-            BIND(&THiveManager::OnReadOnlyCheck, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&THiveManager::OnReadOnlyCheck, MakeWeak(this)),
             ReadOnlyCheckPeriod);
         ReadOnlyCheckExecutor_->Start();
     }
@@ -1221,7 +1221,7 @@ private:
         }
 
         auto batcher = New<TAsyncBatcher<void>>(
-            BIND(&THiveManager::DoSyncWith, MakeWeak(this), cellId),
+            BIND_NO_PROPAGATE(&THiveManager::DoSyncWith, MakeWeak(this), cellId),
             Config_->SyncDelay);
 
         {
@@ -1420,7 +1420,7 @@ private:
         NTracing::TNullTraceContextGuard guard;
 
         mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
-            BIND([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
+            BIND_NO_PROPAGATE([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
                 TWallTimer timer;
                 auto finally = Finally([&] {
                     SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
@@ -1486,7 +1486,7 @@ private:
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
         if (!allowIdle && !hasOutcomingMessages) {
             mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
-                BIND(&THiveManager::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
+                BIND_NO_PROPAGATE(&THiveManager::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
                     .Via(EpochAutomatonInvoker_),
                 Config_->IdlePostPeriod);
             return;
