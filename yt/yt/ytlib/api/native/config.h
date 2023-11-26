@@ -120,6 +120,31 @@ DEFINE_REFCOUNTED_TYPE(TCypressProxyConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Consider adding inheritance from TRetryingChannelConfig and/or TBalancingChannelConfig.
+class TSequoiaConnectionConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    //! If |nullopt|, sequoia tables are handled on the local cluster.
+    std::optional<TString> GroundClusterName;
+
+    NYTree::TYPath SequoiaPath;
+
+    TDuration SequoiaTransactionTimeout;
+
+    TString Account;
+
+    TString Bundle;
+
+    REGISTER_YSON_STRUCT(TSequoiaConnectionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSequoiaConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A static cluster connection configuration.
 /*!
  *  For primary cluster connections (i.e. those created in bootstraps of native servers)
@@ -288,8 +313,7 @@ public:
 
     NRpc::TRetryingChannelConfigPtr HydraAdminChannel;
 
-    NYTree::TYPath SequoiaPath;
-    TDuration SequoiaTransactionTimeout;
+    TSequoiaConnectionConfigPtr SequoiaConnection;
 
     bool UseFollowersForWriteTargetsAllocation;
 

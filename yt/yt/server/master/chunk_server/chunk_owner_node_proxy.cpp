@@ -313,7 +313,9 @@ TFuture<void> FetchChunkMetasFromSequoia(
     auto client = bootstrap->GetSequoiaClient();
     // TODO(babenko): capturing client is needed to ensure its in-flight requests get executed properly
     return client
-        ->LookupRows(keys, columnFilter)
+        .Apply(BIND([keys, columnFilter] (const ISequoiaClientPtr& readyClient) {
+            return readyClient->LookupRows(keys, columnFilter);
+        }))
         .Apply(BIND([keys = std::move(keys), chunkSpecs = std::move(chunkSpecs), client] (const std::vector<std::optional<NRecords::TChunkMetaExtensions>>& records) {
             YT_VERIFY(records.size() == chunkSpecs.size());
             for (int index = 0; index < std::ssize(records); ++index) {

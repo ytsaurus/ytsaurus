@@ -28,8 +28,13 @@ struct IBootstrap
     virtual const IInvokerPtr& GetControlInvoker() const = 0;
 
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetNativeClient() const = 0;
-    virtual const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetNativeRootClient() const = 0;
+
+    virtual const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClientOrThrow() const = 0;
+    virtual const TFuture<NSequoiaClient::ISequoiaClientPtr> GetSequoiaClient() const = 0;
+
+    virtual const NApi::NNative::IConnectionPtr& GetGroundConnection() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetGroundRootClient() const = 0;
     virtual NApi::IClientPtr GetRootClient() const = 0;
 
     virtual const NYTree::IYPathServicePtr& GetSequoiaService() const = 0;

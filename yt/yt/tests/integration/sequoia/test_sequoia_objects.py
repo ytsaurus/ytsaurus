@@ -6,17 +6,18 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, select_rows, create_domestic_medium, ls, set)
+    exists, select_rows, create_domestic_medium, ls, set, get_driver)
 
 ##################################################################
 
 
 def sequoia_tables_empty():
-    if len(select_rows("* from [//sys/sequoia/chunk_meta_extensions]")) > 0:
+    ground_driver = get_driver(cluster="primary_ground")
+    if len(select_rows("* from [//sys/sequoia/chunk_meta_extensions]", driver=ground_driver)) > 0:
         return False
-    if len(select_rows("* from [//sys/sequoia/chunk_replicas]")) > 0:
+    if len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) > 0:
         return False
-    if len(select_rows("* from [//sys/sequoia/location_replicas]")) > 0:
+    if len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) > 0:
         return False
 
     return True
@@ -90,9 +91,10 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]")) > 0
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 3)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]")) == 3)
+        ground_driver = self.get_ground_driver()
+        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) > 0
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 3)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 3)
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             pass
@@ -100,7 +102,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         remove("//tmp/t")
 
         wait(lambda: not exists("#{}".format(chunk_id)))
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 0)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 0)
 
     @authors("aleksandra-zh")
     def test_chunk_replicas_node_offline2(self):
@@ -112,25 +114,27 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]")) > 0
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 3)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]")) == 3)
+        ground_driver = self.get_ground_driver()
+        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) > 0
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 3)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 3)
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             remove("//tmp/t")
 
             wait(lambda: not exists("#{}".format(chunk_id)))
-            wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 0)
+            wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 0)
 
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 0)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 0)
 
     @authors("aleksandra-zh")
     def test_replication(self):
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM, "replication_factor": 2})
 
+        ground_driver = self.get_ground_driver()
         write_table("//tmp/t", [{"x": 1}], table_writer={"upload_replication_factor": 2})
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 2)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 2)
 
         assert read_table("//tmp/t") == [{"x": 1}]
 
@@ -139,7 +143,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         set("//tmp/t/@replication_factor", 3)
 
         wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 3)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 3)
 
         remove("//tmp/t")
 

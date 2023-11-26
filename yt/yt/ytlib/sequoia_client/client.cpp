@@ -24,9 +24,11 @@ class TSequoiaClient
 {
 public:
     TSequoiaClient(
-        NNative::IClientPtr client,
+        NNative::IClientPtr nativeClient,
+        NNative::IClientPtr groundClient,
         TLogger logger)
-        : Client_(std::move(client))
+        : NativeRootClient_(std::move(nativeClient))
+        , GroundRootClient_(std::move(groundClient))
         , Logger(std::move(logger))
     { }
 
@@ -42,8 +44,8 @@ public:
         options.Timestamp = timestamp;
 
         const auto* tableDescriptor = ITableDescriptor::Get(table);
-        return Client_->LookupRows(
-            GetSequoiaTablePath(Client_, tableDescriptor),
+        return GroundRootClient_->LookupRows(
+            GetSequoiaTablePath(NativeRootClient_, tableDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options);
@@ -57,7 +59,7 @@ public:
     {
         auto* tableDescriptor = ITableDescriptor::Get(table);
         TQueryBuilder builder;
-        builder.SetSource(GetSequoiaTablePath(Client_, tableDescriptor));
+        builder.SetSource(GetSequoiaTablePath(NativeRootClient_, tableDescriptor));
         builder.AddSelectExpression("*");
         for (const auto& whereConjunct : whereConjuncts) {
             builder.AddWhereConjunct(whereConjunct);
@@ -71,7 +73,7 @@ public:
         options.AllowFullScan = false;
         options.Timestamp = timestamp;
 
-        return Client_->SelectRows(builder.Build(), options);
+        return GroundRootClient_->SelectRows(builder.Build(), options);
     }
 
     TFuture<ISequoiaTransactionPtr> StartTransaction(
@@ -85,23 +87,31 @@ public:
         return Logger;
     }
 
-    const NNative::IClientPtr& GetNativeClient() const override
+    const NNative::IClientPtr& GetNativeRootClient() const override
     {
-        return Client_;
+        return NativeRootClient_;
+    }
+
+    const NNative::IClientPtr& GetGroundRootClient() const override
+    {
+        return GroundRootClient_;
     }
 
 private:
-    const NNative::IClientPtr Client_;
+    const NNative::IClientPtr NativeRootClient_;
+    const NNative::IClientPtr GroundRootClient_;
     const TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Add another client here.
 ISequoiaClientPtr CreateSequoiaClient(
-    NApi::NNative::IClientPtr client,
+    NNative::IClientPtr nativeClient,
+    NNative::IClientPtr groundClient,
     NLogging::TLogger logger)
 {
-    return New<TSequoiaClient>(std::move(client), logger);
+    return New<TSequoiaClient>(std::move(nativeClient), std::move(groundClient), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

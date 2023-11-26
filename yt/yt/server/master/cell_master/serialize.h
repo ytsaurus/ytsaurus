@@ -184,6 +184,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkReincarnatorTestingUtilities_23_2)                       (2446))  // kvk1920
     ((ConfigurablePoolNameValidationRegex_23_2)                     (2447))  // renadeen
     ((ChunkReincarnatorMinorFixes)                                  (2448))  // kvk1920
+    ((AddGroundSupport)                                             (2449))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

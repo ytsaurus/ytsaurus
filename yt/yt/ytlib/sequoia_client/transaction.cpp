@@ -60,19 +60,19 @@ public:
         : Client_(std::move(client))
         , Logger(Client_->GetLogger())
         , SerializedInvoker_(CreateSerializedInvoker(
-            GetNativeClient()->GetConnection()->GetInvoker()))
+            GetNativeRootClient()->GetConnection()->GetInvoker()))
     { }
 
     TFuture<ISequoiaTransactionPtr> Start(const TTransactionStartOptions& options)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& transactionManager = GetNativeClient()->GetTransactionManager();
+        const auto& transactionManager = GetNativeRootClient()->GetTransactionManager();
 
         StartOptions_ = options;
         if (!StartOptions_.Timeout) {
-            const auto& config = GetNativeClient()->GetNativeConnection()->GetConfig();
-            StartOptions_.Timeout = config->SequoiaTransactionTimeout;
+            const auto& config = GetNativeRootClient()->GetNativeConnection()->GetConfig();
+            StartOptions_.Timeout = config->SequoiaConnection->SequoiaTransactionTimeout;
         }
 
         TTransactionStartOptions startOptions;
@@ -238,9 +238,14 @@ public:
         return Client_;
     }
 
-    const NApi::NNative::IClientPtr& GetNativeClient() const override
+    const NApi::NNative::IClientPtr& GetNativeRootClient() const override
     {
-        return Client_->GetNativeClient();
+        return Client_->GetNativeRootClient();
+    }
+
+    const NApi::NNative::IClientPtr& GetGroundRootClient() const override
+    {
+        return Client_->GetGroundRootClient();
     }
 
 private:
@@ -332,7 +337,7 @@ private:
             auto session = New<TMasterCellCommitSession>();
             session->CellTag = cellTag;
             EmplaceOrCrash(MasterCellCommitSessions_, cellTag, session);
-            Transaction_->RegisterParticipant(GetNativeClient()->GetNativeConnection()->GetMasterCellId(cellTag));
+            Transaction_->RegisterParticipant(GetNativeRootClient()->GetNativeConnection()->GetMasterCellId(cellTag));
             return session;
         } else {
             return it->second;
@@ -367,13 +372,13 @@ private:
         auto key = std::make_pair(tabletId, dataless);
         auto sessionIt = TabletCommitSessions_.find(key);
         if (sessionIt != TabletCommitSessions_.end()) {
-             return sessionIt->second;
+            return sessionIt->second;
         }
 
         // TODO(gritukan): Handle dataless.
         TTabletCommitOptions options;
         auto session = CreateTabletCommitSession(
-            GetNativeClient(),
+            GetGroundRootClient(),
             std::move(options),
             MakeWeak(Transaction_),
             CellCommitSessionProvider_,
@@ -392,7 +397,7 @@ private:
 
         RandomGenerator_ = std::make_unique<TRandomGenerator>(Transaction_->GetStartTimestamp());
 
-        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(GetNativeClient(), MakeWeak(Transaction_), Logger);
+        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(GetGroundRootClient(), MakeWeak(Transaction_), Logger);
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
@@ -406,7 +411,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
-        const auto& tableMountCache = GetNativeClient()->GetTableMountCache();
+        const auto& tableMountCache = GetGroundRootClient()->GetTableMountCache();
         return tableMountCache->GetTableInfo(session->Path)
             .Apply(BIND(&TSequoiaTransaction::OnGotTableMountInfo, MakeWeak(this), session)
                 .AsyncVia(SerializedInvoker_));
@@ -503,7 +508,7 @@ private:
         std::vector<TFuture<void>> futures;
         futures.reserve(MasterCellCommitSessions_.size());
         for (const auto& [cellTag, session] : MasterCellCommitSessions_) {
-            auto channel = GetNativeClient()->GetNativeConnection()->GetMasterChannelOrThrow(
+            auto channel = GetNativeRootClient()->GetNativeConnection()->GetMasterChannelOrThrow(
                 NApi::EMasterChannelKind::Leader,
                 cellTag);
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
@@ -553,6 +558,7 @@ private:
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
         options.Force2PC = true; // Just in case.
+        options.AllowAlienCoordinator = true;
 
         Transaction_->ChooseCoordinator(options);
         return Transaction_->Commit(options).AsVoid();
@@ -560,7 +566,7 @@ private:
 
     TYPath GetTablePath(const ITableDescriptor* tableDescriptor) const
     {
-        return GetSequoiaTablePath(GetNativeClient(), tableDescriptor);
+        return GetSequoiaTablePath(GetNativeRootClient(), tableDescriptor);
     }
 };
 
