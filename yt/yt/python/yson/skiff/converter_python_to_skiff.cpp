@@ -280,14 +280,28 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString descri
     YT_ABORT();
 }
 
-TPythonToSkiffConverter WrapWithMiddlewareConverter(TPythonToSkiffConverter converter, Py::Callable middlewareConverter)
+TPythonToSkiffConverter WrapWithMiddlewareConverter(TPythonToSkiffConverter converter, Py::Callable middlewareConverter, bool isTiSchemaOptional)
 {
-    return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
+    auto simpleConverter = [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
         Py::Tuple args(1);
         args[0] = Py::Object(obj);
         auto pyBaseObject = middlewareConverter.apply(args);
         return converter(pyBaseObject.ptr(), writer);
     };
+
+    if (isTiSchemaOptional) {
+        return [simpleConverter = std::move(simpleConverter)](PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
+            if (obj == Py_None) {
+                // The middleware may not be ready to handle None, so we avoid calling it here.
+                writer->WriteVariant8Tag(0);
+            } else {
+                // NB: No writer->WriteVariant8Tag(1) here, because it will be handled by converter after the middleware call.
+                return simpleConverter(obj, writer);
+            }
+        };
+    } else {
+        return simpleConverter;
+    }
 }
 
 TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverter(TString description, Py::Object pySchema, bool isPySchemaOptional, bool isTiSchemaOptional, bool validateOptionalOnRuntime)
@@ -322,7 +336,8 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverter(TString descriptio
     if (middlewareTypeConverter.isNone()) {
         return primitiveConverter;
     }
-    return WrapWithMiddlewareConverter(std::move(primitiveConverter), Py::Callable(std::move(middlewareTypeConverter)));
+
+    return WrapWithMiddlewareConverter(std::move(primitiveConverter), Py::Callable(std::move(middlewareTypeConverter)), isTiSchemaOptional);
 }
 
 class TStructPythonToSkiffConverter

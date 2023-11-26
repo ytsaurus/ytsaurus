@@ -1617,3 +1617,22 @@ class TestTypedApi(object):
             ROW_DICTS,
             ordered=False
         )
+
+    @authors("chegoryu")
+    def test_optional_column_with_custom_converter(self):
+        @yt_dataclass
+        class Row:
+            formatted_datetime: typing.Optional[FormattedPyDatetime["%Y-%m-%dT%H:%M%z"]]  # noqa
+
+        table = "//tmp/table"
+
+        yt.create("table", table)
+
+        rows = [
+            Row(formatted_datetime=datetime.datetime(2021, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)),
+            Row(formatted_datetime=None),
+        ]
+        yt.write_table_structured(table, Row, rows)
+
+        read_rows = list(yt.read_table_structured(table, Row))
+        assert read_rows == rows
