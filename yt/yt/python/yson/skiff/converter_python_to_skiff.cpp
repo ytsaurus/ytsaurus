@@ -296,7 +296,7 @@ TPythonToSkiffConverter WrapWithMiddlewareConverter(TPythonToSkiffConverter conv
                 writer->WriteVariant8Tag(0);
             } else {
                 // NB: No writer->WriteVariant8Tag(1) here, because it will be handled by converter after the middleware call.
-                return simpleConverter(obj, writer);
+                simpleConverter(obj, writer);
             }
         };
     } else {
