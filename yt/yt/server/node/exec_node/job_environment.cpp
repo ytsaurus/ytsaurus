@@ -435,7 +435,7 @@ public:
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_spawn",
-            ExecNodeProfiler.WithPrefix("/job_envir onment/porto")))
+            ExecNodeProfiler.WithPrefix("/job_environment/porto")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_destroy",
