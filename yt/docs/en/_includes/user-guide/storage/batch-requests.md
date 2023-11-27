@@ -1,6 +1,6 @@
 # Batch processing of requests
 
-This section contains information about batch processing of requests (batch requests), with usage examples for the [Python](../../../user-guide/storage/batch-requests.md#python_api), [C++](../../../user-guide/storage/batch-requests.md#c++_api), and [Java](../../../user-guide/storage/batch-requests.md#java_api) APIs.
+This section contains information about batch processing of requests (batch requests), with usage examples for the [Python](../../../user-guide/storage/batch-requests.md#python_api), [C++](../../../user-guide/storage/batch-requests.md#c_plus_plus_api), and [Java](../../../user-guide/storage/batch-requests.md#java_api) APIs.
 
 When working with the {{product-name}} system, each command generates a separate request to the master server. A request has its own cost, often higher than the execution of a command. Therefore, combining several commands into a single request can significantly speed up processes that send many easy commands to [Cypress](../../../user-guide/storage/cypress.md) and are waiting for a response most of the time. This request is called a **batch request**. The Cypress master server will execute the commands from the batch request in random order and return all the obtained results. Errors that occur during the execution of individual commands do not affect other commands.
 
@@ -48,7 +48,7 @@ class BatchResponse(object):
 
 You cannot specify the [format](../../../user-guide/storage/formats.md) of the returned data by a separate command via `batch_client`. The reason is that the format of the returned data is the same for the entire batch request.
 
-## C++ API { #c++_api }
+## C++ API { #c_plus_plus_api }
 
 In the C++ API, to execute a batch request, you need to:
 
