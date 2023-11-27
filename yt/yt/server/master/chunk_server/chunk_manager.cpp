@@ -2755,8 +2755,8 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& readyClient) {
-                return readyClient->SelectRows<NRecords::TLocationReplicas>({
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& client) {
+                return client->SelectRows<NRecords::TLocationReplicas>({
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
                     Format("id_hash = %v", HashFromId(locationUuid)),
@@ -2776,8 +2776,8 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& readyClient) {
-                return readyClient->SelectRows<NRecords::TLocationReplicas>({
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& client) {
+                return client->SelectRows<NRecords::TLocationReplicas>({
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
                 });
@@ -3350,8 +3350,8 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([] (const ISequoiaClientPtr& readyClient) {
-                return readyClient->StartTransaction();
+            .Apply(BIND([] (const ISequoiaClientPtr& client) {
+                return client->StartTransaction();
             }))
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
@@ -3407,8 +3407,8 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([] (const ISequoiaClientPtr& readyClient) {
-                return readyClient->StartTransaction();
+            .Apply(BIND([] (const ISequoiaClientPtr& client) {
+                return client->StartTransaction();
             }))
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
@@ -5283,8 +5283,8 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([buildFilter] (const ISequoiaClientPtr& readyClient) {
-                return readyClient->SelectRows<NRecords::TChunkReplicas>({
+            .Apply(BIND([buildFilter] (const ISequoiaClientPtr& client) {
+                return client->SelectRows<NRecords::TChunkReplicas>({
                     buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
                         builder->AppendFormat("%v", HashFromId(chunkId));
                     }),
