@@ -48,7 +48,7 @@ class BatchResponse(object):
 
 Указать [формат](../../../user-guide/storage/formats.md) возвращаемых данных отдельной команды через `batch_client` нельзя. Причина в том, что формат возвращаемых данных един для всего batch-запроса.
 
-## C++ API { #c++_api }
+## C++ API { #c_plus_plus_api }
 
 В С++ API для выполнения batch-запроса необходимо:
 
