@@ -1551,14 +1551,15 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     context->SetRequestInfo(
         "SchemaMode: %v, UpdateMode: %v, LockMode: %v, Title: %v, "
-        "Timeout: %v, ReplicatedToCellTags: %v, TableSchemaId: %v",
+        "Timeout: %v, ReplicatedToCellTags: %v, TableSchemaId: %v, ChunkSchemaId: %v",
         uploadContext.SchemaMode,
         uploadContext.Mode,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
         replicatedToCellTags,
-        tableSchemaId);
+        tableSchemaId,
+        chunkSchemaId);
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.

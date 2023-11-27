@@ -2293,7 +2293,7 @@ private:
             {
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
                 ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema.Get());
-                // Only time this can be true is when RichPath_ has extra chunk sort colums.
+                // Only time this can be true is when RichPath_ has extra chunk sort columns.
                 if (chunkSchema != TableUploadOptions_.TableSchema.Get()) {
                     auto checkResult = CheckTableSchemaCompatibility(*chunkSchema, *TableUploadOptions_.TableSchema.Get(), false);
                     if (!checkResult.second.IsOK()) {
