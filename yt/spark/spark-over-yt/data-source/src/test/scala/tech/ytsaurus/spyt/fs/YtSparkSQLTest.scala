@@ -10,14 +10,14 @@ import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.serialization.YsonEncoder
-import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
+import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, TestRow, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
 import scala.language.postfixOps
 
-class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark
-  with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks with PrivateMethodTester {
+class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
+  with TestUtils with MockitoSugar with TableDrivenPropertyChecks with PrivateMethodTester  with DynTableTestUtils {
   import spark.implicits._
 
   private val atomicSchema = TableSchema.builder()
@@ -186,6 +186,40 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark
         Row(2, "hello"), Row(2, "ytsaurus"),
       )
     }
+  }
+
+  it should "select from dynamic table" in {
+    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
+    // @latest_version is required
+    // otherwise it will be appended to path in runtime and fail because of nested "directory" reading
+    val res = spark.sql(s"SELECT * FROM yt.`ytTable:/$tmpPath/@latest_version`")
+    res.columns should contain theSameElementsAs Seq("a", "b", "c")
+    res.select("a", "b", "c").selectAs[TestRow].collect() should contain theSameElementsAs testData
+  }
+
+  it should "join static table with dynamic one" in {
+    val path1 = s"$tmpPath/dynamic"
+    prepareTestTable(path1, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
+
+    val path2 = s"$tmpPath/static"
+    writeTableFromYson(Seq(
+      """{a = 5; b = "13"; c = 0.0}""",
+      """{a = 6; b = "11"; c = 0.0}""",
+      """{a = 5; b = "10"; c = 0.0}"""
+    ), path2, atomicSchema)
+
+    val res = spark.sql(
+      s"""
+         |SELECT t1.a, t2.b
+         |FROM yt.`ytTable:/$path1/@latest_version` t1
+         |INNER JOIN yt.`ytTable:/$path2` t2
+         |ON t1.a == t2.a AND t1.b != CAST(t2.b AS INT)""".stripMargin
+    )
+    res.columns should contain theSameElementsAs Seq("a", "b")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(5, "13"),
+      Row(6, "11")
+    )
   }
 
   it should "count io statistics" in {
