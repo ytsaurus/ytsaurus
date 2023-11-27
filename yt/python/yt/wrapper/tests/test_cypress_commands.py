@@ -877,7 +877,7 @@ class TestCypressCommandsMulticell(object):
     def test_portal_copy_retries(self):
         table_beyond_portal = self.PORTAL1_ENTRANCE + "/dark_table"
         table_beyond_portal_2 = self.PORTAL1_ENTRANCE + "/darkest_table"
-        table_no_portal = self.TMP_DIR + "/regula_table"
+        table_no_portal = self.TMP_DIR + "/regular_table"
         yt.create("table", table_beyond_portal)
         yt.write_table(table_beyond_portal, [{"foo": "bar"}, {"foo": "qwe"}])
         assert len(list(yt.read_table(table_beyond_portal))) == 2
@@ -950,7 +950,7 @@ class TestCypressCommandsMulticell(object):
         yt.create("table", table_beyond_portal)
         yt.write_table(table_beyond_portal, [{"foo": "bar"}, {"foo": "qwe"}])
 
-        table_no_portal = self.TMP_DIR + "/regula_table_2"
+        table_no_portal = self.TMP_DIR + "/regular_table_2"
         yt.create("table", table_no_portal)
         assert yt.row_count(table_beyond_portal) == 2
         assert yt.row_count(table_no_portal) == 0
@@ -970,7 +970,7 @@ class TestCypressCommandsMulticell(object):
         yt.create("table", table_beyond_portal)
         yt.write_table(table_beyond_portal, [{"foo": "bar"}, {"foo": "qwe"}])
 
-        table_no_portal = self.TMP_DIR + "/regula_table_3"
+        table_no_portal = self.TMP_DIR + "/regular_table_3"
 
         client = yt.YtClient(config=yt.config.config)
         batch_client = client.create_batch_client()

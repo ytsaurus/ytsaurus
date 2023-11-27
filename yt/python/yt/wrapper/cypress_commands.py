@@ -165,12 +165,12 @@ class _CrosscellCopyMoveRetrier(Retrier):
     @classmethod
     def _method(cls, method, params, client):
         try:
-            # copy/move without any extra protection
+            # try copy/move without any extra protection
             set_param(params, "enable_cross_cell_copying", False)
             return make_formatted_request(method, params, format=None, client=client)
         except YtResponseError as ex:
             if ex.is_prohibited_cross_cell_copy():
-                # copy/move from portal, make it retryable
+                # it's copy/move from portal, make it retryable
                 return cls(method, params, client).run()
             else:
                 raise
