@@ -16,7 +16,7 @@ import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt.serializers.YtLogicalType
 import tech.ytsaurus.typeinfo.StructType.Member
 import tech.ytsaurus.typeinfo.TiType
-import tech.ytsaurus.ysontree.YTreeBuilder
+import tech.ytsaurus.ysontree.{YTree, YTreeBuilder}
 
 class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
   import spark.implicits._
@@ -166,6 +166,43 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
 
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
     res.collect() should contain theSameElementsAs data.map(x => Row(Row(x.d, x.s)))
+  }
+
+  it should "read complex struct with decimals from yt and access inner fields" in {
+    val schema = TableSchema.builder()
+      .setUniqueKeys(false)
+      .addValue("limits", TiType.optional(
+        TiType.struct(
+          new Member("lower_limit", TiType.optional(TiType.decimal(35, 18))),
+          new Member("upper_limit", TiType.optional(TiType.decimal(35, 18)))
+        )))
+      .build()
+
+    def buildRow(lowerLimit: String, upperLimit: String): Array[Byte] = YTree.listBuilder()
+      .value(textToBinary(lowerLimit, 35, 18))
+      .value(textToBinary(upperLimit, 35, 18))
+      .endList().build().toBinary
+
+    val sampleData = Seq(
+      packToRow(buildRow("0.05", "3.05")),
+      packToRow(buildRow("0.70", "9.00")),
+      packToRow(buildRow("0.05", "3.05")),
+      packToRow(buildRow("0.70", "9.00"))
+    )
+
+    writeTableFromURow(sampleData, tmpPath, schema)
+
+    val df = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
+
+
+    val twoColResult = df.select($"limits.upper_limit" - $"limits.lower_limit").as[BigDecimal].collect()
+    twoColResult should contain theSameElementsInOrderAs List(3.0, 8.3, 3.0, 8.3).map(BigDecimal(_))
+
+    val leftColResult = df.select($"limits.upper_limit").as[BigDecimal].collect()
+    leftColResult should contain theSameElementsInOrderAs List(3.05, 9.00, 3.05, 9.00).map(BigDecimal(_))
+
+    val rightColResult = df.select($"limits.lower_limit").as[BigDecimal].collect()
+    rightColResult should contain theSameElementsInOrderAs List(0.05, 0.70, 0.05, 0.70).map(BigDecimal(_))
   }
 
   it should "read tuple from yt" in {

@@ -38,8 +38,6 @@ case class YtScanBuilder(sparkSession: SparkSession,
     }
   }
 
-  override protected val supportsNestedSchemaPruning: Boolean = true
-
   override def pruneColumns(requiredSchema: StructType): Unit = {
     this.requiredSchema = pushStructMetadata(requiredSchema, dataSchema)
   }
