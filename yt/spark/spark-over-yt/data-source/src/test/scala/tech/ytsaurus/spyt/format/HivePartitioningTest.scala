@@ -54,6 +54,15 @@ class HivePartitioningTest extends AnyFlatSpec with TmpDir with LocalSpark with 
     df.schema.toDDL shouldEqual sparkSchema.toDDL
   }
 
+  it should "read hive partitioned data with basePath" in {
+    import tech.ytsaurus.spyt._
+    val df = spark.read.option("recursiveFileLookup", "false")
+      .option("basePath", "ytTable:/" + tmpPath).yt(tmpPath + "/external=1")
+
+    df.count() shouldBe 50L
+    df.schema.toDDL shouldEqual partitionedSparkSchema.toDDL
+  }
+
   private def createHivePartitionedTable(): Unit = {
     YtWrapper.createDir(tmpPath)
     (1 to 10).foreach { external =>
