@@ -41,13 +41,13 @@ def main():
             "for running operations, reading/writing data to the cluster and most of the other features.",
 
         install_requires=[
-            "simplejson==3.18.3",
+            "simplejson==3.18.4",
             "decorator==4.4.2",
-            "tqdm==4.64.1",
-            "argcomplete==2.0.0",
+            "tqdm==4.66.1",
+            "argcomplete==3.1.4",
             "six==1.16.0",
-            "charset-normalizer==2.0.10",
-            "typing-extensions==4.5.0",
+            "charset-normalizer==3.3.0",
+            "typing-extensions==4.8.0",
         ],
     )
 
