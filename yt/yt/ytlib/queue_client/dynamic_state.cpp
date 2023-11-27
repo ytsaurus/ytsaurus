@@ -200,7 +200,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
 
         // TODO(achulkov2): Use setSimpleOptional?
         if (auto staticExportConfig = findValue(staticExportConfigId)) {
-            typedRow.StaticExportConfig = ConvertTo<TQueueStaticExportConfig>(TYsonStringBuf(staticExportConfig->AsStringBuf()));
+            typedRow.StaticExportConfig = ConvertTo<THashMap<TString, TQueueStaticExportConfig>>(TYsonStringBuf(staticExportConfig->AsStringBuf()));
         }
 
         setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
@@ -298,7 +298,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
         .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config"),
-        .StaticExportConfig = cypressAttributes->Find<TQueueStaticExportConfig>("static_export_config"),
+        .StaticExportConfig = cypressAttributes->Find<THashMap<TString, TQueueStaticExportConfig>>("static_export_config"),
         .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
         .ObjectId = cypressAttributes->Find<TObjectId>("id"),
         .SynchronizationError = TError(),
