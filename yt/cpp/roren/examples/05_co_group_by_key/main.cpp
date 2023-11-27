@@ -61,7 +61,7 @@ int main(int argc, const char** argv) {
         return result;
     });
 
-    output | YtWrite<TNode>(
+    output | YtWrite(
         "//tmp/nadya73-tt",
         TTableSchema()
             .AddColumn("uid", NTi::String())

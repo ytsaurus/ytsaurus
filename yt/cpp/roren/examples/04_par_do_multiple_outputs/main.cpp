@@ -78,14 +78,14 @@ int main(int argc, const char** argv) {
         TNode result;
         result["login"] = info.Login;
         return result;
-    }) | YtWrite<TNode>("//tmp/ermolovd-robots", robotSchema);
+    }) | YtWrite("//tmp/ermolovd-robots", robotSchema);
 
     humans | ParDo([] (const TUserLoginInfo& info) {
         TNode result;
         result["name"] = info.Name;
         result["login"] = info.Login;
         return result;
-    }) | YtWrite<TNode>("//tmp/ermolovd-humans", humanSchema);
+    }) | YtWrite("//tmp/ermolovd-humans", humanSchema);
 
     pipeline.Run();
     return 0;

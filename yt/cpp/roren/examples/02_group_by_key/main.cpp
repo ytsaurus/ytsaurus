@@ -37,7 +37,7 @@ int main(int argc, const char** argv) {
             result["logins"] = allLogins;
             return result;
         })
-        | YtWrite<TNode>(
+        | YtWrite(
             "//tmp/ermolovd-tt",
             TTableSchema()
                 .AddColumn("name", NTi::String())

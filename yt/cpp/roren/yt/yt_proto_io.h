@@ -365,6 +365,12 @@ IRawYtWritePtr MakeYtProtoWrite(NYT::TRichYPath path, NYT::TTableSchema tableSch
     return ::MakeIntrusive<TRawYtProtoWrite<TMessage>>(std::move(path), std::move(tableSchema));
 }
 
+template <class TMessage>
+IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath /*path*/, NYT::TTableSchema /*tableSchema*/, std::vector<std::string> /*columns*/)
+{
+    return nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren::NPrivate

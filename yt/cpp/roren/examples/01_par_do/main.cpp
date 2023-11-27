@@ -51,7 +51,7 @@ int main(int argc, const char** argv) {
             result["email"] = info.Email;
             return result;
         })
-        | YtWrite<TNode>(
+        | YtWrite(
             "//tmp/ermolovd-tt",
             TTableSchema()
                 .AddColumn("name", NTi::String())

@@ -34,7 +34,7 @@ int main(int argc, const char** argv) {
             result["total_uid"] = kv.Value();
             return result;
         })
-        | YtWrite<TNode>(
+        | YtWrite(
             "//tmp/ermolovd-tt",
             TTableSchema()
                 .AddColumn("name", NTi::String())
