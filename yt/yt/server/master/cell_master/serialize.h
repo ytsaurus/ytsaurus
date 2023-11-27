@@ -185,6 +185,7 @@ DEFINE_ENUM(EMasterReign,
     ((ConfigurablePoolNameValidationRegex_23_2)                     (2447))  // renadeen
     ((ChunkReincarnatorMinorFixes)                                  (2448))  // kvk1920
     ((AddGroundSupport)                                             (2449))  // h0pless
+    ((FixTransactionACLs)                                           (2450))  // h0pless
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
