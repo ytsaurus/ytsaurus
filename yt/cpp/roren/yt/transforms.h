@@ -16,8 +16,7 @@ public:
     TYtWriteTransform(
         const NYT::TRichYPath& path,
         const NYT::TTableSchema& schema,
-        const std::vector<std::string>& columnsToSort
-    )
+        const std::vector<std::string>& columnsToSort)
         : Path_(path)
         , Schema_(schema)
         , ColumnsToSort_(columnsToSort)
@@ -25,8 +24,7 @@ public:
 
     TYtWriteTransform(
         const NYT::TRichYPath& path,
-        const NYT::TTableSchema& schema
-    )
+        const NYT::TTableSchema& schema)
         : Path_(path)
         , Schema_(schema)
         , ColumnsToSort_(std::nullopt)
@@ -82,7 +80,6 @@ private:
             static_assert(TDependentFalse<TInputRow>, "unknown YT writer");
         }
     }
-
 
 private:
     NYT::TRichYPath Path_;
