@@ -947,14 +947,15 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 int TChunkPlacement::GetMaxReplicasPerRack(
     const TMedium* medium,
     const TChunk* chunk,
-    std::optional<int> replicationFactorOverride) const
+    std::optional<int> /*replicationFactorOverride*/) const
 {
-    auto result = chunk->GetMaxReplicasPerFailureDomain(
-        medium->GetIndex(),
-        replicationFactorOverride,
-        Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
+    //auto result = chunk->GetMaxReplicasPerFailureDomain(
+    //    medium->GetIndex(),
+    //    replicationFactorOverride,
+    //    Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
+    //result = std::min(result, config->MaxReplicasPerRack);
     const auto& config = medium->Config();
-    result = std::min(result, config->MaxReplicasPerRack);
+    auto result = config->MaxReplicasPerRack;
 
     switch (chunk->GetType()) {
         case EObjectType::Chunk:
