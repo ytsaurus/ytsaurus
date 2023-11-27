@@ -311,6 +311,9 @@ private:
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
 
+    // COMPAT(h0pless): FixTransactionACLs
+    bool ResetTransactionAcls_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
@@ -318,6 +321,7 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
+    void OnAfterSnapshotLoaded() override;
 
     void OnRecoveryStarted() override;
     void OnRecoveryComplete() override;
@@ -1037,6 +1041,48 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     InitSchemas();
 
     GarbageCollector_->LoadValues(context);
+
+    ResetTransactionAcls_ = context.GetVersion() < EMasterReign::FixTransactionACLs;
+}
+
+void TObjectManager::OnAfterSnapshotLoaded()
+{
+    if (ResetTransactionAcls_) {
+        for (auto type : {
+            EObjectType::Transaction,
+            EObjectType::ExternalizedTransaction,
+            EObjectType::SystemTransaction,
+            EObjectType::UploadTransaction,
+            EObjectType::NestedTransaction,
+            EObjectType::ExternalizedNestedTransaction,
+            EObjectType::SystemNestedTransaction,
+            EObjectType::UploadNestedTransaction})
+        {
+            auto* schema = GetSchema(type);
+            auto* acd = GetHandler(schema)->FindAcd(schema);
+
+            YT_VERIFY(acd);
+            acd->Clear();
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            acd->AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                securityManager->GetEveryoneGroup(),
+                EPermission::Read));
+            acd->AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                securityManager->GetUsersGroup(),
+                EPermission::Remove));
+            acd->AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                securityManager->GetUsersGroup(),
+                EPermission::Write));
+            acd->AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                securityManager->GetUsersGroup(),
+                EPermission::Create));
+        }
+    }
 }
 
 void TObjectManager::Clear()
@@ -1056,6 +1102,8 @@ void TObjectManager::Clear()
 
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
+
+    ResetTransactionAcls_ = false;
 
     GarbageCollector_->Clear();
     MutationIdempotizer_->Clear();
