@@ -738,7 +738,7 @@ private:
                 .ValueOrThrow();
 
             for (const auto& unlinkError : unlinkResults) {
-                if (!unlinkError.IsOK() && unlinkError.GetCode() != Porto::VolumeNotLinked && unlinkError.GetCode() != Porto::VolumeNotFound) {
+                if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
                     THROW_ERROR unlinkError;
                 }
             }
