@@ -2599,11 +2599,12 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
         wait(try_remove, ignore_exceptions=True)
 
     @staticmethod
-    def _check_export(export_directory, expected_data, queue_path=None):
+    # NB: The last two options should be used carefully: currently they strictly check that all timestamps are within [ts - period, ts], which might not generally be the case.
+    def _check_export(export_directory, expected_data, queue_path=None, use_upper_bound_for_table_names=True, export_period=None):
         export_fragments = [name for name in sorted(ls(export_directory)) if f"{export_directory}/{name}" != queue_path]
         assert len(export_fragments) == len(expected_data)
         export_progress = get(f"{export_directory}/@queue_static_export_progress")
-        assert export_progress["last_exported_fragment_unix_ts"] == int(export_fragments[-1].split("-")[0])
+        assert export_progress["last_exported_fragment_unix_ts"] == (int(export_fragments[-1].split("-")[0]) + (0 if use_upper_bound_for_table_names else export_period))
 
         queue_id = get(f"{export_directory}/@queue_static_export_destination/originating_queue_id")
         queue_schema_id = get(f"#{queue_id}/@schema_id")
@@ -2619,7 +2620,9 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
             if fragment_table_path == queue_path:
                 continue
 
-            fragment_unix_ts = int(fragment_name.split("-")[0])
+            fragment_unix_ts, fragment_export_period = map(int, fragment_name.split("-"))
+            if export_period is not None:
+                assert export_period == fragment_export_period
 
             fragment_native_cell_tag = get(f"{fragment_table_path}/@native_cell_tag")
 
@@ -2638,12 +2641,30 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
                 ts = row["$timestamp"]
                 max_timestamp = max(ts, max_timestamp)
 
-                assert ts >> 30 <= fragment_unix_ts
+                if use_upper_bound_for_table_names:
+                    assert ts >> 30 <= fragment_unix_ts
+                else:
+                    assert fragment_unix_ts <= ts >> 30 <= fragment_unix_ts + export_period
 
             total_row_count += len(rows)
 
         assert max(map(itemgetter("max_timestamp"), export_progress["tablets"].values())) == max_timestamp
         assert sum(map(itemgetter("row_count"), export_progress["tablets"].values())) == total_row_count
+
+    # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
+    def _create_queue(self, *args, **kwargs):
+        return super()._create_queue(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+
+    # Sleeps until next instant which is at the specified offset (in seconds) in the specified periodic cycle.
+    def _sleep_until_next_export_instant(self, period, offset=0.0):
+        now = time.time()
+        last_export_time = int(now) // period * period
+        next_instant = last_export_time + offset
+        if next_instant < now:
+            next_instant += period
+        assert next_instant >= now
+        time.sleep(next_instant - now)
+        return next_instant
 
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
@@ -2668,6 +2689,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
+                "use_upper_bound_for_table_names": True,
             }
         })
 
@@ -2713,6 +2735,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
+                "use_upper_bound_for_table_names": True,
             }
         })
 
@@ -2740,6 +2763,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
+                "use_upper_bound_for_table_names": True,
             }
         })
 
@@ -2772,10 +2796,12 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "first": {
                 "export_directory": export_dir_1,
                 "export_period": 1 * 1000,
+                "use_upper_bound_for_table_names": True,
             },
             "second": {
                 "export_directory": export_dir_2,
                 "export_period": 2 * 1000,
+                "use_upper_bound_for_table_names": True,
             },
         })
 
@@ -2802,6 +2828,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "second": {
                 "export_directory": export_dir_2,
                 "export_period": 2 * 1000,
+                "use_upper_bound_for_table_names": True,
             },
         })
 
@@ -2821,10 +2848,12 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "second": {
                 "export_directory": export_dir_2,
                 "export_period": 2 * 1000,
+                "use_upper_bound_for_table_names": True,
             },
             "third": {
                 "export_directory": export_dir_3,
                 "export_period": 3 * 1000,
+                "use_upper_bound_for_table_names": True,
             },
         })
 
@@ -2888,7 +2917,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
     @authors("achulkov2")
-    def test_table_name_formatting(self):
+    @pytest.mark.parametrize("use_upper_bound_for_table_names", [False, True])
+    def test_table_name_formatting(self, use_upper_bound_for_table_names):
         export_dir = "//tmp/export"
         _, queue_id = self._create_queue("//tmp/q")
 
@@ -2904,6 +2934,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
                 "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%d.%m.%H.%M.%S",
+                "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
             }
         })
 
@@ -2916,6 +2947,63 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             return f"{dt.isoformat(timespec='seconds')}Z-period-is-3-fmt-{dt.strftime('%Y.%d.%m.%H.%M.%S')}"
 
         assert fmt_time(start) <= output_table_name <= fmt_time(end)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("achulkov2")
+    def test_lower_bound_naming(self):
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+                "use_upper_bound_for_table_names": False,
+            }
+        })
+
+        # This way we assure that we write the rows at the beginning of the period, so that all rows are physically written and flushed before the next export instant arrives.
+        mid_export = self._sleep_until_next_export_instant(period=3, offset=0.5)
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table("//tmp/q")
+
+        next_export = self._sleep_until_next_export_instant(period=3)
+        # Flush should be fast enough. Increase period if this turns out to be flaky.
+        assert next_export - mid_export <= 3
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        # Given the constraints above, we check that all timestamps lie in [ts, ts + period], where ts is the timestamp in the name of the output table.
+        self._check_export(export_dir, [["foo"] * 2], use_upper_bound_for_table_names=False, export_period=3)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("achulkov2")
+    def test_export_ttl(self):
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+                "export_ttl":  3 * 1000,
+            }
+        })
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table("//tmp/q")
+
+        # Something should be exported.
+        wait(lambda: len(ls(export_dir)) == 1)
+
+        # And then deleted after 3 seconds (sleeping for 4 just in case).
+        time.sleep(4)
+        assert len(ls(export_dir)) == 0
 
         self.remove_export_destination(export_dir)
 
