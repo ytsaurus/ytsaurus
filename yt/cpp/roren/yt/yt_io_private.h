@@ -24,7 +24,7 @@ class IYtNotSerializableJobInput
     : public IRawInput
 {
 public:
-    virtual ui64 GetInputIndex() {
+    virtual ssize_t GetInputIndex() {
         return 0;
     }
 };
@@ -185,7 +185,7 @@ IRawYtWritePtr MakeYtNodeWrite(NYT::TRichYPath path, NYT::TTableSchema tableSche
 
 IYtJobInputPtr CreateDecodingJobInput(TRowVtable rowVtables);
 IYtJobInputPtr CreateDecodingJobInput(const std::vector<TRowVtable>& rowVtables);
-IYtNotSerializableJobInputPtr CreateSplitKvJobInput(
+IYtNotSerializableJobInputPtr CreateSplitKvJobNodeInput(
     const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<NYT::TNode> tableReader);
 
 IYtJobOutputPtr CreateEncodingJobOutput(const TRowVtable& rowVtable, int sinkIndex);

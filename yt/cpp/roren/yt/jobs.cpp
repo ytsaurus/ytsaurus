@@ -57,7 +57,7 @@ IExecutionContextPtr CreateYtExecutionContext()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::TTableRangesReaderPtr<TNode> CreateRangesTableReader(IInputStream* stream)
+NYT::TTableRangesReaderPtr<TNode> CreateRangesNodeTableReader(IInputStream* stream)
 {
     auto impl = ::MakeIntrusive<TNodeTableReader>(::MakeIntrusive<NYT::NDetail::TInputStreamProxy>(stream));
     return ::MakeIntrusive<TTableRangesReader<TNode>>(impl);
@@ -284,11 +284,11 @@ REGISTER_RAW_JOB(TSplitStateKvMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGbkImpulseReadParDo
+class TGbkImpulseReadNodeParDo
     : public IRawParDo
 {
 public:
-    TGbkImpulseReadParDo(IRawGroupByKeyPtr rawGroupByKey)
+    TGbkImpulseReadNodeParDo(IRawGroupByKeyPtr rawGroupByKey)
         : RawGroupByKey_(rawGroupByKey)
     { }
 
@@ -312,11 +312,11 @@ public:
         Y_ABORT_UNLESS(gbkInputTags.size() == 1);
         const auto& rowVtable = gbkInputTags[0].GetRowVtable();
 
-        auto rangesReader = CreateRangesTableReader(&Cin);
+        auto rangesReader = CreateRangesNodeTableReader(&Cin);
 
         for (; rangesReader->IsValid(); rangesReader->Next()) {
             auto range = &rangesReader->GetRange();
-            auto input = CreateSplitKvJobInput(std::vector{rowVtable}, range);
+            auto input = CreateSplitKvJobNodeInput(std::vector{rowVtable}, range);
             RawGroupByKey_->ProcessOneGroup(input, Output_);
         }
     }
@@ -333,7 +333,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TGbkImpulseReadParDo>(nullptr);
+            return ::MakeIntrusive<TGbkImpulseReadNodeParDo>(nullptr);
         };
     }
 
@@ -371,7 +371,7 @@ void ProcessOneGroup(const IRawCoGroupByKeyPtr& rawComputation, const IYtNotSeri
 
     while (const void* raw = input->NextRaw()) {
         auto inputIndex = input->GetInputIndex();
-        Y_ENSURE(inputIndex < inputTags.size(), "Input index must be less than input tags count");
+        Y_ENSURE(inputIndex < ssize(inputTags), "Input index must be less than input tags count");
         auto inputVtable = inputTags[inputIndex].GetRowVtable();
 
         if (!IsDefined(keyVtable)) {
@@ -419,11 +419,11 @@ public:
 
             auto inRowVtables = LoadVtablesFromNode(State_.At(InVtablesKey_));
             auto rawComputation = SerializableFromNode<IRawCoGroupByKey>(State_.At(ComputationKey_));
-            auto rangesReader = CreateRangesTableReader(&Cin);
+            auto rangesReader = CreateRangesNodeTableReader(&Cin);
 
             for (; rangesReader->IsValid(); rangesReader->Next()) {
                 auto range = &rangesReader->GetRange();
-                auto input = CreateSplitKvJobInput(inRowVtables, range);
+                auto input = CreateSplitKvJobNodeInput(inRowVtables, range);
                 ProcessOneGroup(rawComputation, input, output);
             }
 
@@ -516,9 +516,9 @@ public:
 
             statefulParDo->Start(executionContext, rawStateStore, outputs);
 
-            for (auto rangesReader = CreateRangesTableReader(&Cin); rangesReader->IsValid(); rangesReader->Next()) {
+            for (auto rangesReader = CreateRangesNodeTableReader(&Cin); rangesReader->IsValid(); rangesReader->Next()) {
                 auto range = &rangesReader->GetRange();
-                auto input = CreateSplitKvJobInput(inRowVtables, range);
+                auto input = CreateSplitKvJobNodeInput(inRowVtables, range);
 
                 TRowVtable keyVtable;
                 TRawRowHolder keyHolder;
@@ -529,7 +529,7 @@ public:
                 // read all values for key
                 while (const void* raw = input->NextRaw()) {
                     auto inputIndex = input->GetInputIndex();
-                    Y_ENSURE(inputIndex < inRowVtables.size(), "Input index must be less than input tags count");
+                    Y_ENSURE(inputIndex < ssize(inRowVtables), "Input index must be less than input tags count");
                     const auto& inputVtable = inRowVtables[inputIndex];
 
                     if (!IsDefined(keyVtable)) {
@@ -591,13 +591,13 @@ REGISTER_RAW_JOB(TStatefulKvReduce);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoGbkImpulseReadParDo
+class TCoGbkImpulseReadNodeParDo
     : public IRawParDo
 {
 public:
-    TCoGbkImpulseReadParDo() = default;
+    TCoGbkImpulseReadNodeParDo() = default;
 
-    TCoGbkImpulseReadParDo(IRawCoGroupByKeyPtr rawCoGbk, std::vector<TRowVtable> rowVtable)
+    TCoGbkImpulseReadNodeParDo(IRawCoGroupByKeyPtr rawCoGbk, std::vector<TRowVtable> rowVtable)
         : RawCoGroupByKey_(rawCoGbk)
         , InputRowVtableList_(rowVtable)
     { }
@@ -619,11 +619,11 @@ public:
         Processed_ = true;
 
 
-        auto rangesReader = CreateRangesTableReader(&Cin);
+        auto rangesReader = CreateRangesNodeTableReader(&Cin);
 
         for (; rangesReader->IsValid(); rangesReader->Next()) {
             auto range = &rangesReader->GetRange();
-            auto input = CreateSplitKvJobInput(InputRowVtableList_, range);
+            auto input = CreateSplitKvJobNodeInput(InputRowVtableList_, range);
             ProcessOneGroup(RawCoGroupByKey_, input, Output_);
         }
     }
@@ -640,7 +640,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCoGbkImpulseReadParDo>();
+            return ::MakeIntrusive<TCoGbkImpulseReadNodeParDo>();
         };
     }
 
@@ -693,7 +693,7 @@ public:
         Y_ABORT_UNLESS(!Processed_);
         Processed_ = true;
 
-        auto rangesReader = CreateRangesTableReader(&Cin);
+        auto rangesReader = CreateRangesNodeTableReader(&Cin);
 
         auto accumVtable = RawCombine_->GetAccumVtable();
         auto inputVtable = RawCombine_->GetInputVtable();
@@ -706,7 +706,7 @@ public:
         TRawRowHolder currentKey(inputVtable.KeyVtableFactory());
         for (; rangesReader->IsValid(); rangesReader->Next()) {
             auto range = &rangesReader->GetRange();
-            auto input = CreateSplitKvJobInput(std::vector{inputVtable}, range);
+            auto input = CreateSplitKvJobNodeInput(std::vector{inputVtable}, range);
 
             bool first = true;
             RawCombine_->CreateAccumulator(accum.GetData());
@@ -795,7 +795,7 @@ public:
         auto accumVtable = RawCombine_->GetAccumVtable();
         auto keyVtable = outRowVtable.KeyVtableFactory();
 
-        auto rangesReader = CreateRangesTableReader(&Cin);
+        auto rangesReader = CreateRangesNodeTableReader(&Cin);
 
         TRawRowHolder accum(accumVtable);
         TRawRowHolder currentKey(outRowVtable.KeyVtableFactory());
@@ -927,9 +927,9 @@ IRawJobPtr CreateSplitStateKvMap(
     return ::MakeIntrusive<TSplitStateKvMap>(rowVtables, std::move(stateVtable));
 }
 
-IRawParDoPtr CreateGbkImpulseReadParDo(IRawGroupByKeyPtr rawGroupByKey)
+IRawParDoPtr CreateGbkImpulseReadNodeParDo(IRawGroupByKeyPtr rawGroupByKey)
 {
-    return ::MakeIntrusive<TGbkImpulseReadParDo>(std::move(rawGroupByKey));
+    return ::MakeIntrusive<TGbkImpulseReadNodeParDo>(std::move(rawGroupByKey));
 }
 
 IRawJobPtr CreateMultiJoinKvReduce(
@@ -940,11 +940,11 @@ IRawJobPtr CreateMultiJoinKvReduce(
     return ::MakeIntrusive<TMultiJoinKvReduce>(rawComputation, inVtables, output);
 }
 
-IRawParDoPtr CreateCoGbkImpulseReadParDo(
+IRawParDoPtr CreateCoGbkImpulseReadNodeParDo(
     IRawCoGroupByKeyPtr rawCoGbk,
     std::vector<TRowVtable> rowVtableList)
 {
-    return ::MakeIntrusive<TCoGbkImpulseReadParDo>(std::move(rawCoGbk), std::move(rowVtableList));
+    return ::MakeIntrusive<TCoGbkImpulseReadNodeParDo>(std::move(rawCoGbk), std::move(rowVtableList));
 }
 
 IRawJobPtr CreateStatefulKvReduce(

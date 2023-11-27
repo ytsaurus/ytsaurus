@@ -98,7 +98,7 @@ public:
         }
     }
 
-    ui64 GetInputIndex() override
+    ssize_t GetInputIndex() override
     {
         return TableIndex_;
     }
@@ -118,7 +118,7 @@ public:
 
 private:
     NYT::TTableReaderPtr<NYT::TNode> Reader_ = nullptr;
-    ui64 TableIndex_ = 0;
+    ssize_t TableIndex_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +288,7 @@ public:
         }
     }
 
-    ui64 GetInputIndex() override
+    ssize_t GetInputIndex() override
     {
         return TableIndex_;
     }
@@ -324,7 +324,7 @@ private:
     NYT::TTableReaderPtr<TNode> NodeReader_ = nullptr;
     std::vector<IRawCoderPtr> Decoders_;
     std::vector<TRawRowHolder> RowHolders_;
-    ui64 TableIndex_ = 0;
+    ssize_t TableIndex_ = 0;
 };
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -546,13 +546,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSplitKvJobInput
+class TSplitKvJobNodeInput
     : public IYtNotSerializableJobInput
 {
 public:
-    TSplitKvJobInput() = default;
+    TSplitKvJobNodeInput() = default;
 
-    explicit TSplitKvJobInput(const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<TNode> tableReader)
+    explicit TSplitKvJobNodeInput(const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<TNode> tableReader)
         : RowVtables_(rowVtables)
         , TableReader_(std::move(tableReader))
     {
@@ -574,7 +574,7 @@ public:
             if (node.HasKey("table_index")) {
                 TableIndex_ = node["table_index"].AsInt64();
             }
-            Y_ENSURE(TableIndex_ < RowVtables_.size());
+            Y_ENSURE(TableIndex_ < ssize(RowVtables_));
 
             auto& rowHolder = RowHolders_[TableIndex_];
 
@@ -588,7 +588,7 @@ public:
         }
     }
 
-    ui64 GetInputIndex() override
+    ssize_t GetInputIndex() override
     {
         return TableIndex_;
     }
@@ -601,7 +601,7 @@ private:
     std::vector<IRawCoderPtr> ValueDecoders_;
     std::vector<TRawRowHolder> RowHolders_;
 
-    ui64 TableIndex_ = 0;
+    ssize_t TableIndex_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -758,9 +758,9 @@ IYtJobInputPtr CreateDecodingJobInput(const std::vector<TRowVtable>& rowVtables)
     return ::MakeIntrusive<TDecodingJobInput>(rowVtables);
 }
 
-IYtNotSerializableJobInputPtr CreateSplitKvJobInput(const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<TNode> tableReader)
+IYtNotSerializableJobInputPtr CreateSplitKvJobNodeInput(const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<NYT::TNode> tableReader)
 {
-    return ::MakeIntrusive<TSplitKvJobInput>(rowVtables, std::move(tableReader));
+    return ::MakeIntrusive<TSplitKvJobNodeInput>(rowVtables, std::move(tableReader));
 }
 
 IYtJobOutputPtr CreateEncodingJobOutput(const TRowVtable& rowVtable, int sinkIndex)

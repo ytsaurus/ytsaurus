@@ -112,6 +112,12 @@ private:
     Y_SAVELOAD_DEFINE_OVERRIDE(TableCount_);
 };
 
+template <class TMessage>
+IProtoIOParDoPtr CreateReadProtoImpulseParDo()
+{
+    return ::MakeIntrusive<TReadProtoImpulseParDo<TMessage>>();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TMessage>
@@ -141,7 +147,7 @@ public:
         NPrivate::SetAttribute(
             *this,
             ReadParDoTag,
-            IProtoIOParDoPtr(::MakeIntrusive<TReadProtoImpulseParDo<TMessage>>())
+            CreateReadProtoImpulseParDo<TMessage>()
         );
     }
 
@@ -185,8 +191,9 @@ class TWriteProtoParDo
     : public IProtoIOParDo
 {
 public:
-    TWriteProtoParDo()
+    TWriteProtoParDo(ssize_t tableIndex = -1)
         : Descriptor_(TMessage::GetDescriptor())
+        , TableIndex_(tableIndex)
     { }
 
     void SetTableIndex(ssize_t tableIndex) override
@@ -244,13 +251,19 @@ public:
     }
 
 private:
-    ssize_t TableIndex_ = 0;
-
     const ::google::protobuf::Descriptor* Descriptor_;
     std::unique_ptr<::NYT::TLenvalProtoTableWriter> Writer_;
 
+    ssize_t TableIndex_ = 0;
+
     Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
 };
+
+template <class TMessage>
+IProtoIOParDoPtr CreateWriteProtoParDo(ssize_t tableIndex = -1)
+{
+    return ::MakeIntrusive<TWriteProtoParDo<TMessage>>(tableIndex);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +294,7 @@ public:
         NPrivate::SetAttribute(
             *this,
             WriteParDoTag,
-            IProtoIOParDoPtr(::MakeIntrusive<TWriteProtoParDo<TMessage>>())
+            CreateWriteProtoParDo<TMessage>()
         );
     }
 
@@ -311,146 +324,32 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDecodingValueProtoParDo
-    : public IRawParDo
-{
-public:
-    TDecodingValueProtoParDo() = default;
-
-    explicit TDecodingValueProtoParDo(TRowVtable rowVtable)
-        : OutputRowVtable_(rowVtable)
-    { }
-
-    std::vector<TDynamicTypeTag> GetInputTags() const override
-    {
-        return {TDynamicTypeTag("TDecodingValueProtoParDo.Input", MakeRowVtable<TKVProto>())};
-    }
-
-    std::vector<TDynamicTypeTag> GetOutputTags() const override
-    {
-        return {TDynamicTypeTag("TDecodingValueProtoParDo.Output", OutputRowVtable_)};
-    }
-
-    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
-    {
-        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
-        Y_ABORT_UNLESS(outputs.size() == 1);
-        Output_ = outputs[0];
-        if (!Coder_) {
-            Coder_ = OutputRowVtable_.RawCoderFactory();
-            OutputRowHolder_.Reset(OutputRowVtable_);
-        }
-    }
-
-    void Do(const void* rows, int count) override
-    {
-        const auto* curRow = static_cast<const TKVProto*>(rows);
-        for (int i = 0; i < count; ++i, ++curRow) {
-            Coder_->DecodeRow(curRow->GetValue(), OutputRowHolder_.GetData());
-            Output_->AddRaw(OutputRowHolder_.GetData(), 1);
-        }
-    }
-
-    void Finish() override
-    { }
-
-    const TFnAttributes& GetFnAttributes() const override
-    {
-        static const TFnAttributes fnAttributes;
-        return fnAttributes;
-    }
-
-    TDefaultFactoryFunc GetDefaultFactory() const override
-    {
-        return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TDecodingValueProtoParDo>();
-        };
-    }
-
-private:
-    TRowVtable OutputRowVtable_;
-
-    IRawOutputPtr Output_;
-    IRawCoderPtr Coder_;
-    TRawRowHolder OutputRowHolder_;
-
-    Y_SAVELOAD_DEFINE_OVERRIDE(OutputRowVtable_);
-};
-
 IRawParDoPtr CreateDecodingValueProtoParDo(TRowVtable rowVtable);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEncodingValueProtoParDo
-    : public IRawParDo
-{
-public:
-    TEncodingValueProtoParDo() = default;
-
-    explicit TEncodingValueProtoParDo(TRowVtable rowVtable)
-        : InputRowVtable_(rowVtable)
-    { }
-
-    std::vector<TDynamicTypeTag> GetInputTags() const override
-    {
-        return {TDynamicTypeTag("TEncodingValueProtoParDo.Input", InputRowVtable_)};
-    }
-
-    std::vector<TDynamicTypeTag> GetOutputTags() const override
-    {
-        return {TDynamicTypeTag("TEncodingValueProtoParDo.Output", MakeRowVtable<TKVProto>())};
-    }
-
-    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
-    {
-        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
-        Y_ABORT_UNLESS(outputs.size() == 1);
-        Output_ = outputs[0];
-        if (!Coder_) {
-            Coder_ = InputRowVtable_.RawCoderFactory();
-        }
-    }
-
-    void Do(const void* rows, int count) override
-    {
-        const auto* curRow = static_cast<const std::byte*>(rows);
-        for (int i = 0; i < count; ++i, curRow += InputRowVtable_.DataSize) {
-            Buffer_.clear();
-            auto out = TStringOutput(Buffer_);
-            Coder_->EncodeRow(&out, curRow);
-            ResultProto_.SetValue(Buffer_);
-            Output_->AddRaw(&ResultProto_, 1);
-        }
-    }
-
-    void Finish() override
-    { }
-
-    const TFnAttributes& GetFnAttributes() const override
-    {
-        static const TFnAttributes fnAttributes;
-        return fnAttributes;
-    }
-
-    TDefaultFactoryFunc GetDefaultFactory() const override
-    {
-        return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TEncodingValueProtoParDo>();
-        };
-    }
-
-private:
-    TRowVtable InputRowVtable_;
-
-    IRawOutputPtr Output_;
-    IRawCoderPtr Coder_;
-    TKVProto ResultProto_;
-    TString Buffer_;
-
-    Y_SAVELOAD_DEFINE_OVERRIDE(InputRowVtable_);
-};
-
 IRawParDoPtr CreateEncodingValueProtoParDo(TRowVtable rowVtable);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateDecodingKeyValueProtoParDo(TRowVtable rowVtable);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateEncodingKeyValueProtoParDo(TRowVtable rowVtable);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYtNotSerializableJobInputPtr CreateSplitKvJobProtoInput(
+    const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<TKVProto> tableReader);
+
+IRawParDoPtr CreateGbkImpulseReadProtoParDo(IRawGroupByKeyPtr rawComputation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateCoGbkImpulseReadProtoParDo(
+    IRawCoGroupByKeyPtr rawCoGbk,
+    std::vector<TRowVtable> rowVtable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

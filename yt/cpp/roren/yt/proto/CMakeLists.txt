@@ -36,6 +36,7 @@ target_link_libraries(roren-yt-proto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  yt_proto-yt-formats
   contrib-libs-protobuf
 )
 target_proto_messages(roren-yt-proto PRIVATE

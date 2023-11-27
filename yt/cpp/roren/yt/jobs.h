@@ -16,8 +16,8 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYT::IRawJobPtr CreateImpulseJob(const IRawParDoPtr& rawParDo);
-IRawParDoPtr CreateGbkImpulseReadParDo(IRawGroupByKeyPtr rawComputation);
-IRawParDoPtr CreateCoGbkImpulseReadParDo(
+IRawParDoPtr CreateGbkImpulseReadNodeParDo(IRawGroupByKeyPtr rawComputation);
+IRawParDoPtr CreateCoGbkImpulseReadNodeParDo(
     IRawCoGroupByKeyPtr rawCoGbk,
     std::vector<TRowVtable> rowVtable);
 
@@ -60,6 +60,10 @@ NYT::IRawJobPtr CreateCombineReducer(
     const IYtJobOutputPtr& output);
 
 IExecutionContextPtr CreateYtExecutionContext();
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProcessOneGroup(const IRawCoGroupByKeyPtr& rawComputation, const IYtNotSerializableJobInputPtr& input, const IRawOutputPtr& rawOutput);
 
 ////////////////////////////////////////////////////////////////////////////////
 

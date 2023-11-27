@@ -202,6 +202,30 @@ private:
     Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
 };
 
+class TAddTableIndexToProtoDoFn
+    : public IDoFn<TKVProto, TKVProto>
+{
+public:
+    TAddTableIndexToProtoDoFn() = default;
+
+    TAddTableIndexToProtoDoFn(ssize_t tableIndex)
+        : TableIndex_(tableIndex)
+    {
+        Y_ABORT_UNLESS(tableIndex >= 0);
+    }
+
+    void Do(const TKVProto& row, TOutput<TKVProto>& output) override
+    {
+        auto result = row;
+        result.SetTableIndex(TableIndex_);
+        output.Add(result);
+    }
+
+private:
+    ssize_t TableIndex_ = 0;
+    Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYtGraphV2::TOperationNode
@@ -847,6 +871,18 @@ NYT::TFormat GetOutputFormat(const THashMap<TOperationConnector, TTableNode*>& o
     }
 }
 
+NYT::TFormat GetIntermediatesFormat(bool useProtoFormat)
+{
+    if (!useProtoFormat) {
+        return NYT::TFormat::YsonBinary();
+    }
+
+    TVector<const ::google::protobuf::Descriptor*> descriptors;
+    descriptors.emplace_back(TKVProto::GetDescriptor());
+
+    return NYT::TFormat::Protobuf(descriptors, true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYtGraphV2::TPlainGraph
@@ -909,19 +945,30 @@ public:
     std::pair<TMapReduceOperationNode*, TParDoTreeBuilder::TPCollectionNodeId> CreateGroupByKeyMapReduceOperation(
         TTableNode* inputTable,
         TString firstName,
-        const IRawGroupByKeyPtr& rawGroupByKey)
+        const IRawGroupByKeyPtr& rawGroupByKey,
+        bool useProtoFormat)
     {
         auto* mapReduceOperation = CreateMapReduceOperation({inputTable}, firstName);
-        mapReduceOperation->MapperBuilderList_[0].AddParDoChainVerifyNoOutput(
-            TParDoTreeBuilder::RootNodeId,
-            {
+
+        auto parDoList = useProtoFormat
+            ? std::vector<IRawParDoPtr>{
+                CreateEncodingKeyValueProtoParDo(inputTable->Vtable),
+                CreateWriteProtoParDo<TKVProto>(0)
+            }
+            : std::vector<IRawParDoPtr>{
                 CreateEncodingKeyValueNodeParDo(inputTable->Vtable),
                 CreateWriteNodeParDo(0)
-            }
+            };
+
+        mapReduceOperation->MapperBuilderList_[0].AddParDoChainVerifyNoOutput(
+            TParDoTreeBuilder::RootNodeId,
+            parDoList
         );
 
         auto nodeId = mapReduceOperation->ReducerBuilder_.AddParDoVerifySingleOutput(
-            CreateGbkImpulseReadParDo(rawGroupByKey),
+            useProtoFormat
+                ? CreateGbkImpulseReadProtoParDo(rawGroupByKey)
+                : CreateGbkImpulseReadNodeParDo(rawGroupByKey),
             TParDoTreeBuilder::RootNodeId
         );
         return {mapReduceOperation, nodeId};
@@ -930,20 +977,29 @@ public:
     std::pair<TMapReduceOperationNode*, TParDoTreeBuilder::TPCollectionNodeId> CreateCoGroupByKeyMapReduceOperation(
         std::vector<TTableNode*> inputTableList,
         TString firstName,
-        const IRawCoGroupByKeyPtr& rawCoGroupByKey)
+        const IRawCoGroupByKeyPtr& rawCoGroupByKey,
+        bool useProtoFormat)
     {
         auto* mapReduceOperation = CreateMapReduceOperation(inputTableList, firstName);
         Y_ABORT_UNLESS(std::ssize(mapReduceOperation->GetMapperBuilderList()) == std::ssize(inputTableList));
         for (ssize_t i = 0; i < std::ssize(inputTableList); ++i) {
             auto* inputTable = inputTableList[i];
 
-            mapReduceOperation->MapperBuilderList_[i].AddParDoChainVerifyNoOutput(
-                TParDoTreeBuilder::RootNodeId,
-                {
+            auto parDoList = useProtoFormat
+                ? std::vector<IRawParDoPtr>{
+                    CreateEncodingKeyValueProtoParDo(inputTable->Vtable),
+                    MakeRawParDo(::MakeIntrusive<TAddTableIndexToProtoDoFn>(i)),
+                    CreateWriteProtoParDo<TKVProto>(0)
+                }
+                : std::vector<IRawParDoPtr>{
                     CreateEncodingKeyValueNodeParDo(inputTable->Vtable),
                     MakeRawParDo(::MakeIntrusive<TAddTableIndexDoFn>(i)),
                     CreateWriteNodeParDo(0)
-                }
+                };
+
+            mapReduceOperation->MapperBuilderList_[i].AddParDoChainVerifyNoOutput(
+                TParDoTreeBuilder::RootNodeId,
+                parDoList
             );
         }
 
@@ -953,10 +1009,15 @@ public:
         }
 
         auto nodeId = mapReduceOperation->ReducerBuilder_.AddParDoVerifySingleOutput(
-            CreateCoGbkImpulseReadParDo(
-                rawCoGroupByKey,
-                inputRowVtableList
-            ),
+            useProtoFormat
+                ? CreateCoGbkImpulseReadProtoParDo(
+                    rawCoGroupByKey,
+                    inputRowVtableList
+                )
+                : CreateCoGbkImpulseReadNodeParDo(
+                    rawCoGroupByKey,
+                    inputRowVtableList
+                ),
             TParDoTreeBuilder::RootNodeId
         );
         return {mapReduceOperation, nodeId};
@@ -1724,7 +1785,8 @@ public:
                 const auto& [mapReduceOperation, nodeId] = PlainGraph_->CreateGroupByKeyMapReduceOperation(
                     inputTable,
                     transformNode->GetName(),
-                    transformNode->GetRawTransform()->AsRawGroupByKey()
+                    transformNode->GetRawTransform()->AsRawGroupByKey(),
+                    Config_->GetEnableProtoFormatForIntermediates()
                 );
 
                 const auto* sinkPCollection = VerifiedGetSingleSink(transformNode);
@@ -1748,7 +1810,8 @@ public:
                 const auto& [mapReduceOperation, nodeId] = PlainGraph_->CreateCoGroupByKeyMapReduceOperation(
                     inputTableList,
                     transformNode->GetName(),
-                    transformNode->GetRawTransform()->AsRawCoGroupByKey()
+                    transformNode->GetRawTransform()->AsRawCoGroupByKey(),
+                    Config_->GetEnableProtoFormatForIntermediates()
                 );
 
                 const auto* sinkPCollection = VerifiedGetSingleSink(transformNode);
@@ -1763,6 +1826,7 @@ public:
                 break;
             }
             case ERawTransformType::CombinePerKey: {
+                // TODO support proto read/write
                 const auto* sourcePCollection = VerifiedGetSingleSource(transformNode);
                 auto* inputTable = GetPCollectionImage(sourcePCollection);
                 auto rawCombinePerKey = transformNode->GetRawTransform()->AsRawCombine();
@@ -1817,7 +1881,7 @@ public:
 
     std::shared_ptr<TYtGraphV2> Build()
     {
-        return std::make_shared<TYtGraphV2>(std::move(PlainGraph_));
+        return std::make_shared<TYtGraphV2>(std::move(PlainGraph_), *Config_);
     }
 
 private:
@@ -1844,8 +1908,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtGraphV2::TYtGraphV2(std::unique_ptr<TPlainGraph> plainGraph)
+TYtGraphV2::TYtGraphV2(std::unique_ptr<TPlainGraph> plainGraph, const TYtPipelineConfig& config)
     : PlainGraph_(std::move(plainGraph))
+    , Config_(config)
 { }
 
 TYtGraphV2::~TYtGraphV2()
@@ -2179,7 +2244,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                             connector.NodeId,
                             {
                                 outputTable->CreateEncodingParDo(),
-                                CreateWriteNodeParDo(mapperOutputIndex)
+                                outputTable->CreateWriteParDo(mapperOutputIndex)
                             }
                         );
                         spec.AddMapOutput(outputTable->GetPath());
@@ -2188,7 +2253,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         reducerBuilder.AddParDoChainVerifyNoOutput(
                             connector.NodeId, {
                                 outputTable->CreateEncodingParDo(),
-                                CreateWriteNodeParDo(reducerOutputIndex)
+                                outputTable->CreateWriteParDo(reducerOutputIndex)
                             }
                         );
                         spec.AddOutput(outputTable->GetPath());
@@ -2231,8 +2296,10 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 combinerJob = CreateImpulseJob(combinerParDo);
             }
 
-            spec.MapperFormat(NYT::TFormat::YsonBinary());
-            spec.ReducerFormat(NYT::TFormat::YsonBinary());
+            spec.MapperInputFormat(GetInputFormat(mapReduceOperation->InputTables));
+            spec.MapperOutputFormat(GetIntermediatesFormat(Config_.GetEnableProtoFormatForIntermediates()));
+            spec.ReducerInputFormat(GetIntermediatesFormat(Config_.GetEnableProtoFormatForIntermediates()));
+            spec.ReducerOutputFormat(GetOutputFormat(mapReduceOperation->OutputTables));
             spec.ReduceBy({"key"});
 
             return client->RawMapReduce(

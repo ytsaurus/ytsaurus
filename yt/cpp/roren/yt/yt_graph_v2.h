@@ -2,13 +2,14 @@
 
 #include "yt_graph.h"
 
+#include <yt/cpp/roren/yt/proto/config.pb.h>
+
 #include <memory>
 #include <set>
 
 namespace NRoren {
     class TPipeline;
     class IYtGraph;
-    class TYtPipelineConfig;
 }
 
 namespace NRoren::NPrivate {
@@ -27,7 +28,7 @@ public:
     class TPlainGraph;
 
 public:
-    explicit TYtGraphV2(std::unique_ptr<TPlainGraph> plainGraph);
+    explicit TYtGraphV2(std::unique_ptr<TPlainGraph> plainGraph, const TYtPipelineConfig& config);
     ~TYtGraphV2() override;
 
     void Optimize() override;
@@ -50,6 +51,7 @@ public:
 
 private:
     std::unique_ptr<TPlainGraph> PlainGraph_;
+    TYtPipelineConfig Config_;
 
     friend class TYtGraphV2Builder;
 };

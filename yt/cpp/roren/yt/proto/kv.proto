@@ -1,8 +1,11 @@
 package NRoren;
 
+import "yt/yt_proto/yt/formats/extension.proto";
+
 // Proto message for intermediate tables
 message TKVProto
 {
-    optional string Key = 1;
-    optional string Value = 2;
+    optional string Key = 1 [(NYT.column_name) = "key"];
+    optional string Value = 2 [(NYT.column_name) = "value"];
+    optional int32 TableIndex = 3 [(NYT.column_name) = "table_index"];
 }

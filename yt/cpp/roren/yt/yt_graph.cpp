@@ -571,7 +571,7 @@ private:
                 Y_ABORT_UNLESS(intermediateVtables.size() == 1);
                 TParDoTreeBuilder userLogic;
                 auto nodeIdList = userLogic.AddParDo(
-                    CreateGbkImpulseReadParDo(RawTransform_->AsRawGroupByKey()),
+                    CreateGbkImpulseReadNodeParDo(RawTransform_->AsRawGroupByKey()),
                     TParDoTreeBuilder::RootNodeId
                 );
                 Y_ABORT_UNLESS(nodeIdList.size() == 1);
