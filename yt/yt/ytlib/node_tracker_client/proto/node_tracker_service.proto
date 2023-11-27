@@ -48,7 +48,6 @@ message TRspRegisterNode
     repeated string tags = 3;
 
     extensions 100 to max;
-
     reserved 2;
 }
 
