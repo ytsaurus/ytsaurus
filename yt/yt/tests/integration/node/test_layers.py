@@ -820,12 +820,15 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            # This test_root_fs is for compatibility with 23.2 for now.
             "test_root_fs": True,
-            "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
+            },
+            "job_proxy": {
+                "test_root_fs": True,
             },
         }
     }
