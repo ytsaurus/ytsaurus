@@ -258,6 +258,7 @@ class TestRuntimeParameters(YTEnvSetup):
                 "delay_inside_validate_runtime_parameters": 5000
             }
         })
+        op.wait_for_state("running")
 
         response = execute_command(
             "update_op_parameters",
