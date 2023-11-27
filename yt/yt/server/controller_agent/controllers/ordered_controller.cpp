@@ -82,36 +82,6 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void ValidateRemoteCopyTablesTypes(const auto& tables, const auto& errorLabel)
-{
-    YT_VERIFY(!tables.empty());
-
-    auto anyTable = tables[0];
-    auto type = anyTable->Type;
-
-    if (type != EObjectType::Table && type != EObjectType::File) {
-        THROW_ERROR_EXCEPTION("Only files and tables are allowed, but %v has type %Qlv",
-            anyTable->GetPath(),
-            type);
-    }
-    for (const auto& table : tables) {
-        if (table->Type != type) {
-            THROW_ERROR_EXCEPTION("%v must be of the same type, but %v has type %Qlv and %v has type %Qlv",
-                errorLabel,
-                anyTable->GetPath(),
-                type,
-                table->GetPath(),
-                table->Type);
-        }
-    }
-}
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOrderedControllerBase
     : public TOperationControllerBase
 {
@@ -1161,26 +1131,41 @@ private:
 
     IAttributeDictionaryPtr InputTableAttributes_;
 
+    void ValidateTableType(auto table) const {
+        if (table->Type != EObjectType::Table && table->Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("Only files and tables are allowed, but %v has type %Qlv",
+                table->GetPath(),
+                table->Type);
+        }
+    }
+
     void ValidateInputTablesTypes() const override
     {
-        ValidateRemoteCopyTablesTypes(InputTables_, "Inputs");
+        // NB(coteeq): remote_copy always has one input table.
+        YT_VERIFY(InputTables_.size() == 1);
+        ValidateTableType(InputTables_[0]);
     }
 
     void ValidateUpdatingTablesTypes() const override
     {
-        ValidateRemoteCopyTablesTypes(InputTables_, "Inputs");
-        if (StderrTable_ && StderrTable_->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION(
-                "Stderr table %v has wrong type: expected %Qlv, but got %Qlv",
-                EObjectType::Table,
-                StderrTable_->Type);
-        }
-        if (CoreTable_ && CoreTable_->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION(
-                "Core table %v has wrong type: expected %Qlv, but got %Qlv",
-                EObjectType::Table,
-                CoreTable_->Type);
-        }
+        // NB(coteeq): remote_copy always has one input table.
+        YT_VERIFY(OutputTables_.size() == 1);
+        ValidateTableType(OutputTables_[0]);
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            OutputTables_[0]->Type == InputTables_[0]->Type,
+            "Invalid output object type %Qlv. Expected %Qlv, because input object %v has this type",
+            OutputTables_[0]->Type,
+            InputTables_[0]->Type,
+            InputTables_[0]->GetPath());
+
+        YT_VERIFY(!StderrTable_ && !CoreTable_);
+    }
+
+    EObjectType GetOutputTableDesiredType() const override
+    {
+        YT_VERIFY(InputTables_.size() == 1);
+        return InputTables_[0]->Type;
     }
 
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override

@@ -1096,16 +1096,16 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Process output and stderr tables.
     if (!OutputTables_.empty()) {
-        auto userObjectsList = MakeUserObjectList(OutputTables_);
+        auto userObjectList = MakeUserObjectList(OutputTables_);
         CreateOutputTables(
             OutputClient,
-            userObjectsList,
+            userObjectList,
             OutputTransaction->GetId(),
             EOutputTableType::Output,
-            InputTables_.empty() ? EObjectType::Table : InputTables_[0]->Type);
+            GetOutputTableDesiredType());
         GetUserObjectBasicAttributes(
             OutputClient,
-            userObjectsList,
+            userObjectList,
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -6058,6 +6058,11 @@ void TOperationControllerBase::ValidateUpdatingTablesTypes() const
                 table->Type);
         }
     }
+}
+
+EObjectType TOperationControllerBase::GetOutputTableDesiredType() const
+{
+    return EObjectType::Table;
 }
 
 void TOperationControllerBase::GetInputTablesAttributes()

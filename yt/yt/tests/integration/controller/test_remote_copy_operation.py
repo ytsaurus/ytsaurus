@@ -27,6 +27,7 @@ import yt.yson as yson
 
 import pytest
 
+from functools import partial
 import time
 import builtins
 
@@ -859,29 +860,26 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    def _create_inout_files(self, chunks):
-        create("file", "//tmp/in.txt", driver=self.remote_driver)
+    def _create_inout_files(self, chunks, **remote_attributes):
+        create("file", "//tmp/in.txt", attributes=remote_attributes, driver=self.remote_driver)
         create("file", "//tmp/out.txt")
 
         for _ in range(chunks):
             write_file("<append=%true>//tmp/in.txt", b"remote_text.", driver=self.remote_driver)
-            write_file("<append=%true>//tmp/out.txt", b"local_text.")
 
-        assert len(get("//tmp/in.txt/@chunk_ids", driver=self.remote_driver)) == chunks
+        assert get("//tmp/in.txt/@chunk_count", driver=self.remote_driver) == chunks
 
     @authors("coteeq")
-    @pytest.mark.parametrize("append", ["%true", "%false"])
     @pytest.mark.parametrize("chunks", [1, 2])
-    def test_copy_file(self, append, chunks):
+    def test_copy_file(self, chunks):
         skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
         self._create_inout_files(chunks)
 
-        local_content = read_file("//tmp/out.txt") if append == "%true" else b""
         remote_content = read_file("//tmp/in.txt", driver=self.remote_driver)
 
         op = remote_copy(
             in_="//tmp/in.txt",
-            out=f"<append={append}>//tmp/out.txt",
+            out="//tmp/out.txt",
             spec={
                 "cluster_name": self.REMOTE_CLUSTER_NAME,
             }
@@ -890,8 +888,8 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         jobs_count = op.get_statistics()["data"]["input"]["data_weight"][0]["summary"]["count"]
         assert jobs_count == 1
 
-        assert read_file("//tmp/out.txt") == local_content + remote_content
-        assert len(get("//tmp/out.txt/@chunk_ids")) == chunks * (2 if append == "%true" else 1)
+        assert read_file("//tmp/out.txt") == remote_content
+        assert get("//tmp/out.txt/@chunk_count") == chunks
 
     @authors("coteeq")
     def test_copy_file_create_destination(self):
@@ -910,7 +908,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         )
 
         assert read_file("//tmp/out.txt") == remote_content
-        assert len(get("//tmp/out.txt/@chunk_ids")) == 2
+        assert get("//tmp/out.txt/@chunk_count") == 2
 
     @authors("coteeq")
     @pytest.mark.parametrize("constraint", ["job_count", "data_weight"])
@@ -968,6 +966,76 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert not exists("//tmp/out2.txt/@custom_attr1")
         assert get("//tmp/out2.txt/@custom_attr2") == "attr_value2"
+
+    @authors("coteeq")
+    def test_remote_copy_file_codecs(self):
+        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
+        compression = "lz4"
+        erasure = "reed_solomon_6_3"
+        self._create_inout_files(2, compression_codec=compression, erasure_codec=erasure)
+        set("//tmp/out.txt/@compression_codec", compression)
+        set("//tmp/out.txt/@erasure_codec", erasure)
+
+        remote_copy(
+            in_="//tmp/in.txt",
+            out="//tmp/out.txt",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+            },
+        )
+
+        assert read_file("//tmp/in.txt", driver=self.remote_driver) == read_file("//tmp/out.txt")
+        assert get("//tmp/out.txt/@compression_codec") == compression
+        assert get("//tmp/out.txt/@erasure_codec") == erasure
+        for chunk_id in get("//tmp/out.txt/@chunk_ids"):
+            assert get(f"#{chunk_id}/@compression_codec") == compression
+            assert get(f"#{chunk_id}/@erasure_codec") == erasure
+
+    @authors("coteeq")
+    def test_remote_copy_types_of_objects(self):
+        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
+        create("file", "//tmp/file", driver=self.remote_driver)
+        create("file", "//tmp/file2", driver=self.remote_driver)
+        create("table", "//tmp/table", driver=self.remote_driver)
+        create("table", "//tmp/table2", driver=self.remote_driver)
+        create("document", "//tmp/document", driver=self.remote_driver)
+
+        create("file", "//tmp/file")
+        create("file", "//tmp/file2")
+        create("table", "//tmp/table")
+        create("table", "//tmp/table2")
+        create("document", "//tmp/document")
+
+        def check(src, dst, allow=True, error=None):
+            op = remote_copy(
+                track=False,
+                in_=src,
+                out=dst,
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME}
+            )
+            if allow:
+                op.track()
+            else:
+                with raises_yt_error(error):
+                    op.track()
+
+        allow = partial(check, allow=True)
+        disallow = partial(check, allow=False)
+
+        allow(["//tmp/file"], "//tmp/file")
+        disallow(["//tmp/file", "//tmp/file2"], "//tmp/file")
+        allow(["//tmp/table"], "//tmp/table")
+        disallow(["//tmp/table", "//tmp/table2"], "//tmp/table")
+        disallow([], "//tmp/table")
+
+        disallow(["//tmp/file"], "<compression_codec=zstd_6>//tmp/file", error="disallowed for files")
+        disallow(["//tmp/file"], "<erasure_codec=reed_solomon_6_3>//tmp/file", error="disallowed for files")
+
+        disallow(["//tmp/table"], "//tmp/file", error="Invalid output object type")
+        disallow(["//tmp/file"], "//tmp/table", error="Invalid output object type")
+
+        disallow(["//tmp/document"], "//tmp/document", error="Only files and tables are allowed")
+
 
 ##################################################################
 
