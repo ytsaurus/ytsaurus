@@ -692,6 +692,7 @@ protected:
     virtual void ValidateInputTablesTypes() const;
     virtual void ValidateUpdatingTablesTypes() const;
     void GetInputTablesAttributes();
+    virtual NObjectClient::EObjectType GetOutputTableDesiredType() const;
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
