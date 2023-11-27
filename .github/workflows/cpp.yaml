@@ -6,6 +6,7 @@ on:
       - main
       - stable/[0-9]+\.[0-9]+
       - stable/23\.1-with-python3\.10
+      - zlobober/workaround_erasure
 
 jobs:
   start-vm:
