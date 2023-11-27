@@ -4,7 +4,9 @@
 #include <yt/cpp/roren/yt/yt_io_private.h>
 
 #include <yt/cpp/mapreduce/io/job_writer.h>
+#include <yt/cpp/mapreduce/io/proto_table_reader.h>
 #include <yt/cpp/mapreduce/io/proto_table_writer.h>
+#include <yt/cpp/mapreduce/io/stream_table_reader.h>
 
 namespace NRoren::NPrivate {
 
@@ -14,10 +16,6 @@ class IProtoIOParDo
     : public IRawParDo
 {
 public:
-    virtual void SetTableCount(ssize_t)
-    {
-        Y_ABORT("SetTableCount is not implemented");
-    }
     virtual void SetTableIndex(ssize_t)
     {
         Y_ABORT("SetTableIndex is not implemented");
@@ -28,7 +26,6 @@ using IProtoIOParDoPtr = ::TIntrusivePtr<IProtoIOParDo>;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-const TTypeTag<IProtoIOParDoPtr> ReadParDoTag("read_pardo");
 const TTypeTag<IRawParDoPtr> DecodingParDoTag("decoding_pardo");
 const TTypeTag<IProtoIOParDoPtr> WriteParDoTag("write_pardo");
 const TTypeTag<IRawParDoPtr> EncodingParDoTag("encoding_pardo");
@@ -36,87 +33,7 @@ const TTypeTag<const ::google::protobuf::Descriptor*> ProtoDescriptorTag("proto_
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TMessage>
-    requires std::derived_from<TMessage, ::google::protobuf::Message>
-class TReadProtoImpulseParDo
-    : public IProtoIOParDo
-{
-public:
-    TReadProtoImpulseParDo() = default;
-
-    void SetTableCount(ssize_t tableCount) override
-    {
-        TableCount_ = tableCount;
-    }
-
-    std::vector<TDynamicTypeTag> GetInputTags() const override
-    {
-        return {TDynamicTypeTag("TReadProtoImpulseParDo.Input", MakeRowVtable<int>())};
-    }
-
-    std::vector<TDynamicTypeTag> GetOutputTags() const override
-    {
-        std::vector<TDynamicTypeTag> result;
-        for (ssize_t i = 0; i < TableCount_; ++i) {
-            result.emplace_back("TReadProtoImpulseParDo.Output." + ToString(i), MakeRowVtable<TMessage>());
-        }
-        return result;
-    }
-
-    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
-    {
-        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
-        Y_ABORT_UNLESS(std::ssize(outputs) == TableCount_);
-        Outputs_ = outputs;
-        Processed_ = false;
-    }
-
-    void Do(const void* rows, int count) override
-    {
-        Y_ABORT_UNLESS(!Processed_);
-        Processed_ = true;
-        Y_ABORT_UNLESS(count == 1);
-        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
-
-        auto reader = NYT::CreateTableReader<TMessage>(&Cin);
-
-        for (; reader->IsValid(); reader->Next()) {
-            auto tableIndex = reader->GetTableIndex();
-            Y_ABORT_UNLESS(tableIndex < TableCount_);
-            Outputs_[tableIndex]->AddRaw(&reader->GetRow(), 1);
-        }
-    }
-
-    void Finish() override
-    { }
-
-    const TFnAttributes& GetFnAttributes() const override
-    {
-        static const TFnAttributes fnAttributes;
-        return fnAttributes;
-    }
-
-    TDefaultFactoryFunc GetDefaultFactory() const override
-    {
-        return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TReadProtoImpulseParDo>();
-        };
-    }
-
-private:
-    ssize_t TableCount_ = 0;
-
-    std::vector<IRawOutputPtr> Outputs_;
-    bool Processed_ = false;
-
-    Y_SAVELOAD_DEFINE_OVERRIDE(TableCount_);
-};
-
-template <class TMessage>
-IProtoIOParDoPtr CreateReadProtoImpulseParDo()
-{
-    return ::MakeIntrusive<TReadProtoImpulseParDo<TMessage>>();
-}
+IRawParDoPtr CreateReadProtoImpulseParDo(std::vector<TRowVtable>&& vtables);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,11 +60,6 @@ public:
             *this,
             EncodingParDoTag,
             MakeRawIdComputation(MakeRowVtable<TMessage>())
-        );
-        NPrivate::SetAttribute(
-            *this,
-            ReadParDoTag,
-            CreateReadProtoImpulseParDo<TMessage>()
         );
     }
 
@@ -329,6 +241,27 @@ IRawParDoPtr CreateDecodingValueProtoParDo(TRowVtable rowVtable);
 ////////////////////////////////////////////////////////////////////////////////
 
 IRawParDoPtr CreateEncodingValueProtoParDo(TRowVtable rowVtable);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateDecodingKeyValueProtoParDo(TRowVtable rowVtable);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateEncodingKeyValueProtoParDo(TRowVtable rowVtable);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYtNotSerializableJobInputPtr CreateSplitKvJobProtoInput(
+    const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<TKVProto> tableReader);
+
+IRawParDoPtr CreateGbkImpulseReadProtoParDo(IRawGroupByKeyPtr rawComputation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateCoGbkImpulseReadProtoParDo(
+    IRawCoGroupByKeyPtr rawCoGbk,
+    std::vector<TRowVtable> rowVtable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -314,7 +314,6 @@ public:
     virtual ETableType GetTableType() const = 0;
     virtual ETableFormat GetTableFormat() const = 0;
 
-    virtual IRawParDoPtr CreateReadParDo(ssize_t tableCount) const = 0;
     virtual IRawParDoPtr CreateDecodingParDo() const = 0;
 
     virtual IRawParDoPtr CreateWriteParDo(ssize_t tableIndex) const = 0;
@@ -531,22 +530,6 @@ public:
         return RawYtRead_->GetPath();
     }
 
-    IRawParDoPtr CreateReadParDo(ssize_t tableCount) const override
-    {
-        auto readParDo = NPrivate::GetAttribute(*RawYtRead_, ReadParDoTag);
-
-        if (readParDo) {
-            auto mutableParDo = (*readParDo)->Clone();
-
-            auto upcastedParDo = VerifyDynamicCast<IProtoIOParDo*>(mutableParDo.Get());
-            upcastedParDo->SetTableCount(tableCount);
-
-            return mutableParDo;
-        } else {
-            return CreateReadNodeImpulseParDo(tableCount);
-        }
-    }
-
     IRawParDoPtr CreateDecodingParDo() const override
     {
         auto protoDecodingParDo = NPrivate::GetAttribute(*RawYtRead_, DecodingParDoTag);
@@ -606,11 +589,6 @@ public:
     ETableFormat GetTableFormat() const override
     {
         return GetProtoDescriptor() ? ETableFormat::Proto : ETableFormat::TNode;
-    }
-
-    IRawParDoPtr CreateReadParDo(ssize_t) const override
-    {
-        Y_ABORT("TOutputTableNode is not expected to be read from?");
     }
 
     IRawParDoPtr CreateDecodingParDo() const override
@@ -726,18 +704,6 @@ public:
         return UseProtoFormat_ ? ETableFormat::Proto : ETableFormat::TNode;
     }
 
-    IRawParDoPtr CreateReadParDo(ssize_t tableCount) const override
-    {
-        if (UseProtoFormat_) {
-            auto readParDo = MakeIntrusive<TReadProtoImpulseParDo<TKVProto>>();
-            readParDo->SetTableCount(tableCount);
-
-            return readParDo;
-        } else {
-            return CreateReadNodeImpulseParDo(tableCount);
-        }
-    }
-
     IRawParDoPtr CreateDecodingParDo() const override
     {
         if (UseProtoFormat_) {
@@ -812,13 +778,21 @@ IRawParDoPtr CreateReadImpulseParDo(const std::vector<TTableNode*>& inputTables)
 {
     Y_ENSURE(!inputTables.empty(), "Expected 'inputTables' to be nonempty");
 
+    std::vector<TRowVtable> vtables;
     auto format = inputTables[0]->GetTableFormat();
     for (const auto& table : inputTables) {
         Y_ENSURE(table->GetTableFormat() == format, "Format of input tables is different");
+
+        if (format == ETableFormat::Proto) {
+            vtables.emplace_back(table->Vtable);
+        }
     }
 
-    // TODO: Here we pray that every input table has same proto message
-    return inputTables[0]->CreateReadParDo(std::ssize(inputTables));
+    if (format == ETableFormat::TNode) {
+        return CreateReadNodeImpulseParDo(std::ssize(inputTables));
+    } else {
+        return CreateReadProtoImpulseParDo(std::move(vtables));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

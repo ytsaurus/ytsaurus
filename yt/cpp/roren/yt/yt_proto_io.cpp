@@ -1,4 +1,5 @@
 #include "yt_proto_io.h"
+
 #include "jobs.h"
 
 #include <yt/cpp/mapreduce/interface/io.h>
@@ -6,6 +7,95 @@
 #include <yt/cpp/mapreduce/io/stream_table_reader.h>
 
 namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReadProtoImpulseParDo
+    : public IRawParDo
+{
+public:
+    TReadProtoImpulseParDo() = default;
+
+    TReadProtoImpulseParDo(std::vector<TRowVtable> vtables)
+        : TableCount_(std::ssize(vtables))
+        , Vtables_(std::move(vtables))
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TReadProtoImpulseParDo.Input", MakeRowVtable<int>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        std::vector<TDynamicTypeTag> result;
+        for (ssize_t i = 0; i < TableCount_; ++i) {
+            result.emplace_back("TReadProtoImpulseParDo.Output." + ToString(i), Vtables_[i]);
+        }
+        return result;
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(std::ssize(outputs) == TableCount_);
+        Outputs_ = outputs;
+        Processed_ = false;
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_ABORT_UNLESS(!Processed_);
+        Processed_ = true;
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+
+        auto reader = ::MakeIntrusive<NYT::TLenvalProtoTableReader>(
+            ::MakeIntrusive<NYT::NDetail::TInputStreamProxy>(&Cin)
+        );
+
+        for (; reader->IsValid(); reader->Next()) {
+            auto tableIndex = reader->GetTableIndex();
+            Y_ABORT_UNLESS(tableIndex < TableCount_);
+
+            TRawRowHolder holder(Vtables_[tableIndex]);
+            reader->ReadRow(reinterpret_cast<::google::protobuf::Message*>(holder.GetData()));
+            Outputs_[tableIndex]->AddRaw(holder.GetData(), 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TReadProtoImpulseParDo>();
+        };
+    }
+
+private:
+    ssize_t TableCount_;
+    std::vector<TRowVtable> Vtables_;
+
+    std::vector<IRawOutputPtr> Outputs_;
+    bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(TableCount_, Vtables_);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateReadProtoImpulseParDo(std::vector<TRowVtable>&& vtables)
+{
+    return ::MakeIntrusive<TReadProtoImpulseParDo>(std::move(vtables));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -398,8 +488,9 @@ template <class TMessage>
     requires std::derived_from<TMessage, ::google::protobuf::Message>
 NYT::TTableRangesReaderPtr<TMessage> CreateRangesProtoTableReader(IInputStream* stream)
 {
-    auto impl = ::MakeIntrusive<NYT::TLenvalProtoTableReader>(
-        ::MakeIntrusive<NYT::NDetail::TInputStreamProxy>(stream),
+    auto impl = NYT::NDetail::CreateProtoReader(
+        stream,
+        {},
         TVector<const ::google::protobuf::Descriptor*>{TKVProto::GetDescriptor()}
     );
     return ::MakeIntrusive<NYT::TTableRangesReader<TMessage>>(impl);
