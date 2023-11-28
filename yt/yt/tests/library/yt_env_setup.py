@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import yt_commands
+import yt_sequoia_helpers
 import yt_scheduler_helpers
 
 try:
@@ -313,11 +314,6 @@ class YTEnvSetup(object):
     @classmethod
     def get_num_secondary_master_cells(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS
-
-    @classmethod
-    def get_ground_driver(cls, cluster_name="primary"):
-        assert cls.USE_SEQUOIA
-        return yt_commands.get_driver(cluster=cluster_name + "_ground")
 
     # To be redefined in successors
     @classmethod
@@ -664,7 +660,7 @@ class YTEnvSetup(object):
         if cls.USE_SEQUOIA:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 if cls.get_param("USE_SEQUOIA", cluster_index):
-                    ground_driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index + cls.GROUND_INDEX_OFFSET))
+                    ground_driver = yt_sequoia_helpers.get_ground_driver(cluster=cls.get_cluster_name(cluster_index))
                     if ground_driver is None:
                         continue
                     cls.setup_sequoia_tables(ground_driver)
@@ -708,88 +704,22 @@ class YTEnvSetup(object):
         # TODO(h0pless): Use values from config for path, account and bundle names.
         yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/resolve_node",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "path", "type": "string", "sort_order": "ascending"},
-                    {"name": "node_id", "type": "string"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/resolve_node", driver=ground_driver)
 
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/reverse_resolve_node",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "node_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "path", "type": "string"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/reverse_resolve_node", driver=ground_driver)
+        for table in yt_sequoia_helpers.SEQUOIA_TABLES:
+            yt_commands.create(
+                "table",
+                table.get_path(),
+                attributes={
+                    "dynamic": True,
+                    "schema": table.schema,
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                },
+                driver=ground_driver)
+            yt_commands.mount_table(table.get_path(), driver=ground_driver)
 
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/children_nodes",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "parent_path", "type": "string", "sort_order": "ascending"},
-                    {"name": "child_key", "type": "string", "sort_order": "ascending"},
-                    {"name": "child_id", "type": "string"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/children_nodes", driver=ground_driver)
-
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/chunk_replicas",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
-                    {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
-                    {"name": "replica_index", "type": "int32", "sort_order": "ascending"},
-                    {"name": "node_id", "type": "uint32"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/chunk_replicas", driver=ground_driver)
-
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/location_replicas",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "cell_tag", "type": "uint16", "sort_order": "ascending"},
-                    {"name": "node_id", "type": "uint32", "sort_order": "ascending"},
-                    {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
-                    {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
-                    {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "replica_index", "type": "int32"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/location_replicas", driver=ground_driver)
+        for table in yt_sequoia_helpers.SEQUOIA_TABLES:
+            yt_commands.wait_for_tablet_state(table.get_path(), "mounted", driver=ground_driver)
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):

@@ -2,7 +2,7 @@ PY3_LIBRARY()
 
 NO_CHECK_IMPORTS()
 
-PEERDIR(    
+PEERDIR(
     yt/python/yt
     yt/python/yt/wrapper
     yt/python/yt/environment
@@ -25,6 +25,7 @@ PY_SRCS(
     yt_commands.py
     yt_env_setup.py
     yt_helpers.py
+    yt_sequoia_helpers.py
     yt_type_helpers.py
     yt_scheduler_helpers.py
     yt_dynamic_tables_base.py

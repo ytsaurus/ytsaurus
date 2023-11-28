@@ -28,8 +28,8 @@ import pytest
 
 import requests
 
-from contextlib import contextmanager
 from copy import deepcopy
+import decorator
 from io import BytesIO
 import json
 from datetime import timedelta
@@ -38,16 +38,6 @@ from string import printable
 import time
 
 ##################################################################
-
-
-@contextmanager
-def _set_sys_config(path, value):
-    set("//sys/@config" + path, value)
-    try:
-        yield
-    finally:
-        if exists(f"//sys/@config{path}"):
-            remove(f"//sys/@config{path}")
 
 
 class TestCypressRootCreationTime(YTEnvSetup):
@@ -64,6 +54,15 @@ class TestCypressRootCreationTime(YTEnvSetup):
         assert creation_time == get("//@creation_time")
 
 
+def not_implemented_in_sequoia(func):
+    def wrapper(func, self, *args, **kwargs):
+        if isinstance(self, TestSequoia):
+            pytest.skip("Not implemented in Sequoia")
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
+
+
 class TestCypress(YTEnvSetup):
     NUM_TEST_PARTITIONS = 12
 
@@ -76,6 +75,7 @@ class TestCypress(YTEnvSetup):
         get("//@")
 
     @authors("panin", "ignat")
+    @not_implemented_in_sequoia
     def test_invalid_cases(self):
         # path not starting with /
         with pytest.raises(YtError):
@@ -114,6 +114,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/entity", None)
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_remove(self):
         with pytest.raises(YtError):
             remove("//tmp/x", recursive=False)
@@ -155,6 +156,7 @@ class TestCypress(YTEnvSetup):
                 remove(builtin_path, force=True)
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_list(self):
         set("//tmp/list", [1, 2, "some string"])
         assert get("//tmp/list") == [1, 2, "some string"]
@@ -203,28 +205,31 @@ class TestCypress(YTEnvSetup):
             get("//tmp/list/-42")
 
     @authors("kvk1920")
+    @not_implemented_in_sequoia
     def test_list_node_deprecation(self):
         set("//tmp/old_list", [1, 2, "string"])
         set("//tmp/another_old_list", [1, 2, "string"])
-        with _set_sys_config("/cypress_manager/forbid_list_node_creation", True):
-            with raises_yt_error("List nodes are deprecated"):
-                set("//tmp/list", [1, 2, "some string"])
 
-            with raises_yt_error("List nodes are deprecated"):
-                create("list_node", "//tmp/list")
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
+        with raises_yt_error("List nodes are deprecated"):
+            set("//tmp/list", [1, 2, "some string"])
 
-            assert get("//tmp/old_list") == [1, 2, "string"]
+        with raises_yt_error("List nodes are deprecated"):
+            create("list_node", "//tmp/list")
 
-            with raises_yt_error("List nodes are deprecated"):
-                copy("//tmp/old_list", "//tmp/list")
+        assert get("//tmp/old_list") == [1, 2, "string"]
 
-            set("//tmp/old_list/end", 123)
-            assert get("//tmp/old_list", [1, 2, "string", 123])
+        with raises_yt_error("List nodes are deprecated"):
+            copy("//tmp/old_list", "//tmp/list")
 
-            remove("//tmp/another_old_list")
-            assert not exists("//tmp/another_old_list")
+        set("//tmp/old_list/end", 123)
+        assert get("//tmp/old_list", [1, 2, "string", 123])
+
+        remove("//tmp/another_old_list")
+        assert not exists("//tmp/another_old_list")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_list_command(self):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3}, force=True)
         assert ls("//tmp/map") == ["a", "b", "c"]
@@ -237,6 +242,7 @@ class TestCypress(YTEnvSetup):
         ls("//sys/transactions")
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_map(self):
         set("//tmp/map", {"hello": "world", "list": [0, "a", {}], "n": 1})
         assert get("//tmp/map") == {"hello": "world", "list": [0, "a", {}], "n": 1}
@@ -281,6 +287,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/missing") == {"node": {}}
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_attributes(self):
         set("//tmp/t", b"<attr=100;mode=rw> {nodes=[1; 2]}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
@@ -336,6 +343,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/t/@", [1, 2, 3])
 
     @authors("ifsmirnov")
+    @not_implemented_in_sequoia
     def test_reserved_attributes(self):
         set(
             "//sys/@config/object_manager/reserved_attributes/table",
@@ -360,6 +368,7 @@ class TestCypress(YTEnvSetup):
             )
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_attributes_tx_read_table(self):
         set("//tmp/t", b"<attr=100> 123", is_raw=True)
         assert get("//tmp/t") == 123
@@ -371,6 +380,7 @@ class TestCypress(YTEnvSetup):
         assert "attr" in get("//tmp/t/@", tx=tx)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_attributes_yt_11973(self):
         create("table", "//tmp/test_node")
 
@@ -389,6 +399,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/test_node/@desired_tablet_count")
 
     @authors("panin", "ignat")
+    @not_implemented_in_sequoia
     def test_format_json(self):
         # check input format for json
         set(
@@ -404,6 +415,7 @@ class TestCypress(YTEnvSetup):
         assert get(b"//tmp/json_out", is_raw=True, output_format="json") == b'{"list":[1,2,{"string":"this"}]}'
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_map_remove_all1(self):
         # remove items from map
         set("//tmp/map", {"a": "b", "c": "d"}, force=True)
@@ -413,6 +425,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map/@count") == 0
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_map_remove_all2(self):
         set("//tmp/map", {"a": 1}, force=True)
         tx = start_transaction()
@@ -425,6 +438,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map/@count") == 0
 
     @authors("aleksandra-zh")
+    @not_implemented_in_sequoia
     def test_ref_count(self):
         create("map_node", "//tmp/d")
         assert get("//tmp/d/@ref_counter") == 1
@@ -442,6 +456,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/d/@ref_counter") == 1
 
     @authors("aleksandra-zh")
+    @not_implemented_in_sequoia
     def test_ref_count_move(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@ref_counter") == 1
@@ -462,6 +477,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@ref_counter") == 1
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_list_remove_all(self):
         # remove items from list
         set("//tmp/list", [10, 20, 30])
@@ -471,6 +487,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/list/@count") == 0
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_attr_remove_all1(self):
         # remove items from attributes
         set("//tmp/attr", b"<_foo=bar;_key=value>42", is_raw=True)
@@ -481,6 +498,7 @@ class TestCypress(YTEnvSetup):
             get("//tmp/attr/@_key")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_attr_remove_all2(self):
         set("//tmp/@a", 1)
         tx = start_transaction()
@@ -497,24 +515,28 @@ class TestCypress(YTEnvSetup):
             get("//tmp/@b")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_simple1(self):
         set("//tmp/a", 1)
         copy("//tmp/a", "//tmp/b")
         assert get("//tmp/b") == 1
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_simple2(self):
         set("//tmp/a", [1, 2, 3])
         copy("//tmp/a", "//tmp/b")
         assert get("//tmp/b") == [1, 2, 3]
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_simple3(self):
         set("//tmp/a", b"<x=y> 1", is_raw=True)
         copy("//tmp/a", "//tmp/b")
         assert get("//tmp/b/@x") == "y"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_simple4(self):
         set("//tmp/a", {"x1": "y1", "x2": "y2"})
         assert get("//tmp/a/@count") == 2
@@ -523,6 +545,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@count") == 2
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_simple5(self):
         set("//tmp/a", {"b": 1})
         assert get("//tmp/a/b/@path") == "//tmp/a/b"
@@ -534,11 +557,13 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/c/b/@path") == "//tmp/c/b"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_simple6a(self):
         with pytest.raises(YtError):
             copy("//tmp", "//tmp/a")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_simple6b(self):
         tx = start_transaction()
         create("map_node", "//tmp/a", tx=tx)
@@ -547,12 +572,14 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/a", "//tmp/a/b/c", tx=tx)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_simple7(self):
         tx = start_transaction()
         with pytest.raises(YtError):
             copy("#" + tx, "//tmp/t")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_simple8(self):
         create("map_node", "//tmp/a")
         create("table", "//tmp/a/t")
@@ -560,11 +587,13 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/b/t", "//tmp/t")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_recursive_success(self):
         create("map_node", "//tmp/a")
         copy("//tmp/a", "//tmp/b/c", recursive=True)
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_recursive_fail(self):
         create("map_node", "//tmp/a")
         with pytest.raises(YtError):
@@ -575,6 +604,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b/c/d")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_tx1(self):
         tx = start_transaction()
 
@@ -590,6 +620,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@count") == 2
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_tx2(self):
         set("//tmp/a", {"x1": "y1", "x2": "y2"})
 
@@ -607,6 +638,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@count") == 1
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_account1(self):
         create_account("a1")
         create_account("a2")
@@ -624,6 +656,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/x/y/@account") == "a2"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_account2(self):
         create_account("a1")
         create_account("a2")
@@ -641,11 +674,13 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/x/y/@account") == "a1"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_unexisting_path(self):
         with pytest.raises(YtError):
             copy("//tmp/x", "//tmp/y")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_cannot_have_children(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -653,6 +688,7 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/t2", "//tmp/t1/xxx")
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_copy_table_compression_codec(self):
         create("table", "//tmp/t1")
         assert get("//tmp/t1/@compression_codec") == "lz4"
@@ -661,6 +697,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
 
     @authors("levysotsky")
+    @not_implemented_in_sequoia
     def test_copy_ignore_existing(self):
         create("map_node", "//tmp/a")
         create("map_node", "//tmp/b/c", recursive=True)
@@ -678,6 +715,7 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_removed_account(self):
         create_account("a")
         create("map_node", "//tmp/p1")
@@ -695,6 +733,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//sys/accounts/a"))
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_removed_bundle(self):
         create_tablet_cell_bundle("b")
         create("map_node", "//tmp/p1")
@@ -712,6 +751,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
         assert get("//tmp/t/@compression_codec") == "none"
@@ -731,6 +771,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@compression_codec") == "lz4"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_id1(self):
         set("//tmp/a", 123)
         a_id = get("//tmp/a/@id")
@@ -738,6 +779,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b") == 123
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_id2(self):
         set("//tmp/a", 123)
         tmp_id = get("//tmp/@id")
@@ -745,6 +787,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b") == 123
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_dont_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
@@ -753,6 +796,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@account") == "tmp"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
@@ -761,6 +805,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@account") == "max"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_force1(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@a", 1)
@@ -770,6 +815,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@a", 1)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_force2(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -779,6 +825,7 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/t1", "//tmp/t2", force=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_force3(self):
         create("table", "//tmp/t1")
         set("//tmp/t2", {})
@@ -786,6 +833,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@type") == "table"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_force_account1(self):
         create_account("a")
 
@@ -798,6 +846,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/@account") == "a"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_force_account2(self):
         create_account("a")
 
@@ -810,6 +859,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/@account") == "tmp"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_locked(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -818,6 +868,7 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_acd(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@inherit_acl", False)
@@ -828,6 +879,7 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t2/@acl"), [])
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_acd(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@inherit_acl", False)
@@ -838,6 +890,7 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t2/@acl"), acl)
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_move_simple1(self):
         set("//tmp/a", 1)
         move("//tmp/a", "//tmp/b")
@@ -846,6 +899,7 @@ class TestCypress(YTEnvSetup):
             get("//tmp/a")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_move_simple2(self):
         set("//tmp/a", 1)
 
@@ -857,11 +911,13 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_move_simple3(self):
         with pytest.raises(YtError):
             move("//tmp", "//tmp/a")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_move_dont_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
@@ -870,6 +926,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@account") == "max"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_move_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
@@ -878,11 +935,13 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@account") == "tmp"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_recursive_success(self):
         create("map_node", "//tmp/a")
         move("//tmp/a", "//tmp/b/c", recursive=True)
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_move_recursive_fail(self):
         create("map_node", "//tmp/a")
         with pytest.raises(YtError):
@@ -893,6 +952,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b/c/d")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_force1(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@a", 1)
@@ -903,6 +963,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_force2(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -913,6 +974,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t1")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_force3(self):
         create("table", "//tmp/t1")
         set("//tmp/t2", {})
@@ -921,11 +983,13 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_force4(self):
         with pytest.raises(YtError):
             copy("//tmp", "/", force=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_tx_commit(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -939,6 +1003,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_tx_abort(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -952,6 +1017,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_tx_nested(self):
         create("table", "//tmp/t1")
         tx1 = start_transaction()
@@ -965,6 +1031,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t3")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_tx_locking1(self):
         create("table", "//tmp/t1")
         tx1 = start_transaction()
@@ -974,6 +1041,7 @@ class TestCypress(YTEnvSetup):
             move("//tmp/t1", "//tmp/t3", tx=tx2)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_tx_locking2(self):
         create("table", "//tmp/t1")
         tx1 = start_transaction()
@@ -985,6 +1053,7 @@ class TestCypress(YTEnvSetup):
             move("//tmp/t2", "//tmp/t4", tx=tx3)
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_embedded_attributes(self):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
@@ -994,6 +1063,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/@attr/key/@embedded_attr") == "emb"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_get_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
         expected = yson.to_yson_type(
@@ -1003,6 +1073,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a", attributes={"keys": ["type"]}) == expected
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_list_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
         expected = [yson.to_yson_type("b", attributes={"type": "map_node"})]
@@ -1010,6 +1081,7 @@ class TestCypress(YTEnvSetup):
         assert ls("//tmp/a", attributes={"keys": ["type"]}) == expected
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_get_with_attributes_objects(self):
         assert get("//sys/accounts/tmp", attributes=["name"]) == yson.to_yson_type({}, {"name": "tmp"})
         assert get("//sys/users/root", attributes=["name", "type"]) == yson.to_yson_type(
@@ -1017,6 +1089,7 @@ class TestCypress(YTEnvSetup):
         )
 
     @authors("max42")
+    @not_implemented_in_sequoia
     def test_attribute_path_filtering(self):
         schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
         attributes = {"schema": schema, "custom": {"foo": 42, "bar": 57}}
@@ -1056,6 +1129,7 @@ class TestCypress(YTEnvSetup):
             }, attributes=expected_map_node_attributes)
 
     @authors("max42")
+    @not_implemented_in_sequoia
     def test_get_with_attributes_path_filtering_for_virtual_objects(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i_am_column_name", "type": "int64"}]})
         our_schema_id = get("//tmp/t/@schema_id")
@@ -1066,6 +1140,7 @@ class TestCypress(YTEnvSetup):
         assert schemas[0][1].attributes["value"][0]["name"] == "i_am_column_name"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
         txs = get("//sys/transactions", attributes=["type"])
@@ -1073,22 +1148,26 @@ class TestCypress(YTEnvSetup):
         assert txs[tx] == yson.to_yson_type(None, attributes={"type": "transaction"})
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_virtual_maps1(self):
         create("tablet_map", "//tmp/t")
         move("//tmp/t", "//tmp/tt")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_virtual_maps2(self):
         create("chunk_map", "//tmp/c")
         move("//tmp/c", "//tmp/cc")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
         txs = ls("//sys/transactions", attributes=["type"])
         assert yson.to_yson_type(tx, attributes={"type": "transaction"}) in txs
 
     @authors("aleksandra-zh")
+    @not_implemented_in_sequoia
     def test_map_node_branch(self):
         create("map_node", "//tmp/m")
         tx1 = start_transaction()
@@ -1100,6 +1179,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/m/t/@key", tx=tx2) == "t"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_exists(self):
         assert exists("//tmp")
         assert not exists("//tmp/a")
@@ -1129,6 +1209,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//sys/operations/xxx")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_remove_tx1(self):
         set("//tmp/a", 1)
         assert get("//tmp/@id") == get("//tmp/a/@parent_id")
@@ -1143,32 +1224,38 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/some_node")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_create_recursive_fail(self):
         create("map_node", "//tmp/some_node")
         with pytest.raises(YtError):
             create("map_node", "//tmp/a/b")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_create_ignore_existing_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_create_ignore_existing_fail(self):
         create("map_node", "//tmp/a/b", recursive=True)
         with pytest.raises(YtError):
             create("table", "//tmp/a/b", ignore_existing=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_create_ignore_existing_force_fail(self):
         with pytest.raises(YtError):
             create("table", "//tmp/t", ignore_existing=True, force=True)
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_create_ignore_type_mismatch(self):
         create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True, ignore_type_mismatch=True)
@@ -1176,12 +1263,14 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/b/@type") == "map_node"
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_create_ignore_type_mismatch_without_ignore_existing_fail(self):
         create("map_node", "//tmp/a/b", recursive=True)
         with pytest.raises(YtError):
             create("map_node", "//tmp/a/b", ignore_type_mismatch=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_create_force(self):
         id1 = create("table", "//tmp/t", force=True)
         assert get("//tmp/t/@id") == id1
@@ -1191,6 +1280,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@id") == id3
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_create_recursive(self):
         assert not exists("//tmp/a/b/c/d")
         with pytest.raises(YtError):
@@ -1200,6 +1290,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/a/b/c/d")
 
     @authors("kvk1920")
+    @not_implemented_in_sequoia
     def test_create_object_ignore_existing(self):
         user_u = create_user("u", ignore_existing=True)
         group_g = create_group("g", ignore_existing=True)
@@ -1207,6 +1298,7 @@ class TestCypress(YTEnvSetup):
         assert create_group("g", ignore_existing=True) == group_g
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_remove_from_virtual_map(self):
         create_user("u")
         with pytest.raises(YtError):
@@ -1219,6 +1311,7 @@ class TestCypress(YTEnvSetup):
         remove_user("u", force=True)
 
     @authors("babenko", "s-v-m")
+    @not_implemented_in_sequoia
     def test_link1(self):
         set("//tmp/a", 1)
         link("//tmp/a", "//tmp/b")
@@ -1227,6 +1320,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b&/@broken")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link2(self):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
@@ -1240,6 +1334,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2") == 2
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link3(self):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
@@ -1247,6 +1342,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2&/@broken")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link4(self):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
@@ -1263,6 +1359,7 @@ class TestCypress(YTEnvSetup):
             read_table("//tmp/t2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link5(self):
         set("//tmp/t1", 1)
         set("//tmp/t2", 2)
@@ -1270,6 +1367,7 @@ class TestCypress(YTEnvSetup):
             link("//tmp/t1", "//tmp/t2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link6(self):
         create("table", "//tmp/a")
         link("//tmp/a", "//tmp/b")
@@ -1299,6 +1397,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b&/x")
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_link7(self):
         tx = start_transaction()
         set("//tmp/t1", 1, tx=tx)
@@ -1306,6 +1405,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l1", tx=tx) == 1
 
     @authors("s-v-m")
+    @not_implemented_in_sequoia
     def test_link_dst_doesnt_exist(self):
         tx = start_transaction()
         set("//tmp/t", 1, tx=tx)
@@ -1319,6 +1419,7 @@ class TestCypress(YTEnvSetup):
         assert not get("//tmp/link2&/@broken")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_existing_fail(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1328,6 +1429,7 @@ class TestCypress(YTEnvSetup):
             link("//tmp/t2", "//tmp/l")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_ignore_existing(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1336,6 +1438,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l/@id") == id1
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_force1(self):
         id1 = create("table", "//tmp/t1")
         id2 = create("table", "//tmp/t2")
@@ -1345,6 +1448,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l/@id") == id2
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_force2(self):
         create("table", "//tmp/t1")
         id2 = create("table", "//tmp/t2")
@@ -1355,12 +1459,14 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l/@id") == id2
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_ignore_existing_force_fail(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
             link("//tmp/t", "//tmp/l", ignore_existing=True, force=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_to_link(self):
         id = create("table", "//tmp/t")
         link("//tmp/t", "//tmp/l1")
@@ -1371,6 +1477,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l2&/@broken")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_as_copy_target_fail(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1379,6 +1486,7 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/t2", "//tmp/l")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_as_copy_target_success(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1388,6 +1496,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@id") == id1
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_as_move_target_fail(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1396,6 +1505,7 @@ class TestCypress(YTEnvSetup):
             move("//tmp/t2", "//tmp/l")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_link_as_move_target_success(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1406,6 +1516,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@id") == id1
 
     @authors("h0pless")
+    @not_implemented_in_sequoia
     def test_cyclic_link(self):
         create("map_node", "//tmp/a/b/c", recursive=True)
         link("//tmp/a/b/c", "//tmp/a/l1")
@@ -1426,6 +1537,7 @@ class TestCypress(YTEnvSetup):
 
     # Test for YTADMINREQ-29192 issue.
     @authors("h0pless")
+    @not_implemented_in_sequoia
     def test_non_cyclic_link_to_link(self):
         create("table", "//tmp/t1")
         link("//tmp/t1", "//tmp/l1")
@@ -1433,6 +1545,7 @@ class TestCypress(YTEnvSetup):
         link("//tmp/l1", "//tmp/l2", force=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_move_in_tx_with_link_yt_6610(self):
         create("map_node", "//tmp/a")
         link("//tmp/a", "//tmp/b")
@@ -1449,6 +1562,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/y") == 1
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_resolve_suppress_via_object_id_yt_6694(self):
         create("map_node", "//tmp/a")
         link("//tmp/a", "//tmp/b")
@@ -1459,6 +1573,7 @@ class TestCypress(YTEnvSetup):
         assert get("#{0}&/@type".format(id)) == "link"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_escaped_symbols(self):
         with pytest.raises(YtError):
             create("map_node", "//tmp/special@&*[{symbols")
@@ -1476,6 +1591,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/string_node")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_access_stat1(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1485,6 +1601,7 @@ class TestCypress(YTEnvSetup):
         assert c2 == c1
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat2(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1496,6 +1613,7 @@ class TestCypress(YTEnvSetup):
         assert c2 == c1 + 1
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat3(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1506,6 +1624,7 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat4(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1516,6 +1635,7 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat5(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1526,6 +1646,7 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat6(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1536,6 +1657,7 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat7(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1546,17 +1668,20 @@ class TestCypress(YTEnvSetup):
         assert c2 == c1 + 1
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat8(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@access_time") == get("//tmp/t/@creation_time")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat9(self):
         create("table", "//tmp/t1")
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@access_time") == get("//tmp/t2/@creation_time")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat_suppress1(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1567,6 +1692,7 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat_suppress2(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1577,6 +1703,7 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat", "h0pless")
+    @not_implemented_in_sequoia
     def test_access_stat_suppress3(self):
         create("table", "//tmp/t")
         time.sleep(1)
@@ -1595,6 +1722,7 @@ class TestCypress(YTEnvSetup):
         assert c1 != get("//tmp/t/@access_counter")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_access_stat_suppress4(self):
         time.sleep(1)
         create("file", "//tmp/f")
@@ -1605,6 +1733,7 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_modification_suppress1(self):
         create("map_node", "//tmp/m")
         time.sleep(1)
@@ -1615,6 +1744,7 @@ class TestCypress(YTEnvSetup):
         assert time1 == time2
 
     @authors("babenko", "ignat", "danilalexeev")
+    @not_implemented_in_sequoia
     def test_chunk_maps(self):
         gc_collect()
         assert get("//sys/chunks/@count") == 0
@@ -1624,6 +1754,7 @@ class TestCypress(YTEnvSetup):
         assert get("//sys/replica_temporarily_unavailable_chunks/@count") == 0
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_list_attributes(self):
         create("map_node", "//tmp/map", attributes={"user_attr1": 10})
         set("//tmp/map/@user_attr2", "abc")
@@ -1642,11 +1773,13 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/file/@user_attributes") == {}
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_opaque_attribute_keys(self):
         create("table", "//tmp/t")
         assert "compression_statistics" in get("//tmp/t/@opaque_attribute_keys")
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_boolean(self):
         yson_format = yson.loads(b"yson")
         set("//tmp/boolean", b"%true", is_raw=True)
@@ -1654,6 +1787,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/boolean", output_format=yson_format)
 
     @authors("lukyan")
+    @not_implemented_in_sequoia
     def test_uint64(self):
         yson_format = yson.loads(b"yson")
         set("//tmp/my_uint", b"123456u", is_raw=True)
@@ -1661,6 +1795,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_map_node_children_limit(self):
         set("//sys/@config/cypress_manager/max_node_child_count", 100)
         create("map_node", "//tmp/test_node")
@@ -1670,6 +1805,7 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/test_node/100")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_string_node_length_limit(self):
         set("//sys/@config/cypress_manager/max_string_node_length", 300)
         set("//tmp/test_node", "x" * 300)
@@ -1685,6 +1821,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/test_node", ["x" * 301])
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_attribute_size_limit(self):
         set("//sys/@config/cypress_manager/max_attribute_size", 300)
         set("//tmp/test_node", {})
@@ -1697,6 +1834,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/test_node/@test_attr", "x" * 301)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_map_node_key_length_limits(self):
         set("//sys/@config/cypress_manager/max_map_node_key_length", 300)
         set("//tmp/" + "a" * 300, 0)
@@ -1704,6 +1842,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/" + "a" * 301, 0)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_invalid_external_cell_bias(self):
         with pytest.raises(YtError):
             create("table", "//tmp/t", attributes={"external_cell_bias": -1.0})
@@ -1711,6 +1850,7 @@ class TestCypress(YTEnvSetup):
             create("table", "//tmp/t", attributes={"external_cell_bias": 100.0})
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_validation(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
@@ -1718,6 +1858,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time())), ("expiration_timeout", 3600000)])
+    @not_implemented_in_sequoia
     def test_expiration_change_requires_remove_permission_failure(self, expiration):
         create_user("u")
         create("table", "//tmp/t")
@@ -1734,6 +1875,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time())), ("expiration_timeout", 3600000)])
+    @not_implemented_in_sequoia
     def test_expiration_change_requires_recursive_remove_permission_failure(self, expiration):
         create_user("u")
         create("map_node", "//tmp/m")
@@ -1751,6 +1893,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
+    @not_implemented_in_sequoia
     def test_expiration_reset_requires_write_permission_success(self, expiration):
         create_user("u")
         create(
@@ -1766,6 +1909,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
+    @not_implemented_in_sequoia
     def test_expiration_reset_requires_write_permission_failure(self, expiration):
         create_user("u")
         create(
@@ -1778,6 +1922,7 @@ class TestCypress(YTEnvSetup):
             remove("//tmp/t/@" + expiration[0], authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_change(self):
         create(
             "table",
@@ -1789,6 +1934,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t/@expiration_time")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_can_be_set_upon_construction1(self):
         create_user("u")
         create(
@@ -1800,6 +1946,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t"))
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_can_be_set_upon_construction2(self):
         create(
             "table",
@@ -1810,6 +1957,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_can_be_set_upon_construction3(self):
         tx = start_transaction()
         create(
@@ -1826,12 +1974,14 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_removal(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time())})
         time.sleep(1)
         assert not exists("//tmp/t")
 
     @authors("babenko", "shakurov")
+    @not_implemented_in_sequoia
     def test_expiration_time_lock_conflict(self):
         create("table", "//tmp/t")
         tx = start_transaction()
@@ -1844,6 +1994,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_wait_for_parent_locks_released(self):
         create("table", "//tmp/x/t", recursive=True)
         tx = start_transaction()
@@ -1856,6 +2007,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/x/t"))
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_wait_for_locks_released_recursive(self):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t")
@@ -1869,6 +2021,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/m")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_dont_wait_for_snapshot_locks(self):
         create("table", "//tmp/t")
         tx = start_transaction()
@@ -1878,11 +2031,13 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_no_expiration_time_for_root(self):
         with pytest.raises(YtError):
             set("//@expiration_time", str(get_current_time()))
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_expiration_time_versioning1(self):
         create(
             "table",
@@ -1902,6 +2057,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@expiration_time") == "2031-03-07T13:18:55.000000Z"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_expiration_time_versioning2(self):
         create("table", "//tmp/t1")
 
@@ -1917,6 +2073,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_expiration_time_versioning3(self):
         create(
             "table",
@@ -1940,6 +2097,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1/@expiration_time")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_expiration_time_versioning4(self):
         create(
             "table",
@@ -1974,6 +2132,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1/@expiration_time")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_expiration_time_versioning5(self):
         tx = start_transaction()
         create(
@@ -1989,6 +2148,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_time(self):
         create(
             "table",
@@ -2002,6 +2162,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_time(self):
         create(
             "table",
@@ -2015,6 +2176,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("egor-gutrov")
+    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2028,6 +2190,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("egor-gutrov")
+    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2041,6 +2204,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_time_in_tx1(self):
         create(
             "table",
@@ -2057,6 +2221,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t2"))
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_time_in_tx2(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -2077,6 +2242,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t1") and not exists("//tmp/t2"))
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expire_orphaned_node_yt_8064(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -2091,6 +2257,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(2)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout1(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
@@ -2099,6 +2266,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout2(self):
         set("//sys/@config/cypress_manager/expiration_check_period", 200)
@@ -2111,6 +2279,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout3(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 2000})
@@ -2124,6 +2293,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t2", suppress_expiration_timeout_renewal=True))
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout4(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
@@ -2136,6 +2306,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout5(self):
         tx = start_transaction()
@@ -2154,6 +2325,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout6(self):
         tx = start_transaction()
@@ -2172,6 +2344,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout7(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
@@ -2186,6 +2359,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout8(self):
         create("table", "//tmp/t")
@@ -2206,6 +2380,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout_zero(self):
         # Very small - including zero timeouts - should be handled normally.
@@ -2223,6 +2398,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t4")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout1(self):
         create(
@@ -2248,6 +2424,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout2(self):
         create(
@@ -2279,6 +2456,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("danilalexeev")
+    @not_implemented_in_sequoia
     def test_effective_expiration_time_and_timeout(self):
         assert get("//tmp/@effective_expiration") == {"time": yson.YsonEntity(), "timeout": yson.YsonEntity()}
 
@@ -2301,6 +2479,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("preserve", [False, True])
+    @not_implemented_in_sequoia
     def test_preserve_creation_time(self, preserve):
         create("table", "//tmp/t1")
 
@@ -2314,6 +2493,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("preserve", [False, True])
+    @not_implemented_in_sequoia
     def test_preserve_modification_time(self, preserve):
         create("table", "//tmp/t1")
 
@@ -2326,6 +2506,7 @@ class TestCypress(YTEnvSetup):
         assert preserve == (modification_time == get("//tmp/t1/@modification_time"))
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_ignore_ampersand1(self):
         set("//tmp/map", {})
         set("//tmp/map&/a", "b")
@@ -2333,6 +2514,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map&/@type") == "map_node"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_ignore_ampersand2(self):
         set("//tmp/list", [])
         set("//tmp/list&/end", "x")
@@ -2340,10 +2522,12 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/list&/@type") == "list_node"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_ignore_ampersand3(self):
         assert get("//sys/chunks&/@type") == "chunk_map"
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_ignore_ampersand4(self):
         assert not exists("//tmp/missing")
         assert not exists("//tmp/missing&")
@@ -2351,10 +2535,12 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp&")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_batch_empty(self):
         assert execute_batch([]) == []
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_batch_error(self):
         results = execute_batch(
             [
@@ -2369,6 +2555,7 @@ class TestCypress(YTEnvSetup):
             get_batch_output(results[1])
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_batch_success(self):
         set_results = execute_batch(
             [
@@ -2391,11 +2578,13 @@ class TestCypress(YTEnvSetup):
         assert get_batch_output(get_results[1]) == "b"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_batch_with_concurrency_failure(self):
         with pytest.raises(YtError):
             execute_batch([], concurrency=-1)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_batch_with_concurrency_success(self):
         for i in range(10):
             set("//tmp/{0}".format(i), i)
@@ -2408,6 +2597,7 @@ class TestCypress(YTEnvSetup):
             assert get_batch_output(get_results[i]) == i
 
     @authors("babenko", "shakurov")
+    @not_implemented_in_sequoia
     def test_recursive_resource_usage_map(self):
         create("map_node", "//tmp/m")
         for i in range(10):
@@ -2417,6 +2607,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/m/@recursive_resource_usage/node_count", tx=tx) == 11
 
     @authors("babenko", "shakurov")
+    @not_implemented_in_sequoia
     def test_recursive_resource_usage_list(self):
         create("list_node", "//tmp/l")
         for i in range(10):
@@ -2426,6 +2617,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l/@recursive_resource_usage/node_count", tx=tx) == 11
 
     @authors("aleksandra-zh")
+    @not_implemented_in_sequoia
     def test_master_memory_resource_usage(self):
         create("map_node", "//tmp/m")
         for i in range(10):
@@ -2435,6 +2627,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: get("//tmp/m/@recursive_resource_usage/master_memory") > 0)
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_prerequisite_transactions(self):
         with pytest.raises(YtError):
             set("//tmp/test_node", {}, prerequisite_transaction_ids=["a-b-c-d"])
@@ -2444,6 +2637,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/test_node", prerequisite_transaction_ids=[tx])
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_prerequisite_revisions(self):
         create("map_node", "//tmp/test_node")
         revision = get("//tmp/test_node/@revision")
@@ -2475,6 +2669,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     # COMPAT(babenko): YT-11903
+    @not_implemented_in_sequoia
     def test_move_preserves_creation_time_by_default1(self):
         create("table", "//tmp/t1")
         creation_time = get("//tmp/t1/@creation_time")
@@ -2483,6 +2678,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     # COMPAT(babenko): YT-11903
+    @not_implemented_in_sequoia
     def test_move_preserves_creation_time_by_default2(self):
         set("//tmp/t1", {"x": "y"})
         creation_time1 = get("//tmp/t1/@creation_time")
@@ -2492,6 +2688,7 @@ class TestCypress(YTEnvSetup):
         assert creation_time2 == get("//tmp/t2/x/@creation_time")
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_document(self):
         create("document", "//tmp/d1")
 
@@ -2509,6 +2706,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/d1") == {"value": 10, "some": {"path": "hello"}}
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_setting_document_node_increases_revision_yt_7829(self):
         create("document", "//tmp/d1")
         revision1 = get("//tmp/d1/@revision")
@@ -2558,28 +2756,33 @@ class TestCypress(YTEnvSetup):
         assert revision11 == revision7
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_node_path_map(self):
         set("//tmp/a", 123)
         assert get("//tmp/a/@path") == "//tmp/a"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_node_path_list(self):
         set("//tmp/a", [1, 2, 3])
         assert get("//tmp/a/1/@path") == "//tmp/a/1"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_node_path_map_in_tx(self):
         tx = start_transaction()
         set("//tmp/a", 123, tx=tx)
         assert get("//tmp/a/@path", tx=tx) == "//tmp/a"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_node_path_list_in_tx(self):
         tx = start_transaction()
         set("//tmp/a", [1, 2, 3], tx=tx)
         assert get("//tmp/a/1/@path", tx=tx) == "//tmp/a/1"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_broken_node_path1(self):
         set("//tmp/a", 123)
         tx = start_transaction()
@@ -2589,6 +2792,7 @@ class TestCypress(YTEnvSetup):
         assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_node_path_with_slash(self):
         set("//tmp/dir", {"my\\t": {}}, force=True)
         assert ls("//tmp/dir") == ["my\\t"]
@@ -2603,6 +2807,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir/my\\x09/@path") == "//tmp/dir/my\\x09"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_broken_node_path2(self):
         set("//tmp/a", 123)
         tx = start_transaction()
@@ -2611,6 +2816,7 @@ class TestCypress(YTEnvSetup):
         assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes1(self):
         # parent inheritance
         create("map_node", "//tmp/dir1")
@@ -2640,6 +2846,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t2/@compression_codec") == "zlib_6"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes2(self):
         create_domestic_medium("hdd")
         create_tablet_cell_bundle("b")
@@ -2686,6 +2893,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t1/@atomicity") == "full"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes_with_transactions(self):
         create("map_node", "//tmp/dir1")
 
@@ -2712,6 +2920,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/@erasure_codec") == "reed_solomon_6_3"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes_with_nested_transactions(self):
         tx1 = start_transaction(timeout=60000)
         tx2 = start_transaction(tx=tx1, timeout=60000)
@@ -2746,6 +2955,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/dir4/@erasure_codec", tx=tx3)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes_media_validation(self):
         create_domestic_medium("ssd")
 
@@ -2883,6 +3093,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/dir5/@primary_medium", "ssd")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes_tablet_cell_bundle(self):
         create("map_node", "//tmp/dir1")
         create("map_node", "//tmp/dir2")
@@ -2939,6 +3150,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes_no_extraneous_inheritance(self):
         create("map_node", "//tmp/dir1")
 
@@ -2970,6 +3182,7 @@ class TestCypress(YTEnvSetup):
             assert not exists("//tmp/dir1/j1/@" + attr_name)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_inheritable_attributes_yt_14207(self):
         create_domestic_medium("m1")
         create("map_node", "//tmp/d1", attributes={"primary_medium": "m1"})
@@ -2984,6 +3197,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/d1/d2/d3/t2/@primary_medium", tx=tx) == "default"
 
     @authors("savrus")
+    @not_implemented_in_sequoia
     def test_create_invalid_type(self):
         with pytest.raises(YtError):
             create("some_invalid_type", "//tmp/s")
@@ -2991,6 +3205,7 @@ class TestCypress(YTEnvSetup):
             create("sorted_dynamic_tablet_store", "//tmp/s")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_attribute_content_revision(self):
         create("map_node", "//tmp/test_node")
         revision = get("//tmp/test_node/@revision")
@@ -3017,6 +3232,7 @@ class TestCypress(YTEnvSetup):
         assert revision == content_revision
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_user_attribute_removal1_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3030,6 +3246,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/test_node/@user_attribute", tx=tx1)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_user_attribute_removal2_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3050,6 +3267,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/@user_attribute", tx=tx2)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_user_attribute_removal3_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3075,6 +3293,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/@user_attribute", tx=tx3)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_user_attribute_removal4_yt_10192(self):
         tx1 = start_transaction()
 
@@ -3095,6 +3314,7 @@ class TestCypress(YTEnvSetup):
     # created via the 'set' method.
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_map_child_removal1_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3108,6 +3328,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/test_node/child", tx=tx1)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_map_child_removal2_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3133,6 +3354,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/child", tx=tx2)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_map_child_removal3_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3158,6 +3380,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/child", tx=tx3)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_map_child_removal4_yt_10192(self):
         tx1 = start_transaction()
 
@@ -3173,6 +3396,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/child", tx=tx1)
 
     @authors("aleksandra-zh")
+    @not_implemented_in_sequoia
     def test_preserve_owner_under_tx_yt_15292(self):
         create_user("u")
 
@@ -3189,6 +3413,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@owner") == "u"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_builtin_versioned_attributes(self):
         create(
             "table",
@@ -3240,6 +3465,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@chunk_merger_mode") == "deep"
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_annotation_attribute(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
@@ -3264,6 +3490,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/parent/@annotation") == yson.YsonEntity()
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_annotation_errors(self):
         create("map_node", "//tmp/test_node")
         assert get("//tmp/test_node/@annotation") == yson.YsonEntity()
@@ -3275,6 +3502,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/test_node/@annotation", printable)
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_annotation_transaction(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
@@ -3299,6 +3527,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/test_node/child/@annotation")
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_annotation_clone(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
@@ -3307,6 +3536,7 @@ class TestCypress(YTEnvSetup):
         assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_recursive_copy_sets_parent_on_branched_node(self):
         create_user("u")
 
@@ -3326,6 +3556,7 @@ class TestCypress(YTEnvSetup):
         lock("//tmp/d1/d2/dst/t", tx=tx2, mode="snapshot", authenticated_user="u")
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_preserve_owner(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -3339,6 +3570,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/x/3/@owner") == "u1"
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_preserve_owner_transaction(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -3352,6 +3584,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/x/2/@owner") == "u1"
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_preserve_acl(self):
         create("table", "//tmp/t1")
 
@@ -3364,6 +3597,7 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t2/@acl"), acl)
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_preserve_acl_without_rights(self):
         create_user("u")
         create("table", "//tmp/t1", authenticated_user="u")
@@ -3377,6 +3611,7 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_lock_existing_create(self):
         tx = start_transaction()
         create("table", "//tmp/x")
@@ -3386,6 +3621,7 @@ class TestCypress(YTEnvSetup):
         assert len(get("//tmp/x/@locks")) == 0
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_lock_existing_copy(self):
         tx = start_transaction()
         create("table", "//tmp/x")
@@ -3396,6 +3632,7 @@ class TestCypress(YTEnvSetup):
         assert len(get("//tmp/x/@locks")) == 0
 
     @authors("avmatrosov")
+    @not_implemented_in_sequoia
     def test_lock_existing_errors(self):
         create("table", "//tmp/x")
         create("table", "//tmp/x1")
@@ -3405,6 +3642,7 @@ class TestCypress(YTEnvSetup):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_malformed_clone_src(self):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t1")
@@ -3418,6 +3656,7 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_multiset_attributes(self):
         multiset_attributes("//tmp/@", {"a": 1, "b": 2})
         assert get("//tmp/@a") == 1
@@ -3439,6 +3678,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/@m/y", 8)
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_multiset_attributes_invalid(self):
         with pytest.raises(YtError):
             multiset_attributes("//tmp", {"a": 1})
@@ -3450,6 +3690,7 @@ class TestCypress(YTEnvSetup):
             multiset_attributes("//tmp/@", {"ref_counter": 5})
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_multiset_attributes_nonatomicity(self):
         # This test relies on subrequests execution in lexicographic sorted order.
         # It might be changed in the future.
@@ -3462,6 +3703,7 @@ class TestCypress(YTEnvSetup):
         assert "c" not in attributes
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_multiset_attributes_tricky(self):
         # Result of these commands depends on order of subrequests execution.
         # We assume that it's undefined, so check that result is consistent
@@ -3490,6 +3732,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/@a") == 4 or get("//tmp/@a") == 5
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_multiset_attributes_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -3507,6 +3750,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/doc/@a") == 3
 
     @authors("gritukan")
+    @not_implemented_in_sequoia
     def test_multiset_attributes_transaction(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -3527,28 +3771,30 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/@b") == 2
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_deprecated_compression_codec(self):
         create("table", "//tmp/t1")
         with pytest.raises(YtError):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
 
-        with _set_sys_config("/chunk_manager/deprecated_codec_ids", []):
-            create("table", "//tmp/t1")
-            remove("//tmp/t1")
+        set("//sys/@config/chunk_manager/deprecated_codec_ids", [])
+        create("table", "//tmp/t1")
+        remove("//tmp/t1")
 
-        with _set_sys_config("/chunk_manager/deprecated_codec_name_to_alias", {}):
-            create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
-            remove("//tmp/t1")
+        set("//sys/@config/chunk_manager/deprecated_codec_name_to_alias", {})
+        create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
+        remove("//tmp/t1")
 
-            create("table", "//tmp/t1")
-            set("//tmp/t1/@compression_codec", "gzip_normal")
-            remove("//tmp/t1")
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@compression_codec", "gzip_normal")
+        remove("//tmp/t1")
 
     @authors("cookiedoth")
     @pytest.mark.parametrize(
         "create_object,object_map",
         [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    @not_implemented_in_sequoia
     def test_abc(self, create_object, object_map):
         create_object("sample")
         with pytest.raises(YtError):
@@ -3573,6 +3819,7 @@ class TestCypress(YTEnvSetup):
     @pytest.mark.parametrize(
         "create_object,object_map",
         [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    @not_implemented_in_sequoia
     def test_abc_other_fields(self, create_object, object_map):
         create_object("sample")
         set("{}/sample/@abc".format(object_map), {"id": 42, "slug": "text"})
@@ -3583,6 +3830,7 @@ class TestCypress(YTEnvSetup):
     @pytest.mark.parametrize(
         "create_object,object_map",
         [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    @not_implemented_in_sequoia
     def test_folder_id(self, create_object, object_map):
         create_object("sample")
         with pytest.raises(YtError):
@@ -3595,6 +3843,7 @@ class TestCypress(YTEnvSetup):
     @pytest.mark.parametrize(
         "create_object,object_map",
         [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    @not_implemented_in_sequoia
     def test_abc_remove(self, create_object, object_map):
         create_object("sample")
         assert not exists("{}/sample/@abc".format(object_map))
@@ -3607,6 +3856,7 @@ class TestCypress(YTEnvSetup):
     @pytest.mark.parametrize(
         "create_object,object_map",
         [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    @not_implemented_in_sequoia
     def test_folder_id_remove(self, create_object, object_map):
         create_object("sample")
         assert not exists("{}/sample/@folder_id".format(object_map))
@@ -3616,6 +3866,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("{}/sample/@folder_id".format(object_map))
 
     @authors("cookiedoth")
+    @not_implemented_in_sequoia
     def test_force(self):
         create("map_node", "//tmp/a")
         with pytest.raises(YtError):
@@ -3623,6 +3874,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/a", {"x": "y"}, force=True)
 
     @authors("kvk1920")
+    @not_implemented_in_sequoia
     def test_cluster_connection_attribute(self):
         with raises_yt_error("Cannot parse"):
             set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
@@ -3632,6 +3884,7 @@ class TestCypress(YTEnvSetup):
         assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
 
     @authors("kvk1920")
+    @not_implemented_in_sequoia
     def test_cluster_name(self):
         with raises_yt_error("too long"):
             set("//sys/@cluster_name", "a" * 129)
@@ -3641,6 +3894,7 @@ class TestCypress(YTEnvSetup):
             set("//sys/@cluster_name", "кириллица")
 
     @authors("h0pless")
+    @not_implemented_in_sequoia
     def test_error_on_transaction_abort(self):
         set("//tmp/node", 42)
 
@@ -3676,6 +3930,7 @@ class TestCypressMulticell(TestCypress):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_multiset_attributes_external(self):
         set("//sys/accounts/tmp/@resource_limits/tablet_count", 10)
         schema = make_schema(
@@ -3699,12 +3954,14 @@ class TestCypressMulticell(TestCypress):
         assert not get(f"#{table_id}/@enable_dynamic_store_read", driver=get_driver(1))
 
     @authors("babenko", "shakurov")
+    @not_implemented_in_sequoia
     def test_zero_external_cell_bias(self):
         # Unfortunately, it's difficult to actually check anything here.
         create("table", "//tmp/t", attributes={"external_cell_bias": 0.0})
         assert not exists("//tmp/t/@external_cell_bias")
 
     @authors("babenko", "shakurov")
+    @not_implemented_in_sequoia
     def test_nonzero_external_cell_bias(self):
         # Unfortunately, it's difficult to actually check anything here.
         create("table", "//tmp/t", attributes={"external_cell_bias": 3.0})
@@ -4409,3 +4666,22 @@ class TestAccessControlObjects(YTEnvSetup):
 
         with raises_yt_error("already exists"):
             create_access_control_object("tom", "cats")
+
+
+################################################################################
+
+
+class TestSequoia(TestCypressMulticell):
+    NUM_NODES = 5
+    USE_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        "11": {"roles": ["sequoia_node_host"]},
+        "12": {"roles": ["sequoia_node_host"]},
+    }
+
+
+################################################################################

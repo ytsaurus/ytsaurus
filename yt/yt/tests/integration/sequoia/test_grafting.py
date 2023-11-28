@@ -1,52 +1,20 @@
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
+from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, get, set, exists, copy, move,
-    remove, wait, start_transaction, lookup_rows, select_rows,
-    raises_yt_error, build_master_snapshots
+    authors, create, get, exists, copy, move,
+    remove, wait, start_transaction,
+    raises_yt_error,
 )
 
-from time import sleep
+from yt_sequoia_helpers import (
+    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
+    RESOLVE_NODE, REVERSE_RESOLVE_NODE,
+)
 
 from yt.common import YtError
 
 import pytest
 
-
-##################################################################
-
-
-def mangle_path(path):
-    return path + "/"
-
-
-def demangle_path(path):
-    assert path.endswith("/")
-    return path[:-1]
-
-################################################################################
-
-
-class TestSequoiaEnvSetup(YTEnvSetup):
-    USE_SEQUOIA = True
-    NUM_CYPRESS_PROXIES = 1
-    NUM_MASTERS = 1
-    NUM_CLOCKS = 1
-    NUM_NODES = 3
-    NUM_SECONDARY_MASTER_CELLS = 1
-    NUM_REMOTE_CLUSTERS = 2
-    USE_SEQUOIA_REMOTE_0 = False
-    GROUND_INDEX_OFFSET = 10
-
-    @authors("h0pless")
-    def test1(self):
-        sleep(10)  # Just don't crash...
-        assert True
-
-    @authors("h0pless")
-    def test2(self):
-        sleep(10)  # Just don't crash... (again)
-        assert True
 
 ################################################################################
 
@@ -61,20 +29,6 @@ class TestGrafting(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
         "11": {"roles": ["sequoia_node_host"]},
     }
-
-    def _resolve_path(self, path):
-        ground_driver = self.get_ground_driver()
-        rows = lookup_rows("//sys/sequoia/resolve_node", [{"path": mangle_path(path)}], driver=ground_driver)
-        if len(rows) == 0:
-            return None
-        assert len(rows) == 1
-        return rows[0]["node_id"]
-
-    def _resolve_id(self, node_id):
-        ground_driver = self.get_ground_driver()
-        rows = lookup_rows("//sys/sequoia/reverse_resolve_node", [{"node_id": node_id}], driver=ground_driver)
-        assert len(rows) <= 1
-        return rows[0]["path"] if rows else None
 
     @authors("kvk1920", "gritukan")
     def test_cannot_create_scion(self):
@@ -101,8 +55,8 @@ class TestGrafting(YTEnvSetup):
         assert exists(f"//sys/rootstocks/{rootstock_id}")
         assert exists(f"//sys/scions/{scion_id}")
 
-        assert self._resolve_path("//tmp/r") == scion_id
-        assert self._resolve_id(scion_id) == "//tmp/r"
+        assert resolve_sequoia_path("//tmp/r") == scion_id
+        assert resolve_sequoia_id(scion_id) == "//tmp/r"
 
         remove(f"#{scion_id}")
 
@@ -110,7 +64,7 @@ class TestGrafting(YTEnvSetup):
         wait(lambda: not exists(f"#{rootstock_id}"))
         wait(lambda: not exists(f"#{scion_id}"))
 
-        wait(lambda: self._resolve_path("//tmp/r") is None)
+        wait(lambda: resolve_sequoia_path("//tmp/r") is None)
 
     @authors("gritukan")
     def test_cannot_create_rootstock_in_transaction(self):
@@ -126,38 +80,6 @@ class TestGrafting(YTEnvSetup):
         with pytest.raises(YtError):
             move("//tmp/r&", "//tmp/r2")
 
-    @authors("kvk1920", "gritukan")
-    def test_create_map_node(self):
-        create("rootstock", "//tmp/r", attributes={"scion_cell_tag": 10})
-        m_id = create("map_node", "//tmp/r/m")
-        # TODO(kvk1920): Use path when `set` will be implemented in Sequoia.
-        set(f"#{m_id}/@foo", "bar")
-
-        def check_everything():
-            assert self._resolve_path("//tmp/r") == get("//tmp/r&/@scion_id")
-            assert self._resolve_id(get("//tmp/r&/@scion_id")) == "//tmp/r"
-            assert self._resolve_path("//tmp/r/m") == m_id
-            assert get(f"#{m_id}/@path") == "//tmp/r/m"
-            assert get(f"#{m_id}/@key") == "m"
-            assert get("//tmp/r/m/@path") == "//tmp/r/m"
-            assert get("//tmp/r/m/@key") == "m"
-
-            # TODO(kvk1920): Use attribute filter when it will be implemented in Sequoia.
-            assert get(f"#{m_id}/@type") == "map_node"
-            assert get(f"#{m_id}/@sequoia")
-
-            assert get(f"#{m_id}/@foo") == "bar"
-
-        check_everything()
-
-        build_master_snapshots()
-
-        # TODO(kvk1920): Move it to TestMasterSnapshots.
-        with Restarter(self.Env, MASTERS_SERVICE):
-            pass
-
-        check_everything()
-
     @authors("kvk1920")
     def test_resolve(self):
         rootstock_id = create("rootstock", "//tmp/r", attributes={"scion_cell_tag": 10})
@@ -170,9 +92,8 @@ class TestGrafting(YTEnvSetup):
         create("map_node", "//tmp/sequoia/m1")
         create("map_node", "//tmp/sequoia/m1/m2")
         remove("//tmp/sequoia", recursive=True)
-        ground_driver = self.get_ground_driver()
-        assert select_rows("* from [//sys/sequoia/resolve_node]", driver=ground_driver) == []
-        assert select_rows("* from [//sys/sequoia/reverse_resolve_node]", driver=ground_driver) == []
+        assert select_rows_from_ground(f"* from [{RESOLVE_NODE.get_path()}]") == []
+        assert select_rows_from_ground(f"* from [{REVERSE_RESOLVE_NODE.get_path()}]") == []
         assert not exists(f"#{rootstock_id}")
 
     @authors("kvk1920")
