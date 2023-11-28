@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/misc/cast.h>
+
 #include <util/system/dynlib.h>
 
 namespace NYT::NYqlPlugin {
@@ -27,7 +29,16 @@ std::optional<TString> ToString(const char* str, size_t strLength)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto RequiredAbiVersion = 0;
+// Each YQL plugin ABI change should be listed here. Either a compat should be added
+// or MinSupportedYqlPluginAbiVersion should be promoted.
+DEFINE_ENUM(EYqlPluginAbiVersion,
+    ((Invalid)             (0))
+    ((TheBigBang)          (1))
+    ((AbortQuery)          (2)) // gritukan: Added BridgeAbort; no breaking changes.
+);
+
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TheBigBang;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::AbortQuery;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,24 +50,58 @@ public:
         static const TString DefaultYqlPluginLibraryName = "./libyqlplugin.so";
         auto sharedLibraryPath = yqlPluginSharedLibrary.value_or(DefaultYqlPluginLibraryName);
         Library_.Open(sharedLibraryPath.data());
-        #define XX(function) function = reinterpret_cast<TFunc ## function*>(Library_.Sym(#function));
+        #define XX(function) \
+        { \
+            if constexpr(#function == TStringBuf("BridgeAbort")) { \
+                if (AbiVersion_ < EYqlPluginAbiVersion::AbortQuery) { \
+                    function = reinterpret_cast<TFunc ## function*>(AbortQueryStub); \
+                } else { \
+                    function = reinterpret_cast<TFunc ## function*>(Library_.Sym(#function)); \
+                } \
+            } else { \
+                function = reinterpret_cast<TFunc ## function*>(Library_.Sym(#function)); \
+            } \
+        } \
+
+        // Firstly we need to get ABI version of the plugin to make it possible to
+        // add compats for other functions.
+        XX(BridgeGetAbiVersion);
+        GetYqlPluginAbiVersion();
+
         FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX);
         #undef XX
-
-        if (RequiredAbiVersion != BridgeGetAbiVersion()) {
-            THROW_ERROR_EXCEPTION(
-                "YQL plugin ABI version mismatch; expected version %v, actual version %v",
-                RequiredAbiVersion,
-                BridgeGetAbiVersion());
-        }
     }
 
 protected:
+    TDynamicLibrary Library_;
+
+    EYqlPluginAbiVersion AbiVersion_ = EYqlPluginAbiVersion::Invalid;
+
     #define XX(function) TFunc ## function* function;
     FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX)
     #undef XX
 
-    TDynamicLibrary Library_;
+    static void AbortQueryStub(TBridgeYqlPlugin* /*plugin*/, const char* /*queryId*/)
+    {
+        // Just do nothing. It is not worse than in used to be before.
+    }
+
+    void GetYqlPluginAbiVersion()
+    {
+        if (!TryEnumCast(BridgeGetAbiVersion(), &AbiVersion_)) {
+            THROW_ERROR_EXCEPTION(
+                "YQL plugin ABI version %v is not supported",
+                BridgeGetAbiVersion());
+        }
+
+        if (AbiVersion_ < MinSupportedYqlPluginAbiVersion ||
+            AbiVersion_ > MaxSupportedYqlPluginAbiVersion)
+        {
+            THROW_ERROR_EXCEPTION(
+                "YQL plugin ABI version %Qv is not supported",
+                AbiVersion_);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
