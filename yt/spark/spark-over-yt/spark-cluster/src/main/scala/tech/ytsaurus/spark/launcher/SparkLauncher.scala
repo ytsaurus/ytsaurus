@@ -44,6 +44,7 @@ trait SparkLauncher {
 
   private val sparkHome: String = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
   private val livyHome: String = new File(env("LIVY_HOME", "./livy")).getAbsolutePath
+  private val javaHome: String = new File(env("JAVA_HOME", "/opt/jdk11")).getAbsolutePath
   private val sparkPatchAgentOpt = Seq(s"-javaagent:$sparkHome/jars/spark-yt-spark-patch.jar")
 
   private def prepareSparkConf(): Unit = {
@@ -63,7 +64,7 @@ trait SparkLauncher {
     Files.copy(preparedConfPath, dst)
   }
 
-  private def isIpv6PreferenceEnabled: Boolean = sys.env.get("SPARK_YT_IPV6_PREFERENCE_ENABLED").exists(_.toBoolean)
+  private val isIpv6PreferenceEnabled: Boolean = sys.env.get("SPARK_YT_IPV6_PREFERENCE_ENABLED").exists(_.toBoolean)
 
   private def getLivyClientSparkConf(): Seq[String] = {
     if (isIpv6PreferenceEnabled) {
@@ -167,18 +168,18 @@ trait SparkLauncher {
   private def runLivyProcess(log: Logger): Process = {
     val livyRunner = f"$livyHome/bin/livy-server start"
     log.info(s"Run command: $livyRunner")
-    val javaHome = env("JAVA_HOME", "/opt/jdk11")
     val startProcess = Process(
       livyRunner,
       new File("."),
       "SPARK_HOME" -> sparkHome,
+      "LIVY_PID_DIR" -> livyHome,
       "JAVA_HOME" -> javaHome,
       "PYSPARK_PYTHON" -> "python3"
     ).run(ProcessLogger(log.info(_)))
     val startProcessCode = startProcess.exitValue()
     log.info(f"Server started. Code: $startProcessCode")
     if (startProcessCode == 0) {
-      val pid = ("cat /tmp/livy--server.pid".!!).trim
+      val pid = (f"cat $livyHome/livy--server.pid".!!).trim
       log.info(f"Attaching to livy process with pid $pid...")
       Process("tail", Seq(f"--pid=$pid", "-f", "/dev/null")).run(ProcessLogger(log.info(_)))
     } else {
@@ -271,7 +272,6 @@ trait SparkLauncher {
     log.info(s"Run command: $command")
 
     val workerLog4j = s"-Dlog4j.configuration=file://$sparkHome/conf/log4j.worker.properties"
-    val javaHome = env("JAVA_HOME", "/opt/jdk11")
     val sparkLocalDirs = env("SPARK_LOCAL_DIRS", "./tmpfs")
     val javaOpts = (workerLog4j +: (systemProperties ++ sparkSystemProperties.map { case (k, v) => s"-D$k=$v" })).mkString(" ")
     Process(

@@ -10,6 +10,7 @@ import tech.ytsaurus.spyt.wrapper.discovery.DiscoveryService
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Random
 
 object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
   private val log = LoggerFactory.getLogger(getClass)
@@ -18,10 +19,9 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
   import livyArgs._
 
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
-    val tcpRouter = TcpProxyService.register("LIVY")(yt)
     val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
-
     log.info(s"Starting livy server for master $masterAddress")
+    val tcpRouter = TcpProxyService.register("LIVY")(yt)
     val address = HostAndPort(ytHostnameOrIpAddress, port)
     val externalAddress = tcpRouter.map(_.getExternalAddress("LIVY")).getOrElse(address)
     log.info(f"Server will started on address $externalAddress")
@@ -52,7 +52,8 @@ case class LivyLauncherArgs(port: Int, ytConfig: YtClientConfiguration,
 
 object LivyLauncherArgs {
   def apply(args: Args): LivyLauncherArgs = LivyLauncherArgs(
-    args.optional("port").orElse(sys.env.get("SPARK_YT_LIVY_PORT")).map(_.toInt).getOrElse(27105),
+    args.optional("port").orElse(sys.env.get("SPARK_YT_LIVY_PORT")).map(_.toInt)
+      .getOrElse(27100 + Random.nextInt(20)),  // Random port in range 27100...27119
     YtClientConfiguration(args.optional),
     args.required("driver-cores").toInt,
     args.required("driver-memory"),
