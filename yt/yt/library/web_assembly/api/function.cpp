@@ -7,11 +7,11 @@ namespace NYT::NWebAssembly {
 namespace NDetail {
 
 Y_WEAK void WavmInvoke(
-    IWebAssemblyCompartment*,
-    TWebAssemblyRuntimeType,
-    TCompartmentFunctionId,
-    TWavmPodValue*,
-    TRange<TWavmPodValue>)
+    IWebAssemblyCompartment* /*compartment*/,
+    TWebAssemblyRuntimeType /*runtimeType*/,
+    TCompartmentFunctionId /*runtimeFunction*/,
+    TWavmPodValue* /*result*/,
+    TRange<TWavmPodValue> /*arguments*/)
 {
     YT_UNIMPLEMENTED();
 }

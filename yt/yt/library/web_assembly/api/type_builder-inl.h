@@ -8,22 +8,15 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EWebAssemblyValueType
-{
-    UintPtr = 0,
-    Int64 = 1,
-    Int32 = 2,
-    Float32 = 3,
-    Float64 = 4,
-    Void = 5,
-};
-
 template <typename T>
 EWebAssemblyValueType InferType();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWebAssemblyRuntimeType GetTypeId(bool intrinsic, EWebAssemblyValueType returnType, TRange<EWebAssemblyValueType> arguments);
+TWebAssemblyRuntimeType GetTypeId(
+    bool intrinsic,
+    EWebAssemblyValueType returnType,
+    TRange<EWebAssemblyValueType> argumentTypes);
 
 template <typename THead, typename... TTail>
 Y_FORCE_INLINE void InferTypesImpl(TMutableRange<EWebAssemblyValueType> range)

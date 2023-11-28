@@ -8,6 +8,17 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EWebAssemblyValueType,
+    ((UintPtr) (0))
+    ((Int64)   (1))
+    ((Int32)   (2))
+    ((Float64) (3))
+    ((Float32) (4))
+    ((Void)    (5))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TWebAssemblyRuntimeType
 {
     void* Id;

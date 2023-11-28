@@ -4,9 +4,48 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK TWebAssemblyRuntimeType GetTypeId(bool, EWebAssemblyValueType, TRange<EWebAssemblyValueType>)
+#define XX(signature, type) \
+    template <> \
+    EWebAssemblyValueType InferType< signature >() \
+    { \
+        return type; \
+    }
+
+    XX(bool, EWebAssemblyValueType::Int32)
+    XX(char, EWebAssemblyValueType::Int32)
+    XX(int, EWebAssemblyValueType::Int32)
+    XX(unsigned int, EWebAssemblyValueType::Int32)
+
+    XX(long, EWebAssemblyValueType::Int64)
+    XX(unsigned long, EWebAssemblyValueType::Int64)
+
+    XX(float, EWebAssemblyValueType::Float32)
+    XX(double, EWebAssemblyValueType::Float64)
+
+    XX(char*, EWebAssemblyValueType::UintPtr)
+    XX(const char*, EWebAssemblyValueType::UintPtr)
+    XX(char**, EWebAssemblyValueType::UintPtr)
+    XX(const uint8_t*, EWebAssemblyValueType::UintPtr)
+    XX(const uint8_t**, EWebAssemblyValueType::UintPtr)
+    XX(int*, EWebAssemblyValueType::UintPtr)
+    XX(unsigned long*, EWebAssemblyValueType::UintPtr)
+    XX(void*, EWebAssemblyValueType::UintPtr)
+    XX(void**, EWebAssemblyValueType::UintPtr)
+    XX(void* const*, EWebAssemblyValueType::UintPtr)
+    XX(const void*, EWebAssemblyValueType::UintPtr)
+
+    XX(void, EWebAssemblyValueType::Void)
+
+#undef XX
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_WEAK TWebAssemblyRuntimeType GetTypeId(
+    bool /*intrinsic*/,
+    EWebAssemblyValueType /*returnType*/,
+    TRange<EWebAssemblyValueType> /*argumentTypes*/)
 {
-    return {};
+    YT_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

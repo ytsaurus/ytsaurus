@@ -1,4 +1,5 @@
 RECURSE(
     api
     engine
+    unittests
 )

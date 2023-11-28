@@ -19,6 +19,7 @@ public:
     using TTypedInvokeFunction = TResult(*)(TArgs...);
 
     TCompartmentFunction(IWebAssemblyCompartment* compartment, TTypedInvokeFunction function);
+    TCompartmentFunction(IWebAssemblyCompartment* compartment, const TString& name);
 
     TResult operator()(TArgs... args) const;
 
