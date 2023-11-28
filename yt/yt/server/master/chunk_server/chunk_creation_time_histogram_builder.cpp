@@ -228,6 +228,8 @@ private:
             std::mem_fn(&TInstant::MillisecondsFloat));
 
         Histogram_ = ChunkServerHistogramProfiler
+            .WithGlobal()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetCellTag()))
             .GaugeHistogram("/chunk_creation_time_histogram", bounds);
     }
 
