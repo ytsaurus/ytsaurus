@@ -1005,6 +1005,8 @@ private:
 
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
+        bool isInvalidImage = false;
+
         try {
             YT_LOG_DEBUG("Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
@@ -1013,8 +1015,19 @@ private:
 
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, std::move(volumeProperties)))
-                .ValueOrThrow();
+            auto errorOrValue =  WaitFor(VolumeExecutor_->CreateVolume(mountPath, std::move(volumeProperties)));
+            if (!errorOrValue.IsOK()) {
+                // TODO(yuryalekseev): Wait for porto to add Porto::InvalidImage
+                //if (errorOrValue.GetCode() == Porto::InvalidImage) {
+                //    isInvalidImage = true;
+                //}
+                auto it = volumeProperties.find("backend");
+                if (errorOrValue.GetCode() == EPortoErrorCode::Unknown && it != volumeProperties.end() && it->second == "squash") {
+                    isInvalidImage = true;
+                }
+            }
+
+            auto volumePath = errorOrValue.ValueOrThrow();
 
             YT_VERIFY(volumePath == mountPath);
 
@@ -1072,6 +1085,12 @@ private:
             auto error = TError("Failed to create %v volume %v",
                 FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId) << ex;
+
+            if (isInvalidImage) {
+                error.SetCode(EErrorCode::InvalidImage);
+                THROW_ERROR(error);
+            }
+
             Disable(error);
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithVolumeFailed) {

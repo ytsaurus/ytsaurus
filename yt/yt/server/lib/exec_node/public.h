@@ -49,6 +49,7 @@ YT_DEFINE_ERROR_ENUM(
     ((TmpfsLayerImportFailed)                (1130))
     ((SchedulerJobsDisabled)                 (1131))
     ((DockerImagePullingFailed)              (1132))
+    ((InvalidImage)                          (1133))
 );
 
 DEFINE_ENUM(ESandboxKind,
