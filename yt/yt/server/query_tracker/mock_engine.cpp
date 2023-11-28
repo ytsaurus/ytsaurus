@@ -24,6 +24,7 @@ public:
     TError Error;
     TTableSchemaPtr Schema;
     std::vector<INodePtr> Rows;
+    bool IsTruncated;
 
     REGISTER_YSON_STRUCT(TMockResult);
 
@@ -34,6 +35,8 @@ public:
         registrar.Parameter("schema", &TThis::Schema)
             .Default();
         registrar.Parameter("rows", &TThis::Rows)
+            .Default();
+        registrar.Parameter("is_truncated", &TThis::IsTruncated)
             .Default();
 
         registrar.Postprocessor([] (TThis* result) {
@@ -97,13 +100,14 @@ public:
         } else if (Query_ == "run_forever") {
             // Just do nothing.
         } else if (Query_ == "complete_after") {
-            std::vector<TErrorOr<NApi::IUnversionedRowsetPtr>> rowsetOrErrors;
+            std::vector<TErrorOr<TRowset>> rowsetOrErrors;
             for (const auto& result : Settings_->Results) {
                 if (!result->Error.IsOK()) {
                     rowsetOrErrors.emplace_back(result->Error);
                 } else {
                     YT_VERIFY(result->Schema);
                     TUnversionedRowsBuilder builder;
+
                     for (const auto& rowNode : result->Rows) {
                         auto owningRow = YsonToSchemafulRow(
                             ConvertToYsonString(rowNode).ToString(),
@@ -112,7 +116,7 @@ public:
                             EYsonType::Node);
                         builder.AddRow(TUnversionedRow(owningRow));
                     }
-                    rowsetOrErrors.emplace_back(CreateRowset(result->Schema, builder.Build()));
+                    rowsetOrErrors.emplace_back(TRowset{ .Rowset = CreateRowset(result->Schema, builder.Build()), .IsTruncated = result->IsTruncated });
                 }
             }
             DelayedCookie_ = TDelayedExecutor::Submit(

@@ -89,6 +89,26 @@ def read_query_result(query_id, result_index=None, stage=None, format=None, raw=
         client=client)
 
 
+def get_query_result(query_id, result_index=None, stage=None, format=None, client=None):
+    """Get query result.
+
+    :param query_id: id of a query to get result
+    :type query_id: str
+    :param result_index: index of a result to get, defaults to 0
+    :type result_index: int
+    :param stage: query tracker stage, defaults to "production"
+    :type stage: str
+    """
+
+    params = {
+        "query_id": query_id,
+        "result_index": get_value(result_index, 0),
+        "stage": get_value(stage, "production"),
+    }
+
+    return make_formatted_request("get_query_result", params, format=format, client=client)
+
+
 def get_query(query_id, attributes=None, stage=None, format=None, client=None):
     """Get query.
 

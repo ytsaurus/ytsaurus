@@ -197,11 +197,11 @@ private:
             .EndMap();
         OnProgress(std::move(progress));
 
-        std::vector<TErrorOr<TSharedRef>> wireRowsetOrErrors;
+        std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
             if (error.IsOK()) {
-                wireRowsetOrErrors.push_back(rsp->Attachments()[index]);
+                wireRowsetOrErrors.push_back(TWireRowset{ .Rowset = rsp->Attachments()[index], .IsTruncated = rsp->incomplete()[index] });
             } else {
                 wireRowsetOrErrors.push_back(error);
             }

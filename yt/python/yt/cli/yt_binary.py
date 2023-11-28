@@ -1241,6 +1241,22 @@ def add_get_query_parser(add_parser):
     add_structured_format_argument(parser)
 
 
+@copy_docstring_from(yt.get_query_result)
+def get_query_result(**kwargs):
+    result = yt.get_query_result(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_get_query_result_parser(add_parser):
+    parser = add_parser("get-query-result", get_query_result)
+    parser.add_argument("query_id", type=str, help="query id")
+    parser.add_argument("--result-index", type=int, help="index of query result, defaults to 0")
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    add_structured_format_argument(parser)
+
+
 @copy_docstring_from(yt.list_queries)
 def list_queries(**kwargs):
     result = yt.list_queries(**kwargs)
@@ -2457,6 +2473,7 @@ def main_func():
     add_abort_query_parser(add_parser)
     add_read_query_result_parser(add_parser)
     add_get_query_parser(add_parser)
+    add_get_query_result_parser(add_parser)
     add_list_queries_parser(add_parser)
 
     add_erase_parser(add_parser)

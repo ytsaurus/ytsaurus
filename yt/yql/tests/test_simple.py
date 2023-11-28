@@ -222,6 +222,30 @@ class TestQueriesYql(TestQueriesYqlBase):
             assert file_storage_config["max_size_mb"] == 1 << 13
 
 
+class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
+    QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"row_count_limit": 1}}
+
+    @authors("mpereskokova")
+    def test_rows_limit(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "sort_order": "ascending", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": 43}, {"a": 44}]
+        write_table("//tmp/t1", rows)
+
+        query = start_query("yql", "select * from `//tmp/t1`")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"a": 42}])
+        assert query.get_result(0)["is_truncated"]
+
+        query = start_query("yql", "select * from `//tmp/t1` limit 1")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"a": 42}])
+        assert not query.get_result(0)["is_truncated"]
+
+
 class TestQueriesYqlAuth(TestQueriesYqlBase):
     DELTA_PROXY_CONFIG = {
         "auth" : {"enable_authentication": True}

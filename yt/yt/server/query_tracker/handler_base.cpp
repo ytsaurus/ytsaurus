@@ -44,9 +44,9 @@ namespace NDetail {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void ProcessRowset(TFinishedQueryResultPartial& newRecord, TSharedRef wireSchemaAndSchemafulRowset)
+void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchemaAndSchemafulRowset)
 {
-    auto reader = CreateWireProtocolReader(wireSchemaAndSchemafulRowset);
+    auto reader = CreateWireProtocolReader(wireSchemaAndSchemafulRowset.Rowset);
     auto schema = reader->ReadTableSchema();
     auto rowset = reader->Slice(reader->GetCurrent(), reader->GetEnd());
     auto schemaNode = ConvertToNode(schema);
@@ -54,6 +54,7 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TSharedRef wireSchema
     schemaNode->MutableAttributes()->Clear();
     newRecord.Schema = ConvertToYsonString(schemaNode);
     newRecord.Rowset = TString(rowset.ToStringBuf());
+    newRecord.IsTruncated = wireSchemaAndSchemafulRowset.IsTruncated;
     auto schemaData = IWireProtocolReader::GetSchemaData(schema);
     auto rows = reader->ReadSchemafulRowset(schemaData, /*captureValues*/ false);
     TDataStatistics dataStatistics;
@@ -165,19 +166,19 @@ void TQueryHandlerBase::OnQueryFailed(const TError& error)
     }
 }
 
-void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<IUnversionedRowsetPtr>>& rowsetOrErrors)
+void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors)
 {
-    std::vector<TErrorOr<TSharedRef>> wireRowsetOrErrors;
+    std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
     for (const auto& rowsetOrError : rowsetOrErrors) {
         if (rowsetOrError.IsOK()) {
-            const auto& rowset = rowsetOrError.Value();
+            const auto& rowset = rowsetOrError.Value().Rowset;
             auto writer = CreateWireProtocolWriter();
             writer->WriteTableSchema(*rowset->GetSchema());
             writer->WriteSchemafulRowset(rowset->GetRows());
             auto refs = writer->Finish();
             struct THandlerTag { };
             auto result = MergeRefsToRef<THandlerTag>(refs);
-            wireRowsetOrErrors.push_back(std::move(result));
+            wireRowsetOrErrors.push_back(TWireRowset{ .Rowset = std::move(result), .IsTruncated = rowsetOrError.Value().IsTruncated });
         } else {
             wireRowsetOrErrors.push_back(static_cast<TError>(rowsetOrError));
         }
@@ -185,12 +186,12 @@ void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<IUnversioned
     OnQueryCompletedWire(wireRowsetOrErrors);
 }
 
-void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors)
+void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors)
 {
     YT_LOG_INFO("Query completed (ResultCount: %v)", wireRowsetOrErrors.size());
     for (const auto& [index, wireRowsetOrError] : Enumerate(wireRowsetOrErrors)) {
         if (wireRowsetOrError.IsOK()) {
-            YT_LOG_DEBUG("Result rowset (Index: %v, WireRowsetBytes: %v)", index, wireRowsetOrError.Value().size());
+            YT_LOG_DEBUG("Result rowset (Index: %v, WireRowsetBytes: %v)", index, wireRowsetOrError.Value().Rowset.size());
         } else {
             YT_LOG_DEBUG("Result error (Index: %v, Error: %v)", index, static_cast<TError>(wireRowsetOrError));
         }
@@ -251,7 +252,7 @@ void TQueryHandlerBase::TryWriteProgress()
     }
 }
 
-bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors)
+bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors)
 {
     try {
         auto transaction = StartIncarnationTransaction();

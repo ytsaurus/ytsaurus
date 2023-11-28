@@ -64,9 +64,20 @@ def query_tracker_environment():
     remove("//sys/query_tracker", recursive=True, force=True)
 
 
+def update_query_tracker_environment(cls):
+    if hasattr(cls, "QUERY_TRACKER_DYNAMIC_CONFIG") :
+        dynconfig = getattr(cls, "QUERY_TRACKER_DYNAMIC_CONFIG")
+
+        config = get("//sys/query_tracker/config")
+        config["query_tracker"] = dynconfig
+        set("//sys/query_tracker/config", config)
+
+
 @pytest.fixture
 def query_tracker(request, query_tracker_environment):
     cls = request.cls
     count = getattr(cls, "NUM_QUERY_TRACKERS", 1)
+    update_query_tracker_environment(cls)
+
     with QueryTracker(cls.Env, count) as query_tracker:
         yield query_tracker
