@@ -83,6 +83,7 @@ class LocalYtConfig(object):
     master_cache_count = attr.ib(0)
     remote_cluster_count = attr.ib(0)
     cell_balancer_count = attr.ib(0)
+    enable_bundle_controller = attr.ib(False)
     tablet_balancer_count = attr.ib(0)
     cypress_proxy_count = attr.ib(0)
     replicated_table_tracker_count = attr.ib(0)

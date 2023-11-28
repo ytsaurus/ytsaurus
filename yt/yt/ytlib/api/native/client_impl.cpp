@@ -193,6 +193,7 @@ TClient::TClient(
 
     SchedulerOperationProxy_ = std::make_unique<TOperationServiceProxy>(GetSchedulerChannel());
     SchedulerJobProberProxy_ = std::make_unique<TJobProberServiceProxy>(GetSchedulerChannel());
+    BundleControllerProxy_ = std::make_unique<NBundleController::TBundleControllerServiceProxy>(Connection_->GetBundleControllerChannel());
 
     TransactionManager_ = New<TTransactionManager>(
         Connection_,

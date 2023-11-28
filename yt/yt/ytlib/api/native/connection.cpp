@@ -64,6 +64,8 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/scheduler_channel.h>
 
+#include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
@@ -219,6 +221,12 @@ public:
 
         SchedulerChannel_ = CreateSchedulerChannel(
             config->Scheduler,
+            ChannelFactory_,
+            GetMasterChannelOrThrow(EMasterChannelKind::Leader),
+            GetNetworks());
+
+        BundleControllerChannel_ = NBundleController::CreateBundleControllerChannel(
+            config->BundleController,
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
@@ -514,6 +522,11 @@ public:
     const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;
+    }
+
+    const IChannelPtr& GetBundleControllerChannel() override
+    {
+        return BundleControllerChannel_;
     }
 
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
@@ -829,6 +842,8 @@ private:
     IChannelPtr CypressProxyChannel_;
 
     IChannelPtr SchedulerChannel_;
+    IChannelPtr BundleControllerChannel_;
+
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;

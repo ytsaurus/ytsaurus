@@ -41,4 +41,5 @@ target_sources(yt-server-cell_balancer PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/orchid_bindings.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/program.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/proxy_roles_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller_service.cpp
 )

@@ -1382,6 +1382,11 @@ class YTInstance(object):
 
                 if active_cell_balancer_orchid_path is None:
                     return False, "No active cell_balancer found"
+
+                if self.yt_config.enable_bundle_controller:
+                    if not client.exists("//sys/bundle_controller/orchid"):
+                        return False, "Bundle controller did not elect leader"
+
             except YtResponseError as err:
                 # Orchid connection refused
                 if not err.contains_code(105) and not err.contains_code(100):

@@ -238,6 +238,7 @@ class YTEnvSetup(object):
     ARTIFACT_COMPONENTS = {}
     FORCE_CREATE_ENVIRONMENT = False
     NUM_CELL_BALANCERS = 0
+    ENABLE_BUNDLE_CONTROLLER = False
     NUM_QUEUE_AGENTS = 0
     NUM_TABLET_BALANCERS = 0
     NUM_CYPRESS_PROXIES = 0
@@ -433,6 +434,7 @@ class YTEnvSetup(object):
             clock_count=clock_count,
             timestamp_provider_count=cls.get_param("NUM_TIMESTAMP_PROVIDERS", index),
             cell_balancer_count=cls.get_param("NUM_CELL_BALANCERS", index),
+            enable_bundle_controller=cls.get_param("ENABLE_BUNDLE_CONTROLLER", index),
             discovery_server_count=cls.get_param("NUM_DISCOVERY_SERVERS", index),
             queue_agent_count=cls.get_param("NUM_QUEUE_AGENTS", index),
             node_count=cls.get_param("NUM_NODES", index),

@@ -629,6 +629,19 @@ def _build_cell_balancer_configs(yt_config,
                                           yt_config,
                                           log_errors_to_stderr=True)
 
+        config["enable_bundle_controller"] = yt_config.enable_bundle_controller
+
+        if yt_config.enable_bundle_controller:
+            config["bundle_controller"] = {
+                "cluster" : "local",
+                "root_path" : "//sys/bundle_controller/controller",
+                "hulk_allocations_path" : "//sys/hulk/allocation_requests",
+                "hulk_allocations_history_path" : "//sys/hulk/allocation_requests_history",
+                "hulk_deallocations_path" : "//sys/hulk/deallocation_requests",
+                "hulk_deallocations_history_path" : "//sys/hulk/deallocation_requests_history",
+                "bundle_scan_period" : "100ms",
+            }
+
         configs.append(config)
         addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
