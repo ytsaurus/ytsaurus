@@ -212,68 +212,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
 void TObjectProxyBase::Invoke(const IYPathServiceContextPtr& context)
 {
-    const auto& requestHeader = context->RequestHeader();
-
-    // Validate that mutating requests are only being invoked inside mutations or recovery.
-    const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    YT_VERIFY(!ypathExt.mutating() || NHydra::HasHydraContext());
-
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-        const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-        objectManager->ValidatePrerequisites(prerequisitesExt);
-    }
-
-    for (const auto& additionalPath : ypathExt.additional_paths()) {
-        TPathResolver resolver(
-            Bootstrap_,
-            context->GetService(),
-            context->GetMethod(),
-            additionalPath,
-            GetTransactionId(context));
-        auto result = resolver.Resolve();
-        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
-            THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::CrossCellAdditionalPath,
-                "Request is cross-cell since it involves target path %v and additional path %v",
-                ypathExt.original_target_path(),
-                additionalPath);
-        }
-    }
-
-    const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-    for (const auto& prerequisite : prerequisitesExt.revisions()) {
-        const auto& prerequisitePath = prerequisite.path();
-        TPathResolver resolver(
-            Bootstrap_,
-            context->GetService(),
-            context->GetMethod(),
-            prerequisitePath,
-            GetTransactionId(context));
-        auto result = resolver.Resolve();
-        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
-            THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
-                "Request is cross-cell since it involves target path %v and revision prerequisite path %v",
-                ypathExt.original_target_path(),
-                prerequisitePath);
-        }
-    }
-
-    {
-        TStringBuilder builder;
-        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-
-        delimitedBuilder->AppendFormat("TargetObjectId: %v", GetVersionedId());
-
-        if (!ypathExt.target_path().empty()) {
-            delimitedBuilder->AppendFormat("RequestPathSuffix: %v", ypathExt.target_path());
-        }
-
-        context->SetRawRequestInfo(builder.Flush(), true);
-    }
-
-    ModificationTrackingSuppressed_ = GetSuppressModificationTracking(requestHeader);
 
     NProfiling::TWallTimer timer;
 
@@ -377,6 +316,74 @@ void TObjectProxyBase::DoWriteAttributesFragment(
 bool TObjectProxyBase::ShouldHideAttributes()
 {
     return true;
+}
+
+void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
+{
+    TYPathServiceBase::BeforeInvoke(context);
+
+    const auto& requestHeader = context->RequestHeader();
+
+    // Validate that mutating requests are only being invoked inside mutations or recovery.
+    const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    YT_VERIFY(!ypathExt.mutating() || NHydra::HasHydraContext());
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+        const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        objectManager->ValidatePrerequisites(prerequisitesExt);
+    }
+
+    for (const auto& additionalPath : ypathExt.additional_paths()) {
+        TPathResolver resolver(
+            Bootstrap_,
+            context->GetService(),
+            context->GetMethod(),
+            additionalPath,
+            GetTransactionId(context));
+        auto result = resolver.Resolve();
+        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellAdditionalPath,
+                "Request is cross-cell since it involves target path %v and additional path %v",
+                ypathExt.original_target_path(),
+                additionalPath);
+        }
+    }
+
+    const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+    for (const auto& prerequisite : prerequisitesExt.revisions()) {
+        const auto& prerequisitePath = prerequisite.path();
+        TPathResolver resolver(
+            Bootstrap_,
+            context->GetService(),
+            context->GetMethod(),
+            prerequisitePath,
+            GetTransactionId(context));
+        auto result = resolver.Resolve();
+        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
+                "Request is cross-cell since it involves target path %v and revision prerequisite path %v",
+                ypathExt.original_target_path(),
+                prerequisitePath);
+        }
+    }
+
+    {
+        TStringBuilder builder;
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+
+        delimitedBuilder->AppendFormat("TargetObjectId: %v", GetVersionedId());
+
+        if (!ypathExt.target_path().empty()) {
+            delimitedBuilder->AppendFormat("RequestPathSuffix: %v", ypathExt.target_path());
+        }
+
+        context->SetRawRequestInfo(builder.Flush(), true);
+    }
+
+    ModificationTrackingSuppressed_ = GetSuppressModificationTracking(requestHeader);
 }
 
 bool TObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)
