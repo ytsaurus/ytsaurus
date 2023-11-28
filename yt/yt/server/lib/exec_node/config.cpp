@@ -859,19 +859,11 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .Alias("statistics_reporter")
         .DefaultNew();
 
-    registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
-        .DefaultNew();
-
     registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)
         .DefaultNew();
 
     registrar.Parameter("job_proxy", &TThis::JobProxy)
         .DefaultNew();
-
-    registrar.Preprocessor([] (TThis* config) {
-        // 10 user jobs containers per second by default.
-        config->UserJobContainerCreationThrottler->Limit = 10;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

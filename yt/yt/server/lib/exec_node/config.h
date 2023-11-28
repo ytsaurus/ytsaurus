@@ -801,8 +801,6 @@ public:
 
     TJobReporterConfigPtr JobReporter;
 
-    NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
-
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
 
     TJobProxyConfigPtr JobProxy;

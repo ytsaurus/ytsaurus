@@ -833,7 +833,7 @@ private:
         }
 
         RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            Config_->ExecNode->UserJobContainerCreationThrottler,
+            New<NConcurrency::TThroughputThrottlerConfig>(),
             "UserJobContainerCreation",
             ClusterNodeLogger,
             ClusterNodeProfiler.WithPrefix("/user_job_container_creation_throttler"));
@@ -1356,9 +1356,7 @@ private:
         RawAnnounceChunkReplicaRpsOutThrottler_->Reconfigure(newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
             ? newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
             : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
-        RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler
-            ? newConfig->ExecNode->UserJobContainerCreationThrottler
-            : Config_->ExecNode->UserJobContainerCreationThrottler);
+        RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& service : CachingObjectServices_) {
