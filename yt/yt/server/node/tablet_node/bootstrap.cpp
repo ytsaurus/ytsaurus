@@ -201,10 +201,12 @@ public:
         QueryThreadPool_ = CreateNewTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
             QueryThreadPoolName,
-            New<TPoolWeightCache>(
-                GetConfig()->QueryAgent->PoolWeightCache,
-                GetClient(),
-                GetControlInvoker()));
+            {
+                New<TPoolWeightCache>(
+                    GetConfig()->QueryAgent->PoolWeightCache,
+                    GetClient(),
+                    GetControlInvoker())
+            });
 
         TableReplicatorThreadPool_ = CreateThreadPool(
             GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize,
