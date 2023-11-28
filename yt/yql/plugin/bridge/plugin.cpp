@@ -32,9 +32,9 @@ std::optional<TString> ToString(const char* str, size_t strLength)
 // Each YQL plugin ABI change should be listed here. Either a compat should be added
 // or MinSupportedYqlPluginAbiVersion should be promoted.
 DEFINE_ENUM(EYqlPluginAbiVersion,
-    ((Invalid)             (0))
-    ((TheBigBang)          (1))
-    ((AbortQuery)          (2)) // gritukan: Added BridgeAbort; no breaking changes.
+    ((Invalid)            (-1))
+    ((TheBigBang)          (0))
+    ((AbortQuery)          (1)) // gritukan: Added BridgeAbort; no breaking changes.
 );
 
 constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TheBigBang;
@@ -81,6 +81,7 @@ protected:
     FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX)
     #undef XX
 
+    // COMPAT(gritukan): AbortQuery
     static void AbortQueryStub(TBridgeYqlPlugin* /*plugin*/, const char* /*queryId*/)
     {
         // Just do nothing. It is not worse than in used to be before.
