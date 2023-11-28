@@ -291,6 +291,8 @@ public:
         static auto StructFieldClass = GetSchemaType("StructField");
         static auto FieldMissingFromSchemaClass = GetSchemaType("FieldMissingFromSchema");
         PyType_ = GetAttr(pySchema, PyTypeFieldName);
+        PyTypeStr_ = PyType_.as_string();
+        WithPostInit_ = PyType_.hasAttr("__post_init__");
         auto fields = Py::List(GetAttr(pySchema, FieldsFieldName));
         for (const auto& field : fields) {
             if (PyObject_IsInstance(field.ptr(), StructFieldClass.get())) {
@@ -318,7 +320,7 @@ public:
         if (!obj) {
             THROW_ERROR_EXCEPTION("Failed to create field %Qv of class %Qv",
                 Description_,
-                PyType_.as_string())
+                PyTypeStr_)
                 << Py::BuildErrorFromPythonException(/*clear*/ true);
         }
         for (int i = 0; i < std::ssize(FieldConverters_); ++i) {
@@ -338,6 +340,15 @@ public:
                     << Py::BuildErrorFromPythonException(/*clear*/ true);
             }
         }
+        if (WithPostInit_) {
+            auto result = PyObjectPtr(PyObject_CallMethod(obj.get(), "__post_init__", nullptr));
+            if (!result) {
+                THROW_ERROR_EXCEPTION("Failed to call __post_init__ for field %Qv of class %Qv",
+                    Description_,
+                    PyTypeStr_)
+                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+            }
+        }
         return obj;
     }
 
@@ -346,6 +357,8 @@ private:
     std::vector<TSkiffToPythonConverter> FieldConverters_;
     std::vector<TString> FieldNames_;
     Py::Object PyType_;
+    TString PyTypeStr_;
+    bool WithPostInit_;
     Py::Tuple EmptyTuple_;
     std::vector<TString> FieldsMissingFromSchema_;
 };
