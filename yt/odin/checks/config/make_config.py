@@ -1098,6 +1098,7 @@ def get_checks_config():
                 enable_discovery,
                 enable_remote_copy,
                 bundle_controller,
+                enable_query_tracker_alerts,
             ),
             "arnold": deep_merge(
                 skynet_manager,
