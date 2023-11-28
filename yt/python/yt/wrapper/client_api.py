@@ -40,7 +40,7 @@ from .spark import start_spark_cluster, find_spark_cluster  # noqa
 from .run_command_with_lock import run_command_with_lock  # noqa
 from .admin_commands import (  # noqa
     add_maintenance, remove_maintenance, disable_chunk_locations,
-    destroy_chunk_locations, resurrect_chunk_locations)
+    destroy_chunk_locations, resurrect_chunk_locations, build_master_snapshots)
 from .auth_commands import (  # noqa
     set_user_password, issue_token, revoke_token, list_user_tokens)
 

@@ -15,11 +15,13 @@ def build_snapshot(cell_id=None, client=None):
 
 def build_master_snapshots(set_read_only=None, wait_for_snapshot_completion=None, retry=None, client=None):
     """Build snapshots for all master cells"""
-    params = {
-        "set_read_only": set_read_only,
-        "wait_for_snapshot_completion": wait_for_snapshot_completion,
-        "retry": retry,
-    }
+    params = {}
+    if set_read_only is not None:
+        params["set_read_only"] = set_read_only
+    if wait_for_snapshot_completion is not None:
+        params["wait_for_snapshot_completion"] = wait_for_snapshot_completion
+    if retry is not None:
+        params["retry"] = retry
 
     return make_request("build_master_snapshots", params=params, client=client)
 
