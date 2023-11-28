@@ -1,4 +1,5 @@
 #include "two_level_fair_share_thread_pool.h"
+#include "new_fair_share_thread_pool.h"
 #include "private.h"
 #include "notify_manager.h"
 #include "profiling_helpers.h"
@@ -383,14 +384,13 @@ public:
     TTwoLevelFairShareQueue(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadNamePrefix,
-        IPoolWeightProviderPtr poolWeightProvider,
-        bool verboseLogging)
-        : TNotifyManager(std::move(callbackEventCount), GetThreadTags(threadNamePrefix), TDuration::MilliSeconds(10))
+        const TNewTwoLevelFairShareThreadPoolOptions& options)
+        : TNotifyManager(std::move(callbackEventCount), GetThreadTags(threadNamePrefix), options.PollingPeriod)
         , ThreadNamePrefix_(threadNamePrefix)
         , Profiler_(TProfiler{"/fair_share_queue"}
             .WithHot())
-        , PoolWeightProvider_(std::move(poolWeightProvider))
-        , VerboseLogging_(verboseLogging)
+        , PoolWeightProvider_(options.PoolWeightProvider)
+        , VerboseLogging_(options.VerboseLogging)
     { }
 
     ~TTwoLevelFairShareQueue()
@@ -1102,14 +1102,12 @@ public:
     TTwoLevelFairShareThreadPool(
         int threadCount,
         const TString& threadNamePrefix,
-        IPoolWeightProviderPtr poolWeightProvider,
-        bool verboseLogging)
+        const TNewTwoLevelFairShareThreadPoolOptions& options)
         : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TTwoLevelFairShareQueue>(
             CallbackEventCount_,
             ThreadNamePrefix_,
-            std::move(poolWeightProvider),
-            verboseLogging))
+            options))
     {
         Configure(threadCount);
     }
@@ -1188,14 +1186,12 @@ private:
 ITwoLevelFairShareThreadPoolPtr CreateNewTwoLevelFairShareThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    IPoolWeightProviderPtr poolWeightProvider = nullptr,
-    bool verboseLogging = false)
+    const TNewTwoLevelFairShareThreadPoolOptions& options)
 {
     return New<TTwoLevelFairShareThreadPool>(
         threadCount,
         threadNamePrefix,
-        std::move(poolWeightProvider),
-        verboseLogging);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
