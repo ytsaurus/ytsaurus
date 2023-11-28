@@ -409,7 +409,8 @@ private:
     const TPeriodicExecutorPtr PassExecutor_;
     const IQueueProfileManagerPtr ProfileManager_;
 
-    struct TQueueExport {
+    struct TQueueExport
+    {
         TScheduledExecutorPtr Executor;
         TQueueExporterPtr Exporter;
     };
@@ -417,7 +418,7 @@ private:
     THashMap<TString, TQueueExport> QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
 
-    void Export(TString exportName)
+    void Export(const TString& exportName)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -510,7 +511,6 @@ private:
                                 Invoker_,
                                 Logger.WithTag("ExportName: %v", name)),
                         };
-
                     }
 
                     QueueExports_[name].Executor->SetInterval(config.ExportPeriod);
