@@ -849,3 +849,34 @@ class TestJoinAndIn(ClickHouseTestBase):
 
             with raises_yt_error(QueryFailedError):
                 assert clique.make_query(query)
+
+    @authors("dakovalkov")
+    def test_join_table_and_array_join(self):
+        schema = [{"name": "a", "type": "int64", "sort_order": "ascending"}]
+        create("table", "//tmp/t1", attributes={"schema": schema})
+        write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
+        create("table", "//tmp/t2", attributes={"schema": schema})
+        write_table("//tmp/t2", [{"a": 1}, {"a": 2}])
+
+        with Clique(1) as clique:
+            query = '''select a, b from "//tmp/t1" as t1
+                       join "//tmp/t2" as t2
+                       using a
+                       array join [3, 4] as b
+                       order by a, b'''
+            assert clique.make_query(query) == [
+                {"a": 1, "b": 3},
+                {"a": 1, "b": 4},
+                {"a": 2, "b": 3},
+                {"a": 2, "b": 4}]
+
+            query = '''select a, b from "//tmp/t1" as t1
+                       array join [3, 4] as b
+                       join "//tmp/t2" as t2
+                       using a
+                       order by a, b'''
+            assert clique.make_query(query) == [
+                {"a": 1, "b": 3},
+                {"a": 1, "b": 4},
+                {"a": 2, "b": 3},
+                {"a": 2, "b": 4}]
