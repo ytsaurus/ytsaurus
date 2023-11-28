@@ -32,6 +32,8 @@
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/master/transaction_server/config.h>
+
 #include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 
@@ -861,10 +863,27 @@ void TNontemplateCypressNodeProxyBase::GetBasicAttributes(TGetBasicAttributesCon
     context->ContentRevision = node->GetContentRevision();
 }
 
+void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(const TString& method) const
+{
+    const auto& transactionManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
+    if (!Transaction_ || !transactionManagerConfig->CheckTransactionIsCompatibleWithMethod) {
+        return;
+    }
+
+    const auto& typeToWhitelist = transactionManagerConfig->TransactionTypeToMethodWhitelist;
+    auto transactionType = TypeFromId(Transaction_->GetId());
+    auto it = typeToWhitelist.find(transactionType);
+    if (it != typeToWhitelist.end() && !it->second.contains(method)) {
+        THROW_ERROR_EXCEPTION("Method %Qv is not supported for type %Qv", method, transactionType)
+            << TErrorAttribute("transaction_id", Transaction_->GetId());
+    }
+}
+
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
 {
     AccessTrackingSuppressed_ = GetSuppressAccessTracking(context->RequestHeader());
     ExpirationTimeoutRenewalSuppressed_ = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
+    ValidateMethodWhitelistedForTransaction(context->GetMethod());
 
     TObjectProxyBase::BeforeInvoke(context);
 }
@@ -1479,6 +1498,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     if (!ignoreExisting && ignoreTypeMismatch) {
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_type_mismatch\" without \"ignore_existing\"");
+    }
+
+    if (Transaction_) {
+        auto transactionId = Transaction_->GetId();
+        const auto& transactionManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
+        if (transactionManagerConfig->CheckTransactionIsCompatibleWithMethod &&
+            IsSystemTransactionType(TypeFromId(transactionId)) &&
+            type != EObjectType::ChaosReplicatedTable) {
+            THROW_ERROR_EXCEPTION("Cannot create type %Qv using system transaction", type)
+                << TErrorAttribute("transaction_id", transactionId);
+        }
     }
 
     bool replace = path.empty();

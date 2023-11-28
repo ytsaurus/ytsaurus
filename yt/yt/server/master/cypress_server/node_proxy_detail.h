@@ -208,6 +208,8 @@ protected:
     void SetAccessed();
     void SuppressAccessTracking();
 
+    void ValidateMethodWhitelistedForTransaction(const TString& method) const;
+
     void SetTouched();
     void SuppressExpirationTimeoutRenewal();
 

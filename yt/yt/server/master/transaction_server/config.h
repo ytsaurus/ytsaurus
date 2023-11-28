@@ -58,6 +58,11 @@ public:
 
     bool IgnoreCypressTransactions;
 
+    bool CheckTransactionIsCompatibleWithMethod;
+
+    // NB: If type is not present in this map, then all methods are allowed.
+    THashMap<NObjectClient::EObjectType, THashSet<TString>> TransactionTypeToMethodWhitelist;
+
     // COMPAT(h0pless): This is a panic button in case new types cause issues for users.
     bool EnableDedicatedTypesForSystemTransactions;
 

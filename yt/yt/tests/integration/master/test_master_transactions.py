@@ -76,6 +76,17 @@ class TestMasterTransactions(YTEnvSetup):
 
         remove("//tmp/value")
 
+    @authors("h0pless")
+    def test_transaction_method_whitelist(self):
+        set("//sys/@config/transaction_manager/transaction_type_to_method_whitelist/transaction", [])
+        tx = start_transaction()
+        with pytest.raises(YtError, match="Method .* is not supported for type"):
+            set("//tmp/value", "100", tx=tx)
+
+        remove("//sys/@config/transaction_manager/transaction_type_to_method_whitelist")
+        set("//tmp/value", "100", tx=tx)
+        commit_transaction(tx)
+
     @authors("panin", "ignat")
     def test_nested_tx1(self):
         set("//tmp/t1", 0)
