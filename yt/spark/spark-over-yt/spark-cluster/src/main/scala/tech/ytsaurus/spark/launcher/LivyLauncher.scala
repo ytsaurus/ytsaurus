@@ -28,7 +28,7 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
     prepareLivyConf(address, masterAddress, maxSessions)
     prepareLivyClientConf(driverCores, driverMemory)
 
-    withService(startLivyServer(externalAddress)) { livyServer =>
+    withService(startLivyServer(address)) { livyServer =>
       discoveryService.registerLivy(externalAddress)
 
       def isAlive: Boolean = {
