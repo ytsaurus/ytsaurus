@@ -382,11 +382,7 @@ bool TObjectProxyBase::ShouldHideAttributes()
 bool TObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
-    if (context->GetMethod() == "Get") {
-        auto options = ::NYT ::NRpc ::THandlerInvocationOptions();
-        GetThunk(context, options);
-        return true;
-    };
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Set);
     DISPATCH_YPATH_SERVICE_METHOD(Remove);

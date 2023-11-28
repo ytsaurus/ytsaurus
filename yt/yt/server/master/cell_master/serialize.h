@@ -186,6 +186,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkReincarnatorMinorFixes)                                  (2448))  // kvk1920
     ((AddGroundSupport)                                             (2449))  // h0pless
     ((FixTransactionACLs)                                           (2450))  // h0pless
+    ((AddTransactionCompatibilityWithMethodCheck)                   (2451))  // h0pless
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
