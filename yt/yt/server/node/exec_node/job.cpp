@@ -2656,10 +2656,6 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
         .TrafficMeter = TrafficMeter_,
     };
 
-    if (UserJobSpec_ && UserJobSpec_->has_enable_squashfs()) {
-        options.ConvertLayerToSquashFS = UserJobSpec_->enable_squashfs();
-    }
-
     return options;
 }
 
@@ -2756,7 +2752,8 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
 
     // This is most probably user error, still we don't want to make it fatal.
     if (resultError.FindMatching(NExecNode::EErrorCode::LayerUnpackingFailed) ||
-        resultError.FindMatching(NExecNode::EErrorCode::DockerImagePullingFailed))
+        resultError.FindMatching(NExecNode::EErrorCode::DockerImagePullingFailed) ||
+        resultError.FindMatching(NExecNode::EErrorCode::InvalidImage))
     {
         return std::nullopt;
     }

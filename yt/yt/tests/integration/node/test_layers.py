@@ -789,12 +789,15 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            # This test_root_fs is for compatibility with 23.2 for now.
             "test_root_fs": True,
-            "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
+            },
+            "job_proxy": {
+                "test_root_fs": True,
             },
         }
     }
@@ -840,6 +843,32 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         assert len(job_ids) == 1
         for job_id in job_ids:
             assert b"squash_file" in op.read_stderr(job_id)
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(150)
+    def test_corrupted_squashfs_layer(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/corrupted_squashfs.img"],
+                    },
+                },
+            )
+
+        # YT-14186: Corrupted user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
