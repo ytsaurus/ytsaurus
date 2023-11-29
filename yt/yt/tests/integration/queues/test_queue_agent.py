@@ -2600,13 +2600,17 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
 
     @staticmethod
     # NB: The last two options should be used carefully: currently they strictly check that all timestamps are within [ts - period, ts], which might not generally be the case.
-    def _check_export(export_directory, expected_data, queue_path=None, use_upper_bound_for_table_names=True, export_period=None):
+    def _check_export(export_directory, expected_data, queue_path=None, use_upper_bound_for_table_names=False, check_lower_bound=False):
         export_fragments = [name for name in sorted(ls(export_directory)) if f"{export_directory}/{name}" != queue_path]
         assert len(export_fragments) == len(expected_data)
-        export_progress = get(f"{export_directory}/@queue_static_export_progress")
-        assert export_progress["last_exported_fragment_unix_ts"] == (int(export_fragments[-1].split("-")[0]) + (0 if use_upper_bound_for_table_names else export_period))
 
         queue_id = get(f"{export_directory}/@queue_static_export_destination/originating_queue_id")
+
+        export_progress = get(f"{export_directory}/@queue_static_export_progress")
+
+        last_fragment_unix_tx, last_fragment_export_period = map(int, export_fragments[-1].split("-"))
+        assert export_progress["last_exported_fragment_unix_ts"] == last_fragment_unix_tx + (0 if use_upper_bound_for_table_names else last_fragment_export_period)
+
         queue_schema_id = get(f"#{queue_id}/@schema_id")
         queue_schema = get(f"#{queue_id}/@schema")
         queue_native_cell_tag = get(f"#{queue_id}/@native_cell_tag")
@@ -2621,8 +2625,6 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
                 continue
 
             fragment_unix_ts, fragment_export_period = map(int, fragment_name.split("-"))
-            if export_period is not None:
-                assert export_period == fragment_export_period
 
             fragment_native_cell_tag = get(f"{fragment_table_path}/@native_cell_tag")
 
@@ -2637,14 +2639,17 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
             rows = list(read_table(fragment_table_path))
             assert list(map(itemgetter("data"), rows)) == expected_data[fragment_index]
 
+            ts_lower_bound = fragment_unix_ts - (fragment_export_period if use_upper_bound_for_table_names else 0)
+            ts_upper_bound = fragment_unix_ts + (0 if use_upper_bound_for_table_names else fragment_export_period)
+
             for row in rows:
                 ts = row["$timestamp"]
                 max_timestamp = max(ts, max_timestamp)
 
-                if use_upper_bound_for_table_names:
-                    assert ts >> 30 <= fragment_unix_ts
-                else:
-                    assert fragment_unix_ts <= ts >> 30 <= fragment_unix_ts + export_period
+                assert ts >> 30 <= ts_upper_bound
+
+                if check_lower_bound:
+                    assert ts_lower_bound <= ts >> 30
 
             total_row_count += len(rows)
 
@@ -2689,7 +2694,6 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
-                "use_upper_bound_for_table_names": True,
             }
         })
 
@@ -2735,7 +2739,6 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
-                "use_upper_bound_for_table_names": True,
             }
         })
 
@@ -2763,7 +2766,6 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
-                "use_upper_bound_for_table_names": True,
             }
         })
 
@@ -2796,12 +2798,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "first": {
                 "export_directory": export_dir_1,
                 "export_period": 1 * 1000,
-                "use_upper_bound_for_table_names": True,
             },
             "second": {
                 "export_directory": export_dir_2,
                 "export_period": 2 * 1000,
-                "use_upper_bound_for_table_names": True,
             },
         })
 
@@ -2821,14 +2821,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir_2)) == 2)
 
         expected = [["foo"] * 6] + [["bar"] * 6]
-        self._check_export(export_dir_1, expected, queue_path=queue_path)
-        self._check_export(export_dir_2, expected, queue_path=queue_path)
+        self._check_export(export_dir_1, expected)
+        self._check_export(export_dir_2, expected)
 
         set(f"{queue_path}/@static_export_config", {
             "second": {
                 "export_directory": export_dir_2,
                 "export_period": 2 * 1000,
-                "use_upper_bound_for_table_names": True,
             },
         })
 
@@ -2841,19 +2840,17 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir_1)) == 2)
         wait(lambda: len(ls(export_dir_2)) == 3)
 
-        self._check_export(export_dir_1, expected, queue_path=queue_path)
-        self._check_export(export_dir_2, expected + [["abc"] * 6], queue_path=queue_path)
+        self._check_export(export_dir_1, expected)
+        self._check_export(export_dir_2, expected + [["abc"] * 6])
 
         set(f"{queue_path}/@static_export_config", {
             "second": {
                 "export_directory": export_dir_2,
                 "export_period": 2 * 1000,
-                "use_upper_bound_for_table_names": True,
             },
             "third": {
                 "export_directory": export_dir_3,
                 "export_period": 3 * 1000,
-                "use_upper_bound_for_table_names": True,
             },
         })
 
@@ -2862,7 +2859,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         wait(lambda: len(ls(export_dir_3)) == 1)
         expected_third = [["foo"] * 6 + ["bar"] * 6 + ["abc"] * 6]
-        self._check_export(export_dir_3, expected_third, queue_path=queue_path)
+        self._check_export(export_dir_3, expected_third)
 
         insert_rows(queue_path, [{"$tablet_index": 0, "data": "def"}] * 6)
         self._flush_table(queue_path)
@@ -2876,8 +2873,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         expected_second = expected + [["abc"] * 6] + [["def"] * 6]
         expected_third = expected_third + [["def"] * 6]
 
-        self._check_export(export_dir_2, expected_second, queue_path=queue_path)
-        self._check_export(export_dir_3, expected_third, queue_path=queue_path)
+        self._check_export(export_dir_2, expected_second)
+        self._check_export(export_dir_3, expected_third)
 
         self.remove_export_destination(export_dir_1)
         self.remove_export_destination(export_dir_2)
@@ -2976,7 +2973,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         wait(lambda: len(ls(export_dir)) == 1)
         # Given the constraints above, we check that all timestamps lie in [ts, ts + period], where ts is the timestamp in the name of the output table.
-        self._check_export(export_dir, [["foo"] * 2], use_upper_bound_for_table_names=False, export_period=3)
+        self._check_export(export_dir, [["foo"] * 2], use_upper_bound_for_table_names=False, check_lower_bound=True)
 
         self.remove_export_destination(export_dir)
 
