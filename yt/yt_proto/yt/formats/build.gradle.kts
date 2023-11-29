@@ -22,7 +22,7 @@ java {
 }
 
 dependencies {
-    api("com.google.protobuf:protobuf-java:3.21.12")
+    api("com.google.protobuf:protobuf-java:3.22.5")
 
     protobuf(files(buildProtoDir))
 }
