@@ -513,11 +513,7 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
-                auto leaseManager = GetLeaseManager();
-                for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
-                    auto* lease = leaseManager->GetLease(prerequisiteTransactionId);
-                    transaction->PersistentLeaseGuards().push_back(lease->GetPersistentLeaseGuard(/*force*/ true));
-                }
+                AddPersistentLeaseGuards(transaction, prerequisiteTransactionIds);
 
                 YT_LOG_DEBUG(
                     "Performing atomic write as leader (TabletId: %v, TransactionId: %v, BatchGeneration: %x, "
@@ -669,11 +665,7 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
-                auto leaseManager = GetLeaseManager();
-                for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
-                    auto* lease = leaseManager->GetLease(prerequisiteTransactionId);
-                    transaction->PersistentLeaseGuards().push_back(lease->GetPersistentLeaseGuard(/*force*/ true));
-                }
+                AddPersistentLeaseGuards(transaction, prerequisiteTransactionIds);
 
                 YT_LOG_DEBUG(
                     "Performing atomic write as follower (TabletId: %v, TransactionId: %v, "
@@ -1198,6 +1190,17 @@ private:
             UnlockTablet(tablet, ETabletLockType::PersistentTransaction);
         }
         transaction->PersistentAffectedTabletIds().clear();
+    }
+
+    void AddPersistentLeaseGuards(
+        TTransaction* transaction,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds)
+    {
+        auto leaseManager = GetLeaseManager();
+        for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
+            auto* lease = leaseManager->GetLease(prerequisiteTransactionId);
+            transaction->PersistentLeaseGuards().push_back(lease->GetPersistentLeaseGuard(/*force*/ true));
+        }
     }
 
     TTabletCellWriteManagerDynamicConfigPtr GetDynamicConfig() const

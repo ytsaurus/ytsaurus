@@ -963,7 +963,7 @@ public:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        auto leaseTransactionIds = cell->LeaseTransactionIds();
+        const auto& leaseTransactionIds = cell->LeaseTransactionIds();
         if (!leaseTransactionIds.empty() && !forceRemove) {
             YT_LOG_ALERT("Tablet cell has lease transactions after decommission on node "
                 "(CellId: %v, LeaseTransactionCount: %v, SomeLeaseTransactionId: %v)",

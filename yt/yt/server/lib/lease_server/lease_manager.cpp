@@ -205,7 +205,7 @@ private:
     };
 
     const TLeaseId Id_;
-    TLeaseManager* const Owner_;
+    TWeakPtr<TLeaseManager> Owner_;
 
     ELeaseState State_ = ELeaseState::Unknown;
 };
@@ -353,11 +353,9 @@ public:
                 }
             }
 
-            YT_LOG_INFO(
-                "Lease manager is decommissioned");
+            YT_LOG_INFO("Lease manager is decommissioned");
         } else {
-            YT_LOG_INFO(
-                "Lease manager is no longer decommissioned");
+            YT_LOG_INFO("Lease manager is no longer decommissioned");
         }
 
         Decommission_ = decommission;
@@ -466,10 +464,6 @@ private:
         LeaseRemovalExecutor_->Start();
 
         LeaderAutomatonTerm_ = TCompositeAutomatonPart::HydraManager_->GetAutomatonTerm();
-        // COMPAT(gritukan, aleksandra-zh): This is a compat for Old Hydra.
-        if (LeaderAutomatonTerm_ == InvalidTerm) {
-            LeaderAutomatonTerm_ = std::nullopt;
-        }
 
         for (auto [leaseId, lease] : LeaseMap_) {
             MaybeRemoveLease(lease);
@@ -618,10 +612,11 @@ private:
         YT_VERIFY(HasHydraContext());
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
+        auto force = request->force();
+
         auto* lease = GetLeaseOrThrow(leaseId);
 
         if (request->reference()) {
-            auto force = request->force();
             lease->RefPersistently(force);
         } else {
             lease->UnrefPersistently();
@@ -747,7 +742,9 @@ private:
             persistentRefCounter + 1,
             persistentRefCounter);
 
-        MaybeRemoveLease(lease);
+        if (IsLeader()) {
+            MaybeRemoveLease(lease);
+        }
 
         return persistentRefCounter;
     }
@@ -756,11 +753,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
-
-        // TODO(gritukan, aleksandra-zh): This is a compat for Old Hydra.
-        if (!LeaderAutomatonTerm_) {
-            THROW_ERROR_EXCEPTION("Leader automaton term is null, probably the Old Hydra is used");
-        }
+        YT_VERIFY(LeaderAutomatonTerm_);
 
         if (!force && lease->GetState() != ELeaseState::Active) {
             THROW_ERROR_EXCEPTION("Non-active lease cannot be referenced transiently")
@@ -882,48 +875,69 @@ private:
 
 int TLease::RefPersistently(bool force)
 {
+    auto* owner = Owner_.Lock();
+    YT_VERIFY(owner);
+
     return Owner_->RefLeasePersistently(this, force);
 }
 
 int TLease::UnrefPersistently()
 {
+    auto* owner = Owner_.Lock();
+    YT_VERIFY(owner);
+
     return Owner_->UnrefLeasePersistently(this);
 }
 
 ILeaseGuardPtr TLease::GetPersistentLeaseGuard(bool force)
 {
+    auto* owner = Owner_.Lock();
+    YT_VERIFY(owner);
+
     return New<TPersistentLeaseGuard>(
         this,
-        MakeStrong(Owner_),
+        MakeStrong(owner),
         force,
         /*onLoad*/ false);
 }
 
 ILeaseGuardPtr TLease::GetPersistentLeaseGuardOnLoad()
 {
+    auto* owner = Owner_.Lock();
+    YT_VERIFY(owner);
+
     return New<TPersistentLeaseGuard>(
         this,
-        MakeStrong(Owner_),
+        MakeStrong(owner),
         /*force*/ false,
         /*onLoad*/ true);
 }
 
 int TLease::RefTransiently(bool force)
 {
+    auto* owner = Owner_.Lock();
+    YT_VERIFY(owner);
+
     return Owner_->RefLeaseTransiently(this, force);
 }
 
 int TLease::UnrefTransiently(int leaderAutomatonTerm)
 {
+    auto* owner = Owner_.Lock();
+    YT_VERIFY(owner);
+
     return Owner_->UnrefLeaseTransiently(this, leaderAutomatonTerm);
 }
 
 ILeaseGuardPtr TLease::GetTransientLeaseGuard(bool force)
 {
-    auto leaderAutomatonTerm = *Owner_->GetLeaderAutomatonTerm();
+    auto* owner = Owner_.Lock();
+    YT_VERIFY(owner);
+
+    auto leaderAutomatonTerm = *owner->GetLeaderAutomatonTerm();
     return New<TTransientLeaseGuard>(
         this,
-        MakeStrong(Owner_),
+        MakeStrong(owner),
         force,
         leaderAutomatonTerm);
 }
