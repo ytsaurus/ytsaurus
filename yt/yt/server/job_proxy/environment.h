@@ -9,13 +9,12 @@
 
 #include <yt/yt/library/process/process.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/client/job_tracker_client/public.h>
-
 
 namespace NYT::NJobProxy {
 
@@ -158,6 +157,13 @@ struct IJobProxyEnvironment
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
         NJobTrackerClient::TJobId jobId,
         const TUserJobEnvironmentOptions& options) = 0;
+
+    // TODO(gritukan, khlebnikov): For now job proxy and user job are run in the same cgroup
+    // in CRI environment. This means that their statistics are indisguishable. Remove these methods
+    // when separate container for job proxy is implemented.
+    virtual TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetJobMemoryStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetJobBlockIOStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetJobCpuStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
