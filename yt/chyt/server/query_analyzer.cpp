@@ -517,7 +517,8 @@ void TQueryAnalyzer::ParseQuery()
     auto* tablesInSelectQuery = selectQuery->tables()->as<DB::ASTTablesInSelectQuery>();
     YT_VERIFY(tablesInSelectQuery);
     YT_VERIFY(tablesInSelectQuery->children.size() >= 1);
-    YT_VERIFY(tablesInSelectQuery->children.size() <= 2);
+    // There may be maximum 3 children: the main table, 1 joined table and 1 array join.
+    YT_VERIFY(tablesInSelectQuery->children.size() <= 3);
 
     TInOperatorMatcher::Data data;
     TInOperatorVisitor(data).visit(QueryInfo_.query);
@@ -527,21 +528,19 @@ void TQueryAnalyzer::ParseQuery()
         auto& tableInSelectQuery = tablesInSelectQuery->children[index];
         auto* tablesElement = tableInSelectQuery->as<DB::ASTTablesInSelectQueryElement>();
         YT_VERIFY(tablesElement);
-        if (!tablesElement->table_expression) {
-            // First element should always be table expression as it is the
+
+        if (tablesElement->array_join) {
+            // First element should always be a table expression.
             YT_VERIFY(index != 0);
             continue;
         }
+        YT_VERIFY(tablesElement->table_expression);
 
         YT_LOG_DEBUG("Found table expression (Index: %v, TableExpression: %v)", index, *tablesElement->table_expression);
 
-        if (index == 1) {
+        if (index != 0) {
             Join_ = true;
-        }
-
-        auto& tableExpression = tablesElement->table_expression;
-
-        if (tablesElement->table_join) {
+            YT_VERIFY(tablesElement->table_join);
             const auto* tableJoin = tablesElement->table_join->as<DB::ASTTableJoin>();
             YT_VERIFY(tableJoin);
             if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::JoinLocality::Global)) {
@@ -558,8 +557,11 @@ void TQueryAnalyzer::ParseQuery()
                 YT_LOG_DEBUG("Query is a cross join");
                 CrossJoin_ = true;
             }
+        } else {
+            YT_VERIFY(!tablesElement->table_join);
         }
 
+        auto& tableExpression = tablesElement->table_expression;
         TableExpressions_.emplace_back(tableExpression->as<DB::ASTTableExpression>());
         YT_VERIFY(TableExpressions_.back());
         TableExpressionPtrs_.emplace_back(&tableExpression);
