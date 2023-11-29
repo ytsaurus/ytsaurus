@@ -676,7 +676,7 @@ public:
 
         std::vector<pid_t> pids;
         for (auto pid : ListPids()) {
-            std::map<TString, TString> cgroups;
+            THashMap<TString, TString> cgroups;
             try {
                 cgroups = GetProcessCGroups(pid);
             } catch (const std::exception& ex) {
