@@ -19,7 +19,7 @@ java {
 dependencies {
     api(project(":yt:java:annotations"))
     api(project(":yt:java:yson"))
-    testImplementation("junit:junit:4.13")
+    testImplementation(""junit:junit:4.13"")
 }
 
 tasks.test {

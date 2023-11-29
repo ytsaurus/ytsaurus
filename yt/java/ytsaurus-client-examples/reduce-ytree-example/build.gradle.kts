@@ -18,9 +18,9 @@ java {
 dependencies {
     implementation(project(":yt:java:annotations"))
     implementation(project(":yt:java:ytsaurus-client"))
-    implementation("javax.persistence:persistence-api:1.0")
-    implementation("com.google.protobuf:protobuf-java:3.22.5")
-    implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
+    implementation(""javax.persistence:persistence-api:1.0"")
+    implementation(""com.google.protobuf:protobuf-java:3.22.5"")
+    implementation(""org.apache.logging.log4j:log4j-slf4j-impl:2.13.1"")
 }
 
 tasks.test {
