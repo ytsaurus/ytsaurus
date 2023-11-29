@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/scheduler/public.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 #include <yt/yt/core/misc/common.h>
 
 namespace NYT::NChunkServer {
@@ -17,8 +19,17 @@ using TImmutableChunkMetaPtr = std::unique_ptr<TImmutableChunkMeta>;
 
 YT_DEFINE_STRONG_TYPEDEF(TJobId, TGuid);
 
-NScheduler::TJobId ToSchedulerJobId(TJobId jobId);
-TJobId FromSchedulerJobId(NScheduler::TJobId jobId);
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TJobSpec;
+class TReqHeartbeat;
+class TRspHeartbeat;
+class TJobResult;
+class TJobStatus;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

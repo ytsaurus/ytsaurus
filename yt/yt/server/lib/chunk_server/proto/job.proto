@@ -2,7 +2,7 @@ package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/chunk_client/proto/chunk_service.proto";
 
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/yt/server/lib/chunk_server/proto/job_common.proto";
 
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
@@ -14,7 +14,7 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 message TReplicateChunkJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NChunkServer.NProto.TJobSpec
     {
         optional TReplicateChunkJobSpecExt replicate_chunk_job_spec_ext = 201;
     }
@@ -42,7 +42,7 @@ message TReplicateChunkJobSpecExt
 
 message TRemoveChunkJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NChunkServer.NProto.TJobSpec
     {
         optional TRemoveChunkJobSpecExt remove_chunk_job_spec_ext = 204;
     }
@@ -68,7 +68,7 @@ message TRemoveChunkJobSpecExt
 
 message TRepairChunkJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NChunkServer.NProto.TJobSpec
     {
         optional TRepairChunkJobSpecExt repair_chunk_job_spec_ext = 202;
     }
@@ -111,7 +111,7 @@ message TRepairChunkJobSpecExt
 
 message TSealChunkJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NChunkServer.NProto.TJobSpec
     {
         optional TSealChunkJobSpecExt seal_chunk_job_spec_ext = 203;
     }
@@ -175,7 +175,7 @@ message TChunkMergerWriterOptions
 
 message TMergeChunksJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NChunkServer.NProto.TJobSpec
     {
         optional TMergeChunksJobSpecExt merge_chunks_job_spec_ext = 208;
     }
@@ -192,7 +192,7 @@ message TMergeChunksJobSpecExt
 
 message TMergeChunksJobResultExt
 {
-    extend NJobTrackerClient.NProto.TJobResult
+    extend NChunkServer.NProto.TJobResult
     {
         optional TMergeChunksJobResultExt merge_chunks_job_result_ext = 210;
     }
@@ -206,7 +206,7 @@ message TMergeChunksJobResultExt
 
 message TAutotomizeChunkJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NChunkServer.NProto.TJobSpec
     {
         optional TAutotomizeChunkJobSpecExt autotomize_chunk_job_spec_ext = 209;
     }
@@ -232,7 +232,7 @@ message TAutotomizeChunkJobSpecExt
 
 message TAutotomizeChunkJobResultExt
 {
-    extend NJobTrackerClient.NProto.TJobResult
+    extend NChunkServer.NProto.TJobResult
     {
         optional TAutotomizeChunkJobResultExt autotomize_chunk_job_result_ext = 201;
     }
@@ -247,7 +247,7 @@ message TAutotomizeChunkJobResultExt
 
 message TReincarnateChunkJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NChunkServer.NProto.TJobSpec
     {
         optional TReincarnateChunkJobSpecExt reincarnate_chunk_job_spec_ext = 211;
     }

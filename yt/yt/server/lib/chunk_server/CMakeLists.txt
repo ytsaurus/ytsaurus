@@ -19,6 +19,30 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(server-lib-chunk_server)
 target_compile_options(server-lib-chunk_server PRIVATE
@@ -32,11 +56,13 @@ target_link_libraries(server-lib-chunk_server PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-chunk_server PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job.proto
 )
 target_sources(server-lib-chunk_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/helpers.cpp
 )
 target_proto_addincls(server-lib-chunk_server
   ./

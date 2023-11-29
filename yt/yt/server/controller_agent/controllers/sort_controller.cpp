@@ -33,8 +33,6 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/key_set.h>

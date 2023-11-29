@@ -33,9 +33,9 @@ public:
     DECLARE_INTERFACE_SIGNAL(void(const TMasterJobBasePtr&), JobFinished);
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
-        NJobTrackerClient::NProto::TRspHeartbeat>;
+        NChunkServer::NProto::TRspHeartbeat>;
     using TReqHeartbeat = NRpc::TTypedClientRequest<
-        NJobTrackerClient::NProto::TReqHeartbeat,
+        NChunkServer::NProto::TReqHeartbeat,
         TRspHeartbeat>;
     using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
     using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;

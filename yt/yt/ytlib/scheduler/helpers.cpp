@@ -36,7 +36,6 @@ using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NLogging;
 using namespace NRpc;
-using namespace NJobTrackerClient::NProto;
 using namespace NTracing;
 
 using NYT::FromProto;

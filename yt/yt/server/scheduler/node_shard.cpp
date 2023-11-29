@@ -25,10 +25,6 @@
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
-
-#include <yt/yt/ytlib/node_tracker_client/helpers.h>
-
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>

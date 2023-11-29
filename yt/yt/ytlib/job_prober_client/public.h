@@ -8,8 +8,6 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
-
 namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,6 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 #include "master_connector.h"
-#include "yt/yt/core/actions/new_with_offloaded_dtor.h"
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
@@ -45,8 +44,6 @@
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/yt/ytlib/chunk_client/striped_erasure_reader.h>
-
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/yt/ytlib/journal_client/erasure_repair.h>
 #include <yt/yt/ytlib/journal_client/chunk_reader.h>
@@ -98,6 +95,7 @@
 #include <yt/yt/client/transaction_client/public.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -112,14 +110,13 @@ namespace NYT::NDataNode {
 using namespace NApi;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
-using namespace NJobTrackerClient;
 using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer;
+using namespace NChunkServer::NProto;
 using namespace NClusterNode;
 using namespace NNodeTrackerClient::NProto;
-using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NCoreDump;
@@ -138,7 +135,7 @@ using NYT::FromProto;
 
 TMasterJobBase::TMasterJobBase(
     NChunkServer::TJobId jobId,
-    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+    const NChunkServer::NProto::TJobSpec& jobSpec,
     TString jobTrackerAddress,
     const TJobResources& resourceLimits,
     const TJobResourceAttributes& resourceAttributes,

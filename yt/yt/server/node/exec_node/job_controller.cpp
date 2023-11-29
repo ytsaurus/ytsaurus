@@ -29,8 +29,6 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
-#include <yt/yt/ytlib/job_tracker_client/helpers.h>
-
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>

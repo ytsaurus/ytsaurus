@@ -39,7 +39,6 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer::NProto;
 using namespace NConcurrency;
-using namespace NJobTrackerClient::NProto;
 using namespace NLogging;
 using namespace NHydra;
 using namespace NHiveClient;

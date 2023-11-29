@@ -34,7 +34,7 @@
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -54,6 +54,7 @@ namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NChunkServer;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDataNodeTrackerClient;

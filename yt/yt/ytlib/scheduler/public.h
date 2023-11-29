@@ -4,7 +4,7 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/library/vector_hdrf/public.h>
 #include <yt/yt/library/vector_hdrf/job_resources.h>

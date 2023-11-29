@@ -39,7 +39,7 @@ public:
     //! Failure reason (as reported by node).
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
-    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
+    DEFINE_BYREF_RW_PROPERTY(NProto::TJobResult, Result);
 
 public:
     TJob(
@@ -52,7 +52,7 @@ public:
 
     [[nodiscard]] virtual bool FillJobSpec(
         NCellMaster::TBootstrap* bootstrap,
-        NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
+        NProto::TJobSpec* jobSpec) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

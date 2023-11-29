@@ -2,8 +2,6 @@
 
 #include <yt/yt/server/lib/job_agent/estimate_size_helpers.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/statistics.h>
@@ -21,12 +19,12 @@ TJobEvent::TJobEvent(NJobTrackerClient::EJobState state)
     , State_(state)
 { }
 
-TJobEvent::TJobEvent(NJobTrackerClient::EJobPhase phase)
+TJobEvent::TJobEvent(NExecNode::EJobPhase phase)
     : Timestamp_(Now())
     , Phase_(phase)
 { }
 
-TJobEvent::TJobEvent(NJobTrackerClient::EJobState state, NJobTrackerClient::EJobPhase phase)
+TJobEvent::TJobEvent(NJobTrackerClient::EJobState state, NExecNode::EJobPhase phase)
     : Timestamp_(Now())
     , State_(state)
     , Phase_(phase)

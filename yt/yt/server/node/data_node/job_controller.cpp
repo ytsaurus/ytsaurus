@@ -12,10 +12,9 @@
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/job_controller.h>
 
+#include <yt/yt/server/lib/chunk_server/helpers.h>
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/job_agent/config.h>
-
-#include <yt/yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
@@ -38,7 +37,7 @@ using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 
-using NJobTrackerClient::NProto::TJobSpec;
+using NChunkServer::NProto::TJobSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,7 +396,7 @@ private:
         masterConnector->ScheduleJobHeartbeat(job->GetJobTrackerAddress());
     }
 
-    void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* status, const TMasterJobBasePtr& job)
+    void FillJobStatus(NChunkServer::NProto::TJobStatus* status, const TMasterJobBasePtr& job)
     {
         using NYT::ToProto;
 
@@ -455,7 +454,7 @@ private:
 
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
             auto jobToRemove = FromProto<TJobToRemove>(protoJobToRemove);
-            auto jobId = FromSchedulerJobId(jobToRemove.JobId);
+            auto jobId = jobToRemove.JobId;
 
             if (auto job = FindJob(jobTrackerAddress, jobId)) {
                 RemoveJob(std::move(job));
@@ -468,12 +467,11 @@ private:
         for (const auto& protoJobToAbort : response->jobs_to_abort()) {
             auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
 
-            if (auto job = FindJob(jobTrackerAddress, FromSchedulerJobId(jobToAbort.JobId))) {
-                AbortJob(job, std::move(jobToAbort));
+            if (auto job = FindJob(jobTrackerAddress, jobToAbort.JobId)) {
+                AbortJob(job);
             } else {
-                YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v)",
-                    jobToAbort.JobId,
-                    jobToAbort.AbortReason);
+                YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v)",
+                    jobToAbort.JobId);
             }
         }
 
@@ -512,18 +510,14 @@ private:
         }
     }
 
-    void AbortJob(const TMasterJobBasePtr& job, TJobToAbort&& abortAttributes)
+    void AbortJob(const TMasterJobBasePtr& job)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Aborting job (JobId: %v, AbortReason: %v)",
-            job->GetId(),
-            abortAttributes.AbortReason);
+        YT_LOG_INFO("Aborting job (JobId: %v)",
+            job->GetId());
 
         TError error("Job aborted by master request");
-        if (abortAttributes.AbortReason) {
-            error = error << TErrorAttribute("abort_reason", *abortAttributes.AbortReason);
-        }
 
         job->Abort(error);
     }

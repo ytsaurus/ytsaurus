@@ -12,10 +12,10 @@
 #include "job_throttler.h"
 #include "shallow_merge_job.h"
 
-#include <yt/yt/library/containers/public.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/statistics.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
@@ -50,14 +50,14 @@
 #include <yt/yt/ytlib/job_proxy/config.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
 #include <yt/yt/library/auth_server/public.h>
+
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -126,12 +126,9 @@ using namespace NApi;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient;
-using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
 using namespace NJobProber;
 using namespace NJobProberClient;
 using namespace NJobProxy;
-using namespace NJobTrackerClient;
 using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
 using namespace NConcurrency;

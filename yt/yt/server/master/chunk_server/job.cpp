@@ -16,7 +16,7 @@ using namespace NChunkClient;
 using namespace NTableServer;
 using namespace NObjectClient;
 using namespace NChunkClient::NProto;
-using namespace NJobTrackerClient::NProto;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

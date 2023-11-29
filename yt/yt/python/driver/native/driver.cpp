@@ -16,8 +16,6 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
-
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/library/tvm/service/tvm_service.h>

@@ -9,7 +9,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block_id.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 

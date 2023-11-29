@@ -19,8 +19,8 @@
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/helpers.h>
-#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/yt/server/lib/chunk_server/helpers.h>
+#include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
@@ -31,13 +31,13 @@
 namespace NYT::NChunkServer {
 
 using namespace NHydra;
-using namespace NJobTrackerClient;
 using namespace NChunkClient;
+using namespace NChunkServer;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerServer::NProto;
-using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient::NProto;
+using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 
 using NYT::ToProto;
@@ -61,7 +61,7 @@ public:
     }
 
 private:
-    DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         ValidateClusterInitialized();
 

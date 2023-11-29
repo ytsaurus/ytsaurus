@@ -1,20 +1,10 @@
 #pragma once
 
-#include <yt/yt/client/job_tracker_client/public.h>
+#include <library/cpp/yt/misc/enum.h>
 
-namespace NYT::NJobTrackerClient {
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-class TJobSpec;
-class TReqHeartbeat;
-class TRspHeartbeat;
-class TJobResult;
-class TJobStatus;
-
-} // namespace NProto
 
 DEFINE_ENUM(EJobPhase,
     ((Missing)                      (100))
@@ -39,4 +29,4 @@ DEFINE_ENUM(EJobPhase,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobTrackerClient
+} // namespace NYT::NExecNode

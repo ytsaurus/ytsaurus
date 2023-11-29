@@ -8,11 +8,11 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
-
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/exec_node/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
@@ -32,12 +32,12 @@ namespace NYT {
 struct TJobEvent
 {
     explicit TJobEvent(NJobTrackerClient::EJobState state);
-    explicit TJobEvent(NJobTrackerClient::EJobPhase phase);
-    TJobEvent(NJobTrackerClient::EJobState state, NJobTrackerClient::EJobPhase phase);
+    explicit TJobEvent(NExecNode::EJobPhase phase);
+    TJobEvent(NJobTrackerClient::EJobState state, NExecNode::EJobPhase phase);
 
     DEFINE_BYREF_RO_PROPERTY(TInstant, Timestamp);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobState>, State);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobPhase>, Phase);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NExecNode::EJobPhase>, Phase);
 };
 
 using TJobEvents = std::vector<TJobEvent>;

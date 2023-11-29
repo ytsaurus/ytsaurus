@@ -2,8 +2,6 @@
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
-
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
@@ -34,7 +32,6 @@ class TSchedulerToAgentJobEvent;
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
-using NJobTrackerClient::EJobPhase;
 
 ////////////////////////////////////////////////////////////////////////////////
 

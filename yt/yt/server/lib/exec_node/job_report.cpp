@@ -1,7 +1,5 @@
 #include "job_report.h"
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
-
 #include <yt/yt/core/yson/attributes_stripper.h>
 
 namespace NYT::NExecNode {

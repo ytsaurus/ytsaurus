@@ -1,6 +1,6 @@
-package NYT.NJobTrackerClient.NProto;
+package NYT.NChunkServer.NProto;
 
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/yt/server/lib/chunk_server/proto/job_common.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
@@ -17,6 +17,8 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TNodeResources resource_usage = 3;
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;
     repeated TJobStatus jobs = 5;
+
+    optional int64 sequence_number = 6 [default = -1];
 
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 8;
 
@@ -36,7 +38,6 @@ message TJobStartInfo
 message TJobToAbort
 {
     required NYT.NProto.TGuid job_id = 1;
-    optional int32 abort_reason = 2;
 }
 
 message TJobToRemove

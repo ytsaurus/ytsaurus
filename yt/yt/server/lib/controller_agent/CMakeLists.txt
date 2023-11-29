@@ -53,6 +53,7 @@ target_proto_messages(server-lib-controller_agent PRIVATE
 )
 target_sources(server-lib-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/serialize.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/structs.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/persistence.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/progress_counter.cpp
