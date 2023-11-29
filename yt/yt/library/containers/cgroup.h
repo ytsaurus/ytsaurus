@@ -281,8 +281,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<TString, TString> ParseProcessCGroups(const TString& str);
-std::map<TString, TString> GetProcessCGroups(pid_t pid);
+THashMap<TString, TString> ParseProcessCGroups(const TString& str);
+THashMap<TString, TString> GetProcessCGroups(pid_t pid);
+THashMap<TString, TString> GetSelfProcessCGroups();
 bool IsValidCGroupType(const TString& type);
 
 ////////////////////////////////////////////////////////////////////////////////
