@@ -632,13 +632,14 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
             return exported_chunk if exported else non_exported_chunk
 
         def wait_for_requisition():
-            target_chunk = get_target_chunk()
-            self._wait_for_requisition([self._build_requisition_entry()], chunk=target_chunk)
+            exported_chunk, non_exported_chunk = get("//tmp/native/@chunk_ids")
+            self._wait_for_requisition([self._build_requisition_entry()], chunk=exported_chunk)
+            self._wait_for_requisition([self._build_requisition_entry()], chunk=non_exported_chunk)
             external_requisition = {}
-            for cell_tag in get(f"#{target_chunk}/@exports"):
+            for cell_tag in get(f"#{exported_chunk}/@exports"):
                 external_requisition[cell_tag] = [self._build_requisition_entry()]
             if external_requisition:
-                self._wait_for_external_requisition(target_chunk, external_requisition)
+                self._wait_for_external_requisition(exported_chunk, external_requisition)
 
         wait_for_requisition()
         tables = self._save_tables("//tmp/native", "//tmp/foreign")
