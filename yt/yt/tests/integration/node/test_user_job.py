@@ -795,11 +795,6 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
-            "job_controller": {
-                "resource_limits": {
-                    "memory": 6 * 1024 ** 3,
-                }
-            },
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -807,6 +802,11 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                 "max_repeat_delay": 10,
             },
         },
+        "job_resource_manager": {
+            "resource_limits": {
+                "memory": 6 * 1024 ** 3,
+            }
+        }
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -2058,10 +2058,6 @@ class TestUserJobMonitoring(YTEnvSetup):
                 "max_repeat_delay": 10,
             },
             "job_controller": {
-                "resource_limits": {
-                    "user_slots": 20,
-                    "cpu": 20,
-                },
                 "gpu_manager": {
                     "testing": {
                         "test_resource": True,
@@ -2070,6 +2066,12 @@ class TestUserJobMonitoring(YTEnvSetup):
                 },
             },
         },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 20,
+                "cpu": 20,
+            },
+        }
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -2768,16 +2770,16 @@ class TestIdleSlots(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 20,
-                    "user_slots": 10,
-                },
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 20,
+                "user_slots": 10,
             },
         }
     }
@@ -2932,12 +2934,6 @@ class TestCpuSet(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 20,
-                    "user_slots": 10,
-                },
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -2954,6 +2950,12 @@ class TestCpuSet(YTEnvSetup):
                         "cpu_set": "4-6"
                     }
                 ],
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 20,
+                "user_slots": 10,
             },
         }
     }

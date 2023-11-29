@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
+#include <yt/yt/server/lib/job_agent/public.h>
+
 #include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/server/lib/misc/config.h>
@@ -275,6 +277,9 @@ public:
     //! Chaos node configuration part.
     NChaosNode::TChaosNodeConfigPtr ChaosNode;
 
+    //! Job resource manager configuration part.
+    NJobAgent::TJobResourceManagerConfigPtr JobResourceManager;
+
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
@@ -380,6 +385,9 @@ public:
 
     //! Exec agent configuration part.
     NExecNode::TExecNodeDynamicConfigPtr ExecNode;
+
+    //! Job resource manager configuration part.
+    NJobAgent::TJobResourceManagerDynamicConfigPtr JobResourceManager;
 
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;

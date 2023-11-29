@@ -86,11 +86,11 @@ class TestSchedulerPreemption(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 1,
-                    "user_slots": 2,
-                },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 2,
             },
         },
     }
@@ -681,12 +681,10 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 10,
-                    "user_slots": 10,
-                },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
             },
         },
     }
@@ -887,12 +885,10 @@ class TestPreemptionPriorityScope(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 10,
-                    "user_slots": 10,
-                },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
             },
         },
     }
@@ -1006,7 +1002,7 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 2}}}
 
     @authors("renadeen")
     def test_scheduling_bug_of_operation_with_graceful_preemption(self):
@@ -1052,7 +1048,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 2}}}
 
     def setup_method(self, method):
         super(TestResourceLimitsOverdraftPreemption, self).setup_method(method)
@@ -1223,7 +1219,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         for resource in ["cpu", "user_slots"]:
-            config["exec_node"]["job_controller"]["resource_limits"][resource] = 2
+            config["job_resource_manager"]["resource_limits"][resource] = 2
 
     @authors("ignat", "eshcherbin")
     def test_aggressive_preemption(self):
@@ -1368,8 +1364,8 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 5
-        config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 5
+        config["job_resource_manager"]["resource_limits"]["cpu"] = 5
+        config["job_resource_manager"]["resource_limits"]["user_slots"] = 5
 
     @authors("eshcherbin")
     def test_allow_aggressive_starvation_preemption_operation(self):
@@ -1488,7 +1484,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"safe_scheduler_online_time": 1000000000}}
 
-    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 10, "user_slots": 10}}}
 
     def setup_method(self, method):
         super(TestIncreasedStarvationToleranceForFullySatisfiedDemand, self).setup_method(method)
@@ -1572,14 +1568,14 @@ class TestSsdPriorityPreemption(YTEnvSetup):
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 2, "cpu": 2.0},
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False,
             }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 2, "cpu": 2.0},
         }
     }
 

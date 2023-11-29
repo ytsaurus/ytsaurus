@@ -53,15 +53,13 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 4,
-                    "cpu": 4,
-                    "memory": 4 * 1024 ** 3,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 4,
+                "cpu": 4,
+                "memory": 4 * 1024 ** 3,
             }
-        },
+        }
     }
 
     @classmethod

@@ -627,7 +627,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
         if (auto cpu = Limits_.Load().Cpu) {
             newJobsCpuLimit = cpu - GetNodeDedicatedCpu();
         } else {
-            newJobsCpuLimit = Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu;
+            newJobsCpuLimit = Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->Cpu;
         }
 
         newJobsCpuLimit -= GetTabletSlotCpu();

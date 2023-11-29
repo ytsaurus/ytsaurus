@@ -96,10 +96,8 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {"cpu": 1.5, "user_slots": 2},
-            }
+        "job_resource_manager": {
+            "resource_limits": {"cpu": 1.5, "user_slots": 2},
         }
     }
 
@@ -202,7 +200,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2.5, "user_slots": 3}}}}
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2.5, "user_slots": 3}}}
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"watchers_update_period": 100}}
 
@@ -238,10 +236,8 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {"memory": 512 * 1024 * 1024},
-            }
+        "job_resource_manager": {
+            "resource_limits": {"memory": 512 * 1024 * 1024},
         }
     }
 

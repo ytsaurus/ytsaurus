@@ -258,7 +258,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"user_slots": 100, "cpu": 100}}}}
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"user_slots": 100, "cpu": 100}}}
 
     @authors("ignat", "ni-stoiko")
     # COMPAT(ni-stoiko): Enable after fix tcmalloc.
@@ -633,7 +633,7 @@ class TestOperationControllerResourcesCheck(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2.0}}}}
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2.0}}}
 
     @authors("omgronny")
     def test_insufficient_resources_node_attributes(self):

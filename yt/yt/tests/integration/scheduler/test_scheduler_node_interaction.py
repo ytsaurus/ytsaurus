@@ -33,13 +33,11 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 10,
-                    "cpu": 10,
-                    "memory": 10 * 1024 ** 3,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 10,
+                "cpu": 10,
+                "memory": 10 * 1024 ** 3,
             }
         }
     }
@@ -133,14 +131,12 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "cpu_model": "AMD EPYC 7702 64-Core Processor",
-                "resource_limits": {
-                    "cpu": 19.3,
-                },
+        "job_resource_manager": {
+            "cpu_model": "AMD EPYC 7702 64-Core Processor",
+            "resource_limits": {
+                "cpu": 19.3,
             },
-        },
+        }
     }
 
     def _get_job_node(self, op):
@@ -151,13 +147,11 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
 
     def _init_dynamic_config(self):
         update_nodes_dynamic_config({
-            "exec_node": {
-                "job_controller": {
-                    "enable_cpu_to_vcpu_factor": True,
-                    "cpu_model_to_cpu_to_vcpu_factor": {
-                        "AMD EPYC 7702 64-Core Processor": 1.21
-                    }
-                },
+            "job_resource_manager": {
+                "enable_cpu_to_vcpu_factor": True,
+                "cpu_model_to_cpu_to_vcpu_factor": {
+                    "AMD EPYC 7702 64-Core Processor": 1.21
+                }
             },
         })
 
@@ -218,13 +212,11 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
     @authors("nadya73")
     def test_factor_from_dynamic_config(self):
         update_nodes_dynamic_config({
-            "exec_node": {
-                "job_controller": {
-                    "enable_cpu_to_vcpu_factor": True,
-                    "cpu_to_vcpu_factor": 1.21,
-                    "cpu_model_to_cpu_to_vcpu_factor": {
-                        "AMD EPYC 7702 64-Core Processor": 10
-                    }
+            "job_resource_manager": {
+                "enable_cpu_to_vcpu_factor": True,
+                "cpu_to_vcpu_factor": 1.21,
+                "cpu_model_to_cpu_to_vcpu_factor": {
+                    "AMD EPYC 7702 64-Core Processor": 10
                 }
             }
         })
@@ -247,12 +239,10 @@ class TestVCpuDisableByDefault(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "cpu_model": "AMD EPYC 7702 64-Core Processor",
-                "resource_limits": {
-                    "cpu": 19.3,
-                }
+        "job_resource_manager": {
+            "cpu_model": "AMD EPYC 7702 64-Core Processor",
+            "resource_limits": {
+                "cpu": 19.3,
             }
         }
     }
@@ -260,12 +250,10 @@ class TestVCpuDisableByDefault(YTEnvSetup):
     @authors("nadya73")
     def test_one_cpu_to_vcpu_factor(self):
         update_nodes_dynamic_config({
-            "exec_node": {
-                "job_controller": {
-                    "cpu_model_to_cpu_to_vcpu_factor": {
-                        "AMD EPYC 7702 64-Core Processor": 1.21
-                    }
-                },
+            "job_resource_manager": {
+                "cpu_model_to_cpu_to_vcpu_factor": {
+                    "AMD EPYC 7702 64-Core Processor": 1.21
+                }
             },
         })
 

@@ -54,7 +54,7 @@ TSlotManager::TSlotManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , StaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)
     , DynamicConfig_(New<TSlotManagerDynamicConfig>())
-    , SlotCount_(Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->UserSlots)
+    , SlotCount_(Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->UserSlots)
     , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetCurrentProcessId()))
     , PortoHealthChecker_(New<TPortoHealthChecker>(
         New<TPortoExecutorDynamicConfig>(),
@@ -196,7 +196,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     // It should also be initialized synchronously, since it may prevent deletion of chunk cache artifacts.
     JobEnvironment_->Init(
         SlotCount_,
-        Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu,
+        Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->Cpu,
         GetIdleCpuFraction());
 
     if (!JobEnvironment_->IsEnabled()) {

@@ -239,9 +239,6 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
 class TestUnavailableJobProxy(JobProxyTestBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "job_proxy_build_info_update_period": 300,
-            },
             "slot_manager": {
                 "testing": {
                     "skip_job_proxy_unavailable_alert": True,

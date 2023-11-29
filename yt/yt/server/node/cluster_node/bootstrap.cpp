@@ -1336,7 +1336,7 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         ReconfigureNativeSingletons(Config_, newConfig);
@@ -1382,6 +1382,10 @@ private:
 
         auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureCaches(bundleConfig, newConfig);
+
+        JobResourceManager_->OnDynamicConfigChanged(
+            oldConfig->JobResourceManager,
+            newConfig->JobResourceManager);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

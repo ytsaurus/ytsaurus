@@ -88,4 +88,53 @@ DEFINE_REFCOUNTED_TYPE(TMemoryPressureDetectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobResourceManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Port set has higher priority than StartPort ans PortCount if it is specified.
+    std::optional<THashSet<int>> PortSet;
+    int StartPort;
+    int PortCount;
+
+    TResourceLimitsConfigPtr ResourceLimits;
+
+    std::optional<double> CpuToVCpuFactor;
+    std::optional<TString> CpuModel;
+
+    REGISTER_YSON_STRUCT(TJobResourceManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobResourceManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobResourceManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<double> CpuToVCpuFactor;
+    bool EnableCpuToVCpuFactor;
+
+    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
+
+    TDuration ProfilingPeriod;
+
+    i64 FreeMemoryWatermark;
+
+    TMappedMemoryControllerConfigPtr MappedMemoryController;
+
+    NJobAgent::TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
+
+    REGISTER_YSON_STRUCT(TJobResourceManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobResourceManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobAgent

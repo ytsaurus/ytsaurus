@@ -771,12 +771,10 @@ class TestImproperlyPreemptedResources(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 6,
-                    "user_slots": 6,
-                },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 6,
+                "user_slots": 6,
             },
         },
     }

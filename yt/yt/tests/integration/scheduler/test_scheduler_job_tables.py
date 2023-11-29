@@ -611,12 +611,6 @@ class TestCoreTable(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 2,
-                }
-            },
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,  # 100 msec
                 "core_watcher": {
@@ -626,6 +620,12 @@ class TestCoreTable(YTEnvSetup):
                     "cores_processing_timeout": 7000,
                 },
             },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 2,
+            }
         }
     }
 

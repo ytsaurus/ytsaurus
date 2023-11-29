@@ -65,6 +65,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
+        # COMPAT(arkady-e1ppa):
         "exec_node": {
             "job_controller": {
                 "resource_limits": {
@@ -72,8 +80,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "cpu": 5,
                     "memory": 5 * 1024 ** 3,
                 }
-            }
-        }
+            },
+        },
     }
 
     @authors("ignat")
@@ -2102,6 +2110,14 @@ class TestInputOutputFormats(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
+        # COMPAT(arkady-e1ppa)
         "exec_node": {
             "job_controller": {
                 "resource_limits": {
@@ -2109,8 +2125,8 @@ class TestInputOutputFormats(YTEnvSetup):
                     "cpu": 5,
                     "memory": 5 * 1024 ** 3,
                 }
-            }
-        }
+            },
+        },
     }
 
     @authors("ignat")

@@ -826,12 +826,10 @@ class TestTentativePoolTrees(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 2,
-                    "cpu": 2,
-                },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
+                "cpu": 2,
             },
         },
     }
@@ -1228,7 +1226,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,  # 100 msec
             },
-            "job_controller": {"resource_limits": {"cpu": 3, "user_slots": 3}},
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -1236,6 +1233,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
                 "max_repeat_delay": 10,
             },
         },
+        "job_resource_manager": {"resource_limits": {"cpu": 3, "user_slots": 3}},
     }
 
     def setup_method(self, method):
@@ -1892,13 +1890,11 @@ class TestMultiTreeOperations(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 2,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
             }
-        },
+        }
     }
 
     @authors("renadeen")

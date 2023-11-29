@@ -76,13 +76,11 @@ class TestSchedulerCommon(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
             }
         }
     }
@@ -1378,7 +1376,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
             cls.node_counter = 0
         cls.node_counter += 1
         if cls.node_counter == 1:
-            config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 0
+            config["job_resource_manager"]["resource_limits"]["user_slots"] = 0
 
     @authors("renadeen", "ignat")
     def test_job_count(self):
@@ -1743,15 +1741,13 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
             },
-        },
+        }
     }
 
     @authors("pogorelov")

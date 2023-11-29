@@ -617,13 +617,11 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 10,
-                    "cpu": 10,
-                    "memory": 10 * 1024 ** 3,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 10,
+                "cpu": 10,
+                "memory": 10 * 1024 ** 3,
             }
         }
     }
@@ -648,13 +646,11 @@ class TestOperationDetailedLogs(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 2,
-                    "cpu": 2,
-                    "memory": 2 * 1024 ** 3,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
+                "cpu": 2,
+                "memory": 2 * 1024 ** 3,
             }
         }
     }

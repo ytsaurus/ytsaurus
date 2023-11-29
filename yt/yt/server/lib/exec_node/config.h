@@ -630,23 +630,6 @@ class TJobControllerConfig
 public:
     TGpuManagerConfigPtr GpuManager;
 
-    // JRM Config goes below:
-    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
-
-    NJobAgent::TResourceLimitsConfigPtr ResourceLimits;
-
-    i64 FreeMemoryWatermark;
-
-    std::optional<double> CpuToVCpuFactor;
-    std::optional<TString> CpuModel;
-
-    //! Port set has higher priority than StartPort ans PortCount if it is specified.
-    int StartPort;
-    int PortCount;
-    std::optional<THashSet<int>> PortSet;
-
-    NJobAgent::TMappedMemoryControllerConfigPtr MappedMemoryController;
-
     REGISTER_YSON_STRUCT(TJobControllerConfig);
 
     static void Register(TRegistrar registrar);
@@ -689,17 +672,7 @@ public:
 
     TJobCommonConfigPtr JobCommon;
 
-    // JRM Config goes below:
-    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
-
-    std::optional<double> CpuToVCpuFactor;
-    bool EnableCpuToVCpuFactor;
-
-    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
-
     TDuration ProfilingPeriod;
-
-    NJobAgent::TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
 
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 

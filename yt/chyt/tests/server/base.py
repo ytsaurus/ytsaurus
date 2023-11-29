@@ -601,10 +601,10 @@ class ClickHouseTestBase(YTEnvSetup):
                     "memory_watchdog_period": 100,
                 },
             },
-            "job_controller": {
-                "resource_limits": {
-                    "memory": 10 * 2 ** 30,
-                },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "memory": 10 * 2 ** 30,
             },
         }
     }
