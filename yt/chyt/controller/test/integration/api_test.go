@@ -1068,3 +1068,17 @@ func TestHTTPAPIListWorksIfSpecletIsIncorrect(t *testing.T) {
 		},
 	})
 }
+
+func TestHTTPAPILocationAliases(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+
+	c.Proxy = "test_location_alias"
+	r := c.MakePostRequest("list", api.RequestParams{})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	c.Proxy = "unknown_location"
+	r = c.MakePostRequest("list", api.RequestParams{})
+	require.Equal(t, http.StatusNotFound, r.StatusCode)
+}

@@ -38,8 +38,9 @@ func (c *APIConfig) ControllerMappingsOrDefault() map[string]string {
 type HTTPAPIConfig struct {
 	BaseAPIConfig APIConfig
 
-	ClusterInfos []strawberry.AgentInfo
-	Token        string
-	DisableAuth  bool
-	Endpoint     string
+	ClusterInfos    []strawberry.AgentInfo
+	LocationAliases map[string][]string
+	Token           string
+	DisableAuth     bool
+	Endpoint        string
 }
