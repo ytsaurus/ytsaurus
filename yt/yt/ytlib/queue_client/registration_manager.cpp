@@ -67,7 +67,7 @@ TIntrusivePtr<TTable> CreateStateTableClientOrThrow(
         client = localConnection->CreateClient(clientOptions);
     }
 
-    return New<TTable>(path, client);
+    return New<TTable>(path, std::move(client));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,7 +363,8 @@ void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 
     auto config = GetDynamicConfig();
     auto registrations = FetchStateRowsOrThrow<TConsumerRegistrationTable>(
-        config->StateReadPath, config->User);
+        config->StateReadPath,
+        config->User);
 
     auto guard = WriterGuard(CacheSpinLock_);
 
@@ -384,7 +385,8 @@ void TQueueConsumerRegistrationManager::GuardedRefreshReplicationTableMappingCac
 
     auto config = GetDynamicConfig();
     auto replicatedTableMapping = FetchStateRowsOrThrow<TReplicatedTableMappingTable>(
-        config->ReplicatedTableMappingReadPath, config->User);
+        config->ReplicatedTableMappingReadPath,
+        config->User);
 
     auto guard = WriterGuard(CacheSpinLock_);
 
@@ -487,15 +489,22 @@ std::vector<typename TTable::TRowType> TQueueConsumerRegistrationManager::FetchS
 
     auto readClusters = stateReadPath.GetClusters();
     if (readClusters && !readClusters->empty()) {
+        readClients.reserve(readClusters->size());
         for (const auto& cluster : *readClusters) {
             auto remoteReadClient = CreateStateTableClientOrThrow<TTable>(
-                Connection_, cluster, stateReadPath.GetPath(), user);
-            readClients.push_back(remoteReadClient);
+                Connection_,
+                cluster,
+                stateReadPath.GetPath(),
+                user);
+            readClients.push_back(std::move(remoteReadClient));
         }
     } else {
         auto localReadClient = CreateStateTableClientOrThrow<TTable>(
-            Connection_, /*cluster*/ {}, stateReadPath.GetPath(), user);
-        readClients.push_back(localReadClient);
+            Connection_,
+            /*cluster*/ {},
+            stateReadPath.GetPath(),
+            user);
+        readClients.push_back(std::move(localReadClient));
     }
 
     std::vector<TFuture<std::vector<typename TTable::TRowType>>> asyncRows;

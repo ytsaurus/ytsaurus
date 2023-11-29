@@ -178,7 +178,7 @@ public:
     TString User;
 
     //! Paths to queue agent state.
-    NQueueClient::TQueueAgentDynamicStateConfigPtr  DynamicState;
+    NQueueClient::TQueueAgentDynamicStateConfigPtr DynamicState;
 
     NYTree::IMapNodePtr CypressAnnotations;
 

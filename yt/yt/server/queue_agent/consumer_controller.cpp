@@ -62,7 +62,7 @@ public:
         , Registrations_(std::move(registrations))
         , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
-        , Graph_(store)
+        , Store_(store)
     { }
 
     TConsumerSnapshotPtr Build()
@@ -89,9 +89,8 @@ private:
     const TConsumerSnapshotPtr PreviousConsumerSnapshot_;
     const std::vector<TConsumerRegistrationTableRow> Registrations_;
     const TLogger Logger;
-    // TODO(max42): mark TClientDirectory::GetClientOrThrow as const.
-    TQueueAgentClientDirectoryPtr ClientDirectory_;
-    const IObjectStore* Graph_;
+    const TQueueAgentClientDirectoryPtr ClientDirectory_;
+    const IObjectStore* Store_;
 
     IClientPtr Client_;
     IConsumerClientPtr ConsumerClient_;
@@ -133,7 +132,7 @@ private:
         THashMap<TCrossClusterReference, TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
         for (const auto& registration : Registrations_) {
             auto queueRef = registration.Queue;
-            auto queueSnapshot = DynamicPointerCast<const TQueueSnapshot>(Graph_->FindSnapshot(queueRef));
+            auto queueSnapshot = DynamicPointerCast<const TQueueSnapshot>(Store_->FindSnapshot(queueRef));
             if (!queueSnapshot) {
                 YT_LOG_DEBUG("Snapshot is missing for the queue while building subconsumer snapshot (Queue: %v)", queueRef);
                 auto errorQueueSnapshot = New<TQueueSnapshot>();
@@ -508,7 +507,7 @@ private:
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
-    IConsumerProfileManagerPtr ProfileManager_;
+    const IConsumerProfileManagerPtr ProfileManager_;
 
     void Pass()
     {
