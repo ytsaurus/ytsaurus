@@ -152,6 +152,7 @@ def _get_ports_generator(yt_config):
 class YTInstance(object):
     def __init__(self, path, yt_config,
                  modify_configs_func=None,
+                 modify_dynamic_configs_func=None,
                  kill_child_processes=False,
                  watcher_config=None,
                  run_watcher=True,
@@ -164,6 +165,7 @@ class YTInstance(object):
                  open_port_iterator=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
+        self.modify_dynamic_configs_func = modify_dynamic_configs_func
 
         if yt_config.master_count == 0:
             raise YtError("Can't start local YT without master")
@@ -2038,11 +2040,21 @@ class YTInstance(object):
         logger.info("Watcher started")
 
     def _apply_nodes_dynamic_config(self, client):
-        patched_dyn_node_config = get_patched_dynamic_node_config(self.yt_config)
+        patched_dynamic_node_config = get_patched_dynamic_node_config(self.yt_config)
 
-        client.set("//sys/cluster_nodes/@config", patched_dyn_node_config)
+        if self.modify_dynamic_configs_func is not None:
+            self.modify_dynamic_configs_func(patched_dynamic_node_config, self.abi_version)
 
-        return patched_dyn_node_config["%true"]
+        client.set("//sys/cluster_nodes/@config", patched_dynamic_node_config)
+
+        return patched_dynamic_node_config["%true"]
+
+    def restore_default_dynamic_node_config(self):
+        client = self._create_cluster_client()
+
+        patched_config = self._apply_nodes_dynamic_config(client)
+
+        self._wait_for_nodes_dynamic_config(patched_config, client)
 
     def _wait_for_dynamic_config(self, expected_config, client):
         nodes = client.list("//sys/cluster_nodes")

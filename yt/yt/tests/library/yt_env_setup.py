@@ -8,7 +8,6 @@ from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.default_config import (
     get_dynamic_master_config,
-    get_dynamic_node_config,
 )
 from yt.environment.helpers import (  # noqa
     Restarter,
@@ -370,20 +369,25 @@ class YTEnvSetup(object):
         return cluster_index >= cls.GROUND_INDEX_OFFSET
 
     @classmethod
-    def get_param(cls, name, cluster_index):
-        value = getattr(cls, name)
+    def _get_param_real_name(cls, name, cluster_index):
         if cluster_index == 0:
-            return value
+            return name
 
         # NB: Ground cluster parameters are non-overridable.
         if cls._is_ground_cluster(cluster_index):
-            return value
+            return name
 
         param_name = "{0}_REMOTE_{1}".format(name, cluster_index - 1)
         if hasattr(cls, param_name):
-            return getattr(cls, param_name)
+            return param_name
 
-        return value
+        return name
+
+    @classmethod
+    def get_param(cls, name, cluster_index):
+        actual_name = cls._get_param_real_name(name, cluster_index)
+
+        return getattr(cls, actual_name)
 
     @classmethod
     def partition_items(cls, items):
@@ -400,6 +404,7 @@ class YTEnvSetup(object):
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index)
+        modify_dynamic_configs_func = functools.partial(cls.apply_dynamic_config_patches, cluster_index=index)
 
         yt.logger.info("Creating cluster instance")
 
@@ -472,6 +477,7 @@ class YTEnvSetup(object):
             watcher_config={"disable_logrotate": True},
             kill_child_processes=True,
             modify_configs_func=modify_configs_func,
+            modify_dynamic_configs_func=modify_dynamic_configs_func,
             stderrs_path=os.path.join(
                 OUTPUT_PATH,
                 "yt_stderrs",
@@ -789,6 +795,18 @@ class YTEnvSetup(object):
         yt_commands.sync_mount_table("//sys/sequoia/location_replicas", driver=ground_driver)
 
     @classmethod
+    def apply_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
+        delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
+
+        update_inplace(config, delta_node_config)
+
+        # COMPAT(pogorelov)
+        if "controller-agent" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
+            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = False
+
+        return config
+
+    @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
             for peer_index, config in enumerate(configs["master"][tag]):
@@ -984,6 +1002,9 @@ class YTEnvSetup(object):
             if self.get_param("USE_SEQUOIA", cluster_index):
                 self.setup_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
 
+        for env in self.combined_envs:
+            env.restore_default_dynamic_node_config()
+
     def setup_cluster(self, method, cluster_index):
         driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
         if driver is None:
@@ -1013,9 +1034,6 @@ class YTEnvSetup(object):
         yt_commands.gc_collect(driver=driver)
 
         yt_commands.clear_metadata_caches(driver=driver)
-
-        if node_count > 0:
-            self._setup_nodes_dynamic_config(driver=driver, cluster_index=cluster_index)
 
         if self.USE_DYNAMIC_TABLES:
             self._setup_tablet_manager(driver=driver)
@@ -1562,23 +1580,6 @@ class YTEnvSetup(object):
             return True
 
         wait(check)
-
-    def _setup_nodes_dynamic_config(self, cluster_index, driver=None):
-        config = get_dynamic_node_config()
-
-        config = update_inplace(
-            config, self.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
-        )
-
-        # COMPAT(pogorelov)
-        if "controller-agent" in self.__class__.ARTIFACT_COMPONENTS.get("23_1", []):
-            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = False
-
-        yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
-
-        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
-
-        self._wait_for_dynamic_config("//sys/cluster_nodes", config["%true"], nodes, driver=driver)
 
     def _setup_tablet_manager(self, driver=None):
         for response in yt_commands.execute_batch(
