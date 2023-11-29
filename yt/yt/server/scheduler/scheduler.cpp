@@ -2095,7 +2095,11 @@ private:
                     NScheduler::NProto::TRspStartOperation response;
                     ToProto(response.mutable_operation_id(), operation->GetId());
                     auto responseMessage = CreateResponseMessage(response);
-                    OperationServiceResponseKeeper_->EndRequest(operation->GetMutationId(), responseMessage);
+                    if (auto setResponseKeeperPromise =
+                        OperationServiceResponseKeeper_->EndRequest(operation->GetMutationId(), responseMessage))
+                    {
+                        setResponseKeeperPromise();
+                    }
                 }
 
                 // NB: it is valid to reset state, since operation revival descriptor

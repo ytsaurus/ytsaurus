@@ -32,7 +32,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/logger_owner.h>
@@ -778,6 +778,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDecoratedAutomaton::TMutationApplicationResult
+{
+    // Null during recovery.
+    TPromise<TMutationResponse> LocalCommitPromise;
+    TMutationId MutationId;
+    TSharedRefArray ResponseData;
+    // May be null if response keeper says so (or if it's disabled, suppressed etc.)
+    std::function<void()> ResponseKeeperPromiseSetter;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDecoratedAutomaton::TDecoratedAutomaton(
     TConfigWrapperPtr config,
     const TDistributedHydraManagerOptions& options,
@@ -1015,7 +1027,20 @@ void TDecoratedAutomaton::CheckInvariants()
     YT_LOG_INFO("Invariants check completed");
 }
 
-void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
+void TDecoratedAutomaton::ApplyMutationsDuringRecovery(const std::vector<TSharedRef>& recordsData)
+{
+    std::vector<TMutationApplicationResult> results;
+    results.reserve(recordsData.size());
+    for (const auto& recordData : recordsData)  {
+        auto result = ApplyMutationDuringRecovery(recordData);
+        results.emplace_back(std::move(result));
+    }
+
+    // NB: may be offloaded to a different thread but probably not worth it.
+    PublishMutationApplicationResults(std::move(results));
+}
+
+TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1043,7 +1068,12 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
 
-    DoApplyMutation(&mutationContext, mutationVersion);
+    TMutationApplicationResult result;
+    DoApplyMutation(&mutationContext, mutationVersion, &result);
+    result.MutationId = request.MutationId;
+    result.ResponseData = mutationContext.TakeResponseData();
+    // NB: result.LocalCommitPromise is left null.
+    return result;
 }
 
 TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
@@ -1126,12 +1156,49 @@ void TDecoratedAutomaton::ApplyMutations(const std::vector<TPendingMutationPtr>&
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    std::vector<TMutationApplicationResult> results;
+    results.reserve(mutations.size());
     for (const auto& mutation : mutations) {
-        ApplyMutation(mutation);
+        auto result = ApplyMutation(mutation);
+        results.emplace_back(std::move(result));
+    }
+
+    NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+        BIND(&TDecoratedAutomaton::PublishMutationApplicationResults, MakeStrong(this), Passed(std::move(results))));
+}
+
+void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutationApplicationResult>&& results)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    for (const auto& result : results) {
+        try {
+            if (auto& setPromises = result.ResponseKeeperPromiseSetter) {
+                setPromises();
+            }
+        } catch (const std::exception& error) { // COMPAT(shakurov): Just being paranoid.
+            YT_LOG_ALERT(error,
+                "Finalizing request end has thrown (MutationId: %v)",
+                result.MutationId);
+        }
+
+        try {
+            if (auto& promise = result.LocalCommitPromise) {
+                promise.TrySet(TMutationResponse{
+                    EMutationResponseOrigin::Commit,
+                    result.ResponseData
+                });
+            }
+        } catch (const std::exception& error) { // COMPAT(shakurov): Just being paranoid.
+            YT_LOG_ALERT(error,
+                "Setting a commit promise has thrown (MutationId: %v)",
+                result.MutationId);
+        }
     }
 }
 
-void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
+TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
+    const TPendingMutationPtr& mutation)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     TForbidContextSwitchGuard contextSwitchGuard;
@@ -1146,21 +1213,20 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
         StateHash_,
         mutation->Term);
 
+    TMutationApplicationResult result;
+
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
         YT_VERIFY(ReliablyAppliedSequenceNumber_.load() < mutation->SequenceNumber);
         ReliablyAppliedSequenceNumber_ = mutation->SequenceNumber;
-        DoApplyMutation(&mutationContext, mutation->Version);
+        DoApplyMutation(&mutationContext, mutation->Version, &result);
     }
 
-    if (const auto& promise = mutation->LocalCommitPromise) {
+    if (mutation->LocalCommitPromise) {
         YT_VERIFY(GetState() == EPeerState::Leading);
-        promise.TrySet(TMutationResponse{
-            EMutationResponseOrigin::Commit,
-            mutationContext.GetResponseData()
-        });
     } else {
-        YT_VERIFY(GetState() == EPeerState::Following || GetState() == EPeerState::FollowerRecovery);
+        YT_VERIFY(GetState() == EPeerState::Following ||
+            GetState() == EPeerState::FollowerRecovery);
     }
 
     // Mutation could remain alive for quite a while even after it has been applied at leader,
@@ -1168,9 +1234,18 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
     mutation->Request.Handler.Reset();
 
     MaybeStartSnapshotBuilder();
+
+    result.LocalCommitPromise = mutation->LocalCommitPromise;
+    result.MutationId = mutation->Request.MutationId;
+    result.ResponseData = mutationContext.TakeResponseData();
+
+    return result;
 }
 
-void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVersion mutationVersion)
+void TDecoratedAutomaton::DoApplyMutation(
+    TMutationContext* mutationContext,
+    TVersion mutationVersion,
+    TMutationApplicationResult* result)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1190,7 +1265,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
         if (request.Type == EnterReadOnlyMutationType || request.Type == ExitReadOnlyMutationType) {
             ReadOnly_ = request.Type == EnterReadOnlyMutationType;
 
-            YT_LOG_DEBUG("Recieved %v read-only mutation (Version: %v, SequenceNumber: %v, MutationId: %v)",
+            YT_LOG_DEBUG("Received %v read-only mutation (Version: %v, SequenceNumber: %v, MutationId: %v)",
                 request.Type == EnterReadOnlyMutationType ? "enable" : "disable",
                 mutationContext->GetVersion(),
                 mutationContext->GetSequenceNumber(),
@@ -1202,9 +1277,10 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
         if (Options_.ResponseKeeper &&
             mutationId &&
             !mutationContext->GetResponseKeeperSuppressed() &&
-            mutationContext->GetResponseData()) // Null when mutation idempotizer kicks in.
+            mutationContext->GetResponseData()) // Null when mutation idempotizer kicks in. TODO(shakurov): suppress keeper instead?
         {
-            Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData());
+            result->ResponseKeeperPromiseSetter =
+                Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData());
         }
     }
 

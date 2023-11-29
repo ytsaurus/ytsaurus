@@ -346,10 +346,13 @@ void TLeaderCommitter::SerializeMutations()
                 "Cannot commit a mutation at the moment")
                 << error);
             if (Options_.ResponseKeeper && mutationDraft.Request.MutationId) {
-                Options_.ResponseKeeper->EndRequest(
+                if (auto setResponseKeeperPromise = Options_.ResponseKeeper->EndRequest(
                     mutationDraft.Request.MutationId,
                     error,
-                    /*remember*/ false);
+                    /*remember*/ false))
+                {
+                    setResponseKeeperPromise();
+                }
             }
             continue;
         }

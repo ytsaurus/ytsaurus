@@ -450,7 +450,11 @@ public:
                     // Make sure to end the request because we may be
                     // committing a boomerang mutation right now, and
                     // replies to those are passed via the response keeper.
-                    responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), false);
+                    if (auto setResponseKeeperPromise =
+                        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), false))
+                    {
+                        setResponseKeeperPromise();
+                    }
                 }
 
                 THROW_ERROR(error);
@@ -482,7 +486,11 @@ public:
                         // Make sure to end the request because we may be
                         // committing a boomerang mutation right now, and
                         // replies to those are passed via the response keeper.
-                        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), false);
+                        if (auto setResponseKeeperPromise =
+                            responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), false))
+                        {
+                            setResponseKeeperPromise();
+                        }
                     }
 
                     THROW_ERROR(error);
@@ -561,7 +569,9 @@ public:
                         << batchRspOrError;
                     context->Reply(error);
                     if (mutationId) {
-                        responseKeeper->EndRequest(mutationId, error, false);
+                        if (auto setResponseKeeperPromise = responseKeeper->EndRequest(mutationId, error, false)) {
+                            setResponseKeeperPromise();
+                        }
                     }
                     return;
                 }
@@ -575,7 +585,9 @@ public:
 
                 context->Reply(responseMessage);
                 if (mutationId) {
-                    responseKeeper->EndRequest(mutationId, responseMessage, false);
+                    if (auto setResponseKeeperPromise = responseKeeper->EndRequest(mutationId, responseMessage, false)) {
+                        setResponseKeeperPromise();
+                    }
                 }
             }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
@@ -1867,7 +1879,9 @@ void TObjectManager::HydraExecuteLeader(
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(errorResponse));
+        if (auto setResponseKeeperPromise = responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(errorResponse))) {
+            setResponseKeeperPromise();
+        }
 
         YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
             mutationId);
@@ -1904,10 +1918,11 @@ void TObjectManager::HydraExecuteLeader(
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
         // NB: Context must already be replied by now.
         const auto& error = rpcContext->GetError();
-        if (error.IsOK()) {
-            responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
-        } else {
-            responseKeeper->EndRequest(mutationId, CreateErrorResponseMessage(error));
+        if (auto setResponseKeeperPromise = error.IsOK()
+            ? responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage())
+            : responseKeeper->EndRequest(mutationId, CreateErrorResponseMessage(error)))
+        {
+            setResponseKeeperPromise();
         }
     }
 }
