@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
@@ -47,6 +49,21 @@ void TColumnarStatisticsFetcher::ProcessDynamicStore(int chunkIndex)
     } else {
         LightweightChunkStatistics_[chunkIndex] = statistics.MakeLightweightStatistics();
     }
+}
+
+THashSet<int> TColumnarStatisticsFetcher::GetChunkIndexesToFetch()
+{
+    THashSet<int> indexes;
+    for (const auto& [chunkIndex, chunk] : Enumerate(Chunks_)) {
+        bool needFetch = NeedFetchFromNode_[chunk];
+        if (chunk->IsDynamicStore()) {
+            ProcessDynamicStore(chunkIndex);
+        } else if (needFetch) {
+            indexes.insert(chunkIndex);
+        }
+    }
+
+    return indexes;
 }
 
 TFuture<void> TColumnarStatisticsFetcher::FetchFromNode(
@@ -219,7 +236,7 @@ void TColumnarStatisticsFetcher::OnFetchingStarted()
 
 void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStableName> columnStableNames)
 {
-    if (!ChunkSet_.insert(chunk).second) {
+    if (!NeedFetchFromNode_.emplace(chunk, true).second) {
         // We already know about this chunk.
         return;
     }
@@ -233,6 +250,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
     if (columnStableNames.empty()) {
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
+        NeedFetchFromNode_[chunk] = false;
     } else {
         const NProto::THeavyColumnStatisticsExt* heavyColumnStatistics = nullptr;
         if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster ||
@@ -249,6 +267,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
                 columnarStatistics = TColumnarStatistics::MakeLegacy(columnStableNames.size(), chunk->GetDataWeight(), chunk->GetTotalRowCount());
             }
             Chunks_.emplace_back(chunk);
+            NeedFetchFromNode_[chunk] = false;
             if (Options_.StoreChunkStatistics) {
                 ChunkStatistics_.resize(Chunks_.size());
                 ChunkStatistics_.back() = columnarStatistics;
