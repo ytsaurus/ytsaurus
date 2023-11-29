@@ -15,6 +15,7 @@ import pytest
 import os
 import sys
 import time
+import tempfile
 
 from collections import Counter
 
@@ -905,6 +906,150 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     @pytest.mark.timeout(150)
     def test_corrupted_layer_with_squashfs_layer(self):
         self.setup_files()
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/squashfs.img", "//tmp/corrupted_layer"],
+                    },
+                },
+            )
+
+        # YT-14186: Corrupted user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+
+@authors("yuryalekseev")
+class TestNbdSquashFSLayers(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "nbd": {
+                    "block_cache_compressed_data_capacity": 536870912,
+                    "client": {
+                        "timeout": 30000,
+                    },
+                    "enabled": True,
+                    "server": {
+                        "unix_domain_socket": {
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            "path": tempfile.mkstemp(dir="/tmp")[1]
+                        },
+                    },
+                },
+            },
+        }
+    }
+
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/corrupted_layer")
+        write_file("//tmp/corrupted_layer", open("layers/corrupted.tar.gz", "rb").read())
+
+        create("file", "//tmp/corrupted_squashfs.img")
+        write_file("//tmp/corrupted_squashfs.img", open("layers/corrupted.tar.gz", "rb").read())
+        set("//tmp/corrupted_squashfs.img/@access_method", "nbd")
+        set("//tmp/corrupted_squashfs.img/@filesystem", "squashfs")
+
+        create("file", "//tmp/squashfs.img")
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@access_method", "nbd")
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+
+    @authors("yuryalekseev")
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
+    def test_squashfs_layer(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="ls $YT_ROOT_FS/dir 1>&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/squashfs.img"],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            assert b"squash_file" in op.read_stderr(job_id)
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(150)
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
+    def test_corrupted_squashfs_layer(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/corrupted_squashfs.img"],
+                    },
+                },
+            )
+
+        # YT-14186: Corrupted user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(150)
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
+    def test_corrupted_layer_with_squashfs_layer(self):
+        self.setup_files()
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
