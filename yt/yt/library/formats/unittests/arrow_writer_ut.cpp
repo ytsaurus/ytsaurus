@@ -33,6 +33,7 @@
 #include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
 #include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
 
+#include <limits>
 #include <stdlib.h>
 
 namespace NYT::NTableClient {
@@ -184,14 +185,35 @@ std::vector<std::shared_ptr<arrow::RecordBatch>> MakeAllBatch(const TStringStrea
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int64_t> ReadInterger64Array(const std::shared_ptr<arrow::Array>& array)
+std::vector<int64_t> ReadInteger64Array(const std::shared_ptr<arrow::Array>& array)
 {
     auto int64Array = std::dynamic_pointer_cast<arrow::Int64Array>(array);
     YT_VERIFY(int64Array);
     return  {int64Array->raw_values(), int64Array->raw_values() + array->length()};
 }
 
-std::vector<uint32_t> ReadInterger32Array(const std::shared_ptr<arrow::Array>& array)
+std::vector<int64_t> ReadIntegerDateArray(const std::shared_ptr<arrow::Array>& array)
+{
+    auto int32Array = std::dynamic_pointer_cast<arrow::Date32Array>(array);
+    YT_VERIFY(int32Array);
+    return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
+}
+
+std::vector<int64_t> ReadIntegerDate64Array(const std::shared_ptr<arrow::Array>& array)
+{
+    auto int32Array = std::dynamic_pointer_cast<arrow::Date64Array>(array);
+    YT_VERIFY(int32Array);
+    return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
+}
+
+std::vector<int64_t> ReadTimestampArray(const std::shared_ptr<arrow::Array>& array)
+{
+    auto int64Array = std::dynamic_pointer_cast<arrow::TimestampArray>(array);
+    YT_VERIFY(int64Array);
+    return  {int64Array->raw_values(), int64Array->raw_values() + int64Array->length()};
+}
+
+std::vector<uint32_t> ReadInteger32Array(const std::shared_ptr<arrow::Array>& array)
 {
     auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
     YT_VERIFY(int32Array);
@@ -229,11 +251,18 @@ std::vector<double> ReadDoubleArray(const std::shared_ptr<arrow::Array>& array)
     return  {doubleArray->raw_values(), doubleArray->raw_values() + array->length()};
 }
 
+std::vector<float> ReadFloatArray(const std::shared_ptr<arrow::Array>& array)
+{
+    auto floatArray = std::dynamic_pointer_cast<arrow::FloatArray>(array);
+    YT_VERIFY(floatArray);
+    return  {floatArray->raw_values(), floatArray->raw_values() + array->length()};
+}
+
 std::vector<std::string> ReadStringArrayFromDict(const std::shared_ptr<arrow::Array>& array)
 {
     auto dictAr = std::dynamic_pointer_cast<arrow::DictionaryArray>(array);
     YT_VERIFY(dictAr);
-    auto indices = ReadInterger32Array(dictAr->indices());
+    auto indices = ReadInteger32Array(dictAr->indices());
 
     // Get values array.
     auto values = ReadStringArray(dictAr->dictionary());
@@ -269,10 +298,12 @@ bool IsDictColumn(const std::shared_ptr<arrow::Array>& array)
 ////////////////////////////////////////////////////////////////////////////////
 
 using ColumnInteger = std::vector<int64_t>;
+using ColumnInteger32 = std::vector<int32_t>;
 using ColumnString = std::vector<std::string>;
 using ColumnNullableString = std::vector<std::optional<std::string>>;
 using ColumnBool = std::vector<bool>;
 using ColumnDouble = std::vector<double>;
+using ColumnFloat = std::vector<float>;
 
 using ColumnStringWithNulls = std::vector<std::optional<std::string>>;
 using ColumnBoolWithNulls = std::vector<std::optional<bool>>;
@@ -290,6 +321,36 @@ struct TOwnerRows
 
 TOwnerRows MakeUnversionedIntegerRows(
     const std::vector<ColumnInteger>& column,
+    const std::vector<std::string>& columnNames,
+    bool isSigned = true)
+{
+    YT_VERIFY(column.size() > 0);
+
+    auto nameTable = New<TNameTable>();
+
+    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
+
+    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
+        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
+        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
+            if (isSigned) {
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedInt64Value(column[colIdx][rowIndex], columnId));
+            } else {
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedUint64Value(column[colIdx][rowIndex], columnId));
+            }
+        }
+    }
+    std::vector<TUnversionedRow> rows;
+    std::vector<TUnversionedOwningRow> owningRows;
+    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
+        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
+}
+
+TOwnerRows MakeUnversionedFloatRows(
+    const std::vector<ColumnFloat>& column,
     const std::vector<std::string>& columnNames)
 {
     YT_VERIFY(column.size() > 0);
@@ -301,7 +362,7 @@ TOwnerRows MakeUnversionedIntegerRows(
     for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
         auto columnId = nameTable->RegisterName(columnNames[colIdx]);
         for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
-            rowsBuilders[rowIndex].AddValue(MakeUnversionedInt64Value(column[colIdx][rowIndex], columnId));
+            rowsBuilders[rowIndex].AddValue(MakeUnversionedDoubleValue(column[colIdx][rowIndex], columnId));
         }
     }
     std::vector<TUnversionedRow> rows;
@@ -397,7 +458,6 @@ void CheckColumnNames(
 
 TEST(Simple, JustWork)
 {
-    EXPECT_TRUE(true);
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"integer"};
 
@@ -413,6 +473,34 @@ TEST(Simple, JustWork)
 
     auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
 
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
+}
+
+TEST(Simple, Data)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"data"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Date),
+    }));
+
+    TStringStream outputStream;
+    i64 ma = std::numeric_limits<int>::max();
+
+    ColumnInteger column = {18367, ma};
+
+    auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
@@ -422,7 +510,124 @@ TEST(Simple, JustWork)
 
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
-    EXPECT_EQ(ReadInterger64Array(batch->column(0)), column);
+    EXPECT_EQ(ReadIntegerDateArray(batch->column(0)), column);
+}
+
+TEST(Simple, Datatime)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"datatime"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Datetime),
+    }));
+
+    TStringStream outputStream;
+
+    ColumnInteger column = {1586966302, 5};
+
+    auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+
+    ColumnInteger columnRes = {1586966302000, 5000};
+    EXPECT_EQ(ReadIntegerDate64Array(batch->column(0)), columnRes);
+}
+
+TEST(Simple, Timestamp)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"timestamp"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Timestamp),
+    }));
+
+    TStringStream outputStream;
+
+    ColumnInteger column = {1586966302504185, 5000};
+
+    auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+
+    EXPECT_EQ(ReadTimestampArray(batch->column(0)), column);
+}
+
+TEST(Simple, Interval)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"Interval"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Interval),
+    }));
+
+    TStringStream outputStream;
+
+    ColumnInteger column = {1586966302504185, 5000};
+
+    auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+
+    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
+}
+
+TEST(Simple, Float)
+{
+    EXPECT_TRUE(true);
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"float"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+                TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Float),
+    }));
+
+    TStringStream outputStream;
+
+    ColumnFloat column = {1.2, 3.14};
+
+    auto rows = MakeUnversionedFloatRows({column}, columnNames);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+    EXPECT_EQ(ReadFloatArray(batch->column(0)), column);
 }
 
 TEST(Simple, WorkWithSystemColumns)
@@ -442,7 +647,6 @@ TEST(Simple, WorkWithSystemColumns)
 
     auto writer = CreateArrowWriterWithSystemColumns(rows.NameTable, &outputStream, tableSchemas);
 
-
     EXPECT_TRUE(writer->Write(rows.Rows));
 
     writer->Close()
@@ -451,7 +655,7 @@ TEST(Simple, WorkWithSystemColumns)
 
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, {"integer", "$row_index", "$range_index", "$table_index", "$tablet_index"});
-    EXPECT_EQ(ReadInterger64Array(batch->column(0)), column);
+    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
 TEST(Simple, ColumnarBatch)
@@ -480,7 +684,7 @@ TEST(Simple, ColumnarBatch)
 
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
-    EXPECT_EQ(ReadInterger64Array(batch->column(0)), column);
+    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
 TEST(Simple, RowBatch)
@@ -510,22 +714,22 @@ TEST(Simple, RowBatch)
 
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
-    EXPECT_EQ(ReadInterger64Array(batch->column(0)), column);
+    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
 TEST(Simple, Null)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
-    std::vector<std::string> columnNames = {"integer"};
+    std::vector<std::string> columnNames = {"integer", "null"};
     tableSchemas.push_back(New<TTableSchema>(std::vector{
                 TColumnSchema(TString(columnNames[0]), EValueType::Int64),
-                TColumnSchema(TString("null"), EValueType::Null),
+                TColumnSchema(TString(columnNames[1]), EValueType::Null),
     }));
 
     TStringStream outputStream;
     auto nameTable = New<TNameTable>();
     auto columnId = nameTable->RegisterName(columnNames[0]);
-    auto nullColumnId = nameTable->RegisterName("null");
+    auto nullColumnId = nameTable->RegisterName(columnNames[1]);
 
     TUnversionedRowBuilder row1, row2;
     row1.AddValue(MakeUnversionedNullValue(columnId));
@@ -535,10 +739,7 @@ TEST(Simple, Null)
     row2.AddValue(MakeUnversionedNullValue(nullColumnId));
 
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-
-
     auto writer = CreateArrowWriter(nameTable, &outputStream, tableSchemas);
-
 
     EXPECT_TRUE(writer->Write(rows));
 
@@ -548,7 +749,7 @@ TEST(Simple, Null)
 
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
-    EXPECT_EQ(ReadInterger64Array(batch->column(0))[1], 3);
+    EXPECT_EQ(ReadInteger64Array(batch->column(0))[1], 3);
 }
 
 TEST(Simple, String)
@@ -564,9 +765,7 @@ TEST(Simple, String)
     ColumnString column = {"cat", "mouse"};
 
     auto rows = MakeUnversionedStringRows({column}, columnNames);
-
     auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
-
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
@@ -781,7 +980,7 @@ TEST(StressOneBatch, Integer)
     CheckColumnNames(batch, columnNames);
 
     for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
-        EXPECT_EQ(ReadInterger64Array(batch->column(columnIndex)), columnsElements[columnIndex]);
+        EXPECT_EQ(ReadInteger64Array(batch->column(columnIndex)), columnsElements[columnIndex]);
     }
 }
 
@@ -964,7 +1163,7 @@ TEST(StressMultiBatch, Integer)
     for (auto& batch : batches) {
         for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
             CheckColumnNames(batch, columnNames);
-            EXPECT_EQ(ReadInterger64Array(batch->column(columnIndex)), columnsElements[batchIndex][columnIndex]);
+            EXPECT_EQ(ReadInteger64Array(batch->column(columnIndex)), columnsElements[batchIndex][columnIndex]);
         }
         batchIndex++;
     }
