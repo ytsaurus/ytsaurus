@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
+#include <yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
@@ -131,8 +131,8 @@ struct IChunkManager
     virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const = 0;
 
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
-        NJobTrackerClient::NProto::TReqHeartbeat,
-        NJobTrackerClient::NProto::TRspHeartbeat>;
+        NChunkServer::NProto::TReqHeartbeat,
+        NChunkServer::NProto::TRspHeartbeat>;
     using TCtxJobHeartbeatPtr = TIntrusivePtr<TCtxJobHeartbeat>;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);

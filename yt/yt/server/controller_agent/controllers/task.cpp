@@ -22,8 +22,6 @@
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>

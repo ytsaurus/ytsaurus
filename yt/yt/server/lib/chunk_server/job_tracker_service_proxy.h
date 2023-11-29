@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
+#include <yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 
-namespace NYT::NJobTrackerClient {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,4 +23,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobTrackerClient
+} // namespace NYT::NChunkServer

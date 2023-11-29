@@ -45,10 +45,9 @@ namespace NYT::NJobProxy {
 
 using namespace NApi;
 using namespace NChunkClient;
-using namespace NJobTrackerClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
 using namespace NTableClient;
 using namespace NTransactionClient;

@@ -51,8 +51,6 @@
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
-
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/security_client/helpers.h>
@@ -103,13 +101,11 @@ using namespace NNet;
 using namespace NApi;
 using namespace NObjectClient;
 using namespace NHydra;
-using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NNodeTrackerClient::NProto;
-using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
 using namespace NEventLog;
 using namespace NTransactionClient;
@@ -2092,7 +2088,7 @@ private:
 
             for (const auto& operation : result.Operations) {
                 if (operation->GetMutationId()) {
-                    NScheduler::NProto::TRspStartOperation response;
+                    NProto::TRspStartOperation response;
                     ToProto(response.mutable_operation_id(), operation->GetId());
                     auto responseMessage = CreateResponseMessage(response);
                     if (auto setResponseKeeperPromise =

@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 namespace NYT::NSchedulerSimulator {
 

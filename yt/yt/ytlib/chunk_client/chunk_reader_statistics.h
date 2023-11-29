@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
-
 #include <yt/yt/ytlib/table_client/timing_statistics.h>
 
 #include <yt/yt/core/profiling/public.h>

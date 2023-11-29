@@ -7,7 +7,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/server/lib/chunk_server/proto/job_common.pb.h>
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
@@ -39,7 +39,7 @@ public:
 public:
     TMasterJobBase(
         NChunkServer::TJobId jobId,
-        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+        const NChunkServer::NProto::TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const NClusterNode::TJobResources& resourceLimits,
         const NClusterNode::TJobResourceAttributes& resourceAttributes,
@@ -55,7 +55,7 @@ public:
     NJobAgent::EJobState GetState() const;
     TInstant GetStartTime() const;
     NClusterNode::TJobResources GetResourceUsage() const;
-    NJobTrackerClient::NProto::TJobResult GetResult() const;
+    NChunkServer::NProto::TJobResult GetResult() const;
     TBriefJobInfo GetBriefInfo() const;
 
     void Start();
@@ -66,7 +66,7 @@ protected:
     const TDataNodeConfigPtr Config_;
 
     const NChunkServer::TJobId JobId_;
-    const NJobTrackerClient::NProto::TJobSpec JobSpec_;
+    const NChunkServer::NProto::TJobSpec JobSpec_;
     const TString JobTrackerAddress_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
@@ -77,7 +77,7 @@ protected:
     NJobAgent::EJobState JobState_ = NJobAgent::EJobState::Waiting;
 
     TFuture<void> JobFuture_;
-    NJobTrackerClient::NProto::TJobResult Result_;
+    NChunkServer::NProto::TJobResult Result_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -105,7 +105,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterJobBase)
 
 TMasterJobBasePtr CreateJob(
     NChunkServer::TJobId jobId,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+    NChunkServer::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
     const NClusterNode::TJobResources& resourceLimits,
     const NClusterNode::TJobResourceAttributes& resourceAttributes,

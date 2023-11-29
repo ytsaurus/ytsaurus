@@ -26,6 +26,7 @@
 #include <yt/yt/library/containers/cri/config.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/statistics.h>
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
@@ -54,8 +55,6 @@
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
-
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/yt/ytlib/job_proxy/config.h>
 
@@ -106,7 +105,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NIO;
 using namespace NJobAgent;
 using namespace NJobProberClient;
-using namespace NJobTrackerClient;
+using namespace NChunkServer;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NControllerAgent;
@@ -1941,9 +1940,9 @@ void TJob::OnJobProxyPreparationTimeout()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(JobPhase_ >= NJobTrackerClient::EJobPhase::SpawningJobProxy);
+    YT_VERIFY(JobPhase_ >= EJobPhase::SpawningJobProxy);
 
-    if (JobPhase_ == NJobTrackerClient::EJobPhase::PreparingJob) {
+    if (JobPhase_ == EJobPhase::PreparingJob) {
         YT_LOG_INFO("Job proxy preparation timeout");
 
         Abort(TError(

@@ -53,8 +53,6 @@
 
 #include <yt/yt/ytlib/event_log/event_log.h>
 
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>

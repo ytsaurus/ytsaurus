@@ -4,16 +4,15 @@
 
 #include <yt/yt/client/scheduler/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
+#include <yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h>
 
-namespace NYT::NJobTrackerClient {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobToAbort
 {
     TJobId JobId;
-    std::optional<NScheduler::EAbortReason> AbortReason;
 };
 
 struct TJobToRemove
@@ -25,13 +24,13 @@ struct TJobToRemove
 
 namespace NProto {
 
-void ToProto(NProto::TJobToAbort* protoJobToAbort, const NJobTrackerClient::TJobToAbort& jobToAbort);
+void ToProto(NProto::TJobToAbort* protoJobToAbort, const NChunkServer::TJobToAbort& jobToAbort);
 
-void FromProto(NJobTrackerClient::TJobToAbort* jobToAbort, const NProto::TJobToAbort& protoJobToAbort);
+void FromProto(NChunkServer::TJobToAbort* jobToAbort, const NProto::TJobToAbort& protoJobToAbort);
 
-void ToProto(NProto::TJobToRemove* protoJob, const NJobTrackerClient::TJobToRemove& jobToRemove);
+void ToProto(NProto::TJobToRemove* protoJob, const NChunkServer::TJobToRemove& jobToRemove);
 
-void FromProto(NJobTrackerClient::TJobToRemove* jobToRemove, const NProto::TJobToRemove& protoJobToRemove);
+void FromProto(NChunkServer::TJobToRemove* jobToRemove, const NProto::TJobToRemove& protoJobToRemove);
 
 } // namespace NProto
 
@@ -41,4 +40,4 @@ void AddJobToAbort(NProto::TRspHeartbeat* response, const TJobToAbort& jobToAbor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobTrackerClient
+} // namespace NYT::NChunkServer

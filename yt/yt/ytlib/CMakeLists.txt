@@ -915,30 +915,6 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
@@ -1027,8 +1003,6 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/proto/job.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
@@ -1241,8 +1215,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_io_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_read_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_parts_reader.cpp

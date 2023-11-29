@@ -53,7 +53,7 @@ public:
 
     bool FillJobSpec(
         NCellMaster::TBootstrap* bootstrap,
-        NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+        NProto::TJobSpec* jobSpec) const override;
 
 private:
     const TNodePtrWithReplicaAndMediumIndexList SourceReplicas_;

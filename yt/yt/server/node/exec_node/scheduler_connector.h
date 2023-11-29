@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
-
 #include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>

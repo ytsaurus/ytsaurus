@@ -1,5 +1,6 @@
 #include "public.h"
 #include "structs.h"
+#include "statistics.h"
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
@@ -8,8 +9,6 @@
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
-
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
@@ -25,7 +24,6 @@ using namespace NScheduler;
 using namespace NYson;
 using namespace NYTree;
 using namespace NLogging;
-using namespace NJobTrackerClient;
 
 using NYT::FromProto;
 using NYT::ToProto;

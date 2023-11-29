@@ -9,7 +9,7 @@
 
 #include <util/string/util.h>
 
-namespace NYT::NJobTrackerClient {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -105,4 +105,4 @@ void FillTrafficStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobTrackerClient
+} // namespace NYT::NControllerAgent

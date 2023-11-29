@@ -13,8 +13,6 @@
 
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/yt/ytlib/job_tracker_client/helpers.h>
-
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>

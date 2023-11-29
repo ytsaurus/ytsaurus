@@ -1,6 +1,6 @@
-package NYT.NJobTrackerClient.NProto;
+package NYT.NChunkServer.NProto;
 
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/yt/server/lib/chunk_server/proto/job_common.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
@@ -38,7 +38,6 @@ message TJobStartInfo
 message TJobToAbort
 {
     required NYT.NProto.TGuid job_id = 1;
-    optional int32 abort_reason = 2;
 }
 
 message TJobToRemove

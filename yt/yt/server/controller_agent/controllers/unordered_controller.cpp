@@ -24,8 +24,6 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/yt/ytlib/table_client/config.h>
 
 #include <yt/yt/library/query/base/query.h>

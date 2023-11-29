@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
 

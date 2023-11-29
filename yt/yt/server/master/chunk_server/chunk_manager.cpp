@@ -84,14 +84,14 @@
 #include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/journal_server/journal_manager.h>
 
+#include <yt/yt/server/lib/chunk_server/helpers.h>
+#include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
-
-#include <yt/yt/ytlib/job_tracker_client/helpers.h>
-#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
@@ -164,7 +164,6 @@ using namespace NChunkClient::NProto;
 using namespace NDataNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
-using namespace NJobTrackerClient;
 using namespace NJournalClient;
 using namespace NJournalServer;
 using namespace NSequoiaClient;
@@ -1664,15 +1663,15 @@ public:
             *node);
 
         auto removeJob = [&] (NChunkServer::TJobId jobId) {
-            ToProto(response->add_jobs_to_remove(), TJobToRemove{ToSchedulerJobId(jobId)});
+            ToProto(response->add_jobs_to_remove(), TJobToRemove{jobId});
 
             if (auto job = JobRegistry_->FindJob(jobId)) {
                 JobRegistry_->OnJobFinished(job);
             }
         };
 
-        auto abortJob = [&] (NChunkServer::TJobId jobId) {
-            AddJobToAbort(response, {ToSchedulerJobId(jobId), /*AbortReason*/ std::nullopt});
+        auto abortJob = [&] (TJobId jobId) {
+            AddJobToAbort(response, {jobId});
         };
 
         TJobControllerCallbacks jobControllerCallbacks;
@@ -1854,7 +1853,7 @@ public:
         }
 
         for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
-            NJobTrackerClient::NProto::TJobSpec jobSpec;
+            NProto::TJobSpec jobSpec;
             jobSpec.set_type(ToProto<int>(scheduledJob->GetType()));
 
             if (!scheduledJob->FillJobSpec(Bootstrap_, &jobSpec)) {

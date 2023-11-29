@@ -271,12 +271,6 @@ SRCS(
     job_proxy/user_job_io_factory.cpp
     job_proxy/user_job_read_controller.cpp
 
-    job_tracker_client/helpers.cpp
-    job_tracker_client/statistics.cpp
-
-    job_tracker_client/proto/job_tracker_service.proto
-    job_tracker_client/proto/job.proto
-
     journal_client/chunk_reader.cpp
     journal_client/config.cpp
     journal_client/erasure_parts_reader.cpp
