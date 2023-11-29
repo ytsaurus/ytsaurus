@@ -1,1 +1,1 @@
-{% include [Классы данных](../../_includes/api/python/dataclass.md) %}
+{% include [Датаклассы](../../_includes/api/python/dataclass.md) %}
