@@ -1022,7 +1022,7 @@ private:
                 //    isInvalidImage = true;
                 //}
                 auto it = volumeProperties.find("backend");
-                if (errorOrValue.GetCode() == EPortoErrorCode::Unknown && it != volumeProperties.end() && it->second == "squash") {
+                if (errorOrValue.GetCode() == EPortoErrorCode::Unknown && it != volumeProperties.end() && (it->second == "squash" || it->second == "nbd")) {
                     isInvalidImage = true;
                 }
             }
