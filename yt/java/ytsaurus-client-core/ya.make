@@ -1,4 +1,4 @@
-JAVA_LIBRARY(ytsaurus-client-core)
+JAVA_LIBRARY()
 
 IF(JDK_VERSION == "")
     JDK_VERSION(11)

@@ -1,4 +1,4 @@
-JAVA_LIBRARY(ytsaurus-yson-tree)
+JAVA_LIBRARY()
 
 IF(JDK_VERSION == "")
     JDK_VERSION(11)
