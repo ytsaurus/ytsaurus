@@ -243,15 +243,31 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverterImpl(
     YT_ABORT();
 }
 
-TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter converter, Py::Callable middlewareConverter)
+TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter converter, Py::Callable middlewareConverter, bool forceOptional)
 {
-    return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](TCheckedInDebugSkiffParser* parser) mutable {
-        Py::Tuple args(1);
-        args[0] = Py::Object(converter(parser).release(), true);
-        auto pyObject = middlewareConverter.apply(args);
-        pyObject.increment_reference_count();
-        return PyObjectPtr(pyObject.ptr());
-    };
+    if (forceOptional) {
+        return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](TCheckedInDebugSkiffParser* parser) mutable {
+            auto originalPyObject = converter(parser);
+            if (originalPyObject.get() == Py_None) {
+                // The middleware may not be ready to handle None, so we avoid calling it here.
+                return originalPyObject;
+            }
+
+            Py::Tuple args(1);
+            args[0] = Py::Object(originalPyObject.release(), true);
+            auto pyObject = middlewareConverter.apply(args);
+            pyObject.increment_reference_count();
+            return PyObjectPtr(pyObject.ptr());
+        };
+    } else {
+        return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](TCheckedInDebugSkiffParser* parser) mutable {
+            Py::Tuple args(1);
+            args[0] = Py::Object(converter(parser).release(), true);
+            auto pyObject = middlewareConverter.apply(args);
+            pyObject.increment_reference_count();
+            return PyObjectPtr(pyObject.ptr());
+        };
+    }
 }
 
 TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
@@ -279,7 +295,7 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
         return primitiveConverter;
     }
 
-    return WrapWithMiddlewareConverter(std::move(primitiveConverter), Py::Callable(std::move(middlewareConverter)));
+    return WrapWithMiddlewareConverter(std::move(primitiveConverter), Py::Callable(std::move(middlewareConverter)), forceOptional);
 }
 
 class TStructSkiffToPythonConverter
