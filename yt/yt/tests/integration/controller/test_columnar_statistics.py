@@ -12,7 +12,7 @@ from yt_type_helpers import (
     optional_type,
 )
 
-from yt_helpers import skip_if_renaming_disabled
+from yt_helpers import skip_if_renaming_disabled, profiler_factory
 
 from yt.common import YtError
 
@@ -730,6 +730,48 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         statistics = get(op.get_path() + "/@progress/estimated_input_statistics")
         assert 10000 <= statistics["uncompressed_data_size"] <= 12000
         assert 10000 <= statistics["compressed_data_size"] <= 12000
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["from_nodes", "from_master", "fallback"])
+    def test_columnar_statistics_mode(self, mode):
+        create("table", "//tmp/t", attributes={"optimize_for": "scan"})
+        create("table", "//tmp/d")
+        for i in range(10):
+            write_table(
+                "<append=%true>//tmp/t",
+                [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
+            )
+
+        def get_requests_stats():
+            return {
+                node: profiler_factory()
+                .at_node(node)
+                .with_tags({
+                    "method": "GetColumnarStatistics",
+                    "yt_service": "DataNodeService"
+                })
+                .counter("rpc/server/request_count")
+                .get()
+                for node in ls('//sys/cluster_nodes')
+            }
+
+        requests_by_node = get_requests_stats()
+
+        map(
+            in_="//tmp/t{b}",
+            out="//tmp/d",
+            spec={
+                "input_table_columnar_statistics": {
+                    "mode": mode,
+                },
+            },
+            command="echo '{a=1}'",
+        )
+
+        if mode == "from_nodes":
+            assert get_requests_stats() != requests_by_node
+        else:
+            assert get_requests_stats() == requests_by_node
 
 
 ##################################################################

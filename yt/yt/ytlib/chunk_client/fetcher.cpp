@@ -225,18 +225,28 @@ int TFetcherBase::GetChunkCount() const
     return Chunks_.size();
 }
 
-TFuture<void> TFetcherBase::Fetch()
+
+THashSet<int> TFetcherBase::GetChunkIndexesToFetch()
 {
-    OnFetchingStarted();
+    THashSet<int> indexes;
 
     for (int chunkIndex = 0; chunkIndex < std::ssize(Chunks_); ++chunkIndex) {
         const auto& chunk = Chunks_[chunkIndex];
         if (chunk->IsDynamicStore()) {
             ProcessDynamicStore(chunkIndex);
         } else {
-            UnfetchedChunkIndexes_.insert(chunkIndex);
+            indexes.insert(chunkIndex);
         }
     }
+
+    return indexes;
+}
+
+TFuture<void> TFetcherBase::Fetch()
+{
+    OnFetchingStarted();
+
+    UnfetchedChunkIndexes_ = GetChunkIndexesToFetch();
 
     THashSet<TNodeId> nodeIds;
     for (int unfetchedChunkIndex : UnfetchedChunkIndexes_) {
