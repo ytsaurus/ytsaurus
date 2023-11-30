@@ -1,5 +1,7 @@
 #include "cgroups_new.h"
 
+#include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
@@ -8,6 +10,10 @@
 #include <util/string/vector.h>
 
 namespace NYT::NContainers::NCGroups {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static inline const NLogging::TLogger Logger("CGroups");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,6 +194,10 @@ TBlockIOStatistics GetBlockIOStatisticsV2(const TString& cgroup)
 TSelfCGroupsStatisticsFetcher::TSelfCGroupsStatisticsFetcher()
 {
     DetectSelfCGroup();
+
+    YT_LOG_INFO("CGroups statistics fetcher initialized (CGroup: %v, IsV2: %v)",
+        CGroup_,
+        IsV2_);
 }
 
 TMemoryStatistics TSelfCGroupsStatisticsFetcher::GetMemoryStatistics() const
