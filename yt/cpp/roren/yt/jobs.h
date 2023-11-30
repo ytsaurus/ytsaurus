@@ -21,8 +21,8 @@ IRawParDoPtr CreateCoGbkImpulseReadNodeParDo(
     IRawCoGroupByKeyPtr rawCoGbk,
     std::vector<TRowVtable> rowVtable);
 
-IRawParDoPtr CreateCombineCombinerImpulseReadParDo(IRawCombinePtr rawCombine);
-IRawParDoPtr CreateCombineReducerImpulseReadParDo(IRawCombinePtr rawCombine);
+IRawParDoPtr CreateCombineCombinerImpulseReadNodeParDo(IRawCombinePtr rawCombine);
+IRawParDoPtr CreateCombineReducerImpulseReadNodeParDo(IRawCombinePtr rawCombine);
 
 NYT::IRawJobPtr CreateParDoMap(
     const IRawParDoPtr& rawParDo,

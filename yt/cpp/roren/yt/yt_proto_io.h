@@ -286,6 +286,12 @@ IRawParDoPtr CreateCoGbkImpulseReadProtoParDo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IRawParDoPtr CreateCombineCombinerImpulseReadProtoParDo(IRawCombinePtr rawCombine);
+
+IRawParDoPtr CreateCombineReducerImpulseReadProtoParDo(IRawCombinePtr rawCombine);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TMessage>
 IRawYtReadPtr MakeYtProtoRead(NYT::TRichYPath path)
 {

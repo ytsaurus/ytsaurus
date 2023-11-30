@@ -200,7 +200,7 @@ public:
     {
         try {
             auto reader = CreateDecodingJobInput(RowVtables_);
-            auto writer = CreateKvJobOutput(/*sinkIndex*/ 0, RowVtables_);
+            auto writer = CreateKvJobNodeOutput(/*sinkIndex*/ 0, RowVtables_);
 
             while (const auto* row = reader->NextRaw()) {
                 writer->AddRawToTable(row, 1, reader->GetInputIndex());
@@ -250,7 +250,7 @@ public:
                 rowHolders.emplace_back(rowVtable);
             }
 
-            auto writer = CreateKvJobOutput(/*sinkIndex*/ 0, RowVtables_);
+            auto writer = CreateKvJobNodeOutput(/*sinkIndex*/ 0, RowVtables_);
 
             for (;reader->IsValid(); reader->Next()) {
                 auto node = reader->GetRow();
@@ -668,13 +668,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCombineCombinerImpulseReadParDo
+class TCombineCombinerImpulseReadNodeParDo
     : public IRawParDo
 {
 public:
-    TCombineCombinerImpulseReadParDo() = default;
+    TCombineCombinerImpulseReadNodeParDo() = default;
 
-    explicit TCombineCombinerImpulseReadParDo(IRawCombinePtr rawCombine)
+    explicit TCombineCombinerImpulseReadNodeParDo(IRawCombinePtr rawCombine)
         : RawCombine_(std::move(rawCombine))
     { }
 
@@ -697,7 +697,7 @@ public:
 
         auto accumVtable = RawCombine_->GetAccumVtable();
         auto inputVtable = RawCombine_->GetInputVtable();
-        auto kvOutput = CreateKvJobOutput(
+        auto kvOutput = CreateKvJobNodeOutput(
             /*sinkIndex*/ 0,
             inputVtable.KeyVtableFactory().RawCoderFactory(),
             accumVtable.RawCoderFactory());
@@ -739,7 +739,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCombineCombinerImpulseReadParDo>();
+            return ::MakeIntrusive<TCombineCombinerImpulseReadNodeParDo>();
         };
     }
 
@@ -765,13 +765,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCombineReducerImpulseReadParDo
+class TCombineReducerImpulseReadNodeParDo
     : public IRawParDo
 {
 public:
-    TCombineReducerImpulseReadParDo() = default;
+    TCombineReducerImpulseReadNodeParDo() = default;
 
-    explicit TCombineReducerImpulseReadParDo(IRawCombinePtr rawCombine)
+    explicit TCombineReducerImpulseReadNodeParDo(IRawCombinePtr rawCombine)
         : RawCombine_(std::move(rawCombine))
     { }
 
@@ -825,7 +825,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCombineReducerImpulseReadParDo>();
+            return ::MakeIntrusive<TCombineReducerImpulseReadNodeParDo>();
         };
     }
 
@@ -839,7 +839,7 @@ public:
     std::vector<TDynamicTypeTag> GetOutputTags() const override
     {
         return {
-            {"TCombineReducerImpulseReadParDo.Output", RawCombine_->GetOutputVtable()},
+            {"TCombineReducerImpulseReadNodeParDo.Output", RawCombine_->GetOutputVtable()},
         };
     }
 
@@ -960,12 +960,12 @@ IRawJobPtr CreateCombineCombiner(
     const IRawCombinePtr& combine,
     const TRowVtable& /*inRowVtable*/)
 {
-    return ::MakeIntrusive<TImpulseRawJob>(CreateCombineCombinerImpulseReadParDo(combine));
+    return ::MakeIntrusive<TImpulseRawJob>(CreateCombineCombinerImpulseReadNodeParDo(combine));
 }
 
-IRawParDoPtr CreateCombineCombinerImpulseReadParDo(IRawCombinePtr rawCombine)
+IRawParDoPtr CreateCombineCombinerImpulseReadNodeParDo(IRawCombinePtr rawCombine)
 {
-    return ::MakeIntrusive<TCombineCombinerImpulseReadParDo>(std::move(rawCombine));
+    return ::MakeIntrusive<TCombineCombinerImpulseReadNodeParDo>(std::move(rawCombine));
 }
 
 IRawJobPtr CreateCombineReducer(
@@ -977,16 +977,16 @@ IRawJobPtr CreateCombineReducer(
     builder.AddParDoChain(
         TParDoTreeBuilder::RootNodeId,
         {
-            CreateCombineReducerImpulseReadParDo(std::move(combine)),
+            CreateCombineReducerImpulseReadNodeParDo(std::move(combine)),
             CreateOutputParDo(output, outRowVtable),
         }
     );
     return ::MakeIntrusive<TImpulseRawJob>(builder.Build());
 }
 
-IRawParDoPtr CreateCombineReducerImpulseReadParDo(IRawCombinePtr rawCombine)
+IRawParDoPtr CreateCombineReducerImpulseReadNodeParDo(IRawCombinePtr rawCombine)
 {
-    return ::MakeIntrusive<TCombineReducerImpulseReadParDo>(std::move(rawCombine));
+    return ::MakeIntrusive<TCombineReducerImpulseReadNodeParDo>(std::move(rawCombine));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

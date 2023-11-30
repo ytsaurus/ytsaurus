@@ -190,8 +190,8 @@ IYtNotSerializableJobInputPtr CreateSplitKvJobNodeInput(
 
 IYtJobOutputPtr CreateEncodingJobOutput(const TRowVtable& rowVtable, int sinkIndex);
 
-IKvJobOutputPtr CreateKvJobOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables);
-IKvJobOutputPtr CreateKvJobOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder);
+IKvJobOutputPtr CreateKvJobNodeOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables);
+IKvJobOutputPtr CreateKvJobNodeOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder);
 
 IYtJobOutputPtr CreateTeeJobOutput(std::vector<IYtJobOutputPtr> outputs);
 IYtJobOutputPtr CreateParDoJobOutput(IRawParDoPtr rawParDo, std::vector<IYtJobOutputPtr> outputs);

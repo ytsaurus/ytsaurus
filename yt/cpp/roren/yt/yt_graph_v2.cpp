@@ -1000,28 +1000,39 @@ public:
     std::pair<TMapReduceOperationNode*, TParDoTreeBuilder::TPCollectionNodeId> CreateCombinePerKeyMapReduceOperation(
         TTableNode* inputTable,
         TString firstName,
-        const IRawCombinePtr& rawCombine)
+        const IRawCombinePtr& rawCombine,
+        bool useProtoFormat)
     {
         auto* mapReduceOperation = CreateMapReduceOperation({inputTable}, firstName);
+        auto parDoList = useProtoFormat
+            ? std::vector<IRawParDoPtr>{
+                CreateEncodingKeyValueProtoParDo(inputTable->Vtable),
+                CreateWriteProtoParDo<TKVProto>(0)
+            }
+            : std::vector<IRawParDoPtr>{
+                CreateEncodingKeyValueNodeParDo(inputTable->Vtable),
+            CreateWriteNodeParDo(0)
+            };
         mapReduceOperation->MapperBuilderList_[0].AddParDoChainVerifyNoOutput(
             TParDoTreeBuilder::RootNodeId,
-            {
-                CreateEncodingKeyValueNodeParDo(inputTable->Vtable),
-                CreateWriteNodeParDo(0)
-            }
+            parDoList
         );
 
         mapReduceOperation->CombinerBuilder_.AddParDoChainVerifyNoOutput(
             TParDoTreeBuilder::RootNodeId,
             {
-                CreateCombineCombinerImpulseReadParDo(rawCombine),
+                useProtoFormat
+                ? CreateCombineCombinerImpulseReadProtoParDo(rawCombine)
+                : CreateCombineCombinerImpulseReadNodeParDo(rawCombine),
             }
         );
 
         auto nodeId = mapReduceOperation->ReducerBuilder_.AddParDoChainVerifySingleOutput(
             TParDoTreeBuilder::RootNodeId,
             {
-                CreateCombineReducerImpulseReadParDo(rawCombine),
+                useProtoFormat
+                ? CreateCombineReducerImpulseReadProtoParDo(rawCombine)
+                : CreateCombineReducerImpulseReadNodeParDo(rawCombine),
             }
         );
 
@@ -1800,7 +1811,6 @@ public:
                 break;
             }
             case ERawTransformType::CombinePerKey: {
-                // TODO support proto read/write
                 const auto* sourcePCollection = VerifiedGetSingleSource(transformNode);
                 auto* inputTable = GetPCollectionImage(sourcePCollection);
                 auto rawCombinePerKey = transformNode->GetRawTransform()->AsRawCombine();
@@ -1808,7 +1818,8 @@ public:
                 const auto& [mapReduceOperation, nodeId] = PlainGraph_->CreateCombinePerKeyMapReduceOperation(
                     inputTable,
                     transformNode->GetName(),
-                    transformNode->GetRawTransform()->AsRawCombine()
+                    transformNode->GetRawTransform()->AsRawCombine(),
+                    Config_->GetEnableProtoFormatForIntermediates()
                 );
 
                 const auto* sinkPCollection = VerifiedGetSingleSink(transformNode);
