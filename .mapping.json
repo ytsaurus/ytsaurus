@@ -750,6 +750,7 @@
   "yt/yql/CMakeLists.txt":"",
   "yt/yql/agent/CMakeLists.txt":"",
   "yt/yql/agent/bin/CMakeLists.txt":"",
+  "yt/yql/agent/unittests/CMakeLists.txt":"",
   "yt/yql/plugin/CMakeLists.txt":"",
   "yt/yql/plugin/bridge/CMakeLists.txt":"",
   "yt/yt/CMakeLists.txt":"",

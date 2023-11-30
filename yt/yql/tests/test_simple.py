@@ -21,7 +21,9 @@ class TestQueriesYqlBase(YTEnvSetup):
     }
 
 
-class TestQueriesYql(TestQueriesYqlBase):
+class TestSimpleQueriesYql(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 16
+
     @authors("max42")
     def test_simple(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
@@ -89,6 +91,85 @@ class TestQueriesYql(TestQueriesYqlBase):
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"b": "foo", "c": True}])
+
+    @authors("mpereskokova")
+    def test_calc(self, query_tracker, yql_agent):
+        query = start_query("yql", "select 1")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal([{"column0": 1}], result)
+
+        query = start_query("yql", "select 1 + 1")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal([{"column0": 2}], result)
+
+        query = start_query("yql", "select 2 as b, 1 as a")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal([{"a": 1, "b": 2}], result)
+
+    @authors("mpereskokova")
+    def test_multiple_queries(self, query_tracker, yql_agent):
+        query = start_query("yql", "select 1; select 2")
+        query.track()
+
+        result1 = query.read_result(0)
+        assert_items_equal([{"column0": 1}], result1)
+        result2 = query.read_result(1)
+        assert_items_equal([{"column0": 2}], result2)
+
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        })
+        rows = [{"a": 42, "b": "foo"}]
+        write_table("//tmp/t", rows)
+
+        query = start_query("yql", "select a from `//tmp/t`; select b from `//tmp/t`; select 1;")
+        query.track()
+
+        result1 = query.read_result(0)
+        assert_items_equal([{"a": 42}], result1)
+        result2 = query.read_result(1)
+        assert_items_equal([{"b": "foo"}], result2)
+        result3 = query.read_result(2)
+        assert_items_equal([{"column0": 1}], result3)
+
+    @authors("mpereskokova")
+    def test_count(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": -17}]
+        write_table("//tmp/t", rows)
+
+        query = start_query("yql", "select count(*) from `//tmp/t`")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal([{"column0": 2}], result)
+
+    @authors("mpereskokova")
+    def test_union(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t1", rows)
+
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 43}]
+        write_table("//tmp/t2", rows)
+
+        query = start_query("yql", "select * from `//tmp/t1` union all select * from `//tmp/t2`")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal([{"a": 42}, {"a": 43}], result)
+
+
+class TestYqlAgent(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 8
 
     @authors("max42")
     def test_udf(self, query_tracker, yql_agent):
@@ -166,14 +247,7 @@ class TestQueriesYql(TestQueriesYqlBase):
 
     @authors("mpereskokova")
     def test_files(self, query_tracker, yql_agent):
-        # TODO: remove table after YT-19006
-        create("table", "//tmp/t", attributes={
-            "schema": [{"name": "a", "type": "int64"}]
-        })
-        rows = [{"a": 42}]
-        write_table("//tmp/t", rows)
-
-        query = start_query("yql", "select FileContent(\"test_file_raw\") as column from `//tmp/t`;", files=[{"name" : "test_file_raw", "content" : "test_content", "type" : "raw_inline_data"}])
+        query = start_query("yql", "select FileContent(\"test_file_raw\") as column;", files=[{"name" : "test_file_raw", "content" : "test_content", "type" : "raw_inline_data"}])
         query.track()
         result = query.read_result(0)
         assert_items_equal([{"column": "test_content"}], result)
@@ -183,15 +257,17 @@ class TestQueriesYql(TestQueriesYqlBase):
         write_file("//tmp/test_file", b"test_file_content")
         file_link = "http://" + self.Env.get_http_proxy_address() + "/api/v3/read_file?path=//tmp/test_file"
 
-        query = start_query("yql", "select FileContent(\"test_file_url\") as column from `//tmp/t`;", files=[{"name" : "test_file_url", "content" : file_link, "type" : "url"}])
+        query = start_query("yql", "select FileContent(\"long_link\"); select FileContent(\"short_link\");", files=[
+            {"name" : "long_link", "content" : file_link, "type" : "url"},
+            {"name" : "short_link", "content" : "yt://primary/tmp/test_file", "type" : "url"}])
         query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"column": "test_file_content"}], result)
 
-        query = start_query("yql", "select FileContent(\"test_file_url\") as column from `//tmp/t`;", files=[{"name" : "test_file_url", "content" : "yt://primary/tmp/test_file", "type" : "url"}])
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"column": "test_file_content"}], result)
+        long_link_result = query.read_result(0)
+        short_link_result = query.read_result(1)
+
+        result = [{"column0": "test_file_content"}]
+        assert_items_equal(result, long_link_result)
+        assert_items_equal(result, short_link_result)
 
     @authors("apollo1321")
     def test_config_defaults(self, query_tracker, yql_agent):
@@ -220,6 +296,28 @@ class TestQueriesYql(TestQueriesYqlBase):
             assert file_storage_config["max_files"] == 1 << 13
             # The default should be overwritten from 1 << 14.
             assert file_storage_config["max_size_mb"] == 1 << 13
+
+    @authors("mpereskokova")
+    def test_pragma_refselect(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}, {"name": "c", "type": "string"}],
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+        })
+        sync_mount_table("//tmp/t")
+
+        rows = [{"a": 42, "b": 43, "c": "test"}]
+        insert_rows("//tmp/t", rows)
+
+        query = start_query("yql", "pragma RefSelect; select * from `//tmp/t`")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, rows)
+
+        query = start_query("yql", "pragma RefSelect; select c, a from `//tmp/t`")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"a": 42, "c": "test"}])
 
 
 class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
