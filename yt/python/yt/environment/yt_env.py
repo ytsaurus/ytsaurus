@@ -574,7 +574,7 @@ class YTInstance(object):
                             self.yt_config.meta_files_suffix,
                             client)
 
-            self._wait_for_dynamic_config(patched_node_config, client)
+            self._wait_for_nodes_dynamic_config(patched_node_config, client)
             self._write_environment_info_to_file()
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
@@ -2056,7 +2056,7 @@ class YTInstance(object):
 
         self._wait_for_nodes_dynamic_config(patched_config, client)
 
-    def _wait_for_dynamic_config(self, expected_config, client):
+    def _wait_for_nodes_dynamic_config(self, expected_config, client):
         nodes = client.list("//sys/cluster_nodes")
 
         def check():
