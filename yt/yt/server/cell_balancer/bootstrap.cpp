@@ -4,6 +4,7 @@
 #include "config.h"
 #include "master_connector.h"
 #include "bundle_controller.h"
+#include "bundle_controller_service.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -117,11 +118,19 @@ public:
         return NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
     }
 
-    const ICypressElectionManagerPtr& GetElectionManager() override
+    const ICypressElectionManagerPtr& GetElectionManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ElectionManager_;
+    }
+
+
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return NativeAuthenticator_;
     }
 
 private:
@@ -210,6 +219,7 @@ private:
             GetControlInvoker(),
             CoreDumper_,
             NativeAuthenticator_));
+        RpcServer_->RegisterService(NBundleController::CreateBundleControllerService(this));
     }
 
     void DoRun()
@@ -231,6 +241,8 @@ private:
         if (Config_->EnableBundleController) {
             BundleController_->Start();
         }
+
+        NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
     }
 };
 

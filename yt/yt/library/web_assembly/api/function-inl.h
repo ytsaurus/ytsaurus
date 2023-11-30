@@ -60,6 +60,19 @@ Y_FORCE_INLINE TCompartmentFunction<TResult(TArgs...)>::TCompartmentFunction(
 { }
 
 template <typename TResult, typename... TArgs>
+Y_FORCE_INLINE TCompartmentFunction<TResult(TArgs...)>::TCompartmentFunction(
+    IWebAssemblyCompartment* compartment,
+    const TString& name)
+    : Compartment_(compartment)
+    , Function_(nullptr)
+    , RuntimeType_(TFunctionTypeBuilder<TResult(TArgs...)>::Get(/*intrinsic*/ false))
+    , RuntimeFunction_(
+        Compartment_
+        ? Compartment_->GetFunction(name)
+        : nullptr)
+{ }
+
+template <typename TResult, typename... TArgs>
 Y_FORCE_INLINE TResult TCompartmentFunction<TResult(TArgs...)>::operator()(TArgs... args) const
 {
     static_assert(

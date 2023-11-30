@@ -43,7 +43,7 @@ public:
 private:
     const TQueueAgentServerConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
-    TQueueAgentServerDynamicConfigPtr DynamicConfig_;
+    const TQueueAgentServerDynamicConfigPtr DynamicConfig_;
 
     TString AgentId_;
     TString GroupId_;

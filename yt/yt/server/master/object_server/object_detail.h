@@ -44,7 +44,10 @@ public:
     NTransactionServer::TTransaction* GetTransaction() const override;
     const NYTree::IAttributeDictionary& Attributes() const override;
     NYTree::IAttributeDictionary* MutableAttributes() override;
-    void Invoke(const NYTree::IYPathServiceContextPtr& context) override;
+
+    // NB: Method marked as final to ensure that BeforeInvoke and AfterInvoke will be called.
+    // Consider using aforementioned methods instead of expanding this.
+    void Invoke(const NYTree::IYPathServiceContextPtr& context) override final;
     void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const NYTree::TAttributeFilter& attributeFilter,
@@ -92,6 +95,7 @@ protected:
     //! Returns the ACD for the object or |nullptr| is none exists.
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
+    void BeforeInvoke(const NYTree::IYPathServiceContextPtr& context) override;
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     // NYTree::TSupportsAttributes members

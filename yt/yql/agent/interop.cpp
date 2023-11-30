@@ -1,5 +1,9 @@
 #include "interop.h"
 
+#include <yt/yt/library/formats/skiff_parser.h>
+
+#include <yt/yt/library/skiff_ext/schema_match.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -7,10 +11,13 @@
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/client/formats/parser.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/name_table.h>
 
@@ -65,15 +72,54 @@ struct TYqlRef
 DECLARE_REFCOUNTED_STRUCT(TYqlRef)
 DEFINE_REFCOUNTED_TYPE(TYqlRef)
 
-TYqlRowset BuildRowset(
+void ReorderAndSaveRows(
+    TRowBufferPtr rowBuffer,
+    TNameTablePtr sourceNameTable,
+    TNameTablePtr targetNameTable,
+    TRange<TUnversionedRow> rows,
+    std::vector<TUnversionedRow>& resultRows)
+{
+    std::vector<int> sourceIdToTargetId;
+
+    for (const auto& row : rows) {
+        if (!row) {
+            resultRows.push_back(row);
+            continue;
+        }
+
+        std::vector<TUnversionedValue> values(targetNameTable->GetSize());
+        auto reorderedRow = rowBuffer->AllocateUnversioned(targetNameTable->GetSize());
+        for (int index = 0; index < static_cast<int>(reorderedRow.GetCount()); ++index) {
+            reorderedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
+        }
+        for (const auto& value : row) {
+            auto targetId = VectorAtOr(sourceIdToTargetId, value.Id, /*defaultValue*/ -1);
+            if (targetId == -1) {
+                auto name = sourceNameTable->GetName(value.Id);
+                auto optionalTargetId = targetNameTable->FindId(name);
+                if (!optionalTargetId) {
+                    continue;
+                }
+
+                targetId = *optionalTargetId;
+                AssignVectorAt(sourceIdToTargetId, value.Id, targetId, /*defaultValue*/ -1);
+            }
+            YT_VERIFY(0 <= targetId && targetId < targetNameTable->GetSize());
+            reorderedRow[targetId] = rowBuffer->CaptureValue(value);
+            reorderedRow[targetId].Id = targetId;
+        }
+        resultRows.push_back(reorderedRow);
+    }
+};
+
+
+TYqlRowset BuildRowsetByRef(
     const TClientDirectoryPtr& clientDirectory,
-    const INodePtr& resultNode,
+    const IMapNodePtr& writeNode,
     int resultIndex,
     i64 rowCountLimit)
 {
-    YT_LOG_DEBUG("Result node (ResultNode: %v, ResultIndex: %v)", ConvertToYsonString(resultNode, EYsonFormat::Text).ToString(), resultIndex);
-    const auto& mapNode = resultNode->AsMap();
-    const auto& refsNode = mapNode->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap()->GetChildOrThrow("Ref")->AsList();
+    const auto& refsNode = writeNode->GetChildOrThrow("Ref")->AsList();
     if (refsNode->GetChildCount() != 1) {
         THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet ");
     }
@@ -93,40 +139,7 @@ TYqlRowset BuildRowset(
     TNameTablePtr targetNameTable;
     TNameTablePtr sourceNameTable;
     std::vector<TUnversionedRow> resultRows;
-    std::vector<int> sourceIdToTargetId;
     auto rowBuffer = New<TRowBuffer>();
-
-    auto reorderAndSaveRows = [&] (TRange<TUnversionedRow> rows) {
-        for (const auto& row : rows) {
-            if (!row) {
-                resultRows.push_back(row);
-                continue;
-            }
-
-            std::vector<TUnversionedValue> values(targetNameTable->GetSize());
-            auto reorderedRow = rowBuffer->AllocateUnversioned(targetNameTable->GetSize());
-            for (int index = 0; index < static_cast<int>(reorderedRow.GetCount()); ++index) {
-                reorderedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
-            }
-            for (const auto& value : row) {
-                auto targetId = VectorAtOr(sourceIdToTargetId, value.Id, /*defaultValue*/ -1);
-                if (targetId == -1) {
-                    auto name = sourceNameTable->GetName(value.Id);
-                    auto optionalTargetId = targetNameTable->FindId(name);
-                    if (!optionalTargetId) {
-                        continue;
-                    }
-
-                    targetId = *optionalTargetId;
-                    AssignVectorAt(sourceIdToTargetId, value.Id, targetId, /*defaultValue*/ -1);
-                }
-                YT_VERIFY(0 <= targetId && targetId < targetNameTable->GetSize());
-                reorderedRow[targetId] = rowBuffer->CaptureValue(value);
-                reorderedRow[targetId].Id = targetId;
-            }
-            resultRows.push_back(reorderedRow);
-        }
-    };
 
     auto isDynamicTable = ConvertTo<bool>(
         WaitFor(client->GetNode(table + "/@dynamic"))
@@ -143,7 +156,7 @@ TYqlRowset BuildRowset(
 
         YT_LOG_DEBUG("Reading and reordering rows (TargetSchema: %v)", targetSchema);
 
-        reorderAndSaveRows(selectResult.Rowset->GetRows());
+        ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, selectResult.Rowset->GetRows(), resultRows);
     } else {
         TRichYPath path(table);
         if (references->Columns) {
@@ -169,7 +182,7 @@ TYqlRowset BuildRowset(
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
-            reorderAndSaveRows(batch->MaterializeRows());
+            ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, batch->MaterializeRows(), resultRows);
         }
     }
 
@@ -179,25 +192,115 @@ TYqlRowset BuildRowset(
         incomplete = true;
     }
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
-    auto wireWriter = CreateWireProtocolWriter();
-    wireWriter->WriteTableSchema(*targetSchema);
-    wireWriter->WriteSchemafulRowset(resultRows);
-    auto refs = wireWriter->Finish();
-    struct TYqlRefMergeTag {};
-    return {.WireRowset = MergeRefsToRef<TYqlRefMergeTag>(refs), .Incomplete = incomplete};
+
+    return TYqlRowset {
+        .TargetSchema = targetSchema,
+        .ResultRows = resultRows,
+        .RowBuffer = rowBuffer,
+        .Incomplete = incomplete,
+    };
 }
 
-std::vector<TYqlRowset> BuildRowsets(
+TYqlRowset BuildRowset(
+    const TClientDirectoryPtr& clientDirectory,
+    const INodePtr& resultNode,
+    int resultIndex,
+    i64 rowCountLimit)
+{
+    const auto& mapNode = resultNode->AsMap();
+    const auto& writeNode = mapNode->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap();
+
+    if (writeNode->FindChild("Ref")) {
+        return BuildRowsetByRef(clientDirectory, writeNode, resultIndex, rowCountLimit);
+    }
+
+    const auto& skiffTypeNode = writeNode->GetChildOrThrow("SkiffType");
+    auto config = ConvertTo<NFormats::TSkiffFormatConfigPtr>(&skiffTypeNode->Attributes());
+    auto skiffSchemas = NSkiffExt::ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
+
+    const auto& typeNode = writeNode->GetChildOrThrow("Type");
+    auto schema = NYT::NYTree::ConvertTo<NYT::NTableClient::TTableSchemaPtr>(typeNode);
+    TBuildingValueConsumer consumer(schema, YqlAgentLogger, true);
+
+    const auto& columnsPtr = writeNode->FindChild("Columns");
+    THashMap<TString, ui32> columns;
+    if (columnsPtr) {
+        ui32 index = 0;
+        for (const auto& column : ConvertTo<std::vector<TString>>(columnsPtr)) {
+            columns[column] = index;
+            index++;
+        }
+    }
+
+    auto data = writeNode->GetChildOrThrow("Data")->AsString()->GetValue();
+    auto parser = CreateParserForSkiff(&consumer, skiffSchemas, config, 0);
+    parser->Read(data);
+    parser->Finish();
+
+    std::vector<TUnversionedRow> resultRows;
+    auto sourceSchema = consumer.GetSchema();
+    auto sourceNameTable = consumer.GetNameTable();
+    auto rowBuffer = New<TRowBuffer>();
+
+    auto reorderSchema = [&] (TTableSchemaPtr schema) {
+        if (columns.empty()) {
+            return schema;
+        }
+
+        auto schemaColumns = schema->Columns();
+        std::vector<TColumnSchema> reorderedColumns(columns.size());
+        for (auto& column : schemaColumns) {
+            reorderedColumns[columns[column.Name()]] = column;
+        }
+
+        return New<TTableSchema>(
+            std::move(reorderedColumns),
+            schema->GetStrict(),
+            schema->GetUniqueKeys(),
+            schema->GetSchemaModification(),
+            schema->DeletedColumns());
+    };
+    auto targetSchema = reorderSchema(sourceSchema);
+    auto targetNameTable = TNameTable::FromSchema(*targetSchema);
+
+    ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, consumer.GetRows(), resultRows);
+
+    auto incompletePtr = writeNode->FindChild("Incomplete");
+    bool incomplete = incompletePtr ? incompletePtr->AsBoolean()->GetValue() : false;
+
+    YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
+
+    return TYqlRowset {
+        .TargetSchema = targetSchema,
+        .ResultRows = resultRows,
+        .RowBuffer = rowBuffer,
+        .Incomplete = incomplete,
+    };
+}
+
+
+TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset) {
+    auto wireWriter = CreateWireProtocolWriter();
+    wireWriter->WriteTableSchema(*rowset.TargetSchema);
+    wireWriter->WriteSchemafulRowset(rowset.ResultRows);
+    auto refs = wireWriter->Finish();
+
+    struct TYqlRefMergeTag {};
+    return {.WireRowset = MergeRefsToRef<TYqlRefMergeTag>(refs), .Incomplete = rowset.Incomplete};
+}
+
+
+std::vector<TWireYqlRowset> BuildRowsets(
     const TClientDirectoryPtr& clientDirectory,
     const TString& yqlYsonResults,
     i64 rowCountLimit)
 {
     auto results = ConvertTo<std::vector<INodePtr>>(TYsonString(yqlYsonResults));
-    std::vector<TYqlRowset> rowsets;
+    std::vector<TWireYqlRowset> rowsets;
     for (const auto& [index, result] : Enumerate(results)) {
         try {
             YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
-            auto rowset = BuildRowset(clientDirectory, result, index, rowCountLimit);
+            auto rowset = MakeWireYqlRowset(BuildRowset(clientDirectory, result, index, rowCountLimit));
             YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
             rowsets.push_back(std::move(rowset));
         } catch (const std::exception& ex) {
@@ -208,6 +311,7 @@ std::vector<TYqlRowset> BuildRowsets(
     }
     return rowsets;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////
 

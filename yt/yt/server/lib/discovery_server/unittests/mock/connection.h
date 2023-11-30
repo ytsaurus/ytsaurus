@@ -338,6 +338,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NRpc::IChannelPtr& GetBundleControllerChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const NDiscoveryClient::TDiscoveryConnectionConfigPtr Config_;
 };

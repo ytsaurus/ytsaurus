@@ -629,6 +629,19 @@ def _build_cell_balancer_configs(yt_config,
                                           yt_config,
                                           log_errors_to_stderr=True)
 
+        config["enable_bundle_controller"] = yt_config.enable_bundle_controller
+
+        if yt_config.enable_bundle_controller:
+            config["bundle_controller"] = {
+                "cluster" : "local",
+                "root_path" : "//sys/bundle_controller/controller",
+                "hulk_allocations_path" : "//sys/hulk/allocation_requests",
+                "hulk_allocations_history_path" : "//sys/hulk/allocation_requests_history",
+                "hulk_deallocations_path" : "//sys/hulk/deallocation_requests",
+                "hulk_deallocations_history_path" : "//sys/hulk/deallocation_requests_history",
+                "bundle_scan_period" : "100ms",
+            }
+
         configs.append(config)
         addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
@@ -775,8 +788,6 @@ def _build_node_configs(node_dirs,
     configs = []
     addresses = []
 
-    current_user = 10000
-
     for index in xrange(yt_config.node_count):
         config = default_config.get_node_config()
 
@@ -820,8 +831,19 @@ def _build_node_configs(node_dirs,
 
         set_at(config, "data_node/cache_locations", [cache_location_config])
 
-        start_uid = current_user + config["rpc_port"]
-        set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)
+        if yt_config.jobs_environment_type is not None:
+            set_at(
+                config,
+                "exec_node/slot_manager/job_environment",
+                _get_node_job_environment_config(yt_config, index, logs_dir)
+            )
+
+        if yt_config.use_slot_user_id:
+            start_uid = 10000 + config["rpc_port"]
+            set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)
+        else:
+            set_at(config, "exec_node/slot_manager/do_not_set_user_id", True)
+
         set_at(config, "exec_node/slot_manager/locations", [
             {"path": os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}
         ])
@@ -895,7 +917,7 @@ def _build_node_configs(node_dirs,
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
         set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
-        set_at(config, "exec_node/job_controller/resource_limits", yt_config.jobs_resource_limits, merge=True)
+        set_at(config, "job_resource_manager/resource_limits", yt_config.jobs_resource_limits, merge=True)
         set_at(config, "resource_limits", _get_node_resource_limits_config(yt_config), merge=True)
 
         configs.append(config)
@@ -915,11 +937,11 @@ def _build_node_configs(node_dirs,
         port_end = USER_PORT_START + ((index + 1) * (USER_PORT_END - USER_PORT_START)) // node_count
 
         if yt_config.node_port_set_size is None:
-            set_at(config, "exec_node/job_controller/start_port", port_start)
-            set_at(config, "exec_node/job_controller/port_count", port_end - port_start)
+            set_at(config, "job_resource_manager/start_port", port_start)
+            set_at(config, "job_resource_manager/port_count", port_end - port_start)
         else:
             ports = [next(ports_generator) for _ in xrange(yt_config.node_port_set_size)]
-            set_at(config, "exec_node/job_controller/port_set", ports)
+            set_at(config, "job_resource_manager/port_set", ports)
 
     return configs, addresses
 
@@ -1786,3 +1808,30 @@ def _get_node_resource_limits_config(yt_config):
     memory += BLOB_SESSIONS_MEMORY
 
     return {"memory": memory}
+
+
+def _get_node_job_environment_config(yt_config, index, logs_dir):
+    if yt_config.jobs_environment_type == "cri":
+        return {
+            "type": "cri",
+            "cri_executor": {
+                "runtime_endpoint": yt_config.cri_endpoint,
+                "image_endpoint": yt_config.cri_endpoint,
+                "base_cgroup": "yt.slice/{}-node-{}.slice".format(yt_config.cluster_name, index),
+                "namespace": "yt--{}-node-{}".format(yt_config.cluster_name, index),
+                "verbose_logging": True,
+            },
+            "job_proxy_image": yt_config.default_docker_image,
+            "use_job_proxy_from_image": False,
+            "job_proxy_bind_mounts": [
+                {
+                    "internal_path":  logs_dir,
+                    "external_path": logs_dir,
+                    "read_only": False,
+                },
+            ],
+        }
+
+    return {
+        "type": yt_config.jobs_environment_type,
+    }

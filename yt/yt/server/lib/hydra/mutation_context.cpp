@@ -109,6 +109,11 @@ const TSharedRefArray& TMutationContext::GetResponseData() const
     return ResponseData_;
 }
 
+TSharedRefArray TMutationContext::TakeResponseData()
+{
+    return std::move(ResponseData_);
+}
+
 void TMutationContext::SetResponseKeeperSuppressed(bool value)
 {
     ResponseKeeperSuppressed_ = value;

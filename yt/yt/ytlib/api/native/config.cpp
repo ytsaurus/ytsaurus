@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/config.h>
 
+#include <yt/yt/ytlib/bundle_controller/config.h>
+
 #include <yt/yt/ytlib/discovery_client/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -172,6 +174,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
         .DefaultNew();
     registrar.Parameter("scheduler", &TThis::Scheduler)
+        .DefaultNew();
+    registrar.Parameter("bundle_controller", &TThis::BundleController)
         .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();

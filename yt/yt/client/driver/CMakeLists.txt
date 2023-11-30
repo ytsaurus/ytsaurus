@@ -21,6 +21,7 @@ target_link_libraries(yt-client-driver PUBLIC
 target_sources(yt-client-driver PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/authentication_commands.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/bundle_controller_commands.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/chaos_commands.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/command.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/config.cpp

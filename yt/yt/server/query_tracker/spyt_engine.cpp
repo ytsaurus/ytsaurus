@@ -435,7 +435,7 @@ private:
             OnQueryFailed(queryResultOrError);
             return;
         }
-        OnQueryCompletedWire({queryResultOrError.Value()});
+        OnQueryCompletedWire({TWireRowset{ .Rowset = queryResultOrError.Value() }});
     }
 };
 

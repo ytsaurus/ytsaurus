@@ -435,7 +435,7 @@ public:
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_spawn",
-            ExecNodeProfiler.WithPrefix("/job_envir onment/porto")))
+            ExecNodeProfiler.WithPrefix("/job_environment/porto")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_destroy",
@@ -883,7 +883,9 @@ private:
 
     double CalculateIdleCpuLimit() const
     {
-        return std::max(0., CpuLimit_ - SelfInstance_->GetCpuGuarantee()) * IdleCpuFraction_;
+        return SelfInstance_
+            ? std::max(0., CpuLimit_ - SelfInstance_->GetCpuGuarantee()) * IdleCpuFraction_
+            : 0;
     }
 
     void ClearSlotCpuSets()
@@ -1079,7 +1081,13 @@ private:
 
         spec->Labels[YTJobIdLabel] = ToString(jobId);
 
-        // FIXME(khlebnikov) user to run job proxy spec->Credentials.Uid = GetUserId(slotIndex);
+        if (config->DoNotSetUserId) {
+            spec->Credentials.Uid = ::getuid();
+        } else {
+            spec->Credentials.Uid = GetUserId(slotIndex);
+            // FIXME(khlebnikov): Use own group or "nogroup"
+        }
+        spec->Credentials.Gid = ::getgid();
 
         for (const auto& bind : Config_->JobProxyBindMounts) {
             spec->BindMounts.push_back(NCri::TCriBindMount{

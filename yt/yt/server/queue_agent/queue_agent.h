@@ -73,7 +73,7 @@ private:
     const TQueueAgentConfigPtr Config_;
     TQueueAgentDynamicConfigPtr DynamicConfig_;
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
-    TQueueAgentClientDirectoryPtr QAClientDirectory_;
+    const TQueueAgentClientDirectoryPtr QAClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const NQueueClient::TDynamicStatePtr DynamicState_;
     const NCypressElection::ICypressElectionManagerPtr ElectionManager_;

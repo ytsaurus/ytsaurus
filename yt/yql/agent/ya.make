@@ -2,6 +2,10 @@ RECURSE(
     bin
 )
 
+RECURSE_FOR_TESTS(
+    unittests
+)
+
 LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
@@ -25,8 +29,11 @@ PEERDIR(
     library/cpp/yt/logging/backends/arcadia
 
     yt/yt/library/dynamic_config
+    yt/yt/library/skiff_ext
 
     yt/yt/ytlib
+
+    yt/yt/client/formats
 
     yt/yt/server/lib/admin
     yt/yt/server/lib/cypress_election

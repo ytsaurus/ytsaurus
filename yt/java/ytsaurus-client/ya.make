@@ -1,4 +1,4 @@
-JAVA_LIBRARY(ytsaurus-client)
+JAVA_LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 

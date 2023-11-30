@@ -138,10 +138,11 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 				BaseACL:             config.BaseACL,
 				RobotUsername:       config.Strawberry.RobotUsername,
 			},
-			ClusterInfos: agentInfos,
-			Token:        config.Token,
-			Endpoint:     config.HTTPAPIEndpointOrDefault(),
-			DisableAuth:  config.DisableAPIAuth,
+			ClusterInfos:    agentInfos,
+			LocationAliases: config.HTTPLocationAliases,
+			Token:           config.Token,
+			Endpoint:        config.HTTPAPIEndpointOrDefault(),
+			DisableAuth:     config.DisableAPIAuth,
 		}
 		app.HTTPAPIServer = api.NewServer(apiConfig, l)
 	}

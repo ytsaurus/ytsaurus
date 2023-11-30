@@ -1,4 +1,5 @@
 #include "yt_proto_io.h"
+
 #include "jobs.h"
 
 #include <yt/cpp/mapreduce/interface/io.h>
@@ -6,6 +7,95 @@
 #include <yt/cpp/mapreduce/io/stream_table_reader.h>
 
 namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReadProtoImpulseParDo
+    : public IRawParDo
+{
+public:
+    TReadProtoImpulseParDo() = default;
+
+    TReadProtoImpulseParDo(std::vector<TRowVtable> vtables)
+        : TableCount_(std::ssize(vtables))
+        , Vtables_(std::move(vtables))
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TReadProtoImpulseParDo.Input", MakeRowVtable<int>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        std::vector<TDynamicTypeTag> result;
+        for (ssize_t i = 0; i < TableCount_; ++i) {
+            result.emplace_back("TReadProtoImpulseParDo.Output." + ToString(i), Vtables_[i]);
+        }
+        return result;
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(std::ssize(outputs) == TableCount_);
+        Outputs_ = outputs;
+        Processed_ = false;
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_ABORT_UNLESS(!Processed_);
+        Processed_ = true;
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+
+        auto reader = ::MakeIntrusive<NYT::TLenvalProtoTableReader>(
+            ::MakeIntrusive<NYT::NDetail::TInputStreamProxy>(&Cin)
+        );
+
+        for (; reader->IsValid(); reader->Next()) {
+            auto tableIndex = reader->GetTableIndex();
+            Y_ABORT_UNLESS(tableIndex < TableCount_);
+
+            TRawRowHolder holder(Vtables_[tableIndex]);
+            reader->ReadRow(reinterpret_cast<::google::protobuf::Message*>(holder.GetData()));
+            Outputs_[tableIndex]->AddRaw(holder.GetData(), 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TReadProtoImpulseParDo>();
+        };
+    }
+
+private:
+    ssize_t TableCount_;
+    std::vector<TRowVtable> Vtables_;
+
+    std::vector<IRawOutputPtr> Outputs_;
+    bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(TableCount_, Vtables_);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateReadProtoImpulseParDo(std::vector<TRowVtable>&& vtables)
+{
+    return ::MakeIntrusive<TReadProtoImpulseParDo>(std::move(vtables));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,12 +484,159 @@ IYtNotSerializableJobInputPtr CreateSplitKvJobProtoInput(const std::vector<TRowV
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TKvProtoOutput
+    : public TYtJobOutput
+    , public IKvJobOutput
+{
+public:
+    TKvProtoOutput() = default;
+
+    TKvProtoOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables)
+        : TYtJobOutput(sinkIndex)
+        , RowVtables_(rowVtables)
+    {
+        KeyEncoders_.reserve(RowVtables_.size());
+        ValueEncoders_.reserve(RowVtables_.size());
+
+        for (const auto& rowVtable : RowVtables_) {
+            Y_ABORT_UNLESS(IsKv(rowVtable));
+            KeyEncoders_.emplace_back(rowVtable.KeyVtableFactory().RawCoderFactory());
+            ValueEncoders_.emplace_back(rowVtable.ValueVtableFactory().RawCoderFactory());
+        }
+    }
+
+    TKvProtoOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
+        : TYtJobOutput(sinkIndex)
+        , KeyEncoders_({keyCoder})
+        , ValueEncoders_({valueCoder})
+    { }
+
+    void AddRawToTable(const void* rows, ssize_t count, ui64 tableIndex) override
+    {
+        Y_ASSERT(tableIndex < RowVtables_.size());
+        Y_ASSERT(IsDefined(RowVtables_[tableIndex]));
+        auto dataSize = RowVtables_[tableIndex].DataSize;
+        auto* current = static_cast<const std::byte*>(rows);
+        for (ssize_t i = 0; i < count; ++i, current += dataSize) {
+            AddKvToTable(
+                GetKeyOfKv(RowVtables_[tableIndex], current),
+                GetValueOfKv(RowVtables_[tableIndex], current),
+                tableIndex
+            );
+        }
+    }
+
+    void AddRaw(const void* row, ssize_t count) override
+    {
+        AddRawToTable(row, count, /*tableIndex*/ 0);
+    }
+
+    void AddKvToTable(const void* key, const void* value, ui64 tableIndex) override
+    {
+        if (!Writer_) {
+            Writer_ = std::make_unique<::NYT::TLenvalProtoTableWriter>(
+                MakeHolder<::NYT::TSingleStreamJobWriter>(GetSinkIndices()[0]),
+                TVector{TKVProto::GetDescriptor()}
+            );
+            for (const auto& keyEncoder : KeyEncoders_) {
+                Y_ABORT_UNLESS(keyEncoder);
+            }
+            for (const auto& valueEncoder : ValueEncoders_) {
+                Y_ABORT_UNLESS(valueEncoder);
+            }
+        }
+
+        Key_.clear();
+        Value_.clear();
+
+        TStringOutput keyStream(Key_);
+        KeyEncoders_[tableIndex]->EncodeRow(&keyStream, key);
+
+        TStringOutput valueStream(Value_);
+        ValueEncoders_[tableIndex]->EncodeRow(&valueStream, value);
+
+        TKVProto msg;
+        msg.SetKey(Key_);
+        msg.SetValue(Value_);
+        msg.SetTableIndex(tableIndex);
+
+        Writer_->AddRow(msg, GetSinkIndices()[0]);
+    }
+
+    void Close() override
+    { }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IYtJobOutputPtr {
+            return ::MakeIntrusive<TKvProtoOutput>();
+        };
+    }
+
+    void Save(IOutputStream* stream) const override
+    {
+        TYtJobOutput::Save(stream);
+
+        SaveSize(stream, RowVtables_.size());
+        SaveArray<TRowVtable>(stream, RowVtables_.data(), RowVtables_.size());
+
+        SaveSize(stream, KeyEncoders_.size());
+        for (const auto& keyEncoder : KeyEncoders_) {
+            SaveSerializable(stream, keyEncoder);
+        }
+
+        SaveSize(stream, ValueEncoders_.size());
+        for (const auto& valueEncoder : ValueEncoders_) {
+            SaveSerializable(stream, valueEncoder);
+        }
+    }
+
+    void Load(IInputStream* stream) override
+    {
+        TYtJobOutput::Load(stream);
+
+        LoadSizeAndResize(stream, RowVtables_);
+        LoadArray<TRowVtable>(stream, RowVtables_.data(), RowVtables_.size());
+
+        size_t count = LoadSize(stream);
+        KeyEncoders_.resize(count);
+        for (auto& keyEncoder : KeyEncoders_) {
+            LoadSerializable(stream, keyEncoder);
+        }
+
+        count = LoadSize(stream);
+        ValueEncoders_.resize(count);
+        for (auto& valueEncoder : ValueEncoders_) {
+            LoadSerializable(stream, valueEncoder);
+        }
+    }
+
+private:
+    std::unique_ptr<::NYT::TLenvalProtoTableWriter> Writer_;
+    std::vector<TRowVtable> RowVtables_;
+    std::vector<IRawCoderPtr> KeyEncoders_;
+    std::vector<IRawCoderPtr> ValueEncoders_;
+
+    TString Key_;
+    TString Value_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IKvJobOutputPtr CreateKvJobProtoOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
+{
+    return ::MakeIntrusive<TKvProtoOutput>(sinkIndex, std::move(keyCoder), std::move(valueCoder));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TMessage>
     requires std::derived_from<TMessage, ::google::protobuf::Message>
 NYT::TTableRangesReaderPtr<TMessage> CreateRangesProtoTableReader(IInputStream* stream)
 {
-    auto impl = ::MakeIntrusive<NYT::TLenvalProtoTableReader>(
-        ::MakeIntrusive<NYT::NDetail::TInputStreamProxy>(stream),
+    auto impl = NYT::NDetail::CreateProtoReader(
+        stream,
+        {},
         TVector<const ::google::protobuf::Descriptor*>{TKVProto::GetDescriptor()}
     );
     return ::MakeIntrusive<NYT::TTableRangesReader<TMessage>>(impl);
@@ -572,6 +809,252 @@ IRawParDoPtr CreateCoGbkImpulseReadProtoParDo(
     std::vector<TRowVtable> rowVtable)
 {
     return ::MakeIntrusive<TCoGbkImpulseReadProtoParDo>(std::move(rawCoGbk), std::move(rowVtable));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCombineCombinerImpulseReadProtoParDo
+    : public IRawParDo
+{
+public:
+    TCombineCombinerImpulseReadProtoParDo() = default;
+
+    explicit TCombineCombinerImpulseReadProtoParDo(IRawCombinePtr rawCombine)
+        : RawCombine_(std::move(rawCombine))
+    { }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+
+        Y_ABORT_UNLESS(outputs.size() == 0);
+        Processed_ = false;
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(!Processed_);
+        Processed_ = true;
+
+        auto rangesReader = CreateRangesProtoTableReader<TKVProto>(&Cin);
+
+        auto accumVtable = RawCombine_->GetAccumVtable();
+        auto inputVtable = RawCombine_->GetInputVtable();
+        auto kvOutput = CreateKvJobProtoOutput(
+            /*sinkIndex*/ 0,
+            inputVtable.KeyVtableFactory().RawCoderFactory(),
+            accumVtable.RawCoderFactory());
+
+        TRawRowHolder accum(accumVtable);
+        TRawRowHolder currentKey(inputVtable.KeyVtableFactory());
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            auto range = &rangesReader->GetRange();
+            auto input = CreateSplitKvJobProtoInput(std::vector{inputVtable}, range);
+
+            bool first = true;
+            RawCombine_->CreateAccumulator(accum.GetData());
+            while (const auto* row = input->NextRaw()) {
+                const auto* key = GetKeyOfKv(inputVtable, row);
+                const auto* value = GetValueOfKv(inputVtable, row);
+
+                RawCombine_->AddInput(accum.GetData(), value);
+
+                if (first) {
+                    first = false;
+                    currentKey.CopyFrom(key);
+                }
+            }
+            kvOutput->AddKvToTable(currentKey.GetData(), accum.GetData(), /*tableIndex*/ 0);
+        }
+
+        kvOutput->Close();
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static TFnAttributes attributes;
+        return attributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TCombineCombinerImpulseReadProtoParDo>();
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {
+            {"input", MakeRowVtable<int>()}
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {};
+    }
+
+private:
+    IRawCombinePtr RawCombine_;
+
+    bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawCombine_);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateCombineCombinerImpulseReadProtoParDo(IRawCombinePtr rawCombine)
+{
+    return ::MakeIntrusive<TCombineCombinerImpulseReadProtoParDo>(std::move(rawCombine));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCombineReducerImpulseReadProtoParDo
+    : public IRawParDo
+{
+public:
+    TCombineReducerImpulseReadProtoParDo() = default;
+
+    explicit TCombineReducerImpulseReadProtoParDo(IRawCombinePtr rawCombine)
+        : RawCombine_(std::move(rawCombine))
+    { }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+
+        Y_ABORT_UNLESS(outputs.size() == 1);
+        Processed_ = false;
+        Output_ = outputs[0];
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(!Processed_);
+        Processed_ = true;
+
+        auto outRowVtable = RawCombine_->GetOutputVtable();
+        auto accumVtable = RawCombine_->GetAccumVtable();
+        auto keyVtable = outRowVtable.KeyVtableFactory();
+
+        auto rangesReader = CreateRangesProtoTableReader<TKVProto>(&Cin);
+
+        TRawRowHolder accum(accumVtable);
+        TRawRowHolder currentKey(outRowVtable.KeyVtableFactory());
+        TRawRowHolder out(outRowVtable);
+        RawCombine_->CreateAccumulator(accum.GetData());
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            auto range = &rangesReader->GetRange();
+            auto keySavingInput =
+                ::MakeIntrusive<TKeySavingInput>(keyVtable, accumVtable, range);
+            keySavingInput->SaveNextKeyTo(out.GetKeyOfKV());
+            RawCombine_->MergeAccumulators(accum.GetData(), keySavingInput);
+            RawCombine_->ExtractOutput(out.GetValueOfKV(), accum.GetData());
+
+            Output_->AddRaw(out.GetData(), 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static TFnAttributes attributes;
+        return attributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TCombineReducerImpulseReadProtoParDo>();
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {
+            {"input", MakeRowVtable<int>()}
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {
+            {"TCombineReducerImpulseReadProtoParDo.Output", RawCombine_->GetOutputVtable()},
+        };
+    }
+
+private:
+    class TKeySavingInput
+        : public IRawInput
+    {
+    public:
+        TKeySavingInput(const TRowVtable& keyVtable, TRowVtable valueVtable, NYT::TTableReaderPtr<TKVProto> tableReader)
+            : ValueVtable_(std::move(valueVtable))
+            , TableReader_(std::move(tableReader))
+            , KeyDecoder_(keyVtable.RawCoderFactory())
+            , ValueDecoder_(ValueVtable_.RawCoderFactory())
+            , ValueHolder_(ValueVtable_)
+        { }
+
+        void SaveNextKeyTo(void* key)
+        {
+            KeyOutput_ = key;
+        }
+
+        const void* NextRaw() override
+        {
+            if (TableReader_->IsValid()) {
+                auto msg = TableReader_->GetRow();
+                if (KeyOutput_) {
+                    KeyDecoder_->DecodeRow(msg.GetKey(), KeyOutput_);
+                    KeyOutput_ = nullptr;
+                }
+                ValueDecoder_->DecodeRow(msg.GetValue(), ValueHolder_.GetData());
+                TableReader_->Next();
+                return ValueHolder_.GetData();
+            } else {
+                return nullptr;
+            }
+        }
+
+    private:
+        TRowVtable ValueVtable_;
+
+        NYT::TTableReaderPtr<TKVProto> TableReader_;
+        IRawCoderPtr KeyDecoder_;
+        IRawCoderPtr ValueDecoder_;
+        TRawRowHolder ValueHolder_;
+
+        void* KeyOutput_ = nullptr;
+    };
+
+
+private:
+    IRawCombinePtr RawCombine_;
+
+    IRawOutputPtr Output_;
+    bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawCombine_);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateCombineReducerImpulseReadProtoParDo(IRawCombinePtr rawCombine)
+{
+    return ::MakeIntrusive<TCombineReducerImpulseReadProtoParDo>(std::move(rawCombine));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

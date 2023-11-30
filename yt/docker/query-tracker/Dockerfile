@@ -38,7 +38,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   python3.7-distutils
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
-RUN for package in client yson local native_driver; \
+RUN set -eux -o pipefail; \
+  for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \

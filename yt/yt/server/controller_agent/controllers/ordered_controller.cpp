@@ -28,8 +28,6 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 

@@ -40,20 +40,20 @@ const (
 )
 
 type InstanceMemory struct {
-	ClickHouse     *uint64 `yson:"clickhouse"`
-	ChunkMetaCache *uint64 `yson:"chunk_meta_cache"`
+	ClickHouse     *uint64 `yson:"clickhouse" json:"clickhouse"`
+	ChunkMetaCache *uint64 `yson:"chunk_meta_cache" json:"chunk_meta_cache"`
 	// NOTE(dakovalkov): compressed and uncompressed block caches misses "block" in yson-name
 	// for compatibility reasons.
 	// TODO(dakovalkov): rename it and migrate existing configs.
-	CompressedBlockCache   *uint64 `yson:"compressed_cache"`
-	UncompressedBlockCache *uint64 `yson:"uncompressed_cache"`
-	Reader                 *uint64 `yson:"reader"`
+	CompressedBlockCache   *uint64 `yson:"compressed_cache" json:"compressed_cache"`
+	UncompressedBlockCache *uint64 `yson:"uncompressed_cache" json:"uncompressed_cache"`
+	Reader                 *uint64 `yson:"reader" json:"reader"`
 	// Some less useful fields.
-	ClickHouseWatermark        *uint64 `yson:"clickhouse_watermark"`
-	WatchdogOOMWatermark       *uint64 `yson:"watchdog_oom_watermark"`
-	WatchdogOOMWindowWatermark *uint64 `yson:"watchdog_oom_window_watermark"`
-	Footprint                  *uint64 `yson:"footprint"`
-	LogTailer                  *uint64 `yson:"log_tailer"`
+	ClickHouseWatermark        *uint64 `yson:"clickhouse_watermark" json:"clickhouse_watermark"`
+	WatchdogOOMWatermark       *uint64 `yson:"watchdog_oom_watermark" json:"watchdog_oom_watermark"`
+	WatchdogOOMWindowWatermark *uint64 `yson:"watchdog_oom_window_watermark" json:"watchdog_oom_window_watermark"`
+	Footprint                  *uint64 `yson:"footprint" json:"footprint"`
+	LogTailer                  *uint64 `yson:"log_tailer" json:"log_tailer"`
 }
 
 func (mem *InstanceMemory) ClickHouseOrDefault() uint64 {

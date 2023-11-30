@@ -833,7 +833,7 @@ private:
         }
 
         RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            Config_->ExecNode->UserJobContainerCreationThrottler,
+            New<NConcurrency::TThroughputThrottlerConfig>(),
             "UserJobContainerCreation",
             ClusterNodeLogger,
             ClusterNodeProfiler.WithPrefix("/user_job_container_creation_throttler"));
@@ -1336,7 +1336,7 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         ReconfigureNativeSingletons(Config_, newConfig);
@@ -1356,9 +1356,7 @@ private:
         RawAnnounceChunkReplicaRpsOutThrottler_->Reconfigure(newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
             ? newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
             : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
-        RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler
-            ? newConfig->ExecNode->UserJobContainerCreationThrottler
-            : Config_->ExecNode->UserJobContainerCreationThrottler);
+        RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& service : CachingObjectServices_) {
@@ -1384,6 +1382,10 @@ private:
 
         auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureCaches(bundleConfig, newConfig);
+
+        JobResourceManager_->OnDynamicConfigChanged(
+            oldConfig->JobResourceManager,
+            newConfig->JobResourceManager);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "performance_counters.h"
-#include "yt/yt/server/queue_agent/private.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
@@ -116,7 +116,6 @@ struct TConsumerPartitionSnapshot
     : public TRefCounted
 {
     // The field below is effectively the error of the corresponding queue partition.
-
     TError Error;
 
     // Fields below are always set.

@@ -53,8 +53,6 @@
 
 #include <yt/yt/ytlib/event_log/event_log.h>
 
-#include <yt/yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
@@ -1214,14 +1212,17 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     try {
         PeakMemoryUsageUpdateExecutor->Start();
 
+        // NB(coteeq): Fetch new chunk lists early, so we can actually schedule the first job,
+        //             when scheduler gives us one.
+        PickIntermediateDataCells();
+        InitChunkListPools();
+
         FetchInputTables();
         FetchUserFiles();
         ValidateUserFileSizes();
 
         SuppressLivePreviewIfNeeded();
 
-        PickIntermediateDataCells();
-        InitChunkListPools();
 
         CreateLivePreviewTables();
 
@@ -1791,6 +1792,17 @@ void TOperationControllerBase::InitChunkListPools()
     }
     if (CoreTable_) {
         ++CellTagToRequiredDebugChunkListCount_[CoreTable_->ExternalCellTag];
+    }
+
+    if (Spec_->EnableChunkListsPrefetch) {
+        YT_LOG_DEBUG("Prefetching chunk lists");
+        for (const auto& [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
+            OutputChunkListPool_->HasEnough(cellTag, count);
+        }
+        for (const auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
+            YT_VERIFY(DebugChunkListPool_);
+            DebugChunkListPool_->HasEnough(cellTag, count);
+        }
     }
 }
 

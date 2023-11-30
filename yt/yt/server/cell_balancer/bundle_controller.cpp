@@ -230,6 +230,7 @@ private:
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
                 LinkOrchidService();
+                LinkBundleControllerService();
                 DoScanBundles();
                 SuccessfulScanBundleCounter_.Increment();
             }
@@ -287,6 +288,37 @@ private:
             ConvertToYsonString(addresses, EYsonFormat::Text));
 
         WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses)))
+            .ThrowOnError();
+    }
+
+    void LinkBundleControllerService() const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        static const TYPath LeaderBundleControllerPath = "//sys/bundle_controller";
+        static const TString AttributeAddress = "addresses";
+
+        auto client = Bootstrap_->GetClient();
+
+        auto addressesPath = Format("%v&/@%v", LeaderBundleControllerPath, AttributeAddress);
+
+        auto exists = WaitFor(client->NodeExists(addressesPath))
+            .ValueOrThrow();
+
+        auto addresses = Bootstrap_->GetLocalAddresses();
+
+        if (exists) {
+            auto currentAddresses = WaitFor(client->GetNode(addressesPath))
+                .ValueOrThrow();
+            if (AreNodesEqual(ConvertTo<NYTree::IMapNodePtr>(currentAddresses), ConvertTo<NYTree::IMapNodePtr>(addresses))) {
+                return;
+            }
+        }
+
+        YT_LOG_INFO("Setting new address for BundleController (NewValue: %v)",
+            ConvertToYsonString(addresses, EYsonFormat::Text));
+
+        WaitFor(client->SetNode(addressesPath, ConvertToYsonString(addresses)))
             .ThrowOnError();
     }
 

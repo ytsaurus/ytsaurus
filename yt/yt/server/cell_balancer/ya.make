@@ -18,6 +18,7 @@ SRCS(
     orchid_bindings.cpp
     program.cpp
     proxy_roles_manager.cpp
+    bundle_controller_service.cpp
 )
 
 PEERDIR(

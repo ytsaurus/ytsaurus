@@ -32,14 +32,14 @@ class TestDiskUsagePorto(YTEnvSetup):
                 "locations": [{"disk_quota": 1024 * 1024, "disk_usage_watermark": 0}],
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 3, "cpu": 3.0},
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False
             }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 3, "cpu": 3.0},
         }
     }
 
@@ -302,14 +302,14 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 3, "cpu": 3.0},
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False
             }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 3, "cpu": 3.0},
         }
     }
 
@@ -547,14 +547,14 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 3, "cpu": 3.0},
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False
             }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 3, "cpu": 3.0},
         }
     }
 
@@ -671,14 +671,14 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 1, "cpu": 1.0}
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False
             }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 1, "cpu": 1.0}
         }
     }
 
@@ -775,15 +775,15 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 3, "cpu": 3.0}
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False
             }
-        }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 3, "cpu": 3.0}
+        },
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {
@@ -924,14 +924,14 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 1, "cpu": 1.0}
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False
             }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 1, "cpu": 1.0}
         }
     }
 
@@ -1037,14 +1037,14 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {"user_slots": 2, "cpu": 2.0}
-            },
         },
         "data_node": {
             "volume_manager": {
                 "enable_disk_quota": False
             }
+        },
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 2, "cpu": 2.0}
         }
     }
 

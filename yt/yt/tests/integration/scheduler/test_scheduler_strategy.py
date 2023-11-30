@@ -1368,8 +1368,8 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 2
-        config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 2
+        config["job_resource_manager"]["resource_limits"]["cpu"] = 2
+        config["job_resource_manager"]["resource_limits"]["user_slots"] = 2
 
     def setup_method(self, method):
         super(TestSchedulerHangingOperations, self).setup_method(method)
@@ -2254,8 +2254,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,  # 100 msec
             },
-            "job_controller": {"resource_limits": {"user_slots": 2, "cpu": 2}},
-        }
+        },
+        "job_resource_manager": {"resource_limits": {"user_slots": 2, "cpu": 2}},
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -2472,13 +2472,11 @@ class TestMinNeededResources(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "memory": 10 * 1024 * 1024 * 1024,
-                    "cpu": 3,
-                    "user_slots": 2,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "memory": 10 * 1024 * 1024 * 1024,
+                "cpu": 3,
+                "user_slots": 2,
             }
         },
         "resource_limits": {"memory": 20 * 1024 * 1024 * 1024},
@@ -2576,12 +2574,10 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": NUM_CPUS_PER_NODE,
-                    "user_slots": NUM_SLOTS_PER_NODE,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": NUM_CPUS_PER_NODE,
+                "user_slots": NUM_SLOTS_PER_NODE,
             }
         }
     }
@@ -2759,7 +2755,7 @@ class TestIntegralGuarantees(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 10, "user_slots": 10}}}
 
     def wait_pool_fair_share(self, pool, strong, integral, weight_proportional):
         path = scheduler_orchid_default_pool_tree_path() + "/pools/" + pool + "/detailed_fair_share"
@@ -3395,10 +3391,6 @@ class TestSatisfactionRatio(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
-                "resource_limits": {
-                    "cpu": 8,
-                    "user_slots": 8,
-                },
                 "gpu_manager": {
                     "testing": {
                         "test_resource": True,
@@ -3407,6 +3399,12 @@ class TestSatisfactionRatio(YTEnvSetup):
                 },
             },
         },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 8,
+                "user_slots": 8,
+            },
+        }
     }
 
     def setup_method(self, method):
@@ -3606,13 +3604,11 @@ class TestVectorStrongGuarantees(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 10,
-                    "user_slots": 10,
-                    "network": 100,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+                "network": 100,
             }
         }
     }
@@ -3802,12 +3798,10 @@ class TestFifoPools(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 10,
-                    "cpu": 10
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 10,
+                "cpu": 10
             }
         }
     }
@@ -4012,12 +4006,10 @@ class TestGuaranteePriorityScheduling(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 4,
-                    "cpu": 4,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 4,
+                "cpu": 4,
             }
         }
     }

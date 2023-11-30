@@ -788,25 +788,23 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     USE_PORTO = True
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "statistics_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
-            "job_controller": {
-                "resource_limits": {
-                    "memory": 6 * 1024 ** 3,
-                }
-            },
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
-        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "memory": 6 * 1024 ** 3,
+            }
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            }
+        }
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -1528,6 +1526,11 @@ class TestJobStderrPorto(TestJobStderr):
     USE_PORTO = True
 
 
+@authors("khlebnikov")
+class TestJobStderrCri(TestJobStderr):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+
 ##################################################################
 
 
@@ -1836,6 +1839,11 @@ class TestUserFilesPorto(TestUserFiles):
     USE_PORTO = True
 
 
+@authors("khlebnikov")
+class TestUserFilesCri(TestUserFiles):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+
 ##################################################################
 
 
@@ -2051,17 +2059,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,
             },
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
             "job_controller": {
-                "resource_limits": {
-                    "user_slots": 20,
-                    "cpu": 20,
-                },
                 "gpu_manager": {
                     "testing": {
                         "test_resource": True,
@@ -2070,6 +2068,24 @@ class TestUserJobMonitoring(YTEnvSetup):
                 },
             },
         },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 20,
+                "cpu": 20,
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            }
+        }
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -2768,16 +2784,16 @@ class TestIdleSlots(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 20,
-                    "user_slots": 10,
-                },
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 20,
+                "user_slots": 10,
             },
         }
     }
@@ -2932,12 +2948,6 @@ class TestCpuSet(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 20,
-                    "user_slots": 10,
-                },
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -2954,6 +2964,12 @@ class TestCpuSet(YTEnvSetup):
                         "cpu_set": "4-6"
                     }
                 ],
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 20,
+                "user_slots": 10,
             },
         }
     }

@@ -287,6 +287,9 @@ private:
                     attributes->Set("title", Format("Snapshot upload to %v",
                         Path_));
                     options.Attributes = std::move(attributes);
+                    if (Store_->PrerequisiteTransactionId_) {
+                        options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);
+                    }
 
                     auto asyncResult = Store_->Client_->StartTransaction(
                         NTransactionClient::ETransactionType::Master,

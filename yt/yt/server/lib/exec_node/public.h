@@ -1,8 +1,10 @@
 #pragma once
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/exec_node/public.h>
 
 #include <yt/yt/core/misc/error_code.h>
+
+#include <yt/yt/client/job_tracker_client/public.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
@@ -14,7 +16,6 @@ using NJobTrackerClient::TJobId;
 using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
-using NJobTrackerClient::EJobPhase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +50,7 @@ YT_DEFINE_ERROR_ENUM(
     ((TmpfsLayerImportFailed)                (1130))
     ((SchedulerJobsDisabled)                 (1131))
     ((DockerImagePullingFailed)              (1132))
+    ((InvalidImage)                          (1133))
 );
 
 DEFINE_ENUM(ESandboxKind,

@@ -41,7 +41,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(THeartbeatSequenceNumber, SequenceNumber, InvalidHeartbeatSequenceNumber);
 
-    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
+    DEFINE_BYREF_RW_PROPERTY(NProto::TJobResult, Result);
 
 public:
     TJob(
@@ -54,7 +54,7 @@ public:
 
     [[nodiscard]] virtual bool FillJobSpec(
         NCellMaster::TBootstrap* bootstrap,
-        NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
+        NProto::TJobSpec* jobSpec) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

@@ -97,7 +97,7 @@ public:
         return DoFindRequest(id, isRetry);
     }
 
-    void EndRequest(
+    std::function<void()> EndRequest(
         TMutationId id,
         TSharedRefArray response,
         bool remember) override
@@ -147,16 +147,18 @@ public:
 
         // Transient part.
         auto promise = TakePendingResponse(id);
-        if (!promise) {
-            return;
-        }
-
         guard.Release();
 
-        promise.TrySet(std::move(response));
+        if (promise) {
+            return [promise = std::move(promise), response = std::move(response)] {
+                promise.TrySet(std::move(response));
+            };
+        } else {
+            return {};
+        }
     }
 
-    void EndRequest(
+    std::function<void()> EndRequest(
         TMutationId id,
         TErrorOr<TSharedRefArray> responseOrError,
         bool remember) override
@@ -165,20 +167,21 @@ public:
         YT_ASSERT(id);
 
         if (responseOrError.IsOK()) {
-            EndRequest(id, std::move(responseOrError).Value(), remember);
-            return;
+            return EndRequest(id, std::move(responseOrError).Value(), remember);
         }
 
         auto guard = WriterGuard(Lock_);
 
         auto promise = TakePendingResponse(id);
-        if (!promise) {
-            return;
-        }
-
         guard.Release();
 
-        promise.TrySet(TError(std::move(responseOrError)));
+        if (promise) {
+            return [promise = std::move(promise), responseOrError = std::move(responseOrError)] {
+                promise.TrySet(std::move(responseOrError));
+            };
+        } else {
+            return {};
+        }
     }
 
     void CancelPendingRequests(const TError& error) override

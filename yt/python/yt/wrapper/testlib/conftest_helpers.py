@@ -167,15 +167,16 @@ def test_environment_job_archive(request):
     environment = init_environment_for_test_session(
         request,
         "job_archive",
-        delta_node_config={
-            "exec_node": {
-                "statistics_reporter": {
-                    "enabled": True,
-                    "reporting_period": 10,
-                    "min_repeat_delay": 10,
-                    "max_repeat_delay": 10,
-                }
-            },
+        delta_dynamic_node_config={
+            "%true": {
+                "exec_node": {
+                    "job_reporter": {
+                        "reporting_period": 10,
+                        "min_repeat_delay": 10,
+                        "max_repeat_delay": 10,
+                    }
+                },
+            }
         },
         delta_scheduler_config={
             "scheduler": {
@@ -204,13 +205,18 @@ def test_environment_job_archive_porto(request):
                         "type": "porto",
                     },
                 },
-                "statistics_reporter": {
-                    "enabled": True,
-                    "reporting_period": 10,
-                    "min_repeat_delay": 10,
-                    "max_repeat_delay": 10,
-                }
             },
+        },
+        delta_dynamic_node_config={
+            "%true": {
+                "exec_node": {
+                    "job_reporter": {
+                        "reporting_period": 10,
+                        "min_repeat_delay": 10,
+                        "max_repeat_delay": 10,
+                    }
+                }
+            }
         },
         delta_scheduler_config={
             "scheduler": {

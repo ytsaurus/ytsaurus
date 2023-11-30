@@ -487,8 +487,8 @@ yt.get("//home/table/@path")
 
 Подробнее про таблицы можно прочитать в разделе [Статические таблицы](../../../user-guide/storage/static-tables.md).
 
-#### Классы данных { #dataclass }
-Основной способ представления строк таблицы — это классы с полями, проаннотированными типами (аналог [dataclasses](https://docs.python.org/3/library/dataclasses.html)). Такое представление позволяет эффективно (де)сериализовывать данные, допускать меньше ошибок и удобнее работать со сложными типами (структурами, списками и т.п.). Для определения класса данных используется декоратор `yt_dataclass`. Например:
+#### Датаклассы { #dataclass }
+Основной способ представления строк таблицы — это классы с полями, проаннотированными типами (аналог [dataclasses](https://docs.python.org/3/library/dataclasses.html)). Такое представление позволяет эффективно (де)сериализовывать данные, допускать меньше ошибок и удобнее работать со сложными типами (структурами, списками и т.п.). Для определения датакласса используется декоратор `yt_dataclass`. Например:
 
 ```python
 @yt.yt_dataclass
@@ -498,9 +498,9 @@ class Row:
     robot: bool = False
 ```
 
-После двоеточия указывается тип поля. Это может быть либо обычный тип Python, либо тип из модуля [typing](https://docs.python.org/3/library/typing.html), либо же специальный тип, например, `OtherColumns`. Подробнее можно прочитать в разделе [Классы данных](../../../api/python/dataclass.md#types). Так же, как и в стандартном модуле `dataclasses`, объект можно создавать обычным образом: `row = Row(id=123, name="foo")`. При этом для всех полей, для которых не указаны дефолтные значения (как для `robot: bool = False`), необходимо передать соответствующие поля в конструктор, иначе появится исключение.
+После двоеточия указывается тип поля. Это может быть либо обычный тип Python, либо тип из модуля [typing](https://docs.python.org/3/library/typing.html), либо же специальный тип, например, `OtherColumns`. Подробнее можно прочитать в разделе [Датаклассы](../../../api/python/dataclass.md#types). Объект данного класса можно создавать обычным образом: `row = Row(id=123, name="foo")`. При этом для всех полей, для которых не указаны дефолтные значения (как для `robot: bool = False`), необходимо передать соответствующие поля в конструктор, иначе будет порождено исключение.
 
-Для классов данных допустимо наследование. Подробнее см. в разделе [Классы данных](../../../api/python/dataclass.md). Также смотрите [пример](../../../api/python/examples.md#dataclass).
+Для датаклассов допустимо наследование. Подробнее см. в разделе [Датаклассы](../../../api/python/dataclass.md). Также смотрите [пример](../../../api/python/examples.md#dataclass).
 
 #### Схемы { #table_schema }
 
@@ -1183,7 +1183,7 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 Для указания входных и выходных типов строк в классе джоба можно использовать тайп хинты (смотрите примеры в туториале: [раз](../../../api/python/examples.md#simple_map), [два](../../../api/python/examples.md#multiple_input_reduce), [три](../../../api/python/examples.md#multiple_input_multiple_output_reduce) и [четыре](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), либо переопределить метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Указание типов производится через методы объекта `preparer` типа [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Полезные методы:
    1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): позволяет указать для нескольких входных таблиц тип входной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), список имён колонок, которые нужны джобу, а также переименования колонок.
-   2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): позволяет указать для нескольких выходных таблиц тип выходной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), а также схему, которую хочется вывести для этих таблиц (по умолчанию схема выводится из класса данных).
+   2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): позволяет указать для нескольких выходных таблиц тип выходной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), а также схему, которую хочется вывести для этих таблиц (по умолчанию схема выводится из датакласса).
    3. `input` и `output` — аналоги соответствующих методов, принимающие единственный индекс.
 
 Объект [`context`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparationContext) позволяет получать информацию о входных и выходных потоках: их количество, схемы и пути к таблицам.

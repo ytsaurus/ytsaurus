@@ -2,6 +2,8 @@
 
 namespace NYT::NTransactionServer {
 
+using namespace NObjectClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTransactionPresenceCacheConfig::Register(TRegistrar registrar)
@@ -43,6 +45,23 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
+    registrar.Parameter("check_transaction_is_compatible_with_method", &TThis::CheckTransactionIsCompatibleWithMethod)
+        .Default(true);
+
+    THashMap<EObjectType, THashSet<TString>> defaultWhitelist;
+    defaultWhitelist[EObjectType::UploadTransaction] = {
+        "BeginUpload",
+        "EndUpload",
+        "Get",
+        "GetUploadParams"};
+    defaultWhitelist[EObjectType::UploadNestedTransaction] = defaultWhitelist[EObjectType::UploadTransaction];
+    defaultWhitelist[EObjectType::SystemTransaction] = {
+        "Create",
+        "Get"};
+    defaultWhitelist[EObjectType::SystemNestedTransaction] = defaultWhitelist[EObjectType::SystemTransaction];
+
+    registrar.Parameter("transaction_type_to_method_whitelist", &TThis::TransactionTypeToMethodWhitelist)
+        .Default(defaultWhitelist);
 
     // COMPAT(gritukan): This is an emergency button to restore old master transactions
     // behavior.

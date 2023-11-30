@@ -425,7 +425,7 @@ private:
 
         for (int i = 0; i < std::ssize(map->Outputs_); ++i) {
             if (i == intermediateOutputIndex) {
-                mapperJobOutputs.push_back(CreateKvJobOutput(/*sinkIndex*/ 0, {inputTable.RowVtable_}));
+                mapperJobOutputs.push_back(CreateKvJobNodeOutput(/*sinkIndex*/ 0, {inputTable.RowVtable_}));
             } else {
                 MapOutputs_.push_back(map->Outputs_[i]);
                 auto newJobOutput = map->JobOutputs_[i]->Clone();

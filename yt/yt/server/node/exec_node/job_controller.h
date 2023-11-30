@@ -11,8 +11,6 @@
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
-
 #include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/core/ytree/fluent.h>

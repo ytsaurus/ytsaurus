@@ -371,7 +371,6 @@ private:
                 currentExportProgress->LastExportedFragmentUnixTs);
         }
 
-
         return currentExportProgress ? currentExportProgress : New<TExportProgress>();
     }
 
@@ -384,14 +383,14 @@ private:
             tabletToChunkSpecs[chunkSpec.tablet_index()].push_back(&chunkSpec);
         }
 
-        for (const auto& [tabletIndex, tabletSpecs] : tabletToChunkSpecs) {
-            auto lastExportedSpecIt = std::find_if(tabletSpecs.begin(), tabletSpecs.end(), [&, tabletIndex = tabletIndex] (auto tabletSpec) {
+        for (const auto& [tabletIndex, chunkSpecs] : tabletToChunkSpecs) {
+            auto lastExportedSpecIt = std::find_if(chunkSpecs.begin(), chunkSpecs.end(), [&, tabletIndex = tabletIndex] (auto* chunkSpec) {
                 auto tabletProgressIt = currentExportProgress->Tablets.find(tabletIndex);
-                return tabletProgressIt != currentExportProgress->Tablets.end() && tabletProgressIt->second->LastChunk == FromProto<TChunkId>(tabletSpec->chunk_id());
+                return tabletProgressIt != currentExportProgress->Tablets.end() && tabletProgressIt->second->LastChunk == FromProto<TChunkId>(chunkSpec->chunk_id());
             });
 
-            auto specToExportIt = (lastExportedSpecIt == tabletSpecs.end() ? tabletSpecs.begin() : (lastExportedSpecIt + 1));
-            for (; specToExportIt != tabletSpecs.end(); ++specToExportIt) {
+            auto specToExportIt = (lastExportedSpecIt == chunkSpecs.end() ? chunkSpecs.begin() : (lastExportedSpecIt + 1));
+            for (; specToExportIt != chunkSpecs.end(); ++specToExportIt) {
                 auto* chunkSpec = *specToExportIt;
                 // TODO(achulkov2): Get rid of this allocation?
                 TInputChunkPtr chunk = New<TInputChunk>(*chunkSpec);
@@ -458,13 +457,19 @@ private:
 
     TString GetOutputTableName(ui64 unixTs)
     {
+        auto periodInSeconds = ExportConfig_.ExportPeriod.Seconds();
+
+        if (!ExportConfig_.UseUpperBoundForTableNames) {
+            unixTs -= periodInSeconds;
+        }
+
         auto instant = TInstant::Seconds(unixTs);
 
         auto outputTableName = ExportConfig_.OutputTableNamePattern;
 
         std::vector<std::pair<TString, TString>> variables = {
             {"%UNIX_TS", ToString(unixTs)},
-            {"%PERIOD", ToString(ExportConfig_.ExportPeriod.Seconds())},
+            {"%PERIOD", ToString(periodInSeconds)},
             {"%ISO", instant.ToStringUpToSeconds()},
         };
 
@@ -489,8 +494,19 @@ private:
         TCreateNodeOptions createOptions;
         createOptions.TransactionId = Options_.TransactionId;
         createOptions.Attributes = CreateEphemeralAttributes();
+        if (ExportConfig_.ExportTtl) {
+            createOptions.Attributes->Set("expiration_time", ExportInstant_ + ExportConfig_.ExportTtl);
+        }
         WaitFor(Client_->CreateNode(DestinationObject_.GetPath(), EObjectType::Table, createOptions))
             .ThrowOnError();
+
+        YT_LOG_DEBUG(
+            "Created output node for export (DestinationPath: %v, OutputTableNamePattern: %v, UseUpperBoundForTableNames: %v, ExportTtl: %v, ExportFragmentUnixTs: %v)",
+            destinationPath,
+            ExportConfig_.OutputTableNamePattern,
+            ExportConfig_.UseUpperBoundForTableNames,
+            ExportConfig_.ExportTtl,
+            ExportFragmentUnixTs_);
 
         GetAndFillBasicAttributes(DestinationObject_, /*populateSecurityTags*/ false);
     }
@@ -616,7 +632,8 @@ private:
             ChunkSpecsToExport_.size());
 
         TChunkServiceProxy proxy(Client_->GetMasterChannelOrThrow(
-            EMasterChannelKind::Leader, DestinationObject_.ExternalCellTag));
+            EMasterChannelKind::Leader,
+            DestinationObject_.ExternalCellTag));
 
         auto batchReq = proxy.ExecuteBatch();
         GenerateMutationId(batchReq);

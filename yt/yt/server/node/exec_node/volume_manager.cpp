@@ -111,7 +111,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
 
     YT_LOG_INFO("Creating NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.data_source().path(),
-        artifactKey.filesystem(),
+        FromProto<ELayerFilesystem>(artifactKey.filesystem()),
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs_size());
 
@@ -120,7 +120,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
     if (config->Path.empty()) {
         THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
             << TErrorAttribute("type_name", artifactKey.GetTypeName())
-            << TErrorAttribute("filesystem", artifactKey.filesystem())
+            << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()))
             << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
     }
 
@@ -134,7 +134,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
 
     YT_LOG_INFO("Created NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.data_source().path(),
-        artifactKey.filesystem(),
+        FromProto<ELayerFilesystem>(artifactKey.filesystem()),
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs_size());
 
@@ -738,7 +738,7 @@ private:
                 .ValueOrThrow();
 
             for (const auto& unlinkError : unlinkResults) {
-                if (!unlinkError.IsOK() && unlinkError.GetCode() != Porto::VolumeNotLinked && unlinkError.GetCode() != Porto::VolumeNotFound) {
+                if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
                     THROW_ERROR unlinkError;
                 }
             }
@@ -1005,6 +1005,8 @@ private:
 
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
+        bool isInvalidImage = false;
+
         try {
             YT_LOG_DEBUG("Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
@@ -1013,8 +1015,19 @@ private:
 
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, std::move(volumeProperties)))
-                .ValueOrThrow();
+            auto errorOrValue = WaitFor(VolumeExecutor_->CreateVolume(mountPath, std::move(volumeProperties)));
+            if (!errorOrValue.IsOK()) {
+                // TODO(yuryalekseev): Wait for porto to add Porto::InvalidImage
+                //if (errorOrValue.GetCode() == Porto::InvalidImage) {
+                //    isInvalidImage = true;
+                //}
+                auto it = volumeProperties.find("backend");
+                if (errorOrValue.GetCode() == EPortoErrorCode::Unknown && it != volumeProperties.end() && (it->second == "squash" || it->second == "nbd")) {
+                    isInvalidImage = true;
+                }
+            }
+
+            auto volumePath = errorOrValue.ValueOrThrow();
 
             YT_VERIFY(volumePath == mountPath);
 
@@ -1072,6 +1085,12 @@ private:
             auto error = TError("Failed to create %v volume %v",
                 FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId) << ex;
+
+            if (isInvalidImage) {
+                error.SetCode(EErrorCode::InvalidImage);
+                THROW_ERROR(error);
+            }
+
             Disable(error);
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithVolumeFailed) {
@@ -2526,14 +2545,14 @@ private:
                 tag,
                 layer.nbd_export_id(),
                 layer.data_source().path(),
-                layer.filesystem());
+                FromProto<ELayerFilesystem>(layer.filesystem()));
 
             auto nbdServer = Bootstrap_->GetNbdServer();
             if (!nbdServer) {
                 auto error = TError("NBD server is not present")
                     << TErrorAttribute("export_id", layer.nbd_export_id())
                     << TErrorAttribute("path", layer.data_source().path())
-                    << TErrorAttribute("filesystem", layer.filesystem());
+                    << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(layer.filesystem()));
                 YT_LOG_ERROR(error, "Failed to prepare NBD export");
                 return MakeFuture<void>(error);
             }
@@ -2659,7 +2678,7 @@ private:
             tag,
             artifactKey.nbd_export_id(),
             artifactKey.data_source().path(),
-            artifactKey.filesystem());
+            FromProto<ELayerFilesystem>(artifactKey.filesystem()));
 
         auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
         auto nbdServer = Bootstrap_->GetNbdServer();
@@ -2668,7 +2687,7 @@ private:
             auto error = TError("NBD is not configured")
                 << TErrorAttribute("export_id", artifactKey.nbd_export_id())
                 << TErrorAttribute("path", artifactKey.data_source().path())
-                << TErrorAttribute("filesystem", artifactKey.filesystem());
+                << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()));
             YT_LOG_ERROR(error, "Failed to create NBD volume");
             THROW_ERROR_EXCEPTION(error);
         }
@@ -2688,7 +2707,7 @@ private:
             volume->GetId(),
             artifactKey.nbd_export_id(),
             artifactKey.data_source().path(),
-            artifactKey.filesystem());
+            FromProto<ELayerFilesystem>(artifactKey.filesystem()));
 
         return volume;
     }

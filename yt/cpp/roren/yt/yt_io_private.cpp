@@ -400,14 +400,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKvOutput
+class TKvNodeOutput
     : public TYtJobOutput
     , public IKvJobOutput
 {
 public:
-    TKvOutput() = default;
+    TKvNodeOutput() = default;
 
-    TKvOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables)
+    TKvNodeOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables)
         : TYtJobOutput(sinkIndex)
         , RowVtables_(rowVtables)
     {
@@ -421,7 +421,7 @@ public:
         }
     }
 
-    TKvOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
+    TKvNodeOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
         : TYtJobOutput(sinkIndex)
         , KeyEncoders_({keyCoder})
         , ValueEncoders_({valueCoder})
@@ -491,7 +491,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobOutputPtr {
-            return ::MakeIntrusive<TKvOutput>();
+            return ::MakeIntrusive<TKvNodeOutput>();
         };
     }
 
@@ -768,14 +768,14 @@ IYtJobOutputPtr CreateEncodingJobOutput(const TRowVtable& rowVtable, int sinkInd
     return ::MakeIntrusive<TEncodingJobOutput>(rowVtable, sinkIndex);
 }
 
-IKvJobOutputPtr CreateKvJobOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables)
+IKvJobOutputPtr CreateKvJobNodeOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables)
 {
-    return ::MakeIntrusive<TKvOutput>(sinkIndex, rowVtables);
+    return ::MakeIntrusive<TKvNodeOutput>(sinkIndex, rowVtables);
 }
 
-IKvJobOutputPtr CreateKvJobOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
+IKvJobOutputPtr CreateKvJobNodeOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
 {
-    return ::MakeIntrusive<TKvOutput>(sinkIndex, std::move(keyCoder), std::move(valueCoder));
+    return ::MakeIntrusive<TKvNodeOutput>(sinkIndex, std::move(keyCoder), std::move(valueCoder));
 }
 
 IYtJobOutputPtr CreateTeeJobOutput(std::vector<IYtJobOutputPtr> outputs)

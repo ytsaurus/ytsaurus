@@ -25,10 +25,6 @@
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
-
-#include <yt/yt/ytlib/node_tracker_client/helpers.h>
-
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -2471,6 +2467,10 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
         job->GetOperationId(),
         job->GetControllerEpoch(),
         job->GetSchedulingIndex());
+
+    if (job->IsRevived()) {
+        job->GetNode()->JobsToAbort().erase(job->GetId());
+    }
 }
 
 void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)

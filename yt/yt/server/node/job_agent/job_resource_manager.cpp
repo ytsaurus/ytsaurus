@@ -92,8 +92,9 @@ public:
 
 public:
     explicit TImpl(IBootstrapBase* bootstrap)
-        : Config_(bootstrap->GetConfig()->ExecNode->JobController)
-        , Bootstrap_(bootstrap)
+        : Bootstrap_(bootstrap)
+        , StaticConfig_(bootstrap->GetConfig()->JobResourceManager)
+        , DynamicConfig_(New<TJobResourceManagerDynamicConfig>())
         , NodeMemoryUsageTracker_(Bootstrap_->GetMemoryUsageTracker())
         , SystemMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::SystemJobs))
         , UserMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::UserJobs))
@@ -103,76 +104,67 @@ public:
         , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("/free_memory_watermark_added_memory"))
         , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("/free_memory_watermark_is_increased"))
     {
-        YT_VERIFY(Config_);
-        YT_VERIFY(Bootstrap_);
+        YT_VERIFY(StaticConfig_);
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
         Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
         Profiler_.AddProducer("/resource_usage", ResourceUsageBuffer_);
 
-        if (Config_->PortSet) {
-            FreePorts_ = *Config_->PortSet;
+        if (StaticConfig_->PortSet) {
+            FreePorts_ = *StaticConfig_->PortSet;
         } else {
-            for (int index = 0; index < Config_->PortCount; ++index) {
-                FreePorts_.insert(Config_->StartPort + index);
+            for (int index = 0; index < StaticConfig_->PortCount; ++index) {
+                FreePorts_.insert(StaticConfig_->StartPort + index);
             }
         }
     }
 
     void Initialize() override
     {
-        auto dynamicConfig = DynamicConfig_.Acquire();
+        auto dynamicConfig = GetDynamicConfig();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TImpl::OnProfiling, MakeWeak(this)),
             dynamicConfig->ProfilingPeriod);
 
-        if (Config_->MappedMemoryController) {
-            ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetJobInvoker(),
-                BIND_NO_PROPAGATE(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
-                Config_->MappedMemoryController->CheckPeriod);
-        }
+        ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
+            std::nullopt);
 
-        if (Bootstrap_->IsExecNode()) {
-            MemoryPressureDetector_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetJobInvoker(),
-                BIND_NO_PROPAGATE(&TImpl::CheckMemoryPressure, MakeWeak(this)),
-                dynamicConfig->MemoryPressureDetector->CheckPeriod);
-        }
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-            dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        MemoryPressureDetector_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::CheckMemoryPressure, MakeWeak(this)),
+            std::nullopt);
     }
 
     void Start() override
     {
         ProfilingExecutor_->Start();
-        if (MemoryPressureDetector_) {
+        ReservedMappedMemoryChecker_->Start();
+
+        if (Bootstrap_->IsExecNode()) {
             MemoryPressureDetector_->Start();
-        }
-        if (ReservedMappedMemoryChecker_) {
-            ReservedMappedMemoryChecker_->Start();
         }
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TJobResourceManagerDynamicConfigPtr& /*oldConfig*/,
+        const TJobResourceManagerDynamicConfigPtr& newConfig) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto jobControllerConfig = newNodeConfig->ExecNode->JobController;
-        YT_ASSERT(jobControllerConfig);
-        DynamicConfig_.Store(jobControllerConfig);
-
         ProfilingExecutor_->SetPeriod(
-            jobControllerConfig->ProfilingPeriod);
+            newConfig->ProfilingPeriod);
 
-        if (MemoryPressureDetector_) {
-            MemoryPressureDetector_->SetPeriod(jobControllerConfig->MemoryPressureDetector->CheckPeriod);
+        MemoryPressureDetector_->SetPeriod(newConfig->MemoryPressureDetector->CheckPeriod);
+
+        if (newConfig->MappedMemoryController) {
+            ReservedMappedMemoryChecker_->SetPeriod(newConfig->MappedMemoryController->CheckPeriod);
         }
+
+        DynamicConfig_.Store(newConfig);
     }
 
     void OnProfiling()
@@ -190,9 +182,10 @@ public:
         if (Bootstrap_->IsExecNode()) {
             MajorPageFaultsGauge_.Update(LastMajorPageFaultCount_);
 
-            if (FreeMemoryWatermarkMultiplier_ != 1.0 && DynamicConfig_.Acquire()->MemoryPressureDetector->Enabled) {
+            auto dynamicConfig = GetDynamicConfig();
+            if (FreeMemoryWatermarkMultiplier_ != 1.0 && dynamicConfig->MemoryPressureDetector->Enabled) {
                 FreeMemoryWatermarkMultiplierGauge_.Update(FreeMemoryWatermarkMultiplier_);
-                FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - Config_->FreeMemoryWatermark);
+                FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - dynamicConfig->FreeMemoryWatermark);
                 FreeMemoryWatermarkIsIncreasedGauge_.Update(1);
             }
         }
@@ -208,7 +201,7 @@ public:
         #define XX(name, Name) \
             result.Name = (resourceLimitsOverrides.has_##name() \
                 ? resourceLimitsOverrides.name() \
-                : Config_->ResourceLimits->Name);
+                : StaticConfig_->ResourceLimits->Name);
         ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
         #undef XX
 
@@ -263,6 +256,13 @@ public:
         result.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(result.Cpu * GetCpuToVCpuFactor()));
 
         return result;
+    }
+
+    TJobResourceManagerDynamicConfigPtr GetDynamicConfig() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return DynamicConfig_.Acquire();
     }
 
     TJobResources LoadResourceUsage() const
@@ -335,9 +335,13 @@ public:
 
     i64 GetFreeMemoryWatermark() const
     {
-        return DynamicConfig_.Acquire()->MemoryPressureDetector->Enabled
-            ? Config_->FreeMemoryWatermark * FreeMemoryWatermarkMultiplier_
-            : Config_->FreeMemoryWatermark;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto dynamicConfig = GetDynamicConfig();
+
+        return dynamicConfig->MemoryPressureDetector->Enabled
+            ? dynamicConfig->FreeMemoryWatermark * FreeMemoryWatermarkMultiplier_
+            : dynamicConfig->FreeMemoryWatermark;
     }
 
     void OnResourceAcquiringStarted()
@@ -539,15 +543,15 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto dynamicConfig = DynamicConfig_.Acquire();
-        if (dynamicConfig && dynamicConfig->EnableCpuToVCpuFactor) {
+        if (dynamicConfig->EnableCpuToVCpuFactor) {
             if (dynamicConfig->CpuToVCpuFactor) {
                 return dynamicConfig->CpuToVCpuFactor.value();
             }
-            if (Config_->CpuToVCpuFactor) {
-                return Config_->CpuToVCpuFactor.value();
+            if (StaticConfig_->CpuToVCpuFactor) {
+                return StaticConfig_->CpuToVCpuFactor.value();
             }
-            if (dynamicConfig->CpuModelToCpuToVCpuFactor && Config_->CpuModel) {
-                const auto& cpuModel = *Config_->CpuModel;
+            if (dynamicConfig->CpuModelToCpuToVCpuFactor && StaticConfig_->CpuModel) {
+                const auto& cpuModel = *StaticConfig_->CpuModel;
                 const auto& cpuModelToCpuToVCpuFactor = *dynamicConfig->CpuModelToCpuToVCpuFactor;
                 if (auto it = cpuModelToCpuToVCpuFactor.find(cpuModel); it != cpuModelToCpuToVCpuFactor.end()) {
                     return it->second;
@@ -866,10 +870,10 @@ public:
     }
 
 private:
-    const TIntrusivePtr<const NExecNode::TJobControllerConfig> Config_;
     IBootstrapBase* const Bootstrap_;
 
-    TAtomicIntrusivePtr<NExecNode::TJobControllerDynamicConfig> DynamicConfig_{New<NExecNode::TJobControllerDynamicConfig>()};
+    const TJobResourceManagerConfigPtr StaticConfig_;
+    TAtomicIntrusivePtr<TJobResourceManagerDynamicConfig> DynamicConfig_;
 
     TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
 
@@ -1060,12 +1064,13 @@ private:
         }
 
         i64 mappedMemory = mappedIt->second;
+        auto dynamicConfig = GetDynamicConfig();
 
         YT_LOG_INFO("Mapped memory usage (Usage: %v, Reserved: %v)",
             mappedMemory,
-            Config_->MappedMemoryController->ReservedMemory);
+            dynamicConfig->MappedMemoryController->ReservedMemory);
 
-        if (mappedMemory <= Config_->MappedMemoryController->ReservedMemory) {
+        if (mappedMemory <= dynamicConfig->MappedMemoryController->ReservedMemory) {
             return;
         }
 

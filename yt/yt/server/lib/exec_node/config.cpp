@@ -662,34 +662,6 @@ void TJobControllerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("gpu_manager", &TThis::GpuManager)
         .DefaultNew();
-
-    // JRM config goes below:
-    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
-
-    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
-        .DefaultNew();
-
-    registrar.Parameter("free_memory_watermark", &TThis::FreeMemoryWatermark)
-        .Default(0)
-        .GreaterThanOrEqual(0);
-
-    registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
-        .Default();
-
-    registrar.Parameter("cpu_model", &TThis::CpuModel)
-        .Default();
-
-    registrar.Parameter("start_port", &TThis::StartPort)
-        .Default(20000);
-
-    registrar.Parameter("port_count", &TThis::PortCount)
-        .Default(10000);
-
-    registrar.Parameter("port_set", &TThis::PortSet)
-        .Default();
-
-    registrar.Parameter("mapped_memory_controller", &TThis::MappedMemoryController)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -743,39 +715,8 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_common", &TThis::JobCommon)
         .DefaultNew();
 
-    // JRM config goes below:
-    // TODO(arkady-e1ppa): Make JobResourceManagerConfig, put it there and move it to JobAgent
-
-    registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
-        .Default();
-
-    registrar.Parameter("enable_cpu_to_vcpu_factor", &TThis::EnableCpuToVCpuFactor)
-        .Default(false);
-
-    registrar.Parameter("cpu_model_to_cpu_to_vcpu_factor", &TThis::CpuModelToCpuToVCpuFactor)
-        .Default();
-
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("memory_pressure_detector", &TThis::MemoryPressureDetector)
-        .DefaultNew();
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {
-            THROW_ERROR_EXCEPTION("`cpu_to_vcpu_factor` must be greater than 0")
-                << TErrorAttribute("cpu_to_vcpu_factor", *config->CpuToVCpuFactor);
-        }
-        if (config->CpuModelToCpuToVCpuFactor) {
-            for (const auto& [cpu_model, factor] : config->CpuModelToCpuToVCpuFactor.value()) {
-                if (factor <= 0) {
-                    THROW_ERROR_EXCEPTION("Factor in \"cpu_model_to_cpu_to_vcpu_factor\" must be greater than 0")
-                        << TErrorAttribute("cpu_model", cpu_model)
-                        << TErrorAttribute("cpu_to_vcpu_factor", factor);
-                }
-            }
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -853,13 +794,8 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_manager", &TThis::SlotManager)
         .DefaultNew();
-    registrar.Parameter("job_controller", &TThis::JobController)
-        .DefaultNew();
-    registrar.Parameter("job_reporter", &TThis::JobReporter)
-        .Alias("statistics_reporter")
-        .DefaultNew();
 
-    registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
+    registrar.Parameter("job_controller", &TThis::JobController)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)
@@ -867,11 +803,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy", &TThis::JobProxy)
         .DefaultNew();
-
-    registrar.Preprocessor([] (TThis* config) {
-        // 10 user jobs containers per second by default.
-        config->UserJobContainerCreationThrottler->Limit = 10;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

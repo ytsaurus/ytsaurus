@@ -214,7 +214,9 @@ public:
         : ReadThreadPool_(CreateNewTwoLevelFairShareThreadPool(
             config->ReadThreadCount,
             Format("FSH:%v", locationId),
-            New<TPoolWeightProvider>(config->DefaultPoolWeight, config->UserInteractivePoolWeight)))
+            {
+                New<TPoolWeightProvider>(config->DefaultPoolWeight, config->UserInteractivePoolWeight)
+            }))
         , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker(), NProfiling::TTagSet({{"invoker", "io_fair_share_thread_pool_writer"}, {"location_id", locationId}})))
         , Logger(logger)

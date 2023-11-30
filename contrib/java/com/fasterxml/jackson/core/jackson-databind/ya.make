@@ -1,7 +1,7 @@
 JAVA_CONTRIB_PROXY()
 
 PEERDIR(
-    contrib/java/com/fasterxml/jackson/core/jackson-databind/2.15.2
+    contrib/java/com/fasterxml/jackson/core/jackson-databind/2.15.3
 )
 
 END()
@@ -113,4 +113,6 @@ RECURSE(
     2.15.1
     2.9.9.1
     2.15.2
+    2.14.3
+    2.15.3
 )

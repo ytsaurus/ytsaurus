@@ -12,7 +12,7 @@ from yt_helpers import read_structured_log, write_log_barrier
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-from yt.common import YtError
+from yt.common import YtError, update_inplace
 import pytest
 
 import string
@@ -398,20 +398,18 @@ class TestResourceOverdraftAbort(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 2,
-                    "cpu": 2,
-                }
-            }
-        },
         "resource_limits": {
             # Each job proxy occupies about 100MB.
             "user_jobs": {
                 "type": "static",
                 "value": 2000 * 10 ** 6,
             },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
+                "cpu": 2,
+            }
         }
     }
 
@@ -785,14 +783,21 @@ class TestSchedulerGpu(YTEnvSetup):
             cls.node_counter = 0
         cls.node_counter += 1
         if cls.node_counter == 1:
-            config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 4
-            config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 4
-            config["exec_node"]["job_controller"]["gpu_manager"] = {
-                "testing": {
-                    "test_resource": True,
-                    "test_gpu_count": 4,
-                },
+            config["job_resource_manager"]["resource_limits"]["user_slots"] = 4
+            config["job_resource_manager"]["resource_limits"]["cpu"] = 4
+            job_controller_config_patch = {
+                "exec_node": {
+                    "job_controller": {
+                        "gpu_manager": {
+                            "testing": {
+                                "test_resource": True,
+                                "test_gpu_count": 4,
+                            },
+                        }
+                    }
+                }
             }
+            update_inplace(config, job_controller_config_patch)
 
     def setup_method(self, method):
         super(TestSchedulerGpu, self).setup_method(method)
@@ -908,12 +913,10 @@ class TestPorts(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "start_port": 20000,
-                "port_count": 3,
-                "resource_limits": {"user_slots": 2, "cpu": 2},
-            },
+        "job_resource_manager": {
+            "start_port": 20000,
+            "port_count": 3,
+            "resource_limits": {"user_slots": 2, "cpu": 2},
         },
     }
 

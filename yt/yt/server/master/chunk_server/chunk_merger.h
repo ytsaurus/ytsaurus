@@ -98,7 +98,7 @@ public:
         TNodePtrWithReplicaAndMediumIndexList targetReplicas,
         bool validateShallowMerge);
 
-    bool FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    bool FillJobSpec(NCellMaster::TBootstrap* bootstrap, NProto::TJobSpec* jobSpec) const override;
 
 private:
     const TChunkVector InputChunks_;

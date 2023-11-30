@@ -24,7 +24,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
 COPY ./new_stress_test /usr/new_stress_test
 
-RUN for package in client yson local native_driver; \
+RUN set -eux -o pipefail; \
+  for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \

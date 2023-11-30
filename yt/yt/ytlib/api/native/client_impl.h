@@ -23,6 +23,8 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/bundle_controller/bundle_controller_service_proxy.h>
+
 #include <yt/yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -758,6 +760,11 @@ public:
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
 
+    IMPLEMENT_METHOD(TBundleConfigDescriptor, GetBundleConfig, (
+        const TString& bundleName,
+        const TGetBundleConfigOptions& options),
+        (bundleName, options))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -795,6 +802,7 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NScheduler::TJobProberServiceProxy> SchedulerJobProberProxy_;
+    std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
 
     struct TReplicaClient final
     {
@@ -1798,6 +1806,15 @@ private:
         const TString& user,
         const TString& passwordSha256,
         const TTimeoutOptions& options);
+
+
+    //
+    // BundleController
+    //
+
+    TBundleConfigDescriptor DoGetBundleConfig(
+        const TString& bundleName,
+        const TGetBundleConfigOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

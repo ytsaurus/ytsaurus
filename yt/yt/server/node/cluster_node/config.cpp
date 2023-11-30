@@ -258,6 +258,8 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chaos_node", &TThis::ChaosNode)
         .DefaultNew();
+    registrar.Parameter("job_resource_manager", &TThis::JobResourceManager)
+        .DefaultNew();
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .Alias("master_cache_service")
         .DefaultNew();
@@ -434,6 +436,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("exec_node", &TThis::ExecNode)
         .Alias("exec_agent")
+        .DefaultNew();
+    registrar.Parameter("job_resource_manager", &TThis::JobResourceManager)
         .DefaultNew();
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .DefaultNew();

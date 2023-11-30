@@ -7,6 +7,7 @@
 
 
 add_subdirectory(bin)
+add_subdirectory(unittests)
 
 add_library(yt-yql-agent)
 target_compile_options(yt-yql-agent PRIVATE
@@ -20,7 +21,9 @@ target_link_libraries(yt-yql-agent PUBLIC
   library-cpp-getopt
   logging-backends-arcadia
   yt-library-dynamic_config
+  yt-library-skiff_ext
   yt-yt-ytlib
+  yt-client-formats
   server-lib-admin
   server-lib-cypress_election
   server-lib-misc

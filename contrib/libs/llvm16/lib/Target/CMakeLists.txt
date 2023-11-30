@@ -6,6 +6,12 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(AArch64)
+add_subdirectory(ARM)
+add_subdirectory(BPF)
+add_subdirectory(NVPTX)
+add_subdirectory(PowerPC)
+add_subdirectory(WebAssembly)
 add_subdirectory(X86)
 
 add_library(llvm16-lib-Target)

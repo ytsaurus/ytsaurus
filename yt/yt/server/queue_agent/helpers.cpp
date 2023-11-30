@@ -132,7 +132,7 @@ std::vector<TRichYPath> GetRelevantReplicas(
 
             if (replica.GetPath() != replicas[0].GetPath()) {
                 THROW_ERROR_EXCEPTION(
-                    "Cannot work with replicated object with differently named replicas %Qv and %Qv",
+                    "Cannot work with replicated object with differently named replicas %v and %v",
                     replica.GetPath(),
                     replicas[0].GetPath());
             }
@@ -142,13 +142,13 @@ std::vector<TRichYPath> GetRelevantReplicas(
     return replicas;
 }
 
-NApi::NNative::IConnectionPtr TQueueAgentClientDirectory::GetNativeConnection(const TString& cluster)
+NApi::NNative::IConnectionPtr TQueueAgentClientDirectory::GetNativeConnection(const TString& cluster) const
 {
     // TODO(achulkov2): Make this more efficient by exposing the inner cluster directory from client directory.
     return ClientDirectory_->GetClientOrThrow(cluster)->GetNativeConnection();
 }
 
-NApi::NNative::IClientPtr TQueueAgentClientDirectory::GetClientOrThrow(const TString& cluster)
+NApi::NNative::IClientPtr TQueueAgentClientDirectory::GetClientOrThrow(const TString& cluster) const
 {
     return ClientDirectory_->GetClientOrThrow(cluster);
 }
@@ -169,8 +169,6 @@ NApi::NNative::IClientPtr AssertNativeClient(const NApi::IClientPtr& client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Collect cumulative row indices from rows with given (tablet_index, row_index) pairs and
-//! return them as a tablet_index: (row_index: cumulative_data_weight) map
 THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
     const TYPath& path,
     const NApi::IClientPtr& client,

@@ -34,7 +34,6 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
@@ -539,7 +538,7 @@ TReincarnationJob::TReincarnationJob(
 
 bool TReincarnationJob::FillJobSpec(
     TBootstrap* bootstrap,
-    TJobSpec* jobSpec) const
+    NProto::TJobSpec* jobSpec) const
 {
     auto* jobSpecExt = jobSpec->MutableExtension(
         TReincarnateChunkJobSpecExt::reincarnate_chunk_job_spec_ext);

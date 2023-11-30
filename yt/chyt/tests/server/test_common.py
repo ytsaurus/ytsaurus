@@ -24,11 +24,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 8
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 2,
-                }
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 2,
             }
         }
     }

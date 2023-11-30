@@ -13,6 +13,7 @@ SRCS(
 
     api/connection.cpp
     api/native/backup_session.cpp
+    api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
@@ -77,6 +78,10 @@ SRCS(
     auth/tvm_bridge.cpp
 
     auth/proto/tvm_bridge_service.proto
+
+    bundle_controller/config.cpp
+    bundle_controller/bundle_controller_channel.cpp
+    bundle_controller/proto/bundle_controller_service.proto
 
     cell_balancer/proto/cell_tracker_service.proto
 
@@ -265,12 +270,6 @@ SRCS(
     job_proxy/private.cpp
     job_proxy/user_job_io_factory.cpp
     job_proxy/user_job_read_controller.cpp
-
-    job_tracker_client/helpers.cpp
-    job_tracker_client/statistics.cpp
-
-    job_tracker_client/proto/job_tracker_service.proto
-    job_tracker_client/proto/job.proto
 
     journal_client/chunk_reader.cpp
     journal_client/config.cpp

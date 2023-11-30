@@ -4,13 +4,13 @@
 #include "helpers.h"
 #endif
 
-#include <yt/yt/client/federated/client.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
+
+#include <yt/yt/client/federated/client.h>
 
 namespace NYT::NQueueAgent {
 
@@ -21,14 +21,14 @@ TQueueAgentClientDirectory::TClientContext TQueueAgentClientDirectory::GetDataRe
     const TObjectSnapshotPtr& snapshot,
     bool onlyDataReplicas)
 {
-    const NQueueClient::TCrossClusterReference& object = snapshot->Row.Ref;
+    const auto& object = snapshot->Row.Ref;
 
     if (!snapshot->Row.ObjectType) {
         THROW_ERROR_EXCEPTION("Cannot get client for object %Qv with unknown object type", object);
     }
-    NCypressClient::EObjectType objectType = *snapshot->Row.ObjectType;
+    auto objectType = *snapshot->Row.ObjectType;
 
-    const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow = snapshot->ReplicatedTableMappingRow;
+    const auto& replicatedTableMappingRow = snapshot->ReplicatedTableMappingRow;
 
     switch (objectType) {
         case NCypressClient::EObjectType::Table:
@@ -57,7 +57,9 @@ TQueueAgentClientDirectory::TClientContext TQueueAgentClientDirectory::GetDataRe
             };
         }
         default:
-            THROW_ERROR_EXCEPTION("Cannot get data read client for object %Qv of type %Qlv", object, objectType);
+            THROW_ERROR_EXCEPTION("Cannot get data read client for object %Qv of type %Qlv",
+                object,
+                objectType);
     }
 }
 
@@ -66,14 +68,15 @@ TQueueAgentClientDirectory::TNativeClientContext TQueueAgentClientDirectory::Get
     const TObjectSnapshotPtr& snapshot,
     bool onlyDataReplicas)
 {
-    const NQueueClient::TCrossClusterReference& object = snapshot->Row.Ref;
+    const auto& object = snapshot->Row.Ref;
 
     if (!snapshot->Row.ObjectType) {
-        THROW_ERROR_EXCEPTION("Cannot get client for object %Qv with unknown object type", object);
+        THROW_ERROR_EXCEPTION("Cannot get client for object %Qv with unknown object type",
+            object);
     }
-    NCypressClient::EObjectType objectType = *snapshot->Row.ObjectType;
+    auto objectType = *snapshot->Row.ObjectType;
 
-    const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow = snapshot->ReplicatedTableMappingRow;
+    const auto& replicatedTableMappingRow = snapshot->ReplicatedTableMappingRow;
 
     switch (objectType) {
         case NCypressClient::EObjectType::Table:
@@ -96,7 +99,8 @@ TQueueAgentClientDirectory::TNativeClientContext TQueueAgentClientDirectory::Get
                 /*validatePaths*/ false);
 
             if (syncReplicas.empty()) {
-                THROW_ERROR_EXCEPTION("Cannot get sync client for %Qv since there are no known sync replicas", object);
+                THROW_ERROR_EXCEPTION("Cannot get sync client for %Qv since there are no known sync replicas",
+                    object);
             }
             // TODO(achulkov2): Try to pick a cluster that is alive.
             return {
@@ -105,14 +109,16 @@ TQueueAgentClientDirectory::TNativeClientContext TQueueAgentClientDirectory::Get
             };
         }
         default:
-            THROW_ERROR_EXCEPTION("Cannot get sync client for object %Qv of type %Qlv", object, objectType);
+            THROW_ERROR_EXCEPTION("Cannot get sync client for object %Qv of type %Qlv",
+                object,
+                objectType);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::optional<T> MinOrValue(const std::optional<T> lhs, const std::optional<T> rhs)
+std::optional<T> MinOrValue(std::optional<T> lhs, std::optional<T> rhs)
 {
     if (lhs && rhs) {
         return std::min(lhs, rhs);

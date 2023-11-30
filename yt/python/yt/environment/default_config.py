@@ -481,10 +481,6 @@ def get_node_config():
         };
 
         job_prepare_time_limit = 60000;
-
-        job_controller = {
-            unknown_operation_jobs_removal_delay = 5000;
-        };
     };
 
     cellar_node = {
@@ -589,12 +585,10 @@ def get_chaos_node_config():
         };
     };
 
-    exec_node = {
-        job_controller = {
-            resource_limits = {
-                user_slots = 0;
-                cpu = 0;
-            };
+    job_resource_manager = {
+        resource_limits = {
+            user_slots = 0;
+            cpu = 0;
         };
     };
 
@@ -677,8 +671,6 @@ def get_dynamic_node_config():
             };
         };
         exec_node = {
-            abort_on_jobs_disabled = %true;
-
             job_controller = {
                 "job_common" = {
                     use_artifact_binds = %true;
@@ -686,6 +678,8 @@ def get_dynamic_node_config():
                     job_prepare_time_limit = 60000;
                 };
                 operation_infos_request_period = 1000;
+
+                unknown_operation_jobs_removal_delay = 5000;
             };
 
             controller_agent_connector = {

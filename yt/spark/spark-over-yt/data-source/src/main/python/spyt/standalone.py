@@ -490,7 +490,6 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     worker_environment = update(environment, worker_environment)
     livy_environment = {
         "LIVY_HOME": "$HOME/{}/livy".format(spark_home),
-        "SPARK_YT_LIVY_PORT": "27105",
     }
     livy_environment = update(environment, livy_environment)
     if enablers.enable_byop:

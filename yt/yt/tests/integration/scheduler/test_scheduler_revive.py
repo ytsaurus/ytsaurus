@@ -1079,10 +1079,8 @@ class TestJobRevival(TestJobRevivalBase):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {"user_slots": 5, "cpu": 5},
-            }
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 5, "cpu": 5},
         }
     }
 

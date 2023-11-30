@@ -301,11 +301,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -328,11 +325,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/farm_hash_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/farm_hash_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=farm_hash
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -355,11 +349,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/bigb_hash_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/bigb_hash_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=bigb_hash
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -382,11 +373,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_map_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_map_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=make_map
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -409,11 +397,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_list_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=make_list
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -436,11 +421,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/make_entity_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=make_entity
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -463,11 +445,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/str_conv_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/str_conv_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=numeric_to_string#parse_int64#parse_uint64#parse_double
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -490,11 +469,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/regex_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/regex_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=regex_full_match#regex_partial_match#regex_replace_first#regex_replace_all#regex_extract#regex_escape
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -517,11 +493,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/avg_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/avg_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=avg_init#avg_update#avg_merge#avg_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -544,11 +517,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/concat_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/concat_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=concat
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -571,11 +541,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=_yt_replica_set_init#_yt_replica_set_update#_yt_replica_set_merge#_yt_replica_set_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -598,11 +565,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/first_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/first_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=first_init#first_update#first_merge#first_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -625,11 +589,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_prefix_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_prefix_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=is_prefix
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -652,11 +613,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_substr_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_substr_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=is_substr
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -679,11 +637,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/to_any_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/to_any_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=to_any
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -706,11 +661,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/max_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/max_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=max_init#max_update#max_merge#max_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -733,11 +685,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/min_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/min_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=min_init#min_update#min_merge#min_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -760,11 +709,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/sleep_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/sleep_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=sleep#sleep
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -787,11 +733,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/sum_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/sum_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=sum_init#sum_update#sum_merge#sum_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -814,11 +757,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/ypath_get_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/ypath_get_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=try_get_int64#get_int64#try_get_uint64#get_uint64#try_get_double#get_double#try_get_boolean#get_boolean#try_get_string#get_string#try_get_any#get_any
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -841,11 +781,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/lower_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/lower_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=lower
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -868,11 +805,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/length_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/length_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=length
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -895,11 +829,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_length_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_length_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=yson_length
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -922,11 +853,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/dates_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/dates_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=format_timestamp#timestamp_floor_hour#timestamp_floor_day#timestamp_floor_week#timestamp_floor_month#timestamp_floor_year
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -949,11 +877,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/format_guid_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/format_guid_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=format_guid
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -976,11 +901,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/list_contains_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/list_contains_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=list_contains
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -1003,11 +925,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=any_to_yson_string
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -1030,11 +949,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/has_permissions_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/has_permissions_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=has_permissions
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -1057,11 +973,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/xdelta_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/xdelta_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
   -internalize-public-api-list=xdelta_init#xdelta_update#xdelta_merge#xdelta_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT

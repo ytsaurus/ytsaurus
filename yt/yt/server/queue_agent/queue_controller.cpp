@@ -7,9 +7,6 @@
 #include "profile_manager.h"
 #include "queue_static_table_exporter.h"
 
-#include "yt/yt/client/api/internal_client.h"
-#include "yt/yt/client/api/table_client.h"
-
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -18,6 +15,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/api/internal_client.h>
+#include "yt/yt/client/api/table_client.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -30,14 +28,14 @@
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 
-#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduled_executor.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/ema_counter.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -88,8 +86,8 @@ public:
         , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
         , Registrations_(std::move(registrations))
-        , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
+        , Logger(logger)
     { }
 
     TQueueSnapshotPtr Build()
@@ -113,10 +111,10 @@ public:
 private:
     const TQueueTableRow Row_;
     const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
-    TQueueSnapshotPtr PreviousQueueSnapshot_;
-    std::vector<TConsumerRegistrationTableRow> Registrations_;
-    TLogger Logger;
-    TQueueAgentClientDirectoryPtr ClientDirectory_;
+    const TQueueSnapshotPtr PreviousQueueSnapshot_;
+    const std::vector<TConsumerRegistrationTableRow> Registrations_;
+    const TQueueAgentClientDirectoryPtr ClientDirectory_;
+    const TLogger Logger;
 
     TQueueSnapshotPtr QueueSnapshot_ = New<TQueueSnapshot>();
 
@@ -149,7 +147,7 @@ private:
         QueueSnapshot_->HasCumulativeDataWeightColumn = schema->FindColumn(CumulativeDataWeightColumnName);
 
         auto& partitionCount = QueueSnapshot_->PartitionCount;
-        partitionCount = static_cast<int>(tableInfo->Tablets.size());
+        partitionCount = std::ssize(tableInfo->Tablets);
 
         auto& partitionSnapshots = QueueSnapshot_->PartitionSnapshots;
         partitionSnapshots.resize(partitionCount);
@@ -245,7 +243,7 @@ private:
             }
         }
 
-        const auto& clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_);
+        auto clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_);
         auto result = NQueueAgent::CollectCumulativeDataWeights(clientContext.Path, clientContext.Client, tabletAndRowIndices, Logger);
 
         for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
@@ -409,7 +407,8 @@ private:
     const TPeriodicExecutorPtr PassExecutor_;
     const IQueueProfileManagerPtr ProfileManager_;
 
-    struct TQueueExport {
+    struct TQueueExport
+    {
         TScheduledExecutorPtr Executor;
         TQueueExporterPtr Exporter;
     };
@@ -417,7 +416,7 @@ private:
     THashMap<TString, TQueueExport> QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
 
-    void Export(TString exportName)
+    void Export(const TString& exportName)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -446,10 +445,7 @@ private:
         auto exportError = WaitFor(exporter->RunExportIteration(
             QueueRef_,
             GetOrCrash(*staticExportConfig, exportName)));
-        if (!exportError.IsOK()) {
-            YT_LOG_ERROR(exportError, "Failed to perform static export for queue");
-            return;
-        }
+        YT_LOG_ERROR_UNLESS(exportError.IsOK(), exportError, "Failed to perform static export for queue");
     }
 
     void Pass()
@@ -510,7 +506,6 @@ private:
                                 Invoker_,
                                 Logger.WithTag("ExportName: %v", name)),
                         };
-
                     }
 
                     QueueExports_[name].Executor->SetInterval(config.ExportPeriod);
@@ -642,7 +637,8 @@ private:
         // TODO(achulkov2): Add upstream replica id field + server-side check in Trim.
 
         TQueueTrimContext(TCrossClusterReference ref, TQueueSnapshotConstPtr replicaSnapshot)
-            : Ref(std::move(ref)), ReplicaSnapshot(std::move(replicaSnapshot))
+            : Ref(std::move(ref))
+            , ReplicaSnapshot(std::move(replicaSnapshot))
         {
             auto replicaQueueObjectId = ReplicaSnapshot->Row.ObjectId;
             if (!replicaQueueObjectId) {
@@ -686,8 +682,7 @@ private:
                 THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaRef);
             }
 
-            replicaContexts.emplace_back(replicaRef, replicaSnapshot);
-            auto& replicaContext = replicaContexts.back();
+            auto& replicaContext = replicaContexts.emplace_back(replicaRef, replicaSnapshot);
             for (const auto& [partitionContext, partitionSnapshot] : Zip(replicaContext.Partitions, replicaSnapshot->PartitionSnapshots)) {
                 partitionContext.Update({.MaxTrimmedRowCount = partitionSnapshot->UpperRowIndex});
             }
@@ -982,7 +977,7 @@ private:
 
                 if (replicaPartitionSnapshot->TabletState != NTabletClient::ETabletState::Mounted) {
                     partitionContext.Update({.PartitionError = TError(
-                        "Not trimming partition %v since its tablet is in state %Qv and is not mounted",
+                        "Not trimming partition %v since its tablet is in state %Qlv and is not mounted",
                         partitionIndex,
                         replicaPartitionSnapshot->TabletState)});
                     continue;
@@ -1042,8 +1037,7 @@ private:
                         Context.ObjectPath,
                         partitionContext.PartitionIndex,
                         maxTimestampToTrim
-                    }
-                );
+                    });
             }
 
             auto internalClient = DynamicPointerCast<NApi::IInternalClient>(Client);
@@ -1236,9 +1230,9 @@ public:
     }
 
 private:
-    TQueueTableRow Row_;
-    std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
-    TError Error_;
+    const TQueueTableRow Row_;
+    const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
+    const TError Error_;
     const TQueueSnapshotPtr Snapshot_;
 };
 

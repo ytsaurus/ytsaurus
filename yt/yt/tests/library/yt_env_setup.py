@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import yt_commands
+import yt_sequoia_helpers
 import yt_scheduler_helpers
 
 try:
@@ -10,10 +11,12 @@ except ImportError:
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
-from yt.environment.helpers import emergency_exit_within_tests
+from yt.environment.helpers import (
+    emergency_exit_within_tests,
+    find_cri_endpoint,
+)
 from yt.environment.default_config import (
     get_dynamic_master_config,
-    get_dynamic_node_config,
 )
 from yt.environment.helpers import (  # noqa
     Restarter,
@@ -238,6 +241,7 @@ class YTEnvSetup(object):
     ARTIFACT_COMPONENTS = {}
     FORCE_CREATE_ENVIRONMENT = False
     NUM_CELL_BALANCERS = 0
+    ENABLE_BUNDLE_CONTROLLER = False
     NUM_QUEUE_AGENTS = 0
     NUM_TABLET_BALANCERS = 0
     NUM_CYPRESS_PROXIES = 0
@@ -275,7 +279,8 @@ class YTEnvSetup(object):
     DELTA_QUEUE_AGENT_CONFIG = {}
     DELTA_CYPRESS_PROXY_CONFIG = {}
 
-    USE_PORTO = False
+    USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
+    JOB_ENVIRONMENT_TYPE = None  # "porto", "cri"
     USE_CUSTOM_ROOTFS = False
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
@@ -312,11 +317,6 @@ class YTEnvSetup(object):
     @classmethod
     def get_num_secondary_master_cells(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS
-
-    @classmethod
-    def get_ground_driver(cls, cluster_name="primary"):
-        assert cls.USE_SEQUOIA
-        return yt_commands.get_driver(cluster=cluster_name + "_ground")
 
     # To be redefined in successors
     @classmethod
@@ -376,20 +376,25 @@ class YTEnvSetup(object):
         return cluster_index >= cls.GROUND_INDEX_OFFSET
 
     @classmethod
-    def get_param(cls, name, cluster_index):
-        value = getattr(cls, name)
+    def _get_param_real_name(cls, name, cluster_index):
         if cluster_index == 0:
-            return value
+            return name
 
         # NB: Ground cluster parameters are non-overridable.
         if cls._is_ground_cluster(cluster_index):
-            return value
+            return name
 
         param_name = "{0}_REMOTE_{1}".format(name, cluster_index - 1)
         if hasattr(cls, param_name):
-            return getattr(cls, param_name)
+            return param_name
 
-        return value
+        return name
+
+    @classmethod
+    def get_param(cls, name, cluster_index):
+        actual_name = cls._get_param_real_name(name, cluster_index)
+
+        return getattr(cls, actual_name)
 
     @classmethod
     def partition_items(cls, items):
@@ -406,6 +411,7 @@ class YTEnvSetup(object):
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index)
+        modify_dynamic_configs_func = functools.partial(cls.apply_dynamic_config_patches, cluster_index=index)
 
         yt.logger.info("Creating cluster instance")
 
@@ -425,6 +431,8 @@ class YTEnvSetup(object):
 
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
+            jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
+            use_slot_user_id=cls.USE_PORTO,
             use_native_client=True,
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
@@ -433,6 +441,7 @@ class YTEnvSetup(object):
             clock_count=clock_count,
             timestamp_provider_count=cls.get_param("NUM_TIMESTAMP_PROVIDERS", index),
             cell_balancer_count=cls.get_param("NUM_CELL_BALANCERS", index),
+            enable_bundle_controller=cls.get_param("ENABLE_BUNDLE_CONTROLLER", index),
             discovery_server_count=cls.get_param("NUM_DISCOVERY_SERVERS", index),
             queue_agent_count=cls.get_param("NUM_QUEUE_AGENTS", index),
             node_count=cls.get_param("NUM_NODES", index),
@@ -471,12 +480,18 @@ class YTEnvSetup(object):
             mock_tvm_id=(1000 + index if use_native_auth else None),
         )
 
+        if yt_config.jobs_environment_type == "cri" and yt_config.cri_endpoint is None:
+            yt_config.cri_endpoint = find_cri_endpoint()
+            if yt_config.cri_endpoint is None:
+                pytest.skip("CRI endpoint not found")
+
         instance = YTInstance(
             path,
             yt_config,
             watcher_config={"disable_logrotate": True},
             kill_child_processes=True,
             modify_configs_func=modify_configs_func,
+            modify_dynamic_configs_func=modify_dynamic_configs_func,
             stderrs_path=os.path.join(
                 OUTPUT_PATH,
                 "yt_stderrs",
@@ -662,7 +677,7 @@ class YTEnvSetup(object):
         if cls.USE_SEQUOIA:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 if cls.get_param("USE_SEQUOIA", cluster_index):
-                    ground_driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index + cls.GROUND_INDEX_OFFSET))
+                    ground_driver = yt_sequoia_helpers.get_ground_driver(cluster=cls.get_cluster_name(cluster_index))
                     if ground_driver is None:
                         continue
                     cls.setup_sequoia_tables(ground_driver)
@@ -706,88 +721,34 @@ class YTEnvSetup(object):
         # TODO(h0pless): Use values from config for path, account and bundle names.
         yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/resolve_node",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "path", "type": "string", "sort_order": "ascending"},
-                    {"name": "node_id", "type": "string"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/resolve_node", driver=ground_driver)
 
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/reverse_resolve_node",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "node_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "path", "type": "string"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/reverse_resolve_node", driver=ground_driver)
+        for table in yt_sequoia_helpers.SEQUOIA_TABLES:
+            yt_commands.create(
+                "table",
+                table.get_path(),
+                attributes={
+                    "dynamic": True,
+                    "schema": table.schema,
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                },
+                driver=ground_driver)
+            yt_commands.mount_table(table.get_path(), driver=ground_driver)
 
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/children_nodes",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "parent_path", "type": "string", "sort_order": "ascending"},
-                    {"name": "child_key", "type": "string", "sort_order": "ascending"},
-                    {"name": "child_id", "type": "string"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/children_nodes", driver=ground_driver)
+        for table in yt_sequoia_helpers.SEQUOIA_TABLES:
+            yt_commands.wait_for_tablet_state(table.get_path(), "mounted", driver=ground_driver)
 
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/chunk_replicas",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
-                    {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
-                    {"name": "replica_index", "type": "int32", "sort_order": "ascending"},
-                    {"name": "node_id", "type": "uint32"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/chunk_replicas", driver=ground_driver)
+    @classmethod
+    def apply_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
+        delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
-        yt_commands.create(
-            "table",
-            "//sys/sequoia/location_replicas",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "cell_tag", "type": "uint16", "sort_order": "ascending"},
-                    {"name": "node_id", "type": "uint32", "sort_order": "ascending"},
-                    {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
-                    {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
-                    {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "replica_index", "type": "int32"},
-                ],
-                "tablet_cell_bundle": "sequoia",
-                "account": "sequoia",
-            },
-            driver=ground_driver)
-        yt_commands.sync_mount_table("//sys/sequoia/location_replicas", driver=ground_driver)
+        update_inplace(config, delta_node_config)
+
+        # COMPAT(pogorelov)
+        if "controller-agent" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
+            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = False
+
+        return config
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
@@ -846,8 +807,6 @@ class YTEnvSetup(object):
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
         for index, config in enumerate(configs["node"]):
             config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
-            if cls.USE_PORTO:
-                config = update_inplace(config, get_porto_delta_node_config())
             if cls.USE_CUSTOM_ROOTFS:
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
 
@@ -985,6 +944,9 @@ class YTEnvSetup(object):
             if self.get_param("USE_SEQUOIA", cluster_index):
                 self.setup_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
 
+        for env in self.combined_envs:
+            env.restore_default_dynamic_node_config()
+
     def setup_cluster(self, method, cluster_index):
         driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
         if driver is None:
@@ -1014,9 +976,6 @@ class YTEnvSetup(object):
         yt_commands.gc_collect(driver=driver)
 
         yt_commands.clear_metadata_caches(driver=driver)
-
-        if node_count > 0:
-            self._setup_nodes_dynamic_config(driver=driver, cluster_index=cluster_index)
 
         if self.USE_DYNAMIC_TABLES:
             self._setup_tablet_manager(driver=driver)
@@ -1564,23 +1523,6 @@ class YTEnvSetup(object):
 
         wait(check)
 
-    def _setup_nodes_dynamic_config(self, cluster_index, driver=None):
-        config = get_dynamic_node_config()
-
-        config = update_inplace(
-            config, self.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
-        )
-
-        # COMPAT(pogorelov)
-        if "controller-agent" in self.__class__.ARTIFACT_COMPONENTS.get("23_1", []):
-            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = False
-
-        yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
-
-        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
-
-        self._wait_for_dynamic_config("//sys/cluster_nodes", config["%true"], nodes, driver=driver)
-
     def _setup_tablet_manager(self, driver=None):
         for response in yt_commands.execute_batch(
             [
@@ -1767,18 +1709,6 @@ class YTEnvSetup(object):
 
             for node, response in zip(exec_nodes, responses):
                 print("Node {}: {}".format(node, response), file=sys.stderr)
-
-
-def get_porto_delta_node_config():
-    return {
-        "exec_node": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "porto",
-                },
-            }
-        }
-    }
 
 
 def get_custom_rootfs_delta_node_config():

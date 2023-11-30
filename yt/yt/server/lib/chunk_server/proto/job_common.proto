@@ -1,0 +1,42 @@
+package NYT.NChunkServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a job to be run at a node.
+message TJobSpec
+{
+    required int32 type = 1;
+    optional int32 version = 2;
+
+    //! If true, job result is reported via out-of-order heartbeat.
+    optional bool urgent = 3 [default = false];
+
+    extensions 100 to max;
+}
+
+// Describes the outcome of the job, in particular if it has finished successfully.
+message TJobResult
+{
+    required NYT.NProto.TError error = 1;
+
+    extensions 100 to max;
+}
+
+// Describes the current job status.
+message TJobStatus
+{
+    required NYT.NProto.TGuid job_id = 1;
+    optional int32 job_type = 3;
+    optional int32 state = 4;
+    optional TJobResult result = 7;
+    optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
+
+    reserved 5, 6, 9, 13, 17, 18, 19;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

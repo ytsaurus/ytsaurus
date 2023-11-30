@@ -77,10 +77,6 @@ class TestSchedulingSegments(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
-                "resource_limits": {
-                    "cpu": 10,
-                    "user_slots": 10,
-                },
                 "gpu_manager": {
                     "testing": {
                         "test_resource": True,
@@ -92,6 +88,12 @@ class TestSchedulingSegments(YTEnvSetup):
                 "job_proxy_heartbeat_period": 100,
             },
         },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        }
     }
 
     SCHEDULING_SEGMENTS = [
@@ -937,10 +939,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
-                "resource_limits": {
-                    "cpu": 10,
-                    "user_slots": 10,
-                },
                 "gpu_manager": {
                     "testing": {
                         "test_resource": True,
@@ -952,6 +950,12 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 "job_proxy_heartbeat_period": 100,
             },
         },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        }
     }
 
     SCHEDULING_SEGMENTS = [
@@ -1858,10 +1862,6 @@ class TestRunningJobStatistics(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
-                "resource_limits": {
-                    "cpu": 2,
-                    "user_slots": 2,
-                },
                 "gpu_manager": {
                     "testing": {
                         "test_resource": True,
@@ -1873,6 +1873,12 @@ class TestRunningJobStatistics(YTEnvSetup):
                 "job_proxy_heartbeat_period": 100,
             },
         },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 2,
+                "user_slots": 2,
+            },
+        }
     }
 
     SCHEDULING_SEGMENTS = [

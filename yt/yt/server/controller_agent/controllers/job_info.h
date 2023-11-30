@@ -15,7 +15,7 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/core/misc/statistics.h>
 

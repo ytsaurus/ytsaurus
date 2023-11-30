@@ -280,3 +280,8 @@ types:
         cpp_type: std::optional<TString>
         column_name: rowset
         column_type: String
+
+      - cpp_name: IsTruncated
+        cpp_type: bool
+        column_name: is_truncated
+        column_type: Boolean

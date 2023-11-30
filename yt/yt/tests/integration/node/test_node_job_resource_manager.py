@@ -16,15 +16,20 @@ class TestMemoryPressureDetector(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "free_memory_watermark": FREE_MEMORY_WATERMARK,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "testing",
                     "testing_job_environment_scenario": "increasing_major_page_fault_count",
                 },
             },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "job_resource_manager": {
+                "free_memory_watermark": FREE_MEMORY_WATERMARK,
+            }
         }
     }
 
@@ -36,16 +41,14 @@ class TestMemoryPressureDetector(YTEnvSetup):
         memory_before_pressure = get(node_memory)
 
         update_nodes_dynamic_config({
-            "exec_node": {
-                "job_controller": {
-                    "memory_pressure_detector": {
-                        "enabled": True,
-                        "check_period": 1000,
-                        "major_page_fault_count_threshold": 100,
-                        "memory_watermark_multiplier_increase_step": 0.5,
-                        "max_memory_watermark_multiplier": 5,
-                    }
-                },
+            "job_resource_manager": {
+                "memory_pressure_detector": {
+                    "enabled": True,
+                    "check_period": 1000,
+                    "major_page_fault_count_threshold": 100,
+                    "memory_watermark_multiplier_increase_step": 0.5,
+                    "max_memory_watermark_multiplier": 5,
+                }
             },
         })
 

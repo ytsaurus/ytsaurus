@@ -1222,17 +1222,6 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
-        },
-    }
-
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
@@ -1240,7 +1229,12 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
                     "job_common": {
                         "test_job_error_truncation": True,
                     }
-                }
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
             }
         }
     }

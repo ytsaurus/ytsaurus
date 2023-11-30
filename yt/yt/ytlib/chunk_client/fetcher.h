@@ -86,6 +86,8 @@ protected:
 
     virtual void ProcessDynamicStore(int chunkIndex) = 0;
 
+    virtual THashSet<int> GetChunkIndexesToFetch();
+
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) = 0;

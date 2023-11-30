@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/yt/ytlib/scheduler/public.h>
-
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/exec_node/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
@@ -90,7 +90,7 @@ using NScheduler::TOperationSpecBasePtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 using NJobTrackerClient::EJobState;
-using NJobTrackerClient::EJobPhase;
+using NExecNode::EJobPhase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,23 +171,6 @@ DEFINE_ENUM(ELayerFilesystem,
     ((Ext4)         (4)     ("ext4"))
     ((SquashFS)     (5)     ("squashfs"))
 );
-
-inline bool AreCompatible(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
-{
-    if (accessMethod == ELayerAccessMethod::Nbd) {
-        if (filesystem == ELayerFilesystem::Archive) {
-            return false;
-        }
-    }
-
-    if (accessMethod == ELayerAccessMethod::Local) {
-        if (filesystem == ELayerFilesystem::Ext3 || filesystem == ELayerFilesystem::Ext4) {
-            return false;
-        }
-    }
-
-    return true;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

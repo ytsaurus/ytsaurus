@@ -429,7 +429,7 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 
 		api := NewHTTPAPI(ytc, apiCfg, ctl, l, cfg.DisableAuth)
 
-		r.Route("/"+clusterInfo.Proxy, func(r chi.Router) {
+		locationRouter := r.Route("/"+clusterInfo.Proxy, func(r chi.Router) {
 			// TODO(dakovalkov): Enable CORS when cookie authentication is supported.
 			// r.Use(ythttputil.CORS())
 			r.Use(auth.Auth(clusterInfo.Proxy, cfg.DisableAuth, l.Structured()))
@@ -449,6 +449,10 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 				})
 			}
 		})
+
+		for _, alias := range cfg.LocationAliases[clusterInfo.Proxy] {
+			r.Mount("/"+alias, locationRouter)
+		}
 	}
 	return r
 }

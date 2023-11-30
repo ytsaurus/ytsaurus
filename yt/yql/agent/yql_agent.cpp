@@ -172,10 +172,7 @@ private:
 
         std::vector<TSharedRef> wireRowsets;
         try {
-            auto query = yqlRequest.query();
-            if (request.build_rowsets()) {
-                query = "pragma RefSelect; pragma yt.UseNativeYtTypes; " + query;
-            }
+            auto query = Format("pragma yt.UseNativeYtTypes; pragma ResultRowsLimit=\"%v\";\n%v", request.row_count_limit(), yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
 
             std::vector<NYqlPlugin::TQueryFile> files;
@@ -205,6 +202,7 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
             if (request.build_rowsets() && result.YsonResult) {
                 auto rowsets = BuildRowsets(ClientDirectory_, *result.YsonResult, request.row_count_limit());
+
                 for (const auto& rowset : rowsets) {
                     if (rowset.Error.IsOK()) {
                         wireRowsets.push_back(rowset.WireRowset);

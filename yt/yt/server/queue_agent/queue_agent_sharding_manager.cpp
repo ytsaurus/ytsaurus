@@ -59,7 +59,7 @@ public:
         return OrchidService_;
     }
 
-    void Start() override
+    void Start() const override
     {
         PassExecutor_->Start();
     }

@@ -915,18 +915,6 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
@@ -975,6 +963,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/proto/bundle_controller_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
@@ -1014,8 +1003,6 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/proto/job.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
@@ -1051,6 +1038,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
 target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/connection.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/backup_session.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/bundle_controller_client_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/cell_commit_session.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_replicated_table_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_table_replica_type_handler.cpp
@@ -1110,6 +1098,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/bundle_controller_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
@@ -1225,8 +1215,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_io_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_read_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_tracker_client/statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_parts_reader.cpp

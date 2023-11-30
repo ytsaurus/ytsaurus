@@ -44,10 +44,8 @@ class TestResourceMetering(YTEnvSetup):
         }
     }
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {"user_slots": 3, "cpu": 3}
-            }
+        "job_resource_manager": {
+            "resource_limits": {"user_slots": 3, "cpu": 3}
         }
     }
 

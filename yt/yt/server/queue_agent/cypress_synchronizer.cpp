@@ -113,7 +113,8 @@ private:
 
     using TObjectMap = THashMap<TString, std::vector<TObject>>;
 
-    struct TObjectHashMap : public THashMap<TString, THashMap<TString, TObject>>
+    struct TObjectHashMap
+        : public THashMap<TString, THashMap<TString, TObject>>
     {
         bool Contains(const TCrossClusterReference& objectRef) const
         {
@@ -727,7 +728,6 @@ private:
             WaitFor(DynamicState_->ReplicatedTableMapping->Delete(RowsToDelete_.ReplicatedTableMappingRows).AsVoid())
                 .ThrowOnError();
         }
-
     }
 
     NNative::IClientPtr GetNativeClientOrThrow(const TString& cluster) const

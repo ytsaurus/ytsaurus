@@ -11,6 +11,7 @@ TEST_SRCS(
     test_backups.py
     test_bulk_insert.py
     test_cell_balancer.py
+    test_bundle_controller.py
     test_chaos.py
     test_compaction_partitioning.py
     test_cross_cluster_transactions.py

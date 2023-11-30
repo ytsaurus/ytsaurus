@@ -54,9 +54,12 @@ public:
 private:
     TOptions Options_;
 
-    //! We do not want to apply selectivity factor twice for the same chunk object as well as fetching
-    //! same statistics multiple times.
-    THashSet<NChunkClient::TInputChunkPtr> ChunkSet_;
+    //! This map serves two purposes:
+    //! 1. We do not want to apply selectivity factor twice for the same chunk object as well as fetching
+    //!    same statistics multiple times.
+    //! 2. We do not want to fetch data from nodes, when the user did not ask for it
+    //!    (see TColumnarStatisticsFetcherOptions::Mode).
+    THashMap<NChunkClient::TInputChunkPtr, bool> NeedFetchFromNode_;
 
     std::vector<TColumnarStatistics> ChunkStatistics_;
     std::vector<TLightweightColumnarStatistics> LightweightChunkStatistics_;
@@ -72,6 +75,8 @@ private:
     using TFetcherBase::AddChunk;
 
     void ProcessDynamicStore(int chunkIndex) override;
+
+    THashSet<int> GetChunkIndexesToFetch() override;
 
     TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
 

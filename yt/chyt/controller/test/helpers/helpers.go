@@ -169,6 +169,9 @@ func PrepareAPI(t *testing.T) (*Env, *RequestClient) {
 				Family:         "sleep",
 			},
 		},
+		LocationAliases: map[string][]string{
+			proxy: []string{"test_location_alias"},
+		},
 		DisableAuth: true,
 		Endpoint:    ":0",
 	}

@@ -154,6 +154,8 @@ private:
                     << TErrorAttribute("version", stateVersion)
                     << TErrorAttribute("min_required_version", MinRequiredStateVersion_);
                 Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
+            } else {
+                Alerts_.clear();
             }
         }
      }

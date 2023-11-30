@@ -308,6 +308,7 @@ private:
             auto channel = owner->ChannelFactory_->CreateChannel(address);
             auto request = owner->PeerDiscovery_->Discover(
                 channel,
+                address,
                 owner->Config_->DiscoverTimeout,
                 /*replyDelay*/ TDuration::Zero(),
                 owner->ServiceName_);
@@ -335,8 +336,7 @@ private:
             YT_LOG_DEBUG_IF(authError, "Peer has reported authentication error on discovery (Address: %v)",
                 address);
             if (rspOrError.IsOK() || authError) {
-                NProto::TRspDiscover resp;
-                auto suggestedAddresses = FromProto<std::vector<TString>>(resp.suggested_addresses());
+                auto suggestedAddresses = authError ? std::vector<TString>() : rspOrError.Value().Addresses;
                 bool up = authError ? true : rspOrError.Value().IsUp;
 
                 if (!suggestedAddresses.empty()) {
@@ -534,7 +534,12 @@ private:
 
             auto channel = owner->ChannelFactory_->CreateChannel(PeerAddress_);
             auto requestTimeout = peerPollingPeriod + owner->Config_->PeerPollingRequestTimeout;
-            auto req = owner->PeerDiscovery_->Discover(channel, requestTimeout, /*replyDelay*/ peerPollingPeriod, owner->ServiceName_);
+            auto req = owner->PeerDiscovery_->Discover(
+                channel,
+                PeerAddress_,
+                requestTimeout,
+                /*replyDelay*/ peerPollingPeriod,
+                owner->ServiceName_);
             YT_LOG_DEBUG("Polling peer (PollingPeriod: %v, RequestTimeout: %v)",
                 peerPollingPeriod,
                 requestTimeout);

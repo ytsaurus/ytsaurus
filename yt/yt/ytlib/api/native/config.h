@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/query/engine_api/public.h>
 
+#include <yt/yt/ytlib/bundle_controller/public.h>
+
 #include <yt/yt/ytlib/discovery_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
@@ -222,6 +224,7 @@ public:
     NQueryTrackerClient::TQueryTrackerConnectionConfigPtr QueryTracker;
     NYqlClient::TYqlAgentConnectionConfigPtr YqlAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
+    NBundleController::TBundleControllerChannelConfigPtr BundleController;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;

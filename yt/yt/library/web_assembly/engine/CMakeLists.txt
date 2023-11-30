@@ -7,23 +7,41 @@
 
 
 
-add_library(library-web_assembly-engine INTERFACE)
-target_link_libraries(library-web_assembly-engine INTERFACE
+add_library(library-web_assembly-engine)
+target_compile_options(library-web_assembly-engine PRIVATE
+  -DWASM_C_API=WAVM_API
+  -DWAVM_API=
+  -Wdeprecated-this-capture
+)
+target_include_directories(library-web_assembly-engine PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
+)
+target_link_libraries(library-web_assembly-engine PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  restricted-wavm-Lib
+)
+target_sources(library-web_assembly-engine PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/engine/intrinsics.cpp
 )
 
 add_global_library_for(library-web_assembly-engine.global library-web_assembly-engine)
 target_compile_options(library-web_assembly-engine.global PRIVATE
+  -DWASM_C_API=WAVM_API
+  -DWAVM_API=
   -Wdeprecated-this-capture
+)
+target_include_directories(library-web_assembly-engine.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-web_assembly-engine.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  restricted-wavm-Lib
 )
 target_sources(library-web_assembly-engine.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/engine/compartment.cpp

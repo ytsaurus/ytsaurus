@@ -6,6 +6,7 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     serialize.cpp
+    statistics.cpp
     structs.cpp
     persistence.cpp
     progress_counter.cpp
