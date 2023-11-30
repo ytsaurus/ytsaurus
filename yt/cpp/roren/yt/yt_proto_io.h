@@ -128,9 +128,12 @@ public:
         Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
         Y_ABORT_UNLESS(outputs.empty());
 
+        TVector<const ::google::protobuf::Descriptor*> descriptors(TableIndex_ + 1, nullptr);
+        descriptors[TableIndex_] = Descriptor_;
+
         Writer_ = std::make_unique<::NYT::TLenvalProtoTableWriter>(
             MakeHolder<::NYT::TSingleStreamJobWriter>(TableIndex_),
-            TVector{Descriptor_}
+            std::move(descriptors)
         );
     }
 

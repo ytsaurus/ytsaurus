@@ -911,14 +911,14 @@ IRawParDoPtr CreateReadImpulseParDo(const std::vector<TTableNode*>& inputTables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::TFormat GetInputFormat(const std::vector<TTableNode*>& inputTables)
+NYT::TFormat GetFormat(const std::vector<TTableNode*>& tables)
 {
-    Y_ENSURE(!inputTables.empty(), "Unexpected number of input tables");
+    Y_ENSURE(!tables.empty(), "Unexpected number of tables");
 
     TVector<const ::google::protobuf::Descriptor*> descriptors;
-    auto format = inputTables[0]->GetTableFormat();
-    for (const auto& table : inputTables) {
-        Y_ENSURE(table->GetTableFormat() == format, "Format of input tables is different");
+    auto format = tables[0]->GetTableFormat();
+    for (const auto& table : tables) {
+        Y_ENSURE(table->GetTableFormat() == format, "Format of tables is different");
 
         if (format == ETableFormat::Proto) {
             descriptors.emplace_back(table->GetProtoDescriptor());
@@ -935,14 +935,14 @@ NYT::TFormat GetInputFormat(const std::vector<TTableNode*>& inputTables)
     }
 }
 
-NYT::TFormat GetOutputFormat(const THashMap<TOperationConnector, TTableNode*>& outputTables)
+NYT::TFormat GetFormat(const THashMap<TOperationConnector, TTableNode*>& tables)
 {
-    Y_ENSURE(!outputTables.empty(), "Unexpected number of output tables");
+    Y_ENSURE(!tables.empty(), "Unexpected number of tables");
 
     TVector<const ::google::protobuf::Descriptor*> descriptors;
-    auto format = outputTables.begin()->second->GetTableFormat();
-    for (const auto& [_, table] : outputTables) {
-        Y_ENSURE(table->GetTableFormat() == format, "Format of output tables is different");
+    auto format = tables.begin()->second->GetTableFormat();
+    for (const auto& [_, table] : tables) {
+        Y_ENSURE(table->GetTableFormat() == format, "Format of tables is different");
 
         if (format == ETableFormat::Proto) {
             descriptors.emplace_back(table->GetProtoDescriptor());
@@ -959,7 +959,7 @@ NYT::TFormat GetOutputFormat(const THashMap<TOperationConnector, TTableNode*>& o
     }
 }
 
-NYT::TFormat GetIntermediatesFormat(bool useProtoFormat)
+NYT::TFormat GetFormatWithIntermediate(bool useProtoFormat, const std::vector<TTableNode*>& tables)
 {
     if (!useProtoFormat) {
         return NYT::TFormat::YsonBinary();
@@ -967,6 +967,9 @@ NYT::TFormat GetIntermediatesFormat(bool useProtoFormat)
 
     TVector<const ::google::protobuf::Descriptor*> descriptors;
     descriptors.emplace_back(TKVProto::GetDescriptor());
+    for (const auto& table : tables) {
+        descriptors.emplace_back(table->GetProtoDescriptor());
+    }
 
     return NYT::TFormat::Protobuf(descriptors, true);
 }
@@ -2328,8 +2331,8 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         }
                     }
 
-                    spec.InputFormat(GetInputFormat(operation->InputTables));
-                    spec.OutputFormat(GetOutputFormat(operation->OutputTables));
+                    spec.InputFormat(GetFormat(operation->InputTables));
+                    spec.OutputFormat(GetFormat(operation->OutputTables));
 
                     NYT::IRawJobPtr job = CreateImpulseJob(mapperBuilder.Build());
                     return client->RawMap(spec, job, operationOptions);
@@ -2374,8 +2377,8 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 );
                 mapperBuilder.Fuse(tmpMapBuilder, nodeId);
 
-                spec.InputFormat(GetInputFormat(operation->InputTables));
-                spec.OutputFormat(GetOutputFormat(operation->OutputTables));
+                spec.InputFormat(GetFormat(operation->InputTables));
+                spec.OutputFormat(GetFormat(operation->OutputTables));
 
                 auto mapperParDo = mapperBuilder.Build();
                 addLocalFiles(mapperParDo, &spec.MapperSpec_);
@@ -2398,6 +2401,8 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             auto reducerBuilder = mapReduceOperation->GetReducerBuilder();
             ssize_t mapperOutputIndex = 1;
             ssize_t reducerOutputIndex = 0;
+            std::vector<TTableNode*> mapperOutputs;
+            std::vector<TTableNode*> reducerOutputs;
             for (const auto& item : mapReduceOperation->OutputTables) {
                 const auto& connector = item.first;
                 const auto& outputTable = item.second;
@@ -2416,6 +2421,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                             }
                         );
                         spec.AddMapOutput(outputTable->GetPath());
+                        mapperOutputs.emplace_back(outputTable);
                         ++mapperOutputIndex;
                     } else if constexpr (std::is_same_v<TType, TReducerOutputConnector>) {
                         reducerBuilder.AddParDoChainVerifyNoOutput(
@@ -2425,6 +2431,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                             }
                         );
                         spec.AddOutput(outputTable->GetPath());
+                        reducerOutputs.emplace_back(outputTable);
                         ++reducerOutputIndex;
                     } else {
                         static_assert(TDependentFalse<TType>);
@@ -2464,10 +2471,10 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 combinerJob = CreateImpulseJob(combinerParDo);
             }
 
-            spec.MapperInputFormat(GetInputFormat(mapReduceOperation->InputTables));
-            spec.MapperOutputFormat(GetIntermediatesFormat(Config_.GetEnableProtoFormatForIntermediates()));
-            spec.ReducerInputFormat(GetIntermediatesFormat(Config_.GetEnableProtoFormatForIntermediates()));
-            spec.ReducerOutputFormat(GetOutputFormat(mapReduceOperation->OutputTables));
+            spec.MapperInputFormat(GetFormat(mapReduceOperation->InputTables));
+            spec.MapperOutputFormat(GetFormatWithIntermediate(Config_.GetEnableProtoFormatForIntermediates(), mapperOutputs));
+            spec.ReducerInputFormat(GetFormatWithIntermediate(Config_.GetEnableProtoFormatForIntermediates(), {}));
+            spec.ReducerOutputFormat(GetFormat(reducerOutputs));
             spec.ReduceBy({"key"});
 
             return client->RawMapReduce(
