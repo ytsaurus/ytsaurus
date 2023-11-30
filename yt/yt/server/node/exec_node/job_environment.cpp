@@ -883,7 +883,9 @@ private:
 
     double CalculateIdleCpuLimit() const
     {
-        return std::max(0., CpuLimit_ - SelfInstance_->GetCpuGuarantee()) * IdleCpuFraction_;
+        return SelfInstance_
+            ? std::max(0., CpuLimit_ - SelfInstance_->GetCpuGuarantee()) * IdleCpuFraction_
+            : 0;
     }
 
     void ClearSlotCpuSets()
