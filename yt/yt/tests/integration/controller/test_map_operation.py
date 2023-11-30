@@ -1836,6 +1836,91 @@ done
         assert exists("//tmp/stderr_table1")
         assert exists("//tmp/core_table1")
 
+    @authors("galtsev")
+    @pytest.mark.parametrize("hunks", [True, False])
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_interrupts_disabled_for_static_table_with_hunks(self, hunks, optimize_for):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
+
+        if hunks:
+            schema[1]["max_inline_hunk_size"] = 10
+
+        create("table", "//tmp/t_in", attributes={
+            "optimize_for": optimize_for,
+            "schema": schema,
+        })
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": 0, "value": "0"}, {"key": 2, "value": "z" * 100}]
+        write_table("//tmp/t_in", rows)
+
+        def run_map():
+            op = map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"mapper": {"format": "json"}},
+                command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+                track=False,
+            )
+
+            jobs = wait_breakpoint()
+            interrupt_job(jobs[0])
+            release_breakpoint()
+            op.track()
+
+        if hunks:
+            with pytest.raises(YtError, match="Error interrupting job"):
+                run_map()
+        else:
+            run_map()
+
+            assert read_table("//tmp/t_out") == rows
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("prefetch", [True, False])
+    def test_prefetch_chunk_lists(self, prefetch):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat && echo stderr > /proc/self/fd/2 && BREAKPOINT"),
+            spec={
+                "enable_chunk_lists_prefetch": prefetch,
+                "stderr_table_path": "<create=%true>//tmp/stderr"
+            },
+        )
+
+        # orchid does not outlive operation, so we need to inspect it in the middle of the operation
+        wait_breakpoint()
+
+        def assert_failed_jobs(actual):
+            if prefetch:
+                assert actual == 0
+            else:
+                assert actual > 0
+
+        assert_failed_jobs(
+            get(
+                op.get_path() + "/controller_orchid/progress/schedule_job_statistics/failed/not_enough_chunk_lists"
+            )
+        )
+
+        release_breakpoint()
+        op.track()
+
 
 ##################################################################
 

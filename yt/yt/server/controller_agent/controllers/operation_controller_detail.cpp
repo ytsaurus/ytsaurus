@@ -1210,14 +1210,17 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     try {
         PeakMemoryUsageUpdateExecutor->Start();
 
+        // NB(coteeq): Fetch new chunk lists early, so we can actually schedule the first job,
+        //             when scheduler gives us one.
+        PickIntermediateDataCells();
+        InitChunkListPools();
+
         FetchInputTables();
         FetchUserFiles();
         ValidateUserFileSizes();
 
         SuppressLivePreviewIfNeeded();
 
-        PickIntermediateDataCells();
-        InitChunkListPools();
 
         CreateLivePreviewTables();
 
@@ -1787,6 +1790,17 @@ void TOperationControllerBase::InitChunkListPools()
     }
     if (CoreTable_) {
         ++CellTagToRequiredDebugChunkListCount_[CoreTable_->ExternalCellTag];
+    }
+
+    if (Spec_->EnableChunkListsPrefetch) {
+        YT_LOG_DEBUG("Prefetching chunk lists");
+        for (const auto& [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
+            OutputChunkListPool_->HasEnough(cellTag, count);
+        }
+        for (const auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
+            YT_VERIFY(DebugChunkListPool_);
+            DebugChunkListPool_->HasEnough(cellTag, count);
+        }
     }
 }
 
