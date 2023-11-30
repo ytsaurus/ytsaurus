@@ -18,10 +18,9 @@ struct TAlert
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IAlertManager
+struct IAlertManager
     : public TRefCounted
 {
-public:
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
     virtual void Start() = 0;

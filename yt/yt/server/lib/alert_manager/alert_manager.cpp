@@ -102,7 +102,6 @@ private:
                     .Item(alert.Category).Value(alert.Error);
             });
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TAlertManager)
