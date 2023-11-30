@@ -470,3 +470,17 @@ def push_front_env_path(path):
             del os.environ["PATH"]
         else:
             os.environ["PATH"] = old_env_path
+
+
+def find_cri_endpoint():
+    socket_path = "/run/containerd/containerd.sock"
+    endpoint = None
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(socket_path)
+        endpoint = "unix://" + socket_path
+    except:  # noqa
+        logger.exception("CRI connection {} failed.".format(socket_path))
+    finally:
+        sock.close()
+    return endpoint
