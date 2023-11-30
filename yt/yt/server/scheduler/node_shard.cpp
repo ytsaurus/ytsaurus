@@ -2467,6 +2467,10 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
         job->GetOperationId(),
         job->GetControllerEpoch(),
         job->GetSchedulingIndex());
+
+    if (job->IsRevived()) {
+        job->GetNode()->JobsToAbort().erase(job->GetId());
+    }
 }
 
 void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
