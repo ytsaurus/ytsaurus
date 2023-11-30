@@ -1886,6 +1886,45 @@ done
 
             assert read_table("//tmp/t_out") == rows
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("prefetch", [True, False])
+    def test_prefetch_chunk_lists(self, prefetch):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat && echo stderr > /proc/self/fd/2 && BREAKPOINT"),
+            spec={
+                "enable_chunk_lists_prefetch": prefetch,
+                "stderr_table_path": "<create=%true>//tmp/stderr"
+            },
+        )
+
+        # orchid does not outlive operation, so we need to inspect it in the middle of the operation
+        wait_breakpoint()
+
+        def assert_failed_jobs(actual):
+            if prefetch:
+                assert actual == 0
+            else:
+                assert actual > 0
+
+        assert_failed_jobs(
+            get(
+                op.get_path() + "/controller_orchid/progress/schedule_job_statistics/failed/not_enough_chunk_lists"
+            )
+        )
+
+        release_breakpoint()
+        op.track()
+
 
 ##################################################################
 

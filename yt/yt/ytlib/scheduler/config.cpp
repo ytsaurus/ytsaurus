@@ -781,6 +781,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("adjust_dynamic_table_data_slices", &TThis::AdjustDynamicTableDataSlices)
         .Default(false);
 
+    registrar.Parameter("enable_chunk_lists_prefetch", &TThis::EnableChunkListsPrefetch)
+        .Default(false);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
