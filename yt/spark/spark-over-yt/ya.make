@@ -6,6 +6,6 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE_FOR_TESTS(
-        e2e-test/src/test/yt
+        e2e-test/ci
     )
 ENDIF()
