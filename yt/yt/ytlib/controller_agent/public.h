@@ -172,23 +172,6 @@ DEFINE_ENUM(ELayerFilesystem,
     ((SquashFS)     (5)     ("squashfs"))
 );
 
-inline bool AreCompatible(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
-{
-    if (accessMethod == ELayerAccessMethod::Nbd) {
-        if (filesystem == ELayerFilesystem::Archive) {
-            return false;
-        }
-    }
-
-    if (accessMethod == ELayerAccessMethod::Local) {
-        if (filesystem == ELayerFilesystem::Ext3 || filesystem == ELayerFilesystem::Ext4) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
