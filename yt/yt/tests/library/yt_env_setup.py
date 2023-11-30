@@ -11,7 +11,10 @@ except ImportError:
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
-from yt.environment.helpers import emergency_exit_within_tests
+from yt.environment.helpers import (
+    emergency_exit_within_tests,
+    find_cri_endpoint,
+)
 from yt.environment.default_config import (
     get_dynamic_master_config,
 )
@@ -276,7 +279,8 @@ class YTEnvSetup(object):
     DELTA_QUEUE_AGENT_CONFIG = {}
     DELTA_CYPRESS_PROXY_CONFIG = {}
 
-    USE_PORTO = False
+    USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
+    JOB_ENVIRONMENT_TYPE = None  # "porto", "cri"
     USE_CUSTOM_ROOTFS = False
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
@@ -427,6 +431,8 @@ class YTEnvSetup(object):
 
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
+            jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
+            use_slot_user_id=cls.USE_PORTO,
             use_native_client=True,
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
@@ -473,6 +479,11 @@ class YTEnvSetup(object):
             enable_tvm_only_proxies=cls.get_param("ENABLE_TVM_ONLY_PROXIES", index),
             mock_tvm_id=(1000 + index if use_native_auth else None),
         )
+
+        if yt_config.jobs_environment_type == "cri" and yt_config.cri_endpoint is None:
+            yt_config.cri_endpoint = find_cri_endpoint()
+            if yt_config.cri_endpoint is None:
+                pytest.skip("CRI endpoint not found")
 
         instance = YTInstance(
             path,
@@ -796,8 +807,6 @@ class YTEnvSetup(object):
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
         for index, config in enumerate(configs["node"]):
             config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
-            if cls.USE_PORTO:
-                config = update_inplace(config, get_porto_delta_node_config())
             if cls.USE_CUSTOM_ROOTFS:
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
 
@@ -1700,18 +1709,6 @@ class YTEnvSetup(object):
 
             for node, response in zip(exec_nodes, responses):
                 print("Node {}: {}".format(node, response), file=sys.stderr)
-
-
-def get_porto_delta_node_config():
-    return {
-        "exec_node": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "porto",
-                },
-            }
-        }
-    }
 
 
 def get_custom_rootfs_delta_node_config():

@@ -788,8 +788,6 @@ def _build_node_configs(node_dirs,
     configs = []
     addresses = []
 
-    current_user = 10000
-
     for index in xrange(yt_config.node_count):
         config = default_config.get_node_config()
 
@@ -833,8 +831,19 @@ def _build_node_configs(node_dirs,
 
         set_at(config, "data_node/cache_locations", [cache_location_config])
 
-        start_uid = current_user + config["rpc_port"]
-        set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)
+        if yt_config.jobs_environment_type is not None:
+            set_at(
+                config,
+                "exec_node/slot_manager/job_environment",
+                _get_node_job_environment_config(yt_config, index, logs_dir)
+            )
+
+        if yt_config.use_slot_user_id:
+            start_uid = 10000 + config["rpc_port"]
+            set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)
+        else:
+            set_at(config, "exec_node/slot_manager/do_not_set_user_id", True)
+
         set_at(config, "exec_node/slot_manager/locations", [
             {"path": os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}
         ])
@@ -1799,3 +1808,30 @@ def _get_node_resource_limits_config(yt_config):
     memory += BLOB_SESSIONS_MEMORY
 
     return {"memory": memory}
+
+
+def _get_node_job_environment_config(yt_config, index, logs_dir):
+    if yt_config.jobs_environment_type == "cri":
+        return {
+            "type": "cri",
+            "cri_executor": {
+                "runtime_endpoint": yt_config.cri_endpoint,
+                "image_endpoint": yt_config.cri_endpoint,
+                "base_cgroup": "yt.slice/{}-node-{}.slice".format(yt_config.cluster_name, index),
+                "namespace": "yt--{}-node-{}".format(yt_config.cluster_name, index),
+                "verbose_logging": True,
+            },
+            "job_proxy_image": yt_config.default_docker_image,
+            "use_job_proxy_from_image": False,
+            "job_proxy_bind_mounts": [
+                {
+                    "internal_path":  logs_dir,
+                    "external_path": logs_dir,
+                    "read_only": False,
+                },
+            ],
+        }
+
+    return {
+        "type": yt_config.jobs_environment_type,
+    }

@@ -28,6 +28,7 @@ class LocalYtConfig(object):
     primary_cell_tag = attr.ib(1)
 
     """High level node settings"""
+    jobs_environment_type = attr.ib(None)
     jobs_resource_limits = attr.ib(factory=lambda: {
         "cpu": 1,
         "memory": 4 * (2 ** 30),
@@ -39,6 +40,9 @@ class LocalYtConfig(object):
     node_io_engine_type = attr.ib(None)
     node_use_direct_io_for_reads = attr.ib("never")
     store_location_count = attr.ib(1)
+    use_slot_user_id = attr.ib(True)
+    cri_endpoint = attr.ib(None)
+    default_docker_image = "docker.io/library/python:2.7-slim"
 
     """Feature flags"""
     enable_master_cache = attr.ib(False)

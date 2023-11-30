@@ -1528,6 +1528,11 @@ class TestJobStderrPorto(TestJobStderr):
     USE_PORTO = True
 
 
+@authors("khlebnikov")
+class TestJobStderrCri(TestJobStderr):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+
 ##################################################################
 
 
@@ -1834,6 +1839,11 @@ class TestUserFilesMulticell(TestUserFiles):
 
 class TestUserFilesPorto(TestUserFiles):
     USE_PORTO = True
+
+
+@authors("khlebnikov")
+class TestUserFilesCri(TestUserFiles):
+    JOB_ENVIRONMENT_TYPE = "cri"
 
 
 ##################################################################
