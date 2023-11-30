@@ -27,6 +27,11 @@ struct TMergeOutputConnector
     bool operator==(const TMergeOutputConnector& other) const = default;
 };
 
+struct TSortOutputConnector
+{
+    bool operator==(const TSortOutputConnector& other) const = default;
+};
+
 struct TMapperOutputConnector
 {
     // Index of a mapper inside operation
@@ -43,7 +48,7 @@ struct TReducerOutputConnector
     bool operator==(const TReducerOutputConnector& other) const = default;
 };
 
-using TOperationConnector = std::variant<TMergeOutputConnector, TMapperOutputConnector, TReducerOutputConnector>;
+using TOperationConnector = std::variant<TMergeOutputConnector, TSortOutputConnector, TMapperOutputConnector, TReducerOutputConnector>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +64,9 @@ struct THash<NRoren::NPrivate::TOperationConnector>
             if constexpr (std::is_same_v<TType, TMergeOutputConnector>) {
                 // Carefuly and randomly generated number.
                 return 1933246098;
+            } else if constexpr (std::is_same_v<TType, TSortOutputConnector>) {
+                // Carefuly and randomly generated number.
+                return 400756313;
             } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>) {
                 auto val = std::tuple{0, connector.MapperIndex, connector.NodeId};
                 return THash<decltype(val)>()(val);
@@ -66,7 +74,7 @@ struct THash<NRoren::NPrivate::TOperationConnector>
                 auto val = std::tuple{1, connector.NodeId};
                 return THash<decltype(val)>()(val);
             } else {
-                static_assert(std::is_same_v<TType, TMergeOutputConnector>);
+                static_assert(TDependentFalse<TType>);
             }
         }, connector);
     }
@@ -89,6 +97,7 @@ enum class EOperationType
     Map,
     MapReduce,
     Merge,
+    Sort,
 };
 
 enum class EJobType
@@ -416,6 +425,50 @@ private:
     friend class TMapReduceOperationNode;
 };
 
+class TSortOperationNode
+    : public TYtGraphV2::TOperationNode
+{
+public:
+    EOperationType GetOperationType() const override
+    {
+        return EOperationType::Sort;
+    }
+
+    std::shared_ptr<TOperationNode> Clone() const override
+    {
+        auto result = TSortOperationNode::MakeShared(GetFirstName(), GetTransformNames());
+        result->Write_ = Write_;
+        return result;
+    }
+
+    std::pair<TParDoTreeBuilder*, TParDoTreeBuilder::TPCollectionNodeId> ResolveOperationConnector(const TOperationConnector&) override
+    {
+        return {nullptr, 0};
+    }
+
+    const IRawYtSortedWrite* GetWrite() const
+    {
+        return Write_;
+    }
+
+private:
+    TSortOperationNode(
+        TString firstName,
+        THashSet<TString> transforms)
+        : TYtGraphV2::TOperationNode(firstName, std::move(transforms))
+    { }
+
+    static std::shared_ptr<TSortOperationNode> MakeShared(TString firstName, THashSet<TString> transformNames)
+    {
+        return std::shared_ptr<TSortOperationNode>(new TSortOperationNode(std::move(firstName), std::move(transformNames)));
+    }
+
+private:
+    IRawYtSortedWrite* Write_;
+
+    friend class TYtGraphV2::TPlainGraph;
+};
+
 class TMapReduceOperationNode
     : public TYtGraphV2::TOperationNode
 {
@@ -439,6 +492,8 @@ public:
             using TType = std::decay_t<decltype(connector)>;
             if constexpr (std::is_same_v<TType, TMergeOutputConnector>) {
                 Y_ABORT("Cannot resolve operation connector for TMergeOutputConnector");
+            } else if constexpr (std::is_same_v<TType, TSortOutputConnector>) {
+                Y_ABORT("Cannot resolve operation connector for TSortOutputConnector");
             } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>){
                 Y_ABORT_UNLESS(connector.MapperIndex >= 0);
                 Y_ABORT_UNLESS(connector.MapperIndex < std::ssize(MapperBuilderList_));
@@ -446,7 +501,7 @@ public:
             } else if constexpr (std::is_same_v<TType, TReducerOutputConnector>) {
                 return std::pair{&ReducerBuilder_, connector.NodeId};
             } else {
-                static_assert(std::is_same_v<TType, TMergeOutputConnector>);
+                static_assert(TDependentFalse<TType>);
             }
         }, connector);
     }
@@ -677,7 +732,7 @@ private:
         return result;
     }
 
-private:
+protected:
     const IRawYtWritePtr RawYtWrite_;
     std::vector<IRawYtWritePtr> SecondaryYtWriteList_;
 };
@@ -744,12 +799,14 @@ public:
             using TType = std::decay_t<decltype(connector)>;
             if constexpr (std::is_same_v<TMergeOutputConnector, TType>) {
                 return ToString("Merge");
+            } else if constexpr (std::is_same_v<TSortOutputConnector, TType>) {
+                return ToString("Sort");
             } else if constexpr (std::is_same_v<TMapperOutputConnector, TType>) {
                 return ToString("Map.") + connector.MapperIndex + "." + connector.NodeId;
             } else if constexpr (std::is_same_v<TReducerOutputConnector, TType>) {
                 return ToString("Reduce.") + connector.NodeId;
             } else {
-                static_assert(std::is_same_v<TMapperOutputConnector, TType>);
+                static_assert(TDependentFalse<TType>);
             }
         }, OutputOf.Connector);
 
@@ -770,6 +827,63 @@ private:
 private:
     const TString TemporaryDirectory_;
     bool UseProtoFormat_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTypedIntermediateTableNode
+    : public TOutputTableNode
+{
+public:
+    TTypedIntermediateTableNode(TRowVtable vtable, TString temporaryDirectory, IRawYtWritePtr rawYtWrite)
+        : TOutputTableNode(std::move(vtable), rawYtWrite)
+        , TemporaryDirectory_(std::move(temporaryDirectory))
+    { }
+
+    ETableType GetTableType() const override
+    {
+        return ETableType::Intermediate;
+    }
+
+    virtual NYT::TRichYPath GetPath() const override
+    {
+        Y_ABORT_UNLESS(OutputOf.Operation);
+
+        TStringStream tableName;
+        tableName << OutputOf.Operation->GetFirstName();
+        tableName << "." << std::visit([] (const auto& connector) {
+            using TType = std::decay_t<decltype(connector)>;
+            if constexpr (std::is_same_v<TMergeOutputConnector, TType>) {
+                return ToString("Merge");
+            } else if constexpr (std::is_same_v<TSortOutputConnector, TType>) {
+                return ToString("Sort");
+            } else if constexpr (std::is_same_v<TMapperOutputConnector, TType>) {
+                return ToString("Map.") + connector.MapperIndex + "." + connector.NodeId;
+            } else if constexpr (std::is_same_v<TReducerOutputConnector, TType>) {
+                return ToString("Reduce.") + connector.NodeId;
+            } else {
+                static_assert(TDependentFalse<TType>);
+            }
+        }, OutputOf.Connector);
+
+        auto path = RawYtWrite_->GetPath();
+        path.Path(TemporaryDirectory_ + "/" + tableName.Str());
+        path.Schema(RawYtWrite_->GetSchema());
+        if (!path.OptimizeFor_.Defined()) {
+            path.OptimizeFor_ = NYT::EOptimizeForAttr::OF_SCAN_ATTR;
+        }
+
+        return path;
+    }
+
+private:
+    std::shared_ptr<TTableNode> Clone() const override
+    {
+        return std::make_shared<TTypedIntermediateTableNode>(Vtable, TemporaryDirectory_, RawYtWrite_);
+    }
+
+private:
+    const TString TemporaryDirectory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -906,6 +1020,42 @@ public:
         operation->OutputTables[TMapperOutputConnector{}] = table.get();
 
         return {operation.get(), table.get()};
+    }
+
+    std::pair<TSortOperationNode*, TOperationNode*> CreateSortOperation(
+        std::vector<TTableNode*> inputs,
+        const TString& originalFirstName,
+        const TString& temporaryDirectory,
+        TRowVtable outputVtable,
+        IRawYtSortedWrite* rawYtSortedWrite)
+    {
+        auto operation = TMapOperationNode::MakeShared(originalFirstName, THashSet<TString>{originalFirstName});
+        Operations.push_back(operation);
+        LinkWithInputs(std::move(inputs), operation.get());
+
+        auto intermediateTable = std::make_shared<TTypedIntermediateTableNode>(
+            std::move(outputVtable),
+            temporaryDirectory,
+            rawYtSortedWrite);
+        Tables.push_back(intermediateTable);
+        intermediateTable->OutputOf = {.Operation = operation.get(), .Connector = {}};
+        operation->OutputTables[TMapperOutputConnector{}] = intermediateTable.get();
+
+        auto firstName = originalFirstName + "_Sort";
+        auto sortOperation = TSortOperationNode::MakeShared(firstName, THashSet<TString>{firstName});
+        sortOperation->Write_ = rawYtSortedWrite;
+
+        Operations.push_back(sortOperation);
+        LinkWithInputs({intermediateTable.get()}, sortOperation.get());
+
+        auto table = std::make_shared<TOutputTableNode>(
+            std::move(outputVtable),
+            rawYtSortedWrite);
+        Tables.push_back(table);
+        table->OutputOf = {.Operation = sortOperation.get(), .Connector = {}};
+        sortOperation->OutputTables[TSortOutputConnector{}] = table.get();
+
+        return {sortOperation.get(), operation.get()};
     }
 
     TMapReduceOperationNode* CreateMapReduceOperation(std::vector<TTableNode*> inputs, const TString& firstName)
@@ -1343,7 +1493,9 @@ public:
             newClonedTable = plainGraph->CloneTable(clonedOperation, clonedConnector, originalTable);
             RegisterTableProjection(originalTable, newClonedTable);
         } else if (oldClonedTable->GetTableType() == ETableType::Intermediate) {
-            Y_ABORT_UNLESS(originalTable->GetTableType() == ETableType::Output);
+            Y_ABORT_UNLESS(
+                originalTable->GetTableType() == ETableType::Output
+                || dynamic_cast<const TTypedIntermediateTableNode*>(originalTable));
 
             auto unlinked = plainGraph->UnlinkOperationOutput(clonedOperation, clonedConnector);
             Y_ABORT_UNLESS(unlinked == oldClonedTable);
@@ -1570,11 +1722,17 @@ private:
                 case EOperationType::Map: {
                     const auto* originalInput = originalOperation->VerifiedGetSingleInput();
                     auto* clonedInput = TableProjection_.VerifiedGetClonedTable(originalInput);
-                    if (clonedInput->OutputOf.Operation && clonedInput->OutputOf.Operation->GetOperationType() != EOperationType::Merge) {
+                    if (clonedInput->OutputOf.Operation
+                        && clonedInput->OutputOf.Operation->GetOperationType() != EOperationType::Merge
+                        && clonedInput->OutputOf.Operation->GetOperationType() != EOperationType::Sort) {
                         switch (clonedInput->OutputOf.Operation->GetOperationType()) {
                             case EOperationType::Merge: {
                                 // We have just checked that this operation is not merge.
                                 Y_ABORT("Unexpected Merge operation");
+                            }
+                            case EOperationType::Sort: {
+                                // We have just checked that this operation is not sort.
+                                Y_ABORT("Unexpected Sort operation");
                             }
                             case EOperationType::Map:
                                 // It should not be EOperationType::Map operation
@@ -1641,6 +1799,8 @@ private:
                             using TType = std::decay_t<decltype(connector)>;
                             if constexpr (std::is_same_v<TType, TMergeOutputConnector>) {
                                 return TMergeOutputConnector{};
+                            } else if constexpr (std::is_same_v<TType, TSortOutputConnector>) {
+                                return TSortOutputConnector{};
                             } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>) {
                                 auto it = mapperConnectorMap.find(std::pair{connector.MapperIndex, connector.NodeId});
                                 if (it == mapperConnectorMap.end()) {
@@ -1651,7 +1811,7 @@ private:
                             } else if constexpr (std::is_same_v<TType, TReducerOutputConnector>) {
                                 return connector;
                             } else {
-                                static_assert(std::is_same_v<TType, void>);
+                                static_assert(TDependentFalse<TType>);
                             }
                         }, connector);
                     };
@@ -1675,6 +1835,16 @@ private:
                     for (const auto& [originalConnector, originalOutputTable] : originalOperation->OutputTables) {
                         auto clonedConnector = originalConnector;
                         TableProjection_.ProjectTable(&PlainGraph_, clonedOperation, clonedConnector, originalOutputTable);
+                    }
+
+                    return;
+                }
+                case EOperationType::Sort: {
+                    const auto* originalInput = originalOperation->VerifiedGetSingleInput();
+                    auto* clonedInput = TableProjection_.VerifiedGetClonedTable(originalInput);
+                    auto clonedOperation = PlainGraph_.CloneOperation({clonedInput}, originalOperation);
+                    for (const auto& [originalConnector, originalOutputTable] : originalOperation->OutputTables) {
+                        TableProjection_.ProjectTable(&PlainGraph_, clonedOperation, originalConnector, originalOutputTable);
                     }
 
                     return;
@@ -1725,12 +1895,23 @@ public:
                     Y_ABORT_UNLESS(transformNode->GetSourceCount() == 1);
                     const auto* sourcePCollection = transformNode->GetSource(0).Get();
                     auto inputTable = GetPCollectionImage(sourcePCollection);
-                    PlainGraph_->CreateIdentityMapOperation(
-                        {inputTable},
-                        transformNode->GetName(),
-                        sourcePCollection->GetRowVtable(),
-                        rawYtWrite
-                    );
+
+                    if (auto* rawYtSortedWrite = dynamic_cast<IRawYtSortedWrite*>(rawYtWrite)) {
+                        PlainGraph_->CreateSortOperation(
+                            {inputTable},
+                            transformNode->GetName(),
+                            Config_->GetWorkingDir(),
+                            sourcePCollection->GetRowVtable(),
+                            rawYtSortedWrite
+                        );
+                    } else {
+                        PlainGraph_->CreateIdentityMapOperation(
+                            {inputTable},
+                            transformNode->GetName(),
+                            sourcePCollection->GetRowVtable(),
+                            rawYtWrite
+                        );
+                    }
                 } else {
                     Y_ABORT("YT executor doesn't support writes except YtWrite");
                 }
@@ -2224,6 +2405,8 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                     using TType = std::decay_t<decltype(connector)>;
                     if constexpr (std::is_same_v<TType, TMergeOutputConnector>) {
                         Y_ABORT("Unexpected TMergeOutputConnector inside MapReduce operation");
+                    } else if constexpr(std::is_same_v<TType, TSortOutputConnector>) {
+                        Y_ABORT("Unexpected TSortOutputConnector inside MapReduce operation");
                     } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>) {
                         tmpMapperBuilderList[connector.MapperIndex].AddParDoChainVerifyNoOutput(
                             connector.NodeId,
@@ -2244,7 +2427,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         spec.AddOutput(outputTable->GetPath());
                         ++reducerOutputIndex;
                     } else {
-                        static_assert(std::is_same_v<TType, TMapperOutputConnector>);
+                        static_assert(TDependentFalse<TType>);
                     }
                 }, connector);
             }
@@ -2294,6 +2477,22 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 reducerJob,
                 operationOptions
             );
+        }
+        case EOperationType::Sort: {
+            NYT::TSortOperationSpec spec;
+            Y_ABORT_UNLESS(std::ssize(operation->InputTables) == 1);
+            for (const auto *table : operation->InputTables) {
+                spec.AddInput(table->GetPath());
+            }
+            Y_ABORT_UNLESS(std::ssize(operation->OutputTables) == 1);
+            for (const auto &[_, table] : operation->OutputTables) {
+                spec.Output(table->GetPath());
+            }
+
+            auto rawYtSortedWrite = std::dynamic_pointer_cast<TSortOperationNode>(operation)->GetWrite();
+            spec.SortBy(rawYtSortedWrite->GetColumnsToSort());
+
+            return client->Sort(spec, operationOptions);
         }
     }
     Y_ABORT("Unknown operation");

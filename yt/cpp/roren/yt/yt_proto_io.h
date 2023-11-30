@@ -171,6 +171,8 @@ private:
     Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TMessage>
 IProtoIOParDoPtr CreateWriteProtoParDo(ssize_t tableIndex = -1)
 {
@@ -232,6 +234,86 @@ public:
             return ::MakeIntrusive<TRawYtProtoWrite<TMessage>>(NYT::TRichYPath{}, NYT::TTableSchema{});
         };
     }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class IRawYtSortedWrite
+    : public IRawYtWrite
+{
+public:
+    using IRawYtWrite::IRawYtWrite;
+
+    virtual const NYT::TSortColumns& GetColumnsToSort() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TMessage>
+    requires std::derived_from<TMessage, ::google::protobuf::Message>
+class TRawYtProtoSortedWrite
+    : public IRawYtSortedWrite
+{
+public:
+    TRawYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
+        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort))
+    {
+        NPrivate::SetAttribute(
+            *this,
+            ProtoDescriptorTag,
+            TMessage::GetDescriptor()
+        );
+        NPrivate::SetAttribute(
+            *this,
+            DecodingParDoTag,
+            MakeRawIdComputation(MakeRowVtable<TMessage>())
+        );
+        NPrivate::SetAttribute(
+            *this,
+            EncodingParDoTag,
+            MakeRawIdComputation(MakeRowVtable<TMessage>())
+        );
+        NPrivate::SetAttribute(
+            *this,
+            WriteParDoTag,
+            CreateWriteProtoParDo<TMessage>()
+        );
+    }
+
+    const NYT::TSortColumns& GetColumnsToSort() const override
+    {
+        return ColumnsToSort_;
+    }
+
+    IYtJobOutputPtr CreateJobOutput(int) const override
+    {
+        // Not supposed to be used since job output is depricated.
+        Y_ABORT("Not implemented");
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag(TTypeTag<TMessage>("yt_proto_write_input_0"))};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {};
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawWritePtr {
+            return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(
+                NYT::TRichYPath{},
+                NYT::TTableSchema{},
+                NYT::TSortColumns{}
+            );
+        };
+    }
+
+private:
+    NYT::TSortColumns ColumnsToSort_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,9 +387,9 @@ IRawYtWritePtr MakeYtProtoWrite(NYT::TRichYPath path, NYT::TTableSchema tableSch
 }
 
 template <class TMessage>
-IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath /*path*/, NYT::TTableSchema /*tableSchema*/, std::vector<std::string> /*columns*/)
+IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
 {
-    return nullptr;
+    return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(std::move(path), std::move(tableSchema), std::move(columnsToSort));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

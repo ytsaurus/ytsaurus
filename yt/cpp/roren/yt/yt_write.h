@@ -13,7 +13,7 @@ TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& 
 TYtWriteTransform YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& schema,
-    const std::vector<std::string>& columnsToSort);
+    const NYT::TSortColumns& columnsToSort);
 
 ////////////////////////////////////////////////////////////////////////////////
 

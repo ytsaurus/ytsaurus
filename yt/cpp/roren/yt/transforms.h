@@ -16,7 +16,7 @@ public:
     TYtWriteTransform(
         const NYT::TRichYPath& path,
         const NYT::TTableSchema& schema,
-        const std::vector<std::string>& columnsToSort)
+        const NYT::TSortColumns& columnsToSort)
         : Path_(path)
         , Schema_(schema)
         , ColumnsToSort_(columnsToSort)
@@ -84,7 +84,7 @@ private:
 private:
     NYT::TRichYPath Path_;
     NYT::TTableSchema Schema_;
-    std::optional<std::vector<std::string>> ColumnsToSort_;
+    std::optional<NYT::TSortColumns> ColumnsToSort_;
 
     mutable NPrivate::IRawYtWritePtr RawWrite_;
 };
