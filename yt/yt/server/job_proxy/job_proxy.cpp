@@ -1009,7 +1009,9 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         try {
             auto jobCpuStatistics = environment->GetJobCpuStatistics()
                 .ValueOrThrow();
-            statistics.AddSample("/job/cpu", jobCpuStatistics);
+            if (jobCpuStatistics) {
+                statistics.AddSample("/job/cpu", *jobCpuStatistics);
+            }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get job CPU statistics from job proxy environment");
         }
@@ -1017,7 +1019,9 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         try {
             auto jobMemoryStatistics = environment->GetJobMemoryStatistics()
                 .ValueOrThrow();
-            statistics.AddSample("/job/memory", jobMemoryStatistics);
+            if (jobMemoryStatistics) {
+                statistics.AddSample("/job/memory", *jobMemoryStatistics);
+            }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get job memory statistics from job proxy environment");
         }
@@ -1025,7 +1029,9 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         try {
             auto jobBlockIOStatistics = environment->GetJobBlockIOStatistics()
                 .ValueOrThrow();
-            statistics.AddSample("/job/block_io", jobBlockIOStatistics);
+            if (jobBlockIOStatistics) {
+                statistics.AddSample("/job/block_io", *jobBlockIOStatistics);
+            }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get job block IO statistics from job proxy environment");
         }

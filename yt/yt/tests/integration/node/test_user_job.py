@@ -3556,3 +3556,31 @@ class TestGpuStatistics(YTEnvSetup):
             lambda utilization: 500 <= utilization <= 2500,
             job_type="task",
         ))
+
+
+##################################################################
+
+
+class TestCriJobStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+    @authors("gritukan")
+    def test_job_statistics(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="python -c 'import time; x = \"X\" * (200 * 1000 * 1000); time.sleep(5)'",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "max_failed_job_count": 1,
+            },
+        )
+
+        assert op.get_statistics()["job"]["memory"]["rss"][0]["summary"]["max"] > 200 * 1000 * 1000

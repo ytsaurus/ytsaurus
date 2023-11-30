@@ -740,6 +740,8 @@ THashMap<TString, TString> GetProcessCGroups(pid_t pid)
 THashMap<TString, TString> GetSelfProcessCGroups()
 {
     auto rawCgroups = TFileInput{"/proc/self/cgroup"}.ReadAll();
+    const static NLogging::TLogger Logger("XXX");
+    YT_LOG_ERROR("Process cgroups: %v", rawCgroups);
     return ParseProcessCGroups(rawCgroups);
 }
 

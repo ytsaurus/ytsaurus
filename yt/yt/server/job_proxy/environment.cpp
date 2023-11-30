@@ -13,6 +13,7 @@
 
 #ifdef _linux_
 #include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/containers/cgroups_new.h>
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
@@ -936,7 +937,6 @@ class TCriJobProxyEnvironment
 public:
     explicit TCriJobProxyEnvironment(TCriJobEnvironmentConfigPtr config)
         : Config_(std::move(config))
-        , CGroups_(GetSelfProcessCGroups())
     { }
 
     void SetCpuGuarantee(double /*value*/) override
@@ -1017,55 +1017,36 @@ public:
 private:
     const TCriJobEnvironmentConfigPtr Config_;
 
-    THashMap<TString, TString> CGroups_;
+    NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 
     std::optional<TJobEnvironmentMemoryStatistics> DoGetJobMemoryStatistics() const
     {
-        if (!CGroups_.contains(TMemory::Name)) {
-            return {};
-        }
-
-        auto memoryCGroup = TMemory(CGroups_.at(TMemory::Name));
-        auto statistics = memoryCGroup.GetStatistics();
+        auto statistics = StatisticsFetcher_.GetMemoryStatistics();
+        // NB: PeakRss usage is intentional here, to make statistics more sane.
         return TJobEnvironmentMemoryStatistics{
-            .Rss = statistics.Rss.ValueOrThrow(),
-            .MappedFile = statistics.MappedFile.ValueOrThrow(),
-            .MajorPageFaults = statistics.MajorPageFaults.ValueOrThrow(),
+            .Rss = statistics.PeakRss,
+            .MappedFile = statistics.MappedFile,
+            .MajorPageFaults = statistics.MajorPageFaults,
         };
     }
 
     std::optional<TJobEnvironmentBlockIOStatistics> DoGetJobBlockIOStatistics() const
     {
-        if (!CGroups_.contains(TBlockIO::Name)) {
-            return {};
-        }
-
-        auto blockIOCGroup = TBlockIO(CGroups_.at(TBlockIO::Name));
-        auto statistics = blockIOCGroup.GetStatistics();
+        auto statistics = StatisticsFetcher_.GetBlockIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
-            .IOReadByte = statistics.IOReadByte.ValueOrThrow(),
-            .IOWriteByte = statistics.IOWriteByte.ValueOrThrow(),
-            .IOReadOps = statistics.IOReadOps.ValueOrThrow(),
-            .IOWriteOps = statistics.IOWriteOps.ValueOrThrow(),
-            .IOOps = statistics.IOOps.ValueOrThrow(),
+            .IOReadByte = statistics.IOReadByte,
+            .IOWriteByte = statistics.IOWriteByte,
+            .IOReadOps = statistics.IOReadOps,
+            .IOWriteOps = statistics.IOWriteOps,
         };
     }
 
     std::optional<TJobEnvironmentCpuStatistics> DoGetJobCpuStatistics() const
     {
-        if (!CGroups_.contains(TCpuAccounting::Name)) {
-            return {};
-        }
-
-        auto cpuAccountingCGroup = TCpuAccounting(CGroups_.at(TCpuAccounting::Name));
-        auto statistics = cpuAccountingCGroup.GetStatistics();
+        auto statistics = StatisticsFetcher_.GetCpuStatistics();
         return TJobEnvironmentCpuStatistics{
-            .UserUsageTime = statistics.UserUsageTime.ValueOrThrow(),
-            .SystemUsageTime = statistics.SystemUsageTime.ValueOrThrow(),
-            .WaitTime = statistics.WaitTime.ValueOrThrow(),
-            .ThrottledTime = statistics.ThrottledTime.ValueOrThrow(),
-            .ContextSwitchesDelta = statistics.ContextSwitchesDelta.ValueOrThrow(),
-            .PeakThreadCount = statistics.PeakThreadCount.ValueOrThrow(),
+            .UserUsageTime = statistics.UserTime,
+            .SystemUsageTime = statistics.SystemTime,
         };
     }
 };

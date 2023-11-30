@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     cgroup.cpp
+    cgroups_new.cpp
     config.cpp
     instance.cpp
     instance_limits_tracker.cpp
