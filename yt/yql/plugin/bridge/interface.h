@@ -95,7 +95,6 @@ using TFuncBridgeAbort = void(TBridgeYqlPlugin* plugin, const char* queryId);
     XX(BridgeFreeQueryResult) \
     XX(BridgeRun) \
     XX(BridgeGetProgress) \
-    XX(BridgeGetAbiVersion) \
-    XX(BridgeAbort)
+    XX(BridgeGetAbiVersion)
 
 ////////////////////////////////////////////////////////////////////////////////

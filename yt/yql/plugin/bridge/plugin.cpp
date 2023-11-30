@@ -69,6 +69,8 @@ public:
         GetYqlPluginAbiVersion();
 
         FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX);
+        // COMPAT(gritukan): Remove after commit in YDB repository.
+        XX(BridgeAbort)
         #undef XX
     }
 
@@ -79,6 +81,9 @@ protected:
 
     #define XX(function) TFunc ## function* function;
     FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX)
+
+    // COMPAT(gritukan): Remove after commit in YDB repository.
+    XX(BridgeAbort)
     #undef XX
 
     // COMPAT(gritukan): AbortQuery
