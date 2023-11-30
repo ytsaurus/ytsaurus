@@ -772,8 +772,6 @@ public:
 
     TJobControllerConfigPtr JobController;
 
-    TJobReporterConfigPtr JobReporter;
-
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
 
     TJobProxyConfigPtr JobProxy;
@@ -799,7 +797,7 @@ public:
 
     TJobControllerDynamicConfigPtr JobController;
 
-    TJobReporterDynamicConfigPtr JobReporter;
+    TJobReporterConfigPtr JobReporter;
 
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
 

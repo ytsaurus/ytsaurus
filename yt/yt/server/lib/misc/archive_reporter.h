@@ -49,6 +49,9 @@ struct IArchiveReporter
     virtual void SetEnabled(bool enable) = 0;
     virtual int ExtractWriteFailuresCount() = 0;
     virtual bool IsQueueTooLarge() const = 0;
+    virtual void OnConfigChanged(
+        const TArchiveReporterConfigPtr& newReporterConfig,
+        const TArchiveHandlerConfigPtr& newHandlerConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IArchiveReporter)

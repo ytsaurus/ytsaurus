@@ -517,14 +517,24 @@ public:
     }
 
     void OnDynamicConfigChanged(
-        const TJobReporterDynamicConfigPtr& /*oldConfig*/,
-        const TJobReporterDynamicConfigPtr& newConfig)
+        const TJobReporterConfigPtr& /*oldConfig*/,
+        const TJobReporterConfigPtr& newConfig)
     {
-        JobHandler_->SetEnabled(newConfig->EnableJobReporter.value_or(Config_->EnableJobReporter));
-        JobSpecHandler_->SetEnabled(newConfig->EnableJobSpecReporter.value_or(Config_->EnableJobSpecReporter));
-        JobStderrHandler_->SetEnabled(newConfig->EnableJobStderrReporter.value_or(Config_->EnableJobStderrReporter));
-        JobProfileHandler_->SetEnabled(newConfig->EnableJobProfileReporter.value_or(Config_->EnableJobProfileReporter));
-        JobFailContextHandler_->SetEnabled(newConfig->EnableJobFailContextReporter.value_or(Config_->EnableJobFailContextReporter));
+        JobHandler_->OnConfigChanged(
+            newConfig,
+            newConfig->JobHandler);
+        JobSpecHandler_->OnConfigChanged(
+            newConfig,
+            newConfig->JobSpecHandler);
+        JobStderrHandler_->OnConfigChanged(
+            newConfig,
+            newConfig->JobStderrHandler);
+        JobProfileHandler_->OnConfigChanged(
+            newConfig,
+            newConfig->JobProfileHandler);
+        JobFailContextHandler_->OnConfigChanged(
+            newConfig,
+            newConfig->JobFailContextHandler);
     }
 
 private:
@@ -591,8 +601,8 @@ void TJobReporter::UpdateConfig(const TJobReporterConfigPtr& config)
 }
 
 void TJobReporter::OnDynamicConfigChanged(
-    const TJobReporterDynamicConfigPtr& oldConfig,
-    const TJobReporterDynamicConfigPtr& newConfig)
+    const TJobReporterConfigPtr& oldConfig,
+    const TJobReporterConfigPtr& newConfig)
 {
     if (Impl_) {
         Impl_->OnDynamicConfigChanged(oldConfig, newConfig);

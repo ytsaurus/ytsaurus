@@ -87,7 +87,7 @@ public:
         GpuManager_ = New<TGpuManager>(this);
 
         JobReporter_ = New<TJobReporter>(
-            GetConfig()->ExecNode->JobReporter,
+            New<TJobReporterConfig>(),
             GetConnection());
 
         MasterConnector_ = CreateMasterConnector(this);
@@ -382,8 +382,9 @@ private:
         GpuManager_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobController->GpuManager,
             newConfig->ExecNode->JobController->GpuManager);
-
-        JobReporter_->OnDynamicConfigChanged(oldConfig->ExecNode->JobReporter, newConfig->ExecNode->JobReporter);
+        JobReporter_->OnDynamicConfigChanged(
+            oldConfig->ExecNode->JobReporter,
+            newConfig->ExecNode->JobReporter);
 
         DynamicConfig_.Store(newConfig);
     }

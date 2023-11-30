@@ -39,8 +39,8 @@ public:
 
     // For updates by dynamic config patch (Node).
     void OnDynamicConfigChanged(
-        const TJobReporterDynamicConfigPtr& oldConfig,
-        const TJobReporterDynamicConfigPtr& newConfig);
+        const TJobReporterConfigPtr& oldConfig,
+        const TJobReporterConfigPtr& newConfig);
 
 private:
     class TImpl;

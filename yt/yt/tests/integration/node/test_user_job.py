@@ -788,23 +788,21 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     USE_PORTO = True
     DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "statistics_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
-        },
         "job_resource_manager": {
             "resource_limits": {
                 "memory": 6 * 1024 ** 3,
+            }
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
             }
         }
     }
@@ -2061,12 +2059,6 @@ class TestUserJobMonitoring(YTEnvSetup):
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,
             },
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
             "job_controller": {
                 "gpu_manager": {
                     "testing": {
@@ -2081,6 +2073,18 @@ class TestUserJobMonitoring(YTEnvSetup):
                 "user_slots": 20,
                 "cpu": 20,
             },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            }
         }
     }
 

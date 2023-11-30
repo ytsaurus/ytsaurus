@@ -208,25 +208,6 @@ DEFINE_REFCOUNTED_TYPE(TArchiveHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobReporterDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    std::optional<bool> EnableJobReporter;
-    std::optional<bool> EnableJobSpecReporter;
-    std::optional<bool> EnableJobStderrReporter;
-    std::optional<bool> EnableJobProfileReporter;
-    std::optional<bool> EnableJobFailContextReporter;
-
-    REGISTER_YSON_STRUCT(TJobReporterDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobReporterDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobReporterConfig
     : public TArchiveReporterConfig
 {

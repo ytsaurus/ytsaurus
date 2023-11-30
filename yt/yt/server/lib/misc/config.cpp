@@ -169,20 +169,6 @@ void TArchiveHandlerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobReporterDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable_job_reporter", &TThis::EnableJobReporter)
-        .Default();
-    registrar.Parameter("enable_job_spec_reporter", &TThis::EnableJobSpecReporter)
-        .Default();
-    registrar.Parameter("enable_job_stderr_reporter", &TThis::EnableJobStderrReporter)
-        .Default();
-    registrar.Parameter("enable_job_profile_reporter", &TThis::EnableJobProfileReporter)
-        .Default();
-    registrar.Parameter("enable_job_fail_context_reporter", &TThis::EnableJobFailContextReporter)
-        .Default();
-}
-
 void TJobReporterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_handler", &TThis::JobHandler)

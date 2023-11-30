@@ -1226,14 +1226,20 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,  # 100 msec
             },
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
         },
         "job_resource_manager": {"resource_limits": {"cpu": 3, "user_slots": 3}},
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        }
     }
 
     def setup_method(self, method):

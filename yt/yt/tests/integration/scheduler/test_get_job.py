@@ -91,15 +91,16 @@ class _TestGetJobBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            }
-        },
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                }
+            },
+        }
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -267,7 +268,6 @@ class TestGetJob(_TestGetJobCommon):
             "snapshot_period": 500,
             "operations_update_period": 100,
             "job_reporter": {
-                "enabled": True,
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
@@ -474,8 +474,8 @@ class TestGetJob(_TestGetJobCommon):
 
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
-    DELTA_NODE_CONFIG = deepcopy(_TestGetJobBase.DELTA_NODE_CONFIG)
-    DELTA_NODE_CONFIG["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
+    DELTA_DYNAMIC_NODE_CONFIG = deepcopy(_TestGetJobBase.DELTA_DYNAMIC_NODE_CONFIG)
+    DELTA_DYNAMIC_NODE_CONFIG["%true"]["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
 class TestGetJobMonitoring(_TestGetJobBase):

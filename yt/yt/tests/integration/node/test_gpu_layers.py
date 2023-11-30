@@ -988,12 +988,6 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                     "type": "porto",
                 },
             },
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
         },
     }
 
@@ -1004,6 +998,11 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                     "job_common": {
                         "use_artifact_binds": True,
                     },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
                 },
             },
         }

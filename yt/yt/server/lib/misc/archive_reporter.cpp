@@ -35,7 +35,7 @@ public:
 
     bool TryIncrease(i64 delta)
     {
-        if (Value_.fetch_add(delta, std::memory_order::relaxed) + delta <= MaxValue_) {
+        if (Value_.fetch_add(delta, std::memory_order::relaxed) + delta <= GetMaxValue()) {
             return true;
         }
         Decrease(delta);
@@ -59,16 +59,21 @@ public:
 
     i64 GetValue() const
     {
-        return Value_.load();
+        return Value_.load(std::memory_order::relaxed);
     }
 
     i64 GetMaxValue() const
     {
-        return MaxValue_;
+        return MaxValue_.load(std::memory_order::relaxed);
+    }
+
+    void UpdateMaxValue(i64 newMax) noexcept
+    {
+        MaxValue_.store(newMax, std::memory_order::relaxed);
     }
 
 private:
-    const i64 MaxValue_;
+    std::atomic<i64> MaxValue_;
     std::atomic<i64> Value_ = 0;
 };
 
@@ -116,8 +121,8 @@ public:
         , NameTable_(std::move(nameTable))
         , Version_(std::move(version))
         , Client_(std::move(client))
-        , Limiter_(HandlerConfig_->MaxInProgressDataSize)
-        , Batcher_(New<TNonblockingBatcher<std::unique_ptr<IArchiveRowlet>>>(TBatchSizeLimiter(ReporterConfig_->MaxItemsInBatch), ReporterConfig_->ReportingPeriod))
+        , Limiter_(HandlerConfig_.Acquire()->MaxInProgressDataSize)
+        , Batcher_(New<TNonblockingBatcher<std::unique_ptr<IArchiveRowlet>>>(TBatchSizeLimiter(ReporterConfig_.Acquire()->MaxItemsInBatch), ReporterConfig_.Acquire()->ReportingPeriod))
         , EnqueuedCounter_(profiler.Counter("/enqueued"))
         , DequeuedCounter_(profiler.Counter("/dequeued"))
         , DroppedCounter_(profiler.Counter("/dropped"))
@@ -131,7 +136,22 @@ public:
             .Via(invoker)
             .Run();
         EnableSemaphore_->Acquire();
-        SetEnabled(ReporterConfig_->Enabled);
+        SetEnabled(ReporterConfig_.Acquire()->Enabled);
+    }
+
+    void OnConfigChanged(
+        const TArchiveReporterConfigPtr& newReporterConfig,
+        const TArchiveHandlerConfigPtr& newHandlerConfig) override
+    {
+        Limiter_.UpdateMaxValue(newHandlerConfig->MaxInProgressDataSize);
+        Batcher_->UpdateSettings(
+            newReporterConfig->ReportingPeriod,
+            TBatchSizeLimiter(newReporterConfig->MaxItemsInBatch),
+            /*allowEmptyBatches=*/false);
+        SetEnabled(newReporterConfig->Enabled);
+
+        ReporterConfig_.Store(newReporterConfig);
+        HandlerConfig_.Store(newHandlerConfig);
     }
 
     void Enqueue(std::unique_ptr<IArchiveRowlet> rowlet) override
@@ -170,8 +190,8 @@ public:
 
 private:
     const TLogger Logger;
-    const TArchiveReporterConfigPtr ReporterConfig_;
-    const TArchiveHandlerConfigPtr HandlerConfig_;
+    TAtomicIntrusivePtr<TArchiveReporterConfig> ReporterConfig_;
+    TAtomicIntrusivePtr<TArchiveHandlerConfig> HandlerConfig_;
     const TNameTablePtr NameTable_;
     const TArchiveVersionHolderPtr Version_;
     const NNative::IClientPtr Client_;
@@ -215,7 +235,8 @@ private:
 
     void WriteBatchWithExpBackoff(const TBatch& batch)
     {
-        auto delay = ReporterConfig_->MinRepeatDelay;
+        auto minRepeatDelay = ReporterConfig_.Acquire()->MinRepeatDelay;
+        auto delay = minRepeatDelay;
         while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped > 0) {
@@ -238,8 +259,8 @@ private:
             }
             TDelayedExecutor::WaitForDuration(RandomDuration(delay));
             delay *= 2;
-            if (delay > ReporterConfig_->MaxRepeatDelay) {
-                delay = ReporterConfig_->MaxRepeatDelay;
+            if (delay > minRepeatDelay) {
+                delay = minRepeatDelay;
             }
         }
     }
@@ -293,7 +314,7 @@ private:
         }
 
         transaction.WriteRows(
-            HandlerConfig_->Path,
+            HandlerConfig_.Acquire()->Path,
             NameTable_,
             MakeSharedRange(std::move(rows), std::move(owningRows)));
 

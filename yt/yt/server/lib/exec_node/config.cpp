@@ -794,10 +794,8 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_manager", &TThis::SlotManager)
         .DefaultNew();
+
     registrar.Parameter("job_controller", &TThis::JobController)
-        .DefaultNew();
-    registrar.Parameter("job_reporter", &TThis::JobReporter)
-        .Alias("statistics_reporter")
         .DefaultNew();
 
     registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)

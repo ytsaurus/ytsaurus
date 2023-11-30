@@ -54,6 +54,7 @@ class YtTestEnvironment(object):
                  delta_scheduler_config=None,
                  delta_controller_agent_config=None,
                  delta_node_config=None,
+                 delta_dynamic_node_config=None,
                  delta_proxy_config=None,
                  need_suid=False):
         # To use correct version of bindings we must reset it before start environment.
@@ -103,9 +104,6 @@ class YtTestEnvironment(object):
                 "slot_manager": {
                     "enforce_job_control": True,
                 },
-                "statistics_reporter": {
-                    "reporting_period": 1000,
-                }
             },
         }
         common_delta_scheduler_config = {
@@ -155,6 +153,18 @@ class YtTestEnvironment(object):
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
 
+        def modify_node_dynamic_config(config, abi_version):
+            update_inplace(config, {
+                "%true": {
+                    "exec_node": {
+                        "job_reporter": {
+                            "reporting_period": 1000,
+                        },
+                    }
+                }
+            })
+            update_inplace(config, delta_dynamic_node_config)
+
         local_temp_directory = os.path.join(sandbox_path, "tmp_" + run_id)
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
@@ -178,6 +188,7 @@ class YtTestEnvironment(object):
 
         self.env = YTInstance(self.sandbox_dir, yt_config,
                               modify_configs_func=modify_configs,
+                              modify_dynamic_configs_func=modify_node_dynamic_config,
                               kill_child_processes=True)
 
         try:
