@@ -69,7 +69,7 @@ add_custom_command(
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
   -internalize-public-api-list=malloc_udf
-  -passes=default<O2>,globalopt,globaldce,internalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -93,7 +93,7 @@ add_custom_command(
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
   -internalize-public-api-list=seventyfive#strtol_udf#exp_udf#tolower_udf#is_null_udf#string_equals_42_udf#abs_udf#sum_udf#throw_if_negative_udf#avg_udaf_init#avg_udaf_update#avg_udaf_merge#avg_udaf_finalize
-  -passes=default<O2>,globalopt,globaldce,internalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -117,7 +117,7 @@ add_custom_command(
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
   -internalize-public-api-list=udf_with_function_context
-  -passes=default<O2>,globalopt,globaldce,internalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
@@ -141,7 +141,7 @@ add_custom_command(
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   -internalize-public-api-list=xor_aggregate_init#xor_aggregate_update#xor_aggregate_merge#xor_aggregate_finalize
-  -passes=default<O2>,globalopt,globaldce,internalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
   OUTPUT
