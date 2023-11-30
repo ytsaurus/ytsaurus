@@ -27,7 +27,7 @@ PEERDIR(
     contrib/python/distro
     contrib/python/six
     contrib/python/typing-extensions
-    contrib/python/ujson
+    contrib/deprecated/python/ujson
 )
 
 IF (OPENSOURCE)
