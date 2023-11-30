@@ -796,10 +796,10 @@ private:
     IRawCoGroupByKeyPtr RawCoGroupByKey_;
     std::vector<TRowVtable> InputRowVtableList_;
 
-    Y_SAVELOAD_DEFINE_OVERRIDE(RawCoGroupByKey_, InputRowVtableList_);
-
     IRawOutputPtr Output_;
     bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawCoGroupByKey_, InputRowVtableList_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

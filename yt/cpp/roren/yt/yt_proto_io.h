@@ -93,6 +93,14 @@ public:
             return ::MakeIntrusive<TRawYtProtoRead<TMessage>>(NYT::TRichYPath{});
         };
     }
+
+    void Save(IOutputStream*) const override {
+        Y_ABORT("TRawYtProtoRead object is not supposed to be SaveLoad-ed");
+    }
+
+    void Load(IInputStream*) override {
+        Y_ABORT("TRawYtProtoRead object is not supposed to be SaveLoad-ed");
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,8 +112,8 @@ class TWriteProtoParDo
 {
 public:
     TWriteProtoParDo(ssize_t tableIndex = -1)
-        : Descriptor_(TMessage::GetDescriptor())
-        , TableIndex_(tableIndex)
+        : TableIndex_(tableIndex)
+        , Descriptor_(TMessage::GetDescriptor())
     { }
 
     void SetTableIndex(ssize_t tableIndex) override
@@ -166,10 +174,10 @@ public:
     }
 
 private:
+    ssize_t TableIndex_ = 0;
+
     const ::google::protobuf::Descriptor* Descriptor_;
     std::unique_ptr<::NYT::TLenvalProtoTableWriter> Writer_;
-
-    ssize_t TableIndex_ = 0;
 
     Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
 };
@@ -236,6 +244,14 @@ public:
         return [] () -> IRawWritePtr {
             return ::MakeIntrusive<TRawYtProtoWrite<TMessage>>(NYT::TRichYPath{}, NYT::TTableSchema{});
         };
+    }
+
+    void Save(IOutputStream*) const override {
+        Y_ABORT("TRawYtProtoWrite object is not supposed to be SaveLoad-ed");
+    }
+
+    void Load(IInputStream*) override {
+        Y_ABORT("TRawYtProtoWrite object is not supposed to be SaveLoad-ed");
     }
 };
 
@@ -313,6 +329,14 @@ public:
                 NYT::TSortColumns{}
             );
         };
+    }
+
+    void Save(IOutputStream*) const override {
+        Y_ABORT("TRawYtProtoSortedWrite object is not supposed to be SaveLoad-ed");
+    }
+
+    void Load(IInputStream*) override {
+        Y_ABORT("TRawYtProtoSortedWrite object is not supposed to be SaveLoad-ed");
     }
 
 private:
