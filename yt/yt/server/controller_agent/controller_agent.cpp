@@ -285,7 +285,20 @@ public:
         , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
-    { }
+    {
+        ControllerAgentProfiler.AddFuncGauge("/monitored_user_job_count", MakeStrong(this), [this] {
+            return WaitFor(BIND([&] {
+                int sum = 0;
+                for (const auto& [_, operation] : IdToOperation_) {
+                    sum += operation->GetController()->GetMonitoredUserJobCount();
+                }
+                return sum;
+            })
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run())
+            .Value();
+        });
+    }
 
     void Initialize()
     {

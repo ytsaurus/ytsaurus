@@ -550,6 +550,11 @@ public:
         return Underlying_->IsFinished();
     }
 
+    int GetMonitoredUserJobCount() const override
+    {
+        return Underlying_->GetMonitoredUserJobCount();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

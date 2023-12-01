@@ -8793,6 +8793,11 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
     }
 }
 
+int TOperationControllerBase::GetMonitoredUserJobCount() const
+{
+    return MonitoredUserJobCount_;
+}
+
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
     UnregisterJobForMonitoring(joblet);
