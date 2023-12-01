@@ -250,7 +250,7 @@ protected:
     {
         NNodeTrackerClient::NProto::TDiskResources diskResources;
         diskResources.mutable_disk_location_resources()->Add();
-        diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota().DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex]);
+        diskResources.mutable_disk_location_resources(0)->set_limit(GetOrDefault(nodeResources.DiskQuota().DiskSpacePerMedium, NChunkClient::DefaultSlotsMediumIndex));
 
         auto nodeId = ExecNodeId_;
         ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);

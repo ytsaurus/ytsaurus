@@ -116,6 +116,22 @@ bool operator==(const TDiskQuota& lhs, const TDiskQuota& rhs)
     return lhs.DiskSpaceWithoutMedium == rhs.DiskSpaceWithoutMedium;
 }
 
+TDiskQuota Max(const TDiskQuota& lhs, const TDiskQuota& rhs)
+{
+    TDiskQuota result;
+    result.DiskSpaceWithoutMedium = std::max(lhs.DiskSpaceWithoutMedium.value_or(0), rhs.DiskSpaceWithoutMedium.value_or(0));
+    if (*result.DiskSpaceWithoutMedium == 0) {
+        result.DiskSpaceWithoutMedium = std::nullopt;
+    }
+    for (auto [key, value] : lhs.DiskSpacePerMedium) {
+        result.DiskSpacePerMedium[key] = std::max(result.DiskSpacePerMedium[key], value);
+    }
+    for (auto [key, value] : rhs.DiskSpacePerMedium) {
+        result.DiskSpacePerMedium[key] = std::max(result.DiskSpacePerMedium[key], value);
+    }
+    return result;
+}
+
 void Serialize(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
@@ -131,6 +147,11 @@ TJobResourcesWithQuota::TJobResourcesWithQuota(const TJobResources& jobResources
     : TJobResources(jobResources)
 { }
 
+TJobResourcesWithQuota::TJobResourcesWithQuota(const TJobResources& jobResources, TDiskQuota diskQuota)
+    : TJobResources(jobResources)
+    , DiskQuota_(std::move(diskQuota))
+{ }
+
 TJobResourcesWithQuota TJobResourcesWithQuota::Infinite()
 {
     return TJobResourcesWithQuota(TJobResources::Infinite());
@@ -141,11 +162,51 @@ TJobResources TJobResourcesWithQuota::ToJobResources() const
     return *this;
 }
 
+void TJobResourcesWithQuota::SetJobResources(const TJobResources& jobResources)
+{
+    #define XX(name, Name) Set##Name(jobResources.Get##Name());
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
 void TJobResourcesWithQuota::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, *static_cast<TJobResources*>(this));
     Persist(context, DiskQuota_);
+}
+
+TJobResourcesWithQuota  operator + (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+{
+    TJobResourcesWithQuota result = lhs.ToJobResources() + rhs.ToJobResources();
+    result.DiskQuota() = lhs.DiskQuota() + rhs.DiskQuota();
+    return result;
+}
+
+TJobResourcesWithQuota& operator += (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+{
+    lhs = lhs + rhs;
+    return lhs;
+}
+
+TJobResourcesWithQuota  operator - (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+{
+    TJobResourcesWithQuota result = lhs.ToJobResources() - rhs.ToJobResources();
+    result.DiskQuota() = lhs.DiskQuota() - rhs.DiskQuota();
+    return result;
+}
+
+TJobResourcesWithQuota& operator -= (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+{
+    lhs = lhs - rhs;
+    return lhs;
+}
+
+TJobResourcesWithQuota Max(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+{
+    TJobResourcesWithQuota result = Max(lhs.ToJobResources(), rhs.ToJobResources());
+    result.DiskQuota() = Max(lhs.DiskQuota(), rhs.DiskQuota());
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,8 +218,8 @@ bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& 
         ITERATE_JOB_RESOURCES(XX)
     #undef XX
     true;
-    auto rhsDiskQuota = rhs.GetDiskQuota();
-    for (auto [mediumIndex, diskSpace] : lhs.GetDiskQuota().DiskSpacePerMedium) {
+    auto rhsDiskQuota = rhs.DiskQuota();
+    for (auto [mediumIndex, diskSpace] : lhs.DiskQuota().DiskSpacePerMedium) {
         auto it = rhsDiskQuota.DiskSpacePerMedium.find(mediumIndex);
         if (it != rhsDiskQuota.DiskSpacePerMedium.end() && diskSpace < it->second) {
             return false;
@@ -287,4 +348,3 @@ bool CanSatisfyDiskQuotaRequests(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

@@ -28,7 +28,7 @@ public:
     Y_FORCE_INLINE TJobResourcesWithQuota Free() const
     {
         TJobResourcesWithQuota availableResources = Limits_ - Usage_;
-        availableResources.SetDiskQuota(DiskQuota_);
+        availableResources.DiskQuota() = DiskQuota_;
         return availableResources;
     }
 };

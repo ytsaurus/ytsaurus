@@ -1788,7 +1788,7 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     }
 
     for (const auto& jobResourcesWithQuota : DetailedMinNeededJobResources_) {
-        for (auto [index, _] : jobResourcesWithQuota.GetDiskQuota().DiskSpacePerMedium) {
+        for (auto [index, _] : jobResourcesWithQuota.DiskQuota().DiskSpacePerMedium) {
             DiskRequestMedia_.insert(index);
         }
     }

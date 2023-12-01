@@ -2677,7 +2677,7 @@ void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOper
     const auto& operationSharedState = GetOperationSharedState(element->GetOperationId());
     for (const auto& job : jobs) {
         TJobResourcesWithQuota resourceUsageWithQuota = job->ResourceUsage();
-        resourceUsageWithQuota.SetDiskQuota(job->DiskQuota());
+        resourceUsageWithQuota.DiskQuota() = job->DiskQuota();
         operationSharedState->OnJobStarted(
             element,
             job->GetId(),

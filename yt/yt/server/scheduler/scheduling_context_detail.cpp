@@ -101,7 +101,7 @@ bool TSchedulingContextBase::CanStartJobForOperation(
     TOperationId operationId) const
 {
     std::vector<NScheduler::TDiskQuota> diskRequests(DiskRequests_);
-    diskRequests.push_back(jobResourcesWithQuota.GetDiskQuota());
+    diskRequests.push_back(jobResourcesWithQuota.DiskQuota());
     return
         CanSatisfyResourceRequest(
             jobResourcesWithQuota.ToJobResources(),
@@ -161,8 +161,8 @@ void TSchedulingContextBase::StartJob(
     EJobSchedulingStage schedulingStage)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
-    if (startDescriptor.ResourceLimits.GetDiskQuota()) {
-        DiskRequests_.push_back(startDescriptor.ResourceLimits.GetDiskQuota());
+    if (startDescriptor.ResourceLimits.DiskQuota()) {
+        DiskRequests_.push_back(startDescriptor.ResourceLimits.DiskQuota());
     }
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto job = New<TJob>(
@@ -173,7 +173,7 @@ void TSchedulingContextBase::StartJob(
         Node_,
         startTime,
         startDescriptor.ResourceLimits.ToJobResources(),
-        startDescriptor.ResourceLimits.GetDiskQuota(),
+        startDescriptor.ResourceLimits.DiskQuota(),
         startDescriptor.Interruptible,
         preemptionMode,
         treeId,

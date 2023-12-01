@@ -709,7 +709,7 @@ protected:
     {
         NNodeTrackerClient::NProto::TDiskResources diskResources;
         diskResources.mutable_disk_location_resources()->Add();
-        diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota().DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex]);
+        diskResources.mutable_disk_location_resources(0)->set_limit(GetOrDefault(nodeResources.DiskQuota().DiskSpacePerMedium, NChunkClient::DefaultSlotsMediumIndex));
 
         auto nodeId = ExecNodeId_;
         ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);
@@ -958,7 +958,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
 
     std::vector<TExecNodePtr> execNodes(3);
     for (int i = 0; i < std::ssize(execNodes); ++i) {
@@ -975,7 +975,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
     TJobResourcesWithQuota operationJobResources;
     operationJobResources.SetCpu(10);
     operationJobResources.SetMemory(10);
-    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
+    operationJobResources.DiskQuota() = CreateDiskQuota(0);
 
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
@@ -1028,7 +1028,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
     nodeResources.SetUserSlots(100);
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
 
     auto execNode = CreateTestExecNode(nodeResources);
 
@@ -1042,7 +1042,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
     TJobResourcesWithQuota jobResources;
     jobResources.SetCpu(10);
     jobResources.SetMemory(10);
-    jobResources.SetDiskQuota(CreateDiskQuota(0));
+    jobResources.DiskQuota() = CreateDiskQuota(0);
 
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
@@ -1244,7 +1244,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
     nodeResources.SetUserSlots(100);
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto strategyHost = CreateTestStrategyHost({execNode});
@@ -1262,7 +1262,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
     operationJobResources.SetUserSlots(1);
     operationJobResources.SetCpu(1);
     operationJobResources.SetMemory(1);
-    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
+    operationJobResources.DiskQuota() = CreateDiskQuota(0);
 
     // For both pools create 10 operations, each with 1 demanded job.
     constexpr int OperationCount = 10;
@@ -1409,7 +1409,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
     nodeResources.SetUserSlots(100);
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto strategyHost = CreateTestStrategyHost({execNode});
@@ -1424,7 +1424,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
     operationJobResources.SetUserSlots(1);
     operationJobResources.SetCpu(10);
     operationJobResources.SetMemory(10);
-    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
+    operationJobResources.DiskQuota() = CreateDiskQuota(0);
 
     // Create 5 operations, each with 2 jobs.
     constexpr int OperationCount = 5;
@@ -1617,7 +1617,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutBatchSchedu
     nodeResources.SetUserSlots(100);
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto strategyHost = CreateTestStrategyHost({execNode});
@@ -1632,7 +1632,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutBatchSchedu
     operationJobResources.SetUserSlots(1);
     operationJobResources.SetCpu(10);
     operationJobResources.SetMemory(10);
-    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
+    operationJobResources.DiskQuota() = CreateDiskQuota(0);
 
     // Create 5 operations, each with 2 jobs.
     constexpr int OperationCount = 5;
@@ -1753,7 +1753,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto strategyHost = CreateTestStrategyHost({execNode});
@@ -2006,7 +2006,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestGuaranteePriorityScheduling)
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto strategyHost = CreateTestStrategyHost({execNode});
@@ -2033,7 +2033,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestGuaranteePriorityScheduling)
     TJobResourcesWithQuota jobResources;
     jobResources.SetCpu(10);
     jobResources.SetMemory(10);
-    jobResources.SetDiskQuota(CreateDiskQuota(0));
+    jobResources.DiskQuota() = CreateDiskQuota(0);
 
     auto operationA1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
     auto operationElementA1 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA1.Get(), poolA.Get());
@@ -2110,7 +2110,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapsho
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    nodeResources.DiskQuota() = CreateDiskQuota(100);
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto strategyHost = CreateTestStrategyHost({execNode});
@@ -2127,7 +2127,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapsho
     TJobResourcesWithQuota jobResources;
     jobResources.SetCpu(10);
     jobResources.SetMemory(10);
-    jobResources.SetDiskQuota(CreateDiskQuota(0));
+    jobResources.DiskQuota() = CreateDiskQuota(0);
 
     // Operations.
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());

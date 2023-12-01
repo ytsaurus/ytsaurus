@@ -600,7 +600,7 @@ protected:
     {
         NNodeTrackerClient::NProto::TDiskResources diskResources;
         diskResources.mutable_disk_location_resources()->Add();
-        diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota().DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex]);
+        diskResources.mutable_disk_location_resources(0)->set_limit(GetOrDefault(nodeResources.DiskQuota().DiskSpacePerMedium, NChunkClient::DefaultSlotsMediumIndex));
 
         auto nodeId = ExecNodeId_;
         ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);
@@ -1061,7 +1061,7 @@ TEST_F(TFairShareTreeElementTest, TestBestAllocationShare)
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);
 
-    auto totalResources = nodeResourcesA * 2. + nodeResourcesB;
+    auto totalResources = nodeResourcesA * 2. + nodeResourcesB.ToJobResources();
     auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources);
     auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources);
     EXPECT_EQ(demandShare, operationElementX->Attributes().DemandShare);

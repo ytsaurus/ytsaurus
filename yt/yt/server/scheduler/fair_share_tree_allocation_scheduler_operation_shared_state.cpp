@@ -390,14 +390,14 @@ void TFairShareTreeJobSchedulerOperationSharedState::AddJob(TJobId jobId, const 
             .PreemptionStatus = EJobPreemptionStatus::Preemptible,
             .JobIdListIterator = --preemptibleJobs.end(),
             .ResourceUsage = {},
-            .DiskQuota = resourceUsage.GetDiskQuota(),
+            .DiskQuota = resourceUsage.DiskQuota(),
         });
 
     ++RunningJobCount_;
 
     SetJobResourceUsage(&it->second, resourceUsage.ToJobResources());
 
-    TotalDiskQuota_ += resourceUsage.GetDiskQuota();
+    TotalDiskQuota_ += resourceUsage.DiskQuota();
 }
 
 std::optional<TJobResources> TFairShareTreeJobSchedulerOperationSharedState::RemoveJob(TJobId jobId)
