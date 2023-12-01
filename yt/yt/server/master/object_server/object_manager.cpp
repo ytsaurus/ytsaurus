@@ -451,7 +451,7 @@ public:
                     // committing a boomerang mutation right now, and
                     // replies to those are passed via the response keeper.
                     if (auto setResponseKeeperPromise =
-                        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), false))
+                        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), /* remember */ false))
                     {
                         setResponseKeeperPromise();
                     }

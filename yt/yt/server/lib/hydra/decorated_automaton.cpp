@@ -1032,8 +1032,7 @@ void TDecoratedAutomaton::ApplyMutationsDuringRecovery(const std::vector<TShared
     std::vector<TMutationApplicationResult> results;
     results.reserve(recordsData.size());
     for (const auto& recordData : recordsData)  {
-        auto result = ApplyMutationDuringRecovery(recordData);
-        results.emplace_back(std::move(result));
+        results.push_back(ApplyMutationDuringRecovery(recordData));
     }
 
     // NB: may be offloaded to a different thread but probably not worth it.
@@ -1159,8 +1158,7 @@ void TDecoratedAutomaton::ApplyMutations(const std::vector<TPendingMutationPtr>&
     std::vector<TMutationApplicationResult> results;
     results.reserve(mutations.size());
     for (const auto& mutation : mutations) {
-        auto result = ApplyMutation(mutation);
-        results.emplace_back(std::move(result));
+        results.push_back(ApplyMutation(mutation));
     }
 
     NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
@@ -1173,24 +1171,24 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
 
     for (const auto& result : results) {
         try {
-            if (auto& setPromises = result.ResponseKeeperPromiseSetter) {
+            if (const auto& setPromises = result.ResponseKeeperPromiseSetter) {
                 setPromises();
             }
-        } catch (const std::exception& error) { // COMPAT(shakurov): Just being paranoid.
-            YT_LOG_ALERT(error,
+        } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.
+            YT_LOG_ALERT(ex,
                 "Finalizing request end has thrown (MutationId: %v)",
                 result.MutationId);
         }
 
         try {
-            if (auto& promise = result.LocalCommitPromise) {
+            if (const auto& promise = result.LocalCommitPromise) {
                 promise.TrySet(TMutationResponse{
                     EMutationResponseOrigin::Commit,
                     result.ResponseData
                 });
             }
-        } catch (const std::exception& error) { // COMPAT(shakurov): Just being paranoid.
-            YT_LOG_ALERT(error,
+        } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.
+            YT_LOG_ALERT(ex,
                 "Setting a commit promise has thrown (MutationId: %v)",
                 result.MutationId);
         }

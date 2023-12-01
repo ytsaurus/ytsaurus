@@ -150,7 +150,7 @@ public:
         guard.Release();
 
         if (promise) {
-            return [promise = std::move(promise), response = std::move(response)] {
+            return [promise = std::move(promise), response = std::move(response)] () mutable {
                 promise.TrySet(std::move(response));
             };
         } else {
@@ -176,7 +176,7 @@ public:
         guard.Release();
 
         if (promise) {
-            return [promise = std::move(promise), responseOrError = std::move(responseOrError)] {
+            return [promise = std::move(promise), responseOrError = std::move(responseOrError)] () mutable {
                 promise.TrySet(std::move(responseOrError));
             };
         } else {
