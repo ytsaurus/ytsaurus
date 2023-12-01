@@ -205,12 +205,12 @@ protected:
 
     void SetModified(NObjectServer::EModificationType modificationType) override;
 
-    void SetAccessed();
+    void SetAccessed() override;
     void SuppressAccessTracking();
 
     void ValidateMethodWhitelistedForTransaction(const TString& method) const;
 
-    void SetTouched();
+    void SetTouched() override;
     void SuppressExpirationTimeoutRenewal();
 
     virtual bool CanHaveChildren() const;

@@ -1716,6 +1716,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         sourceParentProxy->RemoveChild(sourceProxy);
     }
 
+    sourceProxy->SetAccessed();
+    sourceProxy->SetTouched();
+
     YT_LOG_ACCESS(
         context,
         sourceProxy->GetId(),

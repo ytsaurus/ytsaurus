@@ -89,6 +89,9 @@ struct ICypressNodeProxy
         const NYPath::TYPath& path,
         const NYTree::INodePtr& child,
         bool recursive) = 0;
+
+    virtual void SetAccessed() = 0;
+    virtual void SetTouched() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressNodeProxy)
