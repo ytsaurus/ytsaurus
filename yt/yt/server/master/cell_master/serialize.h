@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((HunksForever)                                                 (2508))  // babenko
     ((ConfigurablePoolNameValidationRegex)                          (2509))  // renadeen
     ((ChunkReincarnatorTestingUtilities)                            (2510))  // kvk1920
+    ((SecondaryIndexForbidsPortal)                                  (2511))  // sabdenovch
 );
 
 ////////////////////////////////////////////////////////////////////////////////

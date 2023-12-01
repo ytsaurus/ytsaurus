@@ -3,7 +3,8 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt.common import wait
 
 from yt_commands import (
-    authors, get, exists, remove, create_secondary_index, create_dynamic_table,
+    authors, get, exists, remove, create, copy,
+    create_secondary_index, create_dynamic_table,
     sync_create_cells, sync_mount_table, mount_table, get_driver,
     select_rows, insert_rows, delete_rows,
     sorted_dicts, raises_yt_error,
@@ -337,3 +338,12 @@ class TestSecondaryIndexMulticell(TestSecondaryIndex):
         create_dynamic_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=12)
         with raises_yt_error("Table and index table external cell tags differ"):
             create_secondary_index("//tmp/table", "//tmp/index_table")
+
+    @authors("sabdenovch")
+    def test_secondary_index_forbid_portal(self):
+        self._create_basic_tables()
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
+            copy("//tmp/table", "//tmp/p/table")
+        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
+            copy("//tmp/index_table", "//tmp/p/index_table")

@@ -548,6 +548,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
         if (!config->AllowCrossShardDynamicTableCopying) {
             THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
         }
+
+        if (!node->SecondaryIndices().empty() || node->GetIndexTo()) {
+            THROW_ERROR_EXCEPTION("Cannot cross-cell copy neither a table with a secondary index nor an index table itself");
+        }
     }
 
     if (auto hunkStorageNode = node->GetHunkStorageNode()) {
