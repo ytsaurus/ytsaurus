@@ -136,12 +136,9 @@ public:
         Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
         Y_ABORT_UNLESS(outputs.empty());
 
-        TVector<const ::google::protobuf::Descriptor*> descriptors(TableIndex_ + 1, nullptr);
-        descriptors[TableIndex_] = Descriptor_;
-
-        Writer_ = std::make_unique<::NYT::TLenvalProtoTableWriter>(
+        Writer_ = std::make_unique<::NYT::TLenvalProtoSingleTableWriter>(
             MakeHolder<::NYT::TSingleStreamJobWriter>(TableIndex_),
-            std::move(descriptors)
+            Descriptor_
         );
     }
 
@@ -177,7 +174,7 @@ private:
     ssize_t TableIndex_ = 0;
 
     const ::google::protobuf::Descriptor* Descriptor_;
-    std::unique_ptr<::NYT::TLenvalProtoTableWriter> Writer_;
+    std::unique_ptr<::NYT::TLenvalProtoSingleTableWriter> Writer_;
 
     Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
 };
