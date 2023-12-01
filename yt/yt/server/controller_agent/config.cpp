@@ -1101,6 +1101,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("set_committed_attribute_via_transaction_action", &TThis::SetCommittedAttributeViaTransactionAction)
         .Default(false);
 
+    registrar.Parameter("enable_network_in_operation_demand", &TThis::EnableNetworkInOperationDemand)
+        .Default(true);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

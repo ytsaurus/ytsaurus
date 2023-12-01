@@ -3787,7 +3787,11 @@ private:
         result.SetUserSlots(1);
         result.SetCpu(GetSortCpuLimit());
         result.SetJobProxyMemory(jobProxyMemory);
-        result.SetNetwork(Spec->ShuffleNetworkLimit);
+
+        if (Config->EnableNetworkInOperationDemand) {
+            result.SetNetwork(Spec->ShuffleNetworkLimit);
+        }
+
         return result;
     }
 
@@ -4711,7 +4715,10 @@ private:
             result.SetJobProxyMemory(memory);
         }
 
-        result.SetNetwork(Spec->ShuffleNetworkLimit);
+        if (Config->EnableNetworkInOperationDemand) {
+            result.SetNetwork(Spec->ShuffleNetworkLimit);
+        }
+
         return result;
     }
 
