@@ -373,7 +373,7 @@ void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoc
 
     auto jobs = operationState.Jobs;
     for (const auto& [jobId, job] : jobs) {
-        UnregisterJob(job, /* enableLogging */ false);
+        UnregisterJob(job, /*causedByRevival*/ true);
         JobsToSubmitToStrategy_.erase(jobId);
     }
 
@@ -2467,17 +2467,15 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
         job->GetOperationId(),
         job->GetControllerEpoch(),
         job->GetSchedulingIndex());
-
-    if (job->IsRevived()) {
-        job->GetNode()->JobsToAbort().erase(job->GetId());
-    }
 }
 
-void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
+void TNodeShard::UnregisterJob(const TJobPtr& job, bool causedByRevival)
 {
     if (job->GetUnregistered()) {
         return;
     }
+
+    auto jobId = job->GetId();
 
     job->SetUnregistered(true);
 
@@ -2485,27 +2483,34 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
     const auto& node = job->GetNode();
 
     EraseOrCrash(node->Jobs(), job);
-    EraseOrCrash(node->IdToJob(), job->GetId());
+    EraseOrCrash(node->IdToJob(), jobId);
+    if (causedByRevival) {
+        node->JobsToAbort().erase(jobId);
+    }
     --ActiveJobCount_;
 
-    if (operationState && operationState->Jobs.erase(job->GetId())) {
-        JobsToSubmitToStrategy_[job->GetId()] =
+    if (operationState && operationState->Jobs.erase(jobId)) {
+        JobsToSubmitToStrategy_[jobId] =
             TJobUpdate{
                 EJobUpdateStatus::Finished,
                 job->GetOperationId(),
-                job->GetId(),
+                jobId,
                 job->GetTreeId(),
                 TJobResources(),
                 job->GetNode()->NodeDescriptor().GetDataCenter(),
                 job->GetNode()->GetInfinibandCluster()};
-        operationState->JobsToSubmitToStrategy.insert(job->GetId());
+        operationState->JobsToSubmitToStrategy.insert(jobId);
 
-        YT_LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v)",
-            job->GetId(),
+        YT_LOG_DEBUG_IF(
+            !causedByRevival,
+            "Job unregistered (JobId: %v, OperationId: %v)",
+            jobId,
             job->GetOperationId());
     } else {
-        YT_LOG_DEBUG_IF(enableLogging, "Dangling job unregistered (JobId: %v, OperationId: %v)",
-            job->GetId(),
+        YT_LOG_DEBUG_IF(
+            !causedByRevival,
+            "Dangling job unregistered (JobId: %v, OperationId: %v)",
+            jobId,
             job->GetOperationId());
     }
 }

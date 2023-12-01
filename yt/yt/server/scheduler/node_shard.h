@@ -389,7 +389,7 @@ private:
     void SetAllocationState(const TJobPtr& job, EAllocationState state);
 
     void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job, bool enableLogging = true);
+    void UnregisterJob(const TJobPtr& job, bool causedByRevival = false);
 
     template <class TRspHeartbeat>
     void ProcessPreemptedJob(TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout);
