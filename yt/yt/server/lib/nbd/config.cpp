@@ -7,6 +7,7 @@ namespace NYT::NNbd {
 void TCypressFileBlockDeviceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("test_sleep_before_read", &TThis::TestSleepBeforeRead);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +45,8 @@ void TNbdServerConfig::Register(TRegistrar registrar)
     registrar.Parameter("internet_domain_socket", &TThis::InternetDomainSocket)
         .Default();
     registrar.Parameter("unix_domain_socket", &TThis::UnixDomainSocket)
+        .Default();
+    registrar.Parameter("test_block_device_sleep_before_read", &TThis::TestBlockDeviceSleepBeforeRead)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {

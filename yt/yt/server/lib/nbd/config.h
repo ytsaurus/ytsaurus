@@ -13,6 +13,8 @@ class TCypressFileBlockDeviceConfig
 {
 public:
     TString Path;
+    // For testing purposes: how long to sleep before read operation
+    TDuration TestSleepBeforeRead;
 
     REGISTER_YSON_STRUCT(TCypressFileBlockDeviceConfig);
 
@@ -78,6 +80,8 @@ class TNbdServerConfig
 public:
     TIdsConfigPtr InternetDomainSocket;
     TUdsConfigPtr UnixDomainSocket;
+    // For testing purposes: how long to sleep before read operation
+    TDuration TestBlockDeviceSleepBeforeRead;
 
     REGISTER_YSON_STRUCT(TNbdServerConfig);
 

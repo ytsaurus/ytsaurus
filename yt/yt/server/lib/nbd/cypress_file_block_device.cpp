@@ -102,6 +102,16 @@ public:
     {
         auto readId = TGuid::Create();
 
+        if (Config_->TestSleepBeforeRead != TDuration::Zero()) {
+            YT_LOG_DEBUG("Sleep prior to starting a read (Offset: %v, Length: %v, ReadId: %v, Duration: %v)",
+                offset,
+                length,
+                readId,
+                Config_->TestSleepBeforeRead);
+
+            TDelayedExecutor::WaitForDuration(Config_->TestSleepBeforeRead);
+        }
+
         YT_LOG_DEBUG("Start read (Offset: %v, Length: %v, ReadId: %v)",
             offset,
             length,

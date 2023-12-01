@@ -101,6 +101,7 @@ static const TString MountSuffix = "mount";
 namespace {
 
 IBlockDevicePtr CreateCypressFileBlockDevice(
+    TNbdConfigPtr nbdConfig,
     const TArtifactKey& artifactKey,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
@@ -117,6 +118,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
 
     auto config = New<TCypressFileBlockDeviceConfig>();
     config->Path = artifactKey.data_source().path();
+    config->TestSleepBeforeRead = nbdConfig->Server->TestBlockDeviceSleepBeforeRead;
     if (config->Path.empty()) {
         THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
             << TErrorAttribute("type_name", artifactKey.GetTypeName())
@@ -2562,6 +2564,7 @@ private:
             auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
 
             auto device = CreateCypressFileBlockDevice(
+                Bootstrap_->GetDynamicConfig()->ExecNode->Nbd,
                 layer,
                 std::move(client),
                 nbdServer->GetInvoker(),
