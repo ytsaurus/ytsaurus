@@ -1,5 +1,7 @@
 #include "public.h"
 
+#include <mutex>
+
 namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +23,29 @@ const char* const AuthUserTicketMetadataKey = "yt-auth-user-ticket";
 const char* const ErrorMetadataKey = "yt-error-bin";
 const char* const MessageBodySizeMetadataKey = "yt-message-body-size";
 const char* const ProtocolVersionMetadataKey = "yt-protocol-version";
+
+const THashSet<TStringBuf>& GetNativeMetadataKeys()
+{
+    const static THashSet<TStringBuf> result{
+        TracingTraceIdMetadataKey,
+        TracingSpanIdMetadataKey,
+        TracingSampledMetadataKey,
+        TracingDebugMetadataKey,
+
+        RequestIdMetadataKey,
+        UserMetadataKey,
+        UserTagMetadataKey,
+        UserAgentMetadataKey,
+        AuthTokenMetadataKey,
+        AuthSessionIdMetadataKey,
+        AuthSslSessionIdMetadataKey,
+        AuthUserTicketMetadataKey,
+        ErrorMetadataKey,
+        MessageBodySizeMetadataKey,
+        ProtocolVersionMetadataKey,
+    };
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

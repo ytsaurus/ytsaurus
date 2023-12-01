@@ -6,6 +6,9 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/library/tvm/service/config.h>
+#include <yt/yt/library/tvm/service/public.h>
+
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
@@ -75,7 +78,9 @@ public:
 
     bool EnablePidTag;
 
-    TJaegerTracerConfigPtr ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig);
+    NAuth::TTvmServiceConfigPtr TvmService;
+
+    TJaegerTracerConfigPtr ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig) const;
 
     bool IsEnabled() const;
 
@@ -118,7 +123,10 @@ class TJaegerChannelManager
 {
 public:
     TJaegerChannelManager();
-    TJaegerChannelManager(const TIntrusivePtr<TJaegerTracerConfig>& config, const TString& endpoint);
+    TJaegerChannelManager(
+        const TJaegerTracerConfigPtr& config,
+        const TString& endpoint,
+        const NAuth::ITvmServicePtr& tvmService);
 
     bool Push(const std::vector<TSharedRef>& batches, int spanCount);
     bool NeedsReopen(TInstant currentTime);
@@ -128,6 +136,7 @@ public:
 
 private:
     NRpc::IChannelPtr Channel_;
+    NAuth::ITvmServicePtr TvmService_;
 
     TString Endpoint_;
 
@@ -172,6 +181,8 @@ private:
 
     THashMap<TString, TJaegerChannelManager> CollectorChannels_;
     NRpc::NGrpc::TChannelConfigPtr OpenChannelConfig_;
+
+    NAuth::ITvmServicePtr TvmService_;
 
     void Flush();
     void DequeueAll(const TJaegerTracerConfigPtr& config);

@@ -162,6 +162,7 @@ class TGrpcMetadataArray
 public:
     TStringBuf Find(const char* key) const;
 
+    THashMap<TString, TString> ToMap() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
