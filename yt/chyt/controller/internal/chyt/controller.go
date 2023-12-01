@@ -242,7 +242,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 
 	return []strawberry.OptionGroupDescriptor{
 		{
-			Title: "Main CHYT options",
+			Title: "Basic CHYT options",
 			Options: []strawberry.OptionDescriptor{
 				{
 					Title:        "Instance count",
@@ -270,6 +270,8 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Type:         strawberry.TypeByteCount,
 					CurrentValue: speclet.InstanceTotalMemory,
 					DefaultValue: (&InstanceMemory{}).totalMemory(),
+					MinValue:     1024 * 1024 * 1024,
+					MaxValue:     300 * 1024 * 1024 * 1024,
 					Description:  "Amount of RAM per instance in bytes.",
 				},
 				{
@@ -277,13 +279,13 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "query_settings",
 					Type:         strawberry.TypeYson,
 					CurrentValue: speclet.QuerySettings,
-					DefaultValue: yson.RawValue("{}"),
+					DefaultValue: map[string]any{},
 					Description:  "Map with default query settings.",
 				},
 			},
 		},
 		{
-			Title:  "Other CHYT options",
+			Title:  "Advanced CHYT options",
 			Hidden: true,
 			Options: []strawberry.OptionDescriptor{
 				{
@@ -312,20 +314,21 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "clickhouse_config",
 					Type:         strawberry.TypeYson,
 					CurrentValue: speclet.ClickHouseConfig,
-					DefaultValue: yson.RawValue("{}"),
+					DefaultValue: map[string]any{},
 				},
 				{
 					Title:        "YT config",
 					Name:         "yt_config",
 					Type:         strawberry.TypeYson,
 					CurrentValue: speclet.YTConfig,
-					DefaultValue: yson.RawValue("{}"),
+					DefaultValue: map[string]any{},
 				},
 				{
 					Title:        "Instance memory",
 					Name:         "instance_memory",
 					Type:         strawberry.TypeYson,
 					CurrentValue: speclet.InstanceMemory,
+					DefaultValue: nil,
 				},
 			},
 		},

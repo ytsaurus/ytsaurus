@@ -31,7 +31,7 @@ type AgentInfo struct {
 func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 	return []OptionGroupDescriptor{
 		{
-			Title: "Basic options",
+			Title: "General",
 			Options: []OptionDescriptor{
 				{
 					Title:        "Pool",
