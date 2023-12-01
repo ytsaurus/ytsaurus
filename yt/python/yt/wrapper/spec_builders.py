@@ -98,17 +98,21 @@ def _set_spec_value(builder, key, value):
 
 
 def _is_tables_sorted(table, client):
-    def _is_sorted(sort_attributes):
-        if not parse_bool(sort_attributes["sorted"]):
+    def _is_sorted(table_attributes):
+        node_type = table_attributes["type"]
+        if node_type != "table":
+            raise YtError('"{}" must be a table, but current node type is "{}"'.format(table, node_type))
+
+        if not parse_bool(table_attributes["sorted"]):
             return False
-        if "columns" in table.attributes and not is_prefix(sort_attributes["sorted_by"],
+        if "columns" in table.attributes and not is_prefix(table_attributes["sorted_by"],
                                                            table.attributes["columns"]):
             return False
         return True
 
     table = TablePath(table, client=client)
-    sort_attributes = get(table + "/@", attributes=["sorted", "sorted_by"], client=client)
-    return apply_function_to_result(_is_sorted, sort_attributes)
+    table_attributes = get(table + "/@", attributes=["type", "sorted", "sorted_by"], client=client)
+    return apply_function_to_result(_is_sorted, table_attributes)
 
 
 def _is_cpp_job(command):
