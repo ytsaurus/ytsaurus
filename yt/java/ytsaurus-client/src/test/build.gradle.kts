@@ -12,12 +12,12 @@ java {
 }
 
 dependencies {
-    api(project(":yt:java:type-info"))
-    api(project(":yt:java:yson"))
-    api(project(":yt:java:yson-tree"))
-    api(project(":yt:yt_proto:yt:core"))
-    api(project(":yt:yt_proto:yt:formats"))
+    api(""javax.persistence:persistence-api:1.0"")
+    api(project(":yt:java:ytsaurus-testlib"))
     api(""com.google.protobuf:protobuf-java:3.22.5"")
+    api(""junit:junit:4.13"")
+    api(""org.apache.logging.log4j:log4j-core:2.13.1"")
+    api(""org.apache.logging.log4j:log4j-slf4j-impl:2.13.1"")
 }
 
 tasks.test {

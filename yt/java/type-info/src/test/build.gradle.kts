@@ -12,8 +12,7 @@ java {
 }
 
 dependencies {
-    api(project(":yt:java:annotations"))
-    api(""com.google.code.findbugs:jsr305:3.0.2"")
+    api(""junit:junit:4.13"")
 }
 
 tasks.test {
