@@ -12,7 +12,7 @@ java {
 }
 
 dependencies {
-    api(""junit:junit:4.13"")
+    api("junit:junit:4.13")
 }
 
 tasks.test {

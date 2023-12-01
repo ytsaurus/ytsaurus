@@ -17,7 +17,7 @@ dependencies {
     api(project(":yt:java:yson-tree"))
     api(project(":yt:yt_proto:yt:core"))
     api(project(":yt:yt_proto:yt:formats"))
-    api(""com.google.protobuf:protobuf-java:3.22.5"")
+    api("com.google.protobuf:protobuf-java:3.22.5")
 }
 
 tasks.test {
