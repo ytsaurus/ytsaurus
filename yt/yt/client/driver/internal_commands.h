@@ -107,11 +107,13 @@ class TIssueLeaseCommand
     : public TTypedCommand<NApi::TIssueLeaseOptions>
 {
 public:
-    TIssueLeaseCommand();
+    REGISTER_YSON_STRUCT_LITE(TIssueLeaseCommand);
+
+    static void Register(TRegistrar registrar);
 
 private:
-    NHydra::TCellId CellId_;
-    NObjectClient::TObjectId LeaseId_;
+    NHydra::TCellId CellId;
+    NObjectClient::TObjectId LeaseId;
 
     void DoExecute(ICommandContextPtr context) override;
 };
@@ -122,12 +124,14 @@ class TRevokeLeaseCommand
     : public TTypedCommand<NApi::TRevokeLeaseOptions>
 {
 public:
-    TRevokeLeaseCommand();
+    REGISTER_YSON_STRUCT_LITE(TRevokeLeaseCommand);
+
+    static void Register(TRegistrar registrar);
 
 private:
-    NHydra::TCellId CellId_;
-    NObjectClient::TObjectId LeaseId_;
-    bool Force_;
+    NHydra::TCellId CellId;
+    NObjectClient::TObjectId LeaseId;
+    bool Force;
 
     void DoExecute(ICommandContextPtr context) override;
 };
@@ -138,13 +142,15 @@ class TReferenceLeaseCommand
     : public TTypedCommand<NApi::TReferenceLeaseOptions>
 {
 public:
-    TReferenceLeaseCommand();
+    REGISTER_YSON_STRUCT_LITE(TReferenceLeaseCommand);
+
+    static void Register(TRegistrar registrar);
 
 private:
-    NHydra::TCellId CellId_;
-    NObjectClient::TObjectId LeaseId_;
-    bool Persistent_;
-    bool Force_;
+    NHydra::TCellId CellId;
+    NObjectClient::TObjectId LeaseId;
+    bool Persistent;
+    bool Force;
 
     void DoExecute(ICommandContextPtr context) override;
 };
@@ -155,12 +161,14 @@ class TUnreferenceLeaseCommand
     : public TTypedCommand<NApi::TUnreferenceLeaseOptions>
 {
 public:
-    TUnreferenceLeaseCommand();
+    REGISTER_YSON_STRUCT_LITE(TUnreferenceLeaseCommand);
+
+    static void Register(TRegistrar registrar);
 
 private:
-    NHydra::TCellId CellId_;
-    NObjectClient::TObjectId LeaseId_;
-    bool Persistent_;
+    NHydra::TCellId CellId;
+    NObjectClient::TObjectId LeaseId;
+    bool Persistent;
 
     void DoExecute(ICommandContextPtr context) override;
 };

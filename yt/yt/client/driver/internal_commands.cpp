@@ -141,17 +141,17 @@ void TGetConnectionConfigCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIssueLeaseCommand::TIssueLeaseCommand()
+void TIssueLeaseCommand::Register(TRegistrar registrar)
 {
-    RegisterParameter("cell_id", CellId_);
-    RegisterParameter("lease_id", LeaseId_);
+    registrar.Parameter("cell_id", &TThis::CellId);
+    registrar.Parameter("lease_id", &TThis::LeaseId);
 }
 
 void TIssueLeaseCommand::DoExecute(ICommandContextPtr context)
 {
     auto internalClient = context->GetInternalClientOrThrow();
 
-    WaitFor(internalClient->IssueLease(CellId_, LeaseId_))
+    WaitFor(internalClient->IssueLease(CellId, LeaseId))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
@@ -159,11 +159,11 @@ void TIssueLeaseCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRevokeLeaseCommand::TRevokeLeaseCommand()
+void TRevokeLeaseCommand::Register(TRegistrar registrar)
 {
-    RegisterParameter("cell_id", CellId_);
-    RegisterParameter("lease_id", LeaseId_);
-    RegisterParameter("force", Force_)
+    registrar.Parameter("cell_id", &TThis::CellId);
+    registrar.Parameter("lease_id", &TThis::LeaseId);
+    registrar.Parameter("force", &TThis::Force)
         .Default(false);
 }
 
@@ -171,7 +171,7 @@ void TRevokeLeaseCommand::DoExecute(ICommandContextPtr context)
 {
     auto internalClient = context->GetInternalClientOrThrow();
 
-    WaitFor(internalClient->RevokeLease(CellId_, LeaseId_, Force_))
+    WaitFor(internalClient->RevokeLease(CellId, LeaseId, Force))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
@@ -179,12 +179,12 @@ void TRevokeLeaseCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReferenceLeaseCommand::TReferenceLeaseCommand()
+void TReferenceLeaseCommand::Register(TRegistrar registrar)
 {
-    RegisterParameter("cell_id", CellId_);
-    RegisterParameter("lease_id", LeaseId_);
-    RegisterParameter("persistent", Persistent_);
-    RegisterParameter("force", Force_);
+    registrar.Parameter("cell_id", &TThis::CellId);
+    registrar.Parameter("lease_id", &TThis::LeaseId);
+    registrar.Parameter("persistent", &TThis::Persistent);
+    registrar.Parameter("force", &TThis::Force);
 }
 
 void TReferenceLeaseCommand::DoExecute(ICommandContextPtr context)
@@ -192,10 +192,10 @@ void TReferenceLeaseCommand::DoExecute(ICommandContextPtr context)
     auto internalClient = context->GetInternalClientOrThrow();
 
     WaitFor(internalClient->ReferenceLease(
-        CellId_,
-        LeaseId_,
-        Persistent_,
-        Force_))
+        CellId,
+        LeaseId,
+        Persistent,
+        Force))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
@@ -203,18 +203,18 @@ void TReferenceLeaseCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnreferenceLeaseCommand::TUnreferenceLeaseCommand()
+void TUnreferenceLeaseCommand::Register(TRegistrar registrar)
 {
-    RegisterParameter("cell_id", CellId_);
-    RegisterParameter("lease_id", LeaseId_);
-    RegisterParameter("persistent", Persistent_);
+    registrar.Parameter("cell_id", &TThis::CellId);
+    registrar.Parameter("lease_id", &TThis::LeaseId);
+    registrar.Parameter("persistent", &TThis::Persistent);
 }
 
 void TUnreferenceLeaseCommand::DoExecute(ICommandContextPtr context)
 {
     auto internalClient = context->GetInternalClientOrThrow();
 
-    WaitFor(internalClient->UnreferenceLease(CellId_, LeaseId_, Persistent_))
+    WaitFor(internalClient->UnreferenceLease(CellId, LeaseId, Persistent))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);

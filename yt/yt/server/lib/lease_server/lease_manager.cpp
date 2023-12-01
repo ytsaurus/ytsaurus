@@ -875,76 +875,76 @@ private:
 
 int TLease::RefPersistently(bool force)
 {
-    auto* owner = Owner_.Lock();
+    auto owner = Owner_.Lock();
     YT_VERIFY(owner);
 
-    return Owner_->RefLeasePersistently(this, force);
+    return owner->RefLeasePersistently(this, force);
 }
 
 int TLease::UnrefPersistently()
 {
-    auto* owner = Owner_.Lock();
+    auto owner = Owner_.Lock();
     YT_VERIFY(owner);
 
-    return Owner_->UnrefLeasePersistently(this);
+    return owner->UnrefLeasePersistently(this);
 }
 
 ILeaseGuardPtr TLease::GetPersistentLeaseGuard(bool force)
 {
-    auto* owner = Owner_.Lock();
+    auto owner = Owner_.Lock();
     YT_VERIFY(owner);
 
     return New<TPersistentLeaseGuard>(
         this,
-        MakeStrong(owner),
+        std::move(owner),
         force,
         /*onLoad*/ false);
 }
 
 ILeaseGuardPtr TLease::GetPersistentLeaseGuardOnLoad()
 {
-    auto* owner = Owner_.Lock();
+    auto owner = Owner_.Lock();
     YT_VERIFY(owner);
 
     return New<TPersistentLeaseGuard>(
         this,
-        MakeStrong(owner),
+        std::move(owner),
         /*force*/ false,
         /*onLoad*/ true);
 }
 
 int TLease::RefTransiently(bool force)
 {
-    auto* owner = Owner_.Lock();
+    auto owner = Owner_.Lock();
     YT_VERIFY(owner);
 
-    return Owner_->RefLeaseTransiently(this, force);
+    return owner->RefLeaseTransiently(this, force);
 }
 
 int TLease::UnrefTransiently(int leaderAutomatonTerm)
 {
-    auto* owner = Owner_.Lock();
+    auto owner = Owner_.Lock();
     YT_VERIFY(owner);
 
-    return Owner_->UnrefLeaseTransiently(this, leaderAutomatonTerm);
+    return owner->UnrefLeaseTransiently(this, leaderAutomatonTerm);
 }
 
 ILeaseGuardPtr TLease::GetTransientLeaseGuard(bool force)
 {
-    auto* owner = Owner_.Lock();
+    auto owner = Owner_.Lock();
     YT_VERIFY(owner);
 
     auto leaderAutomatonTerm = *owner->GetLeaderAutomatonTerm();
     return New<TTransientLeaseGuard>(
         this,
-        MakeStrong(owner),
+        std::move(owner),
         force,
         leaderAutomatonTerm);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_THREAD_LOCAK(ILeaseManagerPtr) LeaseManager;
+YT_THREAD_LOCAL(ILeaseManagerPtr) LeaseManager;
 
 ILeaseManagerPtr GetLeaseManager()
 {
