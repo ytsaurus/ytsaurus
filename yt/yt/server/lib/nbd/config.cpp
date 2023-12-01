@@ -48,6 +48,8 @@ void TNbdServerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("test_block_device_sleep_before_read", &TThis::TestBlockDeviceSleepBeforeRead)
         .Default();
+    registrar.Parameter("test_abort_connection_on_read", &TThis::TestAbortConnectionOnRead)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->InternetDomainSocket && config->UnixDomainSocket) {

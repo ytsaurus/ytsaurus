@@ -137,6 +137,11 @@ public:
         return Invoker_;
     }
 
+    const TNbdServerConfigPtr& GetConfig() const
+    {
+        return Config_;
+    }
+
 private:
     const NLogging::TLogger Logger = NbdLogger
         .WithTag("ServerId: %v", TGuid::Create());
@@ -428,6 +433,17 @@ private:
             auto cookie = InetToHost(message.Cookie);
             auto offset = InetToHost(message.Offset);
             auto length = InetToHost(message.Length);
+
+            if (Server_->GetConfig()->TestAbortConnectionOnRead) {
+                YT_LOG_DEBUG("Aborting connection for testing purposes on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    flags);
+
+                Abort_ = true;
+                return;
+            }
 
             if (offset + length > static_cast<ui64>(Device_->GetTotalSize())) {
                 YT_LOG_WARNING("Received an out-of-range NBD_CMD_READ request (Offset: %v, Length: %v, Size: %v)",

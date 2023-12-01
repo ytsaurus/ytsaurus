@@ -1073,7 +1073,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
 
 @authors("yuryalekseev")
-class TestNbdReadTimeoutWithSquashFSLayers(YTEnvSetup):
+class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
@@ -1097,8 +1097,20 @@ class TestNbdReadTimeoutWithSquashFSLayers(YTEnvSetup):
         }
     }
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/squashfs.img")
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@access_method", "nbd")
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+
+    @authors("yuryalekseev")
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
+    def test_read_timeout_with(self):
+        self.setup_files()
+
+        update_nodes_dynamic_config({
             "exec_node": {
                 "nbd": {
                     "block_cache_compressed_data_capacity": 536870912,
@@ -1118,21 +1130,66 @@ class TestNbdReadTimeoutWithSquashFSLayers(YTEnvSetup):
                     },
                 },
             },
-        }
-    }
+        })
 
-    USE_PORTO = True
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
 
-    def setup_files(self):
-        create("file", "//tmp/squashfs.img")
-        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
-        set("//tmp/squashfs.img/@access_method", "nbd")
-        set("//tmp/squashfs.img/@filesystem", "squashfs")
+        wait_for_nodes()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS/dir 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/squashfs.img"],
+                    },
+                },
+            )
+
+        # YT-14186: Corrupted user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
 
     @authors("yuryalekseev")
     @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
-    def test_read_timeout_with_squashfs_layer(self):
+    def test_abort_on_read(self):
         self.setup_files()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "nbd": {
+                    "block_cache_compressed_data_capacity": 536870912,
+                    "client": {
+                        # Set read I/O timeout to 1 second
+                        "timeout": 1000,
+                    },
+                    "enabled": True,
+                    "server": {
+                        "unix_domain_socket": {
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            "path": tempfile.mkstemp(dir="/tmp")[1]
+                        },
+                        # Abort connection prior to read I/O
+                        "test_abort_connection_on_read": True,
+                    },
+                },
+            },
+        })
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait_for_nodes()
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
