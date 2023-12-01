@@ -10,7 +10,7 @@ from yt_commands import (
     write_file, read_table,
     write_table, map, abort_op, run_sleeping_vanilla,
     vanilla, run_test_vanilla, abort_job, get_job_spec,
-    list_jobs, get_job, get_job_stderr,
+    list_jobs, get_job, get_job_stderr, get_operation,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
     assert_statistics, assert_statistics_v2,
@@ -2155,9 +2155,11 @@ class TestUserJobMonitoring(YTEnvSetup):
         expected_job_descriptor = "{}/0".format(incarnation_id)
         assert descriptor == expected_job_descriptor
 
-        jobs_with_descriptor = list_jobs(op.id, with_monitoring_descriptor=True)
-        assert len(jobs_with_descriptor) == len(list_jobs(op.id))
-        assert any(job["monitoring_descriptor"] == expected_job_descriptor for job in jobs_with_descriptor["jobs"])
+        jobs_with_descriptor = list_jobs(op.id, with_monitoring_descriptor=True)["jobs"]
+        assert len(jobs_with_descriptor) == len(list_jobs(op.id)["jobs"])
+        assert any(job["monitoring_descriptor"] == expected_job_descriptor for job in jobs_with_descriptor)
+
+        assert get_operation(op.id)["brief_progress"]["monitored_user_job_count"] == len(jobs_with_descriptor)
 
         for _ in range(10):
             time.sleep(0.5)

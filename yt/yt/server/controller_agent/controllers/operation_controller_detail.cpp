@@ -8981,6 +8981,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
                 SerializeBriefVersion(GetTotalJobCounter(), fluent.GetConsumer());
             }))
             .Item("build_time").Value(TInstant::Now())
+            .Item("monitored_user_job_count").Value(GetMonitoredUserJobCount())
             .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
             .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
     }
