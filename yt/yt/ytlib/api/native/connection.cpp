@@ -1048,23 +1048,37 @@ private:
             }));
     }
 
+    //! Returns a pair consisting of the client for the Query Tracker cluster and the path to the Query Tracker root in cypress.
     std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) override
     {
-        auto clusterConnection = MakeStrong(this);
-        auto clusterStage = stage;
-        if (auto semicolonPosition = stage.find(":"); semicolonPosition != TString::npos) {
-            auto cluster = stage.substr(0, semicolonPosition);
-            clusterStage = stage.substr(semicolonPosition + 1);
-            clusterConnection = DynamicPointerCast<TConnection>(GetClusterDirectory()->GetConnectionOrThrow(cluster));
+        auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TString> {
+            auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
             YT_VERIFY(clusterConnection);
+
+            auto config = clusterConnection->GetConfig();
+            const auto& stages = config->QueryTracker->Stages;
+            if (auto iter = stages.find(stage); iter != stages.end()) {
+                const auto& stage = iter->second;
+                auto client = NNative::CreateClient(clusterConnection, TClientOptions::FromUser(stage->User));
+                return {client, stage->Root};
+            }
+
+            return {nullptr, ""};
+        };
+
+        std::pair<IClientPtr, TString> resultStage;
+        TString resultCluster;
+        for (const auto& cluster: GetClusterDirectory()->GetClusterNames()) {
+            if (auto existingStage = findStage(cluster); existingStage.first) {
+                if (resultStage.first) {
+                    THROW_ERROR_EXCEPTION("Query tracker stage %Qv is found in multiple connection configs, in clusters: %Qv, %Qv", stage, resultCluster, cluster);
+                }
+                resultStage = existingStage;
+                resultCluster = cluster;
+            }
         }
-        auto config = clusterConnection->Config_.Acquire();
-        const auto& stages = config->QueryTracker->Stages;
-        if (auto iter = stages.find(clusterStage); iter != stages.end()) {
-            const auto& stage = iter->second;
-            auto client = DynamicPointerCast<IClient>(clusterConnection->CreateClient(TClientOptions::FromUser(stage->User)));
-            YT_VERIFY(client);
-            return {client, stage->Root};
+        if (resultStage.first) {
+            return resultStage;
         } else {
             THROW_ERROR_EXCEPTION("Query tracker stage %Qv is not found in cluster directory", stage);
         }
