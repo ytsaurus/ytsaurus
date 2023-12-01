@@ -63,8 +63,10 @@ func GetOpBriefAttributes(briefInfo OpletBriefInfo) map[string]any {
 	attributes := map[string]any{
 		"state":                              briefInfo.State,
 		"health":                             briefInfo.Health,
+		"health_reason":                      briefInfo.HealthReason,
 		"creator":                            briefInfo.Creator,
 		"creation_time":                      briefInfo.CreationTime,
+		"pool":                               briefInfo.Pool,
 		"yt_operation_id":                    briefInfo.YTOperation.ID,
 		"yt_operation_start_time":            briefInfo.YTOperation.StartTime,
 		"yt_operation_finish_time":           briefInfo.YTOperation.FinishTime,
