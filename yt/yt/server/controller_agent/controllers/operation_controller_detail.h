@@ -391,6 +391,8 @@ public:
     void UnregisterJobForMonitoring(const TJobletPtr& joblet);
     std::optional<TJobMonitoringDescriptor> RegisterNewMonitoringDescriptor();
 
+    int GetMonitoredUserJobCount() const override;
+
     const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
     const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
@@ -613,7 +615,7 @@ protected:
     std::atomic<i64> TotalBuildingJobSpecSliceCount_ = {0};
 
     // These values are intentionally transient.
-    int MonitoredUserJobCount_ = 0;
+    std::atomic<int> MonitoredUserJobCount_ = 0;
     int MonitoredUserJobAttemptCount_ = 0;
     THashSet<int> MonitoringDescriptorIndexPool_;
     THashMap<TJobId, TJobMonitoringDescriptor> JobIdToMonitoringDescriptor_;

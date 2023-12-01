@@ -2215,6 +2215,31 @@ class TestUserJobMonitoring(YTEnvSetup):
         assert len(jobs_with_descriptor) == len(list_jobs(op.id))
         assert any(job["monitoring_descriptor"] == expected_job_descriptor for job in jobs_with_descriptor["jobs"])
 
+    @authors("omgronny")
+    def test_profiling(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                },
+            },
+        )
+        wait_breakpoint()
+
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        controller_agent_profiler = profiler_factory().at_controller_agent(controller_agent_address)
+        monitored_user_job_counter = controller_agent_profiler.gauge("controller_agent/monitored_user_job_count")
+
+        wait(lambda: monitored_user_job_counter.get() == 2)
+
+        release_breakpoint()
+
+        op.wait_for_state("completed")
+
+        wait(lambda: monitored_user_job_counter.get() == 0)
+
     @authors("levysotsky")
     def test_limits(self):
         controller_agents = ls("//sys/controller_agents/instances")
