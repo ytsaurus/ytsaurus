@@ -27,6 +27,12 @@ dependencies {
     protobuf(files(buildProtoDir))
 }
 
+protobuf {
+    protoc {
+        // Download from repositories
+        artifact = "com.google.protobuf:protoc:3.22.5"
+    }
+}
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
