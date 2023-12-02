@@ -244,24 +244,20 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
             auto cgroup = tokens[2];
             if (NFS::Exists(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup))) {
                 CGroup_ = cgroup;
-                IsV2_ = false;
-                return;
             } else if (NFS::Exists("/sys/fs/cgroup/memory/memory.stat")) {
                 CGroup_ = "/";
-                IsV2_ = false;
-                return;
             }
+            IsV2_ = false;
+            return;
         } else if (tokens[1] == "") {
             auto cgroup = tokens[2];
             if (NFS::Exists(Format("/sys/fs/cgroup/%v/memory.stat", cgroup))) {
                 CGroup_ = cgroup;
-                IsV2_ = true;
-                return;
             } else if (NFS::Exists("/sys/fs/cgroup/memory.stat")) {
                 CGroup_ = "/";
-                IsV2_ = true;
-                return;
             }
+            IsV2_ = true;
+            return;
         }
     }
 }
