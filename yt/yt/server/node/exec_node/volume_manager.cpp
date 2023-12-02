@@ -123,6 +123,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
         THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
             << TErrorAttribute("type_name", artifactKey.GetTypeName())
             << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()))
+            << TErrorAttribute("access_method", artifactKey.access_method())
             << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
     }
 
