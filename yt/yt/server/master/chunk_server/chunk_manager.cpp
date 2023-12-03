@@ -3029,7 +3029,7 @@ private:
                 if (!isImaginary) {
                     auto locationUuid = location->AsReal()->GetUuid();
                     if (IsSequoiaChunkReplica(chunkId, locationUuid)) {
-                        YT_LOG_ALERT("Removing destroyrd sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
+                        YT_LOG_ALERT("Removing destroyed sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
                             chunkId,
                             locationUuid);
                     }
