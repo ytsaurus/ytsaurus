@@ -714,37 +714,9 @@ public:
             this);
     }
 
-    bool CanHaveSequoiaReplicas(TChunkId chunkId) const override
+    bool CanHaveSequoiaReplicas(TRealChunkLocation* location) const override
     {
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        if (!config->SequoiaManager->Enable) {
-            return false;
-        }
-
-        if (IsJournalChunkId(chunkId)) {
-            return false;
-        }
-
-        auto probability = config->ChunkManager->SequoiaChunkReplicasPercentage;
-        return static_cast<int>(HashFromId(chunkId) % 100) < probability;
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
-    {
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-        if (!IsObjectAlive(location)) {
-            return false;
-        }
-
-        return IsSequoiaChunkReplica(chunkId, location);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const override
-    {
-        if (!CanHaveSequoiaReplicas(chunkId)) {
-            return false;
-        }
+        Bootstrap_->VerifyPersistentStateRead();
 
         if (!IsObjectAlive(location)) {
             return false;
@@ -762,6 +734,65 @@ public:
         }
 
         return true;
+    }
+
+    bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (IsJournalChunkId(chunkId)) {
+            return false;
+        }
+
+        return static_cast<int>(HashFromId(chunkId) % 100) < probability;
+    }
+
+    bool CanHaveSequoiaReplicas(TChunkId chunkId) const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        if (!config->SequoiaManager->Enable) {
+            return false;
+        }
+
+        auto probability = config->ChunkManager->SequoiaChunkReplicasPercentage;
+        return CanHaveSequoiaReplicas(chunkId, probability);
+    }
+
+    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+        if (!IsObjectAlive(location)) {
+            return false;
+        }
+
+        return IsSequoiaChunkReplica(chunkId, location);
+    }
+
+    bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location, int probability) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!CanHaveSequoiaReplicas(chunkId, probability)) {
+            return false;
+        }
+
+        return CanHaveSequoiaReplicas(location);
+    }
+
+    bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        if (!CanHaveSequoiaReplicas(chunkId)) {
+            return false;
+        }
+
+        return CanHaveSequoiaReplicas(location);
     }
 
     TNodeList AllocateWriteTargets(
