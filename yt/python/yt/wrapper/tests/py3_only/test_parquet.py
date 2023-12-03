@@ -58,10 +58,10 @@ def check_table(table, chunks):
 
 
 @pytest.mark.usefixtures("yt_env")
-class TestParquete(object):
+class TestParquet(object):
 
     @authors("nadya02")
-    def test_dump_parquete(self):
+    def test_dump_parquet(self):
         fd, filename = tempfile.mkstemp()
         table = TEST_DIR + "/table"
 
@@ -71,7 +71,7 @@ class TestParquete(object):
             Row(key="three", value=3),
         ])
 
-        yt.dump_parquete(table, filename)
+        yt.dump_parquet(table, filename)
 
         table = pq.read_table(filename)
         column_names = table.column_names
@@ -82,7 +82,7 @@ class TestParquete(object):
         assert table[column_names[1]].to_pylist() == [1, 2, 3]
 
     @authors("nadya02")
-    def test_multi_chunks_parquete(self):
+    def test_multi_chunks_parquet(self):
         _, filename = tempfile.mkstemp()
         table = TEST_DIR + "/table"
 
@@ -91,7 +91,7 @@ class TestParquete(object):
         for i in range(5):
             yt.write_table(yt.TablePath(table, append=True), [{"index": i}])
 
-        yt.dump_parquete(table, filename)
+        yt.dump_parquet(table, filename)
 
         table = pq.read_table(filename)
         column_names = table.column_names
@@ -100,7 +100,7 @@ class TestParquete(object):
         assert table[column_names[0]].to_pylist() == [0, 1, 2, 3, 4]
 
     @authors("nadya02")
-    def test_dictionary_parquete(self):
+    def test_dictionary_parquet(self):
         _, filename = tempfile.mkstemp()
         table = TEST_DIR + "/table"
 
@@ -129,7 +129,7 @@ class TestParquete(object):
             {"string": dense_array[2], "index": 3},
         ])
 
-        yt.dump_parquete(table, filename)
+        yt.dump_parquet(table, filename)
 
         table = pq.read_table(filename)
         print(table, file=sys.stderr)
@@ -143,18 +143,18 @@ class TestParquete(object):
         assert table[column_names[1]].to_pylist() == [1, 2, 3, 4, 5, 6, 1, 2, 3]
 
     @authors("nadya02")
-    def test_empty_parquete(self):
+    def test_empty_parquet(self):
         fd, filename = tempfile.mkstemp()
         table = TEST_DIR + "/empty_table"
 
         yt.create("table", table, attributes={"schema": [{"name": "key", "type": "string"}]})
-        yt.dump_parquete(table, filename)
+        yt.dump_parquet(table, filename)
 
         destination = yt.smart_upload_file(filename)
         assert yt.read_file(destination).read() == b""
 
     @authors("nadya02")
-    def test_complex_parquete(self):
+    def test_complex_parquet(self):
         random.seed(10)
 
         _, filename = tempfile.mkstemp()
@@ -200,7 +200,7 @@ class TestParquete(object):
                 yt.TablePath(table, append=True),
                 chunk)
 
-        yt.dump_parquete(table, filename)
+        yt.dump_parquet(table, filename)
 
         table = pq.read_table(filename)
 

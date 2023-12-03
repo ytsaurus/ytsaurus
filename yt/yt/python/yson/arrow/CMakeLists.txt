@@ -42,5 +42,5 @@ target_link_libraries(python-yson-arrow.global PUBLIC
   Python3::Module
 )
 target_sources(python-yson-arrow.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow/parquete.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow/parquet.cpp
 )

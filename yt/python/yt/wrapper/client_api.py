@@ -5,7 +5,7 @@ except ImportError:
 from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter, get_table_schema  # noqa
 from .table_commands import (  # noqa
     create_temp_table, write_table, read_table, read_blob_table,
-    write_table_structured, read_table_structured, dump_parquete)
+    write_table_structured, read_table_structured, dump_parquet)
 from .download_core_dump import download_core_dump  # noqa
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows, lock_rows, explain_query  # noqa
 from .queue_commands import (  # noqa

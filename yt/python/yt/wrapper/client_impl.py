@@ -630,11 +630,11 @@ class YtClient(ClientState):
             job_id, path,
             client=self)
 
-    def dump_parquete(
+    def dump_parquet(
             self,
             table, output_file):
         """
-        Dump parquete
+        Dump parquet
 
         :param table: path to tables
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
@@ -642,7 +642,7 @@ class YtClient(ClientState):
         :type path: str
 
         """
-        return client_api.dump_parquete(
+        return client_api.dump_parquet(
             table, output_file,
             client=self)
 
