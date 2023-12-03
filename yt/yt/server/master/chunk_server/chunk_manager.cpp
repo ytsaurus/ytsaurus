@@ -726,7 +726,7 @@ public:
         }
 
         auto probability = config->ChunkManager->SequoiaChunkReplicasPercentage;
-        return static_cast<int>(chunkId.Parts32[0] % 100) < probability;
+        return static_cast<int>(HashFromId(chunkId) % 100) < probability;
     }
 
     bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
@@ -2813,7 +2813,7 @@ private:
                 return readyClient->SelectRows<NRecords::TLocationReplicas>({
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
-                    Format("id_hash = %v", locationUuid.Parts32[0]),
+                    Format("id_hash = %v", HashFromId(locationUuid)),
                     Format("location_uuid = %Qv", locationUuid),
                 });
             }));
@@ -3500,7 +3500,7 @@ private:
                     const auto& locationUuid = replica.GetChunkLocationUuid();
                     NRecords::TChunkReplicas chunkReplica{
                         .Key = {
-                            .IdHash = chunkId.Parts32[0],
+                            .IdHash = HashFromId(chunkId),
                             .ChunkId = chunkId,
                             .LocationUuid = locationUuid,
                             .ReplicaIndex = replica.GetReplicaIndex(),
@@ -3514,7 +3514,7 @@ private:
                         .Key = {
                             .CellTag = Bootstrap_->GetCellTag(),
                             .NodeId = replica.GetNodeId(),
-                            .IdHash = locationUuid.Parts32[0],
+                            .IdHash = HashFromId(locationUuid),
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
                         },
@@ -3562,7 +3562,7 @@ private:
                     auto locationUuid = location->GetUuid();
                     NRecords::TChunkReplicas chunkReplica{
                         .Key = {
-                            .IdHash = chunkId.Parts32[0],
+                            .IdHash = HashFromId(chunkId),
                             .ChunkId = chunkId,
                             .LocationUuid = locationUuid,
                             .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
@@ -3575,7 +3575,7 @@ private:
                         .Key = {
                             .CellTag = Bootstrap_->GetCellTag(),
                             .NodeId = nodeId,
-                            .IdHash = locationUuid.Parts32[0],
+                            .IdHash = HashFromId(locationUuid),
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
                         },
@@ -3592,7 +3592,7 @@ private:
                     auto locationUuid = location->GetUuid();
 
                     NRecords::TChunkReplicasKey chunkReplicaKey{
-                        .IdHash = chunkId.Parts32[0],
+                        .IdHash = HashFromId(chunkId),
                         .ChunkId = chunkId,
                         .LocationUuid = locationUuid,
                         .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
@@ -3602,7 +3602,7 @@ private:
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
                         .NodeId = nodeId,
-                        .IdHash = locationUuid.Parts32[0],
+                        .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
                     };
@@ -5399,7 +5399,7 @@ private:
             .Apply(BIND([buildFilter] (const ISequoiaClientPtr& readyClient) {
                 return readyClient->SelectRows<NRecords::TChunkReplicas>({
                     buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                        builder->AppendFormat("%v", chunkId.Parts32[0]);
+                        builder->AppendFormat("%v", HashFromId(chunkId));
                     }),
                     buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
                         builder->AppendFormat("%Qv", chunkId);
