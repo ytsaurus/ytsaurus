@@ -16,9 +16,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   dnsutils \
   iputils-ping \
   lsb-release \
-  python3.7 \
+  python3.8 \
   python3-pip \
-  python3.7-distutils \
+  python3.8-distutils \
   openjdk-11-jdk
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
@@ -31,9 +31,9 @@ RUN set -eux; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
     echo "DIST_DIR: ${dist_dir}"; \
     echo "WHEEL_PATH: ${wheel_path}"; \
-    python3.7 -m pip install ${wheel_path}; \
+    python3.8 -m pip install ${wheel_path}; \
   done
 
-RUN python3.7 -m pip install numpy
+RUN python3.8 -m pip install numpy
 
 COPY ./systest /usr/bin/systest
