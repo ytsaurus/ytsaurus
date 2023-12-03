@@ -18,6 +18,8 @@
 #include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
@@ -34,6 +36,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
+
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 namespace NYT::NChunkServer {
 
@@ -137,28 +141,47 @@ public:
         const auto& originalRequest = context->Request();
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
-
-        auto preparedRequest = New<TFullHeartbeatRequest>();
-
-        preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
-        preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
-
-        preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
-        for (auto locationUuid : originalRequest.location_directory()) {
-            *preparedRequest->SequoiaRequest.add_location_directory() = locationUuid;
-        }
-
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
-        for (const auto& chunkInfo : originalRequest.chunks()) {
-            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-            auto locationIndex = chunkInfo.location_index();
-            auto* location = locationDirectory[locationIndex];
-            if (chunkManager->IsSequoiaChunkReplica(chunkId, location)) {
-                *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
-            } else {
-                *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
+        THashSet<int> sequoiaLocationIndices;
+        for (int i = 0; i < std::ssize(locationDirectory); ++i) {
+            if (chunkManager->CanHaveSequoiaReplicas(locationDirectory[i])) {
+                InsertOrCrash(sequoiaLocationIndices, i);
             }
         }
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        auto isSequoiaEnabled = config->SequoiaManager->Enable;
+        auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
+
+        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
+            auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+            preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
+            if (!isSequoiaEnabled) {
+                return preparedRequest;
+            }
+
+            preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
+
+            preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
+            preparedRequest->SequoiaRequest.mutable_location_directory()->CopyFrom(originalRequest.location_directory());
+
+            for (const auto& chunkInfo : originalRequest.chunks()) {
+                auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                auto locationIndex = chunkInfo.location_index();
+                if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
+                    *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
+                } else {
+                    *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
+                }
+            }
+
+            return preparedRequest;
+        });
+
+        auto preparedRequest = WaitFor(splitRequest
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run())
+            .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
             WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
@@ -211,40 +234,58 @@ public:
         const auto& originalRequest = context->Request();
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
-
-        auto preparedRequest = New<TIncrementalHeartbeatRequest>();
-
-        preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
-        preparedRequest->NonSequoiaRequest.mutable_added_chunks()->Clear();
-        preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
-
-        preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
-        for (auto locationUuid : originalRequest.location_directory()) {
-            *preparedRequest->SequoiaRequest.add_location_directory() = locationUuid;
-        }
-
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
-        for (const auto& chunkInfo : originalRequest.added_chunks()) {
-            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-            auto locationIndex = chunkInfo.location_index();
-            auto* location = locationDirectory[locationIndex];
-            if (chunkManager->IsSequoiaChunkReplica(chunkId, location)) {
-                *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
-            } else {
-                *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
+        THashSet<int> sequoiaLocationIndices;
+        for (int i = 0; i < std::ssize(locationDirectory); ++i) {
+            if (chunkManager->CanHaveSequoiaReplicas(locationDirectory[i])) {
+                InsertOrCrash(sequoiaLocationIndices, i);
             }
         }
 
-        for (const auto& chunkInfo : originalRequest.removed_chunks()) {
-            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-            auto locationIndex = chunkInfo.location_index();
-            auto* location = locationDirectory[locationIndex];
-            if (chunkManager->IsSequoiaChunkReplica(chunkId, location)) {
-                *preparedRequest->SequoiaRequest.add_removed_chunks() = chunkInfo;
-            } else {
-                *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        auto isSequoiaEnabled = config->SequoiaManager->Enable;
+        auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
+
+        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
+            auto preparedRequest = NewWithOffloadedDtor<TIncrementalHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+            preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
+            if (!isSequoiaEnabled) {
+                return preparedRequest;
             }
-        }
+
+            preparedRequest->NonSequoiaRequest.mutable_added_chunks()->Clear();
+            preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
+
+            preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
+            preparedRequest->SequoiaRequest.mutable_location_directory()->CopyFrom(originalRequest.location_directory());
+
+            for (const auto& chunkInfo : originalRequest.added_chunks()) {
+                auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                auto locationIndex = chunkInfo.location_index();
+                if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
+                    *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
+                } else {
+                    *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
+                }
+            }
+
+            for (const auto& chunkInfo : originalRequest.removed_chunks()) {
+                auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                auto locationIndex = chunkInfo.location_index();
+                if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
+                    *preparedRequest->SequoiaRequest.add_removed_chunks() = chunkInfo;
+                } else {
+                    *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;
+                }
+            }
+
+            return preparedRequest;
+        });
+
+        auto preparedRequest = WaitFor(splitRequest
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run())
+            .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
             WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
@@ -497,7 +538,8 @@ private:
 
     THashMap<TChunkLocationUuid, TError> LocationAlerts_;
 
-    struct TFullHeartbeatRequest final
+    struct TFullHeartbeatRequest
+        : public TRefCounted
     {
         TReqFullHeartbeat NonSequoiaRequest;
         TRspFullHeartbeat NonSequoiaResponse;
@@ -505,9 +547,9 @@ private:
         TReqModifyReplicas SequoiaRequest;
         TRspModifyReplicas SequoiaResponse;
     };
-    using TFullHeartbeatRequestPtr = TIntrusivePtr<TFullHeartbeatRequest>;
 
-    struct TIncrementalHeartbeatRequest final
+    struct TIncrementalHeartbeatRequest
+        : public TRefCounted
     {
         TReqIncrementalHeartbeat NonSequoiaRequest;
         TRspIncrementalHeartbeat NonSequoiaResponse;
@@ -515,8 +557,6 @@ private:
         TReqModifyReplicas SequoiaRequest;
         TRspModifyReplicas SequoiaResponse;
     };
-    using TIncrementalHeartbeatRequestPtr = TIntrusivePtr<TIncrementalHeartbeatRequest>;
-
 
     TChunkLocationUuidMap& GetChunkLocationShard(TChunkLocationUuid uuid)
     {
