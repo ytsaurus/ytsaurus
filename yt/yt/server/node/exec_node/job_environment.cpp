@@ -1129,6 +1129,8 @@ private:
             });
         }
 
+        spec->Resources.CpuLimit = config->ContainerCpuLimit;
+
         return Executor_->CreateProcess(JobProxyProgramName, spec, PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
     }
 };
