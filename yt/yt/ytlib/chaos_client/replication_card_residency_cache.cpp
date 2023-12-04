@@ -141,7 +141,12 @@ public:
 
         auto resultOrError = WaitFor(AnyNSucceeded(futureFoundReplicationCards, 1));
         if (!resultOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate replication card")
+            if (auto resolveError = resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR *resolveError;
+            }
+
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate replication card %v",
+                ReplicationCardId_)
                 << resultOrError;
         }
 
@@ -155,8 +160,7 @@ public:
             }
         }
 
-        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate replication card %v",
-            ReplicationCardId_);
+        YT_ABORT();
     }
 
 private:
