@@ -1556,6 +1556,15 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@access_time") == get("//tmp/t2/@creation_time")
 
+    @authors("cherepashka")
+    @not_implemented_in_sequoia
+    def test_access_time_in_copy(self):
+        create("table", "//tmp/t1")
+        creation_time = get("//tmp/t1/@access_time")
+        copy("//tmp/t1", "//tmp/t2")
+        time.sleep(1)
+        assert get("//tmp/t1/@access_time") > creation_time
+
     @authors("babenko", "ignat")
     def test_access_stat_suppress1(self):
         create("map_node", "//tmp/d")
