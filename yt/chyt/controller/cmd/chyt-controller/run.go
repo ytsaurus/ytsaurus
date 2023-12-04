@@ -48,8 +48,9 @@ func doRun() error {
 
 	if jupytConfig, ok := config.Controllers["jupyt"]; ok {
 		jupytFactory := strawberry.ControllerFactory{
-			Ctor:   jupyt.NewController,
-			Config: jupytConfig,
+			Ctor:          jupyt.NewController,
+			Config:        jupytConfig,
+			ExtraCommands: jupyt.AllCommands,
 		}
 		cfs["jupyt"] = jupytFactory
 	}

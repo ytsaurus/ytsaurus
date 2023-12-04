@@ -116,15 +116,15 @@ func tryCastFloats(v any) any {
 
 // HTTPAPI is a lightweight wrapper of API which handles http requests and transforms them to proper API calls.
 type HTTPAPI struct {
-	api         *API
-	l           log.Logger
+	Api         *API
+	L           log.Logger
 	disableAuth bool
 }
 
 func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l log.Logger, disableAuth bool) HTTPAPI {
 	return HTTPAPI{
-		api:         NewAPI(ytc, config, ctl, l),
-		l:           l,
+		Api:         NewAPI(ytc, config, ctl, l),
+		L:           l,
 		disableAuth: disableAuth,
 	}
 }
@@ -132,14 +132,14 @@ func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l lo
 func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
 	format, err := getFormatFromContentTypeHeader(w.Header().Get("Content-Type"))
 	if err != nil {
-		a.l.Error("failed to get output format", log.Error(err))
+		a.L.Error("failed to get output format", log.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	body, err := Marshal(rsp, format)
 	if err != nil {
-		a.l.Error("failed to marshal response", log.Error(err))
+		a.L.Error("failed to marshal response", log.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -147,7 +147,7 @@ func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
 	w.WriteHeader(status)
 	_, err = w.Write(body)
 	if err != nil {
-		a.l.Error("failed to write response body", log.Error(err))
+		a.L.Error("failed to write response body", log.Error(err))
 	}
 }
 
@@ -158,7 +158,7 @@ type legacyErrorWrapper struct {
 	ToPrint string `yson:"to_print,omitempty" json:"-"`
 }
 
-func (a HTTPAPI) replyWithError(w http.ResponseWriter, err error) {
+func (a HTTPAPI) ReplyWithError(w http.ResponseWriter, err error) {
 	apiError := legacyErrorWrapper{
 		Error:   yterrors.FromError(err).(*yterrors.Error),
 		ToPrint: err.Error(),
@@ -166,7 +166,7 @@ func (a HTTPAPI) replyWithError(w http.ResponseWriter, err error) {
 	a.reply(w, http.StatusBadRequest, apiError)
 }
 
-func (a HTTPAPI) replyOK(w http.ResponseWriter, result any) {
+func (a HTTPAPI) ReplyOK(w http.ResponseWriter, result any) {
 	if result == nil {
 		a.reply(w, http.StatusOK, struct{}{})
 	} else {
@@ -234,7 +234,7 @@ type CmdDescriptor struct {
 func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Request, cmd CmdDescriptor) map[string]any {
 	outputFormat, err := handleFormatNegotiation(r.Header.Get("Accept"))
 	if err != nil {
-		a.replyWithError(w, err)
+		a.ReplyWithError(w, err)
 		return nil
 	}
 
@@ -243,19 +243,19 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 
 	inputFormat, err := getFormatFromContentTypeHeader(r.Header.Get("Content-Type"))
 	if err != nil {
-		a.replyWithError(w, err)
+		a.ReplyWithError(w, err)
 		return nil
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		a.replyWithError(w, yterrors.Err("error reading request body", err))
+		a.ReplyWithError(w, yterrors.Err("error reading request body", err))
 		return nil
 	}
 
 	var request RequestParams
 	if err = Unmarshal(body, &request, inputFormat); err != nil {
-		a.replyWithError(w, yterrors.Err("error parsing request body", err))
+		a.ReplyWithError(w, yterrors.Err("error parsing request body", err))
 		return nil
 	}
 
@@ -280,7 +280,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 	// Check that all required parameters are present.
 	for _, param := range cmd.Parameters {
 		if _, ok := params[param.Name]; param.Required && !ok {
-			a.replyWithError(w, yterrors.Err("missing required parameter", yterrors.Attr("param_name", param.Name)))
+			a.ReplyWithError(w, yterrors.Err("missing required parameter", yterrors.Attr("param_name", param.Name)))
 			return nil
 		}
 	}
@@ -292,7 +292,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 	}
 	for name := range params {
 		if !supportedParams[name] {
-			a.replyWithError(w, yterrors.Err("unexpected parameter", yterrors.Attr("param_name", name)))
+			a.ReplyWithError(w, yterrors.Err("unexpected parameter", yterrors.Attr("param_name", name)))
 			return nil
 		}
 	}
@@ -300,7 +300,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 	// Cast params to proper type.
 	if request.Unparsed {
 		if inputFormat == FormatJSON {
-			a.replyWithError(w, yterrors.Err("decoding unparsed params in JSON format is unsupported"))
+			a.ReplyWithError(w, yterrors.Err("decoding unparsed params in JSON format is unsupported"))
 			return nil
 		}
 		for _, param := range cmd.Parameters {
@@ -310,7 +310,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 					if param.Type != TypeString {
 						var parsedValue any
 						if err = Unmarshal([]byte(unparsedValue), &parsedValue, inputFormat); err != nil {
-							a.replyWithError(w, err)
+							a.ReplyWithError(w, err)
 							return nil
 						}
 						params[param.Name] = parsedValue
@@ -320,7 +320,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 					for i, element := range array {
 						unparsedElement, ok := element.(string)
 						if !ok {
-							a.replyWithError(w, yterrors.Err("unparsed parameter element has unexpected type",
+							a.ReplyWithError(w, yterrors.Err("unparsed parameter element has unexpected type",
 								yterrors.Attr("param_name", param.ElementName),
 								yterrors.Attr("param_type", reflect.TypeOf(element).String())))
 							return nil
@@ -328,7 +328,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 						if param.ElementType != TypeString {
 							var parsedElement any
 							if err := Unmarshal([]byte(unparsedElement), &parsedElement, inputFormat); err != nil {
-								a.replyWithError(w, err)
+								a.ReplyWithError(w, err)
 								return nil
 							}
 							array[i] = parsedElement
@@ -336,7 +336,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 					}
 
 				} else {
-					a.replyWithError(w, yterrors.Err("unparsed parameter has unexpected type",
+					a.ReplyWithError(w, yterrors.Err("unparsed parameter has unexpected type",
 						yterrors.Attr("param_name", param.Name),
 						yterrors.Attr("param_type", reflect.TypeOf(value).String())))
 					return nil
@@ -362,7 +362,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 			}
 
 			if !ok {
-				a.replyWithError(w, yterrors.Err(fmt.Sprintf("parameter %v has unexpected type: expected %v, got %v",
+				a.ReplyWithError(w, yterrors.Err(fmt.Sprintf("parameter %v has unexpected type: expected %v, got %v",
 					param.Name,
 					param.Type,
 					reflect.TypeOf(value).String()),
@@ -374,7 +374,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 
 			if param.Validator != nil {
 				if err := param.Validator(value); err != nil {
-					a.replyWithError(w, yterrors.Err(fmt.Sprintf("failed to validate parameter %v", param.Name),
+					a.ReplyWithError(w, yterrors.Err(fmt.Sprintf("failed to validate parameter %v", param.Name),
 						err,
 						yterrors.Attr("param_name", param.Name),
 						yterrors.Attr("param_value", value)))
@@ -385,7 +385,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 			if param.Transformer != nil {
 				transformedValue, err := param.Transformer(value)
 				if err != nil {
-					a.replyWithError(w, yterrors.Err(fmt.Sprintf("failed to transform parameter %v", param.Name),
+					a.ReplyWithError(w, yterrors.Err(fmt.Sprintf("failed to transform parameter %v", param.Name),
 						err,
 						yterrors.Attr("param_name", param.Name),
 						yterrors.Attr("param_value", value)))
@@ -403,10 +403,10 @@ func HandlePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
+func HandleDescribe(w http.ResponseWriter, r *http.Request, commands []CmdDescriptor, clusters []string) {
 	body, err := yson.Marshal(map[string]any{
 		"clusters": clusters,
-		"commands": AllCommands,
+		"commands": commands,
 	})
 	if err != nil {
 		panic(err)

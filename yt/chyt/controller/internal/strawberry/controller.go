@@ -2,7 +2,6 @@ package strawberry
 
 import (
 	"context"
-
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -51,4 +50,7 @@ type Controller interface {
 type ControllerFactory struct {
 	Ctor   func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
 	Config yson.RawValue
+	// TODO(max): extra commands is actually of type []api.CmdDescriptor, but we can't import it here
+	// without creating a circular dependency. Come up with a better solution.
+	ExtraCommands any
 }

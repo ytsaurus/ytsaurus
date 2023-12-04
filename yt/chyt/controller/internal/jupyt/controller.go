@@ -2,6 +2,7 @@ package jupyt
 
 import (
 	"context"
+	"fmt"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
@@ -9,6 +10,10 @@ import (
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
+)
+
+const (
+	JupytPort = 27042
 )
 
 type Config struct {
@@ -27,8 +32,15 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
-	return "./jupyter-trampoline.sh", map[string]string{
-		"PYTHON": "python" + speclet.PythonVersion,
+	// TODO(max): take port from YT_PORT_0.
+	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
+	// strawberry attributes.
+	cmd := fmt.Sprintf(
+		"bash -x start.sh /opt/conda/bin/jupyter lab --ip :: --port %v --LabApp.token='' >&2", JupytPort)
+	return cmd, map[string]string{
+		"NB_GID":  "100",
+		"NB_UID":  "1000",
+		"NB_USER": "jovyan",
 	}
 }
 
@@ -39,13 +51,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	// description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
 	speclet := oplet.ControllerSpeclet().(Speclet)
 
-	var filePaths []ypath.Rich
-
 	description = map[string]any{}
-	err = c.appendArtifacts(ctx, &speclet, &filePaths, &description)
-	if err != nil {
-		return
-	}
 
 	// Build command.
 	command, env := c.buildCommand(&speclet)
@@ -55,7 +61,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 			"jupyter": map[string]any{
 				"command":                            command,
 				"job_count":                          1,
-				"file_paths":                         filePaths,
+				"docker_image":                       speclet.JupyterDockerImage,
 				"memory_limit":                       speclet.MemoryOrDefault(),
 				"cpu_limit":                          speclet.CPUOrDefault(),
 				"port_count":                         1,
