@@ -107,7 +107,6 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         jobProto->set_start_time(ToProto<ui64>(job.StartTime));
         ToProto(jobProto->mutable_resource_limits(), job.ResourceLimits);
         ToProto(jobProto->mutable_disk_quota(), job.DiskQuota);
-        jobProto->set_interruptible(job.Interruptible);
         jobProto->set_tree_id(job.TreeId);
         jobProto->set_node_id(ToProto<ui32>(job.NodeId));
         jobProto->set_node_address(job.NodeAddress);

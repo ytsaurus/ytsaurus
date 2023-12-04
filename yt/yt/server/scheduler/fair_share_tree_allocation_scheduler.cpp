@@ -1259,14 +1259,16 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
         }
 
         if (operationElement->AreSpecifiedResourceLimitsViolated()) {
-            job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
+            job->SetPreemptionReason(
+                Format("Preempted due to violation of resource limits of operation %v",
                 operationElement->GetId()));
             PreemptJob(job, operationElement, EJobPreemptionReason::ResourceLimitsViolated);
             continue;
         }
 
         if (auto violatedPool = findPoolWithViolatedLimitsForJob(job)) {
-            job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %Qv",
+            job->SetPreemptionReason(
+                Format("Preempted due to violation of limits on pool %Qv",
                 violatedPool->GetId()));
             PreemptJob(job, operationElement, EJobPreemptionReason::ResourceLimitsViolated);
         }
@@ -1283,7 +1285,7 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
 
 void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
 {
-    YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
+    YT_LOG_DEBUG("Preempting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
         SchedulingContext_->GetNodeDescriptor().Id,
         SchedulingContext_->GetNodeDescriptor().Address);
 
@@ -1293,7 +1295,7 @@ void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
     TJobResources currentResources;
     for (const auto& jobInfo : jobInfos) {
         if (!Dominates(SchedulingContext_->ResourceLimits(), currentResources + jobInfo.Job->ResourceUsage())) {
-            YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v, NodeAddress: %v)",
+            YT_LOG_DEBUG("Preempting job since node resources are overcommitted (JobId: %v, OperationId: %v, NodeAddress: %v)",
                 jobInfo.Job->GetId(),
                 jobInfo.OperationElement->GetId(),
                 SchedulingContext_->GetNodeDescriptor().Address);
@@ -1321,7 +1323,7 @@ void TScheduleJobsContext::PreemptJob(
     element->IncreaseHierarchicalResourceUsage(delta);
     operationSharedState->UpdatePreemptibleJobsList(element);
 
-    SchedulingContext_->PreemptJob(job, treeConfig->JobInterruptTimeout, preemptionReason);
+    SchedulingContext_->PreemptJob(job, treeConfig->JobPreemptionTimeout, preemptionReason);
 }
 
 TNonOwningOperationElementList TScheduleJobsContext::ExtractBadPackingOperations()
@@ -2547,7 +2549,7 @@ void TFairShareTreeJobScheduler::ScheduleJobs(TScheduleJobsContext* context)
     DoRegularJobScheduling(context);
     DoPreemptiveJobScheduling(context);
 
-    // Interrupt some jobs if usage is greater that limit.
+    // Preempt some jobs if usage is greater that limit.
     if (context->SchedulingContext()->ShouldAbortJobsSinceResourcesOvercommit()) {
         context->AbortJobsSinceResourcesOvercommit();
     }
@@ -2573,7 +2575,7 @@ void TFairShareTreeJobScheduler::PreemptJobsGracefully(
 
     std::vector<TJobPtr> candidates;
     for (const auto& job : schedulingContext->RunningJobs()) {
-        if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->IsInterrupted()) {
+        if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetPreempted()) {
             candidates.push_back(job);
         }
     }
@@ -2581,7 +2583,10 @@ void TFairShareTreeJobScheduler::PreemptJobsGracefully(
     auto jobInfos = GetJobPreemptionInfos(candidates, treeSnapshot);
     for (const auto& [job, preemptionStatus, _] : jobInfos) {
         if (preemptionStatus == EJobPreemptionStatus::Preemptible) {
-            schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout, EJobPreemptionReason::GracefulPreemption);
+            schedulingContext->PreemptJob(
+                job,
+                treeConfig->JobGracefulPreemptionTimeout,
+                EJobPreemptionReason::GracefulPreemption);
         }
     }
 }

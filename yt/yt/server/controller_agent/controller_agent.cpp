@@ -1725,7 +1725,6 @@ private:
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
                     YT_ASSERT(response.JobId == startDescriptor.Id);
                     ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
-                    protoResponse->set_interruptible(startDescriptor.Interruptible);
                 }
                 protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
                 if (scheduleJobResult.NextDurationEstimate) {

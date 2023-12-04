@@ -116,7 +116,6 @@ void FromProto(
             FromProto<TInstant>(jobProto.start_time()),
             FromProto<TJobResources>(jobProto.resource_limits()),
             FromProto<TDiskQuota>(jobProto.disk_quota()),
-            jobProto.interruptible(),
             preemptionMode,
             jobProto.tree_id(),
             UndefinedSchedulingIndex,

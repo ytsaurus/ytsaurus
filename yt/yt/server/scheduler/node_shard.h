@@ -386,21 +386,18 @@ private:
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job, bool causedByRevival = false);
 
-    template <class TRspHeartbeat>
-    void ProcessPreemptedJob(TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout);
-    void PreemptJob(const TJobPtr& job, NProfiling::TCpuDuration interruptTimeout);
-
-    template <class TRspHeartbeat>
-    void SendInterruptedJobToNode(
-        TRspHeartbeat* response,
+    void ProcessPreemptedJob(
+        NProto::NNode::TRspHeartbeat* response,
         const TJobPtr& job,
-        TDuration interruptTimeout) const;
-
-    void DoInterruptJob(
+        TDuration preemptionTimeout);
+    void PreemptJob(const TJobPtr& job, NProfiling::TCpuDuration preemptionTimeout);
+    void SendPreemptedJobToNode(
+        NProto::NNode::TRspHeartbeat* response,
         const TJobPtr& job,
-        EInterruptReason reason,
-        NProfiling::TCpuDuration interruptTimeout = 0,
-        const std::optional<TString>& interruptUser = std::nullopt);
+        TDuration preemptionTimeout) const;
+    void DoPreemptJob(
+        const TJobPtr& job,
+        NProfiling::TCpuDuration preemptionTimeout = 0);
 
     void ProcessJobsToAbort(NProto::NNode::TRspHeartbeat* response, const TExecNodePtr& node);
 

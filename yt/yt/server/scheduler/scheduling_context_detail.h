@@ -56,7 +56,7 @@ public:
         int schedulingIndex,
         EJobSchedulingStage schedulingStage) override;
 
-    void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) override;
+    void PreemptJob(const TJobPtr& job, TDuration preemptionTimeout, EJobPreemptionReason preemptionReason) override;
 
     void ResetUsageDiscounts() override;
     void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount) override;

@@ -252,7 +252,7 @@ class TestSchedulingSegments(YTEnvSetup):
         update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount/large_gpu", {
             TestSchedulingSegments.DATA_CENTER: 8.0,
         })
-        update_pool_tree_config_option("default", "job_interrupt_timeout", 30000)
+        update_pool_tree_config_option("default", "allocation_preemption_timeout", 30000)
 
         filling_op = run_sleeping_vanilla(
             job_count=9,

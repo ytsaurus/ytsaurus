@@ -54,7 +54,7 @@ TString FormatOperationCountByPreemptionPriorityCompact(
 struct TPreemptedJob
 {
     TJobPtr Job;
-    TDuration InterruptTimeout;
+    TDuration PreemptionTimeout;
     EJobPreemptionReason PreemptionReason;
 };
 
@@ -104,7 +104,7 @@ struct ISchedulingContext
         int schedulingIndex,
         EJobSchedulingStage schedulingStage) = 0;
 
-    virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) = 0;
+    virtual void PreemptJob(const TJobPtr& job, TDuration preemptionTimeout, EJobPreemptionReason preemptionReason) = 0;
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 

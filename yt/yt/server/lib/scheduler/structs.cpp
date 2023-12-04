@@ -14,11 +14,9 @@ using namespace NControllerAgent;
 
 TJobStartDescriptor::TJobStartDescriptor(
     TJobId id,
-    const TJobResourcesWithQuota& resourceLimits,
-    bool interruptible)
+    const TJobResourcesWithQuota& resourceLimits)
     : Id(id)
     , ResourceLimits(resourceLimits)
-    , Interruptible(interruptible)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

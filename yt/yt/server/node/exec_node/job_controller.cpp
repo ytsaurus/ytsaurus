@@ -1418,7 +1418,7 @@ private:
             }
         }
 
-        for (const auto& allocationToInterrupt : response->allocations_to_interrupt()) {
+        for (const auto& allocationToInterrupt : response->allocations_to_preempt()) {
             auto timeout = FromProto<TDuration>(allocationToInterrupt.timeout());
             auto jobId = FromAllocationId(FromProto<TAllocationId>(allocationToInterrupt.allocation_id()));
 
@@ -1432,17 +1432,16 @@ private:
                     preemptionReason = allocationToInterrupt.preemption_reason();
                 }
 
-                EInterruptReason interruptionReason = EInterruptReason::None;
-                if (allocationToInterrupt.has_interruption_reason()) {
-                    interruptionReason = CheckedEnumCast<EInterruptReason>(allocationToInterrupt.interruption_reason());
-                }
-
                 std::optional<NScheduler::TPreemptedFor> preemptedFor;
                 if (allocationToInterrupt.has_preempted_for()) {
                     preemptedFor = FromProto<NScheduler::TPreemptedFor>(allocationToInterrupt.preempted_for());
                 }
 
-                job->Interrupt(timeout, interruptionReason, preemptionReason, preemptedFor);
+                job->Interrupt(
+                    timeout,
+                    /*interruptionReason*/ EInterruptReason::Preemption,
+                    preemptionReason,
+                    preemptedFor);
             } else {
                 YT_LOG_WARNING(
                     "Scheduler requested to interrupt a non-existing job (JobId: %v)",

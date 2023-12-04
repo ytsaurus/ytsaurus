@@ -112,7 +112,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             "fair_share_starvation_timeout": 1000,
             "max_unpreemptible_running_job_count": 0,
             "preemptive_scheduling_backoff": 0,
-            "job_graceful_interrupt_timeout": 10000,
+            "allocation_graceful_preemption_timeout": 10000,
         })
 
     @authors("ignat")
@@ -411,7 +411,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("ignat")
     def test_waiting_job_timeout(self):
         set("//sys/pool_trees/default/@config/waiting_job_timeout", 10000)
-        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 5000)
+        set("//sys/pool_trees/default/@config/allocation_preemption_timeout", 5000)
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
@@ -449,7 +449,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_inconsistent_waiting_job_timeout(self):
         # Pool tree misconfiguration
         set("//sys/pool_trees/default/@config/waiting_job_timeout", 5000)
-        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 15000)
+        set("//sys/pool_trees/default/@config/allocation_preemption_timeout", 15000)
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
@@ -485,7 +485,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_usage_overcommit_due_to_interruption(self):
         # Pool tree misconfiguration
         set("//sys/pool_trees/default/@config/waiting_job_timeout", 600000)
-        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 600000)
+        set("//sys/pool_trees/default/@config/allocation_preemption_timeout", 600000)
 
         set("//sys/scheduler/config/running_jobs_update_period", 100)
 
@@ -1057,8 +1057,8 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
     def setup_method(self, method):
         super(TestResourceLimitsOverdraftPreemption, self).setup_method(method)
         update_pool_tree_config("default", {
-            "job_graceful_interrupt_timeout": 10000,
-            "job_interrupt_timeout": 600000,
+            "allocation_graceful_preemption_timeout": 10000,
+            "allocation_preemption_timeout": 600000,
         })
 
     def teardown_method(self, method):
@@ -1067,7 +1067,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_scheduler_preempt_overdraft_resources(self):
-        update_pool_tree_config_option("default", "job_interrupt_timeout", 1000)
+        update_pool_tree_config_option("default", "allocation_preemption_timeout", 1000)
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) > 0

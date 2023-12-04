@@ -465,8 +465,7 @@ TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::Schedule
     auto jobId = TJobId(TGuid::Create());
     scheduleJobResult->StartDescriptor.emplace(
         jobId,
-        jobToSchedule.ResourceLimits,
-        /* interruptible */ false);
+        jobToSchedule.ResourceLimits);
 
     dynamic_cast<TSchedulingContext*>(context.Get())->SetDurationForStartedJob(jobId, jobToSchedule.Duration);
     IdToDescription_.Insert(jobId, jobToSchedule);

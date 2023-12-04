@@ -127,10 +127,9 @@ message TScheduleJobResponse
     required NYT.NProto.TGuid job_id = 1;
     required bool success = 2;
     optional TJobResourcesWithQuota resource_limits = 3;
-    optional bool interruptible = 4;
-    repeated TFailedCounter failed = 5;
-    required uint64 duration = 6;
-    optional uint64 next_duration_estimate = 10;
+    repeated TFailedCounter failed = 4;
+    required uint64 duration = 5;
+    optional uint64 next_duration_estimate = 6;
     required NYT.NProto.TGuid operation_id = 7;
     required int32 controller_epoch = 8 [default = -1];
 

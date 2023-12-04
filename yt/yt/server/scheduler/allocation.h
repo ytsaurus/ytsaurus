@@ -53,9 +53,6 @@ public:
     //! The time when the job was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
-    //! True if job can be interrupted.
-    DEFINE_BYVAL_RO_PROPERTY(bool, Interruptible);
-
     //! True if job was already unregistered.
     DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered, false);
 
@@ -90,11 +87,11 @@ public:
     //! Preemptor operation was starvation status corresponded to the preemptive scheduling stage type.
     DEFINE_BYVAL_RW_PROPERTY(bool, PreemptedForProperlyStarvingOperation, false);
 
-    //! The purpose of the job interruption.
-    DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptionReason, EInterruptReason::None);
+    //! Is preemption requested for allocation.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Preempted, false);
 
-    //! Timeout for job to be interrupted (considering by node).
-    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuDuration, InterruptionTimeout, 0);
+    //! Timeout for job to be preempted (considering by node).
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuDuration, PreemptionTimeout, 0);
 
     //! Deadline for running job.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);
@@ -117,7 +114,6 @@ public:
         TInstant startTime,
         const TJobResources& resourceLimits,
         const TDiskQuota& diskQuota,
-        bool interruptible,
         EPreemptionMode preemptionMode,
         TString treeId,
         int schedulingIndex,
@@ -129,8 +125,6 @@ public:
     bool IsRevived() const;
 
     void SetNode(const TExecNodePtr& node);
-
-    bool IsInterrupted() const noexcept;
 
 private:
     NLogging::TLogger CreateLogger();

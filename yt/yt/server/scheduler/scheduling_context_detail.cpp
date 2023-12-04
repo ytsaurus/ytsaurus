@@ -174,7 +174,6 @@ void TSchedulingContextBase::StartJob(
         startTime,
         startDescriptor.ResourceLimits.ToJobResources(),
         startDescriptor.ResourceLimits.DiskQuota(),
-        startDescriptor.Interruptible,
         preemptionMode,
         treeId,
         schedulingIndex,
@@ -182,10 +181,10 @@ void TSchedulingContextBase::StartJob(
     StartedJobs_.push_back(job);
 }
 
-void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason)
+void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration preemptionTimeout, EJobPreemptionReason preemptionReason)
 {
     YT_VERIFY(job->GetNode() == Node_);
-    PreemptedJobs_.push_back({job, interruptTimeout, preemptionReason});
+    PreemptedJobs_.push_back({job, preemptionTimeout, preemptionReason});
 }
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount() const

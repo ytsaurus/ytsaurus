@@ -20,7 +20,6 @@ TJob::TJob(
     TInstant startTime,
     const TJobResources& resourceLimits,
     const TDiskQuota& diskQuota,
-    bool interruptible,
     EPreemptionMode preemptionMode,
     TString treeId,
     int schedulingIndex,
@@ -35,7 +34,6 @@ TJob::TJob(
     , RevivalNodeId_(revivalNodeId)
     , RevivalNodeAddress_(std::move(revivalNodeAddress))
     , StartTime_(startTime)
-    , Interruptible_(interruptible)
     , TreeId_(std::move(treeId))
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
@@ -56,11 +54,6 @@ void TJob::SetNode(const TExecNodePtr& node)
 bool TJob::IsRevived() const
 {
     return RevivalNodeId_ != NNodeTrackerClient::InvalidNodeId;
-}
-
-bool TJob::IsInterrupted() const noexcept
-{
-    return InterruptionReason_ != EInterruptReason::None;
 }
 
 NLogging::TLogger TJob::CreateLogger()

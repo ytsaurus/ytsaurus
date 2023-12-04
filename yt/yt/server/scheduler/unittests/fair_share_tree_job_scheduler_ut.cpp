@@ -771,7 +771,6 @@ protected:
             startTime,
             jobResources,
             TDiskQuota(),
-            /*interruptible*/ false,
             /*preemptionMode*/ EPreemptionMode::Normal,
             /*treeId*/ "",
             /*schedulingIndex*/ UndefinedSchedulingIndex);
@@ -1448,7 +1447,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources, /*interruptible*/ false);
+                result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
                     TErrorOr<TControllerScheduleJobResultPtr>(result));
             }));
@@ -1656,7 +1655,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutBatchSchedu
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources, /*interruptible*/ false);
+                result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
                     TErrorOr<TControllerScheduleJobResultPtr>(result));
             }));

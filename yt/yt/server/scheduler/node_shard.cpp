@@ -70,16 +70,6 @@ TAllocationId GetAllocationId(const NProto::TAllocationStatus* status)
     return FromProto<TAllocationId>(status->allocation_id());
 }
 
-auto* MutableJobId(NProto::NNode::TAllocationToInterrupt* proto)
-{
-    return proto->mutable_allocation_id();
-}
-
-auto* MutableJobId(NProto::NNode::TAllocationStartInfo* proto)
-{
-    return proto->mutable_allocation_id();
-}
-
 auto& GetJobs(NProto::NNode::TReqHeartbeat* request)
 {
     return request->allocations();
@@ -118,35 +108,26 @@ void SetControllerAgentIncarnationId(const TControllerAgentPtr& agent, auto prot
     ToProto(proto->mutable_incarnation_id(), agent->GetIncarnationId());
 }
 
-auto* AddJobsToInterrupt(NProto::NNode::TRspHeartbeat* response)
-{
-    return response->add_allocations_to_interrupt();
-}
-
-auto* AddJobsToStart(NProto::NNode::TRspHeartbeat* response)
-{
-    return response->add_allocations_to_start();
-}
-
-void AddJobToInterrupt(
-    TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
+void AddJobToPreempt(
+    NProto::NNode::TRspHeartbeat* response,
     TJobId jobId,
     TDuration duration,
-    EInterruptReason interruptionReason,
     const std::optional<TString>& preemptionReason,
     const std::optional<TPreemptedFor>& preemptedFor)
 {
-    auto jobToInterrupt = AddJobsToInterrupt(response);
-    ToProto(MutableJobId(jobToInterrupt), jobId);
-    jobToInterrupt->set_timeout(ToProto<i64>(duration));
-    jobToInterrupt->set_interruption_reason(static_cast<int>(interruptionReason));
+    auto jobToPreempt = response->add_allocations_to_preempt();
+    ToProto(jobToPreempt->mutable_allocation_id(), jobId);
+    jobToPreempt->set_timeout(ToProto<i64>(duration));
+
+    // COMPAT(pogorelov): Remove after 23.3 will be everywhere.
+    jobToPreempt->set_interruption_reason(static_cast<int>(EInterruptReason::Preemption));
 
     if (preemptionReason) {
-        jobToInterrupt->set_preemption_reason(*preemptionReason);
+        jobToPreempt->set_preemption_reason(*preemptionReason);
     }
 
     if (preemptedFor) {
-        ToProto(jobToInterrupt->mutable_preempted_for(), *preemptedFor);
+        ToProto(jobToPreempt->mutable_preempted_for(), *preemptedFor);
     }
 }
 
@@ -1228,8 +1209,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
     if (response.success()) {
         result->StartDescriptor.emplace(
             jobId,
-            FromProto<TJobResourcesWithQuota>(response.resource_limits()),
-            response.interruptible());
+            FromProto<TJobResourcesWithQuota>(response.resource_limits()));
     }
     for (const auto& protoCounter : response.failed()) {
         result->Failed[static_cast<EScheduleJobFailReason>(protoCounter.reason())] = protoCounter.value();
@@ -1845,11 +1825,11 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                     YT_ABORT();
             }
 
-            if (job->IsInterrupted()) {
-                SendInterruptedJobToNode(
+            if (job->GetPreempted()) {
+                SendPreemptedJobToNode(
                     response,
                     job,
-                    CpuDurationToDuration(job->GetInterruptionTimeout()));
+                    CpuDurationToDuration(job->GetPreemptionTimeout()));
             }
 
             break;
@@ -2063,8 +2043,8 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
 
         RegisterJob(job);
 
-        auto* startInfo = AddJobsToStart(response);
-        ToProto(MutableJobId(startInfo), job->GetId());
+        auto* startInfo = response->add_allocations_to_start();
+        ToProto(startInfo->mutable_allocation_id(), job->GetId());
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = ToNodeResources(job->ResourceUsage());
 
@@ -2077,7 +2057,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
 
     for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {
         auto& job = preemptedJob.Job;
-        auto interruptTimeout = preemptedJob.InterruptTimeout;
+        auto preemptionTimeout = preemptedJob.PreemptionTimeout;
         if (!FindOperationState(job->GetOperationId()) || job->GetUnregistered()) {
             YT_LOG_DEBUG("Cannot preempt job since operation is no longer known or the job is unregistered (JobId: %v, OperationId: %v)",
                 job->GetId(),
@@ -2085,7 +2065,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
             continue;
         }
 
-        ProcessPreemptedJob(response, job, interruptTimeout);
+        ProcessPreemptedJob(response, job, preemptionTimeout);
     }
 }
 
@@ -2378,65 +2358,58 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool causedByRevival)
     }
 }
 
-template <class TRspHeartbeat>
-void TNodeShard::SendInterruptedJobToNode(
-    TRspHeartbeat* response,
+void TNodeShard::SendPreemptedJobToNode(
+    NProto::NNode::TRspHeartbeat* response,
     const TJobPtr& job,
-    TDuration interruptTimeout) const
+    TDuration preemptionTimeout) const
 {
     YT_LOG_DEBUG(
-        "Add job to interrupt (JobId: %v, InterruptionReason: %v, InterruptTimeout: %v)",
+        "Add job to preempt (JobId: %v, PreemptionTimeout: %v)",
         job->GetId(),
-        job->GetInterruptionReason(),
-        interruptTimeout);
-    AddJobToInterrupt(
+        preemptionTimeout);
+    AddJobToPreempt(
         response,
         job->GetId(),
-        interruptTimeout,
-        job->GetInterruptionReason(),
+        preemptionTimeout,
         job->GetPreemptionReason(),
         job->GetPreemptedFor());
 }
 
-template <class TRspHeartbeat>
-void TNodeShard::ProcessPreemptedJob(TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)
+void TNodeShard::ProcessPreemptedJob(
+    NProto::NNode::TRspHeartbeat* response,
+    const TJobPtr& job,
+    TDuration preemptionTimeout)
 {
-    PreemptJob(job, DurationToCpuDuration(interruptTimeout));
-    SendInterruptedJobToNode(response, job, interruptTimeout);
+    PreemptJob(job, DurationToCpuDuration(preemptionTimeout));
+    SendPreemptedJobToNode(response, job, preemptionTimeout);
 }
 
-void TNodeShard::PreemptJob(const TJobPtr& job, TCpuDuration interruptTimeout)
+void TNodeShard::PreemptJob(const TJobPtr& job, TCpuDuration preemptionTimeout)
 {
-    YT_LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, TreeId: %v, Interruptible: %v, Reason: %v)",
+    YT_LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, TreeId: %v, Reason: %v)",
         job->GetId(),
         job->GetOperationId(),
         job->GetTreeId(),
-        job->GetInterruptible(),
         job->GetPreemptionReason());
 
-    DoInterruptJob(job, EInterruptReason::Preemption, interruptTimeout);
+    DoPreemptJob(job, preemptionTimeout);
 }
 
-// TODO(pogorelov): Refactor interruption
-void TNodeShard::DoInterruptJob(
+// TODO(pogorelov): Refactor preemption processing
+void TNodeShard::DoPreemptJob(
     const TJobPtr& job,
-    EInterruptReason reason,
-    TCpuDuration interruptTimeout,
-    const std::optional<TString>& interruptUser)
+    TCpuDuration preemptionTimeout)
 {
-    YT_VERIFY(reason != EInterruptReason::None);
-
-    YT_LOG_DEBUG("Interrupting job (Reason: %v, InterruptionTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
-        reason,
-        CpuDurationToDuration(interruptTimeout).SecondsFloat(),
+    YT_LOG_DEBUG(
+        "Preempting job (PreemptionTimeout: %.3g, JobId: %v, OperationId: %v)",
+        CpuDurationToDuration(preemptionTimeout).SecondsFloat(),
         job->GetId(),
-        job->GetOperationId(),
-        interruptUser);
+        job->GetOperationId());
 
-    job->SetInterruptionReason(reason);
+    job->SetPreempted(true);
 
-    if (interruptTimeout != 0) {
-        job->SetInterruptionTimeout(interruptTimeout);
+    if (preemptionTimeout != 0) {
+        job->SetPreemptionTimeout(preemptionTimeout);
     }
 }
 

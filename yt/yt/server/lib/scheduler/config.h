@@ -349,11 +349,11 @@ public:
     bool PreemptionCheckStarvation;
     bool PreemptionCheckSatisfaction;
 
-    // Timeout for job interruption before we abort it.
-    TDuration JobInterruptTimeout;
+    // Job preemption timeout.
+    TDuration JobPreemptionTimeout;
 
-    // Timeout for graceful job interruption before we abort it.
-    TDuration JobGracefulInterruptTimeout;
+    // Job graceful preemption timeout.
+    TDuration JobGracefulPreemptionTimeout;
 
     TFairShareStrategySchedulingSegmentsConfigPtr SchedulingSegments;
 

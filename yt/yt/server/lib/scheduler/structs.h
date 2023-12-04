@@ -22,12 +22,10 @@ struct TJobStartDescriptor
 {
     TJobStartDescriptor(
         TJobId id,
-        const TJobResourcesWithQuota& resourceLimits,
-        bool interruptible);
+        const TJobResourcesWithQuota& resourceLimits);
 
     const TJobId Id;
     const TJobResourcesWithQuota ResourceLimits;
-    const bool Interruptible;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

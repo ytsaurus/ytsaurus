@@ -674,8 +674,7 @@ void TTask::ScheduleJob(
 
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
-        neededResources,
-        joblet->JobInterruptible);
+        neededResources);
 
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context->GetNodeDescriptor();

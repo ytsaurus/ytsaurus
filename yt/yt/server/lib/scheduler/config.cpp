@@ -404,10 +404,12 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("preemption_check_satisfaction", &TThis::PreemptionCheckSatisfaction)
         .Default(true);
 
-    registrar.Parameter("job_interrupt_timeout", &TThis::JobInterruptTimeout)
+    registrar.Parameter("allocation_preemption_timeout", &TThis::JobPreemptionTimeout)
+        .Alias("job_interrupt_timeout")
         .Default(TDuration::Seconds(10));
 
-    registrar.Parameter("job_graceful_interrupt_timeout", &TThis::JobGracefulInterruptTimeout)
+    registrar.Parameter("allocation_graceful_preemption_timeout", &TThis::JobGracefulPreemptionTimeout)
+        .Alias("job_graceful_interrupt_timeout")
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("scheduling_segments", &TThis::SchedulingSegments)

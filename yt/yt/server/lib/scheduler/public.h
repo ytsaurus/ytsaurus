@@ -65,7 +65,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((OperationAlertArchivation)                    (14))
     ((ManageSchedulingSegments)                     (15))
     ((UpdateSsdPriorityPreemptionMedia)             (16))
-    ((FoundNodesWithUnsupportedInterruption)        (17))
+    ((FoundNodesWithUnsupportedPreemption)          (17))
     ((ArchiveIsOutdated)                            (18))
 );
 
