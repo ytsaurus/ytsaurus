@@ -448,7 +448,7 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
         job_with_stderr = {}
         job_with_stderr["host"] = job.attributes["address"]
 
-        if only_failed_jobs:
+        if only_failed_jobs and "error" in job.attributes:
             job_with_stderr["error"] = job.attributes["error"]
 
         ignore_errors = get_config(yt_client)["operation_tracker"]["ignore_stderr_if_download_failed"]
