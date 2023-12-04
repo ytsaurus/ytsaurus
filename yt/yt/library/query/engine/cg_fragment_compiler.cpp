@@ -2994,17 +2994,12 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     std::vector<EValueType> stateTypes,
     bool allAggregatesFirst,
     bool isMerge,
-    bool checkNulls,
+    bool checkForNullGroupKey,
     size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager)
 {
-    // codegenInitialize calls the aggregates' initialisation functions
-    // codegenEvaluateGroups evaluates the group expressions
-    // codegenEvaluateAggregateArgs evaluates the aggregates' arguments
-    // codegenUpdate calls the aggregates' update or merge functions
-
-    size_t boundaryConsumerSlot = (*slotCount)++;
-    size_t innerConsumerSlot = (*slotCount)++;
+    size_t intermediateSlot = (*slotCount)++;
+    size_t finalSlot = (*slotCount)++;
 
     *codegenSource = [
         =,
@@ -3073,6 +3068,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 }
 
                 Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
+                Value* streamTag = builder->getInt64(0); // Dummy tag.
 
                 auto groupValues = builder->CreateCall(
                     builder.Module->GetRoutine("InsertGroupRow"),
@@ -3080,7 +3076,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                         builder.GetExecutionContext(),
                         groupByClosureRef,
                         newValuesRef,
-                        builder->getInt8(allAggregatesFirst)
+                        streamTag,
                     });
 
                 auto inserted = builder->CreateICmpEQ(
@@ -3143,9 +3139,8 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
             builder->CreateRetVoid();
         });
 
-        auto boundaryConsume = MakeConsumer(builder, "ConsumeGroupedRows", boundaryConsumerSlot);
-
-        auto innerConsume = MakeConsumer(builder, "ConsumeGroupedRows", innerConsumerSlot);
+        auto consumeIntermediate = MakeConsumer(builder, "ConsumeGroupedIntermediateRows", intermediateSlot);
+        auto consumeFinal = MakeConsumer(builder, "ConsumeGroupedFinalRows", finalSlot);
 
         builder->CreateCall(
             builder.Module->GetRoutine("GroupOpHelper"),
@@ -3157,21 +3152,22 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 comparerManager->GetEqComparer(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
                 builder->getInt32(keyTypes.size()),
                 builder->getInt32(stateTypes.size()),
-                builder->getInt8(checkNulls),
+
+                builder->getInt8(checkForNullGroupKey),
+                builder->getInt8(allAggregatesFirst),
 
                 collect.ClosurePtr,
                 collect.Function,
 
-                boundaryConsume.ClosurePtr,
-                boundaryConsume.Function,
+                consumeIntermediate.ClosurePtr,
+                consumeIntermediate.Function,
 
-                innerConsume.ClosurePtr,
-                innerConsume.Function,
+                consumeFinal.ClosurePtr,
+                consumeFinal.Function,
             });
-
     };
 
-    return std::make_pair(boundaryConsumerSlot, innerConsumerSlot);
+    return std::make_pair(intermediateSlot, finalSlot);
 }
 
 size_t MakeCodegenGroupTotalsOp(

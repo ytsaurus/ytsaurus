@@ -62,12 +62,6 @@ struct TCodegenAggregate
     TCodegenAggregateFinalize Finalize;
 };
 
-DEFINE_ENUM(EStreamTag,
-    (Final)
-    (Intermediate)
-    (Totals)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TComparerManager)
@@ -225,7 +219,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     std::vector<EValueType> stateTypes,
     bool allAggregatesFirst,
     bool isMerge,
-    bool checkNulls,
+    bool checkForNullGroupKey,
     size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager);
 

@@ -1238,7 +1238,7 @@ TQueryStatistics DoExecuteQuery(
         }
 
         if (isFirstRead && query->IsOrdered()) {
-            EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingSize, query->Offset + query->Limit));
+            EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
 
@@ -1764,7 +1764,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto frontReader = CreateUnorderedSchemafulReader(getNextReader, 2);
+        auto frontReader = CreateFullPrefetchingOrderedSchemafulReader(getNextReader);
 
         IUnversionedRowsetWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncResultRowset;
@@ -1780,7 +1780,8 @@ protected:
             GetDefaultMemoryChunkProvider(),
             TQueryBaseOptions());
 
-        resultMatcher(WaitFor(asyncResultRowset).ValueOrThrow()->GetRows(), *frontQuery->GetTableSchema());
+        auto rows = WaitFor(asyncResultRowset).ValueOrThrow()->GetRows();
+        resultMatcher(rows, *frontQuery->GetTableSchema());
 
         if (IsTimeDumpEnabled()) {
             DumpTime(frontStatistics);
@@ -2703,7 +2704,7 @@ TEST_F(TQueryEvaluateTest, GroupByAlias)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupWithTotals)
+TEST_F(TQueryEvaluateTest, GroupByWithTotals)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2776,7 +2777,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsNulls)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2804,7 +2805,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsEmpty)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2828,7 +2829,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupWithLimitFirst)
+TEST_F(TQueryEvaluateTest, GroupByWithLimitFirst)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
@@ -2854,7 +2855,7 @@ TEST_F(TQueryEvaluateTest, GroupWithLimitFirst)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupWithLimitFirstString)
+TEST_F(TQueryEvaluateTest, GroupByWithLimitFirstString)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
@@ -3054,7 +3055,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupWithTotalsAndLimit)
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3117,7 +3118,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsAndLimit)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupDisjointTotalsLimit)
+TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
@@ -3175,7 +3176,7 @@ TEST_F(TQueryEvaluateTest, GroupDisjointTotalsLimit)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, JoinGroupWithLimit)
+TEST_F(TQueryEvaluateTest, JoinGroupByWithLimit)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources(2);
@@ -6692,7 +6693,7 @@ TEST_F(TQueryEvaluateTest, CoordinatedMaxGroupBy)
         {"revision", EValueType::Int64},
         {"person", EValueType::String},
     });
-    std::vector<std::vector<TString>> source = {
+    std::vector<std::vector<TString>> sources = {
         {
             "id=1; revision=2; person=\"britney\"",
             "id=2; revision=3; person=\"camilla\"",
@@ -6729,7 +6730,7 @@ TEST_F(TQueryEvaluateTest, CoordinatedMaxGroupBy)
         "revision, max(person) as max_person FROM [//t] "
         "group by revision with totals order by revision limit 100",
         split,
-        source,
+        sources,
         ResultMatcher(result));
 }
 

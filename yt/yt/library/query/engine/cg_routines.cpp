@@ -186,7 +186,9 @@ void ScanOpHelper(
     auto startBatchSize = context->Offset + context->Limit;
 
     TRowBatchReadOptions readOptions{
-        .MaxRowsPerRead = context->Ordered ? std::min(startBatchSize, RowsetProcessingSize) : RowsetProcessingSize
+        .MaxRowsPerRead = context->Ordered
+            ? std::min(startBatchSize, RowsetProcessingBatchSize)
+            : RowsetProcessingBatchSize
     };
 
     std::vector<const TValue*> values;
@@ -249,7 +251,7 @@ void ScanOpHelper(
         rowBuffer->Clear();
 
         if (!context->IsMerge) {
-            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, RowsetProcessingSize);
+            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, RowsetProcessingBatchSize);
         }
     }
 }
@@ -506,7 +508,7 @@ void MultiJoinOpHelper(
             TPIValue* lastForeignKey = nullptr;
 
             TRowBatchReadOptions readOptions{
-                .MaxRowsPerRead = RowsetProcessingSize
+                .MaxRowsPerRead = RowsetProcessingBatchSize
             };
 
             std::vector<TPIValue*> foreignValues;
@@ -692,7 +694,7 @@ void MultiJoinOpHelper(
 
                 joinedRows.push_back(joinedRow.Begin());
 
-                if (joinedRows.size() >= RowsetProcessingSize) {
+                if (joinedRows.size() >= RowsetProcessingBatchSize) {
                     if (consumeJoinedRows()) {
                         return true;
                     }
@@ -733,67 +735,354 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoutines
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TWebAssemblyRowsConsumer = NWebAssembly::TCompartmentFunction<bool(void**, TExpressionContext*, const TPIValue**, i64)>;
+
+DEFINE_ENUM(EGroupOpProcessingStage,
+    ((LeftBorder)  (0))
+    ((Inner)       (1))
+    ((RightBorder) (2))
+);
+
+class TGroupByClosure
+{
+public:
+    TGroupByClosure(
+        IMemoryChunkProviderPtr chunkProvider,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
+        NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
+        int keySize,
+        bool shouldCheckForNullGroupKey,
+        bool allAggregatesAreFirst,
+        void** consumeIntermediateClosure,
+        TWebAssemblyRowsConsumer consumeIntermediate,
+        void** consumeFinalClosure,
+        TWebAssemblyRowsConsumer consumeFinal);
+
+    // The grouping key cannot be null if `with totals` is used,
+    // since the result of `totals` is contained in a row with a null group key.
+    Y_FORCE_INLINE void ValidateGroupKeyIsNotNull(TPIValue* row) const;
+
+    // If the common prefix of primary key and group key has changed,
+    // no new lines can be added to the grouping. Thus, we can flush.
+    Y_FORCE_INLINE void FlushIfCurrentGroupSetIsFinished(TPIValue* row, const TExecutionContext* context);
+
+    // If the request exceeds the given memory limit, we interrupt processing.
+    // NB: We do not guarantee the correctness of the result.
+    Y_FORCE_INLINE void ValidateGroupedRowCount(i64 groupRowLimit) const;
+
+    // Stops execution when input is ordered.
+    Y_FORCE_INLINE bool IsRowSkippingAllowed(const TExecutionContext* context) const;
+
+    // If all aggregate functions are `first()`, we can stop the query execution when the limit is reached.
+    Y_FORCE_INLINE bool StopWhenAllAggregatesAreFirst() const;
+
+    // If row's group key exists in the lookup table, the row should be grouped.
+    // Returns grouped row in the lookup table.
+    Y_FORCE_INLINE const TPIValue* InsertOneMoreRowWhenLimitIsReached(TPIValue* row, const TExecutionContext* context);
+
+    // Returns grouped row in the lookup table.
+    Y_FORCE_INLINE const TPIValue* InsertIntermediate(TPIValue* row, const TExecutionContext* context);
+
+    // Flushes grouped rows.
+    Y_FORCE_INLINE void Flush(const TExecutionContext* context);
+
+    // Returns buffer that holds grouped rows.
+    Y_FORCE_INLINE TRowBuffer* GetBuffer() const;
+
+    // Number of processed rows for logging.
+    Y_FORCE_INLINE i64 GetProcessedRowCount() const;
+
+    // Notifies that the next flush is the last flush.
+    Y_FORCE_INLINE void SetClosingSegment();
+
+    // At the end of the group operation all rows should be flushed.
+    Y_FORCE_INLINE bool IsFlushed() const;
+
+private:
+    TRowBufferPtr Buffer_;
+
+    // The grouping key and the primary key may have a common prefix of length P.
+    // This function compares prefixes of length P.
+    const NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer_;
+
+    TLookupRows GroupedIntermediateRows_;
+    const int KeySize_;
+
+    // When executing a query with `with totals`, we store data for `totals` using the null grouping key.
+    // Thus, rows with a null grouping key should lead to an execution error.
+    const bool ShouldCheckForNullGroupKey_;
+
+    // If all aggregate functions are `first()`, we can stop the query execution when the limit is reached.
+    const bool AllAggregatesAreFirst_;
+
+    void** const ConsumeIntermediateClosure_;
+    const TWebAssemblyRowsConsumer ConsumeIntermediate_;
+
+    void** const ConsumeFinalClosure_;
+    const TWebAssemblyRowsConsumer ConsumeFinal_;
+
+    const TPIValue* LastKey_ = nullptr;
+    std::vector<const TPIValue*> GroupedRows_;
+
+    // Defines the stage of the stream processing.
+    EGroupOpProcessingStage CurrentSegment_ = EGroupOpProcessingStage::LeftBorder;
+
+    // GroupedRows can be flushed and cleared during aggregation.
+    // So we have to count grouped rows separately.
+    i64 GroupedRowCount_ = 0;
+
+    // We perform flushes (and yields) during grouping.
+    NRoutines::TYielder Yielder_{};
+    i64 ProcessedRows_ = 0;
+    TRowBufferPtr FlushBuffer_ = New<TRowBuffer>(TIntermediateBufferTag());
+
+    template <typename TFlushFunction>
+    Y_FORCE_INLINE void FlushWithBatching(
+        const TExecutionContext* context,
+        const TPIValue** begin,
+        const TPIValue** end,
+        const TFlushFunction& flush);
+
+    Y_FORCE_INLINE void FlushIntermediate(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+    Y_FORCE_INLINE void FlushFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+};
+
+TGroupByClosure::TGroupByClosure(
+    IMemoryChunkProviderPtr chunkProvider,
+    NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
+    NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
+    NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
+    int keySize,
+    bool shouldCheckForNullGroupKey,
+    bool allAggregatesAreFirst,
+    void** consumeIntermediateClosure,
+    TWebAssemblyRowsConsumer consumeIntermediate,
+    void** consumeFinalClosure,
+    TWebAssemblyRowsConsumer consumeFinal)
+    : Buffer_(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
+    , PrefixEqComparer_(prefixEqComparer)
+    , GroupedIntermediateRows_(
+        InitialGroupOpHashtableCapacity,
+        groupHasher,
+        groupComparer)
+    , KeySize_(keySize)
+    , ShouldCheckForNullGroupKey_(shouldCheckForNullGroupKey)
+    , AllAggregatesAreFirst_(allAggregatesAreFirst)
+    , ConsumeIntermediateClosure_(consumeIntermediateClosure)
+    , ConsumeIntermediate_(consumeIntermediate)
+    , ConsumeFinalClosure_(consumeFinalClosure)
+    , ConsumeFinal_(consumeFinal)
+{
+    GroupedIntermediateRows_.set_empty_key(nullptr);
+}
+
+void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
+{
+    if (!ShouldCheckForNullGroupKey_) {
+        return;
+    }
+
+    if (std::all_of(
+        &row[0],
+        &row[KeySize_],
+        [] (const TPIValue& value) {
+            return value.Type == EValueType::Null;
+        }))
+    {
+        THROW_ERROR_EXCEPTION("Null values are forbidden in group key");
+    }
+}
+
+void TGroupByClosure::FlushIfCurrentGroupSetIsFinished(TPIValue* row, const TExecutionContext* context)
+{
+    if (LastKey_ && !PrefixEqComparer_(row, LastKey_)) {
+        Flush(context);
+    }
+}
+
+void TGroupByClosure::ValidateGroupedRowCount(i64 groupRowLimit) const
+{
+    if (std::ssize(GroupedRows_) == groupRowLimit) {
+        throw TInterruptedIncompleteException();
+    }
+}
+
+bool TGroupByClosure::IsRowSkippingAllowed(const TExecutionContext* context) const
+{
+    // NB: We do not support `having` with `limit` yet.
+    // If query uses `having`, skipping rows here is incorrect because `having` filters rows.
+
+    // NB: Our semantics of `totals` operation allows to stop grouping when the limit is reached.
+
+    return context->Ordered &&
+        GroupedRowCount_ >= context->Offset + context->Limit;
+}
+
+bool TGroupByClosure::StopWhenAllAggregatesAreFirst() const
+{
+    return AllAggregatesAreFirst_;
+}
+
+const TPIValue* TGroupByClosure::InsertOneMoreRowWhenLimitIsReached(TPIValue* row, const TExecutionContext* context)
+{
+    YT_VERIFY(GroupedRowCount_ == context->Offset + context->Limit);
+    auto it = GroupedIntermediateRows_.find(row);
+    if (it != GroupedIntermediateRows_.end()) {
+        return *it;
+    }
+    return nullptr;
+}
+
+const TPIValue* TGroupByClosure::InsertIntermediate(TPIValue* row, const TExecutionContext* context)
+{
+    auto [it, inserted] = GroupedIntermediateRows_.insert(row);
+
+    if (inserted) {
+        YT_ASSERT(*it == row);
+
+        LastKey_ = *it;
+
+        GroupedRows_.push_back(row);
+        ++GroupedRowCount_;
+        YT_VERIFY(std::ssize(GroupedRows_) <= context->GroupRowLimit);
+
+        for (int index = 0; index < KeySize_; ++index) {
+            CapturePIValue(Buffer_.Get(), &row[index]);
+        }
+    }
+
+    return *it;
+}
+
+void TGroupByClosure::Flush(const TExecutionContext* context)
+{
+    if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::LeftBorder)) {
+        FlushIntermediate(context, GroupedRows_.data(), GroupedRows_.data() + GroupedRows_.size());
+        GroupedRows_.clear();
+    } else if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder)) {
+        // Can be non-null in last call.
+        i64 innerCount = GroupedRows_.size() - GroupedIntermediateRows_.size();
+        FlushFinal(context, GroupedRows_.data(), GroupedRows_.data() + innerCount);
+        FlushIntermediate(context, GroupedRows_.data() + innerCount, GroupedRows_.data() + GroupedRows_.size());
+        GroupedRows_.clear();
+    } else if (Y_UNLIKELY(GroupedRows_.size() >= RowsetProcessingBatchSize)) {
+        // When group key contains full primary key (used with joins), flush will be called on each grouped row.
+        // Thus, we batch calls to Flusher.
+        FlushFinal(context, GroupedRows_.data(), GroupedRows_.data() + GroupedRows_.size());
+        GroupedRows_.clear();
+    } else {
+        // Do nothing, GroupedRows will be flushed later.
+    }
+
+    GroupedIntermediateRows_.clear();
+    CurrentSegment_ = EGroupOpProcessingStage::Inner;
+}
+
+TRowBuffer* TGroupByClosure::GetBuffer() const
+{
+    return Buffer_.Get();
+}
+
+i64 TGroupByClosure::GetProcessedRowCount() const
+{
+    return ProcessedRows_;
+}
+
+void TGroupByClosure::SetClosingSegment()
+{
+    CurrentSegment_ = EGroupOpProcessingStage::RightBorder;
+}
+
+bool TGroupByClosure::IsFlushed() const
+{
+    return GroupedRows_.empty();
+}
+
+template <typename TFlushFunction>
+void TGroupByClosure::FlushWithBatching(
+    const TExecutionContext* context,
+    const TPIValue** begin,
+    const TPIValue** end,
+    const TFlushFunction& flush)
+{
+    bool finished = false;
+
+    // FIXME(dtorilov): We cannot skip intermediate rows for ordered queries
+    // (when the grouping key is a prefix of primary key),
+    // since intermediate rows from the beginning of the processed range
+    // can be grouped with rows of the previous range.
+    if (context->Ordered && ProcessedRows_ < context->Offset) {
+        i64 skip = std::min(context->Offset - ProcessedRows_, end - begin);
+        ProcessedRows_ += skip;
+        begin += skip;
+    }
+
+    while (!finished && begin < end) {
+        i64 size = std::min(begin + RowsetProcessingBatchSize, end) - begin;
+        ProcessedRows_ += size;
+        finished = flush(FlushBuffer_.Get(), begin, size);
+        FlushBuffer_->Clear();
+        Yielder_.Checkpoint(ProcessedRows_);
+        begin += size;
+    }
+}
+
+void TGroupByClosure::FlushIntermediate(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+{
+    auto flush = [this] (TRowBuffer* buffer, const TPIValue** begin, i64 size) {
+        return ConsumeIntermediate_(ConsumeIntermediateClosure_, buffer, begin, size);
+    };
+
+    FlushWithBatching(context, begin, end, flush);
+}
+
+void TGroupByClosure::FlushFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+{
+    auto flush = [this] (TRowBuffer* buffer, const TPIValue** begin, i64 size) {
+        return ConsumeFinal_(ConsumeFinalClosure_, buffer, begin, size);
+    };
+
+    FlushWithBatching(context, begin, end, flush);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NRoutines {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns nullptr when no more rows are needed.
 const TPIValue* InsertGroupRow(
     TExecutionContext* context,
     TGroupByClosure* closure,
     TPIValue* row,
-    bool allAggregatesFirst)
+    ui64 rowTagAsUint)
 {
-    CHECK_STACK();
+    auto rowTag = static_cast<EStreamTag>(rowTagAsUint);
+    Y_UNUSED(rowTag); // TODO(dtorilov): Consume rows based on this tag.
 
-    if (closure->LastKey && !closure->PrefixEqComparer(row, closure->LastKey)) {
-        closure->ProcessSegment();
-    }
+    closure->FlushIfCurrentGroupSetIsFinished(row, context);
 
-    // Any prefix but ordered scan.
-    if (context->Ordered && static_cast<i64>(closure->GroupedRowCount) >= context->Offset + context->Limit) {
-        if (allAggregatesFirst) {
+    closure->ValidateGroupedRowCount(context->GroupRowLimit);
+
+    if (closure->IsRowSkippingAllowed(context)) {
+        if (closure->StopWhenAllAggregatesAreFirst()) {
             return nullptr;
         }
 
-        YT_VERIFY(static_cast<i64>(closure->GroupedRowCount) == context->Offset + context->Limit);
-        auto found = closure->Lookup.find(row);
-        return found != closure->Lookup.end() ? *found : nullptr;
+        return closure->InsertOneMoreRowWhenLimitIsReached(row, context);
     }
 
-    // FIXME(lukyan): Incorrect in case of grouping by prefix.
-    bool limitReached = std::ssize(closure->GroupedRows) == context->GroupRowLimit;
+    closure->ValidateGroupKeyIsNotNull(row);
 
-    if (limitReached) {
-        auto found = closure->Lookup.find(row);
-
-        if (found == closure->Lookup.end()) {
-            throw TInterruptedIncompleteException();
-        }
-
-        return *found;
-    }
-
-    auto inserted = closure->Lookup.insert(row);
-
-    if (inserted.second) {
-        closure->LastKey = *inserted.first;
-
-        YT_ASSERT(*inserted.first == row);
-
-        closure->GroupedRows.push_back(row);
-        ++closure->GroupedRowCount;
-        YT_VERIFY(std::ssize(closure->GroupedRows) <= context->GroupRowLimit);
-
-        for (int index = 0; index < closure->KeySize; ++index) {
-            CapturePIValue(closure->Buffer.Get(), &row[index]);
-        }
-
-        if (closure->CheckNulls) {
-            for (int index = 0; index < closure->KeySize; ++index) {
-                if (row[index].Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("Null values are forbidden in group key");
-                }
-            }
-        }
-    }
-
-    return *inserted.first;
+    return closure->InsertIntermediate(row, context);
 }
 
 using TGroupCollector = void(*)(void** closure, TGroupByClosure* groupByClosure, TExpressionContext* context);
@@ -804,22 +1093,23 @@ void GroupOpHelper(
     THasherFunction* groupHasherFunction,
     TComparerFunction* groupComparerFunction,
     int keySize,
-    int valuesCount,
-    bool checkNulls,
+    int /*valuesCount*/,
+    bool shouldCheckForNullGroupKey,
+    bool allAggregatesAreFirst,
     void** collectRowsClosure,
     TGroupCollector collectRowsFunction,
-    void** boundaryConsumeRowsClosure,
-    TRowsConsumer boundaryConsumeRowsFunction,
-    void** innerConsumeRowsClosure,
-    TRowsConsumer innerConsumeRowsFunction)
+    void** consumeIntermediateClosure,
+    TRowsConsumer consumeIntermediateFunction,
+    void** consumeFinalClosure,
+    TRowsConsumer consumeFinalFunction)
 {
     auto* compartment = GetCurrentCompartment();
     auto collectRows = PrepareFunction(compartment, collectRowsFunction);
     auto prefixEqComparer = PrepareFunction(compartment, prefixEqComparerFunction);
     auto groupHasher = PrepareFunction(compartment, groupHasherFunction);
     auto groupComparer = PrepareFunction(compartment, groupComparerFunction);
-    auto boundaryConsumeRows = PrepareFunction(compartment, boundaryConsumeRowsFunction);
-    auto innerConsumeRows = PrepareFunction(compartment, innerConsumeRowsFunction);
+    auto consumeIntermediate = PrepareFunction(compartment, consumeIntermediateFunction);
+    auto consumeFinal = PrepareFunction(compartment, consumeFinalFunction);
 
     TGroupByClosure closure(
         context->MemoryChunkProvider,
@@ -827,90 +1117,34 @@ void GroupOpHelper(
         groupHasher,
         groupComparer,
         keySize,
-        valuesCount,
-        checkNulls);
-
-    TYielder yielder;
-    i64 processedRows = 0;
+        shouldCheckForNullGroupKey,
+        allAggregatesAreFirst,
+        consumeIntermediateClosure,
+        consumeIntermediate,
+        consumeFinalClosure,
+        consumeFinal);
 
     auto finalLogger = Finally([&] () {
-        YT_LOG_DEBUG("Finalizing group helper (PrecessedRows: %v)", processedRows);
+        YT_LOG_DEBUG("Finalizing group helper (ProcessedRows: %v)", closure.GetProcessedRowCount());
     });
 
-    auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
-
-    auto flushGroupedRows = [&] (bool isBoundary, const TPIValue** begin, const TPIValue** end) {
-        auto finished = false;
-
-        if (context->Ordered && processedRows < context->Offset) {
-            i64 skip = std::min(context->Offset - processedRows, end - begin);
-            processedRows += skip;
-            begin += skip;
-        }
-
-        while (!finished && begin < end) {
-            i64 size = std::min(begin + RowsetProcessingSize, end) - begin;
-
-            processedRows += size;
-
-            if (isBoundary) {
-                finished = boundaryConsumeRows(
-                    boundaryConsumeRowsClosure,
-                    intermediateBuffer.Get(),
-                    begin,
-                    size);
-            } else {
-                finished = innerConsumeRows(
-                    innerConsumeRowsClosure,
-                    intermediateBuffer.Get(),
-                    begin,
-                    size);
-            }
-
-            intermediateBuffer->Clear();
-            yielder.Checkpoint(processedRows);
-            begin += size;
-        }
-    };
-
-    bool boundarySegment = true;
-
-    // When group key contains full primary key (used with joins) ProcessSegment will be called on each grouped
-    // row.
-    closure.ProcessSegment = [&] {
-        auto& groupedRows = closure.GroupedRows;
-        auto& lookup = closure.Lookup;
-
-        if (Y_UNLIKELY(boundarySegment)) {
-            // Can be non null in last call.
-            size_t innerCount = groupedRows.size() - lookup.size();
-
-            flushGroupedRows(false, groupedRows.data(), groupedRows.data() + innerCount);
-            flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
-
-            groupedRows.clear();
-        } else if (Y_UNLIKELY(groupedRows.size() >= RowsetProcessingSize)) {
-            flushGroupedRows(false, groupedRows.data(), groupedRows.data() + groupedRows.size());
-            groupedRows.clear();
-        }
-
-        lookup.clear();
-        boundarySegment = false;
-    };
-
     try {
-        collectRows(collectRowsClosure, &closure, closure.Buffer.Get());
+        collectRows(collectRowsClosure, &closure, closure.GetBuffer());
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
+
+        // TODO(dtorilov): Since the request processing has exceeded the given limits, just exit here.
     }
 
-    boundarySegment = true;
+    closure.SetClosingSegment();
 
-    closure.ProcessSegment();
+    closure.Flush(context);
 
-    YT_VERIFY(closure.GroupedRows.empty());
+    YT_VERIFY(closure.IsFlushed());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 using TGroupTotalsCollector = void(*)(void** closure, TExpressionContext* context);
 
@@ -971,8 +1205,8 @@ void OrderOpHelper(
     size_t processedRows = 0;
 
     auto rowCount = static_cast<i64>(rows.size());
-    for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingSize) {
-        auto size = std::min(RowsetProcessingSize, rowCount - index);
+    for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingBatchSize) {
+        auto size = std::min(RowsetProcessingBatchSize, rowCount - index);
         processedRows += size;
 
         bool finished = consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);

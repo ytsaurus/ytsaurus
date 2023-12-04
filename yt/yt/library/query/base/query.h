@@ -429,7 +429,11 @@ struct TBaseQuery
     // TODO: Update protocol and fix it
     // If Limit == std::numeric_limits<i64>::max() - 1, then do ordered read with prefetch
     i64 Limit = std::numeric_limits<i64>::max();
+
+    // True if the grouping key uses each column of primary key.
+    // In this case, some additional optimizations can be applied.
     bool UseDisjointGroupBy = false;
+
     bool InferRanges = true;
 
     explicit TBaseQuery(TGuid id = TGuid::Create());

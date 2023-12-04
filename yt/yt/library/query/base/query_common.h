@@ -89,6 +89,12 @@ DEFINE_ENUM(EAggregateFunction,
     (Max)
 );
 
+DEFINE_ENUM(EStreamTag,
+    (Final)
+    (Intermediate)
+    (Totals)
+);
+
 const char* GetUnaryOpcodeLexeme(EUnaryOp opcode);
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
 const char* GetStringMatchOpcodeLexeme(EStringMatchOp opcode);

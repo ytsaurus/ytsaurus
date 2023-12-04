@@ -1113,6 +1113,8 @@ protected:
         TExpressionFragments* fragments);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstBaseQueryPtr& query,
@@ -1175,11 +1177,11 @@ void TQueryProfiler::Profile(
             }
 
             if (!mergeMode) {
-                std::vector<size_t> aggrArgIds;
+                std::vector<size_t> aggregateArgIds;
                 for (auto& arg : aggregateItem.Arguments) {
-                    aggrArgIds.push_back(Profile(TNamedItem{arg, ""}, schema, &expressionFragments));
+                    aggregateArgIds.push_back(Profile(TNamedItem{arg, ""}, schema, &expressionFragments));
                 }
-                aggregateExprIdsByFunc.emplace_back(std::move(aggrArgIds));
+                aggregateExprIdsByFunc.emplace_back(std::move(aggregateArgIds));
             }
             std::vector<EValueType> wireTypes;
             for (const auto& arg : aggregateItem.Arguments) {
@@ -1200,11 +1202,11 @@ void TQueryProfiler::Profile(
         }
         expressionFragments.DumpArgs(groupExprIds);
 
-        // If group key contains primary key prefix, full grouped rowset is not keeped till the end but flushed
+        // If group key contains primary key prefix, full grouped rowset is not kept till the end but flushed
         // every time prefix changes (scan is ordered by primary key, bottom queries are always evaluated along
-        // each tablet). Grouped rows with inner primary key prefix are transfered to final slot (they are
-        // disjoint). Grouped rows with boundary primary key prefix (with respect to tablet) are transfered to
-        // intermediate slot and needs final grouping.
+        // each tablet). Grouped rows with inner primary key prefix are transferred to final slot (they are
+        // disjoint). Grouped rows with boundary primary key prefix (with respect to tablet) are transferred to
+        // intermediate slot and need final grouping.
 
         size_t newFinalSlot;
         std::tie(intermediateSlot, newFinalSlot) = MakeCodegenGroupOp(
@@ -1232,7 +1234,7 @@ void TQueryProfiler::Profile(
 
         TCodegenFragmentInfosPtr havingFragmentsInfos;
 
-        size_t havingPredicateId;
+        size_t havingPredicateId = 0;
         bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
 
         if (addHaving) {
@@ -1423,6 +1425,9 @@ void TQueryProfiler::Profile(
     bool considerLimit = query->IsOrdered() && !query->GroupClause;
     Fold(static_cast<int>(considerLimit));
     if (considerLimit) {
+        // TODO(dtorilov): Since we have already applied filters to queries with `having` at this stage,
+        // it is safe to apply `limit` to the finalSlot of grouping queries.
+
         int offsetId = Variables_->AddOpaque<size_t>(query->Offset);
         int limitId = Variables_->AddOpaque<size_t>(query->Limit);
 

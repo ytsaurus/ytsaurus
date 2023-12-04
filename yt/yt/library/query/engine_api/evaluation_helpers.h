@@ -30,9 +30,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 RowsetProcessingSize = 1024;
-constexpr i64 WriteRowsetSize = 64 * RowsetProcessingSize;
-constexpr i64 MaxJoinBatchSize = 1024 * RowsetProcessingSize;
+constexpr i64 RowsetProcessingBatchSize = 1024;
+constexpr i64 WriteRowsetSize = 64 * RowsetProcessingBatchSize;
+constexpr i64 MaxJoinBatchSize = 1024 * RowsetProcessingBatchSize;
 
 class TInterruptedIncompleteException
 { };
@@ -182,32 +182,7 @@ struct TMultiJoinClosure
     std::function<bool()> ProcessJoinBatch;
 };
 
-struct TGroupByClosure
-{
-    TRowBufferPtr Buffer;
-    NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
-    TLookupRows Lookup;
-    const TPIValue* LastKey = nullptr;
-    std::vector<const TPIValue*> GroupedRows;
-    int KeySize;
-    int ValuesCount;
-    bool CheckNulls;
-
-    // GroupedRows can be flushed and cleared during aggregation.
-    // So we have to count grouped rows separately.
-    size_t GroupedRowCount = 0;
-
-    TGroupByClosure(
-        IMemoryChunkProviderPtr chunkProvider,
-        NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
-        NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
-        NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
-        int keySize,
-        int valuesCount,
-        bool checkNulls);
-
-    std::function<void()> ProcessSegment;
-};
+class TGroupByClosure;
 
 struct TWriteOpClosure
 {

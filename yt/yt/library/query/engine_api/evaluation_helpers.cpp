@@ -242,26 +242,7 @@ TMultiJoinClosure::TItem::TItem(
     Lookup.set_empty_key(nullptr);
 }
 
-TGroupByClosure::TGroupByClosure(
-    IMemoryChunkProviderPtr chunkProvider,
-    TCompartmentFunction<TComparerFunction> prefixEqComparer,
-    TCompartmentFunction<THasherFunction> groupHasher,
-    TCompartmentFunction<TComparerFunction> groupComparer,
-    int keySize,
-    int valuesCount,
-    bool checkNulls)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
-    , PrefixEqComparer(prefixEqComparer)
-    , Lookup(
-        InitialGroupOpHashtableCapacity,
-        groupHasher,
-        groupComparer)
-    , KeySize(keySize)
-    , ValuesCount(valuesCount)
-    , CheckNulls(checkNulls)
-{
-    Lookup.set_empty_key(nullptr);
-}
+////////////////////////////////////////////////////////////////////////////////
 
 TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
     : OutputBuffer(New<TRowBuffer>(TOutputBufferTag(), std::move(chunkProvider)))
