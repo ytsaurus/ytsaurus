@@ -42,7 +42,7 @@ void TPersistentAttributes::ResetOnElementEnabled()
     auto resetAttributes = TPersistentAttributes();
     resetAttributes.IntegralResourcesState = IntegralResourcesState;
     resetAttributes.LastNonStarvingTime = TInstant::Now();
-    resetAttributes.AppliedResourceLimits = AppliedResourceLimits;
+    resetAttributes.AppliedSpecifiedResourceLimits = AppliedSpecifiedResourceLimits;
     *this = resetAttributes;
 }
 
@@ -89,25 +89,25 @@ void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* 
 {
     YT_VERIFY(Mutable_);
 
-    // NB: The order of computation should be: TotalResourceLimits_, SchedulingTagFilterResourceLimits_, ResourceLimits_.
+    // NB: The order of computation must not be changed.
     TotalResourceLimits_ = context->TotalResourceLimits;
     SchedulingTagFilterResourceLimits_ = ComputeSchedulingTagFilterResourceLimits();
+    MaybeSpecifiedResourceLimits_ = ComputeMaybeSpecifiedResourceLimits();
     ResourceLimits_ = ComputeResourceLimits();
-    HasSpecifiedResourceLimits_ = GetSpecifiedResourceLimits() != TJobResources::Infinite();
 
-    auto specifiedResourceLimits = GetSpecifiedResourceLimits();
-    if (PersistentAttributes_.AppliedResourceLimits != specifiedResourceLimits) {
+    if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
-        if (!IsOperation() && PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && specifiedResourceLimits != TJobResources::Infinite()) {
-            // NB: this code executed in control thread, therefore tree structure is actual and agreed with tree structure of resource tree.
+        if (!IsOperation() && !PersistentAttributes_.AppliedSpecifiedResourceLimits && MaybeSpecifiedResourceLimits_) {
+            // NB: This code executed in control thread, therefore tree structure is actual and agreed with tree structure of resource tree.
             CollectResourceTreeOperationElements(&descendantOperationElements);
         }
-        YT_LOG_INFO("Update resource limits (SpecifiedResourceLimits: %v, CurrentResourceLimits: %v)",
-            specifiedResourceLimits,
-            PersistentAttributes_.AppliedResourceLimits);
 
-        ResourceTreeElement_->SetResourceLimits(specifiedResourceLimits, descendantOperationElements);
-        PersistentAttributes_.AppliedResourceLimits = specifiedResourceLimits;
+        YT_LOG_INFO("Updating applied specified resource limits (NewSpecifiedResourceLimits: %v, CurrentSpecifiedResourceLimits: %v)",
+            MaybeSpecifiedResourceLimits_,
+            PersistentAttributes_.AppliedSpecifiedResourceLimits);
+
+        ResourceTreeElement_->SetSpecifiedResourceLimits(MaybeSpecifiedResourceLimits_, descendantOperationElements);
+        PersistentAttributes_.AppliedSpecifiedResourceLimits = MaybeSpecifiedResourceLimits_;
     }
 }
 
@@ -286,9 +286,18 @@ void TSchedulerElement::SetStarvationStatus(EStarvationStatus starvationStatus)
     PersistentAttributes_.StarvationStatus = starvationStatus;
 }
 
-bool TSchedulerElement::AreResourceLimitsViolated() const
+std::optional<TJobResources> TSchedulerElement::ComputeMaybeSpecifiedResourceLimits() const
 {
-    return ResourceTreeElement_->AreResourceLimitsViolated();
+    if (auto limitsConfig = GetSpecifiedResourceLimitsConfig(); limitsConfig && limitsConfig->IsNonTrivial()) {
+        return ToJobResources(limitsConfig, TJobResources::Infinite());
+    }
+
+    return {};
+}
+
+bool TSchedulerElement::AreSpecifiedResourceLimitsViolated() const
+{
+    return ResourceTreeElement_->AreSpecifiedResourceLimitsViolated();
 }
 
 TJobResources TSchedulerElement::GetInstantResourceUsage() const
@@ -484,10 +493,14 @@ void TSchedulerElement::CheckForStarvationImpl(
 
 TJobResources TSchedulerElement::ComputeResourceLimits() const
 {
-    return Min(Min(
-        GetSpecifiedResourceLimits(),
-        GetSchedulingTagFilterResourceLimits()),
+    auto limits = Min(
+        GetSchedulingTagFilterResourceLimits(),
         GetMaxShareResourceLimits());
+    if (MaybeSpecifiedResourceLimits_) {
+        limits = Min(limits, *MaybeSpecifiedResourceLimits_);
+    }
+
+    return limits;
 }
 
 TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits() const
@@ -521,14 +534,6 @@ TJobResources TSchedulerElement::GetTotalResourceLimits() const
 TJobResources TSchedulerElement::GetMaxShareResourceLimits() const
 {
     return GetTotalResourceLimits() * GetMaxShare();
-}
-
-TJobResources TSchedulerElement::GetSpecifiedResourceLimits() const
-{
-    auto limitsConfig = GetSpecifiedResourceLimitsConfig();
-    return limitsConfig
-        ? ToJobResources(limitsConfig, TJobResources::Infinite())
-        : TJobResources::Infinite();
 }
 
 void TSchedulerElement::BuildResourceMetering(
@@ -1517,7 +1522,7 @@ void TSchedulerPoolElement::AttachParent(TSchedulerCompositeElement* parent)
 const TSchedulerCompositeElement* TSchedulerPoolElement::GetNearestAncestorWithResourceLimits(const TSchedulerCompositeElement* element) const
 {
     do {
-        if (element->PersistentAttributes().AppliedResourceLimits != TJobResources::Infinite()) {
+        if (element->PersistentAttributes().AppliedSpecifiedResourceLimits) {
             return element;
         }
     } while (element = element->GetParent());
@@ -1545,7 +1550,7 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     auto* destinationAncestorWithResourceLimits = GetNearestAncestorWithResourceLimits(newParent);
 
     bool ancestorWithResourceLimitsChanged =
-        PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() &&
+        !PersistentAttributes_.AppliedSpecifiedResourceLimits &&
         sourceAncestorWithResourceLimits != destinationAncestorWithResourceLimits;
     if (ancestorWithResourceLimitsChanged) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
@@ -1575,7 +1580,7 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
         "AncestorWithResourceLimitsChanged: %v)",
         newParent->GetId(),
         oldParent->GetId(),
-        PersistentAttributes_.AppliedResourceLimits,
+        PersistentAttributes_.AppliedSpecifiedResourceLimits,
         sourceAncestorWithResourceLimits
             ? std::make_optional(sourceAncestorWithResourceLimits->GetId())
             : std::nullopt,
@@ -1767,10 +1772,9 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     TSchedulerElement::PreUpdateBottomUp(context);
 
     // NB(eshcherbin): This is a hotfix, see YT-19127.
-    if (Spec_->ApplySpecifiedResourceLimitsToDemand && HasSpecifiedResourceLimits_) {
-        auto specifiedResourceLimits = GetSpecifiedResourceLimits();
+    if (Spec_->ApplySpecifiedResourceLimitsToDemand && MaybeSpecifiedResourceLimits_) {
         TotalNeededResources_ = Max(
-            Min(ResourceDemand_, specifiedResourceLimits) - ResourceUsageAtUpdate_,
+            Min(ResourceDemand_, *MaybeSpecifiedResourceLimits_) - ResourceUsageAtUpdate_,
             TJobResources());
         ResourceDemand_ = ResourceUsageAtUpdate_ + TotalNeededResources_;
         PendingJobCount_ = TotalNeededResources_.GetUserSlots();

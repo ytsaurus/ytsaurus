@@ -90,7 +90,7 @@ struct TPersistentAttributes
 
     TIntegralResourcesState IntegralResourcesState;
 
-    TJobResources AppliedResourceLimits = TJobResources::Infinite();
+    std::optional<TJobResources> AppliedSpecifiedResourceLimits;
 
     void ResetOnElementEnabled();
 };
@@ -161,7 +161,7 @@ public:
 
     // Assigned in preupdate, used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(bool, Tentative, false);
-    DEFINE_BYVAL_RO_PROPERTY(bool, HasSpecifiedResourceLimits, false);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TJobResources>, MaybeSpecifiedResourceLimits);
 
     // These fields are set in post update and used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(int, TreeIndex, UnassignedTreeIndex);
@@ -264,7 +264,6 @@ public:
     TJobResources GetSchedulingTagFilterResourceLimits() const;
     TJobResources GetTotalResourceLimits() const;
     TJobResources GetMaxShareResourceLimits() const;
-    TJobResources GetSpecifiedResourceLimits() const;
 
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
 
@@ -293,7 +292,8 @@ public:
     double ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const;
 
     // bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
-    bool AreResourceLimitsViolated() const;
+    std::optional<TJobResources> ComputeMaybeSpecifiedResourceLimits() const;
+    bool AreSpecifiedResourceLimitsViolated() const;
 
     //! Resource tree methods.
     bool IsAlive() const;

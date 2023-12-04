@@ -32,12 +32,12 @@ public:
         const TJobResources& delta,
         const TJobResources& resourceDemand);
 
-    void SetResourceLimits(
-        const TJobResources& resourceLimits,
+    void SetSpecifiedResourceLimits(
+        const std::optional<TJobResources>& specifiedResourceLimits,
         const std::vector<TResourceTreeElementPtr>& descendantOperations);
-    bool AreResourceLimitsViolated() const;
+    bool AreSpecifiedResourceLimitsViolated() const;
 
-    bool ResourceLimitsSpecified() const;
+    bool AreResourceLimitsSpecified() const;
 
     inline bool GetAlive() const;
     inline void SetNonAlive();
@@ -52,7 +52,7 @@ private:
     const EResourceTreeElementKind Kind_;
 
     NThreading::TPaddedReaderWriterSpinLock ResourceUsageLock_;
-    TJobResources ResourceLimits_ = TJobResources::Infinite();
+    std::optional<TJobResources> SpecifiedResourceLimits_;
     TJobResources ResourceUsage_;
     TJobResources ResourceUsagePrecommit_;
 

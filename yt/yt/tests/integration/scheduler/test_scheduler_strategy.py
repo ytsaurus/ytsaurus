@@ -36,7 +36,6 @@ from yt.test_helpers import are_almost_equal
 from yt.common import YtError
 
 import pytest
-from flaky import flaky
 
 import os
 import time
@@ -91,14 +90,20 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def _check_running_jobs(self, op, desired_running_jobs):
         success_iter = 0
         min_success_iteration = 10
-        for i in range(100):
-            running_jobs = op.get_running_jobs()
-            if running_jobs:
-                assert len(running_jobs) <= desired_running_jobs
-                success_iter += 1
-                if success_iter == min_success_iteration:
-                    return
+        for _ in range(100):
             time.sleep(0.1)
+
+            running_jobs = op.get_running_jobs()
+            if not running_jobs:
+                continue
+
+            assert len(running_jobs) <= desired_running_jobs
+            if len(running_jobs) < desired_running_jobs:
+                continue
+
+            success_iter += 1
+            if success_iter == min_success_iteration:
+                return
         assert False
 
     @authors("ignat")
@@ -169,106 +174,96 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_resource_limits(self):
-        resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
+        resource_limits = {"cpu": 1.0, "memory": 1000 * 1024 * 1024, "network": 10}
         create_pool("test_pool", attributes={"resource_limits": resource_limits})
 
         # TODO(renadeen): Do better, I know you can.
         @wait_no_assert
-        def check_limits():
-            stats = get(scheduler_orchid_default_pool_tree_path())
-            pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
+        def check_pool_limits():
+            pool_resource_limits = get(scheduler_orchid_pool_path("test_pool") + "/specified_resource_limits")
             for resource, limit in resource_limits.items():
-                resource_name = "user_memory" if resource == "memory" else resource
-                assert are_almost_equal(pool_resource_limits[resource_name], limit)
-
-        self._prepare_tables()
-        data = [{"foo": i} for i in range(3)]
-        write_table("//tmp/t_in", data)
+                assert are_almost_equal(pool_resource_limits[resource], limit)
 
         memory_limit = 30 * 1024 * 1024
-
         testing_options = {"schedule_job_delay": {"duration": 500, "type": "async"}}
-
-        op = map(
-            track=False,
-            command="sleep 100",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
+        op = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={
+                "memory_limit": memory_limit,
+            },
             spec={
-                "job_count": 3,
                 "pool": "test_pool",
-                "mapper": {"memory_limit": memory_limit},
                 "testing": testing_options,
             },
         )
         self._check_running_jobs(op, 1)
         op.abort()
 
-        op = map(
-            track=False,
-            command="sleep 5",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
+        op = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={
+                "memory_limit": memory_limit,
+            },
             spec={
-                "job_count": 3,
+                "pool": "test_pool",
                 "resource_limits": resource_limits,
-                "mapper": {"memory_limit": memory_limit},
                 "testing": testing_options,
             },
         )
         self._check_running_jobs(op, 1)
-        op_limits = op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_limits", {})
-        for resource, limit in resource_limits.items():
-            resource_name = "user_memory" if resource == "memory" else resource
-            assert are_almost_equal(op_limits[resource_name], limit)
+
+        # TODO(renadeen): Do better, I know you can.
+        @wait_no_assert
+        def check_op_limits():
+            op_resource_limits = get(scheduler_orchid_operation_path(op.id) + "/specified_resource_limits")
+            for resource, limit in resource_limits.items():
+                assert are_almost_equal(op_resource_limits[resource], limit)
 
     @authors("ignat")
-    def test_resource_limits_preemption(self):
-        create_pool("test_pool2")
+    @pytest.mark.parametrize("limits_target", ["pool", "operation"])
+    def test_resource_limits_preemption(self, limits_target):
+        create_pool("test_pool")
 
-        self._prepare_tables()
-        data = [{"foo": i} for i in range(3)]
-        write_table("//tmp/t_in", data)
-
-        op = map(
-            track=False,
-            command="sleep 100",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"job_count": 3, "pool": "test_pool2"},
+        op = run_sleeping_vanilla(
+            job_count=3,
+            spec={
+                "pool": "test_pool",
+            },
         )
         wait(lambda: len(op.get_running_jobs()) == 3)
 
         resource_limits = {"cpu": 2}
-        set("//sys/pools/test_pool2/@resource_limits", resource_limits)
-
-        wait(
-            lambda: are_almost_equal(
-                get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool2/resource_limits/cpu"),
-                2,
+        if limits_target == "pool":
+            set("//sys/pools/test_pool/@resource_limits", resource_limits)
+            wait(
+                lambda: are_almost_equal(
+                    get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/resource_limits/cpu"),
+                    2,
+                )
             )
-        )
+        else:
+            update_op_parameters(op.id, parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "resource_limits": {"user_slots": 2},
+                    },
+                }
+            })
 
         wait(lambda: len(op.get_running_jobs()) == 2)
 
-    # Remove flaky after YT-8784.
     @authors("ignat")
-    @flaky(max_runs=5)
     def test_resource_limits_runtime(self):
-        self._prepare_tables()
-        data = [{"foo": i} for i in range(3)]
-        write_table("//tmp/t_in", data)
-
-        op = map(
-            track=False,
-            command="sleep 100",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"job_count": 3, "resource_limits": {"user_slots": 1}},
-        )
+        op = run_sleeping_vanilla(job_count=3, spec={"resource_limits": {"user_slots": 1}})
         self._check_running_jobs(op, 1)
 
-        set(op.get_path() + "/@resource_limits", {"user_slots": 2})
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"user_slots": 2},
+                },
+            }
+        })
         self._check_running_jobs(op, 2)
 
     @authors("ignat")

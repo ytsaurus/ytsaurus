@@ -51,30 +51,31 @@ bool TResourceTreeElement::CheckAvailableDemand(
     return Dominates(availableDemand, delta);
 }
 
-void TResourceTreeElement::SetResourceLimits(
-    const TJobResources& resourceLimits,
+void TResourceTreeElement::SetSpecifiedResourceLimits(
+    const std::optional<TJobResources>& specifiedResourceLimits,
     const std::vector<TResourceTreeElementPtr>& descendantOperations)
 {
-    // NB: this method called from Control thread, tree structure supposed to have no changes.
+    // NB: This method called from Control thread, tree structure supposed to have no changes.
     bool resourceLimitsSpecifiedBeforeUpdate = ResourceLimitsSpecified_;
-    bool resourceLimitsSpecified = resourceLimits != TJobResources::Infinite();
-
+    bool resourceLimitsSpecified = specifiedResourceLimits.has_value();
     bool shouldInitializeResourceUsage =
         !resourceLimitsSpecifiedBeforeUpdate &&
         resourceLimitsSpecified &&
         Kind_ != EResourceTreeElementKind::Operation;
 
-    auto setResourceLimits = [&] () {
+    auto setResourceLimits = [&] {
         auto guard = WriterGuard(ResourceUsageLock_);
 
         ResourceTree_->IncrementUsageLockWriteCount();
 
-        ResourceLimits_ = resourceLimits;
-        ResourceLimitsSpecified_ = (resourceLimits != TJobResources::Infinite());
-        if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+        SpecifiedResourceLimits_ = specifiedResourceLimits;
+        if (!SpecifiedResourceLimits_ && Kind_ != EResourceTreeElementKind::Operation) {
             ResourceUsagePrecommit_ = TJobResources();
             ResourceUsage_ = TJobResources();
         }
+
+        // NB(eshcherbin): Store this to a separate atomic to be able to check without taking the lock.
+        ResourceLimitsSpecified_ = specifiedResourceLimits.has_value();
     };
 
     if (shouldInitializeResourceUsage) {
@@ -86,7 +87,7 @@ void TResourceTreeElement::SetResourceLimits(
     }
 }
 
-bool TResourceTreeElement::AreResourceLimitsViolated() const
+bool TResourceTreeElement::AreSpecifiedResourceLimitsViolated() const
 {
     if (!ResourceLimitsSpecified_) {
         return false;
@@ -94,10 +95,10 @@ bool TResourceTreeElement::AreResourceLimitsViolated() const
 
     auto guard = ReaderGuard(ResourceUsageLock_);
 
-    return !Dominates(ResourceLimits_, ResourceUsage_);
+    return !Dominates(*SpecifiedResourceLimits_, ResourceUsage_);
 }
 
-bool TResourceTreeElement::ResourceLimitsSpecified() const
+bool TResourceTreeElement::AreResourceLimitsSpecified() const
 {
     return ResourceLimitsSpecified_;
 }
@@ -207,11 +208,6 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
 {
-    if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
-        *availableResourceLimitsOutput = TJobResources::Infinite();
-        return true;
-    }
-
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
         *availableResourceLimitsOutput = TJobResources::Infinite();
         return true;
@@ -227,18 +223,20 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     // that should be considered in this check. But concurrent nature of this shared tree makes hard to consider
     // these discounts here. The only consequence of discounts ignorance is possibly redundant jobs that would
     // be aborted just after being scheduled.
-    auto availableResourceLimits = ComputeAvailableResources(
-        ResourceLimits_,
-        ResourceUsage_ + ResourceUsagePrecommit_,
-        {});
+    *availableResourceLimitsOutput = TJobResources::Infinite();
+    if (SpecifiedResourceLimits_) {
+        auto availableResourceLimits = ComputeAvailableResources(
+            *SpecifiedResourceLimits_,
+            ResourceUsage_ + ResourceUsagePrecommit_,
+            {});
+        if (!Dominates(availableResourceLimits, delta)) {
+            return false;
+        }
 
-    if (!Dominates(availableResourceLimits, delta)) {
-        return false;
+        *availableResourceLimitsOutput = availableResourceLimits;
     }
 
     ResourceUsagePrecommit_ += delta;
-
-    *availableResourceLimitsOutput = availableResourceLimits;
 
     return true;
 }
