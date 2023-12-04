@@ -9,7 +9,7 @@ PEERDIR(
 )
 
 FROM_SANDBOX(
-    5467208707 AUTOUPDATED spyt_client
+    5484968302 AUTOUPDATED spyt_client
     RENAME spyt_client/spark-yt-file-system.jar OUT_NOAUTO spark-extra/jars/spark-yt-file-system.jar
     RENAME spyt_client/spark-yt-submit.jar OUT_NOAUTO spyt/jars/spark-yt-submit.jar
 )
