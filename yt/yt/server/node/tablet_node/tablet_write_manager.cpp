@@ -1351,7 +1351,11 @@ private:
             hydraManager &&
             hydraManager->GetAutomatonState() == EPeerState::Leading)
         {
-            YT_VERIFY(Tablet_->GetUnflushedTimestamp() <= commitTimestamp);
+            auto unflushedTimestamp = Tablet_->GetUnflushedTimestamp();
+            YT_LOG_ALERT_IF(unflushedTimestamp > commitTimestamp,
+                "Inconsistent unflushed timestamp (UnflushedTimestamp: %v, CommitTimestamp: %v)",
+                unflushedTimestamp,
+                commitTimestamp);
         }
 
         Tablet_->UpdateLastCommitTimestamp(commitTimestamp);
