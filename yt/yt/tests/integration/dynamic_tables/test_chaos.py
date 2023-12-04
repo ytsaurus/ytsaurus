@@ -1857,8 +1857,7 @@ class TestChaos(ChaosTestBase):
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=True))
         self._create_replica_tables(replicas[2:], replica_ids[2:])
-        if mode == "sync":
-            self._sync_replication_era(card_id, replicas)
+        self._sync_replication_era(card_id, replicas)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
@@ -1868,6 +1867,7 @@ class TestChaos(ChaosTestBase):
     @pytest.mark.parametrize("enabled", [True, False])
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_new_data_replica_with_progress_and_wo_catchup(self, mode, enabled):
+        # NB: Bug reproduce, do not create replica with explicit progress and catchup=False.
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
@@ -1890,8 +1890,7 @@ class TestChaos(ChaosTestBase):
         alter_table("//tmp/r", replication_progress=replication_progress, driver=remote_driver0)
         sync_mount_table("//tmp/r", driver=remote_driver0)
 
-        if mode == "sync":
-            self._sync_replication_era(card_id, replicas)
+        self._sync_replication_era(card_id, replicas)
 
         if not enabled:
             self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
@@ -1985,8 +1984,7 @@ class TestChaos(ChaosTestBase):
 
             sync_mount_table("//tmp/r", driver=drivers[1])
 
-        if mode == "sync":
-            self._sync_replication_era(card_id, replicas)
+        self._sync_replication_era(card_id, replicas)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
