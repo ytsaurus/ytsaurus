@@ -53,6 +53,7 @@ from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 from datetime import datetime
 
 from .strawberry_parser import add_strawberry_ctl_parser
+from .command_explain_id import add_explain_id_parser
 
 HAS_SKY_SHARE = hasattr(yt, "sky_share")
 
@@ -2541,6 +2542,7 @@ def main_func():
         add_sky_share_parser(add_parser)
 
     add_show_default_config_parser(add_parser)
+    add_explain_id_parser(add_parser)
     add_show_spec_parser(add_parser)
 
     add_download_core_dump_parser(add_parser)

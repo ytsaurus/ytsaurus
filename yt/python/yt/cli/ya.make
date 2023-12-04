@@ -16,6 +16,7 @@ PY_SRCS(
     NAMESPACE yt.cli
 
     __init__.py
+    command_explain_id.py
     strawberry_parser.py
     yt_binary.py
 )
