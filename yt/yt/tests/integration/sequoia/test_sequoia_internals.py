@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
-    exists,
+    exists, set
 )
 
 from yt_sequoia_helpers import resolve_sequoia_id, resolve_sequoia_path
@@ -54,25 +54,9 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):
         create("map_node", "//tmp/some_node")
-
-        # Scalars.
-        create("int64_node", "//tmp/i")
-        assert get("//tmp/i") == 0
-        create("uint64_node", "//tmp/ui")
-        assert get("//tmp/ui") == 0
-        create("string_node", "//tmp/s")
-        assert get("//tmp/s") == ""
-        create("double_node", "//tmp/d")
-        assert get("//tmp/d") == 0.0
-        create("boolean_node", "//tmp/b")
-        assert not get("//tmp/b")
-        create("list_node", "//tmp/l")
-        assert get("//tmp/l") == []
-
-        for node in ["some_node", "i", "ui", "s", "d", "b", "l"]:
-            remove(f"//tmp/{node}")
-            with pytest.raises(YtError):
-                get(f"//tmp/{node}")
+        remove("//tmp/some_node")
+        with pytest.raises(YtError):
+            get("//tmp/some_node")
         assert ls("//tmp") == []
 
     @authors("cherepashka")
@@ -114,6 +98,41 @@ class TestSequoiaInternals(YTEnvSetup):
         assert get("//tmp/a/b/c/d/e/f/g/h/@children") == {"i": child_id}
         root_id = get("//tmp/a/b/c/@id")
         assert get("//tmp/a/b/@children") == {"c": root_id}
+
+    @authors("cherepashka", "danilalexeev")
+    def test_create_and_set_scalars(self):
+        create("int64_node", "//tmp/i")
+        set("//tmp/i", 0xbebe)
+        assert get("//tmp/i") == 0xbebe
+        create("uint64_node", "//tmp/ui")
+        set("//tmp/ui", 0xbebebe)
+        assert get("//tmp/ui") == 0xbebebe
+        set("//tmp/s", "str")
+        assert get("//tmp/s") == "str"
+        set("//tmp/d", 0.5)
+        assert get("//tmp/d") == 0.5
+        set("//tmp/b", False)
+        assert not get("//tmp/b")
+        with pytest.raises(YtError, match="List nodes cannot be created inside Sequoia"):
+            set("//tmp/l", [])
+
+    @authors("danilalexeev")
+    def test_set_map(self):
+        subtree = {"hello": "world", "m": {"n": 0, "s": "string", "m": {}}, "d": 0.5}
+        set("//tmp/m", subtree)
+        assert get("//tmp/m/hello") == "world"
+        assert sorted(ls("//tmp/m/m")) == ["m", "n", "s"]
+        set("//tmp/a/b/c", subtree, recursive=True)
+        assert sorted(ls("//tmp/a/b/c")) == ["d", "hello", "m"]
+        assert get("//tmp/a/b/c/m/s") == "string"
+
+    @authors("danilalexeev")
+    def test_set_map_force(self):
+        create("map_node", "//tmp/m/m", recursive=True)
+        with pytest.raises(YtError, match="forbidden"):
+            set("//tmp/m", {"a": 0})
+        set("//tmp/m", {"a": 0}, force=True)
+        assert ls("//tmp/m") == ["a"]
 
     @authors("danilalexeev")
     def test_nodes_cell_tags(self):

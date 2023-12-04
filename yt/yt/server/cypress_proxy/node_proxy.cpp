@@ -19,7 +19,7 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/children_nodes.record.h>
+#include <yt/yt/ytlib/sequoia_client/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -54,6 +54,7 @@ static const auto& Logger = CypressProxyLogger;
 
 class TNodeProxyBase
     : public TYPathServiceBase
+    , public virtual TSupportsSet
 {
 public:
     TNodeProxyBase(
@@ -66,8 +67,6 @@ public:
         , Path_(std::move(path))
         , Transaction_(std::move(transaction))
     { }
-
-    virtual void ValidateType() const = 0;
 
     TResolveResult Resolve(
         const TYPath& path,
@@ -93,6 +92,7 @@ protected:
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
+        DISPATCH_YPATH_SERVICE_METHOD(Set);
         DISPATCH_YPATH_SERVICE_METHOD(Remove);
 
         return TYPathServiceBase::DoInvoke(context);
@@ -103,9 +103,9 @@ protected:
         return Bootstrap_->GetNativeConnection()->GetMasterCellId(cellTag);
     }
 
-    TCellId CellIdFromObjectId(TObjectId id) const
+    TCellId CellIdFromObjectId(TObjectId id)
     {
-        return CellIdFromCellTag(CellTagFromId(id));
+        return Bootstrap_->GetNativeConnection()->GetMasterCellId(CellTagFromId(id));
     }
 
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
@@ -115,6 +115,13 @@ protected:
             EMasterChannelKind::Follower,
             CellTagFromId(id),
             Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
+    }
+
+    TObjectServiceProxy CreateWriteProxyForObject(TObjectId id)
+    {
+        return CreateObjectServiceWriteProxy(
+            Bootstrap_->GetNativeRootClient(),
+            CellTagFromId(id));
     }
 
     TCellTag GetRandomSequoiaNodeHostCellTag() const
@@ -148,9 +155,9 @@ protected:
         });
 
         if (TypeFromId(nodeId) != EObjectType::Scion) {
-            // Remove from children nodes table.
+            // Remove from children table.
             auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(path));
-            Transaction_->DeleteRow(NRecords::TChildrenNodesKey{
+            Transaction_->DeleteRow(NRecords::TChildNodeKey{
                 .ParentPath = MangleSequoiaPath(parentPath),
                 .ChildKey = ToStringLiteral(childKey),
             });
@@ -162,6 +169,14 @@ protected:
         Transaction_->AddTransactionAction(
             CellTagFromId(nodeId),
             MakeTransactionActionData(reqRemoveNode));
+    }
+
+    void SetNode(TNodeId id, const NYson::TYsonString& value)
+    {
+        NCypressServer::NProto::TReqSetNode setNodeRequest;
+        ToProto(setNodeRequest.mutable_node_id(), id);
+        setNodeRequest.set_value(value.ToString());
+        Transaction_->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(setNodeRequest));
     }
 
     TCellTag RemoveRootstock()
@@ -197,11 +212,11 @@ protected:
         }
     }
 
-    void DetachThisFromParent(TNodeId parentId, const TString& thisKey)
+    void DetachFromParent(TNodeId parentId, const TString& childKey)
     {
         NCypressServer::NProto::TReqDetachChild reqDetachChild;
         ToProto(reqDetachChild.mutable_parent_id(), parentId);
-        reqDetachChild.set_key(thisKey);
+        reqDetachChild.set_key(childKey);
         Transaction_->AddTransactionAction(
             CellTagFromId(parentId),
             MakeTransactionActionData(reqDetachChild));
@@ -254,6 +269,58 @@ protected:
             Path_,
             tokenizer.GetToken());
     }
+
+    template <class TRequestPtr, class TResponse, class TContextPtr>
+    void ForwardRequest(TRequestPtr request, TResponse* response, const TContextPtr& context)
+    {
+        auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
+        SetRequestTargetYPath(&request->Header(), FromObjectId(Id_) + suffix);
+        bool isMutating = IsRequestMutating(context->GetRequestHeader());
+        auto proxy = isMutating ? CreateWriteProxyForObject(Id_) : CreateReadProxyForObject(Id_);
+
+        YT_LOG_DEBUG("Forwarded request to master (RequestId: %v -> %v)",
+            context->GetRequestId(),
+            request->GetRequestId());
+
+        auto rsp = WaitFor(proxy.Execute(std::move(request)))
+            .ValueOrThrow();
+        response->CopyFrom(*rsp);
+        context->Reply();
+    }
+
+    void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
+    {
+        bool force = request->force();
+        context->SetRequestInfo("Force: %v", force);
+
+        NRecords::TResolveNodeKey selfKey{
+            .Path = MangleSequoiaPath(Path_),
+        };
+        Transaction_->LockRow(selfKey, ELockType::Exclusive);
+
+        SetNode(Id_, NYson::TYsonString(request->value()));
+
+        WaitFor(Transaction_->Commit({
+            .CoordinatorCellId = CellIdFromObjectId(Id_),
+            .Force2PC = true,
+            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+        }))
+            .ThrowOnError();
+
+        context->Reply();
+    }
+
+    void SetAttribute(
+        const TYPath& /*path*/,
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override
+    {
+        context->SetRequestInfo();
+        auto newRequest = TYPathProxy::Set();
+        newRequest->CopyFrom(*request);
+        ForwardRequest(std::move(newRequest), response, context);
+    }
 };
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
@@ -282,19 +349,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
         limit,
         attributeFilter);
 
-    // TODO(kvk1920): Generalize request redirection.
-    auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
-
     auto newRequest = TYPathProxy::Get();
     newRequest->CopyFrom(*request);
-
-    SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
-
-    auto objectServiceReadProxy = CreateReadProxyForObject(Id_);
-    auto rsp = WaitFor(objectServiceReadProxy.Execute(std::move(newRequest)))
-        .ValueOrThrow();
-    response->CopyFrom(*rsp);
-    context->Reply();
+    ForwardRequest(std::move(newRequest), response, context);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
@@ -334,7 +391,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
         subtreeRootCell = RemoveRootstock();
     } else {
         auto parentId = GetOrCrash<TSequoiaResolveResult>(parent).ResolvedPrefixNodeId;
-        DetachThisFromParent(parentId, thisName);
+        DetachFromParent(parentId, thisName);
         subtreeRootCell = CellTagFromId(parentId);
     }
 
@@ -379,17 +436,6 @@ class TMapLikeNodeProxy
 public:
     using TNodeProxyBase::TNodeProxyBase;
 
-    void ValidateType() const override
-    {
-        auto type = TypeFromId(Id_);
-
-        if (!IsSupportedSequoiaType(type)) {
-            THROW_ERROR_EXCEPTION(
-                "Object type %Qlv is not supported in Sequoia yet",
-                type);
-        }
-    }
-
 private:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, List);
@@ -401,19 +447,11 @@ private:
         return TNodeProxyBase::DoInvoke(context);
     }
 
-    TCellId GetObjectCellId(TObjectId id)
-    {
-        return Bootstrap_->GetNativeConnection()->GetMasterCellId(CellTagFromId(id));
-    }
-
     void CreateNode(
         EObjectType type,
-        TObjectId id,
-        const TYPath& path,
-        std::vector<std::pair<TString, TObjectId>> children = {})
+        TNodeId id,
+        const TYPath& path)
     {
-        YT_VERIFY(IsSequoiaCompositeNodeType(type) || children.empty());
-
         auto [parentPath, childKey] = DirNameAndBaseName(path);
         Transaction_->WriteRow(NRecords::TResolveNode{
             .Key = {.Path = MangleSequoiaPath(path)},
@@ -423,7 +461,7 @@ private:
             .Key = {.NodeId = id},
             .Path = path,
         });
-        Transaction_->WriteRow(NRecords::TChildrenNodes{
+        Transaction_->WriteRow(NRecords::TChildNode{
             .Key = {
                 .ParentPath = MangleSequoiaPath(parentPath),
                 .ChildKey = ToStringLiteral(childKey),
@@ -434,17 +472,12 @@ private:
         NCypressServer::NProto::TReqCreateNode createNodeRequest;
         createNodeRequest.set_type(ToProto<int>(type));
         ToProto(createNodeRequest.mutable_node_id(), id);
-        for (const auto& [childKey, childId] : children) {
-            auto* child = createNodeRequest.add_children();
-            child->set_key(childKey);
-            ToProto(child->mutable_id(), childId);
-        }
         createNodeRequest.set_path(path);
         Transaction_->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(createNodeRequest));
     }
 
-    //! Use only at transaction coordinator with late prepare mode.
-    void AttachChild(TObjectId parentId, TObjectId childId, const TYPath& childKey)
+    //! Changes visible to user must be applied at coordinator with late prepare mode.
+    void AttachChild(TNodeId parentId, TNodeId childId, const TYPath& childKey)
     {
         NCypressServer::NProto::TReqAttachChild attachChildRequest;
         ToProto(attachChildRequest.mutable_parent_id(), parentId);
@@ -470,25 +503,51 @@ private:
         auto designatedPath = GetJoinedNestedNodesPath(parentPath, childKeys);
         auto designatedNodeId = createDesignatedNode(designatedPath);
         auto designatedNodeKey = TYPath(childKeys.back());
-        auto prevChild = std::make_pair(designatedNodeKey, designatedNodeId);
+        auto prevNode = std::make_pair(designatedNodeId, designatedNodeKey);
         auto nestedPath = TYPathBuf(designatedPath).Chop(designatedNodeKey.size() + 1);
         for (auto it = std::next(childKeys.rbegin()); it != childKeys.rend(); ++it) {
-            const auto& childKey = *it;
+            const auto& key = *it;
             auto cellTag = GetRandomSequoiaNodeHostCellTag();
-            auto childId = Transaction_->GenerateObjectId(EObjectType::SequoiaMapNode, cellTag, /*sequoia*/ true);
+            auto id = Transaction_->GenerateObjectId(EObjectType::SequoiaMapNode, cellTag, /*sequoia*/ true);
             CreateNode(
                 EObjectType::SequoiaMapNode,
-                childId,
-                TYPath(nestedPath),
-                /*children*/ std::vector{prevChild});
-            nestedPath.Chop(childKey.size() + 1);
-            prevChild = std::make_pair(childKey, childId);
+                id,
+                TYPath(nestedPath));
+            AttachChild(id, prevNode.first, prevNode.second);
+            nestedPath.Chop(key.size() + 1);
+            prevNode = std::make_pair(id, key);
         }
         return TRecursiveCreateResult{
-            .SubtreeRootKey = prevChild.first,
-            .SubtreeRootId = prevChild.second,
+            .SubtreeRootKey = prevNode.second,
+            .SubtreeRootId = prevNode.first,
             .DesignatedNodeId = designatedNodeId,
         };
+    }
+
+    TFuture<void> ClearAsync(const TYPath& path)
+    {
+        auto mangledPath = MangleSequoiaPath(path);
+
+        auto removeFuture = Transaction_->SelectRows<NRecords::TResolveNodeKey>({
+            Format("path > %Qv", mangledPath),
+            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+        }).Apply(
+            BIND([=, this, this_ = MakeStrong(this)] (const std::vector<NRecords::TResolveNode>& nodesToRemove) {
+                for (const auto& node : nodesToRemove) {
+                    RemoveNode(node.NodeId, node.Key.Path);
+                }
+            }));
+
+        auto detachFuture = Transaction_->SelectRows<NRecords::TChildNodeKey>({
+            Format("parent_path = %Qv", mangledPath),
+        }).Apply(
+            BIND([=, this, this_ = MakeStrong(this)] (const std::vector<NRecords::TChildNode>& childrenRows) {
+                for (const auto& row : childrenRows) {
+                    DetachFromParent(Id_, row.Key.ChildKey);
+                }
+            }));
+
+        return AllSucceeded(std::vector{removeFuture, detachFuture});
     }
 
     void ValidateCreateOptions(
@@ -510,6 +569,276 @@ private:
         if (GetTransactionId(context->RequestHeader())) {
             THROW_ERROR_EXCEPTION("Create with transaction is not supported in Sequoia yet");
         }
+    }
+
+    class TTreeBuilder
+        : public NYson::TForwardingYsonConsumer
+    {
+    public:
+        TTreeBuilder(TMapLikeNodeProxy* owner)
+            : Owner_(owner)
+        {
+            YT_VERIFY(Owner_);
+        }
+
+        void BeginTree(const TYPath& rootPath)
+        {
+            YT_VERIFY(NodeStack_.size() == 0);
+
+            auto [parentPath, thisName] = DirNameAndBaseName(rootPath);
+            ParentPath_ = std::move(parentPath);
+            Key_ = std::move(thisName);
+        }
+
+        TNodeId EndTree()
+        {
+            // Failure here means that the tree is not fully constructed yet.
+            YT_VERIFY(NodeStack_.size() == 0);
+            return ResultNodeId_;
+        }
+
+        void OnMyStringScalar(TStringBuf value) override
+        {
+            auto nodeId = CreateNode(EObjectType::StringNode);
+            SetValue(nodeId, NYson::ConvertToYsonString(value));
+            AddNode(nodeId, false);
+        }
+
+        void OnMyInt64Scalar(i64 value) override
+        {
+            auto nodeId = CreateNode(EObjectType::Int64Node);
+            SetValue(nodeId, NYson::ConvertToYsonString(value));
+            AddNode(nodeId, false);
+        }
+
+        void OnMyUint64Scalar(ui64 value) override
+        {
+            auto nodeId = CreateNode(EObjectType::Uint64Node);
+            SetValue(nodeId, NYson::ConvertToYsonString(value));
+            AddNode(nodeId, false);
+        }
+
+        void OnMyDoubleScalar(double value) override
+        {
+            auto nodeId = CreateNode(EObjectType::DoubleNode);
+            SetValue(nodeId, NYson::ConvertToYsonString(value));
+            AddNode(nodeId, false);
+        }
+
+        void OnMyBooleanScalar(bool value) override
+        {
+            auto nodeId = CreateNode(EObjectType::BooleanNode);
+            SetValue(nodeId, NYson::ConvertToYsonString(value));
+            AddNode(nodeId, false);
+        }
+
+        void OnMyEntity() override
+        {
+            THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Sequoia");
+        }
+
+        void OnMyBeginList() override
+        {
+            THROW_ERROR_EXCEPTION("List nodes cannot be created inside Sequoia");
+        }
+
+        void OnMyBeginMap() override
+        {
+            auto nodeId = CreateNode(EObjectType::SequoiaMapNode);
+            AddNode(nodeId, true);
+            ParentPath_ = Format("%v/%v", ParentPath_, Key_);
+        }
+
+        void OnMyKeyedItem(TStringBuf key) override
+        {
+            Key_ = TString(key);
+        }
+
+        void OnMyEndMap() override
+        {
+            const auto& key = NodeStack_.top().first;
+            ParentPath_ = ParentPath_.substr(0, ParentPath_.size() - key.size() - 1);
+            NodeStack_.pop();
+        }
+
+        void OnBeginAttributes() override
+        {
+            THROW_ERROR_EXCEPTION("Set with attributes is not supported in Sequoia yet");
+        }
+
+    private:
+        TMapLikeNodeProxy* Owner_;
+        TString Key_;
+        TYPath ParentPath_;
+        TNodeId ResultNodeId_;
+        std::stack<std::pair<TString, TNodeId>> NodeStack_;
+
+        TNodeId CreateNode(EObjectType type) {
+            auto cellTag = Owner_->GetRandomSequoiaNodeHostCellTag();
+            auto nodeId = Owner_->Transaction_->GenerateObjectId(type, cellTag, /*sequoia*/ true);
+            Owner_->CreateNode(type, nodeId, Format("%v/%v", ParentPath_, Key_));
+            return nodeId;
+        }
+
+        void SetValue(TNodeId nodeId, const NYson::TYsonString& value)
+        {
+            Owner_->SetNode(nodeId, value);
+        }
+
+        void AddNode(TNodeId nodeId, bool push)
+        {
+            if (NodeStack_.empty()) {
+                ResultNodeId_ = nodeId;
+            } else {
+                auto parentId = NodeStack_.top().second;
+                Owner_->AttachChild(parentId, nodeId, Key_);
+            }
+
+            if (push) {
+                NodeStack_.emplace(Key_, nodeId);
+            }
+        }
+    };
+
+    class TMapNodeSetter
+        : public TTypedConsumer
+    {
+    public:
+        TMapNodeSetter(TMapLikeNodeProxy* owner)
+            : Owner_(owner)
+            , TreeBuilder_(owner)
+        {
+            YT_VERIFY(Owner_);
+        }
+
+        void OnBeginAttributes() override
+        {
+            THROW_ERROR_EXCEPTION("Set with attributes is not supported in Sequoia yet");
+        }
+
+    private:
+        TMapLikeNodeProxy* Owner_;
+        TTreeBuilder TreeBuilder_;
+        TString ChildKey_;
+        THashMap<TString, TNodeId> Children_;
+        TFuture<void> ClearRequest_;
+
+        ENodeType GetExpectedType() override
+        {
+            return ENodeType::Map;
+        }
+
+        void OnMyBeginMap() override
+        {
+            ClearRequest_ = Owner_->ClearAsync(Owner_->Path_);
+        }
+
+        void OnMyKeyedItem(TStringBuf key) override
+        {
+            THROW_ERROR_EXCEPTION_IF(
+                Children_.contains(key),
+                "Sequoia map node already has such child: %Qv",
+                key);
+
+            auto subtreeRootPath = Format("%v/%v", Owner_->Path_, key);
+            TreeBuilder_.BeginTree(subtreeRootPath);
+            Forward(&TreeBuilder_, std::bind(&TMapNodeSetter::OnForwardingFinished, this, TString(key)));
+        }
+
+        void OnForwardingFinished(TString itemKey)
+        {
+            auto childId = TreeBuilder_.EndTree();
+            EmplaceOrCrash(Children_, std::move(itemKey), childId);
+        }
+
+        void OnMyEndMap() override
+        {
+            for (const auto& [childKey, childId] : Children_) {
+                Owner_->AttachChild(Owner_->Id_, childId, childKey);
+            }
+            WaitFor(ClearRequest_).ThrowOnError();
+        }
+    };
+
+    void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
+    {
+        context->SetRequestInfo();
+
+        if (!request->force()) {
+            THROW_ERROR_EXCEPTION("\"set\" command without \"force\" flag is forbidden; use \"create\" instead");
+        }
+
+        NRecords::TResolveNodeKey selfKey{
+            .Path = MangleSequoiaPath(Path_),
+        };
+        Transaction_->LockRow(selfKey, ELockType::Exclusive);
+
+        TMapNodeSetter setter(this);
+        auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
+        producer.Run(&setter);
+
+        WaitFor(Transaction_->Commit({
+            .CoordinatorCellId = CellIdFromObjectId(Id_),
+            .Force2PC = true,
+            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+        }))
+            .ThrowOnError();
+
+        context->Reply();
+    }
+
+    void SetRecursive(
+        const TYPath& path,
+        TReqSet* request,
+        TRspSet* /*response*/,
+        const TCtxSetPtr& context) override
+    {
+        // TODO(danilalexeev): Implement method _SetChild_ and bring out the common code with Create.
+        context->SetRequestInfo();
+
+        auto unresolvedSuffix = "/" + path;
+        auto pathTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+
+        if (!request->recursive() && std::ssize(pathTokens) > 1) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "Node %v has no child with key \"%v\"",
+                Path_,
+                pathTokens[0]);
+        }
+
+        const auto& parentPath = Path_;
+        auto parentId = Id_;
+
+        // Acquire shared lock on parent node.
+        NRecords::TResolveNodeKey parentKey{
+            .Path = MangleSequoiaPath(parentPath),
+        };
+        Transaction_->LockRow(parentKey, ELockType::SharedStrong);
+
+        auto createDesignatedNode = [&] (const auto& path) {
+            TTreeBuilder builder(this);
+            builder.BeginTree(path);
+            auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
+            producer.Run(&builder);
+            return builder.EndTree();
+        };
+        auto createResult = CreateRecursive(
+            parentPath,
+            pathTokens,
+            createDesignatedNode);
+
+        // Attach child on parent cell.
+        AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey);
+
+        WaitFor(Transaction_->Commit({
+            .CoordinatorCellId = CellIdFromObjectId(parentId),
+            .Force2PC = true,
+            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+        }))
+            .ThrowOnError();
+
+        context->Reply();
     }
 };
 
@@ -595,10 +924,10 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey);
 
     WaitFor(Transaction_->Commit({
-            .CoordinatorCellId = GetObjectCellId(parentId),
-            .Force2PC = true,
-            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-        }))
+        .CoordinatorCellId = CellIdFromObjectId(parentId),
+        .Force2PC = true,
+        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+    }))
         .ThrowOnError();
 
     auto childCellTag = CellTagFromId(createResult.DesignatedNodeId);
@@ -632,7 +961,12 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
             pathTokens[0]);
     }
 
-    auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildrenNodesKey>(
+    auto mangledPath = MangleSequoiaPath(Path_);
+    Transaction_->LockRow(
+        NRecords::TResolveNodeKey{.Path = mangledPath},
+        ELockType::SharedStrong);
+
+    auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildNodeKey>(
         {
             Format("parent_path = %Qv", MangleSequoiaPath(Path_)),
         },
@@ -664,8 +998,15 @@ IYPathServicePtr CreateNodeProxy(
     TObjectId id,
     TYPath resolvedPath)
 {
-    auto proxy = New<TMapLikeNodeProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
-    proxy->ValidateType();
+    auto type = TypeFromId(id);
+    ValidateSupportedSequoiaType(type);
+    // TODO(danilalexeev): Think of a better way of dispatch.
+    TIntrusivePtr<TNodeProxyBase> proxy;
+    if (IsSequoiaCompositeNodeType(type)) {
+        proxy = New<TMapLikeNodeProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
+    } else {
+        proxy = New<TNodeProxyBase>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
+    }
     return proxy;
 }
 

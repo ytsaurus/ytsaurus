@@ -20,6 +20,8 @@ bool IsSupportedSequoiaType(NCypressClient::EObjectType type);
 
 bool IsSequoiaCompositeNodeType(NCypressClient::EObjectType type);
 
+void ValidateSupportedSequoiaType(NCypressClient::EObjectType type);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressProxy

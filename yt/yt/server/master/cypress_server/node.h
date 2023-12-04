@@ -233,6 +233,7 @@ public:
     {
         NYPath::TYPath Key;
         TString Path;
+        bool BeingCreated = false;
 
         void Save(NCellMaster::TSaveContext& context) const;
         void Load(NCellMaster::TLoadContext& context);

@@ -2546,7 +2546,7 @@ TCompositeNodeBase::TTransientAttributes& TInheritedAttributeDictionary::Attribu
 void TSupportsForcefulSetSelfMixin::ValidateSetSelf(bool force) const
 {
     if (!force) {
-        THROW_ERROR_EXCEPTION("\"set\" command without \"force\" flag is forbidden in Cypress; use \"create\" instead");
+        THROW_ERROR_EXCEPTION("\"set\" command without \"force\" flag is forbidden; use \"create\" instead");
     }
 }
 

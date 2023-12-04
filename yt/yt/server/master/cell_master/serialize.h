@@ -201,6 +201,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkReincarnatorTestingUtilities)                            (2510))  // kvk1920
     ((SecondaryIndexForbidsPortal)                                  (2511))  // sabdenovch
     ((SchedulerSystemOutputCompletionTransaction)                   (2512))  // kvk1920
+    ((SequoiaPropertiesBeingCreated)                                (2513))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////

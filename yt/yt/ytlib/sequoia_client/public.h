@@ -17,14 +17,14 @@ DEFINE_ENUM(ESequoiaTable,
     (ChunkReplicas)
     (LocationReplicas)
     (ReverseResolveNode)
-    (ChildrenNodes)
+    (ChildNode)
 );
 
 namespace NRecords {
 
 struct TResolveNode;
 struct TReverseResolveNode;
-struct TChildrenNodes;
+struct TChildNode;
 
 struct TChunkReplicas;
 struct TLocationReplicas;

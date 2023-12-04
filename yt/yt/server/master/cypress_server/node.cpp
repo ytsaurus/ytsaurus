@@ -336,6 +336,7 @@ void TCypressNode::TSequoiaProperties::Save(NCellMaster::TSaveContext& context) 
 
     Save(context, Key);
     Save(context, Path);
+    Save(context, BeingCreated);
 }
 
 void TCypressNode::TSequoiaProperties::Load(NCellMaster::TLoadContext& context)
@@ -344,6 +345,9 @@ void TCypressNode::TSequoiaProperties::Load(NCellMaster::TLoadContext& context)
 
     Load(context, Key);
     Load(context, Path);
+    if (context.GetVersion() >= EMasterReign::SequoiaPropertiesBeingCreated) {
+        Load(context, BeingCreated);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

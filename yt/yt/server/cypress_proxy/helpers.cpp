@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/misc/error.h>
+
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
@@ -42,6 +44,15 @@ bool IsSupportedSequoiaType(EObjectType type)
 bool IsSequoiaCompositeNodeType(EObjectType type)
 {
     return type == EObjectType::SequoiaMapNode || type == EObjectType::Scion;
+}
+
+void ValidateSupportedSequoiaType(EObjectType type)
+{
+    if (!IsSupportedSequoiaType(type)) {
+        THROW_ERROR_EXCEPTION(
+            "Object type %Qlv is not supported in Sequoia yet",
+            type);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,8 +55,8 @@ REVERSE_RESOLVE_NODE = SequoiaTable(
         {"name": "path", "type": "string"},
     ])
 
-CHILDREN_NODES = SequoiaTable(
-    name="children_nodes",
+CHILD_NODE = SequoiaTable(
+    name="child_node",
     schema=[
         {"name": "parent_path", "type": "string", "sort_order": "ascending"},
         {"name": "child_key", "type": "string", "sort_order": "ascending"},
@@ -88,7 +88,7 @@ LOCATION_REPLICAS = SequoiaTable(
 SEQUOIA_RESOLVE_TABLES = [
     RESOLVE_NODE,
     REVERSE_RESOLVE_NODE,
-    CHILDREN_NODES,
+    CHILD_NODE,
 ]
 
 SEQUOIA_CHUNK_TABLES = [
@@ -129,4 +129,4 @@ def resolve_sequoia_id(node_id):
 
 def resolve_sequoia_children(node_id):
     return select_rows_from_ground(
-        f"child_key, child_id from [{CHILDREN_NODES.get_path()}] where node_id == \"{node_id}\"")
+        f"child_key, child_id from [{CHILD_NODE.get_path()}] where node_id == \"{node_id}\"")

@@ -1,7 +1,7 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - type_name: TChildrenNodes
+  - type_name: TChildNode
     fields:
       - cpp_name: ParentPath
         cpp_type: TMangledSequoiaPath
@@ -21,4 +21,4 @@ types:
         column_type: String
 
     verbatim: |
-        static constexpr auto Table = ESequoiaTable::ChildrenNodes;
+        static constexpr auto Table = ESequoiaTable::ChildNode;

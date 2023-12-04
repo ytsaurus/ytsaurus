@@ -12,8 +12,12 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/core/ytree/ypath_detail.h>
+
 namespace NYT::NCypressServer {
 
+using namespace NYTree;
+using namespace NYson;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NTransactionServer;
@@ -42,9 +46,8 @@ public:
                 MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqCreateNode, const TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCreateNode, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitAttachChild, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAttachChild, const TTransactionCommitOptions&>()),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAttachChild, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitAttachChild, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAttachChild, const TTransactionAbortOptions&>()));
         transactionManager->RegisterTransactionActionHandlers(
@@ -58,6 +61,11 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitDetachChild, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDetachChild, const TTransactionAbortOptions&>()));
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareSetNode, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitSetNode, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(
+                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqSetNode, const TTransactionAbortOptions&>()));
     }
 
 private:
@@ -99,21 +107,6 @@ private:
             THROW_ERROR_EXCEPTION("Type %Qv is not supported in Sequoia", type);
         }
 
-        if (request->children_size() != 0) {
-            std::vector<TStringBuf> childKeys;
-            childKeys.reserve(request->children_size());
-            std::transform(
-                request->children().begin(),
-                request->children().end(),
-                std::back_inserter(childKeys),
-                [&] (const auto& child) {
-                    return child.key();
-                });
-            if (!CheckIfValuesUnique(childKeys)) {
-                THROW_ERROR_EXCEPTION("Children keys must be unique for node %v", nodeId);
-            }
-        }
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto nodeFactory = cypressManager->CreateNodeFactory(
@@ -133,17 +126,31 @@ private:
         *node->SequoiaProperties() = {
             .Key = NYPath::DirNameAndBaseName(request->path()).second,
             .Path = request->path(),
+            .BeingCreated = true,
         };
 
         node->VerifySequoia();
         node->RefObject();
 
-        for (const auto& child : request->children()) {
-            auto childId = FromProto<TNodeId>(child.id());
-            AttachChildToSequoiaNodeOrThrow(node, child.key(), childId);
-        }
-
         nodeFactory->Commit();
+    }
+
+    void HydraCommitCreateNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqCreateNode* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->GetNode(TVersionedNodeId(nodeId));
+
+        VerifySequoiaNode(node);
+
+        auto& beingCreated = node->SequoiaProperties()->BeingCreated;
+        YT_VERIFY(beingCreated);
+        beingCreated = false;
     }
 
     void HydraAbortCreateNode(
@@ -163,18 +170,31 @@ private:
         }
     }
 
-    void HydraPrepareAndCommitAttachChild(
+    void HydraPrepareAttachChild(
         TTransaction* /*transaction*/,
         NProto::TReqAttachChild* request,
         const TTransactionPrepareOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
-        YT_VERIFY(options.LatePrepare);
 
-        // AttachChild should be _atomic_ for user. To achive this we use late
-        // prepare and choose parent's native cell as tx coordinator.
+        auto parentId = FromProto<TNodeId>(request->parent_id());
 
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* parent = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));
+
+        VerifySequoiaNode(parent);
+        auto beingCreated = parent->SequoiaProperties()->BeingCreated;
+        THROW_ERROR_EXCEPTION_IF(
+            !beingCreated && !options.LatePrepare,
+            "Operation is not atomic for user");
+    }
+
+    void HydraCommitAttachChild(
+        TTransaction* /*transaction*/,
+        NProto::TReqAttachChild* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto childId = FromProto<TNodeId>(request->child_id());
         auto key = request->key();
@@ -255,6 +275,52 @@ private:
         } else {
             Bootstrap_->GetObjectManager()->UnrefObject(node);
         }
+    }
+
+    void HydraPrepareSetNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqSetNode* request,
+        const TTransactionPrepareOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(options.Persistent);
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+
+        auto type = node->GetType();
+        if (!IsScalarType(type)) {
+            THROW_ERROR_EXCEPTION("Invalid set request for node %v", nodeId);
+        }
+    }
+
+    void HydraCommitSetNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqSetNode* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->GetNode(TVersionedObjectId(nodeId));
+
+        if (!IsObjectAlive(node)) {
+            YT_LOG_ALERT(
+                "Attempted to set unexisting sequoia node; ignored "
+                "(NodeId: %v)",
+                nodeId);
+            return;
+        }
+
+        YT_VERIFY(IsScalarType(node->GetType()));
+        VerifySequoiaNode(node);
+
+        SetNodeFromProducer(
+            cypressManager->GetNodeProxy(node),
+            ConvertToProducer(TYsonString(request->value())),
+            /*builder*/ nullptr);
     }
 };
 
