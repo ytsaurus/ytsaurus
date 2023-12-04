@@ -1753,6 +1753,12 @@ private:
             transaction->ThrowInvalidState();
         }
 
+        if (GetDynamicConfig()->ForbidTransactionActionsForCypressTransactions) {
+            if (transaction->GetIsCypressTransaction() && !request->actions().empty()) {
+                THROW_ERROR_EXCEPTION("Cypress transactions cannot have transaction actions");
+            }
+        }
+
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);

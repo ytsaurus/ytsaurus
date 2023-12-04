@@ -750,6 +750,9 @@ protected:
 
     void StartOutputCompletionTransaction();
     void CommitOutputCompletionTransaction();
+    void ManuallyMergeBranchedCypressNode(
+        NCypressClient::TNodeId nodeId,
+        NTransactionClient::TTransactionId transactionId);
 
     void StartDebugCompletionTransaction();
     void CommitDebugCompletionTransaction();

@@ -11,7 +11,7 @@ from yt_commands import (
     authors, map_reduce, print_debug, update_op_parameters,
     wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls, get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
-    write_table, map, vanilla, run_test_vanilla, suspend_op,
+    write_table, start_transaction, map, vanilla, run_test_vanilla, suspend_op,
     get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts,
     update_scheduler_config, update_controller_agent_config)
 
@@ -787,13 +787,20 @@ class OperationReviveBase(YTEnvSetup):
         assert op.get_state() == "aborted"
 
     # NB: we hope that complete finish first phase before we kill scheduler. But we cannot guarantee that this happen.
-    @authors("ignat")
+    @authors("kvk1920", "ignat")
     @flaky(max_runs=3)
-    @pytest.mark.parametrize("use_tx_action", [False, True])  # COMPAT(kvk1920)
-    def test_completing(self, use_tx_action):
+    @pytest.mark.parametrize("mode", ["simple", "cypress_tx_action", "system_tx_action"])  # COMPAT(kvk1920)
+    def test_completing(self, mode):
         update_controller_agent_config(
             "set_committed_attribute_via_transaction_action",
-            use_tx_action)
+            mode == "cypress_tx_action")
+        update_controller_agent_config(
+            "commit_operation_cypress_node_changes_via_system_transaction",
+            mode == "system_tx_action")
+
+        if mode == "cypress_tx_action":
+            # COMPAT(kvk1920)
+            set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", False)
 
         self._prepare_tables()
 
@@ -805,6 +812,7 @@ class OperationReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "completing")
 
+        get(f"{op.get_path()}/@id")
         wait(lambda: exists(op.get_path() + "/@committed"))
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -818,10 +826,15 @@ class OperationReviveBase(YTEnvSetup):
             assert read_table("//tmp/t_out") == []
 
     @authors("kvk1920")
-    def test_operation_committed_attribute(self):
+    @pytest.mark.parametrize("use_tx", [False, True])
+    def test_operation_committed_attribute(self, use_tx):
         self._prepare_tables()
 
-        op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
+        if use_tx:
+            tx = start_transaction(timeout=10 * 60 * 1000)
+            op = self._start_op("echo '{foo=bar}'; sleep 15", track=False, transaction_id=tx)
+        else:
+            op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
 
         self._wait_for_state(op, "running")
 
@@ -829,6 +842,8 @@ class OperationReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "completing")
 
+        # NB: Since operation node branch is merged manually via tx action all
+        # changes should be visible outside of user transaction.
         wait(lambda: exists(op.get_path() + "/@committed"))
 
         with Restarter(self.Env, MASTERS_SERVICE):

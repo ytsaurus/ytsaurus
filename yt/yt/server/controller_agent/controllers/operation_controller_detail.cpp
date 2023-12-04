@@ -2144,31 +2144,41 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
     YT_LOG_INFO("Committing output completion transaction and setting committed attribute (TransactionId: %v)",
         outputCompletionTransactionId);
 
-    auto useTransactionAction = GetConfig()->SetCommittedAttributeViaTransactionAction;
+    auto setCommittedViaCypressTransactionAction = GetConfig()->SetCommittedAttributeViaTransactionAction;
 
-    if (useTransactionAction && OutputCompletionTransaction) {
-        auto path = GetOperationPath(OperationId);
+    auto fetchAttributeAsObjectId = [&, this] (
+        const TYPath& path,
+        const TString& attribute,
+        TTransactionId transactionId = NullTransactionId)
+    {
+        auto getRequest = TYPathProxy::Get(Format("%v/@%v", path, attribute));
+        if (transactionId != NullTransactionId) {
+            SetTransactionId(getRequest, transactionId);
+        }
 
-        auto getRequest = TYPathProxy::Get(path + "/@" + IdAttributeName);
-        SetTransactionId(
-            getRequest,
-            OutputCompletionTransaction->GetId());
         auto proxy = CreateObjectServiceReadProxy(
             Host->GetClient(),
             EMasterChannelKind::Follower);
         auto getResponse = WaitFor(proxy.Execute(getRequest))
             .ValueOrThrow();
 
-        auto nodeId = ConvertTo<NCypressClient::TNodeId>(TYsonString(getResponse->value()));
+        return ConvertTo<TObjectId>(TYsonString(getResponse->value()));
+    };
+
+    auto operationCypressNodeId = fetchAttributeAsObjectId(
+        GetOperationPath(OperationId),
+        IdAttributeName,
+        outputCompletionTransactionId);
+    if (setCommittedViaCypressTransactionAction && OutputCompletionTransaction) {
+        // NB: Transaction action cannot be executed on node's native cell
+        // directly because it leads to distributed transaction commit which
+        // cannot be done with prerequisites.
 
         NNative::NProto::TReqSetAttributeOnTransactionCommit action;
-        ToProto(action.mutable_node_id(), nodeId);
+        ToProto(action.mutable_node_id(), operationCypressNodeId);
         action.set_attribute(CommittedAttribute);
         action.set_value(ConvertToYsonStringNestingLimited(true).ToString());
 
-        // NB: Transaction action cannot be executed on node native cell
-        // directly because it leads to distributed transaction commit which
-        // cannot be done with prerequisites.
         auto transactionCoordinatorCellTag = CellTagFromId(OutputCompletionTransaction->GetId());
         auto connection = Client->GetNativeConnection();
         OutputCompletionTransaction->AddAction(
@@ -2186,17 +2196,78 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
     }
 
     if (OutputCompletionTransaction) {
+        // NB: Every set to `@committed` acquires lock which is promoted to
+        // user's transaction on scheduler's transaction commit. To avoid this
+        // we manually merge branched node and detach it from transaction.
+
+        std::optional<TTransactionId> parentTransactionId;
+        if (Config->CommitOperationCypressNodeChangesViaSystemTransaction &&
+            !setCommittedViaCypressTransactionAction)
+        {
+            parentTransactionId = fetchAttributeAsObjectId(
+                FromObjectId(outputCompletionTransactionId),
+                ParentIdAttributeName);
+        }
+
         TTransactionCommitOptions options;
         options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
+
         WaitFor(OutputCompletionTransaction->Commit(options))
             .ThrowOnError();
         OutputCompletionTransaction.Reset();
+
+        if (parentTransactionId) {
+            ManuallyMergeBranchedCypressNode(operationCypressNodeId, *parentTransactionId);
+        }
     }
 
     CommitFinished = true;
 
     YT_LOG_INFO("Output completion transaction committed and committed attribute set (TransactionId: %v)",
         outputCompletionTransactionId);
+}
+
+void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
+    NCypressClient::TNodeId nodeId,
+    TTransactionId transactionId)
+{
+    YT_LOG_DEBUG(
+        "Trying to merge operation Cypress node manually to reduce transaction lock count "
+        "(CypressNodeId: %v, TransactionId: %v, OperationId: %v)",
+        nodeId,
+        transactionId,
+        OperationId);
+
+    try {
+        // It is just a way to run custom logic at master.
+        // Note that output completion transaction cannot be used here because
+        // it's a Cypress transaction while a system is required to run
+        // transaction actions.
+        auto helperTransaction = WaitFor(Host->GetClient()->StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            {
+                .CoordinatorMasterCellTag = CellTagFromId(nodeId),
+                .StartCypressTransaction = false,
+            }))
+            .ValueOrThrow();
+        NNative::NProto::TReqMergeToTrunkAndUnlockNode reqCommitBranchNode;
+        ToProto(reqCommitBranchNode.mutable_transaction_id(), transactionId);
+        ToProto(reqCommitBranchNode.mutable_node_id(), nodeId);
+        helperTransaction->AddAction(
+            Client->GetNativeConnection()->GetMasterCellId(CellTagFromId(nodeId)),
+            MakeTransactionActionData(reqCommitBranchNode));
+
+        TTransactionCommitOptions options;
+        options.PrerequisiteTransactionIds = {transactionId};
+        WaitFor(helperTransaction->Commit(options))
+            .ThrowOnError();
+    } catch (const std::exception& ex) {
+        YT_LOG_ALERT(ex,
+            "Failed to manually merge branched operation Cypress node (CypressNodeId: %v, TransactionId: %v, OperationId: %v)",
+            nodeId,
+            transactionId,
+            OperationId);
+    }
 }
 
 void TOperationControllerBase::StartDebugCompletionTransaction()

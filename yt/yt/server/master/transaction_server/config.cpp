@@ -71,6 +71,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     // COMPAT(h0pless): This is a panic button.
     registrar.Parameter("enable_dedicated_types_for_system_transactions", &TThis::EnableDedicatedTypesForSystemTransactions)
         .Default(true);
+
+    registrar.Parameter("forbid_transaction_actions_for_cypress_transactions", &TThis::ForbidTransactionActionsForCypressTransactions)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

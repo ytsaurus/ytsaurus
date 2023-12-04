@@ -1176,6 +1176,9 @@ public:
 
     bool EnableNetworkInOperationDemand;
 
+    // COMPAT(kvk1920): Remove after all masters will be >= 23.3.
+    bool CommitOperationCypressNodeChangesViaSystemTransaction;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

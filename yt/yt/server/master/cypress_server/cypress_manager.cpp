@@ -1219,6 +1219,17 @@ public:
                 NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit,
                 const TTransactionAbortOptions&>()));
 
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
+                TTransaction,
+                NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode,
+                const TTransactionPrepareOptions&>()),
+            MakeTransactionActionHandlerDescriptor(BIND(&TCypressManager::HydraCommitMergeToTrunkAndUnlockNode, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
+                TTransaction,
+                NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode,
+                const TTransactionAbortOptions&>()));
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TLockTypeHandler>(this));
         objectManager->RegisterHandler(CreateShardTypeHandler(Bootstrap_, &ShardMap_));
@@ -1550,7 +1561,8 @@ public:
         Bootstrap_->VerifyPersistentStateRead();
 
         auto* node = FindNode(id);
-        if (!IsObjectAlive(node)) {
+        // NB: Branches always have zero ref counter.
+        if (!node || (!id.TransactionId && !IsObjectAlive(node))) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "No such node %v",
@@ -3159,7 +3171,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        MergeNodes(transaction);
+        MergeBranchedNodes(transaction);
         ReleaseLocks(transaction, transaction->GetParent());
     }
 
@@ -3172,7 +3184,6 @@ private:
         RemoveBranchedNodes(transaction);
         ReleaseLocks(transaction, false);
     }
-
 
     template <typename F>
     TError CheckSubtreeTrunkNodes(
@@ -3749,16 +3760,13 @@ private:
         return lock;
     }
 
-    void ReleaseLocks(TTransaction* transaction, bool promote)
+    void DoReleaseLocks(
+        TTransaction* transaction,
+        bool promote,
+        TRange<TLock*> locks,
+        TRange<TCypressNode*> lockedNodes)
     {
         auto* parentTransaction = transaction->GetParent();
-
-        TCompactVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
-        Sort(locks, TObjectIdComparer());
-
-        TCompactVector<TCypressNode*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
-        transaction->LockedNodes().clear();
-        Sort(lockedNodes, TCypressNodeIdComparer());
 
         for (auto* lock : locks) {
             auto* trunkNode = lock->GetTrunkNode();
@@ -3796,6 +3804,34 @@ private:
             }
             ExpirationTracker_->OnNodeTouched(trunkNode);
         }
+    }
+
+    void ReleaseLocks(TTransaction* transaction, bool promote)
+    {
+        TCompactVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
+        Sort(locks, TObjectIdComparer());
+
+        TCompactVector<TCypressNode*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
+        transaction->LockedNodes().clear();
+        Sort(lockedNodes, TCypressNodeIdComparer());
+
+        DoReleaseLocks(transaction, promote, locks, lockedNodes);
+    }
+
+    void ForceRemoveAllLocksForNode(TTransaction* transaction, TCypressNode* trunkNode)
+    {
+        YT_ASSERT(trunkNode->IsTrunk());
+
+        TCompactVector<TCypressNode*, 1> lockedNodes{trunkNode};
+        TCompactVector<TLock*, 16> locks;
+        locks.reserve(transaction->Locks().size());
+        for (auto* lock : transaction->Locks()) {
+            if (lock->GetTrunkNode() == trunkNode) {
+                locks.push_back(lock);
+            }
+        }
+
+        DoReleaseLocks(transaction, /*promote*/ false, locks, lockedNodes);
     }
 
     void DoPromoteLock(TLock* lock)
@@ -4056,7 +4092,9 @@ private:
         return branchedNode;
     }
 
-    void MergeNode(
+    // Returns originating node (and `nullptr` for snapshot branches).
+    // NB: This function does not modify `transaction->BranchedNodes()`.
+    TCypressNode* DoMergeNode(
         TTransaction* transaction,
         TCypressNode* branchedNode)
     {
@@ -4070,9 +4108,11 @@ private:
         auto branchedNodeId = branchedNode->GetVersionedId();
         bool isSnapshotBranch = branchedNode->GetLockMode() == ELockMode::Snapshot;
 
+        TCypressNode* originatingNode = nullptr;
+
         if (!isSnapshotBranch) {
             // Merge changes back.
-            auto* originatingNode = branchedNode->GetOriginator();
+            originatingNode = branchedNode->GetOriginator();
             handler->Merge(originatingNode, branchedNode);
 
             // The root needs a special handling.
@@ -4098,12 +4138,27 @@ private:
         NodeMap_.Remove(branchedNodeId);
 
         YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
+
+        return originatingNode;
     }
 
-    void MergeNodes(TTransaction* transaction)
+    //! Returns originating node.
+    TCypressNode* MergeParticularBranchedNode(TTransaction* transaction, TCypressNode* node)
+    {
+        auto it = Find(transaction->BranchedNodes(), node);
+        YT_VERIFY(it != transaction->BranchedNodes().end());
+
+        auto* originator = DoMergeNode(transaction, node);
+
+        transaction->BranchedNodes().erase(it);
+
+        return originator;
+    }
+
+    void MergeBranchedNodes(TTransaction* transaction)
     {
         for (auto* node : transaction->BranchedNodes()) {
-            MergeNode(transaction, node);
+            DoMergeNode(transaction, node);
         }
         transaction->BranchedNodes().clear();
     }
@@ -4699,6 +4754,29 @@ private:
             nodeId,
             request->attribute(),
             TYsonString(request->value()));
+    }
+
+    void HydraCommitMergeToTrunkAndUnlockNode(
+        TTransaction* /*transaction*/,
+        NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode* request,
+        const TTransactionCommitOptions& /*commitOptions*/)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto versionedId = TVersionedNodeId(nodeId, transactionId);
+
+        auto* currentNode = FindNode(versionedId);
+        if (!currentNode) {
+            YT_LOG_DEBUG("Manual node unbranching failed; no such node %Qv", versionedId);
+            return;
+        }
+        auto* trunkNode = currentNode->GetTrunkNode();
+
+        while (currentNode != trunkNode) {
+            auto* currentTransaction = currentNode->GetTransaction();
+            currentNode = MergeParticularBranchedNode(currentTransaction, currentNode);
+            ForceRemoveAllLocksForNode(currentTransaction, currentNode->GetTrunkNode());
+        }
     }
 
     TFuture<TYsonString> DoComputeRecursiveResourceUsage(TVersionedNodeId versionedNodeId)

@@ -1076,7 +1076,9 @@ private:
             auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
 
             TTransactionPrepareOptions options{
+                // Technically true.
                 .Persistent = false,
+                .LatePrepare = true,
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = SelfClockClusterTag_,
                 .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds()

@@ -4,6 +4,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(kvk1920): Remove this.
 message TReqCopySynchronizablePortalAttributes
 {
     required NYT.NProto.TGuid source_node_id = 1;
@@ -17,6 +18,14 @@ message TReqSetAttributeOnTransactionCommit
     required NYT.NProto.TGuid node_id = 1;
     required string attribute = 2;
     required bytes value = 3; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMergeToTrunkAndUnlockNode
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
