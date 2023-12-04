@@ -278,6 +278,17 @@ yt merge --src _table --dst _table --spec '{job_io = {table_writer = {desired_ch
 Вне зависимости от предыдущих рекомендаций, если вы уверены, что хотите все равно запустить операцию и вы готовы к тому, что она может очень долго работать, можно указать параметр `max_data_weight_per_job`, равный большему значению, и тогда операция запустится.
 
 ------
+#### **Q: В ходе работы операции появилось предупреждение «Partition count, estimated by the new partition heuristic, is significantly larger than old heuristic estimation. This may lead to inadequate number of partitions.» Что это значит?** { #newpartitionscountissignificantlylarger }
+
+**A:** Новый алгоритм партицирования вычислил подозрительное количество партиций. Это может привести к большому количеству джобов, очень долгому исполнению операций, перерасходу квоты на промежуточные данные и т.п. Следует обратить внимание на правильность задания параметров в спеке операции. В первую очередь, на `map_selectivity_factor`, `partition_data_size` и `partition_count`.
+
+{% if audience == "internal" %}
+
+Подробнее можно прочитать в [посте](https://clubs.at.yandex-team.ru/yt/5429) в Этушке.
+
+{% endif %}
+
+------
 #### **Q: В ходе работы операции появилось предупреждение «Legacy live preview suppressed«, а live preview недоступен. Что это значит?** { #legacylivepreviewsuppressed }
 
 **A:** Live preview - тяжёлый механизм для мастер-серверов, поэтому он по умолчанию отключен для операций, запущенных от роботных пользователей.
