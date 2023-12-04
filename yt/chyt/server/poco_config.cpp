@@ -100,7 +100,11 @@ private:
         if (key.empty()) {
             return "";
         }
-        TYPath result = "/";
+        TYPath result;
+        // CH usues both ".abcd" and "abcd" forms for some reason.
+        if (!key.starts_with(".")) {
+            result = "/";
+        }
         for (char c : key) {
             if (c == '.' || c == '[') {
                 result.push_back('/');
