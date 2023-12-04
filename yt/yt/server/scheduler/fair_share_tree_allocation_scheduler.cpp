@@ -1157,7 +1157,7 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
 
         auto* parent = operationElement->GetParent();
         while (parent) {
-            if (parent->AreResourceLimitsViolated()) {
+            if (parent->AreSpecifiedResourceLimitsViolated()) {
                 return parent;
             }
             parent = parent->GetParent();
@@ -1258,7 +1258,7 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
             continue;
         }
 
-        if (!Dominates(operationElement->GetResourceLimits(), operationElement->GetInstantResourceUsage())) {
+        if (operationElement->AreSpecifiedResourceLimitsViolated()) {
             job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                 operationElement->GetId()));
             PreemptJob(job, operationElement, EJobPreemptionReason::ResourceLimitsViolated);
@@ -1505,7 +1505,7 @@ TJobResources TScheduleJobsContext::GetHierarchicalAvailableResources(const TSch
 
 TJobResources TScheduleJobsContext::GetLocalAvailableResourceLimits(const TSchedulerElement* element) const
 {
-    if (element->GetHasSpecifiedResourceLimits()) {
+    if (element->MaybeSpecifiedResourceLimits()) {
         return ComputeAvailableResources(
             element->ResourceLimits(),
             element->GetResourceUsageWithPrecommit(),

@@ -59,7 +59,7 @@ void TResourceTree::ChangeParent(
 
     auto structureGuard = WriterGuard(StructureLock_);
 
-    // NB: provided descendant operation elements indicate that resource usage of the element must be explicitly calculated
+    // NB: Provided descendant operation elements indicate that resource usage of the element must be explicitly calculated
     // for correct transfer of ancestor's resource usage.
     bool calculateTransientResourceUsage = descendantOperationElements.has_value();
     if (calculateTransientResourceUsage) {
@@ -319,7 +319,7 @@ void TResourceTree::PerformPostponedActions()
             element->GetId(),
             FormatResources(element->GetResourceUsage()),
             FormatResources(element->GetResourceUsageWithPrecommit()),
-            element->ResourceLimitsSpecified());
+            element->AreResourceLimitsSpecified());
 
         YT_VERIFY(element->GetResourceUsageWithPrecommit() == TJobResources());
         element->Parent_ = nullptr;

@@ -637,7 +637,7 @@ public:
                     return TError("Operation has an ancestor whose specified resource limits are too small to satisfy operation's minimum job resource demand")
                         << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
                         << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
-                        << TErrorAttribute("resource_limits", limitingAncestor->GetSpecifiedResourceLimits())
+                        << TErrorAttribute("resource_limits", limitingAncestor->MaybeSpecifiedResourceLimits())
                         << TErrorAttribute("min_needed_resources", aggregatedMinNeededResources);
                 }
             } else if (it != OperationIdToFirstFoundLimitingAncestorTime_.end()) {
@@ -2021,7 +2021,9 @@ private:
         const TSchedulerElement* current = element;
         while (current) {
             // NB(eshcherbin): We expect that |GetSpecifiedResourcesLimits| return infinite limits when no limits were specified.
-            if (!Dominates(current->GetSpecifiedResourceLimits(), neededResources)) {
+            if (const auto& specifiedLimits = current->MaybeSpecifiedResourceLimits();
+                specifiedLimits && !Dominates(*specifiedLimits, neededResources))
+            {
                 return current;
             }
             current = current->GetParent();
@@ -2225,7 +2227,10 @@ private:
         auto actualLimits = TJobResources::Infinite();
         const auto* current = pool;
         while (!current->IsRoot()) {
-            actualLimits = Min(actualLimits, current->GetSpecifiedResourceLimits());
+            if (const auto& specifiedLimits = current->ComputeMaybeSpecifiedResourceLimits()) {
+                actualLimits = Min(actualLimits, *specifiedLimits);
+            }
+
             if (Dominates(requiredLimits, actualLimits)) {
                 return;
             }
@@ -3150,6 +3155,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "resource_limits", element->GetResourceLimits())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limits_share", attributes.LimitsShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "scheduling_tag_filter_resource_limits", element->GetSchedulingTagFilterResourceLimits())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_limits", element->GetSpecifiedResourceLimitsConfig())
 
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
