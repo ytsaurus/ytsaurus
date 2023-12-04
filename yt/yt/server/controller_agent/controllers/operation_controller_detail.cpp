@@ -7278,7 +7278,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                 } catch (const std::exception& ex) {
                                     THROW_ERROR_EXCEPTION("Attribute 'access_method' of file %v has invalid value %Qv",
                                         file.Path,
-                                        *file.AccessMethod) << ex;
+                                        accessMethod) << ex;
                                 }
 
                                 auto filesystem = attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive));
@@ -7287,7 +7287,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                 } catch (const std::exception& ex) {
                                     THROW_ERROR_EXCEPTION("Attribute 'filesystem' of file %v has invalid value %Qv",
                                         file.Path,
-                                        *file.Filesystem) << ex;
+                                        filesystem) << ex;
                                 }
 
                                 // Some access_method, filesystem combinations are invalid as of now.

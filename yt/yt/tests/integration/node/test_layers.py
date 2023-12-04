@@ -1212,3 +1212,73 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         # YT-14186: Corrupted user layer should not disable jobs on node.
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+
+@authors("yuryalekseev")
+class TestInvalidAttributeValues(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        }
+    }
+
+    USE_PORTO = True
+
+    def setup_files(self, access_method, filesystem):
+        create("file", "//tmp/squashfs.img")
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@access_method", access_method)
+        set("//tmp/squashfs.img/@filesystem", filesystem)
+
+    @authors("yuryalekseev")
+    def test_invalid_access_method(self):
+        self.setup_files(access_method="invalid", filesystem="squashfs")
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS/dir 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/squashfs.img"],
+                    },
+                },
+            )
+
+    @authors("yuryalekseev")
+    def test_invalid_filesystem(self):
+        self.setup_files(access_method="local", filesystem="invalid")
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS/dir 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/squashfs.img"],
+                    },
+                },
+            )
