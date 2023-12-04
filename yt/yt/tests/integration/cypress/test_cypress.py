@@ -3823,6 +3823,16 @@ class TestCypressPortal(TestCypressMulticell):
         # Must not crash.
         move("//tmp/t2", "//portals/p/t2_copy", tx=tx)
 
+    @authors("cherepashka")
+    @not_implemented_in_sequoia
+    def test_access_time_in_shard_copy(self):
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/t1")
+        creation_time = get("//tmp/t1/@access_time")
+        copy("//tmp/t1", "//portals/p/t2")
+        time.sleep(1)
+        assert get("//tmp/t1/@access_time") > creation_time
+
     @authors("avmatrosov")
     def test_annotation_portal(self):
         set("//sys/@config/cypress_manager/portal_synchronization_period", 1000)
