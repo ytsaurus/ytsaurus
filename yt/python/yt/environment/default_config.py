@@ -476,7 +476,6 @@ def get_node_config():
         slot_manager = {
             job_environment = {
                 type = simple;
-                use_short_container_names = %true;
             };
         };
 

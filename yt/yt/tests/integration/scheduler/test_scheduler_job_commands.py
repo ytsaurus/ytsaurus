@@ -419,17 +419,16 @@ class TestJobShellInSubcontainer(TestJobProber):
             "job_proxy": {
                 "test_poll_job_shell": True,
             },
-            # NB(gritukan): Setting an arbitrary user to user job
-            # will end up with problems with permissions during subsubcontainer start.
-            # On real clusters all the slot and job proxy users are in the same group,
-            # so these manipulations with containers are allowed. It's impossible to
-            # make such a configuration in tests, so we simply run job proxy and user job
-            # under the same user.
-            "slot_manager": {
-                "do_not_set_user_id": True,
-            },
         },
     }
+
+    # NB(gritukan): Setting an arbitrary user to user job
+    # will end up with problems with permissions during subsubcontainer start.
+    # On real clusters all the slot and job proxy users are in the same group,
+    # so these manipulations with containers are allowed. It's impossible to
+    # make such a configuration in tests, so we simply run job proxy and user job
+    # under the same user.
+    USE_SLOT_USER_ID = False
 
     @authors("gritukan")
     def test_job_shell_in_subcontainer(self):
