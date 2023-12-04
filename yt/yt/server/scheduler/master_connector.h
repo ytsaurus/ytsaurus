@@ -92,13 +92,6 @@ public:
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time);
 
-    void AttachJobContext(
-        const NYPath::TYPath& path,
-        NChunkClient::TChunkId chunkId,
-        TOperationId operationId,
-        TJobId jobId,
-        const TString& usrt);
-
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
     void AddCommonWatcher(

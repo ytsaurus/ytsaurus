@@ -1960,8 +1960,6 @@ public:
     //! Timeout for acknowledgements for all RPC requests to schedulers.
     TDuration RpcAcknowledgementTimeout;
 
-    bool UseSchedulerJobProberService;
-
     REGISTER_YSON_STRUCT(TSchedulerConnectionConfig);
 
     static void Register(TRegistrar registrar);

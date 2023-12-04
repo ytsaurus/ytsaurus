@@ -533,30 +533,6 @@ public:
             .Run(time);
     }
 
-    void AttachJobContext(
-        const TYPath& path,
-        TChunkId chunkId,
-        TOperationId operationId,
-        TJobId jobId,
-        const TString& user)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        try {
-            NControllerAgent::TJobFile file{
-                .JobId = jobId,
-                .Path = path,
-                .ChunkId = chunkId,
-                .DescriptionType = "input_context",
-            };
-            auto client = Bootstrap_->GetClient()->GetNativeConnection()->CreateNativeClient(TClientOptions::FromUser(user));
-            NControllerAgent::SaveJobFiles(client, operationId, { file });
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
-                << ex;
-        }
-    }
-
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2266,16 +2242,6 @@ void TMasterConnector::InvokeStoringStrategyState(TPersistentStrategyStatePtr st
 TFuture<void> TMasterConnector::UpdateLastMeteringLogTime(TInstant time)
 {
     return Impl_->UpdateLastMeteringLogTime(time);
-}
-
-void TMasterConnector::AttachJobContext(
-    const TYPath& path,
-    TChunkId chunkId,
-    TOperationId operationId,
-    TJobId jobId,
-    const TString& user)
-{
-    return Impl_->AttachJobContext(path, chunkId, operationId, jobId, user);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)

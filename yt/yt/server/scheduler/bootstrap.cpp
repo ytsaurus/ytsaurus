@@ -2,7 +2,6 @@
 
 #include "allocation_tracker_service.h"
 #include "private.h"
-#include "job_prober_service.h"
 #include "private.h"
 #include "scheduler.h"
 #include "scheduler_service.h"
@@ -177,7 +176,6 @@ void TBootstrap::DoRun()
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOperationService(this, Scheduler_->GetOperationServiceResponseKeeper()));
     RpcServer_->RegisterService(CreateAllocationTrackerService(this));
-    RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateControllerAgentTrackerService(this, ControllerAgentTracker_->GetResponseKeeper()));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);

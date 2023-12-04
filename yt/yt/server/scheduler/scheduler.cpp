@@ -3,7 +3,6 @@
 #include "private.h"
 #include "fair_share_strategy.h"
 #include "helpers.h"
-#include "job_prober_service.h"
 #include "master_connector.h"
 #include "node_manager.h"
 #include "scheduler_strategy.h"
@@ -535,7 +534,7 @@ public:
     TFuture<void> ValidateOperationAccess(
         const TString& user,
         TOperationId operationId,
-        EPermissionSet permissions) override
+        EPermissionSet permissions)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -728,7 +727,6 @@ public:
 
         WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
             .ThrowOnError();
-
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -1079,59 +1077,9 @@ public:
             .Run();
     }
 
-    // COMPAT(pogorelov)
-    TFuture<void> DumpInputContext(TJobId jobId, const TYPath& path, const TString& user)
-    {
-        return NodeManager_->DumpJobInputContext(jobId, path, user);
-    }
-
-    // COMPAT(pogorelov)
     TFuture<TNodeDescriptor> GetJobNode(TJobId jobId) const
     {
         return NodeManager_->GetJobNode(jobId);
-    }
-
-    // COMPAT(pogorelov)
-    TFuture<void> AbandonJob(TJobId jobId, const TString& user)
-    {
-        auto operationId = WaitFor(FindOperationIdByJobId(jobId))
-            .ValueOrThrow();
-        if (!operationId) {
-            THROW_ERROR_EXCEPTION(
-                NScheduler::EErrorCode::NoSuchJob,
-                "Job %v not found",
-                jobId);
-        }
-
-        auto operation = FindOperation(operationId);
-        if (!operation) {
-            THROW_ERROR_EXCEPTION(
-                NScheduler::EErrorCode::NoSuchOperation,
-                "Operation %v not found",
-                operationId);
-        }
-
-        auto controller = operation->GetController();
-        YT_VERIFY(controller);
-
-        WaitFor(ValidateOperationAccess(user, operationId, EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
-
-        YT_LOG_DEBUG("Abandoning job by user request (JobId: %v, OperationId: %v, User: %v)",
-            jobId,
-            operationId,
-            user);
-
-        WaitFor(controller->AbandonJob(operationId, jobId))
-            .ThrowOnError();
-
-        return NodeManager_->AbandonJob(jobId);
-    }
-
-    // COMPAT(pogorelov)
-    TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
-    {
-        return NodeManager_->AbortJobByUserRequest(jobId, interruptTimeout, user);
     }
 
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
@@ -1592,32 +1540,6 @@ public:
         return OperationsCleaner_;
     }
 
-    TFuture<void> AttachJobContext(
-        const NYTree::TYPath& path,
-        TChunkId chunkId,
-        TOperationId operationId,
-        TJobId jobId,
-        const TString& user) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return BIND(&TImpl::DoAttachJobContext, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::UserRequest))
-            .Run(path, chunkId, operationId, jobId, user);
-    }
-
-    TJobProberServiceProxy CreateJobProberProxy(const TString& address) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& channelFactory = GetClient()->GetChannelFactory();
-        auto channel = channelFactory->CreateChannel(address);
-
-        TJobProberServiceProxy proxy(std::move(channel));
-        proxy.SetDefaultTimeout(Config_->JobProberRpcTimeout);
-        return proxy;
-    }
-
     int GetOperationArchiveVersion() const final
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1943,18 +1865,6 @@ private:
         Strategy_->UpdateRuntimeParameters(result, update, user);
 
         return result;
-    }
-
-    void DoAttachJobContext(
-        const NYTree::TYPath& path,
-        TChunkId chunkId,
-        TOperationId operationId,
-        TJobId jobId,
-        const TString& user)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId, user);
     }
 
     void DoSetOperationAlert(
@@ -4592,26 +4502,6 @@ TFuture<void> TScheduler::UpdateOperationParameters(
     return Impl_->UpdateOperationParameters(operation, user, parameters);
 }
 
-TFuture<void> TScheduler::DumpInputContext(TJobId jobId, const NYPath::TYPath& path, const TString& user)
-{
-    return Impl_->DumpInputContext(jobId, path, user);
-}
-
-TFuture<TNodeDescriptor> TScheduler::GetJobNode(TJobId jobId)
-{
-    return Impl_->GetJobNode(jobId);
-}
-
-TFuture<void> TScheduler::AbandonJob(TJobId jobId, const TString& user)
-{
-    return Impl_->AbandonJob(jobId, user);
-}
-
-TFuture<void> TScheduler::AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
-{
-    return Impl_->AbortJob(jobId, interruptTimeout, user);
-}
-
 void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     Impl_->ProcessNodeHeartbeat(context);
@@ -4650,14 +4540,6 @@ TFuture<void> TScheduler::SetOperationAlert(
         std::optional<TDuration> timeout)
 {
     return Impl_->SetOperationAlert(operationId, alertType, alert, timeout);
-}
-
-TFuture<void> TScheduler::ValidateOperationAccess(
-    const TString& user,
-    TOperationId operationId,
-    EPermissionSet permissions)
-{
-    return Impl_->ValidateOperationAccess(user, operationId, permissions);
 }
 
 TFuture<void> TScheduler::ValidateJobShellAccess(

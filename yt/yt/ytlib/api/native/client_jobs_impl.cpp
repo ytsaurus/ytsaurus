@@ -84,16 +84,6 @@ void TClient::DoAbandonJob(
     TJobId jobId,
     const TAbandonJobOptions& /*options*/)
 {
-    // COMPAT(pogorelov)
-    if (Connection_->GetConfig()->Scheduler->UseSchedulerJobProberService) {
-        auto req = SchedulerJobProberProxy_->AbandonJob();
-        ToProto(req->mutable_job_id(), jobId);
-
-        WaitFor(req->Invoke())
-            .ThrowOnError();
-        return;
-    }
-
     auto allocationId = AllocationIdFromJobId(jobId);
 
     auto allocationBriefInfo = WaitFor(GetAllocationBriefInfo(
@@ -189,19 +179,6 @@ void TClient::DoAbortJob(
     TJobId jobId,
     const TAbortJobOptions& options)
 {
-    // COMPAT(pogorelov)
-    if (Connection_->GetConfig()->Scheduler->UseSchedulerJobProberService) {
-        auto req = SchedulerJobProberProxy_->AbortJob();
-        ToProto(req->mutable_job_id(), jobId);
-        if (options.InterruptTimeout) {
-            req->set_interrupt_timeout(ToProto<i64>(*options.InterruptTimeout));
-        }
-
-        WaitFor(req->Invoke())
-            .ThrowOnError();
-        return;
-    }
-
     auto allocationId = AllocationIdFromJobId(jobId);
 
     auto allocationBriefInfo = [&] {

@@ -12,7 +12,6 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
-#include <yt/yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -114,40 +113,6 @@ private:
     {
         auto connection = Connection_.Lock();
         YT_VERIFY(connection);
-
-        // COMPAT(pogorelov)
-        if (connection->GetConfig()->Scheduler->UseSchedulerJobProberService) {
-            YT_LOG_DEBUG(
-                "Requesting job shell descriptor from scheduler (Key: %v)",
-                key);
-
-            TJobProberServiceProxy jobProberService(connection->GetSchedulerChannel());
-            auto req = jobProberService.GetJobShellDescriptor();
-            req->SetUser(key.User);
-            ToProto(req->mutable_job_id(), key.JobId);
-            if (key.ShellName) {
-                req->set_shell_name(*key.ShellName);
-            }
-
-            return req->Invoke().Apply(BIND([=] (const TJobProberServiceProxy::TErrorOrRspGetJobShellDescriptorPtr& rspOrError) {
-                if (!rspOrError.IsOK()) {
-                    OnJobShellDescriptorFetchingFailed(std::move(rspOrError), key);
-                }
-
-                const auto& rsp = rspOrError.Value();
-
-                TJobShellDescriptor jobShellDescriptor;
-                jobShellDescriptor.NodeDescriptor = FromProto<TNodeDescriptor>(rsp->node_descriptor());
-                jobShellDescriptor.Subcontainer = rsp->subcontainer();
-
-                YT_LOG_DEBUG(
-                    "Job shell descriptor received (Key: %v, Descriptor: %v)",
-                    key,
-                    jobShellDescriptor);
-
-                return jobShellDescriptor;
-            }));
-        }
 
         return BIND(&TJobShellDescriptorCache::TImpl::RequestJobShellDescriptorFromControllerAgent, MakeStrong(this), key, connection)
             .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())

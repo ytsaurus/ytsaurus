@@ -22,20 +22,6 @@ struct INodeManagerHost
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
-    virtual TFuture<void> ValidateOperationAccess(
-        const TString& user,
-        TOperationId operationId,
-        NYTree::EPermission permission) = 0;
-
-    virtual TFuture<void> AttachJobContext(
-        const NYTree::TYPath& path,
-        NChunkClient::TChunkId chunkId,
-        TOperationId operationId,
-        TJobId jobId,
-        const TString& user) = 0;
-
-    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TString& address) = 0;
-
     virtual int GetOperationArchiveVersion() const = 0;
 };
 
@@ -81,10 +67,6 @@ public:
     void ResumeOperationJobs(TOperationId operationId);
 
     TFuture<NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId);
-
-    TFuture<void> DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user);
-    TFuture<void> AbandonJob(TJobId jobId);
-    TFuture<void> AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
 

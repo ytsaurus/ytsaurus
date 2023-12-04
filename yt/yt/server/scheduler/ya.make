@@ -22,7 +22,6 @@ SRCS(
     fields_filter.cpp
     helpers.cpp
     allocation.cpp
-    job_prober_service.cpp
     job_resources_helpers.cpp
     master_connector.cpp
     node_manager.cpp

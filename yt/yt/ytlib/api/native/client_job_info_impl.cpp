@@ -225,24 +225,6 @@ TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    // COMPAT(pogorelov)
-    if (Connection_->GetConfig()->Scheduler->UseSchedulerJobProberService) {
-        NScheduler::TJobProberServiceProxy proxy(GetSchedulerChannel());
-        auto req = proxy.GetJobNode();
-        req->SetUser(Options_.GetAuthenticatedUser());
-        ToProto(req->mutable_job_id(), jobId);
-        req->set_required_permissions(static_cast<ui32>(requiredPermissions));
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.IsOK()) {
-            TNodeDescriptor nodeDescriptor;
-            FromProto(&nodeDescriptor, rspOrError.Value()->node_descriptor());
-            return nodeDescriptor;
-        } else {
-            return static_cast<TError>(rspOrError);
-        }
-    }
-
     try {
         auto allocationId = AllocationIdFromJobId(jobId);
 
@@ -576,18 +558,6 @@ void TClient::DoDumpJobContext(
     const TYPath& path,
     const TDumpJobContextOptions& /*options*/)
 {
-    // COMPAT(pogorelov)
-    if (Connection_->GetConfig()->Scheduler->UseSchedulerJobProberService) {
-        auto req = SchedulerJobProberProxy_->DumpInputContext();
-        ToProto(req->mutable_job_id(), jobId);
-        ToProto(req->mutable_path(), path);
-
-        WaitFor(req->Invoke())
-            .ThrowOnError();
-
-        return;
-    }
-
     auto allocationId = AllocationIdFromJobId(jobId);
 
     auto allocationBriefInfo = WaitFor(GetAllocationBriefInfo(

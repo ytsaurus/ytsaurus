@@ -1056,129 +1056,6 @@ TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId)
     }
 }
 
-void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TString& user)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
-
-    auto job = GetJobOrThrow(jobId);
-
-    WaitFor(ManagerHost_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Read)))
-        .ThrowOnError();
-
-    YT_LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v, User: %v)",
-        job->GetId(),
-        job->GetOperationId(),
-        path,
-        user);
-
-    auto proxy = CreateJobProberProxy(job);
-    auto req = proxy.DumpInputContext();
-    ToProto(req->mutable_job_id(), jobId);
-
-    auto rspOrError = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        rspOrError,
-        "Error saving input context of job %v of operation %v into %v",
-        job->GetId(),
-        job->GetOperationId(),
-        path);
-
-    const auto& rsp = rspOrError.Value();
-    auto chunkIds = FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
-    YT_VERIFY(chunkIds.size() == 1);
-
-    auto asyncResult = ManagerHost_->AttachJobContext(path, chunkIds.front(), job->GetOperationId(), jobId, user);
-    WaitFor(asyncResult)
-        .ThrowOnError();
-
-    YT_LOG_DEBUG("Input contexts saved (JobId: %v, OperationId: %v)",
-        job->GetId(),
-        job->GetOperationId());
-}
-
-void TNodeShard::AbandonJob(TJobId jobId)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
-
-    auto job = FindJob(jobId);
-    if (!job) {
-        YT_LOG_DEBUG("Requested to abandon an unknown job, ignored (JobId: %v)", jobId);
-        return;
-    }
-
-    YT_LOG_DEBUG("Abandoning job (JobId: %v)", jobId);
-
-    DoAbandonJob(job);
-}
-
-void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
-
-    auto job = GetJobOrThrow(jobId);
-
-    WaitFor(ManagerHost_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage)))
-        .ThrowOnError();
-
-    if (auto allocationState = job->GetAllocationState();
-        allocationState != EAllocationState::Running &&
-        allocationState != EAllocationState::Waiting)
-    {
-        THROW_ERROR_EXCEPTION("Cannot abort job %v of operation %v since it is not running",
-            jobId,
-            job->GetOperationId());
-    }
-
-    if (interruptTimeout.value_or(TDuration::Zero()) != TDuration::Zero()) {
-        YT_LOG_DEBUG("Trying to interrupt job by user request (JobId: %v, InterruptTimeout: %v)",
-            jobId,
-            interruptTimeout);
-
-        auto proxy = CreateJobProberProxy(job);
-        auto req = proxy.Interrupt();
-        ToProto(req->mutable_job_id(), jobId);
-
-        req->set_timeout(ToProto<i64>(*interruptTimeout));
-        req->set_interruption_reason(static_cast<int>(EInterruptReason::UserRequest));
-
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error interrupting job %v",
-            jobId);
-
-        YT_LOG_INFO("User interrupt requested (JobId: %v, InterruptTimeout: %v)",
-            jobId,
-            interruptTimeout);
-
-        DoInterruptJob(job, EInterruptReason::UserRequest, DurationToCpuDuration(*interruptTimeout), user);
-    } else {
-        YT_LOG_DEBUG("Aborting job by user request (JobId: %v, OperationId: %v, User: %v)",
-            jobId,
-            job->GetOperationId(),
-            user);
-
-        auto error = TError("Job aborted by user request")
-            << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
-            << TErrorAttribute("user", user);
-
-        auto proxy = CreateJobProberProxy(job);
-        auto req = proxy.Abort();
-        ToProto(req->mutable_job_id(), jobId);
-        ToProto(req->mutable_error(), error);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error aborting job %v",
-            jobId);
-
-        YT_LOG_INFO("User abort requested (JobId: %v)", jobId);
-    }
-}
-
 void TNodeShard::AbortJob(TJobId jobId, const TError& error, EAbortReason abortReason)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -2286,20 +2163,6 @@ void TNodeShard::OnJobAborted(
     UnregisterJob(job);
 }
 
-void TNodeShard::DoAbandonJob(const TJobPtr& job)
-{
-    if (auto allocationState = job->GetAllocationState();
-        allocationState == EAllocationState::Finishing ||
-        allocationState == EAllocationState::Finished)
-    {
-        return;
-    }
-
-    SetFinishedState(job);
-
-    UnregisterJob(job);
-}
-
 void TNodeShard::SubmitJobsToStrategy()
 {
     YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
@@ -2639,12 +2502,6 @@ TJobPtr TNodeShard::GetJobOrThrow(TJobId jobId)
             jobId);
     }
     return job;
-}
-
-TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
-{
-    const auto& address = job->GetNode()->NodeDescriptor().GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-    return ManagerHost_->CreateJobProberProxy(address);
 }
 
 TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId) noexcept

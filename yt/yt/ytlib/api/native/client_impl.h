@@ -25,7 +25,6 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_service_proxy.h>
 
-#include <yt/yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -801,7 +800,6 @@ private:
     TLazyIntrusivePtr<NQueryClient::TFunctionImplCache> FunctionImplCache_;
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
-    std::unique_ptr<NScheduler::TJobProberServiceProxy> SchedulerJobProberProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
 
     struct TReplicaClient final

@@ -129,10 +129,6 @@ public:
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId);
 
-    void DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user);
-    void AbandonJob(TJobId jobId);
-    void AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
-
     void AbortJob(TJobId jobId, const TError& error, EAbortReason abortReason);
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
 
@@ -382,7 +378,6 @@ private:
         EAbortReason abortReason);
     template <class TJobStatus>
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
-    void DoAbandonJob(const TJobPtr& job);
 
     void UpdateProfilingCounter(const TJobPtr& job, int value);
 
@@ -418,8 +413,6 @@ private:
     TJobPtr FindJob(TJobId jobId);
     TJobPtr FindJob(TAllocationId allocationId);
     TJobPtr GetJobOrThrow(TJobId jobId);
-
-    NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);
 
     TOperationState* FindOperationState(TOperationId operationId) noexcept;
     const TOperationState* FindOperationState(TOperationId operationId) const noexcept;

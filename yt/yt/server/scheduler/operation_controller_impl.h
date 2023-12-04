@@ -48,8 +48,6 @@ public:
         bool scheduled,
         EAbortReason abortReason) override;
 
-    TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) override;
-
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
     void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
     void OnMaterializationFinished(const TErrorOr<TOperationControllerMaterializeResult>& resultOrError) override;

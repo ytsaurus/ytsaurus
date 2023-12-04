@@ -324,35 +324,6 @@ TFuture<TNodeDescriptor> TNodeManager::GetJobNode(TJobId jobId)
         .Run();
 }
 
-TFuture<void> TNodeManager::DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user)
-{
-    //! Allocation id is equal to job id.
-    const auto& nodeShard = GetNodeShardByAllocationId(AllocationIdFromJobId(jobId));
-    return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
-        .AsyncVia(nodeShard->GetInvoker())
-        .Run();
-}
-
-TFuture<void> TNodeManager::AbandonJob(TJobId jobId)
-{
-    const auto& nodeShard = GetNodeShardByAllocationId(
-        AllocationIdFromJobId(jobId));
-
-    return BIND(&TNodeShard::AbandonJob, nodeShard, jobId)
-        .AsyncVia(nodeShard->GetInvoker())
-        .Run();
-}
-
-TFuture<void> TNodeManager::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
-{
-    const auto& nodeShard = GetNodeShardByAllocationId(
-        AllocationIdFromJobId(jobId));
-
-    return BIND(&TNodeShard::AbortJobByUserRequest, nodeShard, jobId, interruptTimeout, user)
-        .AsyncVia(nodeShard->GetInvoker())
-        .Run();
-}
-
 void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason)
 {
     std::vector<std::vector<TJobId>> jobIdsPerShard(NodeShards_.size());

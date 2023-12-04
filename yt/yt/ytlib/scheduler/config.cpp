@@ -2444,9 +2444,6 @@ void TSchedulerConnectionConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("rpc_acknowledgement_timeout", &TThis::RpcAcknowledgementTimeout)
         .Default(TDuration::Seconds(15));
-
-    registrar.Parameter("use_scheduler_job_prober_service", &TThis::UseSchedulerJobProberService)
-        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

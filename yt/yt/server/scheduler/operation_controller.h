@@ -206,12 +206,6 @@ struct IOperationController
         bool scheduled,
         EAbortReason abortReason) = 0;
 
-    //! Called to proxy abandon job request to the controller agent.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) = 0;
-
     // These methods should be called only by controller agent tracker.
 
     //! Called to notify the controller that the operation initialization has finished.

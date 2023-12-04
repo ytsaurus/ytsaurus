@@ -827,12 +827,6 @@ class YTEnvSetup(object):
 
             delta_config = cls.get_param("DELTA_PROXY_CONFIG", cluster_index)
 
-            old_components = cls.ARTIFACT_COMPONENTS.get("23_2", [])
-
-            # COMPAT(pogorelov)
-            if "controller-agent" in old_components or "scheduler" in old_components or "node" in old_components:
-                config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = True
-
             config = update_inplace(config, delta_config)
             configs["http_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_proxy_config(configs["http_proxy"])
@@ -842,12 +836,6 @@ class YTEnvSetup(object):
             config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = False
 
             config = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
-
-            old_components = cls.ARTIFACT_COMPONENTS.get("23_2", [])
-
-            # COMPAT(pogorelov)
-            if "controller-agent" in old_components or "scheduler" in old_components or "node" in old_components:
-                config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = True
 
             configs["rpc_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_rpc_proxy_config(configs["rpc_proxy"])
@@ -860,13 +848,6 @@ class YTEnvSetup(object):
 
         for key, config in configs["driver"].items():
             config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
-
-            old_components = cls.ARTIFACT_COMPONENTS.get("23_2", [])
-
-            # COMPAT(pogorelov)
-            if "controller-agent" in old_components or "scheduler" in old_components or "node" in old_components:
-                if "scheduler" in config:
-                    config["scheduler"]["use_scheduler_job_prober_service"] = True
 
             configs["driver"][key] = cls.update_timestamp_provider_config(cluster_index, config)
 

@@ -505,25 +505,6 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
     OnAllocationAborted(AllocationIdFromJobId(jobId), TError{}, false, abortReason, jobEpoch);
 }
 
-TFuture<void> TOperationControllerImpl::AbandonJob(TOperationId operationId, TJobId jobId)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto agent = Agent_.Lock();
-    if (!agent) {
-        THROW_ERROR_EXCEPTION(
-            NScheduler::EErrorCode::AgentRevoked,
-            "agent that has hosted operation %v is revoked", operationId);
-    }
-
-    auto request = ControllerAgentJobProberProxy_->AbandonJob();
-    ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
-    ToProto(request->mutable_operation_id(), operationId);
-    ToProto(request->mutable_job_id(), jobId);
-
-    return request->Invoke().As<void>();
-}
-
 void TOperationControllerImpl::OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError)
 {
     YT_VERIFY(PendingInitializeResult_);

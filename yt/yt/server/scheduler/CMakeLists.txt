@@ -44,7 +44,6 @@ target_sources(yt-server-scheduler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/allocation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job_prober_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job_resources_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/master_connector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/node_manager.cpp
