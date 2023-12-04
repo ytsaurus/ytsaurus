@@ -28,6 +28,7 @@ protobuf {
         // Download from repositories
         artifact = "com.google.protobuf:protoc:3.22.5"
     }
+
 }
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
