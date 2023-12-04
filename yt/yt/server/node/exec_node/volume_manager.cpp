@@ -2087,7 +2087,7 @@ public:
 
         // At first remove volume, then unregister export.
         auto future = Location_->RemoveVolume(volumeId);
-        RemoveFuture_ = future.Apply(BIND([volumeId=volumeId, layer=ArtifactKey_, nbdServer=NbdServer_]() {
+        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, layer = ArtifactKey_, nbdServer = NbdServer_]() {
             YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
                 volumeId,
                 layer.nbd_export_id(),
@@ -2156,7 +2156,7 @@ public:
 
         // At first remove overlay volume, then remove constituent volumes and layers.
         auto future = Location_->RemoveVolume(volumeId);
-        RemoveFuture_ = future.Apply(BIND([volumeId=volumeId, overlayDataArray=OverlayDataArray_]() mutable {
+        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, overlayDataArray = OverlayDataArray_]() mutable {
             YT_LOG_DEBUG("Removed Overlay volume (VolumeId: %v)", volumeId);
 
             std::vector<TFuture<void>> futures;
@@ -2182,7 +2182,7 @@ public:
 
     const TArtifactKey& GetArtifactKey() const override
     {
-        static TArtifactKey empty;
+        static const TArtifactKey empty;
         return empty;
     }
 
@@ -2237,7 +2237,7 @@ public:
             volumeId,
             volumePath);
 
-        RemoveFuture_ = Location_->RemoveVolume(volumeId).Apply(BIND([volumeId=volumeId, volumePath=volumePath]() {
+        RemoveFuture_ = Location_->RemoveVolume(volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath]() {
             YT_LOG_DEBUG("Removed SquashFS volume (VolumeId: %v, VolumePath: %v)",
                 volumeId,
                 volumePath);
