@@ -112,8 +112,12 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-wyhash
   contrib-libs-xxhash
   contrib-libs-zstd
+  restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io
+  restricted-aws-aws-c-mqtt
+  restricted-aws-aws-c-sdkutils
+  restricted-aws-aws-crt-cpp
   restricted-boost-circular_buffer
   restricted-boost-container_hash
   restricted-boost-context
@@ -1802,8 +1806,12 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-wyhash
   contrib-libs-xxhash
   contrib-libs-zstd
+  restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io
+  restricted-aws-aws-c-mqtt
+  restricted-aws-aws-c-sdkutils
+  restricted-aws-aws-crt-cpp
   restricted-boost-circular_buffer
   restricted-boost-container_hash
   restricted-boost-context
