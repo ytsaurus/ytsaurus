@@ -51,4 +51,14 @@ LLVM_BC(
         xor_aggregate_finalize
 )
 
+LLVM_BC(
+    concat_all.c
+    NAME concat_all
+    SYMBOLS
+        concat_all_init
+        concat_all_update
+        concat_all_merge
+        concat_all_finalize
+)
+
 END()

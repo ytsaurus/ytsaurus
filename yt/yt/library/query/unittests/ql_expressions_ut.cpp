@@ -1045,6 +1045,26 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 }
 
+TEST_F(TExpressionTest, Aliasing)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("s", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+    });
+
+    auto buffer = New<TRowBuffer>();
+    auto expr = PrepareExpression("lower(s)", *schema);
+
+    TCGVariables variables;
+
+    auto value = MakeUnversionedStringValue("ABCD");
+
+    auto image = Profile(expr, schema, nullptr, &variables)();
+    auto instance = image.Instantiate();
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &value, TRange<TValue>(&value, 1), buffer.Get());
+
+    EXPECT_EQ(value.AsStringBuf(), "abcd");
+}
+
 TUnversionedValue YsonToUnversionedValue(TStringBuf str)
 {
     NYson::TTokenizer tokenizer(str);
@@ -1839,6 +1859,92 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     state.Flags |= EValueFlags::Aggregate;
     instance.RunFinalize(buffer.Get(), &result, &state);
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
+}
+
+TEST_F(TEvaluateAggregationTest, Aliasing)
+{
+    auto aggregateProfilers = New<TAggregateProfilerMap>();
+
+    auto builder = CreateProfilerFunctionRegistryBuilder(
+        nullptr,
+        aggregateProfilers.Get());
+
+    builder->RegisterAggregate(
+        "concat_all",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        EValueType::String,
+        EValueType::String,
+        EValueType::String,
+        "concat_all",
+        ECallingConvention::UnversionedValue);
+
+    auto image = CodegenAggregate(
+        /* codegenAggregate */ aggregateProfilers->GetAggregate("concat_all")->Profile(
+            /* argumentTypes */ {EValueType::String},
+            /* stateType */ EValueType::String,
+            /* resultType */ EValueType::String,
+            /* name */ "concat_all"),
+        /* argumentTypes */ {EValueType::String},
+        /* stateType */ EValueType::String);
+    auto instance = image.Instantiate();
+
+    {
+        auto buffer = New<TRowBuffer>();
+
+        auto result = MakeUnversionedNullValue();
+        instance.RunInit(buffer.Get(), &result);
+
+        auto input = MakeUnversionedStringValue("abc");
+        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        EXPECT_EQ(result.AsStringBuf(), "abc");
+
+        input = MakeUnversionedStringValue("def");
+        instance.RunMerge(buffer.Get(), &result, &input);
+        EXPECT_EQ(result.AsStringBuf(), "abcdef");
+
+        auto result2 = MakeUnversionedNullValue();
+
+        instance.RunFinalize(buffer.Get(), &result2, &result);
+        EXPECT_EQ(result2.AsStringBuf(), "abcdef");
+    }
+
+    {
+        auto buffer = New<TRowBuffer>();
+
+        auto result = MakeUnversionedNullValue();
+        instance.RunInit(buffer.Get(), &result);
+
+        auto input = MakeUnversionedStringValue("abc");
+        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        EXPECT_EQ(result.AsStringBuf(), "abc");
+
+        input = MakeUnversionedStringValue("def");
+        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        EXPECT_EQ(result.AsStringBuf(), "abcdef");
+
+        instance.RunFinalize(buffer.Get(), &result, &result);
+        EXPECT_EQ(result.AsStringBuf(), "abcdef");
+    }
+
+    {
+        auto buffer = New<TRowBuffer>();
+
+        auto result = MakeUnversionedNullValue();
+        instance.RunInit(buffer.Get(), &result);
+
+        auto input = MakeUnversionedStringValue("abc");
+        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        EXPECT_EQ(result.AsStringBuf(), "abc");
+
+        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&result, 1));
+        EXPECT_EQ(result.AsStringBuf(), "abcabc");
+
+        instance.RunMerge(buffer.Get(), &result, &result);
+        EXPECT_EQ(result.AsStringBuf(), "abcabcabcabc");
+
+        instance.RunFinalize(buffer.Get(), &result, &result);
+        EXPECT_EQ(result.AsStringBuf(), "abcabcabcabc");
+    }
 }
 
 TEST_P(TEvaluateAggregationTest, Basic)
