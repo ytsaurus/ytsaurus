@@ -7276,26 +7276,26 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                 try {
                                     file.AccessMethod = TEnumTraits<ELayerAccessMethod>::FromString(accessMethod);
                                 } catch (const std::exception& ex) {
-                                    THROW_ERROR_EXCEPTION("Unknown access_method %v of a file %v",
-                                        *file.AccessMethod,
-                                        file.Path) << ex;
+                                    THROW_ERROR_EXCEPTION("Attribute 'access_method' of file %v has invalid value %Qv",
+                                        file.Path,
+                                        *file.AccessMethod) << ex;
                                 }
 
                                 auto filesystem = attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive));
                                 try {
                                     file.Filesystem = TEnumTraits<ELayerFilesystem>::FromString(filesystem);
                                 } catch (const std::exception& ex) {
-                                    THROW_ERROR_EXCEPTION("Unknown filesystem %v of a file %v",
-                                        *file.Filesystem,
-                                        file.Path) << ex;
+                                    THROW_ERROR_EXCEPTION("Attribute 'filesystem' of file %v has invalid value %Qv",
+                                        file.Path,
+                                        *file.Filesystem) << ex;
                                 }
 
                                 // Some access_method, filesystem combinations are invalid as of now.
                                 if (!AreCompatible(*file.AccessMethod, *file.Filesystem)) {
-                                    THROW_ERROR_EXCEPTION("Invalid access_mode %v, filesystem %v combination of a file %v",
+                                    THROW_ERROR_EXCEPTION("File %v has incompatible access method %Qv and filesystem %Qv",
+                                        file.Path,
                                         *file.AccessMethod,
-                                        *file.Filesystem,
-                                        file.Path);
+                                        *file.Filesystem);
                                 }
                             }
                             break;
