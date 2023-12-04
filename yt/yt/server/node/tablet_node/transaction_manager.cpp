@@ -1067,6 +1067,9 @@ private:
             UpdateMinCommitTimestamp(heap.second);
         }
 
+        YT_LOG_DEBUG("Min commit timestamp was updated (MinCommitTimestamp: %v)",
+            MinCommitTimestamp_);
+
         // YT-8542: It is important to update this timestamp only _after_ all relevant transactions are serialized.
         // See TTableReplicator.
         // Note that runtime data may be missing in unittests.
