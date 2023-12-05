@@ -205,6 +205,8 @@ DEFINE_ENUM(EMasterReign,
     ((TabletPrerequisites)                                          (2514))  // gritukan
 );
 
+static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
