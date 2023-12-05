@@ -203,6 +203,7 @@ DEFINE_ENUM(EMasterReign,
     ((SchedulerSystemOutputCompletionTransaction)                   (2512))  // kvk1920
     ((SequoiaPropertiesBeingCreated)                                (2513))  // danilalexeev
     ((TabletPrerequisites)                                          (2514))  // gritukan
+    ((FixErrorSerialization)                                        (2515))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
