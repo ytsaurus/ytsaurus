@@ -336,7 +336,7 @@ func TestHTTPAPIDescribeAndPing(t *testing.T) {
 	err = yson.Unmarshal(body, &description)
 	require.NoError(t, err)
 
-	require.Equal(t, []any{c.Proxy}, description["clusters"])
+	require.Equal(t, []any{c.Proxy, "test_location_alias"}, description["clusters"])
 
 	// It's unlikely that the interface of the 'remove' command will be changed in the future,
 	// so we rely on it in this test.
