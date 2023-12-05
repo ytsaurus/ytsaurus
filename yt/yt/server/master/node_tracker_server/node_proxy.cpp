@@ -665,13 +665,13 @@ private:
         switch (key) {
             case EInternedAttributeKey::Banned: [[fallthrough]];
             case EInternedAttributeKey::Decommissioned: [[fallthrough]];
+            case EInternedAttributeKey::PendingRestart: [[fallthrough]];
             case EInternedAttributeKey::DisableTabletCells: [[fallthrough]];
             case EInternedAttributeKey::DisableSchedulerJobs: [[fallthrough]];
             case EInternedAttributeKey::DisableWriteSessions:
                 // COMPAT(kvk1920): In near future this attribute will not be writable.
                 SetMaintenanceFlag(key, ConvertTo<bool>(value));
                 return true;
-            case EInternedAttributeKey::PendingRestart: [[fallthrough]];
 
             case EInternedAttributeKey::Rack: {
                 auto rackName = ConvertTo<TString>(value);
