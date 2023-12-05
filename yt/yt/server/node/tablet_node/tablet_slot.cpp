@@ -578,7 +578,10 @@ public:
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetClient(),
             Bootstrap_->GetHintManager(),
-            tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"));
+            tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"),
+            [bootstrap = Bootstrap_] (EWorkloadCategory category) {
+                return bootstrap->GetInThrottler(category);
+            });
     }
 
 private:

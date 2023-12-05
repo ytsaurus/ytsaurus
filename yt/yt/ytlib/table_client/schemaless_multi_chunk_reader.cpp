@@ -155,7 +155,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
         config,
         chunkReaderHost->Client,
         CreateTrivialNodeStatusDirectory(),
-        /*profiler*/ {});
+        /*profiler*/ {},
+        /*throttlerProvider*/ {});
 
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -1342,7 +1343,8 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 config,
                 chunkReaderHost->Client,
                 CreateTrivialNodeStatusDirectory(),
-                /*profiler*/ {});
+                /*profiler*/ {},
+                /*throttlerProvider*/ {});
 
             return CreateHunkDecodingSchemalessMultiChunkReader(
                 config,
