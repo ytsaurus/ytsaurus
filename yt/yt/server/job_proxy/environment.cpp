@@ -12,6 +12,8 @@
 #include <util/system/fs.h>
 
 #ifdef _linux_
+#include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/containers/cgroups_new.h>
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
@@ -494,6 +496,21 @@ public:
         return ExtractJobEnvironmentBlockIOStatistics(ResourceTracker_->GetBlockIOStatistics());
     }
 
+    TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetJobMemoryStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetJobBlockIOStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetJobCpuStatistics() const override
+    {
+        return {};
+    }
+
     void SetCpuGuarantee(double value) override
     {
         WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", ToString(value) + "c"))
@@ -693,6 +710,21 @@ public:
         return {};
     }
 
+    TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetJobMemoryStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetJobBlockIOStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetJobCpuStatistics() const override
+    {
+        return {};
+    }
+
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TJobId /* jobId */,
         const TUserJobEnvironmentOptions& options) override
@@ -842,7 +874,7 @@ public:
         const std::vector<TString>& arguments,
         const TString& workingDirectory) override
     {
-        auto process = New<TSimpleProcess>(path, /*copyEnv =*/ false);
+        auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
         process->SetWorkingDirectory(workingDirectory);
         Process_.Store(process);
@@ -932,6 +964,36 @@ public:
         return {};
     }
 
+    TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetJobMemoryStatistics() const override
+    {
+        try {
+            return DoGetJobMemoryStatistics();
+        } catch (const std::exception& ex) {
+            return TError("Failed to get job memory statistics")
+                << ex;
+        }
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetJobBlockIOStatistics() const override
+    {
+        try {
+            return DoGetJobBlockIOStatistics();
+        } catch (const std::exception& ex) {
+            return TError("Failed to get job block IO statistics")
+                << ex;
+        }
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetJobCpuStatistics() const override
+    {
+        try {
+            return DoGetJobCpuStatistics();
+        } catch (const std::exception& ex) {
+            return TError("Failed to get job CPU statistics")
+                << ex;
+        }
+    }
+
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TJobId /*jobId*/,
         const TUserJobEnvironmentOptions& options) override
@@ -954,6 +1016,39 @@ public:
 
 private:
     const TCriJobEnvironmentConfigPtr Config_;
+
+    NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
+
+    std::optional<TJobEnvironmentMemoryStatistics> DoGetJobMemoryStatistics() const
+    {
+        auto statistics = StatisticsFetcher_.GetMemoryStatistics();
+        // NB: PeakRss usage is intentional here, to make statistics more sane.
+        return TJobEnvironmentMemoryStatistics{
+            .Rss = statistics.PeakRss,
+            .MappedFile = statistics.MappedFile,
+            .MajorPageFaults = statistics.MajorPageFaults,
+        };
+    }
+
+    std::optional<TJobEnvironmentBlockIOStatistics> DoGetJobBlockIOStatistics() const
+    {
+        auto statistics = StatisticsFetcher_.GetBlockIOStatistics();
+        return TJobEnvironmentBlockIOStatistics{
+            .IOReadByte = statistics.IOReadByte,
+            .IOWriteByte = statistics.IOWriteByte,
+            .IOReadOps = statistics.IOReadOps,
+            .IOWriteOps = statistics.IOWriteOps,
+        };
+    }
+
+    std::optional<TJobEnvironmentCpuStatistics> DoGetJobCpuStatistics() const
+    {
+        auto statistics = StatisticsFetcher_.GetCpuStatistics();
+        return TJobEnvironmentCpuStatistics{
+            .UserUsageTime = statistics.UserTime,
+            .SystemUsageTime = statistics.SystemTime,
+        };
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriJobProxyEnvironment)

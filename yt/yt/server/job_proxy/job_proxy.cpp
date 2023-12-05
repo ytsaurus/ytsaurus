@@ -1005,6 +1005,36 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
         }
+
+        try {
+            auto jobCpuStatistics = environment->GetJobCpuStatistics()
+                .ValueOrThrow();
+            if (jobCpuStatistics) {
+                statistics.AddSample("/job/cpu", *jobCpuStatistics);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Unable to get job CPU statistics from job proxy environment");
+        }
+
+        try {
+            auto jobMemoryStatistics = environment->GetJobMemoryStatistics()
+                .ValueOrThrow();
+            if (jobMemoryStatistics) {
+                statistics.AddSample("/job/memory", *jobMemoryStatistics);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Unable to get job memory statistics from job proxy environment");
+        }
+
+        try {
+            auto jobBlockIOStatistics = environment->GetJobBlockIOStatistics()
+                .ValueOrThrow();
+            if (jobBlockIOStatistics) {
+                statistics.AddSample("/job/block_io", *jobBlockIOStatistics);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Unable to get job block IO statistics from job proxy environment");
+        }
     }
 
     if (JobProxyMaxMemoryUsage_ > 0) {

@@ -701,9 +701,9 @@ void TFreezer::Unfreeze() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<TString, TString> ParseProcessCGroups(const TString& str)
+THashMap<TString, TString> ParseProcessCGroups(const TString& str)
 {
-    std::map<TString, TString> result;
+    THashMap<TString, TString> result;
 
     TVector<TString> values;
     StringSplitter(str.data()).SplitBySet(":\n").SkipEmpty().Collect(&values);
@@ -730,10 +730,16 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
     return result;
 }
 
-std::map<TString, TString> GetProcessCGroups(pid_t pid)
+THashMap<TString, TString> GetProcessCGroups(pid_t pid)
 {
     auto cgroupsPath = Format("/proc/%v/cgroup", pid);
     auto rawCgroups = TFileInput{cgroupsPath}.ReadAll();
+    return ParseProcessCGroups(rawCgroups);
+}
+
+THashMap<TString, TString> GetSelfProcessCGroups()
+{
+    auto rawCgroups = TFileInput{"/proc/self/cgroup"}.ReadAll();
     return ParseProcessCGroups(rawCgroups);
 }
 
