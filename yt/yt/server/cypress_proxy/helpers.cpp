@@ -57,22 +57,20 @@ void ValidateSupportedSequoiaType(EObjectType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath GetJoinedNestedNodesPath(const TYPath& parentPath, const std::vector<TYPathBuf>& childKeys)
+TYPath GetJoinedNestedNodesPath(
+    const TYPath& parentPath,
+    const std::vector<TYPathBuf>& childKeys)
 {
     TStringBuilder builder;
 
-    auto nestedLength = std::transform_reduce(
-        childKeys.begin(),
-        childKeys.end(),
-        0,
-        std::plus<size_t>{},
-        [] (TYPathBuf key) {
-            return key.size() + 1;
-        });
+    size_t nestedLength = 0;
+    for (auto childKey : childKeys) {
+        nestedLength += childKey.size() + 1;
+    }
     builder.Reserve(parentPath.size() + nestedLength);
 
     builder.AppendString(parentPath);
-    for (const auto& childKey : childKeys) {
+    for (auto childKey : childKeys) {
         builder.AppendChar('/');
         builder.AppendString(childKey);
     }

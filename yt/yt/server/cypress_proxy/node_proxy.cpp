@@ -31,6 +31,7 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
@@ -499,14 +500,14 @@ private:
         const std::vector<TYPathBuf>& childKeys,
         const TCallback& createDesignatedNode)
     {
-        YT_ASSERT(!childKeys.empty());
+        YT_VERIFY(!childKeys.empty());
         auto designatedPath = GetJoinedNestedNodesPath(parentPath, childKeys);
         auto designatedNodeId = createDesignatedNode(designatedPath);
         auto designatedNodeKey = TYPath(childKeys.back());
         auto prevNode = std::make_pair(designatedNodeId, designatedNodeKey);
         auto nestedPath = TYPathBuf(designatedPath).Chop(designatedNodeKey.size() + 1);
         for (auto it = std::next(childKeys.rbegin()); it != childKeys.rend(); ++it) {
-            const auto& key = *it;
+            auto key = *it;
             auto cellTag = GetRandomSequoiaNodeHostCellTag();
             auto id = Transaction_->GenerateObjectId(EObjectType::SequoiaMapNode, cellTag, /*sequoia*/ true);
             CreateNode(
@@ -737,7 +738,7 @@ private:
         {
             THROW_ERROR_EXCEPTION_IF(
                 Children_.contains(key),
-                "Sequoia map node already has such child: %Qv",
+                "Node %Qv already exists",
                 key);
 
             auto subtreeRootPath = Format("%v/%v", Owner_->Path_, key);
@@ -802,7 +803,7 @@ private:
         if (!request->recursive() && std::ssize(pathTokens) > 1) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "Node %v has no child with key \"%v\"",
+                "Node %v has no child with key %Qv",
                 Path_,
                 pathTokens[0]);
         }
@@ -816,7 +817,7 @@ private:
         };
         Transaction_->LockRow(parentKey, ELockType::SharedStrong);
 
-        auto createDesignatedNode = [&] (const auto& path) {
+        auto createDesignatedNode = [&] (const TYPath& path) {
             TTreeBuilder builder(this);
             builder.BeginTree(path);
             auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
@@ -889,13 +890,13 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     if (pathTokens.empty()) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::AlreadyExists,
-            "%v already exists",
+            "Node %v already exists",
             Path_);
     }
     if (!recursive && std::ssize(pathTokens) > 1) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "Node %v has no child with key \"%v\"",
+            "Node %v has no child with key %Qv",
             Path_,
             pathTokens[0]);
     }
@@ -909,7 +910,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     };
     Transaction_->LockRow(parentKey, ELockType::SharedStrong);
 
-    auto createDesignatedNode = [&] (const auto& path) {
+    auto createDesignatedNode = [&] (const TYPath& path) {
         auto cellTag = GetRandomSequoiaNodeHostCellTag();
         auto id = Transaction_->GenerateObjectId(type, cellTag, /*sequoia*/ true);
         CreateNode(type, id, path);
@@ -956,7 +957,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
     {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "Node %v has no child with key \"%v\"",
+            "Node %v has no child with key %Qv",
             Path_,
             pathTokens[0]);
     }
@@ -976,17 +977,13 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
     WaitFor(Transaction_->Commit())
         .ThrowOnError();
 
-    TStringStream out;
-    NYson::TYsonWriter writer(&out);
-
-    writer.OnBeginList();
-    for (const auto& row : selectRows) {
-        writer.OnListItem();
-        writer.OnStringScalar(row.Key.ChildKey);
-    }
-    writer.OnEndList();
-
-    response->set_value(out.Str());
+    response->set_value(BuildYsonStringFluently()
+        .BeginList()
+            .DoFor(selectRows, [&] (TFluentList fluent, const auto& row) {
+                fluent
+                    .Item().Value(row.Key.ChildKey);
+            })
+        .EndList().ToString());
     context->Reply();
 }
 

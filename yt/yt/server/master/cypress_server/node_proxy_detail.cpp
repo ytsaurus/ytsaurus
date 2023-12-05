@@ -2963,11 +2963,8 @@ bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
             if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
                 break;
             }
-            auto fluent = BuildYsonFluently(consumer).BeginMap();
-            for (const auto& [childKey, childId] : mapNode->KeyToChild()) {
-                fluent.Item(childKey).Value(childId);
-            }
-            fluent.EndMap();
+            BuildYsonFluently(consumer)
+                .Value(mapNode->KeyToChild());
             return true;
         }
         default:

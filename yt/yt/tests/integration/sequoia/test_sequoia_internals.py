@@ -9,6 +9,7 @@ from yt_sequoia_helpers import resolve_sequoia_id, resolve_sequoia_path
 
 from yt.common import YtError
 import pytest
+import builtins
 
 from time import sleep
 
@@ -135,17 +136,17 @@ class TestSequoiaInternals(YTEnvSetup):
         assert ls("//tmp/m") == ["a"]
 
     @authors("danilalexeev")
-    def test_nodes_cell_tags(self):
-        ack_cell_tags = {}
+    def test_nodes_different_cell_tags(self):
+        cell_tags = builtins.set()
         key = 0
 
         def create_and_check():
             nonlocal key
             create("map_node", f"//tmp/{key}")
             cell_tag = get(f"//tmp/{key}/@native_cell_tag")
-            ack_cell_tags[cell_tag] = "ack"
+            cell_tags.add(cell_tag)
             key += 1
-            return len(ack_cell_tags) > 1
+            return len(cell_tags) > 1
 
         while not create_and_check():
             pass
