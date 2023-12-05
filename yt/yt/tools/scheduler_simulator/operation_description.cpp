@@ -81,7 +81,7 @@ void TOperationDescription::Persist(const TStreamPersistenceContext& context)
 void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    value.Id = ConvertTo<TGuid>(mapNode->GetChildOrThrow("operation_id"));
+    value.Id = ConvertTo<TOperationId>(mapNode->GetChildOrThrow("operation_id"));
     value.JobDescriptions = ConvertTo<std::vector<TJobDescription>>(mapNode->GetChildOrThrow("job_descriptions"));
     value.StartTime = ConvertTo<TInstant>(mapNode->GetChildOrThrow("start_time"));
     value.Duration = ConvertTo<TInstant>(mapNode->GetChildOrThrow("finish_time")) - value.StartTime;

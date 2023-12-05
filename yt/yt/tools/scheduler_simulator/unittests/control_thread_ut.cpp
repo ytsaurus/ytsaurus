@@ -194,7 +194,7 @@ protected:
     {
         TOperationDescription operation;
 
-        operation.Id = TOperationId::FromString(Format("123-12345678-12345678-1%07d", NextOperationId_));
+        operation.Id = TOperationId(TGuid::FromString(Format("123-12345678-12345678-1%07d", NextOperationId_)));
         operation.JobDescriptions = std::move(jobDescriptions);
         operation.StartTime = startTime;
         operation.Duration = TDuration::Seconds(100);

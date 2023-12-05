@@ -424,7 +424,7 @@ TOperationId TClient::TryGetOperationId(
     }
 
     const auto& record = records[0];
-    return TOperationId(record.OperationIdHi, record.OperationIdLo);
+    return TOperationId(TGuid(record.OperationIdHi, record.OperationIdLo));
 }
 
 void TClient::ValidateOperationAccess(
@@ -841,7 +841,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     TJobId jobId)
 {
     try {
-        auto operationIdAsGuid = operationId;
+        auto operationIdAsGuid = operationId.Underlying();
         auto jobIdAsGuid = jobId.Underlying();
         NRecords::TJobStderrKey recordKey{
             .OperationIdHi = operationIdAsGuid.Parts64[0],
@@ -959,7 +959,7 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
     TJobId jobId)
 {
     try {
-        auto operationIdAsGuid = operationId;
+        auto operationIdAsGuid = operationId.Underlying();
         auto jobIdAsGuid = jobId.Underlying();
         NRecords::TJobFailContextKey recordKey{
             .OperationIdHi = operationIdAsGuid.Parts64[0],
@@ -1057,12 +1057,13 @@ static TQueryBuilder GetListJobsQueryBuilder(
     const TListJobsOptions& options)
 {
     NQueryClient::TQueryBuilder builder;
+    auto operationIdAsGuid = operationId.Underlying();
     builder.SetSource(GetOperationsArchiveJobsPath());
 
     builder.AddWhereConjunct(Format(
         "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
-        operationId.Parts64[0],
-        operationId.Parts64[1]));
+        operationIdAsGuid.Parts64[0],
+        operationIdAsGuid.Parts64[1]));
 
     builder.AddWhereConjunct(Format(
         "controller_state IN (%v) OR node_state IN (%v) "
@@ -2088,7 +2089,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
 
     std::vector<TUnversionedRow> keys;
     auto key = rowBuffer->AllocateUnversioned(4);
-    auto operationIdAsGuid = operationId;
+    auto operationIdAsGuid = operationId.Underlying();
     auto jobIdAsGuid = jobId.Underlying();
     key[0] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], table.Index.OperationIdHi);
     key[1] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], table.Index.OperationIdLo);

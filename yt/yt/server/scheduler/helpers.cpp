@@ -161,7 +161,7 @@ TListOperationsResult ListOperations(
 
             for (const auto& operationNode : hashBucketList->GetChildren()) {
                 auto id = operationNode->GetValue<TOperationId>();
-                YT_VERIFY((id.Parts32[0] & 0xff) == hash);
+                YT_VERIFY((id.Underlying().Parts32[0] & 0xff) == hash);
 
                 auto state = operationNode->Attributes().Get<EOperationState>("state");
                 EmplaceOrCrash(operationIds, id);

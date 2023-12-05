@@ -790,7 +790,7 @@ private:
                 OperationAlias_ = operationIdOrAlias;
                 YT_LOG_DEBUG("Clique is defined by alias (OperationAlias: %v)", OperationAlias_);
             } else {
-                OperationId_ = TOperationId::FromString(operationIdOrAlias);
+                OperationId_ = TOperationId(TGuid::FromString(operationIdOrAlias));
                 YT_LOG_DEBUG("Clique is defined by operation id (OperationId: %v)", OperationId_);
             }
 

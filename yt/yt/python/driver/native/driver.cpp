@@ -204,7 +204,7 @@ public:
         if (!HasArgument(args, kwargs, "operation_id")) {
             throw CreateYtError("Missing argument 'operation_id'");
         }
-        auto operationId = TOperationId::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "operation_id")));
+        auto operationId = TOperationId(TGuid::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "operation_id"))));
 
         ValidateArgumentsEmpty(args, kwargs);
 

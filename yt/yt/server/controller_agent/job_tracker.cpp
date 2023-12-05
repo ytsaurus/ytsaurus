@@ -376,7 +376,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
-        auto operationId = TOperationId::FromString(key);
+        auto operationId = TOperationId(TGuid::FromString(key));
         auto operationInfoIt = JobTracker_->RegisteredOperations_.find(operationId);
         if (operationInfoIt == std::end(JobTracker_->RegisteredOperations_)) {
             return nullptr;

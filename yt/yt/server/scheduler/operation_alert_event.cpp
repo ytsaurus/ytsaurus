@@ -19,7 +19,7 @@ struct TSerializableOperationAlertEvent
     {
         registrar.BaseClassParameter("operation_id", &TOperationAlertEvent::OperationId)
             .Default()
-            .DontSerializeDefault();;
+            .DontSerializeDefault();
         registrar.BaseClassParameter("alert_type", &TOperationAlertEvent::AlertType);
         registrar.BaseClassParameter("time", &TOperationAlertEvent::Time);
         registrar.BaseClassParameter("error", &TOperationAlertEvent::Error);

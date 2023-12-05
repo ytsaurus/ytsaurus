@@ -51,7 +51,7 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
 size_t TJobReport::EstimateSize() const
 {
     return NJobAgent::EstimateSizes(
-        OperationId_,
+        OperationId_.Underlying(),
         JobId_.Underlying(),
         Type_,
         State_,

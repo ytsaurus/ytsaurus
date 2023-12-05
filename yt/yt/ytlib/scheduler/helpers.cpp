@@ -91,7 +91,7 @@ TYPath GetOperationsPath()
 
 TYPath GetOperationPath(TOperationId operationId)
 {
-    int hashByte = operationId.Parts32[0] & 0xff;
+    int hashByte = operationId.Underlying().Parts32[0] & 0xff;
     return
         "//sys/operations/" +
         Format("%02x", hashByte) +
@@ -418,9 +418,10 @@ static TUnversionedRow CreateOperationKey(
     const TOrderedByIdTableDescriptor::TIndex& index,
     const TRowBufferPtr& rowBuffer)
 {
+    auto operationIdAsGuid = operationId.Underlying();
     auto key = rowBuffer->AllocateUnversioned(2);
-    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], index.IdHi);
-    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], index.IdLo);
+    key[0] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], index.IdHi);
+    key[1] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], index.IdLo);
     return key;
 }
 
