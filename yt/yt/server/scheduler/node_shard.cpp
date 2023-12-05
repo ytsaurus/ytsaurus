@@ -63,47 +63,31 @@ using NYT::ToProto;
 
 namespace {
 
-// COMPAT(pogorelov)
-
-TAllocationId GetAllocationId(const NProto::TAllocationStatus* status)
-{
-    return FromProto<TAllocationId>(status->allocation_id());
-}
-
-auto& GetJobs(NProto::NNode::TReqHeartbeat* request)
-{
-    return request->allocations();
-}
-
-auto* MutableJobs(NProto::NNode::TReqHeartbeat* request)
-{
-    return request->mutable_allocations();
-}
-
-EAllocationState GetAllocationState(NProto::TAllocationStatus* status)
-{
-    YT_VERIFY(status->has_state());
-
-    return CheckedEnumCast<EAllocationState>(status->state());
-}
-
 void SetControllerAgentDescriptor(
     const TAgentId& agentId,
     const TAddressMap& addresses,
     TIncarnationId incarnationId,
-    auto proto)
+    NControllerAgent::NProto::TControllerAgentDescriptor* proto)
 {
     ToProto(proto->mutable_addresses(), addresses);
     ToProto(proto->mutable_incarnation_id(), incarnationId);
     ToProto(proto->mutable_agent_id(), agentId);
 }
 
-void SetControllerAgentDescriptor(const TControllerAgentPtr& agent, auto proto)
+void SetControllerAgentDescriptor(
+    const TControllerAgentPtr& agent,
+    NControllerAgent::NProto::TControllerAgentDescriptor* proto)
 {
-    SetControllerAgentDescriptor(agent->GetId(), agent->GetAgentAddresses(), agent->GetIncarnationId(), proto);
+    SetControllerAgentDescriptor(
+        agent->GetId(),
+        agent->GetAgentAddresses(),
+        agent->GetIncarnationId(),
+        proto);
 }
 
-void SetControllerAgentIncarnationId(const TControllerAgentPtr& agent, auto proto)
+void SetControllerAgentIncarnationId(
+    const TControllerAgentPtr& agent,
+    NControllerAgent::NProto::TControllerAgentDescriptor* proto)
 {
     ToProto(proto->mutable_incarnation_id(), agent->GetIncarnationId());
 }
@@ -510,7 +494,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             ToJobResources(resourceLimits),
             request->disk_resources()
         ),
-        GetJobs(request).size());
+        request->allocations_size());
 
     YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
@@ -1584,8 +1568,8 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     // Used for debug logging.
     TAllocationStateToJobList ongoingJobsByAllocationState;
-    for (auto& jobStatus : *MutableJobs(request)) {
-        auto allocationId = GetAllocationId(&jobStatus);
+    for (auto& jobStatus : *request->mutable_allocations()) {
+        auto allocationId = FromProto<TAllocationId>(jobStatus.allocation_id());
 
         // COMPAT(pogorelov)
         if (specFetchFailedAllocations.contains(allocationId)) {
@@ -1626,7 +1610,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             }
         }
     }
-    HeartbeatJobCount_.Increment(GetJobs(request).size());
+    HeartbeatJobCount_.Increment(request->allocations_size());
     HeartbeatCount_.Increment();
 
     if (shouldLogOngoingJobs) {
@@ -1697,11 +1681,11 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     TRspHeartbeat* response,
     TStatus* jobStatus)
 {
-    auto allocationId = GetAllocationId(jobStatus);
+    auto allocationId = FromProto<TAllocationId>(jobStatus->allocation_id());
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
     auto jobId = JobIdFromAllocationId(allocationId);
 
-    auto allocationState = GetAllocationState(jobStatus);
+    auto allocationState = CheckedEnumCast<EAllocationState>(jobStatus->state());
 
     const auto& address = node->GetDefaultAddress();
 
