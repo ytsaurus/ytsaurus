@@ -67,12 +67,12 @@ You need 150 GB of disk space and at least 8 cores on the host for the cluster t
 
 #### Installing Minikube
 
-Minikube installation guide is available via [link](https://kubernetes.io/ru/docs/tasks/tools/install-minikube/).
+Minikube installation guide is available via [link](https://kubernetes.io/docs/tasks/tools/#minikube).
 
 Prerequisites:
 1. Install [Docker](https://docs.docker.com/engine/install/);
-2. Install [kubectl](https://kubernetes.io/ru/docs/tasks/tools/install-kubectl/#установка-kubectl-в-linux);
-3. Install [Minikube](https://kubernetes.io/ru/docs/tasks/tools/install-minikube/);
+2. Install [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl);
+3. Install [Minikube](https://kubernetes.io/docs/tasks/tools/#minikube);
 4. Run the command `minikube start --driver=docker`.
 
 As a result, the `kubectl cluster-info` command should be executed successfully.
