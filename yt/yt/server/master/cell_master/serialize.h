@@ -190,6 +190,8 @@ DEFINE_ENUM(EMasterReign,
     ((DontValidatePermissionsOnNodeUnregistration)                  (2452))  // kvk1920
 );
 
+static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
