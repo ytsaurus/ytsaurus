@@ -14,6 +14,13 @@ void TTransactionCommitOptions::Persist(const TStreamPersistenceContext& context
     Persist(context, CommitTimestampClusterTag);
 }
 
+void TTransactionAbortOptions::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Force);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionSupervisor

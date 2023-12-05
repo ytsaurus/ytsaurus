@@ -37,6 +37,8 @@ struct TTransactionCommitOptions
 struct TTransactionAbortOptions
 {
     bool Force = false;
+
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -104,7 +104,11 @@ private:
 
     static TRetryChecker GetCommitRetryChecker()
     {
-        static const auto Result = BIND_NO_PROPAGATE(&IsRetriableError);
+        static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
+            return
+                IsRetriableError(error) ||
+                error.FindMatching(NTransactionClient::EErrorCode::TransactionSuccessorHasLeases);
+        });
         return Result;
     }
 
@@ -113,7 +117,8 @@ private:
         static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
             return
                 IsRetriableError(error) ||
-                error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState);
+                error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState) ||
+                error.FindMatching(NTransactionClient::EErrorCode::TransactionSuccessorHasLeases);
         });
         return Result;
     }

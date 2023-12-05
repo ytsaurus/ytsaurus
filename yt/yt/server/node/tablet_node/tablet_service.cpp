@@ -124,7 +124,8 @@ private:
             .RowCount = request->row_count(),
             .DataWeight = request->data_weight(),
             .Versioned = request->versioned(),
-            .SyncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids())
+            .SyncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids()),
+            .PrerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids()),
         };
 
         if (request->has_hunk_chunks_info()) {

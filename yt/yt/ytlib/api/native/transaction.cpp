@@ -1798,7 +1798,8 @@ private:
         if (it == TabletIdToSession_.end()) {
             TTabletCommitOptions options{
                 .UpstreamReplicaId = tableSession->GetUpstreamReplicaId(),
-                .ReplicationCard = tableSession->GetReplicationCard()
+                .ReplicationCard = tableSession->GetReplicationCard(),
+                .PrerequisiteTransactionIds = CommitOptions_.PrerequisiteTransactionIds,
             };
             it = TabletIdToSession_.emplace(
                 tabletId,
@@ -2010,11 +2011,17 @@ private:
 
         return
             [&] {
+                // NB: During requests preparation some of the commit options
+                // like prerequisite transaction ids are required, so we firstly
+                // store raw commit options and then adjust them.
+                CommitOptions_ = options;
+
                 return needsFlush ? PrepareRequests() : VoidFuture;
             }()
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
                     BuildAdjustedCommitOptions(options);
+
                     Transaction_->ChooseCoordinator(CommitOptions_);
 
                     return Transaction_->ValidateNoDownedParticipants();
@@ -2061,7 +2068,7 @@ private:
                     }
 
                     return resultOrError.Value();
-                }) /* serialization intentionally omitted */);
+                }) /*serialization intentionally omitted*/);
     }
 
     TFuture<TTransactionFlushResult> DoFlush()

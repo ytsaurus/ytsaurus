@@ -97,6 +97,9 @@ private:
             .SetPresent(transaction->GetDeadline().operator bool()));
         descriptors->push_back(EInternedAttributeKey::Depth);
         descriptors->push_back(EInternedAttributeKey::CypressTransaction);
+        descriptors->push_back(EInternedAttributeKey::LeaseCellIds);
+        descriptors->push_back(EInternedAttributeKey::SuccessorTransactionLeaseCount);
+        descriptors->push_back(EInternedAttributeKey::LeasesState);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -179,19 +182,32 @@ private:
                     .Value(transaction->GetDepth());
                 return true;
 
-            case EInternedAttributeKey::AccountResourceUsageLeaseIds: {
+            case EInternedAttributeKey::AccountResourceUsageLeaseIds:
                 BuildYsonFluently(consumer)
                     .DoListFor(transaction->AccountResourceUsageLeases(), [=] (auto fluent, const auto* accountResourceUsageLease) {
                         fluent.Item().Value(accountResourceUsageLease->GetId());
                     });
                 return true;
-            }
 
-            case EInternedAttributeKey::CypressTransaction: {
+            case EInternedAttributeKey::CypressTransaction:
                 BuildYsonFluently(consumer)
                     .Value(transaction->GetIsCypressTransaction());
                 return true;
-            }
+
+            case EInternedAttributeKey::LeaseCellIds:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->LeaseCellIds());
+                return true;
+
+            case EInternedAttributeKey::SuccessorTransactionLeaseCount:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetSuccessorTransactionLeaseCount());
+                return true;
+
+            case EInternedAttributeKey::LeasesState:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetTransactionLeasesState());
+                return true;
 
             default:
                 break;

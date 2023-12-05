@@ -42,6 +42,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplicateTransactions)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(IssueLeases)
+            .SetHeavy(true));
 
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
     }
@@ -146,6 +148,23 @@ private:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, IssueLeases)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+        auto cellId = FromProto<TCellId>(request->cell_id());
+
+        context->SetRequestInfo("TransactionIds: %v, CellId: %v",
+            transactionIds,
+            cellId);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto mutation = transactionManager->CreateIssueLeasesMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
     void ValidateTransactionsAreCoordinatedByThisCell(const std::vector<TTransactionId>& transactionIds)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -159,8 +178,9 @@ private:
             }
         }
     }
-
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateTransactionService(TBootstrap* bootstrap)
 {

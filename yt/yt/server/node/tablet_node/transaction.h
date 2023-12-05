@@ -4,6 +4,8 @@
 #include "object_detail.h"
 #include "dynamic_store_bits.h"
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/transaction_detail.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -98,6 +100,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, CompatRowsPrepared, false);
 
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::ILeaseGuardPtr>, TransientLeaseGuards);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::ILeaseGuardPtr>, PersistentLeaseGuards);
 
 public:
     explicit TTransaction(TTransactionId id);

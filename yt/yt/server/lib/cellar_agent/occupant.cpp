@@ -29,6 +29,8 @@
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
 
+#include <yt/yt/server/lib/lease_server/lease_manager.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
 
@@ -86,6 +88,7 @@ using namespace NElection;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
+using namespace NLeaseServer;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTabletClient;
@@ -231,6 +234,11 @@ public:
     const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
     {
         return TransactionSupervisor_;
+    }
+
+    const ILeaseManagerPtr& GetLeaseManager() const override
+    {
+        return LeaseManager_;
     }
 
     TMailbox* GetMasterMailbox() const override
@@ -497,6 +505,21 @@ public:
                 CreateHydraManagerUpstreamSynchronizer(hydraManager),
                 Bootstrap_->GetNativeAuthenticator());
 
+            LeaseManager_ = CreateLeaseManager(
+                Config_->LeaseManager,
+                hydraManager,
+                Automaton_,
+                HiveManager_,
+                occupier->GetOccupierAutomatonInvoker(),
+                GetCellId(),
+                CreateHydraManagerUpstreamSynchronizer(hydraManager),
+                Bootstrap_->GetNativeAuthenticator());
+
+            WaitFor(BIND(SetLeaseManager, LeaseManager_)
+                .AsyncVia(occupier->GetOccupierAutomatonInvoker())
+                .Run())
+                .ThrowOnError();
+
             auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
                 ? Options_->ClockClusterTag
                 : connection->GetClusterTag();
@@ -531,6 +554,7 @@ public:
                 rpcServer->RegisterService(service);
             }
             rpcServer->RegisterService(HiveManager_->GetRpcService());
+            rpcServer->RegisterService(LeaseManager_->GetRpcService());
 
             occupier->RegisterRpcServices();
 
@@ -698,6 +722,8 @@ private:
 
     ITransactionSupervisorPtr TransactionSupervisor_;
 
+    ILeaseManagerPtr LeaseManager_;
+
     TCompositeAutomatonPtr Automaton_;
 
     bool Initialized_ = false;
@@ -754,7 +780,10 @@ private:
             ->AddChild("options", IYPathService::FromMethod(
                 &TCellarOccupant::GetOptions,
                 MakeWeak(this)))
-            ->AddChild("hive", HiveManager_->GetOrchidService());
+            ->AddChild("hive", HiveManager_->GetOrchidService())
+            ->AddChild("lease_manager", IYPathService::FromMethod(
+                &ILeaseManager::BuildOrchid,
+                MakeWeak(LeaseManager_)));
     }
 
     void GetHydraMonitoring(IYsonConsumer* consumer) const
@@ -817,11 +846,25 @@ private:
         }
         ElectionManager_.Reset();
 
-        Automaton_.Reset();
-
         ResponseKeeper_.Reset();
 
+        WaitFor(BIND(&TCellarOccupant::DoFinalizeAutomaton, MakeStrong(this))
+            .AsyncVia(GetOccupier()->GetOccupierAutomatonInvoker())
+            .Run())
+            .ThrowOnError();
+
+        GetOccupier()->Finalize();
+
+        Occupier_.Store(nullptr);
+    }
+
+    void DoFinalizeAutomaton()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto rpcServer = Bootstrap_->GetRpcServer();
+
+        Automaton_.Reset();
 
         if (TransactionSupervisor_) {
             for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
@@ -835,9 +878,11 @@ private:
         }
         HiveManager_.Reset();
 
-        GetOccupier()->Finalize();
-
-        Occupier_.Store(nullptr);
+        if (LeaseManager_) {
+            rpcServer->UnregisterService(LeaseManager_->GetRpcService());
+        }
+        LeaseManager_.Reset();
+        SetLeaseManager(/*leaseManager*/ nullptr);
     }
 
     void OnRecoveryComplete()

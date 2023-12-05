@@ -268,7 +268,10 @@
     XX(LastSeenTime, last_seen_time) \
     XX(LastWriteTimestamp, last_write_timestamp) \
     XX(LeadingPeerId, leading_peer_id) \
+    XX(LeaseCellIds, lease_cell_ids) \
+    XX(LeasesState, leases_state) \
     XX(LeaseTransactionId, lease_transaction_id) \
+    XX(LeaseTransactionIds, lease_transaction_ids) \
     XX(LifeStage, life_stage) \
     XX(LocalJobs, local_jobs) \
     XX(LocalHealth, local_health) \
@@ -452,6 +455,7 @@
     XX(Servants, servants) \
     XX(Sequoia, sequoia) \
     XX(SharedToSkynet, shared_to_skynet) \
+    XX(SuccessorTransactionLeaseCount, successor_transaction_lease_count) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
     XX(ResolveCached, resolve_cached) \
     XX(SecondaryIndices, secondary_indices) \

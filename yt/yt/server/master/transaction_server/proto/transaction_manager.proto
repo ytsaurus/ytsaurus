@@ -1,6 +1,7 @@
 package NYT.NTransactionServer.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,8 +76,7 @@ message TReqReturnBoomerang
 }
 
 message TReqRemoveStuckBoomerangWaves
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +112,11 @@ message TReqAbortCypressTransaction
     required bool force = 2;
     required string user = 3;
     optional string user_tag = 4;
+}
+
+message TReqRevokeLeases
+{
+    required NYT.NProto.TGuid transaction_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

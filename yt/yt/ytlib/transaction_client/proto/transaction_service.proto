@@ -1,8 +1,9 @@
 package NYT.NTransactionClient.NProto;
 
+import "yt/ytlib/transaction_client/proto/action.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
-import "yt/ytlib/transaction_client/proto/action.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,5 +64,16 @@ message TRspReplicateTransactions
     // True if at least one transaction replication has been posted as a direct result of the replication request.
     required bool sync_implied = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqIssueLeases
+{
+    repeated NYT.NProto.TGuid transaction_ids = 1;
+    required NYT.NProto.TGuid cell_id = 2;
+}
+
+message TRspIssueLeases
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////

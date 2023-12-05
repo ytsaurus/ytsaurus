@@ -129,6 +129,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (MasterCellChunkStatisticsCollector)
     (CypressTransactionService)
     (TransactionService)
+    (LeaseManager)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

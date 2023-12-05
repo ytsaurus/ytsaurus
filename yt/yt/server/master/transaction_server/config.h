@@ -69,6 +69,9 @@ public:
     // COMPAT(kvk1920): Remove after enabling on every cluster.
     bool ForbidTransactionActionsForCypressTransactions;
 
+    // Testing option.
+    bool ThrowOnLeaseRevokation;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

@@ -57,6 +57,10 @@ public:
     // COMPAT(h0pless): Remove this when all issues with system transaction types will be ironed out.
     DEFINE_BYVAL_RW_PROPERTY(bool, IsCypressTransaction);
 
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NHydra::TCellId>, LeaseCellIds);
+
+    DEFINE_BYREF_RW_PROPERTY(TPromise<void>, LeasesRevokedPromise);
+
     struct TExportEntry
     {
         NObjectServer::TObject* Object;
@@ -138,12 +142,22 @@ public:
     //! For externalized transactions only; returns the original transaction id.
     TTransactionId GetOriginalTransactionId() const;
 
+    void SetTransactionLeasesState(ETransactionLeasesState newState);
+    ETransactionLeasesState GetTransactionLeasesState() const;
+
+    void SetSuccessorTransactionLeaseCount(int newLeaseCount);
+    int GetSuccessorTransactionLeaseCount() const;
+
 private:
     void IncrementRecursiveLockCount();
     void DecrementRecursiveLockCount();
 
     bool Upload_ = false;
     int RecursiveLockCount_ = 0;
+
+    int SuccessorTransactionLeaseCount_ = 0;
+
+    ETransactionLeasesState LeasesState_ = ETransactionLeasesState::Active;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTransaction)

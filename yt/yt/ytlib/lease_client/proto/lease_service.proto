@@ -1,0 +1,49 @@
+package NYT.NLeaseClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqIssueLease
+{
+    required NYT.NProto.TGuid lease_id = 1;
+}
+
+message TRspIssueLease
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRevokeLease
+{
+    required NYT.NProto.TGuid lease_id = 1;
+    required bool force = 2;
+}
+
+message TRspRevokeLease
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReferenceLease
+{
+    required NYT.NProto.TGuid lease_id = 1;
+    required bool persistent = 2;
+    required bool force = 3;
+}
+
+message TRspReferenceLease
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnreferenceLease
+{
+    required NYT.NProto.TGuid lease_id = 1;
+    required bool persistent = 2;
+}
+
+message TRspUnreferenceLease
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

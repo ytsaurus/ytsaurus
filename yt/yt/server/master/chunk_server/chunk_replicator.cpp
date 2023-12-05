@@ -66,6 +66,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <library/cpp/yt/small_containers/compact_queue.h>
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <array>
@@ -3271,20 +3272,18 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     // Unique number used to distinguish already visited chunk lists.
     auto mark = TChunkList::GenerateVisitMark();
 
-    // BFS queue. Try to avoid allocations.
-    TCompactVector<TChunkList*, 64> queue;
-    size_t frontIndex = 0;
+    // BFS queue.
+    TCompactQueue<TChunkList*, 64> queue;
 
     auto enqueue = [&] (TChunkList* chunkList) {
         if (chunkList->GetVisitMark() != mark) {
             chunkList->SetVisitMark(mark);
-            queue.push_back(chunkList);
+            queue.Push(chunkList);
         }
     };
 
     auto enqueueAdjustedParent = [&] (TChunkList* parent) {
-        auto* adjustedParent = FollowParentLinks(parent);
-        if (adjustedParent) {
+        if (auto* adjustedParent = FollowParentLinks(parent)) {
             enqueue(adjustedParent);
         }
     };
@@ -3308,9 +3307,8 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     }
 
     // The main BFS loop.
-    while (frontIndex < queue.size()) {
-        auto* chunkList = queue[frontIndex++];
-
+    while (!queue.Empty()) {
+        auto* chunkList = queue.Pop();
         // Examine owners, if any.
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
             if (auto* account = owningNode->Account().Get()) {

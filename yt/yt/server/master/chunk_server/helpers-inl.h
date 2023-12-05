@@ -16,6 +16,8 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <library/cpp/yt/small_containers/compact_queue.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,30 +39,30 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child)
 template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor)
 {
-    // BFS queue. Try to avoid allocations.
-    TCompactVector<TChunkList*, 64> queue;
-    size_t frontIndex = 0;
+    // BFS queue.
+    TCompactQueue<TChunkList*, 64> queue;
 
     // Put seed into the queue.
-    queue.push_back(chunkList);
+    queue.Push(chunkList);
 
     // The main loop.
-    while (frontIndex < queue.size()) {
-        auto* chunkList = queue[frontIndex++];
+    while (!queue.Empty()) {
+        auto* chunkList = queue.Pop();
 
         // Fast lane: handle unique parents.
         while (chunkList != nullptr) {
             functor(chunkList);
             const auto& parents = chunkList->Parents();
-            if (parents.Size() != 1)
+            if (parents.Size() != 1) {
                 break;
+            }
             chunkList = *parents.begin();
         }
 
         if (chunkList != nullptr) {
             // Proceed to parents.
             for (auto* parent : chunkList->Parents()) {
-                queue.push_back(parent);
+                queue.Push(parent);
             }
         }
     }

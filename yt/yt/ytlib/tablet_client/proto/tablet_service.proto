@@ -1,8 +1,10 @@
 package NYT.NTabletClient.NProto;
 
-import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/transaction_client/proto/action.proto";
+
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +37,7 @@ message TReqWrite
     optional int64 data_weight = 13 [default = 0];
     optional uint64 replication_era = 15 [default = 0];
     optional THunkChunksInfo hunk_chunks_info = 17;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 18;
     // Attachment contains wire-encoded data.
 }
 

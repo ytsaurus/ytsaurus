@@ -44,6 +44,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/server/lib/tablet_server/public.h>
 
 #include <yt/yt/server/lib/timestamp_server/public.h>
@@ -124,6 +126,7 @@ public:
     const NTransactionServer::ITransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
+    const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const;
     const NCypressServer::ICypressManagerPtr& GetCypressManager() const;
     const NCypressServer::IPortalManagerPtr& GetPortalManager() const;
     const NCypressServer::IGraftingManagerPtr& GetGraftingManager() const;
@@ -214,6 +217,7 @@ protected:
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     NTransactionSupervisor::ITransactionSupervisorPtr TransactionSupervisor_;
+    NLeaseServer::ILeaseManagerPtr LeaseManager_;
     NCypressServer::ICypressManagerPtr CypressManager_;
     NCypressServer::IPortalManagerPtr PortalManager_;
     NCypressServer::IGraftingManagerPtr GraftingManager_;

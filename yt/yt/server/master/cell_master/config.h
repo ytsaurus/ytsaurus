@@ -36,6 +36,8 @@
 
 #include <yt/yt/server/master/scheduler_pool_server/public.h>
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/server/lib/timestamp_server/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -237,6 +239,8 @@ public:
     TDiscoveryServersConfigPtr DiscoveryServer;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
+
+    NLeaseServer::TLeaseManagerConfigPtr LeaseManager;
 
     NTransactionSupervisor::TTransactionSupervisorConfigPtr TransactionSupervisor;
 

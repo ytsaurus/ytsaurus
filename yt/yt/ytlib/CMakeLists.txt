@@ -903,6 +903,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
@@ -993,6 +1005,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto

@@ -118,6 +118,7 @@
 #include <yt/yt/core/ypath/token.h>
 
 #include <library/cpp/yt/small_containers/compact_set.h>
+#include <library/cpp/yt/small_containers/compact_queue.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -2089,16 +2090,14 @@ public:
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
-        TCompactVector<TTransaction*, 64> queue;
+        TCompactQueue<TTransaction*, 64> queue;
+        queue.Push(rootTransaction);
 
-        size_t frontIndex = 0;
-        queue.push_back(rootTransaction);
+        while (!queue.Empty()) {
+            auto* transaction = queue.Pop();
 
-        while (frontIndex < queue.size()) {
-            auto* transaction = queue[frontIndex++];
-
-            for (auto* t : transaction->NestedTransactions()) {
-                queue.push_back(t);
+            for (auto* transaction : transaction->NestedTransactions()) {
+                queue.Push(transaction);
             }
 
             processTransaction(transaction);

@@ -104,6 +104,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
 
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NTransactionServer::TTransactionId>, LeaseTransactionIds);
+
 public:
     explicit TCellBase(TTamedCellId id);
 

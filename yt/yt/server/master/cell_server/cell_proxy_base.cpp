@@ -23,6 +23,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -113,6 +114,8 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxSnapshotId)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::Suspended);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LeaseTransactionIds)
+        .SetOpaque(true));
 }
 
 bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer)
@@ -252,6 +255,11 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
         case EInternedAttributeKey::Suspended:
             BuildYsonFluently(consumer)
                 .Value(cell->GetSuspended());
+            return true;
+
+        case EInternedAttributeKey::LeaseTransactionIds:
+            BuildYsonFluently(consumer)
+                .Value(cell->LeaseTransactionIds());
             return true;
 
         default:

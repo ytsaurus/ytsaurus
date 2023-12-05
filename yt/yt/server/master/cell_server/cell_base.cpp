@@ -128,6 +128,7 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, PeerCount_);
     Save(context, LastLeaderChangeTime_);
     Save(context, Suspended_);
+    Save(context, LeaseTransactionIds_);
 }
 
 void TCellBase::Load(TLoadContext& context)
@@ -146,6 +147,11 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, PeerCount_);
     Load(context, LastLeaderChangeTime_);
     Load(context, Suspended_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::TabletPrerequisites) {
+        Load(context, LeaseTransactionIds_);
+    }
 }
 
 int TCellBase::FindPeerId(const TString& address) const

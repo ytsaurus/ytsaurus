@@ -202,6 +202,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexForbidsPortal)                                  (2511))  // sabdenovch
     ((SchedulerSystemOutputCompletionTransaction)                   (2512))  // kvk1920
     ((SequoiaPropertiesBeingCreated)                                (2513))  // danilalexeev
+    ((TabletPrerequisites)                                          (2514))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

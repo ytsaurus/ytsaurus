@@ -238,8 +238,13 @@ private:
             ToProto(req->mutable_hunk_chunks_info(), *HunkChunksInfo_);
         }
 
+        if (batchIndex == 0) {
+            ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
+        }
+
         YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
-            "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, UpstreamReplicaId: %v%v)",
+            "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, "
+            "UpstreamReplicaId: %v%v, PrerequisiteTransactionIds: %v)",
             batchIndex,
             Batches_.size(),
             batch->RowCount,
@@ -258,7 +263,8 @@ private:
                                 builder->AppendFormat("%v: %v", info.first, info.second.HunkCount);
                             }));
                 }
-            }));
+            }),
+            Options_.PrerequisiteTransactionIds);
 
         req->Invoke().Subscribe(
             BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));

@@ -992,6 +992,7 @@
   "yt/yt/server/lib/io/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/job_agent/CMakeLists.txt":"",
   "yt/yt/server/lib/job_proxy/CMakeLists.txt":"",
+  "yt/yt/server/lib/lease_server/CMakeLists.txt":"",
   "yt/yt/server/lib/logging/CMakeLists.txt":"",
   "yt/yt/server/lib/logging/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/lsm/CMakeLists.txt":"",

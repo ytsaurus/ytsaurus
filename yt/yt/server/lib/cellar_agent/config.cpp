@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
+#include <yt/yt/server/lib/lease_server/config.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/config.h>
 
 #include <yt/yt/core/rpc/config.h>
@@ -62,6 +64,8 @@ void TCellarOccupantConfig::Register(TRegistrar registrar)
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
     registrar.Parameter("hive_manager", &TThis::HiveManager)
+        .DefaultNew();
+    registrar.Parameter("lease_manager", &TThis::LeaseManager)
         .DefaultNew();
     registrar.Parameter("transaction_supervisor", &TThis::TransactionSupervisor)
         .DefaultNew();

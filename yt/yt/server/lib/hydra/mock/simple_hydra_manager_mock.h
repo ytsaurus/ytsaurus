@@ -43,6 +43,7 @@ public:
     bool IsActiveFollower() const override;
     TCancelableContextPtr GetAutomatonCancelableContext() const override;
     TEpochId GetAutomatonEpochId() const override;
+    int GetAutomatonTerm() const override;
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) override;
 
     // NB: semantics for these signals is not properly reproduced. Only the

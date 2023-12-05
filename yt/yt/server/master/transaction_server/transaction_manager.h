@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/cell_server/public.h>
+
 #include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
@@ -127,6 +129,13 @@ struct ITransactionManager
         TTransaction* transaction,
         NObjectServer::TObject* object) = 0;
 
+    virtual bool RegisterTransactionLease(
+        TTransaction* transaction,
+        NCellServer::TCellBase* cell) = 0;
+    virtual bool UnregisterTransactionLease(
+        TTransaction* transaction,
+        NCellServer::TCellBase* cell) = 0;
+
     virtual void RegisterTransactionActionHandlers(
         const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
         const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
@@ -161,6 +170,13 @@ struct ITransactionManager
     using TCtxReplicateTransactionsPtr = TIntrusivePtr<TCtxReplicateTransactions>;
     virtual std::unique_ptr<NHydra::TMutation> CreateReplicateTransactionsMutation(
         TCtxReplicateTransactionsPtr context) = 0;
+
+    using TCtxIssueLeases = NRpc::TTypedServiceContext<
+        NProto::TReqIssueLeases,
+        NProto::TRspIssueLeases>;
+    using TCtxIssueLeasesPtr = TIntrusivePtr<TCtxIssueLeases>;
+    virtual std::unique_ptr<NHydra::TMutation> CreateIssueLeasesMutation(
+        TCtxIssueLeasesPtr context) = 0;
 
     virtual void CreateOrRefTimestampHolder(TTransactionId transactionId) = 0;
     virtual void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp) = 0;

@@ -107,6 +107,8 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
+#include <yt/yt/server/lib/lease_server/lease_manager.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
@@ -201,6 +203,7 @@ using namespace NHiveServer;
 using namespace NHydra;
 using namespace NIncumbentServer;
 using namespace NJournalServer;
+using namespace NLeaseServer;
 using namespace NMaintenanceTrackerServer;
 using namespace NMonitoring;
 using namespace NNet;
@@ -411,6 +414,11 @@ const ITransactionManagerPtr& TBootstrap::GetTransactionManager() const
 const ITransactionSupervisorPtr& TBootstrap::GetTransactionSupervisor() const
 {
     return TransactionSupervisor_;
+}
+
+const ILeaseManagerPtr& TBootstrap::GetLeaseManager() const
+{
+    return LeaseManager_;
 }
 
 const ITimestampProviderPtr& TBootstrap::GetTimestampProvider() const
@@ -969,6 +977,17 @@ void TBootstrap::DoInitialize()
         PrimaryCellTag_,
         TimestampProvider_,
         std::move(transactionParticipantProviders),
+        NativeAuthenticator_);
+
+    LeaseManager_ = CreateLeaseManager(
+        Config_->LeaseManager,
+        HydraFacade_->GetHydraManager(),
+        HydraFacade_->GetAutomaton(),
+        HiveManager_,
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::LeaseManager),
+        CellId_,
+        // NB: There is no need for multicell syncs in lease manager.
+        CreateHydraManagerUpstreamSynchronizer(HydraFacade_->GetHydraManager()),
         NativeAuthenticator_);
 
     AlertManager_->Initialize();

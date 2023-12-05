@@ -20,6 +20,7 @@ target_link_libraries(server-lib-cellar_agent PUBLIC
   yutil
   yt-yt-ytlib
   server-lib-hive
+  server-lib-lease_server
   server-lib-transaction_supervisor
 )
 target_sources(server-lib-cellar_agent PRIVATE
