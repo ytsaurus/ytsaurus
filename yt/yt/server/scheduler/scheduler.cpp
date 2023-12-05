@@ -636,9 +636,9 @@ public:
                 EPermissionSet(EPermission::Read | EPermission::Manage));
         }
 
-        auto operationId = MakeRandomId(
+        auto operationId = TOperationId(MakeRandomId(
             EObjectType::Operation,
-            GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
+            GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag()));
 
         auto runtimeParameters = New<TOperationRuntimeParameters>();
         InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type, operationId);
@@ -4331,7 +4331,7 @@ private:
                     }
                 }
             } else {
-                auto operationId = TOperationId::FromString(key);
+                auto operationId = TOperationId(TGuid::FromString(key));
                 auto it = Scheduler_->IdToOperationService_.find(operationId);
                 return it == Scheduler_->IdToOperationService_.end() ? nullptr : it->second;
             }

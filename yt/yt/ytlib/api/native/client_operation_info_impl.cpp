@@ -443,7 +443,7 @@ TOperationId TClient::ResolveOperationAlias(
             << TErrorAttribute("alias", alias);
     }
 
-    return TOperationId(optionalRecord->OperationIdHi, optionalRecord->OperationIdLo);
+    return TOperationId(TGuid(optionalRecord->OperationIdHi, optionalRecord->OperationIdLo));
 }
 
 static TInstant GetProgressBuildTime(const TYsonString& progressYson)
@@ -971,9 +971,9 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
 
         TOperation operation;
 
-        auto operationId = TOperationId(
+        auto operationId = TOperationId(TGuid(
             FromUnversionedValue<ui64>(row[idHiIndex]),
-            FromUnversionedValue<ui64>(row[idLoIndex]));
+            FromUnversionedValue<ui64>(row[idLoIndex])));
 
         if (needIdInOutput) {
             operation.Id = operationId;
@@ -1215,7 +1215,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     std::vector<TOperationId> ids;
     ids.reserve(rows.Size());
     for (auto row : rows) {
-        ids.emplace_back(FromUnversionedValue<ui64>(row[idHiIndex]), FromUnversionedValue<ui64>(row[idLoIndex]));
+        ids.emplace_back(TGuid(FromUnversionedValue<ui64>(row[idHiIndex]), FromUnversionedValue<ui64>(row[idLoIndex])));
     }
 
     const THashSet<TString> RequiredAttributes = {"id", "start_time"};
@@ -1317,10 +1317,12 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
 
     std::sort(operations.begin(), operations.end(), [&] (const TOperation& lhs, const TOperation& rhs) {
         // Reverse order: most recent first.
+        auto lhsOperationIdAsGuid = (*lhs.Id).Underlying();
+        auto rhsOperationIdAsGuid = (*rhs.Id).Underlying();
         return
-        std::tie(*lhs.StartTime, (*lhs.Id).Parts64[0], (*lhs.Id).Parts64[1])
+        std::tie(*lhs.StartTime, lhsOperationIdAsGuid.Parts64[0], lhsOperationIdAsGuid.Parts64[1])
         >
-        std::tie(*rhs.StartTime, (*rhs.Id).Parts64[0], (*rhs.Id).Parts64[1]);
+        std::tie(*rhs.StartTime, rhsOperationIdAsGuid.Parts64[0], rhsOperationIdAsGuid.Parts64[1]);
     });
 
     TListOperationsResult result;

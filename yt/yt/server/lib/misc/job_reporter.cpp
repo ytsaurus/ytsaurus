@@ -88,7 +88,7 @@ public:
 
         TUnversionedOwningRowBuilder builder;
 
-        auto operationIdAsGuid = Report_.OperationId();
+        auto operationIdAsGuid = Report_.OperationId().Underlying();
         auto jobIdAsGuid = Report_.JobId().Underlying();
         builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], index.OperationIdHi));
         builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], index.OperationIdLo));
@@ -202,7 +202,7 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
-        auto operationIdAsGuid = Report_.OperationId();
+        auto operationIdAsGuid = Report_.OperationId().Underlying();
         auto jobIdAsGuid = Report_.JobId().Underlying();
         return FromRecord(NRecords::TOperationId{
             .Key = {
@@ -271,7 +271,7 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
-        auto operationIdAsGuid = Report_.OperationId();
+        auto operationIdAsGuid = Report_.OperationId().Underlying();
         auto jobIdAsGuid = Report_.JobId().Underlying();
 
         if (!Report_.Stderr()) {
@@ -314,7 +314,7 @@ public:
             return {};
         }
 
-        auto operationIdAsGuid = Report_.OperationId();
+        auto operationIdAsGuid = Report_.OperationId().Underlying();
         auto jobIdAsGuid = Report_.JobId().Underlying();
 
         return FromRecord(NRecords::TJobFailContext{
@@ -355,7 +355,7 @@ public:
             return {};
         }
 
-        auto operationIdAsGuid = Report_.OperationId();
+        auto operationIdAsGuid = Report_.OperationId().Underlying();
         auto jobIdAsGuid = Report_.JobId().Underlying();
 
         return FromRecord(NRecords::TJobProfile{

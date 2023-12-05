@@ -7,14 +7,19 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOperationId MakeOperationId(ui64 p0, ui64 p1)
+{
+    return TOperationId(TGuid(p0, p1));
+}
+
 TEST(TJobMonitoringIndexManager, Simple)
 {
     TJobMonitoringIndexManager manager(5);
     ASSERT_EQ(manager.GetMaxSize(), 5);
 
-    TOperationId operationId1 = TOperationId(7, 8);
-    TOperationId operationId2 = TOperationId(7, 9);
-    TOperationId operationId3 = TOperationId(7, 10);
+    TOperationId operationId1 = MakeOperationId(7, 8);
+    TOperationId operationId2 = MakeOperationId(7, 9);
+    TOperationId operationId3 = MakeOperationId(7, 10);
 
     auto i1 = manager.TryAddIndex(operationId1);
     ASSERT_EQ(manager.GetSize(), 1);
@@ -67,7 +72,7 @@ TEST(TJobMonitoringIndexManager, Large)
     constexpr int Count = 10000;
     TJobMonitoringIndexManager manager(Count);
 
-    auto operationId = TOperationId(7, 8);
+    auto operationId = MakeOperationId(7, 8);
 
     for (int i = 0; i < Count; ++i) {
         auto index = manager.TryAddIndex(operationId);

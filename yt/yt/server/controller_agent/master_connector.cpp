@@ -788,8 +788,9 @@ private:
 
         TOrderedByIdTableDescriptor tableDescriptor;
         TUnversionedRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
+        auto operationIdAsGuid = operationId.Underlying();
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], tableDescriptor.Index.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], tableDescriptor.Index.IdLo));
         builder.AddValue(MakeUnversionedAnyValue(featureYsonString, tableDescriptor.Index.ControllerFeatures));
 
         auto rowBuffer = New<TRowBuffer>();
@@ -922,8 +923,9 @@ private:
 
         TOrderedByIdTableDescriptor tableDescriptor;
         TUnversionedRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
+        auto operationIdAsGuid = operationId.Underlying();
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], tableDescriptor.Index.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], tableDescriptor.Index.IdLo));
         builder.AddValue(MakeUnversionedAnyValue(progressString, tableDescriptor.Index.Progress));
         builder.AddValue(MakeUnversionedAnyValue(briefProgressString, tableDescriptor.Index.BriefProgress));
 

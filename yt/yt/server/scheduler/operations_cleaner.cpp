@@ -150,7 +150,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetProgressAttributeKeys()
 
 void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictionary& attributes)
 {
-    Id = TOperationId::FromString(attributes.Get<TString>("key"));
+    Id = TOperationId(TGuid::FromString(attributes.Get<TString>("key")));
     StartTime = attributes.Get<TInstant>("start_time");
     FinishTime = attributes.Get<TInstant>("finish_time");
     State = attributes.Get<EOperationState>("state");
@@ -388,8 +388,9 @@ TUnversionedRow BuildOrderedByIdTableRow(
     auto filterFactors = GetFilterFactors(request);
 
     TUnversionedRowBuilder builder;
-    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[0], index.IdHi));
-    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[1], index.IdLo));
+    auto requestIdAsGuid = request.Id.Underlying();
+    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[0], index.IdHi));
+    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[1], index.IdLo));
     builder.AddValue(MakeUnversionedStringValue(state, index.State));
     builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
     builder.AddValue(MakeUnversionedStringValue(operationType, index.OperationType));
@@ -472,9 +473,10 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     }
 
     TUnversionedRowBuilder builder;
+    auto requestIdAsGuid = request.Id.Underlying();
     builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
-    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[0], index.IdHi));
-    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[1], index.IdLo));
+    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[0], index.IdHi));
+    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[1], index.IdLo));
     builder.AddValue(MakeUnversionedStringValue(operationType, index.OperationType));
     builder.AddValue(MakeUnversionedStringValue(state, index.State));
     builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
@@ -503,12 +505,13 @@ TUnversionedRow BuildOperationAliasesTableRow(
     const TArchiveOperationRequest& request,
     int /*version*/)
 {
+    auto requestIdAsGuid = request.Id.Underlying();
     NRecords::TOperationAlias record{
         .Key = {
             .Alias =  *request.Alias,
         },
-        .OperationIdHi = request.Id.Parts64[0],
-        .OperationIdLo = request.Id.Parts64[1],
+        .OperationIdHi = requestIdAsGuid.Parts64[0],
+        .OperationIdLo = requestIdAsGuid.Parts64[1],
     };
     return FromRecord(record, rowBuffer);
 }
@@ -584,9 +587,9 @@ void DoSendOperationAlerts(
         if (!row) {
             continue;
         }
-        auto operationId = TOperationId(
+        auto operationId = TOperationId(TGuid(
             FromUnversionedValue<ui64>(row[idHiIndex]),
-            FromUnversionedValue<ui64>(row[idLoIndex]));
+            FromUnversionedValue<ui64>(row[idLoIndex])));
 
         auto eventsFromArchive = FromUnversionedValue<std::optional<TYsonStringBuf>>(row[alertEventsIndex]);
         if (eventsFromArchive) {
@@ -608,8 +611,9 @@ void DoSendOperationAlerts(
 
     for (const auto& [operationId, eventsMap] : idToAlertEvents) {
         TUnversionedRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableIndex.IdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableIndex.IdLo));
+        auto operationIdAsGuid = operationId.Underlying();
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], tableIndex.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], tableIndex.IdLo));
         auto serializedEvents = ConvertToYsonString(ConvertToAlertEvents(eventsMap));
         builder.AddValue(MakeUnversionedAnyValue(serializedEvents.AsStringBuf(), tableIndex.AlertEvents));
 
@@ -1875,7 +1879,7 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
                 TOperationId operationId;
                 try {
                     attributes = ConvertToAttributes(operationDataToParse.AttrbutesYson);
-                    operationId = TOperationId::FromString(attributes->Get<TString>("key"));
+                    operationId = TOperationId(TGuid::FromString(attributes->Get<TString>("key")));
                     YT_VERIFY(operationId == operationDataToParse.OperationId);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing operation attributes")

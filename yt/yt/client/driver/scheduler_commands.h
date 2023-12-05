@@ -33,8 +33,8 @@ public:
             .Default();
 
         this->RegisterPostprocessor([&] {
-            if (!OperationId.IsEmpty() && OperationAlias.operator bool() ||
-                OperationId.IsEmpty() && !OperationAlias.operator bool())
+            if (OperationId && OperationAlias.has_value() ||
+                !OperationId && !OperationAlias.has_value())
             {
                 THROW_ERROR_EXCEPTION("Exactly one of \"operation_id\" and \"operation_alias\" should be set")
                     << TErrorAttribute("operation_id", OperationId)

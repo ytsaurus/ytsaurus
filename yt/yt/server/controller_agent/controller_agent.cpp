@@ -2097,7 +2097,7 @@ private:
                     .BeginAttributes()
                         .Item("opaque").Value(true)
                     .EndAttributes()
-                    .DoListFor(IdToOperation_, [&] (TFluentList fluent, const std::pair<TGuid, TOperationPtr>& it) {
+                    .DoListFor(IdToOperation_, [&] (TFluentList fluent, const std::pair<TOperationId, TOperationPtr>& it) {
                         if (it.second->GetController()->HasSnapshot()) {
                             fluent.Item().Value(ToString(it.first));
                         }
@@ -2161,7 +2161,7 @@ private:
                 return nullptr;
             }
 
-            auto operationId = TOperationId::FromString(key);
+            auto operationId = TOperationId(TGuid::FromString(key));
             if (auto operation = ControllerAgent_->FindOperation(operationId)) {
                 return operation->GetController()->GetOrchid();
             }
