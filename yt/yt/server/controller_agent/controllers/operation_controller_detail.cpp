@@ -1767,7 +1767,7 @@ void TOperationControllerBase::InitChunkListPools()
             OutputTransaction->GetId());
 
         CellTagToRequiredOutputChunkListCount_.clear();
-        for (const auto& table : UpdatingTables_) {
+        for (const auto& table : OutputTables_) {
             ++CellTagToRequiredOutputChunkListCount_[table->ExternalCellTag];
         }
 
