@@ -37,7 +37,6 @@ protobuf {
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
-        include("yt/yt_proto/yt/formats/extension.proto")
         include("yt/yt_proto/yt/formats/yamr.proto")
     }
     into(buildProtoDir)
