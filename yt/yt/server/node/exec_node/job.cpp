@@ -2308,7 +2308,7 @@ void TJob::PrepareNodeDirectory()
 
 std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
 {
-    return CommonConfig_->RootFSBinds;
+    return Bootstrap_->GetConfig()->ExecNode->RootFSBinds;
 }
 
 TJobProxyInternalConfigPtr TJob::CreateConfig()

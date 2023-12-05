@@ -579,10 +579,6 @@ class TJobCommonConfig
 public:
     bool UseArtifactBinds;
 
-    //! Bind mounts added for all user job containers.
-    //! Should include ChunkCache if artifacts are passed by symlinks.
-    std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
-
     int NodeDirectoryPrepareRetryCount;
 
     TDuration NodeDirectoryPrepareBackoffTime;
@@ -768,6 +764,10 @@ class TExecNodeConfig
     : public NYTree::TYsonStruct
 {
 public:
+    //! Bind mounts added for all user job containers.
+    //! Should include ChunkCache if artifacts are passed by symlinks.
+    std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
+
     TSlotManagerConfigPtr SlotManager;
 
     TJobControllerConfigPtr JobController;

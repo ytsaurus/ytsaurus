@@ -607,9 +607,6 @@ void TJobCommonConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_artifact_binds", &TThis::UseArtifactBinds)
         .Default(false);
 
-    registrar.Parameter("root_fs_binds", &TThis::RootFSBinds)
-        .Default();
-
     registrar.Parameter("node_directory_prepare_retry_count", &TThis::NodeDirectoryPrepareRetryCount)
         .Default(10);
 
@@ -792,6 +789,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
 void TExecNodeConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("root_fs_binds", &TThis::RootFSBinds)
+        .Default();
+
     registrar.Parameter("slot_manager", &TThis::SlotManager)
         .DefaultNew();
 
