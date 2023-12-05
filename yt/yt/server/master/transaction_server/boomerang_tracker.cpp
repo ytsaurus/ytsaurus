@@ -247,9 +247,11 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
 
     if (!mutationContext.GetResponseKeeperSuppressed()) {
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        responseKeeper->EndRequest(
-            mutationRequest.MutationId,
-            mutationContext.GetResponseData());
+        if (auto setResponseKeeperPromise =
+            responseKeeper->EndRequest(mutationRequest.MutationId, mutationContext.GetResponseData()))
+        {
+            setResponseKeeperPromise();
+        }
     }
 }
 

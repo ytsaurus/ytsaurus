@@ -1750,7 +1750,9 @@ private:
     void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage, bool remember = true)
     {
         if (auto mutationId = commit->GetMutationId()) {
-            ResponseKeeper_->EndRequest(mutationId, responseMessage, remember);
+            if (auto setResponseKeeperPromise = ResponseKeeper_->EndRequest(mutationId, responseMessage, remember)) {
+                setResponseKeeperPromise();
+            }
         }
 
         commit->SetResponseMessage(std::move(responseMessage));
@@ -1903,7 +1905,9 @@ private:
     {
         auto mutationId = abort->GetMutationId();
         if (mutationId) {
-            ResponseKeeper_->EndRequest(mutationId, responseMessage, remember);
+            if (auto setResponseKeeperPromise = ResponseKeeper_->EndRequest(mutationId, responseMessage, remember)) {
+                setResponseKeeperPromise();
+            }
         }
 
         abort->SetResponseMessage(std::move(responseMessage));
