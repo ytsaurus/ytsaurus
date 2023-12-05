@@ -142,7 +142,8 @@ YT_DEFINE_ERROR_ENUM(
 
 extern const TString SecureVaultEnvPrefix;
 
-using TControllerEpoch = int;
+YT_DEFINE_STRONG_TYPEDEF(TControllerEpoch, int);
+
 using TIncarnationId = TGuid;
 using TAgentId = TString;
 

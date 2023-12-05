@@ -74,7 +74,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateFailedEve
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateAbortedEvent(
     TOperationId operationId,
-    int controllerEpoch,
+    TControllerEpoch controllerEpoch,
     TError error)
 {
     return TAgentToSchedulerOperationEvent(

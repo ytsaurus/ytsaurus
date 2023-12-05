@@ -1675,7 +1675,7 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
         StageState_->PackingRecordHeartbeatDuration += timer.GetElapsedTime();
     };
 
-    auto decreaseHierarchicalResourceUsagePrecommit = [&] (const TJobResources& precommittedResources, int scheduleJobEpoch) {
+    auto decreaseHierarchicalResourceUsagePrecommit = [&] (const TJobResources& precommittedResources, TControllerEpoch scheduleJobEpoch) {
         if (IsOperationEnabled(element) && scheduleJobEpoch == element->GetControllerEpoch()) {
             element->DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
         }
@@ -1727,7 +1727,7 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
     TJobResources precommittedResources;
     TJobResources availableResources;
 
-    int scheduleJobEpoch = element->GetControllerEpoch();
+    auto scheduleJobEpoch = element->GetControllerEpoch();
 
     auto deactivationReason = TryStartScheduleJob(
         element,
@@ -2684,7 +2684,7 @@ void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOper
             resourceUsageWithQuota,
             /*precommittedResources*/ {},
             // NB: |scheduleJobEpoch| is ignored in case |force| is true.
-            /*scheduleJobEpoch*/ 0,
+            /*scheduleJobEpoch*/ TControllerEpoch(0),
             /*force*/ true);
     }
 }
@@ -3091,7 +3091,7 @@ void TFairShareTreeJobScheduler::OnJobStartedInTest(
         jobId,
         resourceUsage,
         /*precommitedResources*/ {},
-        /*scheduleJobEpoch*/ 0);
+        /*scheduleJobEpoch*/ TControllerEpoch(0));
 }
 
 void TFairShareTreeJobScheduler::ProcessUpdatedJobInTest(

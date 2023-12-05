@@ -116,7 +116,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
     ToProto(resultProto->mutable_min_needed_resources(), result.MinNeededResources);
     ToProto(resultProto->mutable_initial_min_needed_resources(), result.InitialMinNeededResources);
-    resultProto->set_controller_epoch(result.ControllerEpoch);
+    resultProto->set_controller_epoch(result.ControllerEpoch.Underlying());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

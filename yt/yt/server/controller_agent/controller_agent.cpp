@@ -1492,7 +1492,7 @@ private:
             [&flushJobMetricsOperationIds, &finishedOperationIds] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
-                protoEvent->set_controller_epoch(event.ControllerEpoch);
+                protoEvent->set_controller_epoch(event.ControllerEpoch.Underlying());
                 switch (event.EventType) {
                     case EAgentToSchedulerOperationEventType::Completed:
                         break;
@@ -1731,7 +1731,7 @@ private:
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
                 ToProto(protoResponse->mutable_operation_id(), response.OperationId);
-                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch);
+                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch.Underlying());
                 protoResponse->set_success(static_cast<bool>(scheduleJobResult.StartDescriptor));
                 if (scheduleJobResult.StartDescriptor) {
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;

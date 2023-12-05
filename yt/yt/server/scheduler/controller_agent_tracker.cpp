@@ -153,7 +153,7 @@ void ProcessScheduleJobResponses(
                 for (const auto* protoResponse : protoResponses) {
                     auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
                     auto jobId = FromProto<TJobId>(protoResponse->job_id());
-                    auto controllerEpoch = protoResponse->controller_epoch();
+                    auto controllerEpoch = TControllerEpoch(protoResponse->controller_epoch());
                     auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
 
                     auto traceContext = TTraceContext::NewChildFromRpc(
@@ -686,7 +686,7 @@ public:
             [&] (auto* protoEvent) {
                 auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
                 auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                auto controllerEpoch = protoEvent->controller_epoch();
+                auto controllerEpoch = TControllerEpoch(protoEvent->controller_epoch());
                 auto error = FromProto<TError>(protoEvent->error());
                 auto operation = scheduler->FindOperation(operationId);
                 if (!operation) {

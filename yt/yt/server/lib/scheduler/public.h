@@ -224,7 +224,7 @@ using TIncarnationId = NControllerAgent::TIncarnationId;
 using TAgentId = NControllerAgent::TAgentId;
 using TControllerAgentDescriptor = NControllerAgent::TControllerAgentDescriptor;
 
-static constexpr TControllerEpoch InvalidControllerEpoch = -1;
+static constexpr TControllerEpoch InvalidControllerEpoch = TControllerEpoch(-1);
 
 ////////////////////////////////////////////////////////////////////////////////
 

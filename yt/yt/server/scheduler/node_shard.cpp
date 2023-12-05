@@ -1362,7 +1362,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         result->NextDurationEstimate = FromProto<TDuration>(response.next_duration_estimate());
     }
     result->IncarnationId = entry.IncarnationId;
-    result->ControllerEpoch = response.controller_epoch();
+    result->ControllerEpoch = TControllerEpoch(response.controller_epoch());
 
     entry.Promise.Set(std::move(result));
 

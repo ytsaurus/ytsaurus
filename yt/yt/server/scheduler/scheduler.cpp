@@ -917,7 +917,7 @@ public:
 
         operation->Restart(TError("Agent unregistered"));
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
-        ++operation->ControllerEpoch();
+        AdvanceEpoch(operation->ControllerEpoch());
 
         NodeManager_->StartOperationRevival(operation->GetId(), operation->ControllerEpoch());
 

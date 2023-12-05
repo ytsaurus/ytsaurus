@@ -357,7 +357,7 @@ void TSimulatorOperationController::OnBucketCompleted(TJobBucket* deactivatedBuc
 
 TControllerEpoch TSimulatorOperationController::GetEpoch() const
 {
-    return 0;
+    return TControllerEpoch(0);
 }
 
 EPreemptionMode TSimulatorOperationController::GetPreemptionMode() const

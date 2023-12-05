@@ -335,7 +335,7 @@ public:
 
     TControllerEpoch GetEpoch() const override
     {
-        return 0;
+        return TControllerEpoch(0);
     }
 
     MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
@@ -766,7 +766,7 @@ protected:
             jobId,
             operationId,
             /*incarnationId*/ TGuid::Create(),
-            /*controllerEpoch*/ 0,
+            /*controllerEpoch*/ TControllerEpoch(0),
             execNode,
             startTime,
             jobResources,
