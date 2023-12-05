@@ -2505,8 +2505,6 @@ class TestHealExecNode(YTEnvSetup):
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
         wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/alerts".format(node_address)))
 
-        update_nodes_dynamic_config(value={}, path="", replace=True)
-
         wait(lambda: len(op.get_running_jobs()) == 0)
 
         heal_exec_node(node_address, alert_types_to_reset=["generic_persistent_error"], force_reset=True)
@@ -3231,8 +3229,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
             if os.path.exists(path):
                 os.remove(path)
 
-        update_nodes_dynamic_config(value={}, path="porto_executor", replace=True)
-
     @authors("don-dron")
     def test_porto_fail_then_proxy_has_been_spawning(self):
         nodes = ls("//sys/cluster_nodes")
@@ -3367,8 +3363,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
             path = "{}/disabled".format(location["path"])
             if os.path.exists(path):
                 os.remove(path)
-
-        update_nodes_dynamic_config(value={}, path="porto_executor", replace=True)
 
     @authors("don-dron")
     @pytest.mark.skip(reason="Test broken")
