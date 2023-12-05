@@ -111,7 +111,7 @@ void FromProto(
             FromProto<TJobId>(jobProto.job_id()),
             operationId,
             incarnationId,
-            resultProto.controller_epoch(),
+            TControllerEpoch(resultProto.controller_epoch()),
             /*execNode*/ nullptr,
             FromProto<TInstant>(jobProto.start_time()),
             FromProto<TJobResources>(jobProto.resource_limits()),

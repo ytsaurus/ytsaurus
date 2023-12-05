@@ -32,7 +32,7 @@ public:
 
     TControllerEpoch GetEpoch() const override
     {
-        return 0;
+        return TControllerEpoch(0);
     }
 
     MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (

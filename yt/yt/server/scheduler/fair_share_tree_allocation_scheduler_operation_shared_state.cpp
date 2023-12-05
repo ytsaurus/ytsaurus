@@ -128,7 +128,7 @@ bool TFairShareTreeJobSchedulerOperationSharedState::OnJobStarted(
     TJobId jobId,
     const TJobResourcesWithQuota& resourceUsage,
     const TJobResources& precommitedResources,
-    int scheduleJobEpoch,
+    TControllerEpoch scheduleJobEpoch,
     bool force)
 {
     YT_ELEMENT_LOG_DETAILED(operationElement, "Adding job to strategy (JobId: %v)", jobId);

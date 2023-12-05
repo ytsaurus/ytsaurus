@@ -30,7 +30,7 @@ public:
         TJobId jobId,
         const TJobResourcesWithQuota& resourceUsage,
         const TJobResources& precommittedResources,
-        int scheduleJobEpoch,
+        TControllerEpoch scheduleJobEpoch,
         bool force = false);
     void OnJobFinished(TSchedulerOperationElement* operationElement, TJobId jobId);
     void UpdatePreemptibleJobsList(const TSchedulerOperationElement* element);
