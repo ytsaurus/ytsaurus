@@ -1557,7 +1557,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@access_time") == get("//tmp/t2/@creation_time")
 
     @authors("cherepashka")
-    @not_implemented_in_sequoia
     def test_access_time_in_copy(self):
         create("table", "//tmp/t1")
         creation_time = get("//tmp/t1/@access_time")
@@ -3824,7 +3823,6 @@ class TestCypressPortal(TestCypressMulticell):
         move("//tmp/t2", "//portals/p/t2_copy", tx=tx)
 
     @authors("cherepashka")
-    @not_implemented_in_sequoia
     def test_access_time_in_shard_copy(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/t1")
