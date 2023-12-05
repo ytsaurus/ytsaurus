@@ -108,6 +108,7 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/string_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_expiring_cache_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/time_formula_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_destructor_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_expiring_cache_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/topological_ordering_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/yverify_ut.cpp
