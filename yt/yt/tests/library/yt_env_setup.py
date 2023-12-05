@@ -1689,7 +1689,7 @@ class YTEnvSetup(object):
                     path="//sys/cluster_nodes/{0}/orchid/exec_node/job_controller/active_jobs".format(node),
                     return_only_value=True,
                 )
-                for node, version in exec_nodes
+                for node in exec_nodes
             ]
 
             responses = yt_commands.execute_batch(requests, driver=driver)
