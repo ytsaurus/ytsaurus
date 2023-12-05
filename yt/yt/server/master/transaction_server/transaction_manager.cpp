@@ -648,7 +648,7 @@ public:
         TTransaction* transaction,
         const TTransactionAbortOptions& options) override
     {
-        AbortTransaction(transaction, options);
+        AbortTransaction(transaction, options, /*validatePermissions*/ false);
     }
 
     void AbortTransaction(
