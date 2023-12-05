@@ -187,6 +187,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddGroundSupport)                                             (2449))  // h0pless
     ((FixTransactionACLs)                                           (2450))  // h0pless
     ((AddTransactionCompatibilityWithMethodCheck)                   (2451))  // h0pless
+    ((DontValidatePermissionsOnNodeUnregistration)                  (2452))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

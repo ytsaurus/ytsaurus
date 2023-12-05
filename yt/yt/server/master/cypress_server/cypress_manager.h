@@ -206,11 +206,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         bool includeRoot = true) = 0;
 
-    virtual void AbortSubtreeTransactions(
-        TCypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) = 0;
-    virtual void AbortSubtreeTransactions(NYTree::INodePtr node) = 0;
-
     virtual bool IsOrphaned(TCypressNode* trunkNode) = 0;
 
     //! Returns the list consisting of the trunk node

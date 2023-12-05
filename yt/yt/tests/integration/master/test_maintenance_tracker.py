@@ -4,7 +4,8 @@ from yt_commands import (
     authors, create_user, ls, get, add_maintenance, remove_maintenance,
     raises_yt_error, make_ace, set,
     create_host, remove_host,
-    externalize)
+    externalize,
+    wait)
 
 from yt.common import YtError
 
@@ -175,6 +176,22 @@ class TestMaintenanceTracker(YTEnvSetup):
                 remove_maintenance("cluster_node", node, id=maintenance_id, authenticated_user="u")
         finally:
             set("//sys/schemas/cluster_node/@acl", old_acl)
+
+    @authors("kvk1920")
+    def test_cannot_abort_lease_transaction(self):
+        create_user("non_aborter")
+
+        set("//sys/schemas/system_transaction/@acl/-1", {
+            "action": "deny",
+            "subjects": ["non_aborter"],
+            "permissions": ["write"],
+            "inheritance_mode": "object_and_descendants",
+        })
+
+        node = ls("//sys/cluster_nodes")[0]
+        # Should not fail.
+        set(f"//sys/cluster_nodes/{node}/@banned", True, authenticated_user="non_aborter")
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "offline")
 
     @authors("kvk1920")
     def test_remove_all(self):

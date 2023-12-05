@@ -2325,60 +2325,6 @@ public:
         return result;
     }
 
-    void AbortSubtreeTransactions(
-        TCypressNode* trunkNode,
-        TTransaction* transaction) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_ASSERT(trunkNode->IsTrunk());
-
-        TCompactVector<TTransaction*, 16> transactions;
-
-        auto addLock = [&] (const TLock* lock) {
-            // Get the top-most transaction.
-            auto* transaction = lock->GetTransaction();
-            while (transaction->GetParent()) {
-                transaction = transaction->GetParent();
-            }
-            transactions.push_back(transaction);
-        };
-
-        auto addNode = [&] (const TCypressNode* node) {
-            const auto& lockingState = node->LockingState();
-            for (auto* lock : lockingState.AcquiredLocks) {
-                addLock(lock);
-            }
-            for (auto* lock : lockingState.PendingLocks) {
-                addLock(lock);
-            }
-        };
-
-        ForEachSubtreeNode(
-            trunkNode,
-            transaction,
-            true /* recursive */,
-            addNode);
-
-        SortUnique(transactions, TObjectIdComparer());
-
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        for (auto* transaction : transactions) {
-            NTransactionSupervisor::TTransactionAbortOptions options{
-                .Force = true
-            };
-            transactionManager->AbortMasterTransaction(transaction, options);
-        }
-    }
-
-    void AbortSubtreeTransactions(INodePtr node) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto* cypressNode = ICypressNodeProxy::FromNode(node.Get());
-        AbortSubtreeTransactions(cypressNode->GetTrunkNode(), cypressNode->GetTransaction());
-    }
-
-
     bool IsOrphaned(TCypressNode* trunkNode) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
