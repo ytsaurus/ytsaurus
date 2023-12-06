@@ -301,6 +301,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     ProfileResources(writer, element->GetResourceUsageAtUpdate(), "/resource_usage");
     ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");
     ProfileResources(writer, element->GetResourceDemand(), "/resource_demand");
+    ProfileResources(writer, element->LimitedResourceDemand(), "/limited_resource_demand");
     ProfileResourcesConfig(writer, element->GetSpecifiedResourceLimitsConfig(), "/specified_resource_limits");
 
     auto jobMetricsIt = JobMetricsMap_.find(element->GetId());

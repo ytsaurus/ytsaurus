@@ -153,6 +153,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, LimitedResourceDemand);
 
     // Used for profiling in snapshotted version.
     DEFINE_BYREF_RW_PROPERTY(int, SchedulableElementCount, 0);

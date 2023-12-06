@@ -511,6 +511,28 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 2)
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 2)
 
+    @authors("omgronny")
+    def test_limited_resource_demand(self):
+        update_scheduler_config("operation_hangup_safe_timeout", 100000000)
+
+        create_pool("parent_pool", attributes={"resource_limits": {"cpu": 4}})
+        create_pool("child_pool1", parent_name="parent_pool", attributes={"resource_limits": {"cpu": 1}})
+        create_pool("child_pool2", parent_name="parent_pool", attributes={"resource_limits": {"cpu": 2}})
+
+        run_sleeping_vanilla(job_count=3, spec={
+            "pool": "child_pool1",
+        })
+        wait(lambda: get(scheduler_orchid_pool_path("child_pool1", "default") + "/resource_demand/cpu", default=None) == 3.0)
+        wait(lambda: get(scheduler_orchid_pool_path("child_pool1", "default") + "/limited_resource_demand/cpu", default=None) == 1.0)
+
+        run_sleeping_vanilla(job_count=5, spec={
+            "pool": "child_pool2",
+        })
+        wait(lambda: get(scheduler_orchid_pool_path("child_pool2", "default") + "/resource_demand/cpu", default=None) == 5.0)
+        wait(lambda: get(scheduler_orchid_pool_path("child_pool2", "default") + "/limited_resource_demand/cpu", default=None) == 2.0)
+
+        wait(lambda: get(scheduler_orchid_pool_path("parent_pool", "default") + "/limited_resource_demand/cpu", default=None) == 3.0)
+
 
 ##################################################################
 
