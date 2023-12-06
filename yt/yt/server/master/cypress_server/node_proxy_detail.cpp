@@ -874,7 +874,9 @@ void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(c
     auto transactionType = TypeFromId(Transaction_->GetId());
     auto it = typeToWhitelist.find(transactionType);
     if (it != typeToWhitelist.end() && !it->second.contains(method)) {
-        THROW_ERROR_EXCEPTION("Method %Qv is not supported for type %Qv", method, transactionType)
+        THROW_ERROR_EXCEPTION("Method %Qv is not supported for type %Qlv",
+            method,
+            transactionType)
             << TErrorAttribute("transaction_id", Transaction_->GetId());
     }
 }
@@ -1505,8 +1507,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         const auto& transactionManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
         if (transactionManagerConfig->CheckTransactionIsCompatibleWithMethod &&
             IsSystemTransactionType(TypeFromId(transactionId)) &&
-            type != EObjectType::ChaosReplicatedTable) {
-            THROW_ERROR_EXCEPTION("Cannot create type %Qv using system transaction", type)
+            type != EObjectType::ChaosReplicatedTable)
+        {
+            THROW_ERROR_EXCEPTION("Cannot create type %Qlv using system transaction", type)
                 << TErrorAttribute("transaction_id", transactionId);
         }
     }

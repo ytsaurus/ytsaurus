@@ -53,11 +53,13 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         "BeginUpload",
         "EndUpload",
         "Get",
-        "GetUploadParams"};
+        "GetUploadParams"
+    };
     defaultWhitelist[EObjectType::UploadNestedTransaction] = defaultWhitelist[EObjectType::UploadTransaction];
     defaultWhitelist[EObjectType::SystemTransaction] = {
         "Create",
-        "Get"};
+        "Get"
+    };
     defaultWhitelist[EObjectType::SystemNestedTransaction] = defaultWhitelist[EObjectType::SystemTransaction];
 
     registrar.Parameter("transaction_type_to_method_whitelist", &TThis::TransactionTypeToMethodWhitelist)
