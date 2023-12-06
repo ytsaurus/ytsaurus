@@ -95,6 +95,10 @@ void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* 
     MaybeSpecifiedResourceLimits_ = ComputeMaybeSpecifiedResourceLimits();
     ResourceLimits_ = ComputeResourceLimits();
 
+    if (MaybeSpecifiedResourceLimits_) {
+        LimitedResourceDemand_ = Min(LimitedResourceDemand_, *MaybeSpecifiedResourceLimits_);
+    }
+
     if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         if (!IsOperation() && !PersistentAttributes_.AppliedSpecifiedResourceLimits && MaybeSpecifiedResourceLimits_) {
@@ -730,6 +734,7 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 
     ResourceUsageAtUpdate_ = {};
     ResourceDemand_ = {};
+    LimitedResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
         child->PreUpdateBottomUp(context);
@@ -737,6 +742,7 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
         ResourceUsageAtUpdate_ += child->GetResourceUsageAtUpdate();
         ResourceDemand_ += child->GetResourceDemand();
         PendingJobCount_ += child->GetPendingJobCount();
+        LimitedResourceDemand_ += child->LimitedResourceDemand();
 
         if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
@@ -1779,6 +1785,8 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
         ResourceDemand_ = ResourceUsageAtUpdate_ + TotalNeededResources_;
         PendingJobCount_ = TotalNeededResources_.GetUserSlots();
     }
+
+    LimitedResourceDemand_ = ResourceDemand_;
 
     // NB: It was moved from regular fair share update for performing split.
     // It can be performed in fair share thread as second step of preupdate.

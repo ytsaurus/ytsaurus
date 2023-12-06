@@ -3157,6 +3157,8 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "scheduling_tag_filter_resource_limits", element->GetSchedulingTagFilterResourceLimits())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_limits", element->GetSpecifiedResourceLimitsConfig())
 
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limited_resource_demand", element->LimitedResourceDemand())
+
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share", attributes.StrongGuaranteeShare)
