@@ -400,6 +400,7 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 	for _, clusterInfo := range cfg.ClusterInfos {
 		if clusterInfo.Family == family {
 			clusters = append(clusters, clusterInfo.Proxy)
+			clusters = append(clusters, cfg.LocationAliases[clusterInfo.Proxy]...)
 		}
 	}
 
