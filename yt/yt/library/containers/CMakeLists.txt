@@ -24,6 +24,7 @@ target_link_libraries(yt-library-containers PUBLIC
 )
 target_sources(yt-library-containers PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/cgroup.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/cgroups_new.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/instance.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/instance_limits_tracker.cpp
