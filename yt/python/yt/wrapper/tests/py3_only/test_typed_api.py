@@ -1618,7 +1618,7 @@ class TestTypedApi(object):
             ordered=False
         )
 
-    @authors("chegoryu")
+    @authors("ermolovd")
     def test_optional_column_with_custom_converter(self):
         @yt_dataclass
         class Row:
@@ -1636,3 +1636,67 @@ class TestTypedApi(object):
 
         read_rows = list(yt.read_table_structured(table, Row))
         assert read_rows == rows
+
+    @authors("ermolovd")
+    def test_yt_dataclass_post_init(self):
+        @yt_dataclass
+        class NestedStruct:
+            field: str
+
+            def __post_init__(self):
+                self.post_init_field = self.field + "_nested_post_init"
+
+        @yt_dataclass
+        class Row:
+            field: str
+            nested: NestedStruct
+
+            def __post_init__(self):
+                self.post_init_field = self.field + "_row_post_init"
+                self.nested_post_init_field = self.nested.post_init_field + "_row_post_init"
+
+        @yt_dataclass
+        class NestedStructWithBadPostInit:
+            field: str
+
+            def __post_init__(self):
+                raise RuntimeError("bad post init: {field}".format(field=self.field))
+
+        @yt_dataclass
+        class RowWithBadPostInit:
+            field: str
+            nested: NestedStruct
+
+            def __post_init__(self):
+                raise RuntimeError("bad post init: {field}".format(field=self.field))
+
+        @yt_dataclass
+        class RowWithBadNestedPostInit:
+            field: str
+            nested: NestedStructWithBadPostInit
+
+        table = "//tmp/table"
+        yt.create("table", table)
+
+        rows = [
+            Row(field="field1", nested=NestedStruct(field="field2")),
+            Row(field="field3", nested=NestedStruct(field="field4")),
+        ]
+        yt.write_table_structured(table, Row, rows)
+
+        read_rows = list(yt.read_table_structured(table, Row))
+        # Just sanity check.
+        assert read_rows == rows
+
+        assert read_rows[0].post_init_field == "field1_row_post_init"
+        assert read_rows[0].nested_post_init_field == "field2_nested_post_init_row_post_init"
+        assert read_rows[0].nested.post_init_field == "field2_nested_post_init"
+        assert read_rows[1].post_init_field == "field3_row_post_init"
+        assert read_rows[1].nested_post_init_field == "field4_nested_post_init_row_post_init"
+        assert read_rows[1].nested.post_init_field == "field4_nested_post_init"
+
+        with pytest.raises(YtError, match="bad post init: field1"):
+            list(yt.read_table_structured(table, RowWithBadPostInit))
+
+        with pytest.raises(YtError, match="bad post init: field2"):
+            list(yt.read_table_structured(table, RowWithBadNestedPostInit))
