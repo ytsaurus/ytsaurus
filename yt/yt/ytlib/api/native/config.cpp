@@ -214,10 +214,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("default_input_row_limit", &TThis::DefaultInputRowLimit)
         .GreaterThan(0)
-        .Default(1000000);
+        .Default(1'000'000);
     registrar.Parameter("default_output_row_limit", &TThis::DefaultOutputRowLimit)
         .GreaterThan(0)
-        .Default(1000000);
+        .Default(1'000'000);
 
     registrar.Parameter("distributed_query_session_ping_period", &TThis::DistributedQuerySessionPingPeriod)
         .Default(TDuration::Seconds(10));
@@ -239,13 +239,13 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("max_rows_per_write_request", &TThis::MaxRowsPerWriteRequest)
         .GreaterThan(0)
-        .Default(1000);
+        .Default(1'000);
     registrar.Parameter("max_data_weight_per_write_request", &TThis::MaxDataWeightPerWriteRequest)
         .GreaterThan(0)
         .Default(64_MB);
     registrar.Parameter("max_rows_per_transaction", &TThis::MaxRowsPerTransaction)
         .GreaterThan(0)
-        .Default(100000);
+        .Default(100'000);
 
     registrar.Parameter("default_lookup_rows_timeout", &TThis::DefaultLookupRowsTimeout)
         // COMPAT(babenko)
@@ -331,7 +331,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_request_window_size", &TThis::MaxRequestWindowSize)
         .GreaterThan(0)
-        .Default(65536);
+        .Default(65'536);
 
     registrar.Parameter("upload_transaction_timeout", &TThis::UploadTransactionTimeout)
         .Default(TDuration::Seconds(15));
