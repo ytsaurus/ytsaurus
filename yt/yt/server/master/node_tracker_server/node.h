@@ -5,6 +5,7 @@
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
+#include <yt/yt/server/master/chunk_server/chunk_replication_queue.h>
 
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_target.h>
 
@@ -222,18 +223,11 @@ public:
     bool IsValidWriteTarget() const;
     bool WasValidWriteTarget(EWriteTargetValidityChange change) const;
 
-    //! Indexed by priority. Each map is as follows:
-    //! Key:
-    //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
-    //! Value:
-    //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkPushReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndex, TMediumSet>;
-    using TChunkPushReplicationQueues = std::vector<TChunkPushReplicationQueue>;
+    using TChunkPushReplicationQueues = std::vector<NChunkServer::TChunkReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPushReplicationQueues, ChunkPushReplicationQueues);
 
     //! Has the same structure as push replication queues.
-    using TChunkPullReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndex, TMediumSet>;
-    using TChunkPullReplicationQueues = std::vector<TChunkPullReplicationQueue>;
+    using TChunkPullReplicationQueues = std::vector<NChunkServer::TChunkReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationQueues, ChunkPullReplicationQueues);
 
     // For chunks in push queue, its correspondent pull queue node id.
