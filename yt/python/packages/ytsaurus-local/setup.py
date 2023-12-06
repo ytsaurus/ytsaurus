@@ -47,7 +47,7 @@ def main():
             "which can be used to manage local instances manually from command-line.",
 
         install_requires=[
-            "ytsaurus-client>=0.13.1",
+            "ytsaurus-client>=0.13",
             "attrs==22.2.0",
         ],
 
