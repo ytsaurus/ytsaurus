@@ -973,6 +973,7 @@ public:
 
         PodDescriptors_.clear();
         PodSpecs_.clear();
+        SlotCpusetCpus_.clear();
 
         {
             std::vector<TFuture<TCriPodDescriptor>> podFutures;
@@ -984,6 +985,8 @@ public:
                 podSpec->Resources.CpuLimit = cpuLimit;
                 PodSpecs_.push_back(podSpec);
                 podFutures.push_back(Executor_->RunPodSandbox(podSpec));
+
+                SlotCpusetCpus_.push_back(EmptyCpuSet);
             }
 
             // FIXME(khlebnikov) add pull policy "IfNotPresent'
@@ -1060,16 +1063,19 @@ private:
 
     std::vector<TCriPodDescriptor> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
+    std::vector<TString> SlotCpusetCpus_;
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 
     TProcessBasePtr CreateJobProxyProcess(
         const TJobProxyInternalConfigPtr& config,
         int slotIndex,
-        ESlotType /*slotType*/,
+        ESlotType slotType,
         TJobId jobId) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
 
@@ -1131,7 +1137,29 @@ private:
 
         spec->Resources.CpuLimit = config->ContainerCpuLimit;
 
+        const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
+        if (cpusetCpu != EmptyCpuSet) {
+            spec->Resources.CpusetCpus = cpusetCpu;
+        }
+
         return Executor_->CreateProcess(JobProxyProgramName, spec, PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
+    }
+
+    void UpdateSlotCpuSet(int slotIndex, ESlotType slotType, TStringBuf cpuSet) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        if (slotType != ESlotType::Common) {
+            return;
+        }
+
+        // TODO(gritukan): This is an ugly way to pass cpuset to container spec.
+        // Let's live with it during testing and then refactor.
+        SlotCpusetCpus_[slotIndex] = cpuSet;
+
+        YT_LOG_DEBUG("Updated slot cpuset (SlotIndex: %v, CpuSet: %v)",
+            slotIndex,
+            cpuSet);
     }
 };
 
