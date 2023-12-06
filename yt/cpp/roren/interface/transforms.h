@@ -16,8 +16,8 @@
 
 #include "fwd.h"
 #include "fns.h"
+#include "key_value.h"
 #include "co_gbk_result.h"
-#include "type_tag.h"
 #include "private/attributes.h"
 #include "private/combine.h"
 #include "private/flatten.h"
@@ -332,16 +332,35 @@ template <typename TFn, typename TKey, typename TState>
 auto StatefulParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttributes& attributes = {})
 {
     using TDecayedF = std::decay_t<TFn>;
+    auto rawState = NPrivate::GetRawPStateNode(pState);
     if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
         static_assert(std::is_same_v<TState, typename TDecayedF::TValueType::TState>, "Type of PState doesn't match StatefulDoFn");
 
-        using TInput = typename TDecayedF::TValueType::TInputRow;
-        using TOutput = typename TDecayedF::TValueType::TOutputRow;
+        using TInputRow = typename TDecayedF::TValueType::TInputRow;
+        using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
+        static_assert(NTraits::IsTKV<TInputRow>, "Input row of transform must be TKV");
+        static_assert(std::is_same_v<typename TInputRow::TKey, TKey>, "Key of input row must match key of PState");
         auto rawFn = NPrivate::MakeRawStatefulParDo(fn, attributes);
-        auto rawState = NPrivate::GetRawPStateNode(pState);
-        return TStatefulParDoTransform<TInput, TOutput, TState>{rawFn, rawState};
+        return TStatefulParDoTransform<TInputRow, TOutputRow, TState>(rawFn, rawState);
     } else {
-        static_assert(TDependentFalse<TFn>, "not supported yet");
+        static_assert(TFunctionArgs<TDecayedF>::Length == 3, "Stateful function must accept exactly 3 args");
+        using TInputRow = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
+        using TOutputRow = typename std::decay_t<TFunctionArg<TDecayedF, 1>>::TRowType;
+        static_assert(NTraits::IsTKV<TInputRow>, "Input row of transform must be TKV");
+        static_assert(std::is_same_v<typename TInputRow::TKey, TKey>, "Key of input row must match key of PState");
+
+        if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
+            static_assert(
+                TDependentFalse<TFn>,
+                "Creating StatefulParDo's with multiple output from function is not supported, create class implementing IStatefulDoFn<TInputRow, TMultiRow, TState>");
+        } else {
+            static_assert(
+                std::is_convertible_v<TFn, void(*)(const TInputRow&, TOutput<TOutputRow>&, TState&)>,
+                "Incorrect function signature, or lambda with variable capturing");
+
+            auto rawStatefulParDo = NPrivate::TLambdaStatefulParDo::MakeIntrusive<TInputRow, TOutputRow, TState>(fn, attributes);
+            return TStatefulParDoTransform<TInputRow, TOutputRow, TState>(rawStatefulParDo, rawState);
+        }
     }
 }
 

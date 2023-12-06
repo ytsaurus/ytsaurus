@@ -169,7 +169,7 @@ public:
     TLambda1RawParDo() = default;
     TLambda1RawParDo(
         TWrapperFunctionPtr wrapperFunction,
-         EWrapperType wrapperType,
+        EWrapperType wrapperType,
         void* function,
         const TRowVtable& rowVtable,
         std::vector<TDynamicTypeTag> tags,
@@ -178,7 +178,6 @@ public:
     template <typename TInput, typename TOutput>
     static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction1<TInput, TOutput> function, TFnAttributes fnAttributes)
     {
-        std::vector<TDynamicTypeTag> tags;
         return ::MakeIntrusive<TLambda1RawParDo>(
             &RawWrapper1Func<TInput, TOutput>,
             EWrapperType::WrapperType1,
