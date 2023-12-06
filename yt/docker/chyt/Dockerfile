@@ -14,7 +14,7 @@ COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   curl \
   less \
-  python3.7 \
+  python3.8 \
   python3-pip
 
 RUN python3 -m pip install ytsaurus-client
