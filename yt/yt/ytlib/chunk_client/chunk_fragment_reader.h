@@ -49,11 +49,14 @@ DEFINE_REFCOUNTED_TYPE(IChunkFragmentReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TThrottlerProvider = std::function<const NConcurrency::IThroughputThrottlerPtr& (EWorkloadCategory /*category*/)>;
+
 IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
-    const NProfiling::TProfiler& profiler);
+    const NProfiling::TProfiler& profiler,
+    TThrottlerProvider throttlerProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

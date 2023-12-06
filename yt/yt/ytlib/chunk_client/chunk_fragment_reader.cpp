@@ -58,6 +58,7 @@ namespace {
 
 using TPeerInfoCache = TSyncExpiringCache<TNodeId, TErrorOr<TPeerInfoPtr>>;
 using TPeerInfoCachePtr = TIntrusivePtr<TPeerInfoCache>;
+using TReqGetChunkFragmentSetPtr = NChunkClient::TDataNodeServiceProxy::TReqGetChunkFragmentSetPtr;
 
 struct TChunkProbingResult
 {
@@ -156,7 +157,8 @@ public:
         TChunkFragmentReaderConfigPtr config,
         NApi::NNative::IClientPtr client,
         INodeStatusDirectoryPtr nodeStatusDirectory,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        TThrottlerProvider throttlerProvider)
         : Config_(std::move(config))
         , Client_(std::move(client))
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
@@ -174,6 +176,7 @@ public:
             }),
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
+        , ThrottlerProvider_(throttlerProvider)
         , SuccessfulProbingRequestCounter_(profiler.Counter("/successful_probing_request_count"))
         , FailedProbingRequestCounter_(profiler.Counter("/failed_probing_request_count"))
     {
@@ -200,6 +203,7 @@ private:
     const NLogging::TLogger Logger;
     const IInvokerPtr ReaderInvoker_;
     const TPeerInfoCachePtr PeerInfoCache_;
+    const TThrottlerProvider ThrottlerProvider_;
 
     NProfiling::TCounter SuccessfulProbingRequestCounter_;
     NProfiling::TCounter FailedProbingRequestCounter_;
@@ -1392,6 +1396,79 @@ private:
         return peerInfoToPlan;
     }
 
+    TFuture<void> AsyncThrottle(i64 count)
+    {
+        if (!Reader_->ThrottlerProvider_) {
+            return VoidFuture;
+        }
+
+        auto throttler = Reader_->ThrottlerProvider_(Options_.WorkloadDescriptor.Category);
+        if (!throttler) {
+            return VoidFuture;
+        }
+
+        return throttler->Throttle(count);
+    }
+
+    void ReleaseThrottledBytes(i64 throttledBytes)
+    {
+        if (!Reader_->ThrottlerProvider_) {
+            return;
+        }
+
+        auto throttler = Reader_->ThrottlerProvider_(Options_.WorkloadDescriptor.Category);
+        if (!throttler) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v)",
+            throttledBytes);
+
+        throttler->Release(throttledBytes);
+    }
+
+    i64 GetDataBytes(const TReqGetChunkFragmentSetPtr& request) const
+    {
+        i64 result = 0;
+        for (const auto& subrequest : request->subrequests()) {
+            for (const auto& fragment : subrequest.fragments()) {
+                result += fragment.length();
+            }
+        }
+        return result;
+    }
+
+    void OnRequestThrottled(
+        const TReqGetChunkFragmentSetPtr& request,
+        const TPerPeerPlanPtr& plan,
+        i64 throttledBytes,
+        TError error)
+    {
+        if (!error.IsOK()) {
+            auto throttlingError = TError(
+                NChunkClient::EErrorCode::ReaderThrottlingFailed,
+                "Failed to apply throttling in fragment chunk reader")
+                << error;
+
+            BIND(
+                &TSimpleReadFragmentsSession::OnGotChunkFragments,
+                MakeStrong(this),
+                plan,
+                0 /*throttledBytes*/,
+                throttlingError)
+                .Via(SessionInvoker_)
+                .Run();
+            return;
+        }
+
+        request->Invoke().Subscribe(BIND(
+            &TSimpleReadFragmentsSession::OnGotChunkFragments,
+            MakeStrong(this),
+            plan,
+            throttledBytes)
+            .Via(SessionInvoker_));
+    }
+
     void RequestFragments(
         THashMap<TPeerInfoPtr, TPerPeerPlanPtr> peerInfoToPlan,
         bool isHedged)
@@ -1427,12 +1504,13 @@ private:
                     builder->AppendFormat("%v", FromProto<TChunkId>(subrequest.chunk_id()));
                 }));
 
-            req->Invoke().Subscribe(
-                BIND(
-                    &TSimpleReadFragmentsSession::OnGotChunkFragments,
-                    MakeStrong(this),
-                    plan)
-                .Via(SessionInvoker_));
+            i64 bytesToThrottle = GetDataBytes(req);
+            AsyncThrottle(bytesToThrottle).Subscribe(BIND(
+                &TSimpleReadFragmentsSession::OnRequestThrottled,
+                MakeStrong(this),
+                std::move(req),
+                plan,
+                bytesToThrottle));
         }
     }
 
@@ -1475,9 +1553,14 @@ private:
 
     void OnGotChunkFragments(
         const TPerPeerPlanPtr& plan,
+        i64 throttledBytes,
         const TDataNodeServiceProxy::TErrorOrRspGetChunkFragmentSetPtr& rspOrError)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        if (!rspOrError.IsOK()) {
+            ReleaseThrottledBytes(throttledBytes);
+        }
 
         if (Promise_.IsSet()) {
             // Shortcut.
@@ -1859,13 +1942,15 @@ IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     INodeStatusDirectoryPtr nodeStatusDirectory,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    TThrottlerProvider throttlerProvider)
 {
     return New<TChunkFragmentReader>(
         std::move(config),
         std::move(client),
         std::move(nodeStatusDirectory),
-        profiler);
+        profiler,
+        std::move(throttlerProvider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
