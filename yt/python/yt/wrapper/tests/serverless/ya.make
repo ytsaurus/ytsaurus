@@ -15,6 +15,16 @@ PEERDIR(
     contrib/python/flaky
 )
 
+IF (PYTHON2)
+    PEERDIR(
+        contrib/deprecated/python/ujson
+    )
+ELSE()
+    PEERDIR(
+        contrib/python/ujson
+    )
+ENDIF()
+
 TEST_SRCS(
     test_common.py
     test_formats.py

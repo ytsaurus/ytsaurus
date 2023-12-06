@@ -27,11 +27,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 Portions of code from MODP_ASCII - Ascii transformations (upper/lower, etc)
-http://code.google.com/p/stringencoders/
+https://github.com/client9/stringencoders
 Copyright (c) 2007  Nick Galbreath -- nickg [at] modp [dot] com. All rights reserved.
 
 Numeric decoder derived from from TCL library
-http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
+https://opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
  * Copyright (c) 1988-1993 The Regents of the University of California.
  * Copyright (c) 1994 Sun Microsystems, Inc.
 */
@@ -54,99 +54,98 @@ tree doesn't have cyclic references.
 #define __ULTRAJSON_H__
 
 #include <stdio.h>
-#include <wchar.h>
-
-// Don't output any extra whitespaces when encoding
-#define JSON_NO_EXTRA_WHITESPACE
 
 // Max decimals to encode double floating point numbers with
 #ifndef JSON_DOUBLE_MAX_DECIMALS
-#define JSON_DOUBLE_MAX_DECIMALS 15
+    #define JSON_DOUBLE_MAX_DECIMALS 15
 #endif
 
 // Max recursion depth, default for encoder
 #ifndef JSON_MAX_RECURSION_DEPTH
-#define JSON_MAX_RECURSION_DEPTH 1024
+    #define JSON_MAX_RECURSION_DEPTH 1024
 #endif
 
 // Max recursion depth, default for decoder
 #ifndef JSON_MAX_OBJECT_DEPTH
-#define JSON_MAX_OBJECT_DEPTH 1024
+    #define JSON_MAX_OBJECT_DEPTH 1024
 #endif
 
 /*
 Dictates and limits how much stack space for buffers UltraJSON will use before resorting to provided heap functions */
 #ifndef JSON_MAX_STACK_BUFFER_SIZE
-#define JSON_MAX_STACK_BUFFER_SIZE 131072
+    #define JSON_MAX_STACK_BUFFER_SIZE 1024
 #endif
 
 #ifdef _WIN32
 
-typedef __int64 JSINT64;
-typedef unsigned __int64 JSUINT64;
+    typedef __int64 JSINT64;
+    typedef unsigned __int64 JSUINT64;
 
-typedef __int32 JSINT32;
-typedef unsigned __int32 JSUINT32;
-typedef unsigned __int8 JSUINT8;
-typedef unsigned __int16 JSUTF16;
-typedef unsigned __int32 JSUTF32;
-typedef __int64 JSLONG;
+    typedef __int32 JSINT32;
+    typedef unsigned __int32 JSUINT32;
+    typedef unsigned __int8 JSUINT8;
+    typedef unsigned __int16 JSUTF16;
+    typedef unsigned __int32 JSUTF32;
+    typedef __int64 JSLONG;
 
-#define EXPORTFUNCTION __declspec(dllexport)
+    #define EXPORTFUNCTION __declspec(dllexport)
 
-#define FASTCALL_MSVC __fastcall
-#define FASTCALL_ATTR
-#define INLINE_PREFIX __inline
+    #define FASTCALL_MSVC __fastcall
+    #define FASTCALL_ATTR
+    #define INLINE_PREFIX __inline
 
 #else
 
-#include <stdint.h>
-typedef int64_t JSINT64;
-typedef uint64_t JSUINT64;
+    #include <stdint.h>
+    typedef int64_t JSINT64;
+    typedef uint64_t JSUINT64;
 
-typedef int32_t JSINT32;
-typedef uint32_t JSUINT32;
+    typedef int32_t JSINT32;
+    typedef uint32_t JSUINT32;
 
-#define FASTCALL_MSVC
+    #define FASTCALL_MSVC
 
-#if !defined __x86_64__
-#define FASTCALL_ATTR __attribute__((fastcall))
-#else
-#define FASTCALL_ATTR
+    #if !defined __x86_64__
+        #define FASTCALL_ATTR __attribute__((fastcall))
+    #else
+        #define FASTCALL_ATTR
+    #endif
+
+    #define INLINE_PREFIX inline
+
+    typedef uint8_t JSUINT8;
+    typedef uint16_t JSUTF16;
+    typedef uint32_t JSUTF32;
+
+    typedef int64_t JSLONG;
+
+    #define EXPORTFUNCTION
 #endif
 
-
-#if defined(__clang__)
-#define INLINE_PREFIX inline __attribute__((always_inline))
+#ifdef __GNUC__
+    #define LIKELY(x)       __builtin_expect(!!(x), 1)
+    #define UNLIKELY(x)     __builtin_expect(!!(x), 0)
 #else
-#define INLINE_PREFIX static inline
-#endif
-
-typedef uint8_t JSUINT8;
-typedef uint16_t JSUTF16;
-typedef uint32_t JSUTF32;
-
-typedef int64_t JSLONG;
-
-#define EXPORTFUNCTION
+    #define LIKELY(x)       (x)
+    #define UNLIKELY(x)     (x)
 #endif
 
 #if !(defined(__LITTLE_ENDIAN__) || defined(__BIG_ENDIAN__))
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define __LITTLE_ENDIAN__
-#else
+    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        #define __LITTLE_ENDIAN__
+    #else
 
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define __BIG_ENDIAN__
-#endif
+    #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        #define __BIG_ENDIAN__
+    #endif
 
 #endif
 
 #endif
 
 #if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
-#error "Endianess not supported"
+    #error "Endianness not supported"
 #endif
 
 enum JSTYPES
@@ -163,6 +162,9 @@ enum JSTYPES
   JT_ARRAY,     // Array structure
   JT_OBJECT,    // Key/Value structure
   JT_INVALID,   // Internal, do not return nor expect
+  JT_NAN,       // Not A Number
+  JT_POS_INF,   // Positive infinity
+  JT_NEG_INF,   // Negative infinity
 };
 
 typedef void * JSOBJ;
@@ -195,7 +197,6 @@ typedef struct __JSONObjectEncoder
   const char *(*getStringValue)(JSOBJ obj, JSONTypeContext *tc, size_t *_outLen);
   JSINT64 (*getLongValue)(JSOBJ obj, JSONTypeContext *tc);
   JSUINT64 (*getUnsignedLongValue)(JSOBJ obj, JSONTypeContext *tc);
-  JSINT32 (*getIntValue)(JSOBJ obj, JSONTypeContext *tc);
   double (*getDoubleValue)(JSOBJ obj, JSONTypeContext *tc);
 
   /*
@@ -239,10 +240,6 @@ typedef struct __JSONObjectEncoder
   int recursionMax;
 
   /*
-  Configuration for max decimals of double floating point numbers to encode (0-9) */
-  int doublePrecision;
-
-  /*
   If true output will be ASCII with all characters above 127 encoded as \uXXXX. If false output will be UTF-8 or what ever charset strings are brought as */
   int forceASCII;
 
@@ -263,8 +260,28 @@ typedef struct __JSONObjectEncoder
   int indent;
 
   /*
+  If true, NaN will be encoded as a string matching the Python standard library's JSON behavior.
+  This is not valid JSON. */
+  int allowNan;
+
+  /*
+  If true, bytes are rejected. */
+  int rejectBytes;
+
+  /*
+  Configuration for item and key separators, e.g. "," and ":" for a compact representation or ", " and ": " to match the Python standard library's defaults. */
+  size_t itemSeparatorLength;
+  const char *itemSeparatorChars;
+  size_t keySeparatorLength;
+  const char *keySeparatorChars;
+
+  /*
   Private pointer to be used by the caller. Passed as encoder_prv in JSONTypeContext */
   void *prv;
+
+  /*
+  Pointer to the DoubleToStringConverter instance */
+  void *d2s;
 
   /*
   Set to an error message if error occured */
@@ -289,9 +306,10 @@ obj - An anonymous type representing the object
 enc - Function definitions for querying JSOBJ type
 buffer - Preallocated buffer to store result in. If NULL function allocates own buffer
 cbBuffer - Length of buffer (ignored if buffer is NULL)
+outLen - Will store the length of the encoded string
 
 Returns:
-Encoded JSON object as a null terminated char string.
+Encoded JSON object as a char string.
 
 NOTE:
 If the supplied buffer wasn't enough to hold the result the function will allocate a new buffer.
@@ -299,24 +317,28 @@ Life cycle of the provided buffer must still be handled by caller.
 
 If the return value doesn't equal the specified buffer caller must release the memory using
 JSONObjectEncoder.free or free() as specified when calling this function.
+
+If an error occurs during encoding, NULL is returned and no outLen is stored.
 */
-EXPORTFUNCTION char *JSON_EncodeObject(JSOBJ obj, JSONObjectEncoder *enc, char *buffer, size_t cbBuffer);
-
-
+EXPORTFUNCTION char *JSON_EncodeObject(JSOBJ obj, JSONObjectEncoder *enc, char *buffer, size_t cbBuffer, size_t *outLen);
 
 typedef struct __JSONObjectDecoder
 {
-  JSOBJ (*newString)(void *prv, wchar_t *start, wchar_t *end);
+  JSOBJ (*newString)(void *prv, JSUINT32 *start, JSUINT32 *end);
   void (*objectAddKey)(void *prv, JSOBJ obj, JSOBJ name, JSOBJ value);
   void (*arrayAddItem)(void *prv, JSOBJ obj, JSOBJ value);
   JSOBJ (*newTrue)(void *prv);
   JSOBJ (*newFalse)(void *prv);
   JSOBJ (*newNull)(void *prv);
+  JSOBJ (*newNaN)(void *prv);
+  JSOBJ (*newPosInf)(void *prv);
+  JSOBJ (*newNegInf)(void *prv);
   JSOBJ (*newObject)(void *prv);
   JSOBJ (*newArray)(void *prv);
   JSOBJ (*newInt)(void *prv, JSINT32 value);
   JSOBJ (*newLong)(void *prv, JSINT64 value);
   JSOBJ (*newUnsignedLong)(void *prv, JSUINT64 value);
+  JSOBJ (*newIntegerFromString)(void *prv, char *value, size_t length);
   JSOBJ (*newDouble)(void *prv, double value);
   void (*releaseObject)(void *prv, JSOBJ obj);
   JSPFN_MALLOC malloc;
@@ -324,10 +346,50 @@ typedef struct __JSONObjectDecoder
   JSPFN_REALLOC realloc;
   char *errorStr;
   char *errorOffset;
-  int preciseFloat;
   void *prv;
+  void *s2d;
 } JSONObjectDecoder;
 
 EXPORTFUNCTION JSOBJ JSON_DecodeObject(JSONObjectDecoder *dec, const char *buffer, size_t cbBuffer);
+
+#define DCONV_DECIMAL_IN_SHORTEST_LOW -4
+#define DCONV_DECIMAL_IN_SHORTEST_HIGH 16
+
+enum dconv_d2s_flags {
+  DCONV_D2S_NO_FLAGS = 0,
+  DCONV_D2S_EMIT_POSITIVE_EXPONENT_SIGN = 1,
+  DCONV_D2S_EMIT_TRAILING_DECIMAL_POINT = 2,
+  DCONV_D2S_EMIT_TRAILING_ZERO_AFTER_POINT = 4,
+  DCONV_D2S_UNIQUE_ZERO = 8
+};
+
+enum dconv_s2d_flags
+{
+  DCONV_S2D_NO_FLAGS = 0,
+  DCONV_S2D_ALLOW_HEX = 1,
+  DCONV_S2D_ALLOW_OCTALS = 2,
+  DCONV_S2D_ALLOW_TRAILING_JUNK = 4,
+  DCONV_S2D_ALLOW_LEADING_SPACES = 8,
+  DCONV_S2D_ALLOW_TRAILING_SPACES = 16,
+  DCONV_S2D_ALLOW_SPACES_AFTER_SIGN = 32
+};
+
+void dconv_d2s_init(void **d2s,
+                    int flags,
+                    const char* infinity_symbol,
+                    const char* nan_symbol,
+                    char exponent_character,
+                    int decimal_in_shortest_low,
+                    int decimal_in_shortest_high,
+                    int max_leading_padding_zeroes_in_precision_mode,
+                    int max_trailing_padding_zeroes_in_precision_mode);
+int dconv_d2s(void *d2s, double value, char* buf, int buflen, int* strlength);
+void dconv_d2s_free(void **d2s);
+
+void dconv_s2d_init(void **s2d, int flags, double empty_string_value,
+                    double junk_string_value, const char* infinity_symbol,
+                    const char* nan_symbol);
+double dconv_s2d(void *s2d, const char* buffer, int length, int* processed_characters_count);
+void dconv_s2d_free(void **s2d);
 
 #endif

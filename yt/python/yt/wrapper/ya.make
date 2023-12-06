@@ -27,7 +27,6 @@ PEERDIR(
     contrib/python/distro
     contrib/python/six
     contrib/python/typing-extensions
-    contrib/deprecated/python/ujson
 )
 
 IF (OPENSOURCE)
@@ -44,7 +43,15 @@ ELSE()
 ENDIF()
 
 IF (PYTHON2)
-    PEERDIR(contrib/deprecated/python/typing)
+    PEERDIR(
+        contrib/deprecated/python/typing
+        contrib/deprecated/python/ujson
+    )
+ELSE()
+    # CONTRIB-2709 - Временно оключаем
+    #PEERDIR(
+    #    contrib/python/ujson
+    #)
 ENDIF()
 
 NO_CHECK_IMPORTS(

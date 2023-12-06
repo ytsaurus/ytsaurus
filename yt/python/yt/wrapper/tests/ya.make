@@ -50,6 +50,16 @@ PEERDIR(
     contrib/python/tornado/tornado-4
 )
 
+IF (PYTHON2)
+    PEERDIR(
+        contrib/deprecated/python/ujson
+    )
+ELSE()
+    PEERDIR(
+        contrib/python/ujson
+    )
+ENDIF()
+
 DEPENDS(
     yt/yt/packages/tests_package
 

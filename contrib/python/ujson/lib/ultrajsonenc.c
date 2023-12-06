@@ -27,11 +27,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 Portions of code from MODP_ASCII - Ascii transformations (upper/lower, etc)
-http://code.google.com/p/stringencoders/
+https://github.com/client9/stringencoders
 Copyright (c) 2007  Nick Galbreath -- nickg [at] modp [dot] com. All rights reserved.
 
 Numeric decoder derived from from TCL library
-http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
+https://opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
  * Copyright (c) 1988-1993 The Regents of the University of California.
  * Copyright (c) 1994 Sun Microsystems, Inc.
 */
@@ -41,6 +41,7 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <math.h>
 
 #include <float.h>
@@ -73,7 +74,6 @@ The extra 2 bytes are for the quotes around the string
 */
 #define RESERVE_STRING(_len) (2 + ((_len) * 6))
 
-static const double g_pow10[] = {1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000, 100000000000, 1000000000000, 10000000000000, 100000000000000, 1000000000000000};
 static const char g_hexChars[] = "0123456789abcdef";
 static const char g_escapeChars[] = "0123456789\\b\\t\\n\\f\\r\\\"\\\\\\/";
 
@@ -112,16 +112,27 @@ static void SetError (JSOBJ obj, JSONObjectEncoder *enc, const char *message)
 /*
 FIXME: Keep track of how big these get across several encoder calls and try to make an estimate
 That way we won't run our head into the wall each call */
-void Buffer_Realloc (JSONObjectEncoder *enc, size_t cbNeeded)
+static void Buffer_Realloc (JSONObjectEncoder *enc, size_t cbNeeded)
 {
+  size_t free_space = enc->end - enc->offset;
+  if (free_space >= cbNeeded)
+  {
+    return;
+  }
   size_t curSize = enc->end - enc->start;
-  size_t newSize = curSize * 2;
+  size_t newSize = curSize;
   size_t offset = enc->offset - enc->start;
 
+#ifdef DEBUG
+  // In debug mode, allocate only what is requested so that any miscalculation
+  // shows up plainly as a crash.
+  newSize = (enc->offset - enc->start) + cbNeeded;
+#else
   while (newSize < curSize + cbNeeded)
   {
     newSize *= 2;
   }
+#endif
 
   if (enc->heap)
   {
@@ -148,7 +159,27 @@ void Buffer_Realloc (JSONObjectEncoder *enc, size_t cbNeeded)
   enc->end = enc->start + newSize;
 }
 
-FASTCALL_ATTR INLINE_PREFIX void FASTCALL_MSVC Buffer_AppendShortHexUnchecked (char *outputOffset, unsigned short value)
+#define Buffer_Reserve(__enc, __len) \
+    if ( (size_t) ((__enc)->end - (__enc)->offset) < (size_t) (__len))  \
+    {   \
+      Buffer_Realloc((__enc), (__len));\
+    }   \
+
+static void *Buffer_memcpy (JSONObjectEncoder *enc, const void *src, size_t n)
+{
+  void *out;
+#ifdef DEBUG
+  if ((size_t) (enc->end - enc->offset) < n) {
+    fprintf(stderr, "Ran out of buffer space during Buffer_memcpy()\n");
+    abort();
+  }
+#endif
+  out = memcpy(enc->offset, src, n);
+  enc->offset += n;
+  return out;
+}
+
+static FASTCALL_ATTR INLINE_PREFIX void FASTCALL_MSVC Buffer_AppendShortHexUnchecked (char *outputOffset, unsigned short value)
 {
   *(outputOffset++) = g_hexChars[(value & 0xf000) >> 12];
   *(outputOffset++) = g_hexChars[(value & 0x0f00) >> 8];
@@ -156,12 +187,19 @@ FASTCALL_ATTR INLINE_PREFIX void FASTCALL_MSVC Buffer_AppendShortHexUnchecked (c
   *(outputOffset++) = g_hexChars[(value & 0x000f) >> 0];
 }
 
-int Buffer_EscapeStringUnvalidated (JSONObjectEncoder *enc, const char *io, const char *end)
+static int Buffer_EscapeStringUnvalidated (JSONObjectEncoder *enc, const char *io, const char *end)
 {
   char *of = (char *) enc->offset;
 
   for (;;)
   {
+#ifdef DEBUG
+    // 6 is the maximum length of a single character (cf. RESERVE_STRING).
+    if ((io < end) && (enc->end - of < 6)) {
+      fprintf(stderr, "Ran out of buffer space during Buffer_EscapeStringUnvalidated()\n");
+      abort();
+    }
+#endif
     switch (*io)
     {
       case 0x00:
@@ -255,18 +293,29 @@ int Buffer_EscapeStringUnvalidated (JSONObjectEncoder *enc, const char *io, cons
         break;
       }
       default: (*of++) = (*io); break;
-      }
+    }
     io++;
   }
 }
 
-int Buffer_EscapeStringValidated (JSOBJ obj, JSONObjectEncoder *enc, const char *io, const char *end)
+static int Buffer_EscapeStringValidated (JSOBJ obj, JSONObjectEncoder *enc, const char *io, const char *end)
 {
   JSUTF32 ucs;
   char *of = (char *) enc->offset;
 
   for (;;)
   {
+#ifdef DEBUG
+    /*
+    6 is the maximum length of a single character (cf. RESERVE_STRING).
+    Note that the loop below may consume more than one input char and produce a UTF-16 surrogate pair.
+    In that case, more than 6 characters would be needed on the output buffer.
+    So this calculates the maximum length of the entire remaining input buffer instead. */
+    if (enc->end - enc->offset < 6 * (end - io)) {
+      fprintf(stderr, "Ran out of buffer space during Buffer_EscapeStringValidated()\n");
+      abort();
+    }
+#endif
     JSUINT8 utflen = g_asciiOutputTable[(unsigned char) *io];
 
     switch (utflen)
@@ -488,29 +537,42 @@ int Buffer_EscapeStringValidated (JSOBJ obj, JSONObjectEncoder *enc, const char 
   }
 }
 
-#define Buffer_Reserve(__enc, __len) \
-    if ( (size_t) ((__enc)->end - (__enc)->offset) < (size_t) (__len))  \
-    {   \
-      Buffer_Realloc((__enc), (__len));\
-    }   \
 
+static FASTCALL_ATTR INLINE_PREFIX void FASTCALL_MSVC Buffer_AppendCharUnchecked(JSONObjectEncoder *enc, char chr)
+{
+#ifdef DEBUG
+  if (enc->end <= enc->offset)
+  {
+    fprintf(stderr, "Overflow writing byte %d '%c'. The last few characters were:\n'''", chr, chr);
+    char * recent = enc->offset - 1000;
+    if (enc->start > recent)
+    {
+      recent = enc->start;
+    }
+    for (; recent < enc->offset; recent++)
+    {
+      fprintf(stderr, "%c", *recent);
+    }
+    fprintf(stderr, "'''\n");
+    abort();
+  }
+#endif
+  *(enc->offset++) = chr;
+}
 
-#define Buffer_AppendCharUnchecked(__enc, __chr) \
-                *((__enc)->offset++) = __chr; \
-
-FASTCALL_ATTR INLINE_PREFIX void FASTCALL_MSVC strreverse(char* begin, char* end)
+static FASTCALL_ATTR INLINE_PREFIX void FASTCALL_MSVC strreverse(char* begin, char* end)
 {
   char aux;
   while (end > begin)
   aux = *end, *end-- = *begin, *begin++ = aux;
 }
 
-void Buffer_AppendIndentNewlineUnchecked(JSONObjectEncoder *enc)
+static void Buffer_AppendIndentNewlineUnchecked(JSONObjectEncoder *enc)
 {
   if (enc->indent > 0) Buffer_AppendCharUnchecked(enc, '\n');
 }
 
-void Buffer_AppendIndentUnchecked(JSONObjectEncoder *enc, JSINT32 value)
+static void Buffer_AppendIndentUnchecked(JSONObjectEncoder *enc, JSINT32 value)
 {
   int i;
   if (enc->indent > 0)
@@ -519,28 +581,19 @@ void Buffer_AppendIndentUnchecked(JSONObjectEncoder *enc, JSINT32 value)
         Buffer_AppendCharUnchecked(enc, ' ');
 }
 
-void Buffer_AppendIntUnchecked(JSONObjectEncoder *enc, JSINT32 value)
-{
-  char* wstr;
-  JSUINT32 uvalue = (value < 0) ? -value : value;
-
-  wstr = enc->offset;
-  // Conversion. Number is reversed.
-
-  do *wstr++ = (char)(48 + (uvalue % 10)); while(uvalue /= 10);
-  if (value < 0) *wstr++ = '-';
-
-  // Reverse string
-  strreverse(enc->offset,wstr - 1);
-  enc->offset += (wstr - (enc->offset));
-}
-
-void Buffer_AppendLongUnchecked(JSONObjectEncoder *enc, JSINT64 value)
+static void Buffer_AppendLongUnchecked(JSONObjectEncoder *enc, JSINT64 value)
 {
   char* wstr;
   JSUINT64 uvalue = (value < 0) ? -value : value;
 
   wstr = enc->offset;
+#ifdef DEBUG
+  // 20 is the maximum length of a JSINT64 (minus sign plus 19 digits)
+  if (enc->end - enc->offset < 20) {
+    fprintf(stderr, "Ran out of buffer space during Buffer_AppendLongUnchecked()\n");
+    abort();
+  }
+#endif
   // Conversion. Number is reversed.
 
   do *wstr++ = (char)(48 + (uvalue % 10ULL)); while(uvalue /= 10ULL);
@@ -551,12 +604,19 @@ void Buffer_AppendLongUnchecked(JSONObjectEncoder *enc, JSINT64 value)
   enc->offset += (wstr - (enc->offset));
 }
 
-void Buffer_AppendUnsignedLongUnchecked(JSONObjectEncoder *enc, JSUINT64 value)
+static void Buffer_AppendUnsignedLongUnchecked(JSONObjectEncoder *enc, JSUINT64 value)
 {
   char* wstr;
   JSUINT64 uvalue = value;
 
   wstr = enc->offset;
+#ifdef DEBUG
+  // 21 is the maximum length of a JSUINT64 (minus sign plus 20 digits)
+  if (enc->end - enc->offset < 21) {
+    fprintf(stderr, "Ran out of buffer space during Buffer_AppendUnsignedLongUnchecked()\n");
+    abort();
+  }
+#endif
   // Conversion. Number is reversed.
 
   do *wstr++ = (char)(48 + (uvalue % 10ULL)); while(uvalue /= 10ULL);
@@ -566,144 +626,25 @@ void Buffer_AppendUnsignedLongUnchecked(JSONObjectEncoder *enc, JSUINT64 value)
   enc->offset += (wstr - (enc->offset));
 }
 
-int Buffer_AppendDoubleUnchecked(JSOBJ obj, JSONObjectEncoder *enc, double value)
+static int Buffer_AppendDoubleDconv(JSOBJ obj, JSONObjectEncoder *enc, double value)
 {
-  /* if input is larger than thres_max, revert to exponential */
-  const double thres_max = (double) 1e16 - 1;
-  int count;
-  double diff = 0.0;
-  char* str = enc->offset;
-  char* wstr = str;
-  unsigned long long whole;
-  double tmp;
-  unsigned long long frac;
-  int neg;
-  double pow10;
-
-  if (value == HUGE_VAL || value == -HUGE_VAL)
+  char buf[128];
+  int strlength;
+#ifdef DEBUG
+  if ((size_t) (enc->end - enc->offset) < sizeof(buf)) {
+    fprintf(stderr, "Ran out of buffer space during Buffer_AppendDoubleDconv()\n");
+    abort();
+  }
+#endif
+  if(!dconv_d2s(enc->d2s, value, buf, sizeof(buf), &strlength))
   {
-    SetError (obj, enc, "Invalid Inf value when encoding double");
+    SetError (obj, enc, "Invalid value when encoding double");
     return FALSE;
   }
 
-  if (!(value == value))
-  {
-    SetError (obj, enc, "Invalid Nan value when encoding double");
-    return FALSE;
-  }
+  Buffer_memcpy(enc, buf, strlength);
 
-  /* we'll work in positive values and deal with the
-  negative sign issue later */
-  neg = 0;
-  if (value < 0)
-  {
-    neg = 1;
-    value = -value;
-  }
-
-  pow10 = g_pow10[enc->doublePrecision];
-
-  whole = (unsigned long long) value;
-  tmp = (value - whole) * pow10;
-  frac = (unsigned long long)(tmp);
-  diff = tmp - frac;
-
-  if (diff > 0.5)
-  {
-    ++frac;
-    /* handle rollover, e.g.  case 0.99 with prec 1 is 1.0  */
-    if (frac >= pow10)
-    {
-      frac = 0;
-      ++whole;
-    }
-  }
-  else
-  if (diff == 0.5 && ((frac == 0) || (frac & 1)))
-  {
-    /* if halfway, round up if odd, OR
-    if last digit is 0.  That last part is strange */
-    ++frac;
-  }
-
-  /* for very large numbers switch back to native sprintf for exponentials.
-  anyone want to write code to replace this? */
-  /*
-  normal printf behavior is to print EVERY whole number digit
-  which can be 100s of characters overflowing your buffers == bad
-  */
-  if (value > thres_max)
-  {
-     enc->offset += snprintf(str, enc->end - enc->offset, "%.15e", neg ? -value : value);
-     return TRUE;
-   }
-
-  if (enc->doublePrecision == 0)
-  {
-    diff = value - whole;
-
-    if (diff > 0.5)
-    {
-      /* greater than 0.5, round up, e.g. 1.6 -> 2 */
-      ++whole;
-    }
-    else
-    if (diff == 0.5 && (whole & 1))
-    {
-      /* exactly 0.5 and ODD, then round up */
-      /* 1.5 -> 2, but 2.5 -> 2 */
-      ++whole;
-    }
-
-  //vvvvvvvvvvvvvvvvvvv  Diff from modp_dto2
-  }
-    else
-    if (frac)
-    {
-      count = enc->doublePrecision;
-      // now do fractional part, as an unsigned number
-      // we know it is not 0 but we can have leading zeros, these
-      // should be removed
-      while (!(frac % 10))
-      {
-        --count;
-        frac /= 10;
-      }
-      //^^^^^^^^^^^^^^^^^^^  Diff from modp_dto2
-
-      // now do fractional part, as an unsigned number
-      do
-      {
-        --count;
-        *wstr++ = (char)(48 + (frac % 10));
-      } while (frac /= 10);
-      // add extra 0s
-      while (count-- > 0)
-      {
-        *wstr++ = '0';
-      }
-      // add decimal
-      *wstr++ = '.';
-    }
-    else
-    {
-      *wstr++ = '0';
-      *wstr++ = '.';
-    }
-
-    // do whole part
-    // Take care of sign
-    // Conversion. Number is reversed.
-    do *wstr++ = (char)(48 + (whole % 10)); while (whole /= 10);
-
-    if (neg)
-    {
-      *wstr++ = '-';
-    }
-    strreverse(str, wstr-1);
-    enc->offset += (wstr - (enc->offset));
-
-    return TRUE;
+  return TRUE;
 }
 
 /*
@@ -714,11 +655,11 @@ Handle integration functions returning NULL here */
 FIXME:
 Perhaps implement recursion detection */
 
-void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
+static void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
 {
   const char *value;
   char *objName;
-  int count;
+  int count, res;
   JSOBJ iterObj;
   size_t szlen;
   JSONTypeContext tc;
@@ -729,14 +670,6 @@ void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
     return;
   }
 
-  /*
-  This reservation must hold
-
-  length of _name as encoded worst case +
-  maxLength of double to string OR maxLength of JSLONG to string
-  */
-
-  Buffer_Reserve(enc, 256 + RESERVE_STRING(cbName));
   if (enc->errorMsg)
   {
     return;
@@ -744,6 +677,7 @@ void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
 
   if (name)
   {
+    Buffer_Reserve(enc, RESERVE_STRING(cbName) + enc->keySeparatorLength);
     Buffer_AppendCharUnchecked(enc, '\"');
 
     if (enc->forceASCII)
@@ -763,154 +697,188 @@ void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
 
     Buffer_AppendCharUnchecked(enc, '\"');
 
-    Buffer_AppendCharUnchecked (enc, ':');
-#ifdef JSON_NO_EXTRA_WHITESPACE
-    if (enc->indent)
+    Buffer_memcpy(enc, enc->keySeparatorChars, enc->keySeparatorLength);
+  }
+
+  tc.encoder_prv = enc->prv;
+  enc->beginTypeContext(obj, &tc, enc);
+
+  /*
+  This reservation covers any additions on non-variable parts below, specifically:
+  - Opening brackets for JT_ARRAY and JT_OBJECT
+  - Number representation for JT_LONG, JT_ULONG, JT_INT, and JT_DOUBLE
+  - Constant value for JT_TRUE, JT_FALSE, JT_NULL
+
+  The length of 128 is the worst case length of the Buffer_AppendDoubleDconv addition.
+  The other types above all have smaller representations.
+  */
+  Buffer_Reserve (enc, 128);
+
+  switch (tc.type)
+  {
+    case JT_INVALID:
     {
-      Buffer_AppendCharUnchecked (enc, ' ');
-    }
-#else
-    Buffer_AppendCharUnchecked (enc, ' ');
-#endif
+      /*
+      There should already be an exception at the Python level.
+      This however sets the errorMsg so recursion on arrays and objects stops.
+      endTypeContext must not be called here as beginTypeContext already cleans up in the INVALID case.
+      */
+      SetError (obj, enc, "Invalid type");
+      enc->level--;
+      return;
     }
 
-    tc.encoder_prv = enc->prv;
-    enc->beginTypeContext(obj, &tc, enc);
-
-    switch (tc.type)
+    case JT_ARRAY:
     {
-      case JT_INVALID:
-      {
-        return;
-      }
+      count = 0;
 
-      case JT_ARRAY:
-      {
-        count = 0;
+      Buffer_AppendCharUnchecked (enc, '[');
 
-        Buffer_AppendCharUnchecked (enc, '[');
+      while (enc->iterNext(obj, &tc))
+      {
+        // The extra 1 byte covers the optional newline.
+        Buffer_Reserve (enc, enc->indent * (enc->level + 1) + enc->itemSeparatorLength + 1);
+
+        if (count > 0)
+        {
+          Buffer_memcpy(enc, enc->itemSeparatorChars, enc->itemSeparatorLength);
+        }
         Buffer_AppendIndentNewlineUnchecked (enc);
 
-        while (enc->iterNext(obj, &tc))
+        iterObj = enc->iterGetValue(obj, &tc);
+
+        enc->level ++;
+        Buffer_AppendIndentUnchecked (enc, enc->level);
+        encode (iterObj, enc, NULL, 0);
+        if (enc->errorMsg)
         {
-          if (count > 0)
-          {
-            Buffer_AppendCharUnchecked (enc, ',');
-#ifndef JSON_NO_EXTRA_WHITESPACE
-            Buffer_AppendCharUnchecked (buffer, ' ');
-#endif
-            Buffer_AppendIndentNewlineUnchecked (enc);
-          }
-
-          iterObj = enc->iterGetValue(obj, &tc);
-
-          enc->level ++;
-          Buffer_AppendIndentUnchecked (enc, enc->level);
-          encode (iterObj, enc, NULL, 0);
-          count ++;
+          enc->iterEnd(obj, &tc);
+          enc->endTypeContext(obj, &tc);
+          enc->level--;
+          return;
+        }
+        count ++;
       }
 
       enc->iterEnd(obj, &tc);
-      Buffer_AppendIndentNewlineUnchecked (enc);
-      Buffer_AppendIndentUnchecked (enc, enc->level);
+
+      if (count > 0) {
+        // Reserve space for the indentation plus the newline.
+        Buffer_Reserve (enc, enc->indent * enc->level + 1);
+        Buffer_AppendIndentNewlineUnchecked (enc);
+        Buffer_AppendIndentUnchecked (enc, enc->level);
+      }
+      Buffer_Reserve (enc, 1);
       Buffer_AppendCharUnchecked (enc, ']');
       break;
-  }
+    }
 
-  case JT_OBJECT:
-  {
-    count = 0;
-
-    Buffer_AppendCharUnchecked (enc, '{');
-    Buffer_AppendIndentNewlineUnchecked (enc);
-
-    while (enc->iterNext(obj, &tc))
+    case JT_OBJECT:
     {
-      if (count > 0)
+      count = 0;
+
+      Buffer_AppendCharUnchecked (enc, '{');
+
+      while ((res = enc->iterNext(obj, &tc)))
       {
-        Buffer_AppendCharUnchecked (enc, ',');
-#ifndef JSON_NO_EXTRA_WHITESPACE
-        Buffer_AppendCharUnchecked (enc, ' ');
-#endif
+        // The extra 1 byte covers the optional newline.
+        Buffer_Reserve (enc, enc->indent * (enc->level + 1) + enc->itemSeparatorLength + 1);
+
+        if(res < 0)
+        {
+          enc->iterEnd(obj, &tc);
+          enc->endTypeContext(obj, &tc);
+          enc->level--;
+          return;
+        }
+
+        if (count > 0)
+        {
+          Buffer_memcpy(enc, enc->itemSeparatorChars, enc->itemSeparatorLength);
+        }
         Buffer_AppendIndentNewlineUnchecked (enc);
+
+        iterObj = enc->iterGetValue(obj, &tc);
+        objName = enc->iterGetName(obj, &tc, &szlen);
+
+        enc->level ++;
+        Buffer_AppendIndentUnchecked (enc, enc->level);
+        encode (iterObj, enc, objName, szlen);
+        if (enc->errorMsg)
+        {
+          enc->iterEnd(obj, &tc);
+          enc->endTypeContext(obj, &tc);
+          enc->level--;
+          return;
+        }
+        count ++;
       }
 
-      iterObj = enc->iterGetValue(obj, &tc);
-      objName = enc->iterGetName(obj, &tc, &szlen);
+      enc->iterEnd(obj, &tc);
 
-      enc->level ++;
-      Buffer_AppendIndentUnchecked (enc, enc->level);
-      encode (iterObj, enc, objName, szlen);
-      count ++;
+      if (count > 0) {
+        Buffer_Reserve (enc, enc->indent * enc->level + 1);
+        Buffer_AppendIndentNewlineUnchecked (enc);
+        Buffer_AppendIndentUnchecked (enc, enc->level);
+      }
+      Buffer_Reserve (enc, 1);
+      Buffer_AppendCharUnchecked (enc, '}');
+      break;
     }
 
-    enc->iterEnd(obj, &tc);
-    Buffer_AppendIndentNewlineUnchecked (enc);
-    Buffer_AppendIndentUnchecked (enc, enc->level);
-    Buffer_AppendCharUnchecked (enc, '}');
-    break;
-  }
-
-  case JT_LONG:
-  {
-    Buffer_AppendLongUnchecked (enc, enc->getLongValue(obj, &tc));
-    break;
-  }
-
-  case JT_ULONG:
-  {
-    Buffer_AppendUnsignedLongUnchecked (enc, enc->getUnsignedLongValue(obj, &tc));
-    break;
-  }
-
-  case JT_INT:
-  {
-    Buffer_AppendIntUnchecked (enc, enc->getIntValue(obj, &tc));
-    break;
-  }
-
-  case JT_TRUE:
-  {
-    Buffer_AppendCharUnchecked (enc, 't');
-    Buffer_AppendCharUnchecked (enc, 'r');
-    Buffer_AppendCharUnchecked (enc, 'u');
-    Buffer_AppendCharUnchecked (enc, 'e');
-    break;
-  }
-
-  case JT_FALSE:
-  {
-    Buffer_AppendCharUnchecked (enc, 'f');
-    Buffer_AppendCharUnchecked (enc, 'a');
-    Buffer_AppendCharUnchecked (enc, 'l');
-    Buffer_AppendCharUnchecked (enc, 's');
-    Buffer_AppendCharUnchecked (enc, 'e');
-    break;
-  }
-
-
-  case JT_NULL:
-  {
-    Buffer_AppendCharUnchecked (enc, 'n');
-    Buffer_AppendCharUnchecked (enc, 'u');
-    Buffer_AppendCharUnchecked (enc, 'l');
-    Buffer_AppendCharUnchecked (enc, 'l');
-    break;
-  }
-
-  case JT_DOUBLE:
-  {
-    if (!Buffer_AppendDoubleUnchecked (obj, enc, enc->getDoubleValue(obj, &tc)))
+    case JT_LONG:
     {
-      enc->endTypeContext(obj, &tc);
-      enc->level --;
-      return;
+      Buffer_AppendLongUnchecked (enc, enc->getLongValue(obj, &tc));
+      break;
     }
-    break;
-  }
 
-  case JT_UTF8:
-  {
+    case JT_ULONG:
+    {
+      Buffer_AppendUnsignedLongUnchecked (enc, enc->getUnsignedLongValue(obj, &tc));
+      break;
+    }
+
+    case JT_TRUE:
+    {
+      Buffer_AppendCharUnchecked (enc, 't');
+      Buffer_AppendCharUnchecked (enc, 'r');
+      Buffer_AppendCharUnchecked (enc, 'u');
+      Buffer_AppendCharUnchecked (enc, 'e');
+      break;
+    }
+
+    case JT_FALSE:
+    {
+      Buffer_AppendCharUnchecked (enc, 'f');
+      Buffer_AppendCharUnchecked (enc, 'a');
+      Buffer_AppendCharUnchecked (enc, 'l');
+      Buffer_AppendCharUnchecked (enc, 's');
+      Buffer_AppendCharUnchecked (enc, 'e');
+      break;
+    }
+
+    case JT_NULL:
+    {
+      Buffer_AppendCharUnchecked (enc, 'n');
+      Buffer_AppendCharUnchecked (enc, 'u');
+      Buffer_AppendCharUnchecked (enc, 'l');
+      Buffer_AppendCharUnchecked (enc, 'l');
+      break;
+    }
+
+    case JT_DOUBLE:
+    {
+      if (!Buffer_AppendDoubleDconv(obj, enc, enc->getDoubleValue(obj, &tc)))
+      {
+        enc->endTypeContext(obj, &tc);
+        enc->level--;
+        return;
+      }
+      break;
+    }
+
+    case JT_UTF8:
+    {
       value = enc->getStringValue(obj, &tc, &szlen);
       if(!value)
       {
@@ -931,7 +899,7 @@ void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
         if (!Buffer_EscapeStringValidated(obj, enc, value, value + szlen))
         {
           enc->endTypeContext(obj, &tc);
-          enc->level --;
+          enc->level--;
           return;
         }
       }
@@ -940,17 +908,17 @@ void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
         if (!Buffer_EscapeStringUnvalidated(enc, value, value + szlen))
         {
           enc->endTypeContext(obj, &tc);
-          enc->level --;
+          enc->level--;
           return;
         }
       }
 
       Buffer_AppendCharUnchecked (enc, '\"');
       break;
-  }
+    }
 
-  case JT_RAW:
-  {
+    case JT_RAW:
+    {
       value = enc->getStringValue(obj, &tc, &szlen);
       if(!value)
       {
@@ -958,25 +926,24 @@ void encode(JSOBJ obj, JSONObjectEncoder *enc, const char *name, size_t cbName)
         return;
       }
 
-      Buffer_Reserve(enc, RESERVE_STRING(szlen));
+      Buffer_Reserve(enc, szlen);
       if (enc->errorMsg)
       {
         enc->endTypeContext(obj, &tc);
         return;
       }
 
-      memcpy(enc->offset, value, szlen);
-      enc->offset += szlen;
+      Buffer_memcpy(enc, value, szlen);
 
       break;
     }
   }
 
   enc->endTypeContext(obj, &tc);
-  enc->level --;
+  enc->level--;
 }
 
-char *JSON_EncodeObject(JSOBJ obj, JSONObjectEncoder *enc, char *_buffer, size_t _cbBuffer)
+char *JSON_EncodeObject(JSOBJ obj, JSONObjectEncoder *enc, char *_buffer, size_t _cbBuffer, size_t *_outLen)
 {
   enc->malloc = enc->malloc ? enc->malloc : malloc;
   enc->free =  enc->free ? enc->free : free;
@@ -988,12 +955,6 @@ char *JSON_EncodeObject(JSOBJ obj, JSONObjectEncoder *enc, char *_buffer, size_t
   if (enc->recursionMax < 1)
   {
     enc->recursionMax = JSON_MAX_RECURSION_DEPTH;
-  }
-
-  if (enc->doublePrecision < 0 ||
-          enc->doublePrecision > JSON_DOUBLE_MAX_DECIMALS)
-  {
-    enc->doublePrecision = JSON_DOUBLE_MAX_DECIMALS;
   }
 
   if (_buffer == NULL)
@@ -1018,12 +979,16 @@ char *JSON_EncodeObject(JSOBJ obj, JSONObjectEncoder *enc, char *_buffer, size_t
 
   encode (obj, enc, NULL, 0);
 
-  Buffer_Reserve(enc, 1);
   if (enc->errorMsg)
   {
+    if (enc->heap == 1)
+    {
+      // Buffer was realloc'd at some point, or no initial buffer was provided.
+      enc->free(enc->start);
+    }
     return NULL;
   }
-  Buffer_AppendCharUnchecked(enc, '\0');
 
+  *_outLen = enc->offset - enc->start;
   return enc->start;
 }
