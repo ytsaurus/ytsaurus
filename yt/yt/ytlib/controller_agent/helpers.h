@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -74,6 +76,12 @@ bool AreCompatible(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
 ////////////////////////////////////////////////////////////////////////////////
 
 void AdvanceEpoch(TControllerEpoch& epoch);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIncarnationId IncarnationIdFromTransactionId(NObjectClient::TTransactionId transactionId);
+
+NObjectClient::TTransactionId IncarnationIdToTransactionId(TIncarnationId incarnationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

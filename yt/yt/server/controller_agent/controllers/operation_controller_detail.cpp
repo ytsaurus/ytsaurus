@@ -2185,7 +2185,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
     if (OutputCompletionTransaction) {
         TTransactionCommitOptions options;
-        options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
+        options.PrerequisiteTransactionIds.push_back(IncarnationIdToTransactionId(Host->GetIncarnationId()));
         WaitFor(OutputCompletionTransaction->Commit(options))
             .ThrowOnError();
         OutputCompletionTransaction.Reset();
@@ -2233,7 +2233,7 @@ void TOperationControllerBase::CommitDebugCompletionTransaction()
         debugCompletionTransactionId);
 
     TTransactionCommitOptions options;
-    options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
+    options.PrerequisiteTransactionIds.push_back(IncarnationIdToTransactionId(Host->GetIncarnationId()));
     WaitFor(DebugCompletionTransaction->Commit(options))
         .ThrowOnError();
     DebugCompletionTransaction.Reset();

@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/client/api/transaction.h>
@@ -78,7 +80,7 @@ TIncarnationId TControllerAgent::GetIncarnationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return IncarnationTransaction_->GetId();
+    return NControllerAgent::IncarnationIdFromTransactionId(IncarnationTransaction_->GetId());
 }
 
 IInvokerPtr TControllerAgent::GetMessageOffloadInvoker() const
