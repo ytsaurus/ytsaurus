@@ -144,7 +144,8 @@ extern const TString SecureVaultEnvPrefix;
 
 YT_DEFINE_STRONG_TYPEDEF(TControllerEpoch, int);
 
-using TIncarnationId = TGuid;
+YT_DEFINE_STRONG_TYPEDEF(TIncarnationId, NObjectClient::TTransactionId);
+
 using TAgentId = TString;
 
 struct TControllerAgentDescriptor

@@ -361,7 +361,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 Format("Snapshot upload for operation %v", operationId));
             options.Attributes = std::move(attributes);
             options.Timeout = Config_->SnapshotTimeout;
-            options.PrerequisiteTransactionIds = {IncarnationId_};
+            options.PrerequisiteTransactionIds = {IncarnationIdToTransactionId(IncarnationId_)};
             auto transactionOrError = WaitFor(
                 Client_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -423,7 +423,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         {
             TMoveNodeOptions options;
             options.Force = true;
-            options.PrerequisiteTransactionIds = {IncarnationId_};
+            options.PrerequisiteTransactionIds = {IncarnationIdToTransactionId(IncarnationId_)};
 
             WaitFor(Client_->MoveNode(
                 snapshotUploadPath,

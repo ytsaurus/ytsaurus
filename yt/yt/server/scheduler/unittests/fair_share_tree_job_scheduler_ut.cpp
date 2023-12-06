@@ -765,7 +765,7 @@ protected:
         return New<TJob>(
             jobId,
             operationId,
-            /*incarnationId*/ TGuid::Create(),
+            /*incarnationId*/ TWrapperTraits<TIncarnationId>::RecursiveWrap(TGuid::Create()),
             /*controllerEpoch*/ TControllerEpoch(0),
             execNode,
             startTime,

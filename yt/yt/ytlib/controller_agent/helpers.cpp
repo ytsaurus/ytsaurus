@@ -464,4 +464,16 @@ void AdvanceEpoch(TControllerEpoch& epoch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TIncarnationId IncarnationIdFromTransactionId(NObjectClient::TTransactionId transactionId)
+{
+    return TIncarnationId(transactionId);
+}
+
+NObjectClient::TTransactionId IncarnationIdToTransactionId(TIncarnationId incarnationId)
+{
+    return incarnationId.Underlying();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
