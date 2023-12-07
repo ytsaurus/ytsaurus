@@ -94,11 +94,13 @@ public:
         };
     }
 
-    void Save(IOutputStream*) const override {
+    void Save(IOutputStream*) const override
+    {
         Y_ABORT("TRawYtProtoRead object is not supposed to be SaveLoad-ed");
     }
 
-    void Load(IInputStream*) override {
+    void Load(IInputStream*) override
+    {
         Y_ABORT("TRawYtProtoRead object is not supposed to be SaveLoad-ed");
     }
 };
@@ -243,11 +245,13 @@ public:
         };
     }
 
-    void Save(IOutputStream*) const override {
+    void Save(IOutputStream*) const override
+    {
         Y_ABORT("TRawYtProtoWrite object is not supposed to be SaveLoad-ed");
     }
 
-    void Load(IInputStream*) override {
+    void Load(IInputStream*) override
+    {
         Y_ABORT("TRawYtProtoWrite object is not supposed to be SaveLoad-ed");
     }
 };
@@ -328,11 +332,13 @@ public:
         };
     }
 
-    void Save(IOutputStream*) const override {
+    void Save(IOutputStream*) const override
+    {
         Y_ABORT("TRawYtProtoSortedWrite object is not supposed to be SaveLoad-ed");
     }
 
-    void Load(IInputStream*) override {
+    void Load(IInputStream*) override
+    {
         Y_ABORT("TRawYtProtoSortedWrite object is not supposed to be SaveLoad-ed");
     }
 
