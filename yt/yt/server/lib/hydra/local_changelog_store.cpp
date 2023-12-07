@@ -135,6 +135,11 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
+    i64 EstimateChangelogSize(i64 payloadSize) const override
+    {
+        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+    }
+
     TFuture<void> Append(TRange<TSharedRef> records) override
     {
         if (auto future = CheckOpen()) {
@@ -250,6 +255,11 @@ public:
     i64 GetDataSize() const override
     {
         return UnderlyingChangelog_->GetDataSize();
+    }
+
+    i64 EstimateChangelogSize(i64 payloadSize) const override
+    {
+        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override

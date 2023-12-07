@@ -70,6 +70,11 @@ i64 TJournalAsLocalFileReadOnlyChangelog::GetDataSize() const
     return TotalBytes_;
 }
 
+i64 TJournalAsLocalFileReadOnlyChangelog::EstimateChangelogSize(i64 payloadSize) const
+{
+    return payloadSize;
+}
+
 TFuture<std::vector<TSharedRef>> TJournalAsLocalFileReadOnlyChangelog::Read(
     int firstRecordId,
     int maxRecords,

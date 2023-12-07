@@ -48,6 +48,8 @@ struct IChangelog
      */
     virtual i64 GetDataSize() const = 0;
 
+    virtual i64 EstimateChangelogSize(i64 payloadSize) const = 0;
+
     //! Asynchronously appends a record to the changelog.
     /*!
      *  \param records Records data

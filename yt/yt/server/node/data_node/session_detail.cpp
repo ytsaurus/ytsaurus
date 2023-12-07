@@ -201,7 +201,7 @@ TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
         .Run();
 }
 
-TFuture<void> TSessionBase::PutBlocks(
+TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
     int startBlockIndex,
     const std::vector<TBlock>& blocks,
     bool enableCaching)

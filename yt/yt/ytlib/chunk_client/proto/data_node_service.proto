@@ -100,9 +100,16 @@ message TReqPutBlocks
     repeated fixed64 block_checksums = 8;
 }
 
+message TPutBlocksStatistics
+{
+    optional int64 data_bytes_written_to_medium = 1;
+    optional int64 io_requests = 2;
+}
+
 message TRspPutBlocks
 {
     optional bool close_demanded = 1 [default = false];
+    optional TPutBlocksStatistics Statistics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

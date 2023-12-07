@@ -486,6 +486,11 @@ private:
             return DataSize_;
         }
 
+        i64 EstimateChangelogSize(i64 payloadSize) const override
+        {
+            return payloadSize;
+        }
+
         TFuture<void> Append(TRange<TSharedRef> records) override
         {
             auto guard = Guard(WriterLock_);

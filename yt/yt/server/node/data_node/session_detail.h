@@ -44,7 +44,7 @@ public:
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 
-    TFuture<void> PutBlocks(
+    TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
@@ -91,7 +91,7 @@ protected:
     virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) = 0;
-    virtual TFuture<void> DoPutBlocks(
+    virtual TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) = 0;

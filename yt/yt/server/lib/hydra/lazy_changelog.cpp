@@ -46,6 +46,14 @@ public:
             : BacklogDataSize_;
     }
 
+    i64 EstimateChangelogSize(i64 payloadSize) const override
+    {
+        auto guard = Guard(SpinLock_);
+        return UnderlyingChangelog_
+            ? UnderlyingChangelog_->EstimateChangelogSize(payloadSize)
+            : payloadSize;
+    }
+
     const TChangelogMeta& GetMeta() const override
     {
         return GetUnderlyingChangelog()->GetMeta();

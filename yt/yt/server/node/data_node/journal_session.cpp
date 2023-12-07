@@ -89,7 +89,7 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
     }).AsyncVia(SessionInvoker_));
 }
 
-TFuture<void> TJournalSession::DoPutBlocks(
+TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     int startBlockIndex,
     const std::vector<TBlock>& blocks,
     bool /*enableCaching*/)
@@ -112,6 +112,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
             recordCount - 1);
     }
 
+    int payloadSize = 0;
     std::vector<TSharedRef> records;
     records.reserve(blocks.size() - recordCount + startBlockIndex);
     for (int index = recordCount - startBlockIndex;
@@ -119,6 +120,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
          ++index)
     {
         records.push_back(blocks[index].Data);
+        payloadSize += records.back().Size();
     }
 
     if (!records.empty()) {
@@ -130,7 +132,10 @@ TFuture<void> TJournalSession::DoPutBlocks(
             }));
     }
 
-    return VoidFuture;
+    return MakeFuture(TIOCounters{
+        .Bytes = Changelog_->EstimateChangelogSize(payloadSize),
+        .IORequests = 1,
+    });
 }
 
 TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(

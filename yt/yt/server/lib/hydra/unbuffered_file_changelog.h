@@ -63,6 +63,14 @@ struct IUnbufferedFileChangelog
      */
     virtual i64 GetDataSize() const = 0;
 
+    //! Returns an approximate changelog write amplification ratio.
+    /*
+     *  \note
+     *  Thread affinity: any
+     */
+     virtual double GetWriteAmplificationRatio() const = 0;
+
+
     //! Returns |true| is the changelog is open.
     /*
      *  \note
