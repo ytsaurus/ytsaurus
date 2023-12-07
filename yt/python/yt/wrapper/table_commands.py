@@ -1055,8 +1055,8 @@ def get_table_columnar_statistics(paths, client=None):
     return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
 
 
-def dump_parquete(table, output_file, client=None):
-    """Dump parquete
+def dump_parquet(table, output_file, client=None):
+    """Dump parquet
 
     :param table: path to tables
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
@@ -1065,10 +1065,10 @@ def dump_parquete(table, output_file, client=None):
     """
     stream = read_table(table, raw=True, format="arrow", client=client)
 
-    if yson.TYPE != "BINARY":
+    if not yson.HAS_PARQUET:
         raise YtError(
-            'YSON bindings required.'
-            'Bindings are shipped as additional package and '
+            'Parquet binding required.'
+            'Parquet binding is shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    yson.dump_parquete(output_file, stream)
+    yson.dump_parquet(output_file, stream)

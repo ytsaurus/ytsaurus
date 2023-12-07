@@ -524,13 +524,13 @@ def write_file(**kwargs):
         yt.set(kwargs["destination"] + "/@executable", True)
 
 
-@copy_docstring_from(yt.dump_parquete)
-def dump_parquete(**kwargs):
-    yt.dump_parquete(**kwargs)
+@copy_docstring_from(yt.dump_parquet)
+def dump_parquet(**kwargs):
+    yt.dump_parquet(**kwargs)
 
 
-def add_dump_parquete_parser(add_parser):
-    parser = add_parser("dump-parquete", dump_parquete)
+def add_dump_parquet_parser(add_parser):
+    parser = add_parser("dump-parquet", dump_parquet)
     add_ypath_argument(parser, "table", hybrid=True)
     parser.add_argument("--output-file", type=str, required=True)
 
@@ -2536,7 +2536,7 @@ def main_func():
 
     add_compression_benchmark_parser(add_parser)
 
-    add_dump_parquete_parser(add_parser)
+    add_dump_parquet_parser(add_parser)
 
     if HAS_SKY_SHARE:
         add_sky_share_parser(add_parser)

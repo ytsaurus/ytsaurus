@@ -4,7 +4,7 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK Py::Object DumpParquete(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
+Y_WEAK Py::Object DumpParquet(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     throw Py::NotImplementedError("Implementation of DumpParquet was not found");
 }

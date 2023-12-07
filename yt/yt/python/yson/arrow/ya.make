@@ -7,7 +7,7 @@ CXXFLAGS(
 )
 
 SRCS(
-    GLOBAL parquete.cpp
+    GLOBAL parquet.cpp
 )
 
 PEERDIR(

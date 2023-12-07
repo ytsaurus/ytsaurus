@@ -52,7 +52,7 @@ TEST_SRCS(
     test_typed_api.py
     test_structured_skiff.py
     test_validation_schema.py
-    test_parquete.py
+    test_parquet.py
 )
 
 END()

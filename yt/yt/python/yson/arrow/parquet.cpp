@@ -179,7 +179,7 @@ void ThrowOnError(const arrow::Status& status) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteParquete(const std::string& outputFilePath, IInputStream* stream)
+void WriteParquet(const std::string& outputFilePath, IInputStream* stream)
 {
     auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
     if (!outputFileOrError.ok()) {
@@ -227,7 +227,7 @@ void WriteParquete(const std::string& outputFilePath, IInputStream* stream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Object DumpParquete(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "path_to_file"));
 
@@ -236,7 +236,7 @@ Py::Object DumpParquete(Py::Tuple& args, Py::Dict& kwargs)
 
     ValidateArgumentsEmpty(args, kwargs);
 
-    WriteParquete(outputFilePath, stream.get());
+    WriteParquet(outputFilePath, stream.get());
 
     return Py::None();
 }
