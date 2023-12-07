@@ -241,6 +241,8 @@ public:
 
     bool SendHeartbeatBeforeAbort;
 
+    std::optional<double> ContainerCpuLimit;
+
     NYT::NRpcProxy::TApiServiceConfigPtr ApiService;
 
     std::optional<int> StatisticsOutputTableCountLimit;

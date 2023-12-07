@@ -217,6 +217,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("original_cluster_connection", &TThis::OriginalClusterConnection)
         .Default();
 
+    registrar.Parameter("container_cpu_limit", &TThis::ContainerCpuLimit)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
