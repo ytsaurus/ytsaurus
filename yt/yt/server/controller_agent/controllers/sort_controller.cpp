@@ -2580,6 +2580,8 @@ protected:
         }
         if (IntermediateSortTask) {
             UpdateTask(IntermediateSortTask);
+        }
+        if (FinalSortTask) {
             UpdateTask(FinalSortTask);
         }
     }
