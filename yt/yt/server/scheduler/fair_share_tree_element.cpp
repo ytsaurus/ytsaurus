@@ -1797,6 +1797,11 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
             GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
         PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_);
         PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
+
+        YT_LOG_DEBUG("Updated operation best allocation share (AdjustedResourceLimits: %v, TotalResourceLimits: %v, BestAllocationShare: %.6g)",
+            FormatResources(allocationLimits),
+            FormatResources(TotalResourceLimits_),
+            PersistentAttributes_.BestAllocationShare);
     }
 
     for (const auto& jobResourcesWithQuota : DetailedMinNeededJobResources_) {
