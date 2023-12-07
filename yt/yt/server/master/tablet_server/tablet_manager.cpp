@@ -2550,11 +2550,11 @@ public:
                 });
 
                 if (it != parents.end()) {
-                        TabletChunkManager_->CopyChunkListIfShared(
-                            table,
-                            EChunkListContentType::Hunk,
-                            tablet->GetIndex(),
-                            tablet->GetIndex());
+                    TabletChunkManager_->CopyChunkListIfShared(
+                        table,
+                        EChunkListContentType::Hunk,
+                        tablet->GetIndex(),
+                        tablet->GetIndex());
                 }
 
                 auto tabletStatistics = tablet->GetTabletStatistics();

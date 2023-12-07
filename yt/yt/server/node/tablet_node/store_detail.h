@@ -121,6 +121,7 @@ public:
     //! invokes #OnSetPassive.
     void SetStoreState(EStoreState state) override;
 
+    i64 GetDataWeight() const override;
     i64 GetCompressedDataSize() const override;
     i64 GetUncompressedDataSize() const override;
 
@@ -198,6 +199,7 @@ public:
     NErasure::ECodec GetErasureCodecId() const;
     bool IsStripedErasure() const;
 
+    i64 GetDataWeight() const override;
     i64 GetCompressedDataSize() const override;
     i64 GetUncompressedDataSize() const override;
     i64 GetRowCount() const override;

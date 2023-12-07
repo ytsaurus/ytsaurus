@@ -725,7 +725,7 @@ public:
             auto row = ProduceRow(Iterator_.GetCurrent());
             if (row) {
                 rows.push_back(row);
-                DataWeight_ += GetDataWeight(row);
+                DataWeight_ += NTableClient::GetDataWeight(row);
             }
 
             Iterator_.MoveNext();
@@ -882,7 +882,7 @@ public:
             rows.push_back(row);
             ++RowCount_;
             ExistingRowCount_ += static_cast<bool>(row);
-            DataWeight_ += GetDataWeight(row);
+            DataWeight_ += NTableClient::GetDataWeight(row);
         }
 
         if (rows.empty()) {
@@ -1142,7 +1142,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
     OnDynamicMemoryUsageUpdated();
 
-    auto dataWeight = GetDataWeight(row);
+    auto dataWeight = NTableClient::GetDataWeight(row);
     if (isDelete) {
         PerformanceCounters_->DynamicRowDelete.Counter.fetch_add(1, std::memory_order::relaxed);
     } else {
@@ -1222,7 +1222,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     OnDynamicMemoryUsageUpdated();
 
-    auto dataWeight = GetDataWeight(row);
+    auto dataWeight = NTableClient::GetDataWeight(row);
     PerformanceCounters_->DynamicRowWrite.Counter.fetch_add(1, std::memory_order::relaxed);
     PerformanceCounters_->DynamicRowWriteDataWeight.Counter.fetch_add(dataWeight, std::memory_order::relaxed);
     ++context->RowCount;
@@ -1856,7 +1856,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedVa
     {
         const auto& srcValue = srcKeys[index];
         YT_ASSERT(srcValue.Id == index);
-        dstRow.GetDataWeight() += GetDataWeight(srcValue);
+        dstRow.GetDataWeight() += NTableClient::GetDataWeight(srcValue);
         if (srcValue.Type == EValueType::Null) {
             nullKeyMask |= nullKeyBit;
         } else {
@@ -1884,7 +1884,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
          ++index, nullKeyBit <<= 1, ++srcKeys, ++dstKeys, ++columnIt)
     {
         bool isNull = nullKeyMask & nullKeyBit;
-        dstRow.GetDataWeight() += GetDataWeight(columnIt->GetWireType(), isNull, *srcKeys);
+        dstRow.GetDataWeight() += NTabletNode::GetDataWeight(columnIt->GetWireType(), isNull, *srcKeys);
         if (!isNull) {
             if (IsStringLikeType(columnIt->GetWireType())) {
                 *dstKeys = CaptureStringValue(*srcKeys);
@@ -1904,7 +1904,7 @@ void TSortedDynamicStore::AddValue(TSortedDynamicRow row, int index, TDynamicVal
         row.SetFixedValueList(index, list, KeyColumnCount_, ColumnLockCount_);
     }
 
-    row.GetDataWeight() += GetDataWeight(Schema_->Columns()[index].GetWireType(), value);
+    row.GetDataWeight() += NTabletNode::GetDataWeight(Schema_->Columns()[index].GetWireType(), value);
     list.Push(std::move(value));
 
     ++StoreValueCount_;

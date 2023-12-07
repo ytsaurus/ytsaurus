@@ -163,8 +163,17 @@ TChunkWriteCounters::TChunkWriteCounters(
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletCounters::TTabletCounters(const TProfiler& profiler)
-    : OverlappingStoreCount(profiler.GaugeSummary("/tablet/overlapping_store_count"))
-    , EdenStoreCount(profiler.GaugeSummary("/tablet/eden_store_count"))
+    : OverlappingStoreCount(profiler.GaugeSummary("/tablet/overlapping_store_count", ESummaryPolicy::Max))
+    , EdenStoreCount(profiler.GaugeSummary("/tablet/eden_store_count", ESummaryPolicy::Max))
+    , DataWeight(profiler.GaugeSummary("/tablet/data_weight", ESummaryPolicy::Sum))
+    , UncompressedDataSize(profiler.GaugeSummary("/tablet/uncompressed_data_size", ESummaryPolicy::Sum))
+    , CompressedDataSize(profiler.GaugeSummary("/tablet/compressed_data_size", ESummaryPolicy::Sum))
+    , RowCount(profiler.GaugeSummary("/tablet/row_count", ESummaryPolicy::Sum))
+    , ChunkCount(profiler.GaugeSummary("/tablet/chunk_count", ESummaryPolicy::Sum))
+    , HunkCount(profiler.GaugeSummary("/tablet/hunk_count", ESummaryPolicy::Sum))
+    , TotalHunkLength(profiler.GaugeSummary("/tablet/total_hunk_length", ESummaryPolicy::Sum))
+    , HunkChunkCount(profiler.GaugeSummary("/tablet/hunk_chunk_count", ESummaryPolicy::Sum))
+    , TabletCount(profiler.GaugeSummary("/tablet/tablet_count", ESummaryPolicy::Sum))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -740,34 +749,45 @@ TReplicaCounters TTableProfiler::GetReplicaCounters(const TString& cluster)
     return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
 }
 
+template <class TCounter>
+TCounter* TTableProfiler::GetCounterUnlessDisabled(TCounter* counter)
+{
+    if (Disabled_) {
+        static TCounter staticCounter;
+        return &staticCounter;
+    }
+
+    return counter;
+}
+
 TTablePullerCounters* TTableProfiler::GetTablePullerCounters()
 {
-    return &TablePullerCounters_;
+    return GetCounterUnlessDisabled(&TablePullerCounters_);
 }
 
 TChunkWriteCounters* TTableProfiler::GetWriteCounters(EChunkWriteProfilingMethod method, bool failed)
 {
-    return &ChunkWriteCounters_[method][failed ? 1 : 0];
+    return GetCounterUnlessDisabled(&ChunkWriteCounters_[method][failed ? 1 : 0]);
 }
 
 TChunkReadCounters* TTableProfiler::GetReadCounters(EChunkReadProfilingMethod method, bool failed)
 {
-    return &ChunkReadCounters_[method][failed ? 1 : 0];
+    return GetCounterUnlessDisabled(&ChunkReadCounters_[method][failed ? 1 : 0]);
 }
 
 TEventTimer* TTableProfiler::GetThrottlerTimer(ETabletDistributedThrottlerKind kind)
 {
-    return &ThrottlerWaitTimers_[kind];
+    return GetCounterUnlessDisabled(&ThrottlerWaitTimers_[kind]);
 }
 
 TCounter* TTableProfiler::GetThrottlerCounter(ETabletDistributedThrottlerKind kind)
 {
-    return &ThrottlerCounters_[kind];
+    return GetCounterUnlessDisabled(&ThrottlerCounters_[kind]);
 }
 
 TLsmCounters* TTableProfiler::GetLsmCounters()
 {
-    return &LsmCounters_;
+    return GetCounterUnlessDisabled(&LsmCounters_);
 }
 
 const TProfiler& TTableProfiler::GetProfiler() const
