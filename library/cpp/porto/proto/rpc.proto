@@ -118,6 +118,24 @@ enum EError {
     HelperError = 30;
     HelperFatalError = 31;
 
+    // Block device does not contain valid filesystem
+    InvalidFilesystem = 32;
+
+    // Negotiation with nbd server timed out
+    NbdSocketTimeout = 33;
+
+    // Failed connect to nbd server
+    NbdSocketUnavaliable = 34;
+
+    // Other nbd connection error
+    NbdSocketError = 35;
+
+    // Unkown nbd export
+    NbdUnkownExport = 36;
+
+    // Invalid message from nbd server
+    NbdProtoError = 37;
+
     // Generic object not found.
     NotFound = 404;
 
