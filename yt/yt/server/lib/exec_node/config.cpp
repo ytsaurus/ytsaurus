@@ -508,6 +508,9 @@ void TNbdClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("timeout", &TThis::Timeout)
         .Default(TDuration::Seconds(30));
+    // At the moment only one connection per export is supported.
+    registrar.Parameter("connection_count", &TThis::ConnectionCount)
+        .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
