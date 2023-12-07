@@ -1586,6 +1586,29 @@ private:
         chunksToReincarnate.reserve(scannedChunkBudget);
         exportedChunks.reserve(scannedChunkBudget);
 
+        int scannedChunkCount = 0;
+        struct {
+            int NotAlive = 0;
+            int NotConfirmed = 0;
+            int Fresh = 0;
+            int Foreign = 0;
+            int WrongFormat = 0;
+            int AccountSettings = 0;
+            int AfterTraverse = 0;
+
+            int GetTotal() const
+            {
+                return
+                    NotAlive +
+                    NotConfirmed +
+                    Fresh +
+                    Foreign +
+                    WrongFormat +
+                    AccountSettings +
+                    AfterTraverse;
+            }
+        } skipped;
+
         while (
             scannedChunkBudget-- > 0 &&
             ChunkScanner_.HasUnscannedChunk() &&
@@ -1594,25 +1617,32 @@ private:
         {
             auto [chunk, options] = ChunkScanner_.DequeueChunk();
 
+            ++scannedChunkCount;
+
             if (!IsObjectAlive(chunk)) {
+                ++skipped.NotAlive;
                 continue;
             }
 
             if (!chunk->IsConfirmed()) {
+                ++skipped.NotConfirmed;
                 continue;
             }
 
-            auto estimatedCreationTime = epochHistoryManager->GetEstimatedCreationTime(
-                chunk->GetId(),
-                NProfiling::GetInstant()).second;
-
-            if (!options.IgnoreCreationTime && estimatedCreationTime > config->MinAllowedCreationTime) {
-                continue;
+            if (!options.IgnoreCreationTime) {
+                auto estimatedCreationTime = epochHistoryManager->GetEstimatedCreationTime(
+                    chunk->GetId(),
+                    NProfiling::GetInstant()).second;
+                if (estimatedCreationTime > config->MinAllowedCreationTime) {
+                    ++skipped.Fresh;
+                    continue;
+                }
             }
 
             if (chunk->IsForeign()) {
                 // Each cell is responsible only for its native chunks. Foreign
                 // chunks can be only reincarnated by their native cells.
+                ++skipped.Foreign;
                 continue;
             }
 
@@ -1634,11 +1664,13 @@ private:
                         chunk->GetId(),
                         chunk->GetChunkFormat());
                     OnReincarnationFinished(EReincarnationResult::WrongChunkFormat);
+                    ++skipped.WrongFormat;
                     continue;
             }
 
             if (!(config->IgnoreAccountSettings || options.IgnoreAccountSettings)) {
                 if (!IsReincarnationAllowedByAccountSettings(chunk)) {
+                    ++skipped.AccountSettings;
                     continue;
                 }
             }
@@ -1668,6 +1700,7 @@ private:
                         chunk->GetId(),
                         result);
                     OnReincarnationFinished(result);
+                    ++skipped.AfterTraverse;
                     break;
             }
         }
@@ -1705,6 +1738,20 @@ private:
                 exportedChunks.size(),
                 exportedChunks);
         }
+
+        YT_LOG_DEBUG(
+            "Chunk reincarnator iteration finished "
+            "(ScannedChunks: %v, Skipped: %v, NotAlive: %v, Fresh: %v, Foreign: %v, "
+            "WrongFormat: %v, AccountSettings: %v, AfterTraverse: %v)",
+            scannedChunkCount,
+            skipped.GetTotal(),
+            skipped.NotAlive,
+            skipped.NotConfirmed,
+            skipped.Fresh,
+            skipped.Foreign,
+            skipped.WrongFormat,
+            skipped.AccountSettings,
+            skipped.AfterTraverse);
     }
 
     bool IsReincarnationAllowedByAccountSettings(TChunk* chunk)
