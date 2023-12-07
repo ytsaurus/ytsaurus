@@ -657,7 +657,13 @@ public:
                 auto* eventType = request.DiscardStores
                     ? "discard_stores_candidate"
                     : "compaction_candidate";
-                if (auto task = MakeTask(slot.Get(), request, eventType, Logger)) {
+                if (auto task = MakeTask(
+                    slot.Get(),
+                    request,
+                    eventType,
+                    ssize(tasks) < dynamicConfig->MaxCompactionStructuredLogEvents,
+                    Logger))
+                {
                     tasks.push_back(std::move(task));
                 }
             }
@@ -676,10 +682,11 @@ public:
             std::vector<std::unique_ptr<TTask>> tasks;
             for (const auto& request : batch.Partitionings) {
                 if (auto task = MakeTask(
-                        slot.Get(),
-                        request,
-                        "partitioning_candidate",
-                        Logger))
+                    slot.Get(),
+                    request,
+                    "partitioning_candidate",
+                    ssize(tasks) < dynamicConfig->MaxPartitioningStructuredLogEvents,
+                    Logger))
                 {
                     tasks.push_back(std::move(task));
                 }
@@ -1109,6 +1116,7 @@ private:
         ITabletSlot* slot,
         const NLsm::TCompactionRequest& request,
         TStringBuf eventType,
+        bool logStructured,
         const NLogging::TLogger& Logger)
     {
         const auto& tabletManager = slot->GetTabletManager();
@@ -1138,8 +1146,10 @@ private:
         task->DiscardStores = request.DiscardStores;
         task->FutureEffect = GetFutureEffect(tablet->GetId());
 
-        tablet->GetStructuredLogger()->LogEvent(eventType)
-            .Do(BIND(&TTask::StoreToStructuredLog, task.get()));
+        if (logStructured) {
+            tablet->GetStructuredLogger()->LogEvent(eventType)
+                .Do(BIND(&TTask::StoreToStructuredLog, task.get()));
+        }
 
         return task;
     }

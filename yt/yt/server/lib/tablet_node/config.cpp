@@ -588,6 +588,13 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
         .Default(50_MB);
     registrar.Parameter("use_row_digests", &TThis::UseRowDigests)
         .Default(false);
+
+    registrar.Parameter("max_compaction_structured_log_events", &TThis::MaxCompactionStructuredLogEvents)
+        .GreaterThanOrEqual(0)
+        .Default(500);
+    registrar.Parameter("max_partitioning_structured_log_events", &TThis::MaxPartitioningStructuredLogEvents)
+        .GreaterThanOrEqual(0)
+        .Default(500);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
