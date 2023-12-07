@@ -15,7 +15,8 @@ def upload_livy(uploader: Client, sources_path: str):
     logger.info("Uploading livy files")
     uploader.mkdir("livy")
     livy_tgz = join(sources_path, 'livy.tgz')
-    uploader.write_file(livy_tgz, "livy/livy.tgz")
+    if not uploader.exists("livy/livy.tgz"):
+        uploader.write_file(livy_tgz, "livy/livy.tgz")
 
 
 def upload_spark_fork(uploader: Client, versions: Versions, sources_path: str, publish_conf: PublishConfig):
@@ -102,8 +103,8 @@ if __name__ == '__main__':
     parser.add_argument('--skip-spark-fork', action='store_true', dest='skip_spark_fork', help='Skip spark fork publication')
     parser.set_defaults(skip_spark_fork=False)
     parser.add_argument('--include-livy', action='store_true', dest='include_livy', help='Include built Livy')
-    parser.set_defaults(include_livy=False)
-    args = parser.parse_args()
+    parser.set_defaults(include_livy=True)
+    args, _ = parser.parse_known_args()
 
     publish_conf = PublishConfig(
         skip_spark_fork=args.skip_spark_fork,

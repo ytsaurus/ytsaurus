@@ -194,7 +194,7 @@ if __name__ == '__main__':
     parser.add_argument("--root", default="//home/spark", type=str, help="Root spyt path on YTsaurus cluster")
     parser.add_argument("--inner-release", action='store_false', dest='os_release', help="Includes extra settings")
     parser.set_defaults(os_release=True)
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     client_builder = ClientBuilder(
         root_path=args.root,

@@ -13,7 +13,7 @@ class PublishConfig(NamedTuple):
     specific_global_file: Optional[str] = None
     ignore_existing: bool = False
     snapshot_ttl: int = 14 * 24 * 60 * 60 * 1000
-    include_livy: bool = False
+    include_livy: bool = True
 
 
 class ClientBuilder(NamedTuple):
@@ -57,6 +57,10 @@ class Client:
         with open(local_file_path, 'wb') as file:
             stream = self.yt_client.read_file(full_target_path)
             file.write(stream)
+
+    def exists(self, target_path: str) -> object:
+        full_target_path = self.resolve_from_root(target_path)
+        return self.yt_client.exists(full_target_path)
 
     def write_file(self, local_file_path: str, target_path: str, executable: bool = False) -> NoReturn:
         full_target_path = self.resolve_from_root(target_path)

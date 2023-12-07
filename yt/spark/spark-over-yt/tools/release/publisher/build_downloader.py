@@ -56,7 +56,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="SPYT publisher")
     parser.add_argument("sources", type=str, help="Path to SPYT sources")
     parser.add_argument("--root", default="//home/spark", type=str, help="Root spyt path on YTsaurus cluster")
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     downloader_builder = ClientBuilder(
         root_path=args.root,

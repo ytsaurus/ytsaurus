@@ -18,6 +18,8 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
 
   import livyArgs._
 
+  prepareLivyLog4jConfig()
+
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
     val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
     log.info(s"Starting livy server for master $masterAddress")
@@ -53,7 +55,7 @@ case class LivyLauncherArgs(port: Int, ytConfig: YtClientConfiguration,
 object LivyLauncherArgs {
   def apply(args: Args): LivyLauncherArgs = LivyLauncherArgs(
     args.optional("port").orElse(sys.env.get("SPARK_YT_LIVY_PORT")).map(_.toInt)
-      .getOrElse(27100 + Random.nextInt(20)),  // Random port in range 27100...27119
+      .getOrElse(27105 + Random.nextInt(20)),  // Random port in range 27100...27119
     YtClientConfiguration(args.optional),
     args.required("driver-cores").toInt,
     args.required("driver-memory"),

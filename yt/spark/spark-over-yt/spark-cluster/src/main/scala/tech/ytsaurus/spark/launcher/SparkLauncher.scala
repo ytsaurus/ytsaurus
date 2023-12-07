@@ -51,6 +51,12 @@ trait SparkLauncher {
     copyToSparkConfIfExists("metrics.properties")
   }
 
+  def prepareLivyLog4jConfig(): Unit = {
+    val src = Path.of(livyHome, "conf", "log4j.properties.template")
+    val dst = Path.of(livyHome, "conf", "log4j.properties")
+    Files.copy(src, dst)
+  }
+
   def prepareLivyConf(hostAndPort: HostAndPort, masterAddress: Address, maxSessions: Int): Unit = {
     val src = Path.of(home, "livy.template.conf")
     val preparedConfPath = createFromTemplate(src.toFile) { content =>
