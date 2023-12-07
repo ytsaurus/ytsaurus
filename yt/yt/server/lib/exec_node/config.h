@@ -684,7 +684,7 @@ class TNbdClientConfig
 {
 public:
     TDuration Timeout;
-    int NumConnections;
+    int ConnectionCount;
 
     REGISTER_YSON_STRUCT(TNbdClientConfig);
 

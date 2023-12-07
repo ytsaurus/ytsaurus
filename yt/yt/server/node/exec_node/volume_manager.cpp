@@ -1135,7 +1135,7 @@ private:
             builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), port);
             builder.AppendFormat("&timeout=%v", ToString(timeout));
         }
-        builder.AppendFormat("&num-connections=%v", nbdConfig->Client->NumConnections);
+        builder.AppendFormat("&num-connections=%v", nbdConfig->Client->ConnectionCount);
         builder.AppendFormat("&export=%v", artifactKey.nbd_export_id());
         builder.AppendFormat("&fs-type=%v", ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())));
         volumeProperties["storage"] = builder.Flush();
