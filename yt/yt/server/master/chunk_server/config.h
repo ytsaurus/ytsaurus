@@ -668,10 +668,6 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottlerConfig;
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottlerConfig;
 
-    // COMPAT(h0pless): Remove after release when per user throttlers will be live on all clusters.
-    std::optional<double> ExecuteRequestWeightThrottlerLimit;
-    std::optional<double> ExecuteRequestBytesThrottlerLimit;
-
     REGISTER_YSON_STRUCT(TDynamicChunkServiceConfig);
 
     static void Register(TRegistrar registrar);
