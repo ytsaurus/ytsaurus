@@ -31,6 +31,8 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/siddontang/go-log v0.0.0-20190221022429-1e957dd83bed // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.6-0.20201009195203-85dd5c8bc61c // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.2 // indirect

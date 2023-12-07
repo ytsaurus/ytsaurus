@@ -4,15 +4,12 @@ type Speclet struct {
 	CPU    *uint64 `yson:"cpu"`
 	Memory *uint64 `yson:"memory"`
 
-	PythonVersion  string  `yson:"python_version"`
-	TrampolinePath *string `yson:"trampoline_path"`
-	VenvPath       *string `yson:"venv_path"`
+	JupyterDockerImage string `yson:"jupyter_docker_image"`
 }
 
 const (
-	DefaultCPU            = 2
-	DefaultMemory         = 8 * 1024 * 1024 * 1024
-	DefaultTrampolinePath = "jupyter-trampoline.sh"
+	DefaultCPU    = 2
+	DefaultMemory = 8 * 1024 * 1024 * 1024
 )
 
 func (speclet *Speclet) CPUOrDefault() uint64 {
@@ -27,11 +24,4 @@ func (speclet *Speclet) MemoryOrDefault() uint64 {
 		return *speclet.Memory
 	}
 	return DefaultMemory
-}
-
-func (speclet *Speclet) TrampolinePathOrDefault() string {
-	if speclet.TrampolinePath != nil {
-		return *speclet.TrampolinePath
-	}
-	return DefaultTrampolinePath
 }

@@ -1,7 +1,8 @@
 GO_LIBRARY()
 
 SRCS(
-    artifacts.go
+    api.go
+    commands.go
     controller.go
     fancy.go
     speclet.go
