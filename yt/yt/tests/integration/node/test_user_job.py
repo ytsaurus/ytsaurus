@@ -3189,14 +3189,6 @@ class TestCpuSetCri(YTEnvSetup):
 
     @authors("gritukan")
     def test_simple(self):
-        update_nodes_dynamic_config({
-            "exec_node": {
-                "slot_manager": {
-                    "enable_numa_node_scheduling": True,
-                },
-            },
-        })
-
         all_operations_info = []
         for cpu_limit, expected_cpu_set in [
             (2, "1-3,7"),
