@@ -25,7 +25,7 @@ private:
     i64 LastDataSize_ = 0;
 
     TFuture<void> DoStart() override;
-    TFuture<void> DoPutBlocks(
+    TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;

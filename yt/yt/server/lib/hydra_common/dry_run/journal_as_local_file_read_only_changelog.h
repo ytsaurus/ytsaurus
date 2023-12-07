@@ -22,6 +22,8 @@ public:
 
     i64 GetDataSize() const override;
 
+    i64 EstimateChangelogSize(i64 payloadSize) const override;
+
     TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,

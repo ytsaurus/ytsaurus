@@ -313,6 +313,13 @@ public:
         return CurrentFileOffset_.load();
     }
 
+    double GetWriteAmplificationRatio() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return WriteAmplification_.load(std::memory_order::relaxed);
+    }
+
     bool IsOpen() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -485,6 +492,10 @@ private:
     i64 CurrentFileSize_ = -1;
     i64 AppendedDataSizeSinceLastIndexFlush_ = 0;
 
+    i64 PayloadWrittenBytes_ = 0;
+    i64 MediaWrittenBytes_ = 0;
+    std::atomic<double> WriteAmplification_ = 1;
+
     TChangelogMeta Meta_;
     TSharedRef SerializedMeta_;
 
@@ -500,6 +511,22 @@ private:
         THROW_ERROR(error);
     }
 
+    void UpdateWriteAmplificationStat()
+    {
+        static constexpr i64 MeaningfulChangelogSize = 1_MB;
+        if (PayloadWrittenBytes_ < MeaningfulChangelogSize) {
+            // Wait while we write some data
+            return;
+        }
+
+        auto amplification = static_cast<double>(MediaWrittenBytes_) / PayloadWrittenBytes_;
+        WriteAmplification_.store(amplification, std::memory_order::relaxed);
+
+        YT_LOG_DEBUG("Updating write amplification (PayloadWrittenBytes: %v, MediaWrittenBytes: %v, WriteAmplification: %v)",
+            PayloadWrittenBytes_,
+            MediaWrittenBytes_,
+            amplification);
+    }
 
     TString MakeIndexFileName()
     {
@@ -661,6 +688,7 @@ private:
             i64 prevFileOffset = CurrentFileOffset_.load();
             i64 currentFileOffset = prevFileOffset;
             i64 currentRecordIndex = RecordCount_.load();
+            int payloadWrittenBytes = 0;
 
             // Header, payload, padding per each record.
             std::vector<TSharedRef> buffers;
@@ -697,6 +725,7 @@ private:
                 currentHeader->ChangelogUuid = Uuid_;
                 buffers.push_back(headersBuffer.Slice(currentHeader, currentHeader + 1));
                 ++currentHeader;
+                payloadWrittenBytes += record.Size();
 
                 // Payload
                 buffers.push_back(record);
@@ -735,6 +764,10 @@ private:
 
             i64 bytesWritten = currentFileOffset - prevFileOffset;
             AppendedDataSizeSinceLastIndexFlush_ += bytesWritten;
+            MediaWrittenBytes_ += bytesWritten;
+            PayloadWrittenBytes_ += payloadWrittenBytes;
+
+            UpdateWriteAmplificationStat();
 
             YT_LOG_DEBUG("Finished appending to changelog (FirstRecordIndex: %v, RecordCount: %v, Bytes: %v)",
                 firstRecordIndex,

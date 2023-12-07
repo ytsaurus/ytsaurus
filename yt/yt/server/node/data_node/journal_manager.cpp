@@ -542,6 +542,12 @@ public:
         return WriteMultiplexedRecords(config, {record});
     }
 
+    i64 EstimateChangelogSize(i64 payloadSize)
+    {
+        auto guard = Guard(SpinLock_);
+        return MultiplexedChangelog_->EstimateChangelogSize(payloadSize);
+    }
+
     TFuture<void> WriteRemoveRecord(TChunkId chunkId)
     {
         auto config = Config_.Acquire();
@@ -1059,6 +1065,11 @@ public:
         auto barrier = MultiplexedWriter_->RegisterBarrier();
         barrier.SetFrom(splitResult);
         return MultiplexedWriter_->WriteAppendRecords(chunkId, firstRecordId, records);
+    }
+
+    i64 EstimateMultiplexedChangelogSize(i64 payloadSize) const override
+    {
+        return MultiplexedWriter_->EstimateChangelogSize(payloadSize);
     }
 
     TFuture<bool> IsChangelogSealed(TChunkId chunkId) override

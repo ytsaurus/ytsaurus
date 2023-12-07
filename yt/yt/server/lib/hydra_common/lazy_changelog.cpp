@@ -51,6 +51,14 @@ public:
         return GetUnderlyingChangelog()->GetMeta();
     }
 
+    i64 EstimateChangelogSize(i64 payloadSize) const override
+    {
+        auto guard = Guard(SpinLock_);
+        return UnderlyingChangelog_
+            ? UnderlyingChangelog_->EstimateChangelogSize(payloadSize)
+            : payloadSize;
+    }
+
     TFuture<void> Append(TRange<TSharedRef> records) override
     {
         auto guard = Guard(SpinLock_);

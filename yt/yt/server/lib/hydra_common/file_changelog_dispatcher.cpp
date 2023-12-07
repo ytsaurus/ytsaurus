@@ -668,6 +668,11 @@ public:
         return DataSize_;
     }
 
+    i64 EstimateChangelogSize(i64 payloadSize) const override
+    {
+        return static_cast<i64>(Queue_->GetChangelog()->GetWriteAmplificationRatio() * payloadSize);
+    }
+
     const TChangelogMeta& GetMeta() const override
     {
         return Queue_->GetChangelog()->GetMeta();

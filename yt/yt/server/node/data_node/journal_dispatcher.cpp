@@ -163,6 +163,17 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
+    i64 EstimateChangelogSize(i64 payloadSize) const override
+    {
+        auto result = UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        if (EnableMultiplexing_) {
+            const auto& journalManager = Location_->GetJournalManager();
+            result += journalManager->EstimateMultiplexedChangelogSize(payloadSize);
+        }
+
+        return result;
+    }
+
     TFuture<void> Append(TRange<TSharedRef> records) override
     {
         int firstRecordId = UnderlyingChangelog_->GetRecordCount();

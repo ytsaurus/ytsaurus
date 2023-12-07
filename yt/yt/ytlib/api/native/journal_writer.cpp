@@ -1489,7 +1489,7 @@ private:
             auto traceGuard = QueueTrace_.CreateTraceGuard("JournalWriter:FlushBlocks", node->FirstPendingRowIndex, {});
 
             req->Invoke().Subscribe(
-                BIND_NO_PROPAGATE(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount)
+                BIND_NO_PROPAGATE(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount, flushDataSize)
                     .Via(Invoker_));
         }
 
@@ -1497,6 +1497,7 @@ private:
             const TChunkSessionPtr& session,
             const TNodePtr& node,
             i64 flushRowCount,
+            i64 flushDataSize,
             TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr rspOrError)
         {
             if (session != CurrentChunkSession_) {
@@ -1512,13 +1513,22 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Journal replica written (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
+            auto response = rspOrError.Value();
+
+            Counters_.JournalWrittenBytes.Increment(flushDataSize);
+            Counters_.MediumWrittenBytes.Increment(response->statistics().data_bytes_written_to_medium());
+            Counters_.IORequestCount.Increment(response->statistics().io_requests());
+
+            YT_LOG_DEBUG("Journal replica written (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, "
+                "MediumWrittenBytes: %v, JournalWrittenBytes: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id,
                 node->FirstPendingBlockIndex,
                 node->FirstPendingBlockIndex + flushRowCount - 1,
                 node->FirstPendingRowIndex,
-                node->FirstPendingRowIndex + flushRowCount - 1);
+                node->FirstPendingRowIndex + flushRowCount - 1,
+                response->statistics().data_bytes_written_to_medium(),
+                flushDataSize);
 
             for (const auto& batch : node->InFlightBatches) {
                 ++batch->FlushedReplicas;

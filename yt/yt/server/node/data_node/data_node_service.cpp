@@ -440,7 +440,10 @@ private:
         // Flush blocks if needed.
         if (flushBlocks) {
             result = result
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] () mutable {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOCounters& putCounters) mutable {
+                    response->mutable_statistics()->set_data_bytes_written_to_medium(putCounters.Bytes);
+                    response->mutable_statistics()->set_io_requests(putCounters.IORequests);
+
                     auto result = session->FlushBlocks(lastBlockIndex);
                     result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TIOCounters>& result) {
                         if (!result.IsOK()) {
@@ -457,7 +460,7 @@ private:
                                 MakeWriteIOTags("FlushBlocks", session, context));
                         }
                     }));
-                    return result.AsVoid();
+                    return result;
                 }));
         } else {
             // Remains to wait on throttlers, hence mark as complete.
@@ -471,7 +474,7 @@ private:
             location->GetPerformanceCounters().PutBlocksWallTime.Record(timer.GetElapsedTime());
         }));
 
-        context->ReplyFrom(result, Bootstrap_->GetStorageLightInvoker());
+        context->ReplyFrom(result.AsVoid(), Bootstrap_->GetStorageLightInvoker());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)

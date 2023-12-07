@@ -438,7 +438,7 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
     return Pipeline_->GetChunkInfo();
 }
 
-TFuture<void> TBlobSession::DoPutBlocks(
+TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     int startBlockIndex,
     const std::vector<TBlock>& blocks,
     bool enableCaching)
@@ -446,7 +446,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (blocks.empty()) {
-        return VoidFuture;
+        return MakeFuture<NIO::TIOCounters>({});
     }
 
     // Make all acquisitions in advance to ensure that this error is retriable.
@@ -459,7 +459,8 @@ TFuture<void> TBlobSession::DoPutBlocks(
             block.Size());
         if (!guardOrError.IsOK()) {
             Location_->ReportThrottledWrite();
-            return MakeFuture(TError(guardOrError).SetCode(NChunkClient::EErrorCode::WriteThrottlingActive));
+            return MakeFuture<NIO::TIOCounters>(
+                TError(guardOrError).SetCode(NChunkClient::EErrorCode::WriteThrottlingActive));
         }
         memoryTrackerGuards.push_back(std::move(guardOrError.Value()));
     }
@@ -494,7 +495,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
             .AsyncVia(SessionInvoker_));
 }
 
-TFuture<void> TBlobSession::DoPerformPutBlocks(
+TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     int startBlockIndex,
     const std::vector<TBlock>& blocks,
     std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards,
@@ -598,7 +599,7 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
         if (auto error = slot.Block.ValidateChecksum(); !error.IsOK()) {
             auto blockId = TBlockId(GetChunkId(), WindowIndex_);
             SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /* fatal */ false);
-            return MakeFuture<void>(Error_);
+            return MakeFuture<NIO::TIOCounters>(Error_);
         }
 
         blocksToWrite.push_back(slot.Block);
@@ -615,7 +616,9 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
     return AllSucceeded(std::vector{
         netThrottler->Throttle(totalSize),
         diskThrottler->Throttle(totalSize)
-    });
+    }).Apply(BIND([] {
+        return NIO::TIOCounters{};
+    }));
 }
 
 void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const TError& error)

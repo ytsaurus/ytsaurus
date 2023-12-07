@@ -80,7 +80,7 @@ struct ISession
         std::optional<int> blockCount) = 0;
 
     //! Puts a contiguous range of blocks into the window.
-    virtual TFuture<void> PutBlocks(
+    virtual TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) = 0;

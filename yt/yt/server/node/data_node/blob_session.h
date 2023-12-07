@@ -69,11 +69,11 @@ private:
     TFuture<void> DoStart() override;
     void OnStarted(const TError& error);
 
-    TFuture<void> DoPutBlocks(
+    TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
-    TFuture<void> DoPerformPutBlocks(
+    TFuture<NIO::TIOCounters> DoPerformPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards,
