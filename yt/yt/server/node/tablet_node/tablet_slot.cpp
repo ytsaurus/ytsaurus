@@ -45,6 +45,8 @@
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -579,7 +581,15 @@ public:
             Bootstrap_->GetClient(),
             Bootstrap_->GetHintManager(),
             tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"),
-            [bootstrap = Bootstrap_] (EWorkloadCategory category) {
+            [bootstrap = Bootstrap_] (EWorkloadCategory category) -> const IThroughputThrottlerPtr& {
+                const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
+                const auto& tabletNodeConfig = dynamicConfigManager->GetConfig()->TabletNode;
+
+                if (!tabletNodeConfig->EnableChunkFragmentReaderThrottling) {
+                    static const IThroughputThrottlerPtr EmptyThrottler;
+                    return EmptyThrottler;
+                }
+
                 return bootstrap->GetInThrottler(category);
             });
     }

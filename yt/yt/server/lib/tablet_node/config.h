@@ -892,6 +892,8 @@ public:
 
     TStatisticsReporterConfigPtr StatisticsReporter;
 
+    bool EnableChunkFragmentReaderThrottling;
+
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
