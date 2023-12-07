@@ -388,9 +388,7 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
             currentRecordId + recordsRead - 1);
 
         auto future = BIND([=, this, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
-                for (const auto& recordData : recordsData)  {
-                    DecoratedAutomaton_->ApplyMutationDuringRecovery(recordData);
-                }
+                DecoratedAutomaton_->ApplyMutationsDuringRecovery(recordsData);
             })
             .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
             .Run();

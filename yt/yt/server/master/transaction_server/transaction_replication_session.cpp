@@ -593,7 +593,11 @@ void TTransactionReplicationSessionWithBoomerangs::EndRequestInResponseKeeper(co
     YT_VERIFY(mutationId);
 
     const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-    responseKeeper->EndRequest(mutationId, error, false /*remember*/);
+    if (auto setResponseKeeperPromise =
+        responseKeeper->EndRequest(mutationId, error, false /*remember*/))
+    {
+        setResponseKeeperPromise();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

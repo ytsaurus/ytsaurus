@@ -1258,7 +1258,11 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
             !mutationContext->GetResponseKeeperSuppressed() &&
             mutationContext->GetResponseData()) // Null when mutation idempotizer kicks in.
         {
-            Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData());
+            if (auto setResponseKeeperPromise =
+                Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData()))
+            {
+                setResponseKeeperPromise();
+            }
         }
     }
 

@@ -26,6 +26,7 @@
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/response_keeper.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -236,8 +237,7 @@ public:
 
     void CheckInvariants();
 
-    void ApplyMutationDuringRecovery(const TSharedRef& recordData);
-
+    void ApplyMutationsDuringRecovery(const std::vector<TSharedRef>& recordsData);
     void ApplyMutations(const std::vector<TPendingMutationPtr>& mutations);
 
     TReign GetCurrentReign() const;
@@ -257,6 +257,7 @@ private:
     class TForkSnapshotBuilder;
     class TSwitchableSnapshotWriter;
     class TNoForkSnapshotBuilder;
+    struct TMutationApplicationResult;
 
     const NLogging::TLogger Logger;
 
@@ -307,8 +308,13 @@ private:
 
     TForkCountersPtr ForkCounters_;
 
-    void ApplyMutation(const TPendingMutationPtr& mutation);
-    void DoApplyMutation(NHydra::TMutationContext* mutationContext, TVersion mutationVersion);
+    TMutationApplicationResult ApplyMutationDuringRecovery(const TSharedRef& recordData);
+    TMutationApplicationResult ApplyMutation(const TPendingMutationPtr& mutation);
+    void DoApplyMutation(
+        NHydra::TMutationContext* mutationContext,
+        TVersion mutationVersion,
+        TMutationApplicationResult* result);
+    void PublishMutationApplicationResults(std::vector<TMutationApplicationResult>&& results);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();

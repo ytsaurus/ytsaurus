@@ -80,6 +80,7 @@ public:
     void SetResponseData(TSharedRefArray data);
     void SetResponseData(TError error);
     const TSharedRefArray& GetResponseData() const;
+    TSharedRefArray TakeResponseData();
 
     void SetResponseKeeperSuppressed(bool value);
     bool GetResponseKeeperSuppressed();

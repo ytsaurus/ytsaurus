@@ -188,9 +188,7 @@ public:
                 currentRecordId + recordsRead - 1);
 
             auto applyMutationFuture = BIND([=, this, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
-                    for (const auto& recordData : recordsData)  {
-                        DecoratedAutomaton_->ApplyMutationDuringRecovery(recordData);
-                    }
+                    DecoratedAutomaton_->ApplyMutationsDuringRecovery(recordsData);
                 })
                 .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
                 .Run();
