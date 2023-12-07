@@ -203,6 +203,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_testing_options", &TThis::JobTestingOptions)
         .Default();
 
+    registrar.Parameter("container_cpu_limit", &TThis::ContainerCpuLimit)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;

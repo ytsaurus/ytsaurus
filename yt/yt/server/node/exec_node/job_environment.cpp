@@ -1030,7 +1030,13 @@ private:
 
         spec->Labels[YTJobIdLabel] = ToString(jobId);
 
-        // FIXME(khlebnikov) user to run job proxy spec->Credentials.Uid = GetUserId(slotIndex);
+        if (config->DoNotSetUserId) {
+            spec->Credentials.Uid = ::getuid();
+        } else {
+            spec->Credentials.Uid = GetUserId(slotIndex);
+            // FIXME(khlebnikov): Use own group or "nogroup"
+        }
+        spec->Credentials.Gid = ::getgid();
 
         for (const auto& bind : Config_->JobProxyBindMounts) {
             spec->BindMounts.push_back(NCri::TCriBindMount{
@@ -1071,6 +1077,8 @@ private:
                 .ReadOnly = true,
             });
         }
+
+        spec->Resources.CpuLimit = config->ContainerCpuLimit;
 
         return Executor_->CreateProcess(JobProxyProgramName, spec, PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
     }

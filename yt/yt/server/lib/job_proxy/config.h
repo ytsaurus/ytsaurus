@@ -240,6 +240,8 @@ public:
 
     bool SendHeartbeatBeforeAbort;
 
+    std::optional<double> ContainerCpuLimit;
+
     std::optional<int> StatisticsOutputTableCountLimit;
 
     NDns::TDnsOverRpcResolverConfigPtr DnsOverRpcResolver;
