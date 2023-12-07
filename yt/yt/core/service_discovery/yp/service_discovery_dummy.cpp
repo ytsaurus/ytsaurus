@@ -6,13 +6,9 @@ namespace NYT::NServiceDiscovery::NYP {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServiceDiscoveryPtr CreateServiceDiscovery(TServiceDiscoveryConfigPtr config)
+IServiceDiscoveryPtr CreateServiceDiscovery(TServiceDiscoveryConfigPtr /*config*/)
 {
-    if (!config->Enable) {
-        return nullptr;
-    }
-
-    Y_UNREACHABLE();
+    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
