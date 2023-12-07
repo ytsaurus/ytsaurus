@@ -41,6 +41,5 @@ IF (NOT OPENSOURCE)
         skynet
         terraform
         yt_proto
-        nebius
     )
 ENDIF()
