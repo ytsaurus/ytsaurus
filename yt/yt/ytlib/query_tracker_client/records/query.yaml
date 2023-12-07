@@ -47,6 +47,12 @@ types:
         column_type: String
         lock: client
 
+      - cpp_name: AccessControlObject
+        cpp_type: std::optional<TString>
+        column_name: access_control_object
+        column_type: String
+        lock: client
+
       - cpp_name: StartTime
         cpp_type: TInstant
         column_name: start_time
@@ -168,6 +174,11 @@ types:
         column_name: user
         column_type: String
 
+      - cpp_name: AccessControlObject
+        cpp_type: std::optional<TString>
+        column_name: access_control_object
+        column_type: String
+
       - cpp_name: StartTime
         cpp_type: TInstant
         column_name: start_time
@@ -230,6 +241,11 @@ types:
       - cpp_name: User
         cpp_type: TString
         column_name: user
+        column_type: String
+
+      - cpp_name: AccessControlObject
+        cpp_type: std::optional<TString>
+        column_name: access_control_object
         column_type: String
 
       - cpp_name: State

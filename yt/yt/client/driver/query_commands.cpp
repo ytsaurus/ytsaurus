@@ -33,6 +33,8 @@ TStartQueryCommand::TStartQueryCommand()
         .Optional();
     RegisterParameter("annotations", Options.Annotations)
         .Optional();
+    RegisterParameter("access_control_object", Options.AccessControlObject)
+        .Optional();
 }
 
 void TStartQueryCommand::DoExecute(ICommandContextPtr context)
@@ -187,6 +189,8 @@ TAlterQueryCommand::TAlterQueryCommand()
 {
     RegisterParameter("query_id", QueryId);
     RegisterParameter("annotations", Options.Annotations)
+        .Optional();
+    RegisterParameter("access_control_object", Options.AccessControlObject)
         .Optional();
 }
 

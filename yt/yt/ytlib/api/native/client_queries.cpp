@@ -38,6 +38,314 @@ using namespace NYTree;
 using namespace NQueryClient;
 using namespace NChunkClient::NProto;
 
+namespace NDetail {
+
+// Applies when a query doesn't have an access control object.
+constexpr TStringBuf DefaultAccessControlObject = "nobody";
+
+TQuery PartialRecordToQuery(const auto& partialRecord)
+{
+    static_assert(pfr::tuple_size<TQuery>::value == 15);
+    static_assert(TActiveQueryDescriptor::FieldCount == 19);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 14);
+
+    TQuery query;
+    // Note that some of the fields are twice optional.
+    // First time due to the fact that they are optional in the record,
+    // and second time due to the extra optionality of any field in the partial record.
+    // TODO(max42): coalesce the optionality of the fields in the partial record.
+    query.Id = partialRecord.Key.QueryId;
+    query.Engine = partialRecord.Engine;
+    query.Query = partialRecord.Query;
+    query.Files = partialRecord.Files.value_or(std::nullopt);
+    query.StartTime = partialRecord.StartTime;
+    query.FinishTime = partialRecord.FinishTime.value_or(std::nullopt);
+    query.Settings = partialRecord.Settings.value_or(TYsonString());
+    query.User = partialRecord.User;
+    query.AccessControlObject = partialRecord.AccessControlObject.value_or(std::nullopt);
+    query.State = partialRecord.State;
+    query.ResultCount = partialRecord.ResultCount.value_or(std::nullopt);
+    query.Progress = partialRecord.Progress.value_or(TYsonString());
+    query.Error = partialRecord.Error.value_or(std::nullopt);
+    query.Annotations = partialRecord.Annotations.value_or(TYsonString());
+
+    IAttributeDictionaryPtr otherAttributes;
+    auto fillIfPresent = [&] (const TString& key, const auto& value) {
+        if (value) {
+            if (!otherAttributes) {
+                otherAttributes = CreateEphemeralAttributes();
+            }
+            otherAttributes->Set(key, *value);
+        }
+    };
+
+    if constexpr (std::is_same_v<std::decay_t<decltype(partialRecord)>, TActiveQueryPartial>) {
+        fillIfPresent("abort_request", partialRecord.AbortRequest.value_or(std::nullopt));
+        fillIfPresent("ping_time", partialRecord.PingTime);
+        fillIfPresent("incarnation", partialRecord.Incarnation);
+        fillIfPresent("assigned_tracker", partialRecord.AssignedTracker);
+    }
+
+    query.OtherAttributes = std::move(otherAttributes);
+
+    return query;
+}
+
+//! Lookup one of query tracker state tables by query id.
+template <class TRecordDescriptor>
+TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
+    TQueryId queryId,
+    const IClientPtr& client,
+    const TString& tablePath,
+    const TString& tableKind,
+    const std::optional<std::vector<TString>>& lookupKeys,
+    NTransactionClient::TTimestamp timestamp)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    const auto& nameTable = TRecordDescriptor::Get()->GetNameTable();
+
+    TLookupRowsOptions lookupOptions;
+    if (lookupKeys) {
+        std::vector<int> columnIds;
+        for (const auto& key : *lookupKeys) {
+            if (auto columnId = nameTable->FindId(key)) {
+                columnIds.push_back(*columnId);
+            }
+        }
+        lookupOptions.ColumnFilter = TColumnFilter(columnIds);
+    }
+    lookupOptions.Timestamp = timestamp;
+    lookupOptions.EnablePartialResult = true;
+    std::vector keys{
+        TActiveQueryKey{.QueryId = queryId}.ToKey(rowBuffer),
+    };
+    auto asyncLookupResult = client->LookupRows(
+        tablePath,
+        TRecordDescriptor::Get()->GetNameTable(),
+        MakeSharedRange(std::move(keys), rowBuffer),
+        lookupOptions);
+    auto asyncRecord = asyncLookupResult.Apply(BIND([=] (const IUnversionedRowsetPtr& rowset) {
+        auto optionalRecords = ToOptionalRecords<typename TRecordDescriptor::TRecordPartial>(rowset);
+        YT_VERIFY(optionalRecords.size() == 1);
+        if (!optionalRecords[0]) {
+            THROW_ERROR_EXCEPTION("Query %v is not found in %Qv query table", queryId, tableKind);
+        }
+        return *optionalRecords[0];
+    }));
+    return asyncRecord;
+};
+
+THashSet<TString> GetUserSubjects(const TString& user, const IClientPtr& client)
+{
+    // Get all subjects for the user.
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    auto userSubjectsOrError = WaitFor(client->GetNode("//sys/users/" + user + "/@member_of_closure", options));
+    if (!userSubjectsOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Error while fetching user membership for the user %Qv", user)
+            << userSubjectsOrError;
+    }
+    auto userSubjects = ConvertTo<THashSet<TString>>(userSubjectsOrError.Value());
+    return userSubjects;
+}
+
+NSecurityClient::ESecurityAction CheckAccessControl(
+    const TString& user,
+    const std::optional<TString>& accessControlObject,
+    const TString& queryAuthor,
+    const IClientPtr& client,
+    EPermission permission,
+    const NLogging::TLogger& logger)
+{
+    auto& Logger = logger;
+    if (user == queryAuthor) {
+        return NSecurityClient::ESecurityAction::Allow;
+    }
+    auto actualAccessControlObject = accessControlObject.value_or(TString(DefaultAccessControlObject));
+    auto aclOrError = WaitFor(client->GetNode(Format(
+        "//sys/access_control_object_namespaces/queries/%v/@principal_acl",
+        actualAccessControlObject)));
+    if (!aclOrError.IsOK()) {
+        YT_LOG_WARNING(aclOrError,
+            "Error while fetching access control object queries/%v",
+            actualAccessControlObject);
+        auto userSubjects = GetUserSubjects(user, client);
+        if (userSubjects.contains(NSecurityClient::SuperusersGroupName)) {
+            return NSecurityClient::ESecurityAction::Allow;
+        }
+        THROW_ERROR_EXCEPTION("Error while fetching access control object %Qv", actualAccessControlObject)
+            << aclOrError;
+    }
+    return WaitFor(client->CheckPermissionByAcl(user, permission, ConvertToNode(aclOrError.Value())))
+        .ValueOrThrow()
+        .Action;
+}
+
+void ThrowAccessDeniedException(
+    TQueryId queryId,
+    EPermission permission,
+    const TString& user,
+    const std::optional<TString>& accessControlObject,
+    const TString& queryAuthor)
+{
+    THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AuthorizationError,
+        "Access denied to query %v due to missing %Qv permission",
+        queryId,
+        permission)
+        << TErrorAttribute("User", user)
+        << TErrorAttribute("Access control object", accessControlObject)
+        << TErrorAttribute("Query author", queryAuthor);
+}
+
+//! Lookup a query in active_queries and finished_queries tables by query id.
+TQuery LookupQuery(
+    TQueryId queryId,
+    const IClientPtr& client,
+    const TString& root,
+    const std::optional<std::vector<TString>>& lookupKeys,
+    NTransactionClient::TTimestamp timestamp,
+    const NLogging::TLogger& logger)
+{
+    auto asyncActiveRecord = LookupQueryTrackerRecord<TActiveQueryDescriptor>(
+        queryId,
+        client,
+        root + "/active_queries",
+        "active",
+        lookupKeys,
+        timestamp);
+    auto asyncFinishedRecord = LookupQueryTrackerRecord<TFinishedQueryDescriptor>(
+        queryId,
+        client,
+        root + "/finished_queries",
+        "finished",
+        lookupKeys,
+        timestamp);
+
+    auto error = WaitFor(AnySucceeded(std::vector{asyncActiveRecord.AsVoid(), asyncFinishedRecord.AsVoid()}));
+    if (!error.IsOK()) {
+        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::QueryNotFound,
+            "Query %v is not found neither in active nor in finished query tables",
+            queryId)
+            << error;
+    }
+    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.Get().IsOK();
+    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.Get().IsOK();
+    YT_VERIFY(isActive || isFinished);
+    if (isActive && isFinished) {
+        const auto& Logger = logger;
+        YT_LOG_ALERT(
+            "Query is found in both active and finished query tables "
+            "(QueryId: %v, Timestamp: %v)",
+            queryId,
+            timestamp);
+    }
+    if (isActive) {
+        return PartialRecordToQuery(asyncActiveRecord.Get().Value());
+    } else {
+        return PartialRecordToQuery(asyncFinishedRecord.Get().Value());
+    }
+}
+
+void ValidateQueryPermissions(
+    TQueryId queryId,
+    const TString& root,
+    NTransactionClient::TTimestamp timestamp,
+    const TString& user,
+    const IClientPtr& client,
+    EPermission permission,
+    const NLogging::TLogger& logger)
+{
+    std::vector<TString> lookupKeys = {"user", "access_control_object"};
+    auto query = LookupQuery(queryId, client, root, lookupKeys, timestamp, logger);
+    if (CheckAccessControl(user, query.AccessControlObject, *query.User, client, permission, logger) == NSecurityClient::ESecurityAction::Deny) {
+        ThrowAccessDeniedException(queryId, permission, user, query.AccessControlObject, *query.User);
+    }
+}
+
+std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, const IClientPtr& client)
+{
+    // Get all access control objects.
+    TGetNodeOptions options;
+    options.Attributes = {
+        "principal_acl",
+    };
+    options.ReadFrom = EMasterChannelKind::Cache;
+
+    auto allAcosOrError = WaitFor(client->GetNode("//sys/access_control_object_namespaces/queries", options));
+
+    if (!allAcosOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Error while fetching all access control objects in the namespace \"queries\"")
+            << allAcosOrError;
+    }
+
+    auto allAcos = ConvertToNode(allAcosOrError.Value())->AsMap()->GetChildren();
+
+    std::vector<TString> acosForUser;
+    // We expect average user to have access to a small number of access control objects.
+    acosForUser.reserve(10);
+
+    for (const auto& aco : allAcos) {
+        auto acoName = aco.first;
+        auto aclRules = ConvertToNode(aco.second->Attributes().GetYson("principal_acl"))->AsList()->GetChildren();
+        bool allowUseRuleFound = false;
+        bool denyUseRuleFound = false;
+        // Check if there are allow or deny "Use" rules matching the subjects.
+        for (const auto& aclRule : aclRules) {
+            auto aclSubjects = aclRule->AsMap()->GetChildOrThrow("subjects")->AsList()->GetChildren();
+            auto aclPermissions = aclRule->AsMap()->GetChildOrThrow("permissions")->AsList()->GetChildren();
+            bool usePermissionFound = false;
+            for (const auto& aclPermission : aclPermissions) {
+                auto aclPermissionName = aclPermission->GetValue<TString>();
+                aclPermissionName.to_lower();
+                if (aclPermissionName == "use") {
+                    usePermissionFound = true;
+                    break;
+                }
+            }
+            if (!usePermissionFound) {
+                continue;
+            }
+            for (const auto& aclSubject : aclSubjects) {
+                auto aclSubjectName = aclSubject->GetValue<TString>();
+                if (subjects.find(aclSubjectName) != subjects.end()) {
+                    auto aclAction = aclRule->AsMap()->GetChildOrThrow("action")->GetValue<TString>();
+                    aclAction.to_lower();
+                    if (aclAction == "allow") {
+                        allowUseRuleFound = true;
+                    } else if (aclAction == "deny") {
+                        denyUseRuleFound = true;
+                    }
+                }
+            }
+        }
+        if (allowUseRuleFound && !denyUseRuleFound) {
+            acosForUser.emplace_back(acoName);
+        }
+    }
+    return acosForUser;
+}
+
+void VerifyAccessControlObjectExists(const TString& accessControlObject, const IClientPtr& client)
+{
+    auto error = WaitFor(client->NodeExists("//sys/access_control_object_namespaces/queries/" + accessControlObject));
+
+    if (!error.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to check whether access control object %Qv exists", accessControlObject)
+            << error;
+    }
+    if (!error.Value()) {
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+            "Access control object %Qv does not exist",
+            accessControlObject);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+using namespace NDetail;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
@@ -70,6 +378,10 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
     auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
 
+    if (options.AccessControlObject) {
+        VerifyAccessControlObjectExists(*options.AccessControlObject, client);
+    }
+
     // Draft queries go directly to finished query tables (regular and ordered by start time),
     // non-draft queries go to the active query table.
 
@@ -77,7 +389,7 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         TString filterFactors;
         auto startTime = TInstant::Now();
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 13);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 14);
             TFinishedQuery newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
@@ -85,6 +397,7 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
                 .Files = ConvertToYsonString(options.Files),
                 .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
                 .User = *Options_.User,
+                .AccessControlObject = options.AccessControlObject,
                 .StartTime = startTime,
                 .State = EQueryState::Draft,
                 .Progress = EmptyMap,
@@ -104,6 +417,7 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
                 .Key = {.StartTime = startTime, .QueryId = queryId},
                 .Engine = engine,
                 .User = *Options_.User,
+                .AccessControlObject = options.AccessControlObject,
                 .State = EQueryState::Draft,
                 .FilterFactors = filterFactors,
             };
@@ -116,7 +430,7 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
                 MakeSharedRange(std::move(rows), rowBuffer));
         }
     } else {
-        static_assert(TActiveQueryDescriptor::FieldCount == 18);
+        static_assert(TActiveQueryDescriptor::FieldCount == 19);
         TActiveQueryPartial newRecord{
             .Key = {.QueryId = queryId},
             .Engine = engine,
@@ -124,6 +438,7 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
             .Files = ConvertToYsonString(options.Files),
             .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
             .User = *Options_.User,
+            .AccessControlObject = options.AccessControlObject,
             .StartTime = TInstant::Now(),
             .State = EQueryState::Pending,
             .Incarnation = -1,
@@ -168,6 +483,8 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
     };
     auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
+
+    ValidateQueryPermissions(queryId, root, transaction->GetStartTimestamp(), *Options_.User, client, EPermission::Administer, Logger);
 
     {
         const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
@@ -224,11 +541,17 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
 {
     auto [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
+    auto timestamp = WaitFor(client->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+
     TQueryResult queryResult;
     {
         auto rowBuffer = New<TRowBuffer>();
         TLookupRowsOptions options;
         options.EnablePartialResult = true;
+
+        ValidateQueryPermissions(queryId, root, timestamp, *Options_.User, client, EPermission::Read, Logger);
+
         TFinishedQueryResultKey key{.QueryId = queryId, .Index = resultIndex};
         std::vector keys{
             key.ToKey(rowBuffer),
@@ -308,12 +631,18 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
         options.UpperRowIndex,
         options.UpperRowIndex);
 
+    auto timestamp = WaitFor(client->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+
     TString wireRowset;
     TTableSchemaPtr schema;
     {
         auto rowBuffer = New<TRowBuffer>();
         TLookupRowsOptions options;
         options.EnablePartialResult = true;
+
+        ValidateQueryPermissions(queryId, root, timestamp, *Options_.User, client, EPermission::Read, Logger);
+
         TFinishedQueryResultKey key{.QueryId = queryId, .Index = resultIndex};
         std::vector keys{
             key.ToKey(rowBuffer),
@@ -373,53 +702,6 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQuery PartialRecordToQuery(const auto& partialRecord)
-{
-    static_assert(pfr::tuple_size<TQuery>::value == 14);
-    static_assert(TActiveQueryDescriptor::FieldCount == 18);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 13);
-
-    TQuery query;
-    // Note that some of the fields are twice optional.
-    // First time due to the fact that they are optional in the record,
-    // and second time due to the extra optionality of any field in the partial record.
-    // TODO(max42): coalesce the optionality of the fields in the partial record.
-    query.Id = partialRecord.Key.QueryId;
-    query.Engine = partialRecord.Engine;
-    query.Query = partialRecord.Query;
-    query.Files = partialRecord.Files.value_or(std::nullopt);
-    query.StartTime = partialRecord.StartTime;
-    query.FinishTime = partialRecord.FinishTime.value_or(std::nullopt);
-    query.Settings = partialRecord.Settings.value_or(TYsonString());
-    query.User = partialRecord.User;
-    query.State = partialRecord.State;
-    query.ResultCount = partialRecord.ResultCount.value_or(std::nullopt);
-    query.Progress = partialRecord.Progress.value_or(TYsonString());
-    query.Error = partialRecord.Error.value_or(std::nullopt);
-    query.Annotations = partialRecord.Annotations.value_or(TYsonString());
-
-    IAttributeDictionaryPtr otherAttributes;
-    auto fillIfPresent = [&] (const TString& key, const auto& value) {
-        if (value) {
-            if (!otherAttributes) {
-                otherAttributes = CreateEphemeralAttributes();
-            }
-            otherAttributes->Set(key, *value);
-        }
-    };
-
-    if constexpr (std::is_same_v<std::decay_t<decltype(partialRecord)>, TActiveQueryPartial>) {
-        fillIfPresent("abort_request", partialRecord.AbortRequest.value_or(std::nullopt));
-        fillIfPresent("ping_time", partialRecord.PingTime);
-        fillIfPresent("incarnation", partialRecord.Incarnation);
-        fillIfPresent("assigned_tracker", partialRecord.AssignedTracker);
-    }
-
-    query.OtherAttributes = std::move(otherAttributes);
-
-    return query;
-}
-
 std::vector<TQuery> PartialRecordsToQueries(const auto& partialRecords)
 {
     std::vector<TQuery> queries;
@@ -444,69 +726,12 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
     YT_LOG_DEBUG("Getting query (QueryId: %v, Timestamp: %v, Attributes: %v)", queryId, timestamp, options.Attributes);
 
     options.Attributes.ValidateKeysOnly();
-    auto rowBuffer = New<TRowBuffer>();
 
-    auto lookupInTable = [=]<class TRecordDescriptor> (const TString& tableName, const TString& tableKind) {
-        const auto& nameTable = TRecordDescriptor::Get()->GetNameTable();
+    ValidateQueryPermissions(queryId, root, timestamp, *Options_.User, client, EPermission::Use, Logger);
 
-        TLookupRowsOptions lookupOptions;
-        if (options.Attributes) {
-            std::vector<int> columnIds;
-            for (const auto& key : options.Attributes.Keys) {
-                if (auto columnId = nameTable->FindId(key)) {
-                    columnIds.push_back(*columnId);
-                }
-            }
-            lookupOptions.ColumnFilter = TColumnFilter(columnIds);
-        }
-        lookupOptions.Timestamp = timestamp;
-        lookupOptions.EnablePartialResult = true;
-        std::vector keys{
-            TActiveQueryKey{.QueryId = queryId}.ToKey(rowBuffer),
-        };
-        auto asyncLookupResult = client->LookupRows(
-            root + tableName,
-            TRecordDescriptor::Get()->GetNameTable(),
-            MakeSharedRange(std::move(keys), rowBuffer),
-            lookupOptions);
-        auto asyncRecord = asyncLookupResult.Apply(BIND([=] (const IUnversionedRowsetPtr& rowset) {
-            auto optionalRecords = ToOptionalRecords<typename TRecordDescriptor::TRecordPartial>(rowset);
-            YT_VERIFY(optionalRecords.size() == 1);
-            if (!optionalRecords[0]) {
-                THROW_ERROR_EXCEPTION("Query %v is not found in %Qv query table",
-                    queryId,
-                    tableKind);
-            }
-            return *optionalRecords[0];
-        }));
-        return asyncRecord;
-    };
+    auto lookupKeys = options.Attributes ? std::make_optional(options.Attributes.Keys) : std::nullopt;
 
-    auto asyncActiveRecord = lookupInTable.template operator()<TActiveQueryDescriptor>("/active_queries", "active");
-    auto asyncFinishedRecord = lookupInTable.template operator()<TFinishedQueryDescriptor>("/finished_queries", "finished");
-
-    auto error = WaitFor(AnySucceeded(std::vector{asyncActiveRecord.As<void>(), asyncFinishedRecord.As<void>()}));
-    if (!error.IsOK()) {
-        THROW_ERROR_EXCEPTION(
-            NQueryTrackerClient::EErrorCode::QueryNotFound,
-            "Query %v is not found neither in active nor in finished query tables",
-            queryId)
-            << error;
-    }
-    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.Get().IsOK();
-    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.Get().IsOK();
-    YT_VERIFY(isActive || isFinished);
-    if (isActive && isFinished) {
-        YT_LOG_ALERT("Query is found in both active and finished query tables (QueryId: %v, Timestamp: %v)", queryId, timestamp);
-    }
-    TQuery result;
-    if (isActive) {
-        result = PartialRecordToQuery(asyncActiveRecord.Get().Value());
-    } else {
-        result = PartialRecordToQuery(asyncFinishedRecord.Get().Value());
-    }
-
-    return result;
+    return LookupQuery(queryId, client, root, lookupKeys, timestamp, Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,6 +769,20 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         attributes.Keys.push_back("start_time");
     }
 
+    auto userSubjects = GetUserSubjects(*Options_.User, client);
+    userSubjects.insert(*Options_.User);
+
+    std::vector<TString> userSubjectsVector(userSubjects.begin(), userSubjects.end());
+    YT_LOG_DEBUG("Fetched user %Qv subjects: %v", *Options_.User, userSubjectsVector);
+
+    bool isSuperuser = userSubjects.contains(NSecurityClient::SuperusersGroupName);
+    std::vector<TString> acosForUser;
+
+    if (!isSuperuser) {
+        acosForUser = GetAcosForSubjects(userSubjects, client);
+        YT_LOG_DEBUG("Fetched suitable access control objects for user %Qv: %v", *Options_.User, acosForUser);
+    }
+
     auto addSelectExpressionsFromAttributes = [&] (TQueryBuilder& builder, const TNameTablePtr& nameTable) {
         if (attributes) {
             for (const auto& key : attributes.Keys) {
@@ -560,6 +799,19 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         if (!attributes.AdmitsKeySlow("query_id")) {
             builder.AddSelectExpression("[query_id]");
         }
+    };
+
+    auto formatAcosInString = [] (const std::vector<TString>& accessControlObjects) {
+        TStringBuilder builder;
+        for (int index = 0; index < std::ssize(accessControlObjects); ++index) {
+            builder.AppendString("\"");
+            builder.AppendString(accessControlObjects[index]);
+            builder.AppendString("\"");
+            if (index + 1 != std::ssize(accessControlObjects)) {
+                builder.AppendString(",");
+            }
+        }
+        return builder.Flush();
     };
 
     auto addFilterConditions = [&] (TQueryBuilder& builder) {
@@ -580,6 +832,13 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         }
         if (options.SubstrFilter) {
             builder.AddWhereConjunct(Format("is_substr(%Qv, filter_factors)", *options.SubstrFilter));
+        }
+        if (!isSuperuser) {
+            if (acosForUser.empty()) {
+                builder.AddWhereConjunct(Format("user = %Qv", *Options_.User));
+            } else {
+                builder.AddWhereConjunct(Format("user = %Qv OR access_control_object IN (%v)", *Options_.User, formatAcosInString(acosForUser)));
+            }
         }
     };
 
@@ -713,68 +972,91 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
     auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
 
-    auto query = WaitFor(GetQuery(
-        queryId,
-        TGetQueryOptions{
-            .Attributes = {{"state", "start_time"}},
-            .Timestamp = transaction->GetStartTimestamp()
-        }))
-        .ValueOrThrow();
+    auto timestamp = transaction->GetStartTimestamp();
 
+    ValidateQueryPermissions(queryId, root, timestamp, *Options_.User, client, EPermission::Administer, Logger);
+
+    std::vector<TString> lookupKeys = {"state", "start_time"};
+
+    auto query = LookupQuery(queryId, client, root, lookupKeys, timestamp, Logger);
 
     YT_LOG_DEBUG(
-        "Altering query (QueryId: %v, State: %v, HasAnnotations: %v)",
+        "Altering query (QueryId: %v, State: %v, HasAnnotations: %v, HasAccessControlObject: %v)",
         queryId,
         *query.State,
-        static_cast<bool>(options.Annotations));
+        static_cast<bool>(options.Annotations),
+        static_cast<bool>(options.AccessControlObject));
 
-    if (options.Annotations) {
-        if (IsFinishedState(*query.State)) {
-            auto rowBuffer = New<TRowBuffer>();
-            TString filterFactors;
-            {
-                TFinishedQueryPartial record{
-                    .Key = {.QueryId = queryId},
-                    .Annotations = ConvertToYsonString(options.Annotations),
-                };
-                std::vector rows{
-                    record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
-                };
-                transaction->WriteRows(
-                    root + "/finished_queries",
-                    TFinishedQueryDescriptor::Get()->GetNameTable(),
-                    MakeSharedRange(std::move(rows), rowBuffer));
+    if (!options.Annotations && !options.AccessControlObject) {
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+        return;
+    }
+
+    if (options.AccessControlObject) {
+        VerifyAccessControlObjectExists(*options.AccessControlObject, client);
+    }
+
+    if (IsFinishedState(*query.State)) {
+        auto rowBuffer = New<TRowBuffer>();
+        TString filterFactors;
+        {
+            TFinishedQueryPartial record{
+                .Key = {.QueryId = queryId},
+            };
+            if (options.Annotations) {
+                record.Annotations = ConvertToYsonString(options.Annotations);
                 filterFactors = GetFilterFactors(record);
             }
-            {
-                TFinishedQueryByStartTimePartial record{
-                    .Key = {.StartTime = *query.StartTime, .QueryId = queryId},
-                    .FilterFactors = filterFactors,
-                };
-                std::vector rows{
-                    record.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
-                };
-                transaction->WriteRows(
-                    root + "/finished_queries_by_start_time",
-                    TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
-                    MakeSharedRange(std::move(rows), rowBuffer));
+            if (options.AccessControlObject) {
+                record.AccessControlObject = options.AccessControlObject;
             }
-        } else {
-            auto rowBuffer = New<TRowBuffer>();
-            {
-                TActiveQueryPartial record{
-                    .Key = {.QueryId = queryId},
-                    .Annotations = ConvertToYsonString(options.Annotations),
-                };
+            std::vector rows{
+                record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                root + "/finished_queries",
+                TFinishedQueryDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(rows), rowBuffer));
+        }
+        {
+            TFinishedQueryByStartTimePartial record{
+                .Key = {.StartTime = *query.StartTime, .QueryId = queryId},
+            };
+            if (options.Annotations) {
+                record.FilterFactors = filterFactors;
+            }
+            if (options.AccessControlObject) {
+                record.AccessControlObject = options.AccessControlObject;
+            }
+            std::vector rows{
+                record.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                root + "/finished_queries_by_start_time",
+                TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(rows), rowBuffer));
+        }
+    } else {
+        auto rowBuffer = New<TRowBuffer>();
+        {
+            TActiveQueryPartial record{
+                .Key = {.QueryId = queryId},
+            };
+            if (options.Annotations) {
+                record.Annotations = ConvertToYsonString(options.Annotations);
                 record.FilterFactors = GetFilterFactors(record);
-                std::vector rows{
-                    record.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
-                };
-                transaction->WriteRows(
-                    root + "/active_queries",
-                    TActiveQueryDescriptor::Get()->GetNameTable(),
-                    MakeSharedRange(std::move(rows), rowBuffer));
             }
+            if (options.AccessControlObject) {
+                record.AccessControlObject = options.AccessControlObject;
+            }
+            std::vector rows{
+                record.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                root + "/active_queries",
+                TActiveQueryDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(rows), rowBuffer));
         }
     }
 

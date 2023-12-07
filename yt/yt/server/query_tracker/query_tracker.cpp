@@ -514,7 +514,7 @@ private:
             {
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time table).
-                static_assert(TActiveQueryDescriptor::FieldCount == 18 && TFinishedQueryDescriptor::FieldCount == 13);
+                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryDescriptor::FieldCount == 14);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -522,6 +522,7 @@ private:
                     .Files = activeQueryRecord->Files,
                     .Settings = activeQueryRecord->Settings,
                     .User = activeQueryRecord->User,
+                    .AccessControlObject = activeQueryRecord->AccessControlObject,
                     .StartTime = activeQueryRecord->StartTime,
                     .State = finalState,
                     .Progress = activeQueryRecord->Progress,
@@ -540,11 +541,12 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 18 && TFinishedQueryByStartTimeDescriptor::FieldCount == 6);
+                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
                 TFinishedQueryByStartTime newRecord{
                     .Key = TFinishedQueryByStartTimeKey{.StartTime = activeQueryRecord->StartTime, .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
                     .User = activeQueryRecord->User,
+                    .AccessControlObject = activeQueryRecord->AccessControlObject,
                     .State = finalState,
                     .FilterFactors = activeQueryRecord->FilterFactors,
                 };

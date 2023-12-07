@@ -312,6 +312,88 @@ TRANSFORMS[4] = [
     ),
 ]
 
+TRANSFORMS[5] = [
+    Conversion(
+        "active_queries",
+        table_info=TableInfo(
+            [
+                ("query_id", "string"),
+            ],
+            [
+                ("engine", "string", "client"),
+                ("query", "string", "client"),
+                ("files", "any", "client"),
+                ("settings", "any", "client"),
+                ("user", "string", "client"),
+                ("access_control_object", "string", "client"),
+                ("start_time", "timestamp", "client"),
+                ("filter_factors", "string", "client"),
+                ("state", "string", "common"),
+                ("incarnation", "int64", "query_tracker"),
+                ("ping_time", "timestamp", "query_tracker"),
+                ("assigned_tracker", "string", "query_tracker"),
+                ("progress", "any", "query_tracker_progress"),
+                ("error", "any", "query_tracker"),
+                ("result_count", "int64", "query_tracker"),
+                ("finish_time", "timestamp", "common"),
+                ("abort_request", "any", "client"),
+                ("annotations", "any", "client"),
+            ],
+            optimize_for="lookup",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+            },
+        )
+    ),
+    Conversion(
+        "finished_queries",
+        table_info=TableInfo(
+            [
+                ("query_id", "string"),
+            ],
+            [
+                ("engine", "string"),
+                ("query", "string"),
+                ("files", "any"),
+                ("settings", "any"),
+                ("user", "string"),
+                ("access_control_object", "string"),
+                ("start_time", "timestamp"),
+                ("state", "string"),
+                ("progress", "any"),
+                ("error", "any"),
+                ("result_count", "int64"),
+                ("finish_time", "timestamp"),
+                ("annotations", "any"),
+            ],
+            optimize_for="lookup",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+            },
+        ),
+    ),
+    Conversion(
+        "finished_queries_by_start_time",
+        table_info=TableInfo(
+            [
+                ("start_time", "timestamp"),
+                ("query_id", "string")
+            ],
+            [
+                ("engine", "string"),
+                ("user", "string"),
+                ("access_control_object", "string"),
+                ("state", "string"),
+                ("filter_factors", "string"),
+            ],
+            optimize_for="lookup",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+            },
+        ),
+    ),
+]
+
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 MIGRATION = Migration(
