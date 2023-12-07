@@ -389,7 +389,9 @@ public:
         , ThreadNamePrefix_(threadNamePrefix)
         , Profiler_(TProfiler{"/fair_share_queue"}
             .WithHot())
-        , CumulativeSchedulingTimeCounter_(Profiler_.TimeCounter("/time/scheduling_cumulative"))
+        , CumulativeSchedulingTimeCounter_(Profiler_
+            .WithTags(GetThreadTags(ThreadNamePrefix_))
+            .TimeCounter("/time/scheduling_cumulative"))
         , PoolWeightProvider_(std::move(poolWeightProvider))
         , VerboseLogging_(verboseLogging)
     { }
