@@ -570,7 +570,7 @@ private:
     const TProfiler Profiler_;
     const NProfiling::TTimeCounter CumulativeSchedulingTimeCounter_;
     const IPoolWeightProviderPtr PoolWeightProvider_;
-    const TDuration PoolRetentionTime_;
+    const TDuration PoolRetentionTime_ = TDuration::Seconds(30);
     const bool VerboseLogging_;
 
     // TODO(lukyan): Sharded mapping.
