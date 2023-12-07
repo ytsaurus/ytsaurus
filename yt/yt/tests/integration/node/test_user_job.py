@@ -3085,6 +3085,74 @@ class TestCpuSet(YTEnvSetup):
         assert self._get_actual_cpu_set(op, job_id)[:2] == "0-"
 
 
+class TestCpuSetCri(YTEnvSetup):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "numa_nodes": [
+                    {
+                        "numa_node_id": 0,
+                        "cpu_count": 4,
+                        "cpu_set": "1-3,7"
+                    },
+                    {
+                        "numa_node_id": 1,
+                        "cpu_count": 3,
+                        "cpu_set": "4-6"
+                    }
+                ],
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 20,
+                    "user_slots": 10,
+                },
+            }
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "enable_numa_node_scheduling": True,
+                },
+            },
+        },
+    }
+
+    @authors("gritukan")
+    def test_simple(self):
+        all_operations_info = []
+        for cpu_limit, expected_cpu_set in [
+            (2, "1-3,7"),
+            (2, "4-6"),
+            (1, "1-3,7"),
+        ]:
+            op = run_test_vanilla(
+                "taskset -cp $$ >&2; sleep 5",
+                task_patch={"cpu_limit": cpu_limit},
+            )
+
+            wait(lambda: len(op.list_jobs()) >= 1)
+            job_id = op.list_jobs()[0]
+
+            all_operations_info += [(op, job_id, expected_cpu_set)]
+
+        for op, job_id, expected_cpu_set in all_operations_info:
+            op.track()
+            stderr = op.read_stderr(job_id).decode("utf-8").strip()
+            # pid 3252083's current affinity list: 0-63
+            actual_cpu_set = stderr.split(": ")[1]
+            assert actual_cpu_set == expected_cpu_set
+
+
 class TestSlotManagerResurrect(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
