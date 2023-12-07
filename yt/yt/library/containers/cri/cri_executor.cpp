@@ -597,6 +597,10 @@ private:
         if (spec.MemoryRequest) {
             (*unified)["memory.low"] = ToString(*spec.MemoryRequest);
         }
+
+        if (const auto& cpusetCpus = spec.CpusetCpus) {
+            resources->set_cpuset_cpus(*cpusetCpus);
+        }
     }
 
     void FillPodSandboxConfig(NProto::PodSandboxConfig* config, const TCriPodSpec& spec)
