@@ -1128,10 +1128,6 @@ private:
 
         SetNodeByYPath(
             OrchidRoot_,
-            "/tcp_dispatcher",
-            CreateVirtualNode(NYT::NBus::TTcpDispatcher::Get()->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
             "/config",
             CreateVirtualNode(ConfigNode_));
         SetNodeByYPath(
