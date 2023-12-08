@@ -36,13 +36,11 @@ target_sources(yt-library-formats PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/protobuf_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaful_dsv_parser.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaful_dsv_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaful_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/schemaless_writer_adapter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/skiff_parser.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/skiff_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/skiff_yson_converter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unversioned_value_yson_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/versioned_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/web_json_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamred_dsv_parser.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/yamred_dsv_writer.cpp
