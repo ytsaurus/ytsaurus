@@ -123,6 +123,8 @@ protected:
 
     void MakeArtifactSymlinks();
 
+    void PrepareArtifactBinds();
+
 private:
     template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
     TCallback<TFuture<void>()> MakeStep();

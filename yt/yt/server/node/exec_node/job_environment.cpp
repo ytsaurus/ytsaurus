@@ -1095,6 +1095,18 @@ private:
         }
         spec->Credentials.Gid = ::getgid();
 
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = config->SlotPath,
+            .HostPath = config->SlotPath,
+            .ReadOnly = false,
+        });
+
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/slot",
+            .HostPath = config->SlotPath,
+            .ReadOnly = false,
+        });
+
         for (const auto& bind : Config_->JobProxyBindMounts) {
             spec->BindMounts.push_back(NCri::TCriBindMount{
                 .ContainerPath = bind->InternalPath,
