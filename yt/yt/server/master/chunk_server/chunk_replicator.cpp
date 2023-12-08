@@ -41,6 +41,8 @@
 
 #include <yt/yt/server/master/security_server/account.h>
 
+#include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
@@ -1306,7 +1308,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
     node->ClearPushReplicationTargetNodeIds(nodeTracker);
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    for (const auto& queue : node->ChunkPullReplicationQueues()) {
+    for (auto& queue : node->ChunkPullReplicationQueues()) {
         for (const auto& [chunkReplica, mediumSet] : queue) {
             auto* chunk = chunkManager->FindChunk(chunkReplica.Id);
             if (IsObjectAlive(chunk)) {
@@ -1706,22 +1708,29 @@ void TChunkReplicator::ScheduleJobs(EJobType jobType, IJobSchedulingContext* con
 
 void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
 {
+    // Keep the ability to disable scheduling completely.
+    if (GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat == 0) {
+        return;
+    }
+
     auto* node = context->GetNode();
     auto nodeHolder = TEphemeralObjectPtr<TNode>(node);
 
     const auto& resourceUsage = context->GetNodeResourceUsage();
     const auto& resourceLimits = context->GetNodeResourceLimits();
 
-    int misscheduledReplicationJobs = 0;
+    int misscheduledPullReplicationJobs = 0;
+    // NB: To avoid starvation we account misscheduled jobs per priority.
+    THashMap<int, int> misscheduledPushReplicationJobsPerPriority;
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto maxReplicationJobCount = resourceLimits.replication_slots();
 
     // NB: Beware of chunks larger than the limit; we still need to be able to replicate them one by one.
-    auto hasSpareReplicationResources = [&] {
+    auto hasSparePushReplicationResources = [&] (int priority) {
         return
-            misscheduledReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
+            misscheduledPushReplicationJobsPerPriority[priority] < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
             resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
             (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
     };
@@ -1732,7 +1741,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
         auto maxPullReplicationJobs = GetDynamicConfig()->MaxRunningReplicationJobsPerTargetNode / std::max(incumbentCount, 1);
         return
             // TODO(gritukan): Use some better bounds.
-            misscheduledReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
+            misscheduledPullReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
             std::ssize(node->ChunksBeingPulled()) < maxPullReplicationJobs;
     };
 
@@ -1741,21 +1750,29 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     auto& queues = node->ChunkPullReplicationQueues();
     for (int priority = 0; priority < std::ssize(queues); ++priority) {
         auto& queue = queues[priority];
-        auto it = queue.begin();
-        while (it != queue.end() && hasSparePullReplicationResources() && std::ssize(pullChunks) < maxReplicationJobCount) {
-            auto jt = it++;
-            auto desiredReplica = jt->first;
-            auto chunkId = desiredReplica.Id;
+        auto chunkCount = queue.size();
+        for (int index = 0; index < static_cast<int>(chunkCount); ++index) {
+            if (!hasSparePullReplicationResources() || std::ssize(pullChunks) >= maxReplicationJobCount) {
+                break;
+            }
+
+            if (queue.empty()) {
+                break;
+            }
+
+            auto chunkIt = queue.PickRandomChunk();
+            auto chunkIdWithIndex = chunkIt->first;
+            auto chunkId = chunkIdWithIndex.Id;
             auto* chunk = chunkManager->FindChunk(chunkId);
 
             if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
-                queue.erase(jt);
-                ++misscheduledReplicationJobs;
+                queue.Erase(chunkIt);
+                ++misscheduledPullReplicationJobs;
                 continue;
             }
 
             pullChunks.emplace_back(chunk);
-            pullChunkIdToStuff[chunkId].emplace_back(priority, desiredReplica.ReplicaIndex);
+            pullChunkIdToStuff[chunkId].emplace_back(priority, chunkIdWithIndex.ReplicaIndex);
         }
     }
 
@@ -1771,20 +1788,21 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto& queue = node->ChunkPullReplicationQueues()[priority];
             auto it = queue.find(chunkIdWithIndex);
             if (it == queue.end()) {
-                ++misscheduledReplicationJobs;
+                ++misscheduledPullReplicationJobs;
                 continue;
             }
 
             auto* chunk = chunkManager->FindChunk(chunkId);
+
             if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
-                queue.erase(it);
-                ++misscheduledReplicationJobs;
+                queue.Erase(it);
+                ++misscheduledPullReplicationJobs;
                 continue;
             }
 
             if (!replicasOrError.IsOK()) {
-                queue.erase(it);
-                ++misscheduledReplicationJobs;
+                queue.Erase(it);
+                ++misscheduledPullReplicationJobs;
                 ScheduleChunkRefresh(chunk);
                 continue;
             }
@@ -1814,7 +1832,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                 }
             }
 
-            queue.erase(it);
+            queue.Erase(it);
         }
     }
 
@@ -1823,17 +1841,21 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     // Gather chunks for replica fetch.
     for (int priority = 0; priority < std::ssize(node->ChunkPushReplicationQueues()); ++priority) {
         auto& queue = node->ChunkPushReplicationQueues()[priority];
-        auto it = queue.begin();
-        while (it != queue.end() && hasSpareReplicationResources() && std::ssize(chunksToReplicate) < maxReplicationJobCount) {
-            auto jt = it++;
-            auto chunkIdWithIndex = jt->first;
-            auto chunkId = chunkIdWithIndex.Id;
+        // NB: We take chunks from every queue to avoid starvation.
+        auto chunkCount = std::min<int>(maxReplicationJobCount, queue.size());
+        for (int index = 0; index < chunkCount; ++index) {
+            if (queue.empty()) {
+                break;
+            }
 
+            auto it = queue.PickRandomChunk();
+            auto chunkIdWithIndex = it->first;
+            auto chunkId = chunkIdWithIndex.Id;
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
                 // NB: Call below removes chunk from #queue.
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
-                ++misscheduledReplicationJobs;
+                ++misscheduledPushReplicationJobsPerPriority[priority];
                 continue;
             }
 
@@ -1851,6 +1873,10 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
         auto chunkId = chunk->GetId();
         const auto& replicasOrError = GetOrCrash(chunkReplicas, chunkId);
         for (auto [priority, index] : GetOrCrash(chunkIdToStuff, chunkId)) {
+            if (!hasSparePushReplicationResources(priority)) {
+                continue;
+            }
+
             TChunkIdWithIndex chunkIdWithIndex(chunkId, index);
 
             auto& queue = node->ChunkPushReplicationQueues()[priority];
@@ -1858,20 +1884,20 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             if (it == queue.end()) {
                 // NB: Call below removes chunk from #queue.
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
-                ++misscheduledReplicationJobs;
+                ++misscheduledPushReplicationJobsPerPriority[priority];
                 continue;
             }
 
             if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
                 // NB: Call below removes chunk from #queue.
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
-                ++misscheduledReplicationJobs;
+                ++misscheduledPushReplicationJobsPerPriority[priority];
                 continue;
             }
 
             if (!replicasOrError.IsOK()) {
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
-                ++misscheduledReplicationJobs;
+                ++misscheduledPushReplicationJobsPerPriority[priority];
                 ScheduleChunkRefresh(chunk.Get());
                 continue;
             }
@@ -1887,7 +1913,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                             "(ChunkId: %v, MediumIndex: %v)",
                             chunk->GetId(),
                             mediumIndex);
-                        ++misscheduledReplicationJobs;
+                        ++misscheduledPushReplicationJobsPerPriority[priority];
                         // Something bad happened, let's try to forget it.
                         mediumIndexSet.reset(mediumIndex);
                         ScheduleChunkRefresh(chunk.Get());
@@ -1902,15 +1928,15 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                             medium->GetIndex(),
                             medium->GetName(),
                             medium->GetType());
-                        ++misscheduledReplicationJobs;
+                        ++misscheduledPushReplicationJobsPerPriority[priority];
                         // Something bad happened, let's try to forget it.
                         mediumIndexSet.reset(mediumIndex);
                         ScheduleChunkRefresh(chunk.Get());
                         continue;
                     }
 
-                        auto nodeId = node->GetTargetReplicationNodeId(chunkId, mediumIndex);
-                        node->RemoveTargetReplicationNodeId(chunkId, mediumIndex);
+                    auto nodeId = node->GetTargetReplicationNodeId(chunkId, mediumIndex);
+                    node->RemoveTargetReplicationNodeId(chunkId, mediumIndex);
 
                     if (TryScheduleReplicationJob(
                         context,
@@ -1921,7 +1947,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                     {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
-                        ++misscheduledReplicationJobs;
+                        ++misscheduledPushReplicationJobsPerPriority[priority];
                         if (nodeId != InvalidNodeId) {
                             mediumIndexSet.reset(mediumIndex);
                             // Move all CRP-enabled chunks with misscheduled jobs back to pull queue.
@@ -1932,12 +1958,15 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             }
 
             if (mediumIndexSet.none()) {
-                queue.erase(it);
+                queue.Erase(it);
             }
         }
     }
 
-    MisscheduledJobs_[EJobType::ReplicateChunk] += misscheduledReplicationJobs;
+    MisscheduledJobs_[EJobType::ReplicateChunk] += misscheduledPullReplicationJobs;
+    for (const auto& [priority, count] : misscheduledPushReplicationJobsPerPriority) {
+        MisscheduledJobs_[EJobType::ReplicateChunk] += count;
+    }
 }
 
 void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
@@ -2061,7 +2090,6 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
             }
         }
     }
-
 
     MisscheduledJobs_[EJobType::RemoveChunk] += misscheduledRemovalJobs;
 }
@@ -2946,7 +2974,7 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
 
             i64 pullReplicationQueueSize = 0;
             for (const auto& queue : node->ChunkPullReplicationQueues()) {
-                pullReplicationQueueSize += std::ssize(queue);
+                pullReplicationQueueSize += queue.size();
             }
             crpBuffer->AddGauge("/pull_replication_queue_size", pullReplicationQueueSize);
             crpBuffer->AddGauge("/crp_chunks_being_pulled_count", node->ChunksBeingPulled().size());
