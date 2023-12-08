@@ -92,7 +92,7 @@ object CommonPlugin extends AutoPlugin {
     ),
     homepage := Some(url("https://ytsaurus.tech/")),
     pomIncludeRepository := { _ => false },
-    scalaVersion := "2.12.8",
+    scalaVersion := "2.12.15",
     javacOptions ++= Seq("-source", "11", "-target", "11"),
     assembly / assemblyMergeStrategy := {
       case x if x endsWith "ahc-default.properties" => MergeStrategy.first
