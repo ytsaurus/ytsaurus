@@ -883,6 +883,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("statistics_reporter", &TThis::StatisticsReporter)
         .DefaultNew();
+
+    registrar.Parameter("enable_chunk_fragment_reader_throttling", &TThis::EnableChunkFragmentReaderThrottling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
