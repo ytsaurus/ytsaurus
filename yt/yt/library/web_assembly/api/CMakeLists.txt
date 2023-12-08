@@ -19,6 +19,8 @@ target_link_libraries(library-web_assembly-api PUBLIC
 )
 target_sources(library-web_assembly-api PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/compartment.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/data_transfer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/function.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/memory_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/api/type_builder.cpp
 )

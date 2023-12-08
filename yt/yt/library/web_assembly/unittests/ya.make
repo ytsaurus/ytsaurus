@@ -14,6 +14,15 @@ LDFLAGS(-rdynamic)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
+ADDINCL(
+    contrib/restricted/wavm/Include
+)
+
+CFLAGS(
+    -DWASM_C_API=WAVM_API
+    -DWAVM_API=
+)
+
 PEERDIR(
     yt/yt/build
     yt/yt/core/test_framework

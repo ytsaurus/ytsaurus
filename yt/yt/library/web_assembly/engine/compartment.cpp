@@ -710,6 +710,15 @@ IWebAssemblyCompartment* GetCurrentCompartment()
 void SetCurrentCompartment(IWebAssemblyCompartment* compartment)
 {
     CurrentCompartment = compartment;
+    if (compartment) {
+        Runtime::Table::setCurrentTable(
+            static_cast<TWebAssemblyCompartment*>(CurrentCompartment)->GetGlobalOffsetTable());
+        Runtime::Memory::setCurrentMemory(
+            static_cast<TWebAssemblyCompartment*>(CurrentCompartment)->GetLinearMemory());
+    } else {
+        Runtime::Table::setCurrentTable(nullptr);
+        Runtime::Memory::setCurrentMemory(nullptr);
+    }
 }
 
 bool HasCurrentCompartment()

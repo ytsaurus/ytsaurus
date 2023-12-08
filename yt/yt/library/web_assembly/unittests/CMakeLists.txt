@@ -9,7 +9,12 @@
 
 add_executable(unittester-web-assembly)
 target_compile_options(unittester-web-assembly PRIVATE
+  -DWASM_C_API=WAVM_API
+  -DWAVM_API=
   -Wdeprecated-this-capture
+)
+target_include_directories(unittester-web-assembly PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(unittester-web-assembly PUBLIC
   contrib-libs-linux-headers
