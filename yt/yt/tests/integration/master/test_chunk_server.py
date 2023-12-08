@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
     authors, create_user, wait, create, ls, get, set, remove, exists,
-    start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account,
+    start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
     multicell_sleep, update_nodes_dynamic_config, switch_leader, ban_node, add_maintenance, remove_maintenance,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
@@ -456,6 +456,41 @@ class TestChunkServer(YTEnvSetup):
 
         add_maintenance("cluster_node", nodes[3], "pending_restart", "")
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 19)
+
+    @authors("gritukan")
+    def test_replication_queue_fairness(self):
+        set("//sys/@config/incumbent_manager/scheduler/incumbents/chunk_replicator/use_followers", False)
+        sleep(1.0)
+
+        create("table", "//tmp/t1")
+        write_table("<append=%true>//tmp/t1", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t1")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        set("//sys/@config/chunk_manager/max_misscheduled_replication_jobs_per_heartbeat", 1)
+
+        create_rack("r1")
+        create_rack("r2")
+
+        for idx, node in enumerate(ls("//sys/cluster_nodes")):
+            set(f"//sys/cluster_nodes/{node}/@rack", "r1" if idx % 2 == 0 else "r2")
+            set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/replication_slots", 1)
+            wait(lambda: get(f"//sys/cluster_nodes/{node}/@resource_limits/replication_slots") == 1)
+
+        # Now we try to replicate at most one chunk per job heartbeat.
+
+        # Make sure that all replication queues are filled with some chunks that
+        # cannot be placed safely.
+        create("table", "//tmp/t2", attributes={"erasure_codec": "isa_lrc_12_2_2"})
+        chunk_count = 30
+        for _ in range(chunk_count):
+            write_table("<append=%true>//tmp/t2", {"a": "b"})
+
+        wait(lambda: len(get("//sys/unsafely_placed_chunks")) == chunk_count)
+
+        # Replication should still work.
+        set("//tmp/t1/@replication_factor", 4)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
 
 
 ##################################################################
