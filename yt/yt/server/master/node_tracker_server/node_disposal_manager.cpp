@@ -117,6 +117,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         buffer->AddGauge("/nodes_being_disposed", NodesBeingDisposed_.size());
+        buffer->AddGauge("/nodes_awaiting_for_being_disposed", NodesAwaitingForBeingDisposed_.size());
     }
 
 private:
