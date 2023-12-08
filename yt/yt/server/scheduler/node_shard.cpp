@@ -2288,12 +2288,17 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
 
     UpdateProfilingCounter(job, 1);
 
-    YT_LOG_DEBUG("Job registered (JobId: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v)",
+    YT_LOG_DEBUG(
+        "Job registered (JobId: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v)",
         job->GetId(),
         job->IsRevived(),
         job->GetOperationId(),
         job->GetControllerEpoch(),
         job->GetSchedulingIndex());
+
+    if (job->IsRevived()) {
+        job->GetNode()->JobsToAbort().erase(job->GetId());
+    }
 }
 
 void TNodeShard::UnregisterJob(const TJobPtr& job, bool causedByRevival)
@@ -2311,9 +2316,6 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool causedByRevival)
 
     EraseOrCrash(node->Jobs(), job);
     EraseOrCrash(node->IdToJob(), jobId);
-    if (causedByRevival) {
-        node->JobsToAbort().erase(jobId);
-    }
     --ActiveJobCount_;
 
     if (operationState && operationState->Jobs.erase(jobId)) {
