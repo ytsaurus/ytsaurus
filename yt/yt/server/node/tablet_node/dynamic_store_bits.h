@@ -42,12 +42,26 @@ using TRevisionList = TEditList<ui32>;
 
 struct TLockDescriptor
 {
-    using TSharedWriteTransaction = std::pair<TTimestamp, const TTransaction*>;
+    struct TSharedWriteTransaction
+    {
+        TTimestamp PrepareTimestamp;
+        const TTransaction* Transaction;
+
+        bool operator<(const auto& other) const
+        {
+            return std::tie(PrepareTimestamp, Transaction)
+                < std::tie(other.PrepareTimestamp, other.Transaction);
+        }
+    };
+
+    static_assert(std::is_trivially_destructible_v<TSharedWriteTransaction>);
+
     using TSharedWriteTransactions = TCompactSet<
         TSharedWriteTransaction,
         TypicalSharedWriteTransactionCount,
         std::less<TSharedWriteTransaction>,
         TChunkedMemoryPoolAllocator<TSharedWriteTransaction>>;
+
     TSharedWriteTransactions SharedWriteTransactions;
 
     // Each transaction can take read lock only once.

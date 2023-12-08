@@ -1570,8 +1570,9 @@ private:
 
     bool NeedsSortedSharedWriteSerialization(TTransaction* transaction)
     {
-        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         return transaction->GetHasSharedWriteLocks() &&
             !persistentWriteState->LockedWriteLog.Empty();
     }

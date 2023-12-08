@@ -725,7 +725,7 @@ private:
                 switch (modification.Type) {
                     case ERowModificationType::Write:
                         if (!modification.Locks.IsNone()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform lock by %Qv modification type, use %Qv",
+                            THROW_ERROR_EXCEPTION("Cannot perform lock by %Qlv modification type, use %Qlv",
                                 ERowModificationType::Write,
                                 ERowModificationType::WriteAndLock);
                         }

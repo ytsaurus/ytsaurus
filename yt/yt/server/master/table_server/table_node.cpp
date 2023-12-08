@@ -210,6 +210,7 @@ void TTableNode::TDynamicTableAttributes::Load(
     XX(EnableDetailedProfiling) \
     XX(EnableConsistentChunkReplicaPlacement) \
     XX(QueueAgentStage) \
+    XX(EnableSharedWriteLocks) \
 
 void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes* other)
 {

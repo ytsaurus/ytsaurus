@@ -106,7 +106,7 @@ void RecalculatePrepareTimestamp(TLockDescriptor* lock)
     auto writePrepareTimestamp = lock->WriteTransactionPrepareTimestamp;
     auto sharedWritePrepareTimestamp = lock->SharedWriteTransactions.empty()
         ? NotPreparedTimestamp
-        : lock->SharedWriteTransactions.front().first;
+        : lock->SharedWriteTransactions.front().PrepareTimestamp;
 
     YT_ASSERT(writePrepareTimestamp <= NotPreparedTimestamp);
     YT_ASSERT(sharedWritePrepareTimestamp <= NotPreparedTimestamp);
@@ -116,7 +116,7 @@ void RecalculatePrepareTimestamp(TLockDescriptor* lock)
         lock->PreparedTransaction = lock->WriteTransaction;
         lock->PrepareTimestamp = writePrepareTimestamp;
     } else {
-        lock->PreparedTransaction = lock->SharedWriteTransactions.front().second;
+        lock->PreparedTransaction = lock->SharedWriteTransactions.front().Transaction;
         lock->PrepareTimestamp = sharedWritePrepareTimestamp;
     }
 }
@@ -131,7 +131,7 @@ TLockDescriptor::TSharedWriteTransaction FindSharedWriteTransaction(
     auto prepareTimestamp = transaction->GetPrepareTimestamp();
 
     auto prepared = TSharedWriteTransaction{prepareTimestamp, transaction};
-    auto notPrepared= TSharedWriteTransaction{NotPreparedTimestamp, transaction};
+    auto notPrepared = TSharedWriteTransaction{NotPreparedTimestamp, transaction};
 
     if (prepareTimestamp == NullTimestamp) {
         if (sharedWriteTransactions.contains(notPrepared)) {
@@ -141,17 +141,17 @@ TLockDescriptor::TSharedWriteTransaction FindSharedWriteTransaction(
 
         YT_VERIFY(abort);
 
-        // OnTransactionTransientReset resets transaction's prepared timestamp to 0 but transient prepared locks are untouched.
-        // Then both transient and persistent are aborted with persistent ones relocked later.
+        // OnTransactionTransientReset resets transaction's prepared timestamp to null but transient prepared locks are untouched.
+        // Then both transient and persistent ones are aborted with persistent ones being relocked later.
         // This kind of abort is accounted here.
         // For this rare condition fallback to linear search.
-        for (auto [timestamp, sharedTransaction]: sharedWriteTransactions) {
+        for (auto [timestamp, sharedTransaction] : sharedWriteTransactions) {
             if (sharedTransaction == transaction) {
                 return {timestamp, sharedTransaction};
             }
         }
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     } else if (sharedWriteTransactions.contains(prepared)) {
         // Abort after prepare.
         return prepared;
@@ -1260,10 +1260,12 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
                         : transaction->GetPrepareTimestamp();
                     YT_ASSERT(!migratedLock->SharedWriteTransactions.contains({
                         NotPreparedTimestamp,
-                        transaction}));
+                        transaction
+                    }));
                     YT_ASSERT(!migratedLock->SharedWriteTransactions.contains({
                         prepareTimestamp,
-                        transaction}));
+                        transaction
+                    }));
 
                     if (lockType != ELockType::SharedWrite) {
                         // There could be non-conflicting shared write transactions in active store.
@@ -1309,12 +1311,8 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
                         ? NotPreparedTimestamp
                         : transaction->GetPrepareTimestamp();
                     YT_ASSERT(
-                        lock->SharedWriteTransactions.contains({
-                            prepareTimestamp,
-                            transaction}) ||
-                        lock->SharedWriteTransactions.contains({
-                            NotPreparedTimestamp,
-                            transaction}));
+                        lock->SharedWriteTransactions.contains({prepareTimestamp, transaction}) ||
+                        lock->SharedWriteTransactions.contains({NotPreparedTimestamp, transaction}));
 
                     InsertOrCrash(
                         migratedLock->SharedWriteTransactions,
@@ -1462,7 +1460,7 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
             // Shared Write Lock
             EraseOrCrash(
                 lock->SharedWriteTransactions,
-                FindSharedWriteTransaction(lock->SharedWriteTransactions, transaction, /*abort*/true));
+                FindSharedWriteTransaction(lock->SharedWriteTransactions, transaction, /*abort*/ true));
         } else {
             YT_ASSERT(lockType != ELockType::Exclusive);
         }
@@ -1646,8 +1644,9 @@ TError TSortedDynamicStore::CheckRowLocks(
             if (lock->ReadLockCount > 0) {
                 YT_VERIFY(!lock->WriteTransaction);
                 error = TError(
-                     NTabletClient::EErrorCode::TransactionLockConflict,
-                     "Write failed due to concurrent read lock");
+                    NTabletClient::EErrorCode::TransactionLockConflict,
+                    "Write failed due to concurrent read lock")
+                    << TErrorAttribute("read_lock_count", lock->ReadLockCount);
             }
 
             if (!lock->SharedWriteTransactions.empty()) {
@@ -1656,8 +1655,10 @@ TError TSortedDynamicStore::CheckRowLocks(
                     static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >= ETabletReign::SharedWriteLocks);
                 YT_VERIFY(!lock->WriteTransaction);
                 error = TError(
-                     NTabletClient::EErrorCode::TransactionLockConflict,
-                     "Write failed due to concurrent shared write lock");
+                    NTabletClient::EErrorCode::TransactionLockConflict,
+                    "Write failed due to concurrent shared write lock")
+                    << TErrorAttribute("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
+                    << TErrorAttribute("shared_write_lock_count", lock->SharedWriteTransactions.size());
             }
         }
 
@@ -1709,7 +1710,9 @@ TError TSortedDynamicStore::CheckRowLocks(
                     YT_VERIFY(!lock->WriteTransaction);
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
-                        "Write failed due to concurrent shared write lock");
+                        "Write failed due to concurrent shared write lock")
+                        << TErrorAttribute("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
+                        << TErrorAttribute("shared_write_lock_count", lock->SharedWriteTransactions.size());
                 }
             }
 
@@ -1722,7 +1725,8 @@ TError TSortedDynamicStore::CheckRowLocks(
                     YT_VERIFY(!lock->WriteTransaction);
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
-                        "Write failed due to concurrent read lock");
+                        "Write failed due to concurrent read lock")
+                        << TErrorAttribute("read_lock_count", lock->ReadLockCount);
                 }
 
                 auto lastReadTimestamp = GetLastReadTimestamp(row, index);

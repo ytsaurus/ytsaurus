@@ -68,7 +68,8 @@ protected:
         return CreateWireProtocolReader(batch->RequestData);
     }
 
-    TLockMask GetPrimaryLockExclusiveMask() const {
+    TLockMask GetPrimaryLockExclusiveMask() const
+    {
         return primaryExclusiveMask_;
     }
 };

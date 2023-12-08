@@ -331,9 +331,7 @@ private:
             tableInfo->SecondaryRevision = SecondaryRevision_;
             tableInfo->PrimaryRevision = PrimaryRevision_;
             tableInfo->HunkStorageId = FromProto<TObjectId>(rsp->hunk_storage_node_id());
-            if (rsp->has_enable_shared_write_locks()) {
-                tableInfo->EnableSharedWriteLocks = rsp->enable_shared_write_locks();
-            }
+            tableInfo->EnableSharedWriteLocks = rsp->enable_shared_write_locks();
 
             auto primarySchema = FromProto<TTableSchemaPtr>(rsp->schema());
             tableInfo->Schemas[ETableSchemaKind::Primary] = primarySchema;
