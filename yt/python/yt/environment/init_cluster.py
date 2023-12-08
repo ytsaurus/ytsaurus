@@ -266,6 +266,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         recursive=True,
         ignore_existing=True)
 
+    batch_processor.set("//sys/admin/@inherit_acl", "false")
     batch_processor.set(
         "//sys/admin/@acl",
         [
