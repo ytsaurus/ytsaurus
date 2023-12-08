@@ -3316,6 +3316,9 @@ done
 
     @authors("gritukan")
     def test_empty_input_due_to_sampling(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
