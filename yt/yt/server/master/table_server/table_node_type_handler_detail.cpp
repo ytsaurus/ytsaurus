@@ -1,6 +1,5 @@
 #include "table_node_type_handler_detail.h"
 
-#include "master_table_schema.h"
 #include "mount_config_attributes.h"
 #include "private.h"
 #include "replicated_table_node_proxy.h"
@@ -22,6 +21,7 @@
 #include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/master/cypress_server/config.h>
+#include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/master/tablet_server/chaos_helpers.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>

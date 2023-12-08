@@ -108,8 +108,9 @@
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
-#include <yt/yt/ytlib/sequoia_client/chunk_replicas.record.h>
-#include <yt/yt/ytlib/sequoia_client/location_replicas.record.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 

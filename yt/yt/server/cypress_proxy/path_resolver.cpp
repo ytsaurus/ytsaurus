@@ -1,12 +1,11 @@
 #include "path_resolver.h"
 
-#include "private.h"
-
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
-#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 
 #include <yt/yt/client/cypress_client/public.h>
 
@@ -74,16 +73,16 @@ public:
                 });
             }
 
-            std::vector<NRecords::TResolveNodeKey> prefixKeys;
+            std::vector<NRecords::TPathToNodeIdKey> prefixKeys;
             prefixKeys.reserve(resolveAttempts.size());
             for (const auto& resolveAttempt : resolveAttempts) {
-                prefixKeys.push_back(NRecords::TResolveNodeKey{
+                prefixKeys.push_back(NRecords::TPathToNodeIdKey{
                     .Path = MangleSequoiaPath(resolveAttempt.Prefix),
                 });
             }
 
             // TODO(gritukan, babenko): Add column filters to codegen library.
-            const auto& schema = ITableDescriptor::Get(ESequoiaTable::ResolveNode)
+            const auto& schema = ITableDescriptor::Get(ESequoiaTable::PathToNodeId)
                 ->GetRecordDescriptor()
                 ->GetSchema();
             NTableClient::TColumnFilter columnFilter({
@@ -156,7 +155,7 @@ private:
                     THROW_ERROR_EXCEPTION("Object id syntax for non-Sequoia objects is not supported yet");
                 }
 
-                const auto& schema = ITableDescriptor::Get(ESequoiaTable::ResolveNode)
+                const auto& schema = ITableDescriptor::Get(ESequoiaTable::PathToNodeId)
                     ->GetRecordDescriptor()
                     ->GetSchema();
                 NTableClient::TColumnFilter columnFilter({
@@ -164,8 +163,8 @@ private:
                     schema->GetColumnIndex("path"),
                 });
 
-                std::vector<NRecords::TReverseResolveNodeKey> key;
-                key.push_back(NRecords::TReverseResolveNodeKey{.NodeId = TNodeId::FromString(idWithoutPrefix)});
+                std::vector<NRecords::TNodeIdToPathKey> key;
+                key.push_back(NRecords::TNodeIdToPathKey{.NodeId = TNodeId::FromString(idWithoutPrefix)});
                 auto lookupRsp = std::move(WaitFor(Transaction_->LookupRows(key, columnFilter))
                     .ValueOrThrow()[0]);
 

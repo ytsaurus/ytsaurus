@@ -1,8 +1,10 @@
 #include "resolve_cache.h"
+
 #include "cypress_manager.h"
 #include "node_detail.h"
 #include "link_node.h"
 #include "portal_entrance_node.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/core/ypath/tokenizer.h>

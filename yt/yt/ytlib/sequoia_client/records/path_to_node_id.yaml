@@ -1,7 +1,7 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - type_name: TResolveNode
+  - type_name: TPathToNodeId
     fields:
       - cpp_name: Path
         cpp_type: TMangledSequoiaPath
@@ -15,4 +15,4 @@ types:
         column_type: String
 
     verbatim: |
-        static constexpr auto Table = ESequoiaTable::ResolveNode;
+        static constexpr auto Table = ESequoiaTable::PathToNodeId;

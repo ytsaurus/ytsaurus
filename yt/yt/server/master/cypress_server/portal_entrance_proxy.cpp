@@ -1,6 +1,8 @@
 #include "portal_entrance_proxy.h"
+
 #include "portal_entrance_node.h"
 #include "node_proxy_detail.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 

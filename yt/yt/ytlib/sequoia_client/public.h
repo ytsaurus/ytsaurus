@@ -13,17 +13,17 @@ namespace NYT::NSequoiaClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESequoiaTable,
-    (ResolveNode)
+    (PathToNodeId)
+    (NodeIdToPath)
     (ChunkReplicas)
     (LocationReplicas)
-    (ReverseResolveNode)
     (ChildNode)
 );
 
 namespace NRecords {
 
-struct TResolveNode;
-struct TReverseResolveNode;
+struct TPathToNodeId;
+struct TNodeIdToPath;
 struct TChildNode;
 
 struct TChunkReplicas;

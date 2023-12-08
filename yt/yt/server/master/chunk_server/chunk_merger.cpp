@@ -5,7 +5,6 @@
 #include "chunk_manager.h"
 #include "chunk_tree_traverser.h"
 #include "config.h"
-#include "domestic_medium.h"
 #include "job_registry.h"
 #include "job.h"
 
@@ -22,6 +21,8 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
+
+#include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
@@ -40,8 +41,6 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <google/protobuf/util/message_differencer.h>
-
-#include <stack>
 
 namespace NYT::NChunkServer {
 

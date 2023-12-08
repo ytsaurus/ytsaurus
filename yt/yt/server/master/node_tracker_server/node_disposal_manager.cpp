@@ -1,4 +1,5 @@
 #include "node_disposal_manager.h"
+
 #include "node.h"
 #include "config.h"
 #include "public.h"
@@ -12,7 +13,7 @@
 
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
-#include <yt/yt/ytlib/sequoia_client/location_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 

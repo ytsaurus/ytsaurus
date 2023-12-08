@@ -17,10 +17,11 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
-#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
@@ -145,18 +146,18 @@ protected:
     {
         YT_VERIFY(TypeFromId(nodeId) != EObjectType::Rootstock);
 
-        // Remove from resolve table.
-        Transaction_->DeleteRow(NRecords::TResolveNodeKey{
+        // Remove from path-to-node-id table.
+        Transaction_->DeleteRow(NRecords::TPathToNodeIdKey{
             .Path = path,
         });
 
-        // Remove from reverse resolve table.
-        Transaction_->DeleteRow(NRecords::TReverseResolveNodeKey{
+        // Remove from node-id-to-path table.
+        Transaction_->DeleteRow(NRecords::TNodeIdToPathKey{
             .NodeId = nodeId,
         });
 
         if (TypeFromId(nodeId) != EObjectType::Scion) {
-            // Remove from children table.
+            // Remove from child table.
             auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(path));
             Transaction_->DeleteRow(NRecords::TChildNodeKey{
                 .ParentPath = MangleSequoiaPath(parentPath),
@@ -294,7 +295,7 @@ protected:
         bool force = request->force();
         context->SetRequestInfo("Force: %v", force);
 
-        NRecords::TResolveNodeKey selfKey{
+        NRecords::TPathToNodeIdKey selfKey{
             .Path = MangleSequoiaPath(Path_),
         };
         Transaction_->LockRow(selfKey, ELockType::Exclusive);
@@ -378,7 +379,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
 
     // Acquire shared lock on parent node.
     Transaction_->LockRow(
-        NRecords::TResolveNodeKey{.Path = MangleSequoiaPath(parentPath)},
+        NRecords::TPathToNodeIdKey{.Path = MangleSequoiaPath(parentPath)},
         ELockType::SharedStrong);
 
     auto parent = ResolvePath(Transaction_, parentPath);
@@ -402,7 +403,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
     // This can be done via requesting just 2 rows.
     auto selectedRowsLimit = recursive ? std::nullopt : std::optional(2);
 
-    auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TResolveNodeKey>(
+    auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TPathToNodeIdKey>(
         {
             Format("path >= %Qv", mangledPath),
             Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
@@ -454,11 +455,11 @@ private:
         const TYPath& path)
     {
         auto [parentPath, childKey] = DirNameAndBaseName(path);
-        Transaction_->WriteRow(NRecords::TResolveNode{
+        Transaction_->WriteRow(NRecords::TPathToNodeId{
             .Key = {.Path = MangleSequoiaPath(path)},
             .NodeId = id,
         });
-        Transaction_->WriteRow(NRecords::TReverseResolveNode{
+        Transaction_->WriteRow(NRecords::TNodeIdToPath{
             .Key = {.NodeId = id},
             .Path = path,
         });
@@ -529,11 +530,11 @@ private:
     {
         auto mangledPath = MangleSequoiaPath(path);
 
-        auto removeFuture = Transaction_->SelectRows<NRecords::TResolveNodeKey>({
+        auto removeFuture = Transaction_->SelectRows<NRecords::TPathToNodeIdKey>({
             Format("path > %Qv", mangledPath),
             Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
         }).Apply(
-            BIND([=, this, this_ = MakeStrong(this)] (const std::vector<NRecords::TResolveNode>& nodesToRemove) {
+            BIND([=, this, this_ = MakeStrong(this)] (const std::vector<NRecords::TPathToNodeId>& nodesToRemove) {
                 for (const auto& node : nodesToRemove) {
                     RemoveNode(node.NodeId, node.Key.Path);
                 }
@@ -769,7 +770,7 @@ private:
             THROW_ERROR_EXCEPTION("\"set\" command without \"force\" flag is forbidden; use \"create\" instead");
         }
 
-        NRecords::TResolveNodeKey selfKey{
+        NRecords::TPathToNodeIdKey selfKey{
             .Path = MangleSequoiaPath(Path_),
         };
         Transaction_->LockRow(selfKey, ELockType::Exclusive);
@@ -812,7 +813,7 @@ private:
         auto parentId = Id_;
 
         // Acquire shared lock on parent node.
-        NRecords::TResolveNodeKey parentKey{
+        NRecords::TPathToNodeIdKey parentKey{
             .Path = MangleSequoiaPath(parentPath),
         };
         Transaction_->LockRow(parentKey, ELockType::SharedStrong);
@@ -905,7 +906,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     auto parentId = Id_;
 
     // Acquire shared lock on parent node.
-    NRecords::TResolveNodeKey parentKey{
+    NRecords::TPathToNodeIdKey parentKey{
         .Path = MangleSequoiaPath(parentPath),
     };
     Transaction_->LockRow(parentKey, ELockType::SharedStrong);
@@ -964,7 +965,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
 
     auto mangledPath = MangleSequoiaPath(Path_);
     Transaction_->LockRow(
-        NRecords::TResolveNodeKey{.Path = mangledPath},
+        NRecords::TPathToNodeIdKey{.Path = mangledPath},
         ELockType::SharedStrong);
 
     auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildNodeKey>(

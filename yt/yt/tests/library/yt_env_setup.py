@@ -29,6 +29,10 @@ from yt.environment.helpers import (  # noqa
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
 )
+from yt_sequoia_helpers import (
+    PATH_TO_NODE_ID_TABLE,
+    NODE_ID_TO_PATH_TABLE,
+)
 
 from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
 import yt.test_helpers.cleanup as test_cleanup
@@ -1146,8 +1150,8 @@ class YTEnvSetup(object):
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
-                wait(lambda: yt_commands.select_rows("* from [//sys/sequoia/resolve_node]", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows("* from [//sys/sequoia/reverse_resolve_node]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{NODE_ID_TO_PATH_TABLE.get_path()}]", driver=driver) == [])
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.

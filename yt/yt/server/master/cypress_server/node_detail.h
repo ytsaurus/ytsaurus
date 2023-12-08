@@ -1,7 +1,6 @@
 #pragma once
 
 #include "cypress_manager.h"
-#include "helpers.h"
 #include "node.h"
 #include "private.h"
 
@@ -23,8 +22,9 @@
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
-#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 

@@ -8,7 +8,7 @@ from yt_commands import (
 
 from yt_sequoia_helpers import (
     resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
-    RESOLVE_NODE, REVERSE_RESOLVE_NODE,
+    PATH_TO_NODE_ID_TABLE, NODE_ID_TO_PATH_TABLE,
 )
 
 from yt.common import YtError
@@ -92,8 +92,8 @@ class TestGrafting(YTEnvSetup):
         create("map_node", "//tmp/sequoia/m1")
         create("map_node", "//tmp/sequoia/m1/m2")
         remove("//tmp/sequoia", recursive=True)
-        assert select_rows_from_ground(f"* from [{RESOLVE_NODE.get_path()}]") == []
-        assert select_rows_from_ground(f"* from [{REVERSE_RESOLVE_NODE.get_path()}]") == []
+        assert select_rows_from_ground(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == []
+        assert select_rows_from_ground(f"* from [{NODE_ID_TO_PATH_TABLE.get_path()}]") == []
         assert not exists(f"#{rootstock_id}")
 
     @authors("kvk1920")

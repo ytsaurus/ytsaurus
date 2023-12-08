@@ -2,7 +2,7 @@
 
 #include "node_proxy_detail.h"
 #include "portal_exit_node.h"
-#include "public.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 

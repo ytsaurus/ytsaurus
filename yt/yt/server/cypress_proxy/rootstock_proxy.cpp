@@ -11,9 +11,10 @@
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
-#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
@@ -123,11 +124,11 @@ private:
         auto scionId = Transaction_->GenerateObjectId(EObjectType::Scion, scionCellTag, /*sequoia*/ true);
         attributes->Set("scion_id", scionId);
 
-        Transaction_->WriteRow(NRecords::TResolveNode{
+        Transaction_->WriteRow(NRecords::TPathToNodeId{
             .Key = {.Path = MangleSequoiaPath(Path_)},
             .NodeId = scionId,
         });
-        Transaction_->WriteRow(NRecords::TReverseResolveNode{
+        Transaction_->WriteRow(NRecords::TNodeIdToPath{
             .Key = {.NodeId = scionId},
             .Path = Path_,
         });

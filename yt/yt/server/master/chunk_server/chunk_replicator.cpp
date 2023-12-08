@@ -45,7 +45,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/location_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 

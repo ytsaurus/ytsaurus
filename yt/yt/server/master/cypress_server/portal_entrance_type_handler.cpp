@@ -1,7 +1,9 @@
 #include "portal_entrance_type_handler.h"
+
 #include "portal_entrance_node.h"
 #include "portal_entrance_proxy.h"
 #include "portal_manager.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 

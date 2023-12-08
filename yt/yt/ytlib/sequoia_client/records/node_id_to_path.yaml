@@ -1,7 +1,7 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - type_name: TReverseResolveNode
+  - type_name: TNodeIdToPath
     fields:
       - cpp_name: NodeId
         cpp_type: NCypressClient::TNodeId
@@ -15,4 +15,4 @@ types:
         column_type: String
 
     verbatim: |
-        static constexpr auto Table = ESequoiaTable::ReverseResolveNode;
+        static constexpr auto Table = ESequoiaTable::NodeIdToPath;

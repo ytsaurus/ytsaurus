@@ -2,6 +2,7 @@
 
 #include "rootstock_node.h"
 #include "scion_node.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h>
 

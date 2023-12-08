@@ -1,10 +1,10 @@
 #include "table_descriptor.h"
 
-#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/reverse_resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/child_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/chunk_replicas.record.h>
-#include <yt/yt/ytlib/sequoia_client/location_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -60,11 +60,11 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
             return T##type##TableDescriptor::Get();
 
     switch (table) {
-        XX(ResolveNode, "resolve_node")
+        XX(PathToNodeId, "path_to_node_id")
+        XX(NodeIdToPath, "node_id_to_path")
         XX(ChunkReplicas, "chunk_replicas")
         XX(ChildNode, "child_node")
         XX(LocationReplicas, "location_replicas")
-        XX(ReverseResolveNode, "reverse_resolve_node")
         default:
             YT_ABORT();
     }

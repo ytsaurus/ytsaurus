@@ -494,32 +494,32 @@ SRCS(
 )
 
 GENERATE_YT_RECORD(
-    sequoia_client/chunk_replicas.yaml
+    sequoia_client/records/chunk_replicas.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
 
 GENERATE_YT_RECORD(
-    sequoia_client/location_replicas.yaml
+    sequoia_client/records/location_replicas.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
 
 
 GENERATE_YT_RECORD(
-    sequoia_client/child_node.yaml
+    sequoia_client/records/child_node.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
 
 GENERATE_YT_RECORD(
-    sequoia_client/reverse_resolve_node.yaml
+    sequoia_client/records/node_id_to_path.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
 
 GENERATE_YT_RECORD(
-    sequoia_client/resolve_node.yaml
+    sequoia_client/records/path_to_node_id.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
