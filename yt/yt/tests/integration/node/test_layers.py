@@ -1107,7 +1107,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
 
     @authors("yuryalekseev")
     @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
-    def test_read_timeout_with(self):
+    def test_read_timeout(self):
         self.setup_files()
 
         update_nodes_dynamic_config({

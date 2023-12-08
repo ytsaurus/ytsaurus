@@ -683,7 +683,7 @@ class TNbdClientConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TDuration Timeout;
+    TDuration IOTimeout;
     TDuration ReconnectTimeout;
     int ConnectionCount;
 
