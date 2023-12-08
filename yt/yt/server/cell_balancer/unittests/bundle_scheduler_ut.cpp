@@ -464,7 +464,7 @@ void GenerateNodeDeallocationsForBundle(
     TSchedulerInputState& inputState,
     const TString& bundleName,
     const std::vector<TString>& nodeNames,
-    const TString& dataCenterName="default")
+    const TString& dataCenterName = "default")
 {
     auto& state = inputState.BundleStates[bundleName];
     if (!state) {
@@ -497,7 +497,7 @@ void GenerateProxyDeallocationsForBundle(
     TSchedulerInputState& inputState,
     const TString& bundleName,
     const std::vector<TString>& proxyNames,
-    const TString& dataCenterName="default")
+    const TString& dataCenterName = "default")
 {
     auto& state = inputState.BundleStates[bundleName];
     if (!state) {
@@ -612,7 +612,7 @@ TEST_P(TBundleSchedulerTest, AllocationCreated)
     TSchedulerMutations mutations;
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag=false, .SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag = false, .SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
 
@@ -747,7 +747,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
     const TString bundleName = "bigd";
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, bundleName, 2, {.DC=dataCenter,});
+        GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter,});
     }
 
     const TString dataCenterName = dataCenters.front();
@@ -833,7 +833,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackFailed)
     TSchedulerMutations mutations;
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, bundleName, 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, bundleName, 1, dataCenter);
     }
 
@@ -861,7 +861,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
     TSchedulerMutations mutations;
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, bundleName, 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, bundleName, 1, dataCenter);
     }
 
@@ -889,7 +889,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, bundleName, 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, bundleName, 1, dataCenter);
     }
 
@@ -922,9 +922,9 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
 
     for (const auto& dataCenter : dataCenters) {
         auto nodes = GenerateNodesForBundle(input, bundleName, 5, {
-            .SetFilterTag=SetNodeTagFilters,
-            .SlotCount=DefaultCellCount,
-            .DC=dataCenter});
+            .SetFilterTag = SetNodeTagFilters,
+            .SlotCount = DefaultCellCount,
+            .DC = dataCenter});
         GenerateNodeDeallocationsForBundle(input, bundleName, { *nodes.begin()}, dataCenter);
     }
 
@@ -954,7 +954,7 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfSomeNodesAreNotReady)
 
     // Do not deallocate nodes if node tag filter is not set for all alive nodes
     for (const auto& dataCenter : dataCenters) {
-       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=!SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = !SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
 
         auto intactNodes = GetRandomElements(nodes, 1);
         for (const auto& nodeName : intactNodes) {
@@ -972,7 +972,7 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfSomeNodesAreNotReady)
     // Do not deallocate nodes if cell cout is not actual for all the nodes
     input.TabletNodes.clear();
     for (const auto& dataCenter : dataCenters) {
-        auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount / 2, .DC=dataCenter});
+        auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = SetNodeTagFilters, .SlotCount = TabletSlotCount / 2, .DC = dataCenter});
 
         auto intactNodes = GetRandomElements(nodes, 1);
         for (const auto& nodeName : intactNodes) {
@@ -990,7 +990,7 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfSomeNodesAreNotReady)
     // Finally init deallocations if nodes are up to date.
     input.TabletNodes.clear();
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
     }
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1012,7 +1012,7 @@ TEST_P(TBundleSchedulerTest, CreateNewDeallocationsIfAllNodesAreNotReady)
 
     // Do not deallocate nodes if node tag filter is not set for all alive nodes
     for (const auto& dataCenter : dataCenters) {
-       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=!SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = !SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -1032,7 +1032,7 @@ TEST_P(TBundleSchedulerTest, CreateNewDeallocations)
     GenerateTabletCellsForBundle(input, bundleName, 2 * TabletSlotCount * GetActiveDataCenterCount());
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag = SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -1107,7 +1107,7 @@ TEST_P(TBundleSchedulerTest, DeallocationsAreDisabled)
     GenerateTabletCellsForBundle(input, bundleName, 2 * TabletSlotCount * GetActiveDataCenterCount());
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag = SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -1129,7 +1129,7 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackFailed)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        auto bundleNodes = GenerateNodesForBundle(input, bundleName, 2, {.DC=dataCenter});
+        auto bundleNodes = GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter});
         GenerateNodeDeallocationsForBundle(input, bundleName, { *bundleNodes.begin()}, dataCenter);
     }
 
@@ -1155,7 +1155,7 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
     THashSet<TString> nodesToDeallocate;
 
     for (const auto& dataCenter : dataCenters) {
-        auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
 
         const TString& nodeId = *bundleNodes.begin();
         nodesToDeallocate.insert(nodeId);
@@ -1215,7 +1215,7 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackStaledAllocation)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2 * GetDataCenterCount(), {.DC=dataCenter});
+        auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2 * GetDataCenterCount(), {.DC = dataCenter});
         const TString nodeId = *bundleNodes.begin();
         GenerateNodeDeallocationsForBundle(input, "bigd", {nodeId}, dataCenter);
     }
@@ -1240,7 +1240,7 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsCreation)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", 3);
@@ -1263,7 +1263,7 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsNoRemoveNoCreate)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", GetActiveDataCenterCount() * 2 * 5);
@@ -1284,7 +1284,7 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsRemove)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", GetActiveDataCenterCount() * 2 * 5 + 3);
@@ -1324,7 +1324,7 @@ TEST_P(TBundleSchedulerTest, TestSpareNodesDeallocate)
     auto dataCenters = GetDataCenters(input);
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC=dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -1350,8 +1350,8 @@ TEST_P(TBundleSchedulerTest, CheckDisruptedState)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 4, {.DC=dataCenter});
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 4, {.DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC = dataCenter});
     }
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
@@ -1376,8 +1376,8 @@ TEST_P(TBundleSchedulerTest, CheckSingleDCDisruptedState)
     zoneInfo->MaxTabletNodeCount = 10 * GetDataCenterCount();
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 4, {.DC=dataCenter});
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 4, {.DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC = dataCenter});
     }
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
@@ -1405,8 +1405,8 @@ TEST_P(TBundleSchedulerTest, CheckAllocationLimit)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 4, {.DC=dataCenter});
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 4, {.DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC = dataCenter});
     }
 
     zoneInfo->MaxTabletNodeCount = 5 * GetDataCenterCount();
@@ -1429,8 +1429,8 @@ TEST_P(TBundleSchedulerTest, CheckDynamicConfig)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.DC=dataCenter});
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2130,7 +2130,7 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNodes)
     input.Config->ReallocateInstanceBudget = 2;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2161,7 +2161,7 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNetworkLimits)
     input.Config->ReallocateInstanceBudget = 2;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2193,7 +2193,7 @@ TEST_P(TBundleSchedulerTest, DoNotReAllocateOutdatedNetworkLimitsIfDisabled)
     input.Config->EnableNetworkLimits = false;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2283,7 +2283,7 @@ TEST_P(TBundleSchedulerTest, DeallocateOutdatedNodes)
 
     for (const auto& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 5, false, dataCenter);
-        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag=true, .SlotCount=DefaultCellCount, .DC=dataCenter});
+        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter});
 
         // Mark random nodes as outdated
         auto dataCenterNodesToRemove = GetRandomElements(nodeNames, 3);
@@ -2361,7 +2361,7 @@ TEST_P(TBundleSchedulerTest, ReallocateNodesUnderMaintenance)
     auto dataCenters = GetDataCenters(input);
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2418,7 +2418,7 @@ TEST_P(TBundleSchedulerTest, ReallocateNodeUnderMaintenanceAndOutdated)
     auto dataCenters = GetDataCenters(input);
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2448,7 +2448,7 @@ TEST_P(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
     THashSet<TString> nodesToRemove;
 
     for (const auto& dataCenter : dataCenters) {
-        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag=true, .SlotCount=DefaultCellCount, .DC=dataCenter});
+        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter});
 
         auto dcNodesToRemove = GetRandomElements(nodeNames, 3);
         for (const auto& nodeName : dcNodesToRemove) {
@@ -2569,7 +2569,7 @@ TEST_P(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
 
     THashSet<TString> nodesToRemove;
     for (const auto& dataCenter : dataCenters) {
-        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.DC=dataCenter});
+        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.DC = dataCenter});
         const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 
         auto dcNodesToRemove = GetRandomElements(nodeNames, 3);
@@ -2692,7 +2692,7 @@ TEST_P(TBundleSchedulerTest, OfflineInstanceGracePeriod)
     auto dataCenters = GetDataCenters(input);
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2793,8 +2793,8 @@ TEST_P(TBundleSchedulerTest, CheckResourceLimits)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount=5, .InstanceIndex=2, .DC=dataCenter});
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -2830,7 +2830,7 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
     THashSet<TString> nodesToRemove;
 
     for (const auto& dataCenter : dataCenters) {
-        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag=true, .SlotCount=DefaultCellCount, .DC=dataCenter});
+        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter});
 
         // Mark random nodes as outdated
         auto dcNodesToRemove = GetRandomElements(nodeNames, 3);
@@ -2953,7 +2953,7 @@ TEST_P(TBundleSchedulerTest, DontRemoveTabletNodeCypressNodesFromBB)
     auto dataCenters = GetDataCenters(input);
 
     for (const auto& dataCenter : dataCenters) {
-        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.DC=dataCenter});
+        auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.DC = dataCenter});
         const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 
         auto nodesToRemove = GetRandomElements(nodeNames, 3);
@@ -2982,7 +2982,7 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsCreationMultiPeer)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", 3 * GetActiveDataCenterCount());
@@ -3007,7 +3007,7 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsNoRemoveNoCreateMultiPeer)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", 5 * GetActiveDataCenterCount());
@@ -3030,7 +3030,7 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsRemoveMultiPeer)
     TSchedulerMutations mutations;
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", 5 * GetActiveDataCenterCount() + 3);
@@ -3386,7 +3386,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
     input.Bundles["bigd"]->NodeTagFilter = {};
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", 10 * GetActiveDataCenterCount());
@@ -3412,9 +3412,9 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
 
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag=false, .SlotCount=15, .DC=dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", 11 * GetActiveDataCenterCount());
@@ -3512,7 +3512,7 @@ TEST_P(TNodeTagsFilterManager, TestExtraBundleNodesReleasement)
     bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag=true, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = true, .DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", 11 * GetActiveDataCenterCount());
@@ -3637,7 +3637,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
             activeDataCenters.insert(dataCenter);
         }
 
-        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag=setNodeTagFilter, .SlotCount=SlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag = setNodeTagFilter, .SlotCount = SlotCount, .DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
 
@@ -3650,7 +3650,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     THashSet<TString> spareNodes;
 
     for (const TString& dataCenter : dataCenters) {
-        auto dataCenterSpareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag=false, .SlotCount=15, .DC=dataCenter});
+        auto dataCenterSpareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
 
         for (const auto& nodeName : dataCenterSpareNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
@@ -3769,7 +3769,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     // Add new nodes to bundle
     THashSet<TString> newNodes;
     for (const auto& dataCenter : activeDataCenters) {
-        auto dcNodes = GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag=false, .SlotCount=SlotCount, .DC=dataCenter});
+        auto dcNodes = GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter});
         newNodes.insert(dcNodes.begin(), dcNodes.end());
     }
 
@@ -3907,7 +3907,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
     // Add one more node to bundle
     for (const auto& dataCenter : activeDataCenters) {
-        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag=true, .SlotCount=SlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag = true, .SlotCount = SlotCount, .DC = dataCenter});
     }
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3939,7 +3939,7 @@ TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     GenerateTabletCellsForBundle(input, "bigc", 17 * GetActiveDataCenterCount());
 
     SetBundleInfo(input, "bige", 2 * GetDataCenterCount(), 10);
-    GenerateNodesForBundle(input, "bige", 1, {.SetFilterTag=true, .SlotCount=10});
+    GenerateNodesForBundle(input, "bige", 1, {.SetFilterTag = true, .SlotCount = 10});
     auto& bundleInfo3 = input.Bundles["bige"];
     bundleInfo3->EnableNodeTagFilterManagement = true;
     bundleInfo3->EnableBundleController = false;
@@ -3952,7 +3952,7 @@ TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 4 * GetDataCenterCount();
 
     for (const TString& dataCenter : dataCenters) {
-        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, {.SlotCount=0, .DC=dataCenter});
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, {.SlotCount = 0, .DC = dataCenter});
         for (const auto& nodeName : spareNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
             nodeInfo->TabletSlots.clear();
@@ -4017,7 +4017,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
 
     THashSet<TString> nodes;
     for (const TString& dataCenter : dataCenters) {
-        auto dataNodes = GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag=SetNodeFilterTag, .SlotCount=SlotCount, .DC=dataCenter});
+        auto dataNodes = GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = SetNodeFilterTag, .SlotCount = SlotCount, .DC = dataCenter});
         nodes.insert(dataNodes.begin(), dataNodes.end());
     }
 
@@ -4028,7 +4028,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=SlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
     }
 
     for (const auto& nodeName : nodes) {
@@ -4056,7 +4056,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesDisabledTabletCells)
 
     THashSet<TString> nodes;
     for (const TString& dataCenter : dataCenters) {
-        auto dataNodes = GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag=SetNodeFilterTag, .SlotCount=SlotCount, .DC=dataCenter});
+        auto dataNodes = GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = SetNodeFilterTag, .SlotCount = SlotCount, .DC = dataCenter});
         nodes.insert(dataNodes.begin(), dataNodes.end());
     }
 
@@ -4067,7 +4067,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesDisabledTabletCells)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=SlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
     }
 
     for (const auto& nodeName : nodes) {
@@ -4099,7 +4099,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesExhausted)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     for (const TString& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=SlotCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -4139,7 +4139,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesOffline)
     THashSet<TString> aliveSpare;
 
     for (const TString& dataCenter : dataCenters) {
-        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=SlotCount, .DC=dataCenter});
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
         auto dcAliveSpare = GetRandomElements(spareNodes, 1);
         aliveSpare.insert(dcAliveSpare.begin(), dcAliveSpare.end());
 
@@ -4191,7 +4191,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
     THashSet<TString> usingSpareNode;
     int dataCenterIndex = 0;
     for (const TString& dataCenter : dataCenters) {
-        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=SlotCount, .DC=dataCenter});
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
         if (++dataCenterIndex > GetActiveDataCenterCount()) {
             break;
         }
@@ -4255,7 +4255,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
     int dataCenterIndex = 0;
 
     for (const auto& dataCenter : dataCenters) {
-        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=SlotCount, .DC=dataCenter});
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
         if (++dataCenterIndex > GetActiveDataCenterCount()) {
             break;
         }
@@ -4336,7 +4336,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
     for (const TString& dataCenter : dataCenters) {
-        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=15, .DC=dataCenter});
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = 15, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -4447,7 +4447,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
     THashSet<TString> activeDataCenters;
     int dataCenterIndex = 0;
     for (const TString& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SlotCount = SlotCount, .DC = dataCenter};
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, flags);
         if (++dataCenterIndex > GetActiveDataCenterCount()) {
             break;
@@ -4480,7 +4480,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
 
     // Add new node to bundle
     for (const auto& dataCenter : activeDataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=true, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = true, .SlotCount = SlotCount, .DC = dataCenter};
         auto nodeNames = GenerateNodesForBundle(input, "bigd", 1, flags);
     }
 
@@ -4555,7 +4555,7 @@ TEST_P(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
             activeDataCenters.insert(dataCenter);
         }
 
-        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag=setNodeTagFilter, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag = setNodeTagFilter, .DC = dataCenter});
     }
 
     EXPECT_EQ(std::ssize(activeDataCenters), GetActiveDataCenterCount());
@@ -4572,7 +4572,7 @@ TEST_P(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
     THashSet<TString> usingSpareNode;
 
     for (const TString& dataCenter : dataCenters) {
-        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, {.SlotCount=0, .DC=dataCenter});
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, {.SlotCount = 0, .DC = dataCenter});
 
         for (const auto& nodeName : spareNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
@@ -4624,7 +4624,7 @@ TEST_P(TNodeTagsFilterManager, ReleasingExtraSpareNodes)
 
     zoneInfo->SpareTargetConfig->TabletNodeCount = 5 * GetDataCenterCount();
     for (const TString& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SlotCount = SlotCount, .DC = dataCenter};
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 5, flags);
 
         auto dcUsingSpareNode = GetRandomElements(spareNodes, 3);
@@ -4690,9 +4690,9 @@ TEST(TDataCentersPriority, AlphaNumDC)
 
     // Add new node to bundle
     for (const auto& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=false, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};
         GenerateNodesForBundle(input, "bigd", PerDataCenterCount, flags);
-        GenerateNodesForBundle(input, SpareBundleName, 5, {.DC=dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 5, {.DC = dataCenter});
     }
 
     GenerateTabletCellsForBundle(input, "bigd", SlotCount * PerDataCenterCount * 2);
@@ -4732,9 +4732,9 @@ TEST(TDataCentersPriority, Feasibility)
     TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=true, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = true, .SlotCount = SlotCount, .DC = dataCenter};
         auto nodes = GenerateNodesForBundle(input, "bigd", 1, flags);
-        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 5, {.DC=dataCenter});
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 5, {.DC = dataCenter});
 
         if (dataCenter != offlineDC) {
             continue;
@@ -4780,10 +4780,10 @@ TEST(TDataCentersPriority, Forbidden)
     auto zoneInfo = input.Zones["default-zone"];
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    auto offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=false, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};
         GenerateNodesForBundle(input, "bigd", 3, flags);
     }
 
@@ -4827,7 +4827,7 @@ TEST(TDataCentersPriority, PerBundleForbidden)
     input.Bundles["bigd"]->ForbiddenDataCenters = { offlineDC };
 
     for (const auto& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=false, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};
         GenerateNodesForBundle(input, "bigd", 3, flags);
     }
 
@@ -4869,7 +4869,7 @@ TEST(TDataCentersPriority, DisruptionMinimizing)
     TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=false, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};
         auto nodes = GenerateNodesForBundle(input, "bigd", 3, flags);
 
         if (dataCenter == offlineDC) {
@@ -4918,7 +4918,7 @@ TEST(TDataCentersPriority, MinimizingTabletMoves)
     TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=true, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = true, .SlotCount = SlotCount, .DC = dataCenter};
         auto nodes = GenerateNodesForBundle(input, "bigd", 3, flags);
 
         if (dataCenter == offlineDC) {
@@ -4962,7 +4962,7 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
     auto zoneInfo = input.Zones["default-zone"];
 
     for (const auto& dataCenter : dataCenters) {
-        auto flags = TGenerateNodeOptions{.SetFilterTag=true, .SlotCount=SlotCount, .DC=dataCenter};
+        auto flags = TGenerateNodeOptions{.SetFilterTag = true, .SlotCount = SlotCount, .DC = dataCenter};
         GenerateNodesForBundle(input, "bigd", 3, flags);
     }
 

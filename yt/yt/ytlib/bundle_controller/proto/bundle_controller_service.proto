@@ -9,7 +9,7 @@ message TReqGetBundleConfig
 
 message TRspGetBundleConfig
 {
-    // TODO: Dummy field. To be removed in the future.
+    // TODO(alexmipt): Dummy field. To be removed in the future.
     optional string bundle_name = 1;
 }
 

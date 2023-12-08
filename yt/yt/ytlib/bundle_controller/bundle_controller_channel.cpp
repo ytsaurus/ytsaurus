@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -142,7 +143,11 @@ IChannelPtr CreateBundleControllerChannel(
     IChannelPtr masterChannel,
     const TNetworkPreferenceList& networks)
 {
-    auto channelProvider = New<TBundleControllerChannelProvider>(config, channelFactory, masterChannel, networks);
+    auto channelProvider = New<TBundleControllerChannelProvider>(
+        config,
+        channelFactory,
+        masterChannel,
+        networks);
     auto channel = CreateRoamingChannel(channelProvider);
 
     channel = CreateRetryingChannel(config, channel);

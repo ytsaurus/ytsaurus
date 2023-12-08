@@ -779,8 +779,8 @@ void SetNodeTagFilter(
             .Id = "bundle_has_forbidden_dc",
             .BundleName = bundleName,
             .Description = Format("Data centers %Qv are forbidden for bundle %Qv",
-                bundleName,
-                bundleInfo->ForbiddenDataCenters)});
+                bundleInfo->ForbiddenDataCenters,
+                bundleName)});
     }
 
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
