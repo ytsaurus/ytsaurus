@@ -626,7 +626,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (CanConfigure()) {
-            HydraManager_.Acquire()->Reconfigure(dynamicConfig);
+            if (const auto& hydraManager = HydraManager_.Acquire()) {
+                hydraManager->Reconfigure(dynamicConfig);
+            }
         }
     }
 
