@@ -305,6 +305,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/OpenedFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ParallelReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/PeekableReadBuffer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/PeekableWriteBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/Progress.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBuffer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromEncryptedFile.cpp
