@@ -42,8 +42,6 @@ public:
         const NApi::TTransactionStartOptions& options = {}) = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetNativeRootClient() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetGroundRootClient() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaClient)

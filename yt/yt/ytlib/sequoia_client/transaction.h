@@ -87,8 +87,6 @@ struct ISequoiaTransaction
 
     virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
     virtual const ISequoiaClientPtr& GetClient() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetNativeRootClient() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetGroundRootClient() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaTransaction)
@@ -99,6 +97,8 @@ namespace NDetail {
 
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr client,
+    NApi::NNative::IClientPtr nativeRootClient,
+    NApi::NNative::IClientPtr groundRootClient,
     const NApi::TTransactionStartOptions& options = {});
 
 } // namespace NDetail
