@@ -515,9 +515,10 @@ public:
                 CreateHydraManagerUpstreamSynchronizer(hydraManager),
                 Bootstrap_->GetNativeAuthenticator());
 
-            WaitFor(BIND(SetLeaseManager, LeaseManager_)
+            BIND(SetLeaseManager, LeaseManager_)
                 .AsyncVia(occupier->GetOccupierAutomatonInvoker())
-                .Run())
+                .Run()
+                .Get()
                 .ThrowOnError();
 
             auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
