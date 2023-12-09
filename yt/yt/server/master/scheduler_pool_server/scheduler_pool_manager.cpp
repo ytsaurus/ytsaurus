@@ -70,7 +70,7 @@ public:
 
     TSchedulerPoolTree* CreatePoolTree(TString treeName)
     {
-        ValidatePoolName(treeName, *PoolNameRegexForAdministrators_);
+        ValidatePoolName(treeName, PoolNameRegexForAdministrators());
 
         if (FindPoolTreeObjectByName(treeName)) {
             THROW_ERROR_EXCEPTION(
@@ -354,8 +354,8 @@ public:
         auto* schema = Bootstrap_->GetObjectManager()->FindSchema(EObjectType::SchedulerPool);
         auto* user = securityManager->GetAuthenticatedUser();
         const re2::RE2& validationRegex = securityManager->CheckPermission(schema, user, EPermission::Administer).Action == ESecurityAction::Deny
-            ? *PoolNameRegexForUsers_
-            : *PoolNameRegexForAdministrators_;
+            ? PoolNameRegexForUsers()
+            : PoolNameRegexForAdministrators();
 
         if (!validationRegex.ok()) {
             THROW_ERROR_EXCEPTION("Pool name validation regular expression is malformed")
@@ -461,6 +461,20 @@ private:
     // NB: re2::RE2 does not have default constructor.
     std::optional<re2::RE2> PoolNameRegexForAdministrators_;
     std::optional<re2::RE2> PoolNameRegexForUsers_;
+
+    const re2::RE2& PoolNameRegexForAdministrators() const
+    {
+        YT_VERIFY(PoolNameRegexForAdministrators_);
+        YT_VERIFY(PoolNameRegexForAdministrators_->ok());
+        return *PoolNameRegexForAdministrators_;
+    }
+
+    const re2::RE2& PoolNameRegexForUsers() const
+    {
+        YT_VERIFY(PoolNameRegexForUsers_);
+        YT_VERIFY(PoolNameRegexForUsers_->ok());
+        return *PoolNameRegexForUsers_;
+    }
 
     void OnAfterSnapshotLoaded() override
     {
