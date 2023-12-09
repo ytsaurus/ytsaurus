@@ -1119,19 +1119,14 @@ private:
         };
 
         TStringBuilder builder;
-        auto timeout = nbdConfig->Client->Timeout.Seconds();
-
         if (nbdConfig->Server->UnixDomainSocket) {
             builder.AppendFormat("unix+tcp:%v?", nbdConfig->Server->UnixDomainSocket->Path);
-            builder.AppendFormat("&timeout=%v", ToString(timeout));
         } else {
-            auto port = 10809;
-            if (nbdConfig->Server->InternetDomainSocket) {
-                port = nbdConfig->Server->InternetDomainSocket->Port;
-            }
-            builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), port);
-            builder.AppendFormat("&timeout=%v", ToString(timeout));
+            YT_VERIFY(nbdConfig->Server->InternetDomainSocket);
+            builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), nbdConfig->Server->InternetDomainSocket->Port);
         }
+        builder.AppendFormat("timeout=%v", ToString(nbdConfig->Client->IOTimeout.Seconds()));
+        builder.AppendFormat("&reconn-timeout=%v", ToString(nbdConfig->Client->ReconnectTimeout.Seconds()));
         builder.AppendFormat("&num-connections=%v", nbdConfig->Client->ConnectionCount);
         builder.AppendFormat("&export=%v", artifactKey.nbd_export_id());
         builder.AppendFormat("&fs-type=%v", ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())));

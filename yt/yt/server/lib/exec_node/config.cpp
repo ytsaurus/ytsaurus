@@ -506,8 +506,10 @@ void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 
 void TNbdClientConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("timeout", &TThis::Timeout)
+    registrar.Parameter("io_timeout", &TThis::IOTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("reconnect_timeout", &TThis::ReconnectTimeout)
+        .Default(TDuration::Seconds(10));
     // At the moment only one connection per export is supported.
     registrar.Parameter("connection_count", &TThis::ConnectionCount)
         .Default(1);

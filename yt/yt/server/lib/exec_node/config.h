@@ -469,7 +469,8 @@ class TNbdClientConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    TDuration Timeout;
+    TDuration IOTimeout;
+    TDuration ReconnectTimeout;
     int ConnectionCount;
 
     REGISTER_YSON_STRUCT(TNbdClientConfig);
