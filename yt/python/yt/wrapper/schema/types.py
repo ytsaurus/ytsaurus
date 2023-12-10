@@ -262,6 +262,9 @@ if is_schema_module_available():
     Uint32 = create_annotated_type(int, ti.Uint32)
     Uint64 = create_annotated_type(int, ti.Uint64)
 
+    Float = create_annotated_type(float, ti.Float)
+    Double = create_annotated_type(float, ti.Double)
+
     Date = create_annotated_type(int, ti.Date)
     Datetime = create_annotated_type(int, ti.Datetime)
     Timestamp = create_annotated_type(int, ti.Timestamp)
