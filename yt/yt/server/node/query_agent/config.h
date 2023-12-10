@@ -31,6 +31,8 @@ public:
 
     bool RejectUponThrottlerOverdraft;
 
+    i64 MaxPullQueueResponseDataWeight;
+
     REGISTER_YSON_STRUCT(TQueryAgentConfig);
 
     static void Register(TRegistrar registrar);
@@ -50,6 +52,8 @@ public:
     std::optional<int> TableRowFetchThreadPoolSize;
 
     std::optional<bool> RejectUponThrottlerOverdraft;
+
+    std::optional<i64> MaxPullQueueResponseDataWeight;
 
     REGISTER_YSON_STRUCT(TQueryAgentDynamicConfig);
 

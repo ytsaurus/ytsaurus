@@ -325,6 +325,7 @@ public:
                 ->GetMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::Query))
         , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
+        , MaxPullQueueResponseDataWeight_(Config_->MaxPullQueueResponseDataWeight)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
@@ -366,6 +367,7 @@ private:
     const IRequestQueueProviderPtr MultireadRequestQueueProvider = CreateMultireadRequestQueueProvider();
 
     std::atomic<bool> RejectUponThrottlerOverdraft_;
+    std::atomic<i64> MaxPullQueueResponseDataWeight_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/byte_size");
@@ -427,7 +429,7 @@ private:
             queryOptions.MemoryLimitPerNode,
             dataSources.size());
 
-        if (RejectUponThrottlerOverdraft_.load()) {
+        if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
                 .WorkloadDescriptor = queryOptions.WorkloadDescriptor,
                 .ReadSessionId = queryOptions.ReadSessionId
@@ -541,7 +543,7 @@ private:
             useLookupCache = request->use_lookup_cache();
         }
 
-        if (RejectUponThrottlerOverdraft_.load()) {
+        if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             ThrowUponNodeThrottlerOverdraft(
                 context->GetStartTime(),
                 context->GetTimeout(),
@@ -1546,14 +1548,13 @@ private:
             chunkReadOptions,
             chunkReadOptions.WorkloadDescriptor.Category);
 
-        TRowBatchReadOptions options{
-            .MaxRowsPerRead = maxRowCount,
-            .MaxDataWeightPerRead = maxDataWeight,
-        };
+        TRowBatchReadOptions readOptions;
+        readOptions.MaxRowsPerRead = std::min(readOptions.MaxRowsPerRead, maxRowCount);
+        readOptions.MaxDataWeightPerRead = std::min(readOptions.MaxDataWeightPerRead, maxDataWeight);
 
         i64 readRows = 0;
         i64 readDataWeight = 0;
-        while (auto batch = reader->Read(options)) {
+        while (auto batch = reader->Read(readOptions)) {
             if (batch->IsEmpty()) {
                 YT_LOG_DEBUG(
                     "Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
@@ -1567,16 +1568,23 @@ private:
             auto rows = batch->MaterializeRows();
 
             readRows += std::ssize(rows);
-            readDataWeight += static_cast<i64>(GetDataWeight(rows));
+            maxRowCount -= std::ssize(rows);
+
+            i64 currentReadDataWeight = GetDataWeight(rows);
+            readDataWeight += currentReadDataWeight;
+            maxDataWeight -= currentReadDataWeight;
 
             writer->WriteUnversionedRowset(rows);
 
-            if (readRows >= maxRowCount || readDataWeight >= maxDataWeight) {
+            if (maxRowCount <= 0 ||
+                maxDataWeight <= 0 ||
+                readDataWeight >= MaxPullQueueResponseDataWeight_.load(std::memory_order::relaxed))
+            {
                 break;
             }
 
-            options.MaxRowsPerRead = maxRowCount - readRows;
-            options.MaxDataWeightPerRead = maxDataWeight - readDataWeight;
+            readOptions.MaxRowsPerRead = std::min(readOptions.MaxRowsPerRead, maxRowCount);
+            readOptions.MaxDataWeightPerRead = std::min(readOptions.MaxDataWeightPerRead, maxDataWeight);
         }
 
         YT_LOG_DEBUG(
@@ -1931,6 +1939,8 @@ private:
     {
         RejectUponThrottlerOverdraft_.store(
             newConfig->QueryAgent->RejectUponThrottlerOverdraft.value_or(Config_->RejectUponThrottlerOverdraft));
+        MaxPullQueueResponseDataWeight_.store(
+            newConfig->QueryAgent->MaxPullQueueResponseDataWeight.value_or(Config_->MaxPullQueueResponseDataWeight));
     }
 };
 
