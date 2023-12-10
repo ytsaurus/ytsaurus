@@ -1082,9 +1082,9 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
 
     TResourceStatistics statistics;
     for (const auto& [nodeId, descriptor] : *descriptors) {
-        if (descriptor.Online && descriptor.CanSchedule(filter)) {
-            statistics.Usage += descriptor.ResourceUsage;
-            statistics.Limits += descriptor.ResourceLimits;
+        if (descriptor->Online && descriptor->CanSchedule(filter)) {
+            statistics.Usage += descriptor->ResourceUsage;
+            statistics.Limits += descriptor->ResourceLimits;
         }
     }
     return statistics;

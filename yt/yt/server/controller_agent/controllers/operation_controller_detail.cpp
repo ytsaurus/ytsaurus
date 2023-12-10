@@ -4341,7 +4341,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
     LastAvailableExecNodesCheckTime_ = now;
 
-    TExecNodeDescriptor observedExecNode;
+    TString observedExecNodeAddress;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     int nonMatchingFilterNodeCount = 0;
@@ -4351,7 +4351,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
         bool hasSuitableTree = false;
         for (const auto& [treeName, settings] : PoolTreeControllerSettingsMap_) {
-            if (descriptor.CanSchedule(settings.SchedulingTagFilter)) {
+            if (descriptor->CanSchedule(settings.SchedulingTagFilter)) {
                 hasSuitableTree = true;
                 break;
             }
@@ -4382,13 +4382,13 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             };
 
             #define XX(name, Name) processJobResourceType( \
-                descriptor.ResourceLimits.Get##Name(), \
+                descriptor->ResourceLimits.Get##Name(), \
                 neededResources.ToJobResources().Get##Name(), \
                 EJobResourceType::Name);
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
 
-            bool taskCanSatisfyDiskQuotaRequest = CanSatisfyDiskQuotaRequest(descriptor.DiskResources, neededResources.DiskQuota(), /*considerUsage*/ false);
+            bool taskCanSatisfyDiskQuotaRequest = CanSatisfyDiskQuotaRequest(descriptor->DiskResources, neededResources.DiskQuota(), /*considerUsage*/ false);
             hasEnoughResources |= taskHasEnoughResources && taskCanSatisfyDiskQuotaRequest;
 
             if (hasEnoughResources) {
@@ -4405,9 +4405,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             continue;
         }
 
-        observedExecNode = descriptor;
+        observedExecNodeAddress = descriptor->Address;
         foundMatching = true;
-        if (BannedNodeIds_.find(descriptor.Id) == BannedNodeIds_.end()) {
+        if (BannedNodeIds_.find(descriptor->Id) == BannedNodeIds_.end()) {
             foundMatchingNotBanned = true;
             // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
             break;
@@ -4447,7 +4447,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     YT_LOG_DEBUG("Available exec nodes check succeeded (ObservedNodeAddress: %v)",
-        observedExecNode.Address);
+        observedExecNodeAddress);
 }
 
 void TOperationControllerBase::CheckMinNeededResourcesSanity()
@@ -4716,7 +4716,7 @@ void TOperationControllerBase::DoScheduleJob(
         return;
     }
 
-    if (BannedNodeIds_.find(context->GetNodeDescriptor().Id) != BannedNodeIds_.end()) {
+    if (BannedNodeIds_.find(context->GetNodeDescriptor()->Id) != BannedNodeIds_.end()) {
         YT_LOG_TRACE("Node is banned, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NodeBanned);
         return;
@@ -4742,8 +4742,8 @@ void TOperationControllerBase::TryScheduleJob(
         return;
     }
 
-    const auto& address = context->GetNodeDescriptor().Address;
-    auto nodeId = context->GetNodeDescriptor().Id;
+    const auto& address = context->GetNodeDescriptor()->Address;
+    auto nodeId = context->GetNodeDescriptor()->Id;
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
 
     for (const auto& task : Tasks) {

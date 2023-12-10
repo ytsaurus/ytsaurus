@@ -34,11 +34,11 @@ bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
     return filter.IsEmpty() || filter.CanSchedule(Tags_);
 }
 
-TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
+TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
 {
     auto guard = ReaderGuard(SpinLock_);
 
-    return TExecNodeDescriptor(
+    return New<TExecNodeDescriptor>(
         Id_,
         GetDefaultAddress(),
         NodeDescriptor_.GetDataCenter(),

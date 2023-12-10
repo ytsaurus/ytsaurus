@@ -2505,8 +2505,8 @@ private:
 
         auto result = New<TRefCountedExecNodeDescriptorMap>();
         for (const auto& [nodeId, descriptor] : *descriptors) {
-            if (filter.CanSchedule(descriptor.Tags)) {
-                EmplaceOrCrash(*result, descriptor.Id, descriptor);
+            if (filter.CanSchedule(descriptor->Tags)) {
+                EmplaceOrCrash(*result, descriptor->Id, descriptor);
             }
         }
         return result;
@@ -2520,8 +2520,8 @@ private:
 
         TMemoryDistribution result;
         for (const auto& [nodeId, descriptor] : *descriptors) {
-            if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
-                ++result[RoundUp<i64>(descriptor.ResourceLimits.GetMemory(), 1_GB)];
+            if (descriptor->Online && filter.CanSchedule(descriptor->Tags)) {
+                ++result[RoundUp<i64>(descriptor->ResourceLimits.GetMemory(), 1_GB)];
             }
         }
         return result;

@@ -2316,7 +2316,7 @@ const TString& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
 
         return NotReceivedAddress;
     } else {
-        return nodeIt->second.Address;
+        return nodeIt->second->Address;
     }
 }
 

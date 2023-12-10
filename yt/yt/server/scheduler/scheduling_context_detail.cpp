@@ -82,7 +82,7 @@ NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResource
     return DiskResources_;
 }
 
-const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
+const TExecNodeDescriptorPtr& TSchedulingContextBase::GetNodeDescriptor() const
 {
     return NodeDescriptor_;
 }

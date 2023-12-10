@@ -23,10 +23,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptor& other)
-    : Id(other.Id)
-    , Address(other.Address)
-    , IOWeight(other.IOWeight)
+TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptorPtr& other)
+    : Id(other->Id)
+    , Address(other->Address)
+    , IOWeight(other->IOWeight)
 { }
 
 void TJobNodeDescriptor::Persist(const TPersistenceContext& context)

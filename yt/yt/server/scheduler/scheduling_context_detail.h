@@ -33,7 +33,7 @@ public:
     const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override;
     NNodeTrackerClient::NProto::TDiskResources& DiskResources();
 
-    const TExecNodeDescriptor& GetNodeDescriptor() const override;
+    const TExecNodeDescriptorPtr& GetNodeDescriptor() const override;
 
     bool CanStartJobForOperation(
         const TJobResourcesWithQuota& jobResourcesWithQuota,
@@ -75,7 +75,7 @@ private:
     const int NodeShardId_;
     const TSchedulerConfigPtr Config_;
     const TExecNodePtr Node_;
-    const TExecNodeDescriptor NodeDescriptor_;
+    const TExecNodeDescriptorPtr NodeDescriptor_;
     const TBooleanFormulaTags NodeTags_;
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
     const TJobResources DefaultMinSpareJobResources_;

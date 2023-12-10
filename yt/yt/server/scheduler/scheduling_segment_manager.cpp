@@ -114,10 +114,10 @@ const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(
 }
 
 const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(
-    const TExecNodeDescriptor& nodeDescriptor,
+    const TExecNodeDescriptorPtr& nodeDescriptor,
     ESchedulingSegmentModuleType moduleType)
 {
-    return GetNodeModule(nodeDescriptor.DataCenter, nodeDescriptor.InfinibandCluster, moduleType);
+    return GetNodeModule(nodeDescriptor->DataCenter, nodeDescriptor->InfinibandCluster, moduleType);
 }
 
 TString TSchedulingSegmentManager::GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType)
@@ -1137,9 +1137,9 @@ void TSchedulingSegmentManager::GetMovableNodes(
 
 const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TFairShareTreeJobSchedulerNodeState& node) const
 {
-    YT_ASSERT(node.Descriptor.has_value());
+    YT_ASSERT(node.Descriptor);
 
-    return GetNodeModule(*node.Descriptor, Config_->ModuleType);
+    return GetNodeModule(node.Descriptor, Config_->ModuleType);
 }
 
 void TSchedulingSegmentManager::SetNodeSegment(

@@ -81,7 +81,7 @@ public:
         const std::optional<TString>& nodeInfinibandCluster,
         ESchedulingSegmentModuleType moduleType);
     static const TSchedulingSegmentModule& GetNodeModule(
-        const TExecNodeDescriptor& nodeDescriptor,
+        const TExecNodeDescriptorPtr& nodeDescriptor,
         ESchedulingSegmentModuleType moduleType);
 
     static TString GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType);

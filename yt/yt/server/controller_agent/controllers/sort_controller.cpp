@@ -2200,12 +2200,12 @@ protected:
         struct TAssignedNode
             : public TRefCounted
         {
-            TAssignedNode(const TExecNodeDescriptor& descriptor, double weight)
+            TAssignedNode(const TExecNodeDescriptorPtr& descriptor, double weight)
                 : Descriptor(descriptor)
                 , Weight(weight)
             { }
 
-            TExecNodeDescriptor Descriptor;
+            TExecNodeDescriptorPtr Descriptor;
             double Weight;
             i64 AssignedDataWeight = 0;
         };
@@ -2227,15 +2227,15 @@ protected:
         TJobResources maxResourceLimits;
         double maxIOWeight = 0;
         for (const auto& [nodeId, descriptor] : nodeDescriptors) {
-            maxResourceLimits = Max(maxResourceLimits, descriptor.ResourceLimits);
-            maxIOWeight = std::max(maxIOWeight, descriptor.IOWeight);
+            maxResourceLimits = Max(maxResourceLimits, descriptor->ResourceLimits);
+            maxIOWeight = std::max(maxIOWeight, descriptor->IOWeight);
         }
 
         std::vector<TAssignedNodePtr> nodeHeap;
         for (const auto& [nodeId, descriptor] : nodeDescriptors) {
             double weight = 1.0;
-            weight = std::min(weight, GetMinResourceRatio(descriptor.ResourceLimits, maxResourceLimits));
-            weight = std::min(weight, descriptor.IOWeight > 0 ? descriptor.IOWeight / maxIOWeight : 0);
+            weight = std::min(weight, GetMinResourceRatio(descriptor->ResourceLimits, maxResourceLimits));
+            weight = std::min(weight, descriptor->IOWeight > 0 ? descriptor->IOWeight / maxIOWeight : 0);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(descriptor, weight);
                 nodeHeap.push_back(assignedNode);
@@ -2266,7 +2266,7 @@ protected:
 
         for (const auto& partition : partitionsToAssign) {
             auto node = nodeHeap.front();
-            auto nodeId = node->Descriptor.Id;
+            auto nodeId = node->Descriptor->Id;
 
             partition->SetAssignedNodeId(nodeId);
 
@@ -2290,13 +2290,13 @@ protected:
             YT_LOG_DEBUG("Partition assigned (Index: %v, DataWeight: %v, Address: %v)",
                 partition->Index,
                 partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal(),
-                node->Descriptor.Address);
+                node->Descriptor->Address);
         }
 
         for (const auto& node : nodeHeap) {
             if (node->AssignedDataWeight > 0) {
                 YT_LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataWeight: %v, AdjustedDataWeight: %v)",
-                    node->Descriptor.Address,
+                    node->Descriptor->Address,
                     node->Weight,
                     node->AssignedDataWeight,
                     static_cast<i64>(node->AssignedDataWeight / node->Weight));

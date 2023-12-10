@@ -32,7 +32,8 @@ void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* co
 // TODO(eshcherbin): Make this refcounted?
 struct TFairShareTreeJobSchedulerNodeState
 {
-    std::optional<TExecNodeDescriptor> Descriptor;
+    // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
+    TExecNodeDescriptorPtr Descriptor;
 
     ESchedulingSegment SchedulingSegment = ESchedulingSegment::Default;
     std::optional<ESchedulingSegment> SpecifiedSchedulingSegment;
