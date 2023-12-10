@@ -104,6 +104,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::ILeaseGuardPtr>, TransientLeaseGuards);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::ILeaseGuardPtr>, PersistentLeaseGuards);
 
+    DEFINE_BYVAL_RW_PROPERTY(TTabletId, ExternalizerTabletId);
+
 public:
     explicit TTransaction(TTransactionId id);
 
@@ -129,6 +131,9 @@ public:
     bool IsSerializationNeeded() const;
 
     NObjectClient::TCellTag GetCellTag() const;
+
+    bool IsExternalizedToThisCell() const;
+    bool IsExternalizedFromThisCell() const;
 
 private:
     TPromise<void> FinishedPromise_ = NewPromise<void>();

@@ -41,6 +41,27 @@ struct TTransactionAbortOptions
     void Persist(const TStreamPersistenceContext& context);
 };
 
+void ToProto(
+    NProto::TTransactionPrepareOptions* protoOptions,
+    const TTransactionPrepareOptions& options);
+void FromProto(
+    TTransactionPrepareOptions* options,
+    const NProto::TTransactionPrepareOptions& protoOptions);
+
+void ToProto(
+    NProto::TTransactionCommitOptions* protoOptions,
+    const TTransactionCommitOptions& options);
+void FromProto(
+    TTransactionCommitOptions* options,
+    const NProto::TTransactionCommitOptions& protoOptions);
+
+void ToProto(
+    NProto::TTransactionAbortOptions* protoOptions,
+    const TTransactionAbortOptions& options);
+void FromProto(
+    TTransactionAbortOptions* options,
+    const NProto::TTransactionAbortOptions& protoOptions);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ITransactionManager

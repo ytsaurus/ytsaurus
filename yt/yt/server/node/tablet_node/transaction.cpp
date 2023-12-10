@@ -241,6 +241,19 @@ TCellTag TTransaction::GetCellTag() const
     return CellTagFromId(GetId());
 }
 
+bool TTransaction::IsExternalizedFromThisCell() const
+{
+    return static_cast<bool>(ExternalizerTabletId_);
+}
+
+bool TTransaction::IsExternalizedToThisCell() const
+{
+    auto type = TypeFromId(Id_);
+    return type == EObjectType::ExternalizedSystemTabletTransaction ||
+        type == EObjectType::ExternalizedAtomicTabletTransaction ||
+        type == EObjectType::ExternalizedNonAtomicTabletTransaction;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

@@ -61,9 +61,10 @@ protected:
     template <class TRequest>
     void RegisterForwardedMethod(TCallback<void(TRequest*)> callback);
 
-private:
+protected:
     const IMutationForwarderPtr MutationForwarder_;
 
+private:
     template <class TRequest>
     void ForwardedMethodImpl(TCallback<void(TRequest*)> callback, TRequest* request);
 };

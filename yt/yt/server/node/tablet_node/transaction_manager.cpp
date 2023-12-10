@@ -146,6 +146,10 @@ public:
         // COMPAT(babenko)
         RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});
         RegisterMethod(BIND(&TTransactionManager::HydraHandleTransactionBarrier, Unretained(this)));
+        RegisterMethod(BIND(&TTransactionManager::HydraExternalizeTransaction, Unretained(this)));
+        RegisterMethod(BIND(&TTransactionManager::HydraPrepareExternalizedTransaction, Unretained(this)));
+        RegisterMethod(BIND(&TTransactionManager::HydraCommitExternalizedTransaction, Unretained(this)));
+        RegisterMethod(BIND(&TTransactionManager::HydraAbortExternalizedTransaction, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TTransactionManager::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
             ->Via(Host_->GetGuardedAutomatonInvoker());
@@ -377,6 +381,17 @@ public:
                 options.PrepareTimestamp,
                 options.PrepareTimestampClusterTag);
         }
+
+        if (transaction->IsExternalizedFromThisCell()) {
+            YT_VERIFY(persistent);
+        }
+
+        // NB: forwaring must happen after transaction actions are run because
+        // prepare may fail locally.
+        ForwardTransactionIfExternalized(
+            transaction,
+            NProto::TReqPrepareExternalizedTransaction{},
+            options);
     }
 
     void PrepareTransactionAbort(
@@ -494,6 +509,11 @@ public:
 
         FinishTransaction(transaction);
 
+        ForwardTransactionIfExternalized(
+            transaction,
+            NProto::TReqCommitExternalizedTransaction{},
+            options);
+
         if (transaction->IsSerializationNeeded()) {
             auto heapTag = GetSerializingTransactionHeapTag(transaction);
             auto& heap = SerializingTransactionHeaps_[heapTag];
@@ -557,6 +577,11 @@ public:
         FinishTransaction(transaction);
 
         transaction->SetFinished();
+
+        ForwardTransactionIfExternalized(
+            transaction,
+            NProto::TReqAbortExternalizedTransaction{},
+            options);
 
         if (transaction->GetTransient()) {
             TransientTransactionMap_.Remove(transactionId);
@@ -753,6 +778,10 @@ private:
             return;
         }
 
+        if (transaction->IsExternalizedToThisCell()) {
+            return;
+        }
+
         auto invoker = Host_->GetEpochAutomatonInvoker();
 
         LeaseTracker_->RegisterTransaction(
@@ -771,6 +800,10 @@ private:
             return;
         }
 
+        if (transaction->IsExternalizedToThisCell()) {
+            return;
+        }
+
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
         transaction->SetHasLease(false);
     }
@@ -784,6 +817,8 @@ private:
         if (!transaction) {
             return;
         }
+
+        YT_VERIFY(!transaction->IsExternalizedToThisCell());
 
         if (transaction->GetTransientState() != ETransactionState::Active) {
             return;
@@ -1006,6 +1041,58 @@ private:
     }
 
 
+    template <class TRequest, class TOptions = std::monostate>
+    void ForwardTransactionIfExternalized(
+        TTransaction* transaction,
+        TRequest request,
+        const TOptions& options)
+    {
+        auto tabletId = transaction->GetExternalizerTabletId();
+        if (!tabletId) {
+            return;
+        }
+
+        YT_VERIFY(!transaction->IsExternalizedToThisCell());
+
+        EObjectType newType;
+        switch (TypeFromId(transaction->GetId())) {
+            case EObjectType::AtomicTabletTransaction:
+                newType = EObjectType::ExternalizedAtomicTabletTransaction;
+                break;
+
+            case EObjectType::NonAtomicTabletTransaction:
+                newType = EObjectType::ExternalizedNonAtomicTabletTransaction;
+                break;
+
+            case EObjectType::Transaction:
+            case EObjectType::SystemTransaction:
+                newType = EObjectType::ExternalizedSystemTabletTransaction;
+                break;
+
+            default:
+                YT_LOG_FATAL("Attempted to externalize tablet transaction of unknown type "
+                    "(TransactionId: %v, Type: %v)",
+                    transaction->GetId(),
+                    TypeFromId(transaction->GetId()));
+        }
+
+        ToProto(
+            request.mutable_transaction_id(),
+            ReplaceTypeInId(transaction->GetId(), newType));
+
+        if constexpr (!std::is_same_v<TOptions, std::monostate>) {
+            ToProto(request.mutable_options(), options);
+        }
+
+        WriteAuthenticationIdentityToProto(
+            &request,
+            GetCurrentAuthenticationIdentity());
+
+        MutationForwarder_->MaybeForwardMutationToSiblingServant(
+            tabletId,
+            request);
+    }
+
     void HydraRegisterTransactionActions(NTabletClient::NProto::TReqRegisterTransactionActions* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -1042,10 +1129,13 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %v)",
                 transactionId,
-                data.Type);
+                data.Type,
+                signature);
         }
+
+        ForwardTransactionIfExternalized(transaction, *request, /*options*/ {});
 
         transaction->PersistentPrepareSignature() += signature;
         // NB: May destroy transaction.
@@ -1106,6 +1196,84 @@ private:
         }
 
         TransactionBarrierHandled_.Fire(barrierTimestamp);
+    }
+
+    void HydraExternalizeTransaction(NProto::TReqExternalizeTransaction* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
+        auto tabletId = FromProto<TTabletId>(request->externalizer_tablet_id());
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        auto* transaction = GetOrCreateTransactionOrThrow(
+            transactionId,
+            transactionStartTimestamp,
+            transactionTimeout,
+            /*transient*/ false);
+
+        auto state = transaction->GetPersistentState();
+        if (state != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        transaction->SetExternalizerTabletId(tabletId);
+    }
+
+    void HydraPrepareExternalizedTransaction(NProto::TReqPrepareExternalizedTransaction* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto options = FromProto<TTransactionPrepareOptions>(request->options());
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        YT_LOG_DEBUG("Preparing externalized transaction (TransactionId: %v)",
+            transactionId);
+
+        YT_VERIFY(options.Persistent);
+
+        try {
+            PrepareTransactionCommit(
+                transactionId,
+                TTransactionPrepareOptions{
+                    .Persistent = true,
+                }
+            );
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to prepare externalized transaction (TransactionId: %v)",
+                transactionId);
+        }
+    }
+
+    void HydraCommitExternalizedTransaction(NProto::TReqCommitExternalizedTransaction* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto options = FromProto<TTransactionCommitOptions>(request->options());
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        YT_LOG_DEBUG("Committing externalized transaction (TransactionId: %v)",
+            transactionId);
+
+        CommitTransaction(transactionId, options);
+    }
+
+    void HydraAbortExternalizedTransaction(NProto::TReqAbortExternalizedTransaction* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto options = FromProto<TTransactionAbortOptions>(request->options());
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        YT_LOG_DEBUG("Aborting externalized transaction (TransactionId: %v)",
+            transactionId);
+
+        AbortTransaction(transactionId, options);
     }
 
     TDuration ComputeTransactionSerializationLag() const

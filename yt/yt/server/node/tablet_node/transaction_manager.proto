@@ -1,8 +1,46 @@
 package NYT.NTabletNode.NProto;
 
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqHandleTransactionBarrier
 {
     required uint64 timestamp = 1;
+}
+
+message TReqExternalizeTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 transaction_start_timestamp = 2;
+    required int64 transaction_timeout = 3;
+    required NYT.NProto.TGuid externalizer_tablet_id = 4;
+    required string user = 5;
+    optional string user_tag = 6;
+}
+
+message TReqPrepareExternalizedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NTransactionSupervisor.NProto.TTransactionPrepareOptions options = 2;
+    required string user = 3;
+    optional string user_tag = 4;
+}
+
+message TReqCommitExternalizedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NTransactionSupervisor.NProto.TTransactionCommitOptions options = 2;
+    required string user = 3;
+    optional string user_tag = 4;
+}
+
+message TReqAbortExternalizedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NTransactionSupervisor.NProto.TTransactionAbortOptions options = 2;
+    required string user = 3;
+    optional string user_tag = 4;
 }

@@ -58,6 +58,9 @@ using namespace NSecurityServer;
 using namespace NTransactionClient;
 using namespace NYTree;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto ParticipantCleanupPeriod = TDuration::Minutes(5);

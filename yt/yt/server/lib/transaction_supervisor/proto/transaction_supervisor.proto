@@ -85,4 +85,24 @@ message TReqParticipantAbortTransaction
     optional string user_tag = 3;
 }
 
+message TTransactionPrepareOptions
+{
+    required bool persistent = 1;
+    required bool late_prepare = 2;
+    required uint64 prepare_timestamp = 3;
+    required uint32 prepare_timestamp_cluster_tag = 4;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 5;
+}
+
+message TTransactionCommitOptions
+{
+    required uint64 commit_timestamp = 1;
+    required uint32 commit_timestamp_cluster_tag = 2;
+}
+
+message TTransactionAbortOptions
+{
+    required bool force = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

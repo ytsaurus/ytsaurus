@@ -6,8 +6,10 @@ namespace NYT::NTransactionSupervisor {
 
 using namespace NHydra;
 using namespace NLogging;
-using namespace NProto;
 using namespace NObjectClient;
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +104,7 @@ TFuture<void> TSimpleTransactionSupervisor::AbortTransaction(
     return mutation->Commit().Apply(BIND(&RecoverErrorFromMutationResponse));
 }
 
-void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(TReqPrepareTransactionCommit* request)
+void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
 {
     TTransactionPrepareOptions options{
         .Persistent = request->persistent(),
@@ -113,7 +115,7 @@ void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(TReqPrepareTran
         options);
 }
 
-void TSimpleTransactionSupervisor::HydraCommitTransaction(TReqCommitTransaction* request)
+void TSimpleTransactionSupervisor::HydraCommitTransaction(NProto::TReqCommitTransaction* request)
 {
     TTransactionCommitOptions options{
         .CommitTimestamp = FromProto<TTimestamp>(request->commit_timestamp())
@@ -123,7 +125,7 @@ void TSimpleTransactionSupervisor::HydraCommitTransaction(TReqCommitTransaction*
         options);
 }
 
-void TSimpleTransactionSupervisor::HydraAbortTransaction(TReqAbortTransaction* request)
+void TSimpleTransactionSupervisor::HydraAbortTransaction(NProto::TReqAbortTransaction* request)
 {
     TTransactionAbortOptions options{
         .Force = request->force(),

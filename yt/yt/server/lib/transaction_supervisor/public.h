@@ -32,6 +32,14 @@ struct TTransactionPrepareOptions;
 struct TTransactionCommitOptions;
 struct TTransactionAbortOptions;
 
+namespace NProto {
+
+class TTransactionPrepareOptions;
+class TTransactionCommitOptions;
+class TTransactionAbortOptions;
+
+} // namespace NProto
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTransaction>
