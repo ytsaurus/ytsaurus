@@ -176,6 +176,7 @@ TTabletActionBatch Balance(
                     DefaultPerformanceCountersKeys,
                     config,
                     group,
+                    /*metricTracker*/ nullptr,
                     Logger)
                 };
         }

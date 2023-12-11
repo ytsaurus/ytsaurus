@@ -77,6 +77,7 @@ public:
         std::vector<TString> performanceCountersKeys,
         TParameterizedReassignSolverConfig config,
         TGroupName groupName,
+        TTableParameterizedMetricTrackerPtr metricTracker,
         const TLogger& logger);
 
     std::vector<TMoveDescriptor> BuildActionDescriptors() override;
@@ -117,6 +118,7 @@ private:
     const std::vector<TString> PerformanceCountersKeys_;
     const TParameterizedReassignSolverConfig Config_;
     const TGroupName GroupName_;
+    TTableParameterizedMetricTrackerPtr MetricTracker_;
 
     std::vector<TTabletInfo> Tablets_;
     THashMap<TTabletCellId, TTabletCellInfo> Cells_;
@@ -160,6 +162,7 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     std::vector<TString> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
+    TTableParameterizedMetricTrackerPtr metricTracker,
     const TLogger& logger)
     : Bundle_(std::move(bundle))
     , Logger(logger
@@ -168,6 +171,7 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     , PerformanceCountersKeys_(std::move(performanceCountersKeys))
     , Config_(std::move(config))
     , GroupName_(std::move(groupName))
+    , MetricTracker_(std::move(metricTracker))
 { }
 
 void TParameterizedReassignSolver::Initialize()
@@ -250,6 +254,10 @@ void TParameterizedReassignSolver::Initialize()
     }
 
     CurrentMetric_ = CalculateTotalBundleMetric();
+    if (MetricTracker_) {
+        MetricTracker_->BeforeMetric.Update(CurrentMetric_);
+    }
+
     YT_VERIFY(CurrentMetric_ >= 0.);
 
     CalculateMemory();
@@ -792,6 +800,10 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
         std::ssize(descriptors),
         Config_.MaxMoveActionCount);
 
+    if (MetricTracker_) {
+        MetricTracker_->AfterMetric.Update(CurrentMetric_);
+    }
+
     return descriptors;
 }
 
@@ -802,6 +814,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     std::vector<TString> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
+    TTableParameterizedMetricTrackerPtr metricTracker,
     const NLogging::TLogger& logger)
 {
     return New<TParameterizedReassignSolver>(
@@ -809,6 +822,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
         std::move(performanceCountersKeys),
         std::move(config),
         std::move(groupName),
+        std::move(metricTracker),
         logger);
 }
 

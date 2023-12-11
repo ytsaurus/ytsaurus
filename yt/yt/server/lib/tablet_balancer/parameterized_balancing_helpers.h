@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/logging/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/library/query/base/public.h>
 
 namespace NYT::NTabletBalancer {
@@ -29,6 +31,15 @@ DEFINE_REFCOUNTED_TYPE(IParameterizedReassignSolver)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTableParameterizedMetricTracker
+    : public TRefCounted
+{
+    NProfiling::TGauge BeforeMetric;
+    NProfiling::TGauge AfterMetric;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableParameterizedMetricTracker)
+
 struct TParameterizedReassignSolverConfig
 {
     bool EnableSwaps = true;
@@ -48,6 +59,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     std::vector<TString> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TString groupName,
+    TTableParameterizedMetricTrackerPtr metricTracker,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

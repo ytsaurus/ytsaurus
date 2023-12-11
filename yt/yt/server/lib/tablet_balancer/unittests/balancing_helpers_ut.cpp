@@ -573,6 +573,7 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
+        /*metricTracker*/ nullptr,
         Logger);
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
@@ -763,6 +764,7 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
                 .MaxMoveActionCount = 3
             }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
             group,
+            /*metricTracker*/ nullptr,
             Logger),
         ToString(std::get<1>(params)));
 }
@@ -810,6 +812,7 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
+        /*metricTracker*/ nullptr,
         Logger);
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
