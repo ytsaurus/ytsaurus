@@ -58,19 +58,20 @@ func (s *Suite) TestSetUserPassword(t *testing.T, yc yt.Client) {
 	user := "user-" + guid.New().String()
 	_ = s.CreateUser(t, user)
 
-	exists, err := yc.NodeExists(s.Ctx, ypath.Path("//sys/users/"+user+"/@hashed_password"), nil)
+	passwordAttr := ypath.Path("//sys/users/" + user + "/@hashed_password")
+	exists, err := yc.NodeExists(s.Ctx, passwordAttr, nil)
 	require.NoError(t, err)
 	require.False(t, exists)
 
 	err = yc.SetUserPassword(s.Ctx, user, "brabu", "", nil)
 	require.NoError(t, err)
 
-	exists, err = yc.NodeExists(s.Ctx, ypath.Path("//sys/users/"+user+"/@hashed_password"), nil)
+	exists, err = yc.NodeExists(s.Ctx, passwordAttr, nil)
 	require.NoError(t, err)
 	require.True(t, exists)
 
 	var hashedPassword string
-	err = yc.GetNode(s.Ctx, ypath.Path("//sys/users/"+user+"/@hashed_password"), &hashedPassword, nil)
+	err = yc.GetNode(s.Ctx, passwordAttr, &hashedPassword, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, hashedPassword)
 }
