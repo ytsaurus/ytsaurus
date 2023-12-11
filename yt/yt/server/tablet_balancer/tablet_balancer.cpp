@@ -144,7 +144,8 @@ private:
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
     i64 IterationIndex_;
 
-    NProfiling::TCounter PickPivotFailures;
+    NProfiling::TCounter PickPivotFailures_;
+    THashMap<TGlobalGroupTag, TTableParameterizedMetricTrackerPtr> GroupToParameterizedMetricTracker_;
 
     void BalancerIteration();
     void TryBalancerIteration();
@@ -185,6 +186,8 @@ private:
         int lastTabletIndex,
         std::optional<double> slicingAccuracy,
         bool enableVerboseLogging) const;
+
+    TTableParameterizedMetricTrackerPtr GetParameterizedMetricTracker(const TGlobalGroupTag& groupTag);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,7 +212,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->ParameterizedTimeoutOnStart,
         Config_->ParameterizedTimeout)
     , IterationIndex_(0)
-    , PickPivotFailures(TabletBalancerProfiler.WithSparse().Counter("/pick_pivot_failures"))
+    , PickPivotFailures_(TabletBalancerProfiler.WithSparse().Counter("/pick_pivot_failures"))
 {
     ActionManager_ = CreateActionManager(
         DynamicConfig_.Acquire()->ActionManager,
@@ -742,6 +745,9 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         return;
     }
 
+    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, groupName);
+    auto metricTracker = GetParameterizedMetricTracker(groupTag);
+
     auto dynamicConfig = DynamicConfig_.Acquire();
 
     auto descriptors = WaitFor(
@@ -758,13 +764,13 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
                 .Metric = dynamicConfig->DefaultParameterizedMetric,
             }.MergeWith(groupConfig->Parameterized),
             groupName,
+            metricTracker,
             Logger)
         .AsyncVia(WorkerPool_->GetInvoker())
         .Run())
         .ValueOrThrow();
 
     int actionCount = 0;
-    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, groupName);
 
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
@@ -927,7 +933,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                         lastTabletIndex,
                         descriptor.CorrelationId);
 
-                    PickPivotFailures.Increment(1);
+                    PickPivotFailures_.Increment(1);
 
                     if (dynamicConfig->CancelActionIfPickPivotKeysFails) {
                         YT_LOG_DEBUG(ex,
@@ -1082,6 +1088,28 @@ void TTabletBalancer::PickReshardPivotKeysIfNeeded(
         options,
         Logger,
         enableVerboseLogging || table->TableConfig->EnableVerboseLogging);
+}
+
+TTableParameterizedMetricTrackerPtr TTabletBalancer::GetParameterizedMetricTracker(
+    const TGlobalGroupTag& groupTag)
+{
+    auto it = GroupToParameterizedMetricTracker_.find(groupTag);
+    if (it == GroupToParameterizedMetricTracker_.end()) {
+        auto profiler = TabletBalancerProfiler
+            .WithSparse()
+            .WithTag("tablet_cell_bundle", groupTag.first)
+            .WithTag("group", groupTag.second);
+        auto metricTracker = New<TTableParameterizedMetricTracker>();
+        metricTracker->BeforeMetric = profiler.Gauge("/parameterized_metric/before");
+        metricTracker->AfterMetric = profiler.Gauge("/parameterized_metric/after");
+
+        return EmplaceOrCrash(
+            GroupToParameterizedMetricTracker_,
+            groupTag,
+            std::move(metricTracker))->second;
+    }
+
+    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

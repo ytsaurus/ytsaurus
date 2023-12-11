@@ -57,6 +57,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const std::vector<TString>& performanceCountersKeys,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
+    const TTableParameterizedMetricTrackerPtr& metricTracker,
     const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////

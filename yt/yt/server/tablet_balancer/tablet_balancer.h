@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////

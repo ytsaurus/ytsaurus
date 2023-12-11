@@ -46,6 +46,7 @@ using TGroupName = TString;
 
 struct TParameterizedReassignSolverConfig;
 
+DECLARE_REFCOUNTED_STRUCT(TTableParameterizedMetricTracker)
 DECLARE_REFCOUNTED_STRUCT(IParameterizedReassignSolver)
 
 ////////////////////////////////////////////////////////////////////////////////

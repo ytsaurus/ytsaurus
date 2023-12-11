@@ -866,6 +866,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const std::vector<TString>& performanceCountersKeys,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
+    const TTableParameterizedMetricTrackerPtr& metricTracker,
     const TLogger& logger)
 {
     auto solver = CreateParameterizedReassignSolver(
@@ -873,6 +874,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
         performanceCountersKeys,
         config,
         groupName,
+        metricTracker,
         logger);
 
     return solver->BuildActionDescriptors();
