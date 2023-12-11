@@ -120,12 +120,18 @@ private:
         bool TryIncrease(const TGlobalGroupTag& groupTag);
     };
 
+    struct TBundleErrors
+    {
+        std::deque<TError> FatalErrors;
+        std::deque<TError> RetryableErrors;
+    };
+
     IBootstrap* const Bootstrap_;
     const TStandaloneTabletBalancerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
     const TPeriodicExecutorPtr PollExecutor_;
     THashMap<TString, TBundleStatePtr> Bundles_;
-    mutable THashMap<TString, std::deque<TError>> BundleErrors_;
+    mutable THashMap<TString, TBundleErrors> BundleErrors_;
 
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     IThreadPoolPtr WorkerPool_;
@@ -137,8 +143,8 @@ private:
     TScheduledActionCountLimiter ActionCountLimiter_;
     TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
 
-    // Presized iteration start time used for liveness reporting.
-    TInstant PresizedCurrentIterationStartTime_;
+    // Precise iteration start time used for liveness reporting.
+    TInstant PreciseCurrentIterationStartTime_;
     // Logical iteration start time used for iteration scheduling.
     TInstant CurrentIterationStartTime_;
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
@@ -176,8 +182,12 @@ private:
     TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
-    void SaveBundleError(const TString& bundleName, TError error) const;
-    void RemoveBundleErrorsByTtl(TDuration ttl);
+
+    void SaveBundleError(std::deque<TError>* errors, TError error) const;
+    void SaveRetryableBundleError(const TString& bundleName, TError error) const;
+    void SaveFatalBundleError(const TString& bundleName, TError error) const;
+    void RemoveBundleErrorsByTtl(TDuration ttl) const;
+    void RemoveRetryableErrorsOnSuccessfulIteration(const TString& bundleName) const;
 
     void PickReshardPivotKeysIfNeeded(
         TReshardDescriptor* descriptor,
@@ -219,7 +229,8 @@ TTabletBalancer::TTabletBalancer(
         Bootstrap_->GetClient(),
         Bootstrap_);
 
-    bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
+    bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(
+        BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TTabletBalancer::Start()
@@ -288,7 +299,7 @@ void TTabletBalancer::BalancerIteration()
     auto newBundles = UpdateBundleList();
     YT_LOG_INFO("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
 
-    PresizedCurrentIterationStartTime_ = Now();
+    PreciseCurrentIterationStartTime_ = Now();
     CurrentIterationStartTime_ = TruncatedNow();
     auto dynamicConfig = DynamicConfig_.Acquire();
     RemoveBundleErrorsByTtl(dynamicConfig->BundleErrorsTtl);
@@ -298,10 +309,11 @@ void TTabletBalancer::BalancerIteration()
     auto nodeList = FetchNodeStatistics();
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetBundle()->Config) {
-            YT_LOG_ERROR("Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
+            YT_LOG_ERROR("Skip balancing iteration since bundle has unparsable "
+                "tablet balancer config (BundleName: %v)",
                 bundleName);
 
-            SaveBundleError(bundleName, TError(
+            SaveRetryableBundleError(bundleName, TError(
                 EErrorCode::IncorrectConfig,
                 "Bundle has unparsable tablet balancer config"));
             continue;
@@ -315,10 +327,12 @@ void TTabletBalancer::BalancerIteration()
 
         YT_LOG_INFO("Started fetching (BundleName: %v)", bundleName);
 
-        if (auto result = WaitFor(bundle->UpdateState(DynamicConfig_.Acquire()->FetchTabletCellsFromSecondaryMasters)); !result.IsOK()) {
+        if (auto result = WaitFor(bundle->UpdateState(DynamicConfig_.Acquire()->FetchTabletCellsFromSecondaryMasters));
+            !result.IsOK())
+        {
             YT_LOG_ERROR(result, "Failed to update meta registry (BundleName: %v)", bundleName);
 
-            SaveBundleError(bundleName, TError(
+            SaveRetryableBundleError(bundleName, TError(
                 EErrorCode::StatisticsFetchFailed,
                 "Failed to update meta registry")
                 << result);
@@ -334,12 +348,14 @@ void TTabletBalancer::BalancerIteration()
         if (auto result = WaitFor(bundle->FetchStatistics(nodeList)); !result.IsOK()) {
             YT_LOG_ERROR(result, "Fetch statistics failed (BundleName: %v)", bundleName);
 
-            SaveBundleError(bundleName, TError(
+            SaveRetryableBundleError(bundleName, TError(
                 EErrorCode::StatisticsFetchFailed,
                 "Fetch statistics failed")
                 << result);
             continue;
         }
+
+        RemoveRetryableErrorsOnSuccessfulIteration(bundleName);
 
         YT_LOG_INFO("Bundle balancing iteration started (BundleName: %v)", bundleName);
         BalanceBundle(bundle);
@@ -469,12 +485,22 @@ void TTabletBalancer::BuildOrchid(IYsonConsumer* consumer) const
             .Item("config").Value(Config_)
             .Item("bundle_errors")
                 .DoMapFor(BundleErrors_, [] (auto fluent, const auto& pair) {
-                    fluent.Item(pair.first).DoListFor(pair.second, [] (auto fluent, const auto& error) {
-                        fluent.Item().Value(error);
+                    fluent.DoIf(!pair.second.FatalErrors.empty(), [&] (TFluentMap fluent) {
+                        fluent.Item(pair.first).DoListFor(pair.second.FatalErrors, [] (auto fluent, const auto& error) {
+                            fluent.Item().Value(error);
+                        });
                     });
                 })
-            .DoIf(PresizedCurrentIterationStartTime_ != TInstant::Zero(), [&] (TFluentMap fluent) {
-                fluent.Item("last_iteration_start_time").Value(PresizedCurrentIterationStartTime_);
+            .Item("retryable_bundle_errors")
+                .DoMapFor(BundleErrors_, [] (auto fluent, const auto& pair) {
+                    fluent.DoIf(!pair.second.RetryableErrors.empty(), [&] (TFluentMap fluent) {
+                        fluent.Item(pair.first).DoListFor(pair.second.RetryableErrors, [] (auto fluent, const auto& error) {
+                            fluent.Item().Value(error);
+                        });
+                    });
+                })
+            .DoIf(PreciseCurrentIterationStartTime_ != TInstant::Zero(), [&] (TFluentMap fluent) {
+                fluent.Item("last_iteration_start_time").Value(PreciseCurrentIterationStartTime_);
             })
         .EndMap();
 }
@@ -525,7 +551,8 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
                 Bootstrap_->GetClient(),
                 WorkerPool_->GetInvoker()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());
-        it->second->SetHasUntrackedUnfinishedActions(HasUntrackedUnfinishedActions(it->second, &bundle->Attributes()));
+        it->second->SetHasUntrackedUnfinishedActions(
+            HasUntrackedUnfinishedActions(it->second, &bundle->Attributes()));
 
         if (isNew) {
             newBundles.push_back(name);
@@ -566,7 +593,9 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
     try {
         if (Config_->Period >= MinBalanceFrequency) {
             TInstant timePoint;
-            if (auto it = GroupPreviousIterationStartTime_.find(groupTag); it != GroupPreviousIterationStartTime_.end()) {
+            if (auto it = GroupPreviousIterationStartTime_.find(groupTag);
+                it != GroupPreviousIterationStartTime_.end())
+            {
                 timePoint = it->second + MinBalanceFrequency;
             } else {
                 // First balance of this group in this instance
@@ -589,16 +618,22 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
             return formula.IsSatisfiedBy(CurrentIterationStartTime_);
         }
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to evaluate tablet balancer schedule formula");
-        SaveBundleError(bundle->Name, TError(
-            EErrorCode::StatisticsFetchFailed,
-            "Fetch statistics failed")
+        YT_LOG_ERROR(ex,
+            "Failed to evaluate tablet balancer schedule formula (BundleName: %v, Group: %v)",
+            groupTag.first,
+            groupTag.second);
+        SaveFatalBundleError(bundle->Name, TError(
+            EErrorCode::ScheduleFormulaEvaluationFailed,
+            "Failed to evaluate tablet balancer schedule formula for group %Qv",
+            groupTag.second)
             << ex);
         return false;
     }
 }
 
-TTimeFormula TTabletBalancer::GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const
+TTimeFormula TTabletBalancer::GetBundleSchedule(
+    const TTabletCellBundlePtr& bundle,
+    const TTimeFormula& groupSchedule) const
 {
     if (!groupSchedule.IsEmpty()) {
         YT_LOG_DEBUG("Using group balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
@@ -649,7 +684,7 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
-                SaveBundleError(groupTag.first, TError(
+                SaveFatalBundleError(groupTag.first, TError(
                     EErrorCode::GroupActionLimitExceeded,
                     "Group %Qv has exceeded the limit for creating actions. "
                     "Failed to schedule in-memory move action",
@@ -704,7 +739,7 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
-                SaveBundleError(groupTag.first, TError(
+                SaveFatalBundleError(groupTag.first, TError(
                     EErrorCode::GroupActionLimitExceeded,
                     "Group %Qv has exceeded the limit for creating actions. "
                     "Failed to schedule ordinary move action",
@@ -775,7 +810,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
-                SaveBundleError(groupTag.first, TError(
+                SaveFatalBundleError(groupTag.first, TError(
                     EErrorCode::GroupActionLimitExceeded,
                     "Group %Qv has exceeded the limit for creating actions. "
                     "Failed to schedule parameterized move action",
@@ -814,13 +849,14 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
     } catch (const std::exception& ex) {
         const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
         YT_LOG_ERROR(ex,
-            "Parameterized balancing failed with an exception (BundleName: %v, Group: %v, GroupType: %lv, GroupMetric: %v)",
+            "Parameterized balancing failed with an exception "
+            "(BundleName: %v, Group: %v, GroupType: %lv, GroupMetric: %v)",
             bundle->Name,
             groupName,
             groupConfig->Type,
             groupConfig->Parameterized->Metric);
 
-        SaveBundleError(bundle->Name, TError(
+        SaveFatalBundleError(bundle->Name, TError(
             EErrorCode::ParameterizedBalancingFailed,
             "Parameterized balancing for group %Qv failed",
             groupName)
@@ -835,7 +871,8 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const T
     } else if (groupName == LegacyInMemoryGroupName) {
         BalanceViaMoveInMemory(bundleState);
     } else {
-        YT_LOG_ERROR("Trying to balance a non-legacy group with legacy algorithm (BundleName: %v, Group: %v)",
+        YT_LOG_ERROR("Trying to balance a non-legacy group with "
+            "legacy algorithm (BundleName: %v, Group: %v)",
             bundleState->GetBundle()->Name,
             groupName);
     }
@@ -953,7 +990,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             }
 
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
-                SaveBundleError(groupTag.first, TError(
+                SaveFatalBundleError(groupTag.first, TError(
                     EErrorCode::GroupActionLimitExceeded,
                     "Group %Qv has exceeded the limit for creating actions. "
                     "Failed to schedule reshard action",
@@ -1007,36 +1044,59 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         actionCount);
 }
 
-void TTabletBalancer::SaveBundleError(const TString& bundleName, TError error) const
+void TTabletBalancer::SaveFatalBundleError(const TString& bundleName, TError error) const
 {
-    auto it = BundleErrors_.emplace(bundleName, std::deque<TError>{}).first;
-    it->second.emplace_back(std::move(error));
+    auto it = BundleErrors_.emplace(bundleName, TBundleErrors{}).first;
+    SaveBundleError(&it->second.FatalErrors, std::move(error));
+}
 
-    if (it->second.size() > MaxSavedErrorCount) {
-        it->second.pop_front();
+void TTabletBalancer::SaveRetryableBundleError(const TString& bundleName, TError error) const
+{
+    auto it = BundleErrors_.emplace(bundleName, TBundleErrors{}).first;
+    SaveBundleError(&it->second.RetryableErrors, std::move(error));
+}
+
+void TTabletBalancer::SaveBundleError(std::deque<TError>* errors, TError error) const
+{
+    errors->emplace_back(std::move(error));
+
+    if (errors->size() > MaxSavedErrorCount) {
+        errors->pop_front();
     }
 }
 
-void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl)
+void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl) const
 {
     auto currentTime = Now();
     THashSet<TString> relevantBundles;
     for (auto& [bundleName, errors] : BundleErrors_) {
-        while (!errors.empty()) {
-            const auto& error = errors.front();
+        while (!errors.FatalErrors.empty()) {
+            const auto& error = errors.FatalErrors.front();
             if (error.HasDatetime() && error.GetDatetime() + ttl < currentTime) {
-                errors.pop_front();
+                errors.FatalErrors.pop_front();
                 continue;
             }
             break;
         }
 
-        if (!errors.empty()) {
+        if (!errors.FatalErrors.empty() || !errors.RetryableErrors.empty()) {
             relevantBundles.insert(bundleName);
         }
     }
 
     DropMissingKeys(BundleErrors_, relevantBundles);
+}
+
+void TTabletBalancer::RemoveRetryableErrorsOnSuccessfulIteration(const TString& bundleName) const
+{
+    auto it = BundleErrors_.find(bundleName);
+    if (it != BundleErrors_.end()) {
+        it->second.RetryableErrors.clear();
+
+        if (it->second.FatalErrors.empty()) {
+            BundleErrors_.erase(it);
+        }
+    }
 }
 
 void TTabletBalancer::PickReshardPivotKeysIfNeeded(
