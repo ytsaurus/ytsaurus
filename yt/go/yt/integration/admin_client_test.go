@@ -7,9 +7,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.ytsaurus.tech/library/go/ptr"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
+)
+
+const (
+	testOpsTimeout = time.Second * 10
 )
 
 func TestAdminClient(t *testing.T) {
@@ -50,7 +55,7 @@ func (s *Suite) TestAddRemoveMember(t *testing.T, yc yt.Client) {
 func (s *Suite) TestAddRemoveMaintenance(t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(s.Ctx, testOpsTimeout)
 	defer cancel()
 
 	// Get node

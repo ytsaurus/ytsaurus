@@ -5,9 +5,11 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/xerrors"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce"
 	"go.ytsaurus.tech/yt/go/schema"
@@ -53,7 +55,7 @@ func NewEnv(t testing.TB, opts ...Option) (env *Env, cancel func()) {
 	var err error
 
 	env = &Env{}
-	env.Ctx, cancelCtx = context.WithCancel(context.Background())
+	env.Ctx, cancelCtx = context.WithTimeout(context.Background(), 30*time.Second)
 	env.YT, err = ythttp.NewTestClient(t, &config)
 	if err != nil {
 		t.Fatalf("failed to create YT client: %+v", err)
