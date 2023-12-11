@@ -1082,3 +1082,63 @@ func TestHTTPAPILocationAliases(t *testing.T) {
 	r = c.MakePostRequest("list", api.RequestParams{})
 	require.Equal(t, http.StatusNotFound, r.StatusCode)
 }
+
+func TestHTTPAPIEditOptions(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("set_speclet", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"speclet": map[string]any{
+				"option1": 1,
+				"option2": "2",
+				"option3": 3,
+			},
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("edit_options", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"options_to_set": map[string]any{
+				"option1": 10,
+				"option2": "20",
+			},
+			"options_to_remove": []string{"option3"},
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var speclet map[string]any
+	err := env.YT.GetNode(env.Ctx, env.StrawberryRoot.JoinChild(alias, "speclet"), &speclet, nil)
+	require.NoError(t, err)
+	expected := map[string]any{
+		"family":  "sleep",
+		"stage":   "test_stage",
+		"option1": int64(10),
+		"option2": "20",
+	}
+	require.Equal(t, expected, speclet)
+
+	nonExistentPool := guid.New().String()
+	r = c.MakePostRequest("edit_options", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"options": map[string]any{
+				"pool": nonExistentPool,
+			},
+		},
+	})
+	require.Equal(t, http.StatusBadRequest, r.StatusCode)
+
+	err = env.YT.GetNode(env.Ctx, env.StrawberryRoot.JoinChild(alias, "speclet"), &speclet, nil)
+	require.NoError(t, err)
+	require.Equal(t, expected, speclet)
+}

@@ -616,7 +616,12 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	return nil
 }
 
-func (a *API) SetOptions(ctx context.Context, alias string, options map[string]any) error {
+func (a *API) EditOptions(
+	ctx context.Context,
+	alias string,
+	optionsToSet map[string]any,
+	optionsToRemove []string,
+) error {
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
@@ -624,7 +629,11 @@ func (a *API) SetOptions(ctx context.Context, alias string, options map[string]a
 		return err
 	}
 
-	if pool, ok := options["pool"]; ok {
+	if len(optionsToSet) == 0 && len(optionsToRemove) == 0 {
+		return nil
+	}
+
+	if pool, ok := optionsToSet["pool"]; ok {
 		if err := a.validatePoolOption(ctx, pool); err != nil {
 			return err
 		}
@@ -640,7 +649,15 @@ func (a *API) SetOptions(ctx context.Context, alias string, options map[string]a
 		return err
 	}
 
-	for key, value := range options {
+	for _, key := range optionsToRemove {
+		if _, ok := node.Speclet[key]; ok {
+			delete(node.Speclet, key)
+		} else {
+			return yterrors.Err("key you want to remove is not present in speclet")
+		}
+	}
+
+	for key, value := range optionsToSet {
 		node.Speclet[key] = value
 	}
 

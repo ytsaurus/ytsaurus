@@ -51,7 +51,7 @@ func validateBool(value any) error {
 	return nil
 }
 
-func transformAttributes(value any) (any, error) {
+func transformToStringSlice(value any) (any, error) {
 	if value == nil {
 		return []string(nil), nil
 	}

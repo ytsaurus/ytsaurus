@@ -27,7 +27,7 @@ var AttributesParameter = CmdParameter{
 	Name:        "attributes",
 	Type:        TypeAny,
 	Description: "strawberry operation attributes to add into response in yson list format",
-	Transformer: transformAttributes,
+	Transformer: transformToStringSlice,
 
 	ElementName:        "attribute",
 	ElementType:        TypeString,
@@ -287,7 +287,41 @@ var SetOptionsCmdDescriptor = CmdDescriptor{
 func (a HTTPAPI) HandleSetOptions(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	options := params["options"].(map[string]any)
-	if err := a.API.SetOptions(r.Context(), alias, options); err != nil {
+	if err := a.API.EditOptions(r.Context(), alias, options, nil); err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+	a.ReplyOK(w, nil)
+}
+
+var OptionsToSetParameter = CmdParameter{
+	Name:        "options_to_set",
+	Type:        TypeAny,
+	Required:    true,
+	Description: "speclet options to set in yson format",
+	Validator:   validateSpecletOptions,
+}
+
+var OptionsToRemoveParameter = CmdParameter{
+	Name:        "options_to_remove",
+	Type:        TypeAny,
+	Required:    true,
+	Description: "speclet options to remove in yson format",
+	Transformer: transformToStringSlice,
+}
+
+var EditOptionsCmdDescriptor = CmdDescriptor{
+	Name:        "edit_options",
+	Parameters:  []CmdParameter{AliasParameter, OptionsToSetParameter, OptionsToRemoveParameter},
+	Description: "edit multiple speclet options",
+	Handler:     HTTPAPI.HandleEditOptions,
+}
+
+func (a HTTPAPI) HandleEditOptions(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	alias := params["alias"].(string)
+	optionsToSet := params["options_to_set"].(map[string]any)
+	optionsToRemove := params["options_to_remove"].([]string)
+	if err := a.API.EditOptions(r.Context(), alias, optionsToSet, optionsToRemove); err != nil {
 		a.ReplyWithError(w, err)
 		return
 	}
@@ -390,6 +424,7 @@ var AllCommands = []CmdDescriptor{
 	GetSpecletCmdDescriptor,
 	SetSpecletCmdDescriptor,
 	SetOptionsCmdDescriptor,
+	EditOptionsCmdDescriptor,
 	StartCmdDescriptor,
 	StopCmdDescriptor,
 	DescribeOptionsCmdDescriptor,
