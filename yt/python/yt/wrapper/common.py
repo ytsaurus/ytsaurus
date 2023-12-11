@@ -89,13 +89,13 @@ def hide_fields(object, fields, prefixes, prefix_re=None, hidden_value="hidden")
 
 def hide_secure_vault(params):
     params = deepcopy(params)
-    hide_fields(params, fields=("secure_vault",), prefixes=("AQAD-",))
+    hide_fields(params, fields=("secure_vault",), prefixes=("AQAD-", "y1_AQAD-"))
     return params
 
 
 def hide_arguments(args):
     args = deepcopy(args)
-    hide_fields(args, fields=(), prefixes=(), prefix_re=re.compile(r"\bAQAD\-\S+"))
+    hide_fields(args, fields=(), prefixes=(), prefix_re=re.compile(r"\b(\w+_)?AQAD-\S+"))
     return args
 
 
