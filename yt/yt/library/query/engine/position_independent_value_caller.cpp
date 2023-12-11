@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NQueryClient {
@@ -22,7 +24,13 @@ void TCGPICaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run(
     auto* positionIndependentLiteralValues = literalValues.Empty()
         ? nullptr
         : &literalValues.Front();
-    auto positionIndependentResult = BorrowFromNonPI(result);
+
+    TValue resultBuffer = *result;
+    auto finallySaveResult = Finally([&] {
+        *result = resultBuffer;
+    });
+    auto positionIndependentResult = BorrowFromNonPI(&resultBuffer);
+
     auto positionIndependentRow = BorrowFromNonPI(row);
 
     Callback_(
@@ -64,8 +72,8 @@ void TCGPICaller<TCGAggregateInitSignature, TCGPIAggregateInitSignature>::Run(
 template <>
 void TCGPICaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>::Run(
     TExpressionContext* context,
-    TValue* first,
-    const TValue* second)
+    TValue* result,
+    const TValue* state)
 {
     static_assert(
         std::is_same_v<
@@ -78,13 +86,19 @@ void TCGPICaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>::Ru
             TCGPIAggregateFinalizeSignature>,
         "We assume the signatures are equal");
 
-    auto positionIndependentFirst = BorrowFromNonPI(first);
-    auto positionIndependentSecond = BorrowFromNonPI(const_cast<TValue*>(second));
+    TValue resultBuffer = *result;
+    resultBuffer = *result;
+    auto finallySaveResult = Finally([&] {
+        *result = resultBuffer;
+    });
+    auto positionIndependentResult = BorrowFromNonPI(&resultBuffer);
+
+    auto positionIndependentState = BorrowFromNonPI(const_cast<TValue*>(state));
 
     Callback_(
         context,
-        positionIndependentFirst.GetPIValue(),
-        positionIndependentSecond.GetPIValue());
+        positionIndependentResult.GetPIValue(),
+        positionIndependentState.GetPIValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
