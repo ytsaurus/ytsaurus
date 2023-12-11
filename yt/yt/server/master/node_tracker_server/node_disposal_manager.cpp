@@ -374,7 +374,7 @@ private:
     void EraseFromDisposalQueueOrCrash(const TNodeId& nodeId)
     {
         EraseOrCrash(NodesBeingDisposed_, nodeId);
-        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesAwaitingDisposal &&
+        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
             !NodesAwaitingForBeingDisposed_.empty()) {
             InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
             NodesAwaitingForBeingDisposed_.pop_front();
@@ -399,7 +399,7 @@ private:
         nodeTracker->SetNodeLocalState(node, ENodeState::BeingDisposed);
         node->SetNextDisposedLocationIndex(0);
 
-        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesAwaitingDisposal) {
+        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed) {
             InsertOrCrash(NodesBeingDisposed_, node->GetId());
         } else {
             NodesAwaitingForBeingDisposed_.push_back(node->GetId());
