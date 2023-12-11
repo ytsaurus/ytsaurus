@@ -96,7 +96,7 @@ def parse_solomon_timedelta(string):
         raise ValueError("Invalid Solomon timedelta: {0}".format(string))
     parts = parts.groupdict()
     time_params = {}
-    for name, param in parts.iteritems():
+    for name, param in parts.items():
         if param:
             time_params[name] = int(param)
     return datetime.timedelta(**time_params)
