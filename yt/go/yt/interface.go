@@ -37,6 +37,7 @@ import (
 	"io"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -790,6 +791,10 @@ type RemoveMemberOptions struct {
 	*PrerequisiteOptions
 }
 
+type SetUserPasswordOptions struct{}
+
+type IssueTokenOptions struct{}
+
 type AddMaintenanceOptions struct {
 }
 
@@ -920,6 +925,25 @@ type AdminClient interface {
 		member string,
 		options *RemoveMemberOptions,
 	) (err error)
+
+	// http:verb:"set_user_password"
+	// http:params:"user","new_password_sha256","current_password_sha256"
+	SetUserPassword(
+		ctx context.Context,
+		user string,
+		newPassword string,
+		currentPassword string,
+		options *SetUserPasswordOptions,
+	) (err error)
+
+	// http:verb:"issue_token"
+	// http:params:"user","password_sha256"
+	IssueToken(
+		ctx context.Context,
+		user string,
+		password string,
+		options *IssueTokenOptions,
+	) (token string, err error)
 
 	// http:verb:"add_maintenance"
 	// http:params:"component","address","type","comment"

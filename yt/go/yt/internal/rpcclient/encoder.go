@@ -6,6 +6,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/library/go/ptr"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -1153,6 +1154,25 @@ func (e *Encoder) AddMember(
 	}
 
 	return
+}
+
+func (e *Encoder) SetUserPassword(
+	ctx context.Context,
+	user string,
+	newPassword string,
+	currentPassword string,
+	options *yt.SetUserPasswordOptions,
+) (err error) {
+	return xerrors.Errorf("Unimplemented method: SetUserPassword")
+}
+
+func (e *Encoder) IssueToken(
+	ctx context.Context,
+	user string,
+	password string,
+	options *yt.IssueTokenOptions,
+) (token string, err error) {
+	return "", xerrors.Errorf("Unimplemented method: IssueToken")
 }
 
 func (e *Encoder) RemoveMember(
