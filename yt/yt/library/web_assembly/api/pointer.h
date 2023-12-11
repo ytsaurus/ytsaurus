@@ -2,15 +2,18 @@
 
 #include "compartment.h"
 
+#include <library/cpp/yt/misc/enum.h>
+
 namespace NYT::NWebAssembly {
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct ICompartment;
 
-enum class EAddressSpace
-{
-    Host = 0,
-    WebAssembly = 1,
-};
+DEFINE_ENUM(EAddressSpace,
+    (Host)
+    (WebAssembly)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

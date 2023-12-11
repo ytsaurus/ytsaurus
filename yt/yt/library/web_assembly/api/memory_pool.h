@@ -10,10 +10,9 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We intentionally define a separate class to work with memory pools,
-// because this class handles the difference between
-// memory addresses inside the VM and inside the host process.
-
+//! Manages allocations with respect to the difference between
+//! memory addresses inside the VM and inside the host process.
+//! We intentionally define a separate class to work with memory pools.
 class TWebAssemblyMemoryPool
     : public TNonCopyable
 {

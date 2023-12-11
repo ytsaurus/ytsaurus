@@ -354,7 +354,7 @@ class TLinker
     : public Runtime::Resolver
 {
 public:
-    TLinker(TWebAssemblyCompartment* compartment)
+    explicit TLinker(TWebAssemblyCompartment* compartment)
         : Compartment_(compartment)
     { }
 
@@ -388,7 +388,7 @@ public:
     }
 
 private:
-    TWebAssemblyCompartment* Compartment_;
+    TWebAssemblyCompartment* const Compartment_;
 
     std::optional<Runtime::Object*> ResolveMemoryLayoutGlobals(const std::string& objectName)
     {
@@ -545,7 +545,7 @@ void TWebAssemblyCompartment::InstantiateModule(
     const Runtime::LinkResult& linkResult,
     TStringBuf debugName)
 {
-    YT_ASSERT(linkResult.success);
+    YT_VERIFY(linkResult.success);
 
     auto instance = instantiateModule(
         Compartment_,

@@ -124,8 +124,6 @@ TEST_F(TWebAssemblyTest, BadDivision)
     } catch (WAVM::Runtime::Exception* exception) {
         WAVM::Runtime::destroyException(exception);
     }
-
-    SUCCEED();
 }
 
 TEST_F(TWebAssemblyTest, Clone)
@@ -307,8 +305,6 @@ TEST_F(TWebAssemblyTest, BadPointerDereference)
     } catch (WAVM::Runtime::Exception* exception) {
         WAVM::Runtime::destroyException(exception);
     }
-
-    SUCCEED();
 }
 
 TEST_F(TWebAssemblyTest, MemoryPoolAlignedAlloc)

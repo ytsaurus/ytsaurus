@@ -50,7 +50,7 @@ TCopyGuard CopyIntoCompartment(TStringBuf data, IWebAssemblyCompartment* compart
 template <>
 TCopyGuard CopyIntoCompartment(const std::vector<i64>& data, IWebAssemblyCompartment* compartment)
 {
-    auto byteLength = data.size() * sizeof(ui64);
+    auto byteLength = data.size() * sizeof(i64);
     auto offset = compartment->AllocateBytes(byteLength);
     auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<char*>(offset), byteLength);
     ::memcpy(destination, data.data(), byteLength);
