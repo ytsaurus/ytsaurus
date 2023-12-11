@@ -2183,7 +2183,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
     @authors("alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_reshard_with_slicing_empty(self, optimize_for):
+    def test_reshard_empty_table(self, optimize_for):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2204,7 +2204,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         "first_tablet_index,last_tablet_index",
         [(0, 0), (0, 1), (1, 3), (3, 4), (4, 4), (0, 4), (None, None)])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_reshard_with_slicing(self, first_tablet_index, last_tablet_index, optimize_for):
+    def test_reshard_sizes(self, first_tablet_index, last_tablet_index, optimize_for):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2251,7 +2251,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
     @authors("alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_reshard_with_slicing_and_compaction_small(self, optimize_for):
+    def test_reshard_and_compaction_small(self, optimize_for):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2282,7 +2282,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     @authors("alexelexa")
     @pytest.mark.timeout(120)
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_reshard_with_slicing_and_compaction_big(self, optimize_for):
+    def test_reshard_and_compaction_big(self, optimize_for):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2341,7 +2341,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("with_pivots", [True, False])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("with_after_alter_reshard", [True, False])
-    def test_reshard_with_slicing_after_alter(self, with_alter, with_pivots, optimize_for, with_after_alter_reshard):
+    def test_reshard_after_alter(self, with_alter, with_pivots, optimize_for, with_after_alter_reshard):
         if with_after_alter_reshard and not with_alter:
             return
 
@@ -2396,7 +2396,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
     @authors("alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_reshard_with_slicing_multi(self, optimize_for):
+    def test_reshard_multi(self, optimize_for):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2456,6 +2456,21 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         with pytest.raises(YtError):
             sync_reshard_table("//tmp/t", 4, enable_slicing=True, first_tablet_index=0, last_tablet_index=1)
+
+    @authors("alexelexa")
+    def test_replicated_table_reshard(self):
+        sync_create_cells(1)
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("replicated_table", "//tmp/t", attributes={
+            "dynamic": True,
+            "schema": schema,
+            "replication_factor": 1})
+
+        with pytest.raises(YtError):
+            sync_reshard_table("//tmp/t", 4, enable_slicing=True)
 
 
 ##################################################################
