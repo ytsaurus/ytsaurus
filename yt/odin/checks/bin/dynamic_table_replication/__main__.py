@@ -59,7 +59,7 @@ def run_check(yt_client, logger, options, states):
 
     def wait_for_result(func, message, raise_metacluster_error=False):
         try:
-            wait(func, error_message="Failed waiting for {}".format(message), sleep_backoff=1, timeout=30)
+            wait(func, error_message="Failed waiting for {}".format(message), sleep_backoff=1, timeout=45)
         except WaitFailed as e:
             logger.error(e)
             if raise_metacluster_error:
@@ -334,6 +334,7 @@ def run_check(yt_client, logger, options, states):
         current_epoch = (now.minute + 60 * now.hour) // 10
     else:
         current_epoch = (now.minute + 5 + 60 * now.hour) // 10 - 1
+        current_epoch = current_epoch if current_epoch >= 0 else 24 * 60 // 10 - 1
 
     replicated_table_path_templ = REPLICATED_TABLE_PATH_TEMPLATE.format(epoch=current_epoch)
     replica_table_path_templ = TABLE_PATH_TEMPLATE.format(epoch=current_epoch)
