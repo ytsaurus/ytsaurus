@@ -20,6 +20,7 @@ import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
 import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.YTree
 
@@ -28,6 +29,7 @@ import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Random
 
 class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
   with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks with PrivateMethodTester {
@@ -304,6 +306,22 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     val res = spark.read.yt(tmpPath).count()
 
     res shouldEqual 2
+  }
+
+  it should "count large table" in {
+    val rng = new Random(0)
+    val data = List.fill(10000)(rng.nextInt(200))
+
+    val df = data.toDF("a")
+    df.repartition(10).write.yt(tmpPath)
+
+    val res =
+      withConf(s"spark.hadoop.yt.${SparkYtConfiguration.Read.CountOptimizationEnabled.name}", "true") {
+        withConf(FILES_MAX_PARTITION_BYTES, "1Kb") {
+          spark.read.yt(tmpPath).count()
+        }
+      }
+    res shouldBe 10000
   }
 
   it should "count all partitions" in {

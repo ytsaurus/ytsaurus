@@ -4,19 +4,34 @@ import tech.ytsaurus.core.cypress.{Exact, Range, RangeCriteria, RangeLimit, YPat
 import tech.ytsaurus.ysontree.{YTree, YTreeNode}
 
 object YPathUtils {
+  private def getOnlyKey(limit: RangeLimit): Option[java.util.List[YTreeNode]] = {
+    if (!limit.key.isEmpty && limit.rowIndex == -1 && limit.offset == -1) {
+      Some(limit.key)
+    } else {
+      None
+    }
+  }
+
+  private def getOnlyIndex(limit: RangeLimit): Option[Long] = {
+    if (limit.key.isEmpty && limit.rowIndex != -1 && limit.offset == -1) {
+      Some(limit.rowIndex)
+    } else {
+      None
+    }
+  }
+
   implicit class RichExact(e: Exact) {
     def toRange: Range = {
-      val lowerKey = e.exact.key
-      val rowIndex = e.exact.rowIndex
-      val offset = e.exact.offset
-      if (!lowerKey.isEmpty && rowIndex == -1 && offset == -1) {
+      val onlyKey = getOnlyKey(e.exact)
+      val onlyIndex = getOnlyIndex(e.exact)
+      if (onlyKey.isDefined) {
         // Copied from tech.ytsaurus.core.cypress.Exact.forRetry.
         val lastPart = YTree.builder.beginAttributes.key("type").value("max").endAttributes.entity.build
-        val upperKey = new java.util.ArrayList(lowerKey)
+        val upperKey = new java.util.ArrayList(onlyKey.get)
         upperKey.add(lastPart)
-        new Range(RangeLimit.builder.setKey(lowerKey).build, RangeLimit.key(upperKey))
-      } else if (lowerKey.isEmpty && rowIndex != -1 && offset == -1) {
-        new Range(RangeLimit.row(rowIndex), RangeLimit.row(rowIndex + 1))
+        new Range(RangeLimit.builder.setKey(onlyKey.get).build, RangeLimit.key(upperKey))
+      } else if (onlyIndex.isDefined) {
+        new Range(RangeLimit.row(onlyIndex.get), RangeLimit.row(onlyIndex.get + 1))
       } else {
         throw new IllegalArgumentException("Cannot process exact file interval")
       }
@@ -60,4 +75,11 @@ object YPathUtils {
   def beginRowOption(ypath: YPath): Option[Long] = rangeOption(ypath).map(_.lower.rowIndex)
 
   def endRowOption(ypath: YPath): Option[Long] = rangeOption(ypath).map(_.upper.rowIndex)
+
+  def rowCount(ypath: YPath): Option[Long] = {
+    rangeOption(ypath).flatMap(range =>
+      getOnlyIndex(range.upper).flatMap(endRow =>
+        getOnlyIndex(range.lower).map(beginRow => endRow - beginRow))
+    )
+  }
 }

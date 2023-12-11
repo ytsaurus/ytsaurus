@@ -1,6 +1,5 @@
 package org.apache.spark.sql.v2
 
-import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
@@ -16,10 +15,9 @@ import org.apache.spark.sql.v2.YtUtils.bytesReadReporter
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch, SingleValueColumnVector, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
-import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.{CountOptimizationEnabled, VectorizedCapacity}
 import tech.ytsaurus.spyt.format.YtInputSplit
 import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import tech.ytsaurus.spyt.fs.{YtFileSystem, YtFileSystemBase}
 import tech.ytsaurus.spyt.fs.conf._
 import tech.ytsaurus.spyt.logger.TaskInfo
 import tech.ytsaurus.spyt.serializers.InternalRowDeserializer
@@ -28,7 +26,6 @@ import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 import tech.ytsaurus.spyt.common.utils.SegmentSet
 import tech.ytsaurus.spyt.format.YtPartitionedFile
 import tech.ytsaurus.spyt.format.conf.FilterPushdownConfig
-import tech.ytsaurus.spyt.fs.YtTableFileSystem
 import tech.ytsaurus.spyt.logger.{TaskInfo, YtDynTableLoggerConfig}
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
@@ -50,6 +47,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   private val readBatch: Boolean = YtReaderOptions.canReadBatch(readDataSchema, optimizedForScan, arrowEnabled)
   private val returnBatch: Boolean = readBatch && YtReaderOptions.supportBatch(resultSchema, sqlConf)
   private val batchMaxSize = sqlConf.ytConf(VectorizedCapacity)
+  private val countOptimizationEnabled = sqlConf.ytConf(CountOptimizationEnabled)
 
   @transient private lazy val taskContext: ThreadLocal[TaskContext] = new ThreadLocal()
 
@@ -195,7 +193,8 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
       arrowEnabled = arrowEnabled,
       optimizedForScan = optimizedForScan,
       timeout = ytClientConf.timeout,
-      bytesReadReporter(broadcastedConf)
+      reportBytesRead = bytesReadReporter(broadcastedConf),
+      countOptimizationEnabled = countOptimizationEnabled,
     )
   }
 }

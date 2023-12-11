@@ -58,6 +58,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     val filterPushdownConfig = FilterPushdownConfig(sparkSession)
 
     val batchMaxSize = hadoopConf.ytConf(VectorizedCapacity)
+    val countOptimizationEnabled = hadoopConf.ytConf(CountOptimizationEnabled)
 
     val log = LoggerFactory.getLogger(getClass)
     log.info(s"Batch read enabled: $readBatch")
@@ -82,7 +83,8 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
             arrowEnabled = arrowEnabledValue,
             optimizedForScan = optimizedForScanValue,
             timeout = ytClientConf.timeout,
-            bytesReadReporter(broadcastedConf)
+            reportBytesRead = bytesReadReporter(broadcastedConf),
+            countOptimizationEnabled = countOptimizationEnabled,
           )
           val iter = new RecordReaderIterator(ytVectorizedReader)
           Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))

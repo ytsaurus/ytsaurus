@@ -3,12 +3,12 @@ package org.apache.spark.sql.vectorized
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.slf4j.LoggerFactory
-import tech.ytsaurus.spyt.format.YtInputSplit
-import tech.ytsaurus.spyt.format.batch.WireRowBatchReader
+import tech.ytsaurus.spyt.format.{YPathUtils, YtInputSplit}
+import tech.ytsaurus.spyt.format.batch.{ArrowBatchReader, BatchReader, EmptyColumnsBatchReader, WireRowBatchReader}
 import tech.ytsaurus.spyt.serializers.ArrayAnyDeserializer
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.spyt.format.batch.{ArrowBatchReader, BatchReader}
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
 
 import scala.concurrent.duration.Duration
 
@@ -18,7 +18,8 @@ class YtVectorizedReader(split: YtInputSplit,
                          arrowEnabled: Boolean,
                          optimizedForScan: Boolean,
                          timeout: Duration,
-                         reportBytesRead: Long => Unit)
+                         reportBytesRead: Long => Unit,
+                         countOptimizationEnabled: Boolean)
                         (implicit yt: CompoundClient) extends RecordReader[Void, Object] {
   private val log = LoggerFactory.getLogger(getClass)
   private var _batchIdx = 0
@@ -27,7 +28,11 @@ class YtVectorizedReader(split: YtInputSplit,
     val path = split.ytPathWithFilters
     log.info(s"Reading from $path")
     val schema = split.schema
-    if (arrowEnabled && optimizedForScan) {
+    val totalRowCount = YPathUtils.rowCount(path)
+    if (countOptimizationEnabled && schema.isEmpty && totalRowCount.isDefined) {
+      // Empty schemas always batch readable
+      new EmptyColumnsBatchReader(totalRowCount.get)
+    } else if (arrowEnabled && optimizedForScan) {
       val stream = YtWrapper.readTableArrowStream(path, timeout, None, reportBytesRead)
       new ArrowBatchReader(stream, schema)
     } else {
