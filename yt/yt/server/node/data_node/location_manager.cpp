@@ -135,7 +135,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
         auto it = diskNameToId.find(location->GetStaticConfig()->DeviceName);
 
         if (it == diskNameToId.end()) {
-            YT_LOG_ERROR("Unknown location disk (DeviceName: %v)",
+            YT_LOG_WARNING("Unknown location disk (DeviceName: %v)",
                 location->GetStaticConfig()->DeviceName);
         } else {
             locationLivenessInfos.push_back(TLocationLivenessInfo{
@@ -287,15 +287,21 @@ TLocationHealthChecker::TLocationHealthChecker(
         DynamicConfig_.Acquire()->HealthCheckPeriod))
     , Profiler_(profiler)
 {
-    DiskOkGauge_ = Profiler_
-        .WithTag("state", FormatEnum(EDiskState::Ok))
-        .Gauge("/disk_state");
-    DiskFailedGauge_ = Profiler_
-        .WithTag("state", FormatEnum(EDiskState::Failed))
-        .Gauge("/disk_state");
-    DiskRecoverWaitGauge_ = Profiler_
-        .WithTag("state", FormatEnum(EDiskState::RecoverWait))
-        .Gauge("/disk_state");
+    for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
+        for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
+            auto diskStateName = FormatEnum(diskState);
+            auto diskFamilyName = FormatEnum(storageClass);
+
+            diskStateName.to_upper();
+            diskFamilyName.to_upper();
+
+            Gauges_[diskState][storageClass] = Profiler_
+                .WithTags(TTagSet(TTagList{
+                    {"diskman_state", diskStateName},
+                    {"disk_family", diskFamilyName}}))
+                .Gauge("/diskman_state");
+        }
+    }
 }
 
 void TLocationHealthChecker::Initialize()
@@ -335,6 +341,8 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
 
 void TLocationHealthChecker::OnHealthCheck()
 {
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
     auto config = DynamicConfig_.Acquire();
 
     if (config->Enabled) {
@@ -386,6 +394,8 @@ void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& dis
 
 void TLocationHealthChecker::OnLocationsHealthCheck()
 {
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
     auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
 
     // Fast path.
@@ -412,23 +422,23 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
         }
     }
 
-    i64 diskWithOkState = 0;
-    i64 diskWithFailedState = 0;
-    i64 diskWithRecoverWaitState = 0;
+    TEnumIndexedVector<NContainers::EDiskState, TEnumIndexedVector<NContainers::EStorageClass, i64>> counters;
 
-    for (const auto& diskInfo : diskInfos) {
-        if (diskInfo.State == NContainers::EDiskState::Ok) {
-            diskWithOkState++;
-        } else if (diskInfo.State == NContainers::EDiskState::RecoverWait) {
-            diskWithRecoverWaitState++;
-        } else if (diskInfo.State == NContainers::EDiskState::Failed) {
-            diskWithFailedState++;
+    for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
+        for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
+            counters[diskState][storageClass] = 0;
         }
     }
 
-    DiskOkGauge_.Update(diskWithOkState);
-    DiskFailedGauge_.Update(diskWithFailedState);
-    DiskRecoverWaitGauge_.Update(diskWithRecoverWaitState);
+    for (const auto& diskInfo : diskInfos) {
+        counters[diskInfo.State][diskInfo.StorageClass]++;
+    }
+
+    for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
+        for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
+            Gauges_[diskState][storageClass].Update(counters[diskState][storageClass]);
+        }
+    }
 
     LocationManager_->SetDiskAlert(diskAlert);
 
@@ -516,7 +526,7 @@ TLocationHealthCheckerPtr CreateLocationHealthChecker(
         locationManager,
         invoker,
         restartManager,
-        NProfiling::TProfiler("/data_node"));
+        NProfiling::TProfiler("/location"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
