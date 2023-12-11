@@ -59,6 +59,9 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
 
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
+    if (tableInfo->IsPhysicallyLog()) {
+        THROW_ERROR_EXCEPTION("Pivot keys must be provided to reshard a replicated table");
+    }
 
     TTableId tableId;
     TCellTag externalCellTag;
