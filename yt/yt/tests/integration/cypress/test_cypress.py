@@ -75,7 +75,6 @@ class TestCypress(YTEnvSetup):
         get("//@")
 
     @authors("panin", "ignat")
-    @not_implemented_in_sequoia
     def test_invalid_cases(self):
         # path not starting with /
         with pytest.raises(YtError):
@@ -229,7 +228,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/another_old_list")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_list_command(self):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3}, force=True)
         assert ls("//tmp/map") == ["a", "b", "c"]

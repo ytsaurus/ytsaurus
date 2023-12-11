@@ -733,6 +733,10 @@ private:
         void OnMyBeginMap() override
         {
             ClearRequest_ = Owner_->ClearAsync(Owner_->Path_);
+            // TODO(h0pless): Rewrite ClearAsync as a sync function when moving to handlers.
+            // Maybe split it into ClearFromTables + RemoveFromMasters then.
+            // For now this crutch should work.
+            WaitFor(ClearRequest_).ThrowOnError();
         }
 
         void OnMyKeyedItem(TStringBuf key) override
@@ -758,7 +762,6 @@ private:
             for (const auto& [childKey, childId] : Children_) {
                 Owner_->AttachChild(Owner_->Id_, childId, childKey);
             }
-            WaitFor(ClearRequest_).ThrowOnError();
         }
     };
 

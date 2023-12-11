@@ -325,9 +325,12 @@ void AttachChildToSequoiaNodeOrThrow(
 {
     auto type = trunkParent->GetType();
     YT_VERIFY(type == EObjectType::Scion || type == EObjectType::SequoiaMapNode);
-    auto& children = trunkParent->As<TSequoiaMapNode>()->MutableChildren();
+    auto* sequoiaTrunkNode = trunkParent->As<TSequoiaMapNode>();
+    auto& children = sequoiaTrunkNode->MutableChildren();
     if (children.Contains(childKey)) {
-        THROW_ERROR_EXCEPTION("Node %Qv already exists", childKey);
+        THROW_ERROR_EXCEPTION("Node %Qv already has child %Qv",
+            sequoiaTrunkNode->SequoiaProperties()->Path,
+            childKey);
     }
     children.Insert(childKey, childId);
 }
