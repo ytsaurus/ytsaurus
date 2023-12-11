@@ -30,6 +30,12 @@ get_built_tool_path(
   tools/rescompiler/bin
   rescompiler
 )
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
 
 add_library(query-unittests-udf INTERFACE)
 target_link_libraries(query-unittests-udf INTERFACE
@@ -57,6 +63,7 @@ target_sources(query-unittests-udf.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/bac0e4f65ff99b8fb74dd4fd574cfc92.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/9ee5169557a669d524c6d6d45b5b6de8.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/553b3a2404ace59eb76ee28e72b94162.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/4ee93022b700d3503f4d3f9b1b2e49a7.cpp
 )
 add_custom_command(
   OUTPUT
@@ -166,6 +173,33 @@ add_custom_command(
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
 )
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_optimized.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_optimized.bc
+  -O2
+  -globalopt
+  -globaldce
+  -internalize
+  -internalize-public-api-list=concat_all_init#concat_all_update#concat_all_merge#concat_all_finalize
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
+)
 llvm_compile_c(query-unittests-udf.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
@@ -183,6 +217,13 @@ llvm_compile_c(query-unittests-udf.global
 llvm_compile_c(query-unittests-udf.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
+  ${CLANGC}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+llvm_compile_c(query-unittests-udf.global
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/concat_all.c
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
   ${CLANGC}
   -Wno-unknown-warning-option
   -emit-llvm
@@ -221,4 +262,11 @@ resources(query-unittests-udf.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   KEYS
   /llvm_bc/xor_aggregate
+)
+resources(query-unittests-udf.global
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/4ee93022b700d3503f4d3f9b1b2e49a7.cpp
+  INPUTS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_optimized.bc
+  KEYS
+  /llvm_bc/concat_all
 )

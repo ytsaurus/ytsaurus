@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NQueryClient {
@@ -22,7 +24,13 @@ void TCGPICaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run(
     auto* positionIndependentLiteralValues = literalValues.Empty()
         ? nullptr
         : &literalValues.Front();
-    auto positionIndependentResult = BorrowFromNonPI(result);
+
+    TValue resultBuffer = *result;
+    auto finallySaveResult = Finally([&] {
+        *result = resultBuffer;
+    });
+    auto positionIndependentResult = BorrowFromNonPI(&resultBuffer);
+
     auto positionIndependentRow = BorrowFromNonPI(row);
 
     Callback_(
@@ -64,31 +72,42 @@ void TCGPICaller<TCGAggregateInitSignature, TCGPIAggregateInitSignature>::Run(
 template <>
 void TCGPICaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>::Run(
     TExpressionContext* context,
-    TValue* first,
-    TRange<TValue> second)
+    TValue* result,
+    TRange<TValue> input)
 {
-    auto positionIndependentFirst = BorrowFromNonPI(first);
-    auto positionIndependentSecond = BorrowFromNonPI(second);
+    TValue resultBuffer = *result;
+    auto finallySaveResult = Finally([&] {
+        *result = resultBuffer;
+    });
+    auto positionIndependentResult = BorrowFromNonPI(&resultBuffer);
+
+    auto positionIndependentInput = BorrowFromNonPI(input);
 
     Callback_(
         context,
-        positionIndependentFirst.GetPIValue(),
-        positionIndependentSecond.Begin());
+        positionIndependentResult.GetPIValue(),
+        positionIndependentInput.Begin());
 }
 
 template <>
 void TCGPICaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>::Run(
     TExpressionContext* context,
-    TValue* first,
-    const TValue* second)
+    TValue* result,
+    const TValue* state)
 {
-    auto positionIndependentFirst = BorrowFromNonPI(first);
-    auto positionIndependentSecond = BorrowFromNonPI(const_cast<TValue*>(second));
+    TValue resultBuffer = *result;
+    resultBuffer = *result;
+    auto finallySaveResult = Finally([&] {
+        *result = resultBuffer;
+    });
+    auto positionIndependentResult = BorrowFromNonPI(&resultBuffer);
+
+    auto positionIndependentState = BorrowFromNonPI(const_cast<TValue*>(state));
 
     Callback_(
         context,
-        positionIndependentFirst.GetPIValue(),
-        positionIndependentSecond.GetPIValue());
+        positionIndependentResult.GetPIValue(),
+        positionIndependentState.GetPIValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
