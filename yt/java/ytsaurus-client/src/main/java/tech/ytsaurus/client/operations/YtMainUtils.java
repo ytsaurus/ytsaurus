@@ -1,8 +1,10 @@
 package tech.ytsaurus.client.operations;
 
 import java.io.BufferedOutputStream;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -68,9 +70,15 @@ public class YtMainUtils {
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
+        } else if (args[1].equals("serializable")) {
+            try {
+                ObjectInputStream ois = new ObjectInputStream(new FileInputStream(args[2]));
+                return (MapperOrReducer<?, ?>) ois.readObject();
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
         } else {
             throw new IllegalArgumentException("Can't construct mapper or reducer for args: " + Arrays.toString(args));
         }
     }
-
 }

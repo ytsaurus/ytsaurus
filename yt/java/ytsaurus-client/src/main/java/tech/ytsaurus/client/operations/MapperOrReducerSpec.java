@@ -23,10 +23,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.FileWriter;
 import tech.ytsaurus.client.TransactionalClient;
+import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.JavaOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
@@ -147,6 +149,9 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
 
             YPath path = context.getConfiguration().getTmpDir().child(fileName);
 
+            yt.createNode(
+                    CreateNode.builder().setType(CypressNodeType.FILE).setPath(path).build()
+            ).join();
             FileWriter writer = yt.writeFile(new WriteFile(path.toString())).join();
             writer.write(bytes);
             writer.readyEvent().join();

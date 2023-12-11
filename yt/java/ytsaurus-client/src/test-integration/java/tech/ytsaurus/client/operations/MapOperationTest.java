@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.operations;
 
+import java.io.Serializable;
 import java.util.List;
 
 import javax.persistence.Column;
@@ -61,6 +62,38 @@ public class MapOperationTest extends YTsaurusClientTestBase {
         }
     }
 
+    public static class ColumnsNames implements Serializable {
+        private final String nameColumn;
+        private final String countColumn;
+
+        public ColumnsNames(String nameColumn, String countColumn) {
+            this.nameColumn = nameColumn;
+            this.countColumn = countColumn;
+        }
+    }
+
+    public static class SerializableMapperYTreeMapNode implements Mapper<YTreeMapNode, YTreeMapNode>, Serializable {
+        private final ColumnsNames columnsNames;
+
+        public SerializableMapperYTreeMapNode(ColumnsNames columnsNames) {
+            this.columnsNames = columnsNames;
+        }
+
+        @Override
+        public void map(YTreeMapNode entry, Yield<YTreeMapNode> yield, Statistics statistics,
+                        OperationContext context) {
+            String name = entry.getString(columnsNames.nameColumn);
+            Integer count = entry.getInt(columnsNames.countColumn);
+
+            YTreeMapNode outputRow = YTree.builder().beginMap()
+                    .key("name").value(name)
+                    .key("new_count").value(count * count)
+                    .buildMap();
+
+            yield.yield(outputRow);
+        }
+    }
+
     @Test
     public void testSimpleMapWithYTreeMapNode() {
         testSimple(new SimpleMapperYTreeMapNode());
@@ -69,6 +102,11 @@ public class MapOperationTest extends YTsaurusClientTestBase {
     @Test
     public void testSimpleMapWithEntity() {
         testSimple(new SimpleMapperEntity());
+    }
+
+    @Test
+    public void testMapWithSerializableMapper() {
+        testSimple(new SerializableMapperYTreeMapNode(new ColumnsNames("name", "count")));
     }
 
     private void testSimple(Mapper<?, ?> mapper) {
