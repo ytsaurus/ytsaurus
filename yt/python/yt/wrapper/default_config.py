@@ -776,8 +776,11 @@ def _update_from_env_vars(config):
         # None type is treated as str
         if isinstance(None, var_type):
             var_type = str
-        if var_type == dict or var_type == YsonMap:
+        elif var_type == dict or var_type == YsonMap:
             var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}  # noqa
+        elif isinstance(value, RemotePatchableValueBase):
+            var_type = type(value.value)
+
         return var_type
 
     def _apply_type(applied_type, key, value):

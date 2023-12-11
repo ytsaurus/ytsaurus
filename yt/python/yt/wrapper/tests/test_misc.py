@@ -1689,3 +1689,26 @@ class TestClientConfigFromCluster(object):
         assert yt.config["proxy"]["request_timeout"] == 20000, "default"
         assert len(pickle.dumps(yt.config.config["proxy"])) > 0
         assert deepcopy(yt.config.config) is not None
+
+    @authors("denvr")
+    def test_remote_config_and_env(self):
+        config_remote_patch_path = "//test_client_config_1"
+        yt.create("map_node", config_remote_patch_path)
+        yt.create("document", config_remote_patch_path + "/default")
+        yt.set(
+            config_remote_patch_path + "/default",
+            {
+                "enable_proxy_discovery": True,
+            },
+        )
+        yt.config["config_remote_patch_path"] = config_remote_patch_path
+
+        yt.default_config.default_config["proxy"]["enable_proxy_discovery"] = yt.default_config.RemotePatchableBoolean(False, "enable_proxy_discovery")
+        env_patched = os.environ
+        env_patched.update({"YT_USE_HOSTS": "1"})
+        with mock.patch.dict(os.environ, env_patched):
+            config = yt.default_config.get_config_from_env()
+
+        assert type(yt.default_config.default_config["proxy"]["enable_proxy_discovery"]) == yt.default_config.RemotePatchableBoolean
+        assert type(config["proxy"]["enable_proxy_discovery"]) == bool
+        assert config["proxy"]["enable_proxy_discovery"]
