@@ -124,9 +124,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
     const NProfiling::TProfiler Profiler_;
 
-    NProfiling::TGauge DiskOkGauge_;
-    NProfiling::TGauge DiskFailedGauge_;
-    NProfiling::TGauge DiskRecoverWaitGauge_;
+    TEnumIndexedVector<NContainers::EDiskState, TEnumIndexedVector<NContainers::EStorageClass, NProfiling::TGauge>> Gauges_;
 
     void OnHealthCheck();
 
