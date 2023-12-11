@@ -956,7 +956,7 @@ private:
         switch (field->cpp_type()) {
             case FieldDescriptor::CPPTYPE_INT32:
                 doForEach([&] (const INodePtr& node) {
-                   reflection->AddInt32(message, field, ConvertToProtobufValue(node, field->default_value_int32()));
+                    reflection->AddInt32(message, field, ConvertToProtobufValue(node, field->default_value_int32()));
                 });
                 return;
             case FieldDescriptor::CPPTYPE_INT64:

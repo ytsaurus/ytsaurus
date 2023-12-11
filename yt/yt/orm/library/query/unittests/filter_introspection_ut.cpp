@@ -142,7 +142,7 @@ TEST(FilterIntrospection, DefinedReference)
     EXPECT_FALSE(RunIntrospectFilterForDefinedReference(
         "list_contains([/spec/genres], \"fantasy\")",
         "/spec/genres"));
-     EXPECT_FALSE(RunIntrospectFilterForDefinedReference(
+    EXPECT_FALSE(RunIntrospectFilterForDefinedReference(
         "[/spec/year]>1990 OR false",
          "/spec/year"));
 
