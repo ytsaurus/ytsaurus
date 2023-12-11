@@ -163,7 +163,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             "string instead of map. Bazinga!"
         )
 
-        wait(lambda: any(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/bundle_errors")) > 0 for instance in instances))
+        wait(lambda: any(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/retryable_bundle_errors")) > 0 for instance in instances))
 
         self._apply_dynamic_config_patch({
             "bundle_errors_ttl": 100,
@@ -171,7 +171,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         remove("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups")
 
-        wait(lambda: all(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/bundle_errors")) == 0 for instance in instances))
+        wait(lambda: all(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/retryable_bundle_errors")) == 0 for instance in instances))
 
     @authors("alexelexa")
     def test_move_table_between_bundles(self):
