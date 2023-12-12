@@ -190,6 +190,8 @@ public:
 
     bool EnableModuleResetOnZeroFairShareAndUsage;
 
+    TDuration PriorityModuleAssignmentTimeout;
+
     const THashSet<TString>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
@@ -434,8 +436,6 @@ public:
     std::vector<double> PerPoolSatisfactionProfilingQuantiles;
 
     bool EnableGuaranteePriorityScheduling;
-
-    TDuration PriorityModuleAssignmentTimeout;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 

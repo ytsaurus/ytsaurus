@@ -288,14 +288,13 @@ bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssigment(
     TUpdateSchedulingSegmentsContext* context) const
 {
     const auto& treeSnapshot = context->TreeSnapshot;
-    const auto& operation = context->OperationStates[operationElement->GetOperationId()];
     const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(operationElement);
-    auto operationModuleAssignmentTimeout = treeSnapshot->TreeConfig()->PriorityModuleAssignmentTimeout;
+    const auto& operation = context->OperationStates[operationElement->GetOperationId()];
     auto failingToAssignToModuleSince = operation->FailingToAssignToModuleSince;
 
     return attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled &&
         failingToAssignToModuleSince &&
-        context->Now > *failingToAssignToModuleSince + operationModuleAssignmentTimeout;
+        context->Now > *failingToAssignToModuleSince + Config_->PriorityModuleAssignmentTimeout;
 }
 
 double TSchedulingSegmentManager::GetElementFairResourceAmount(const TSchedulerOperationElement* element, TUpdateSchedulingSegmentsContext* context) const

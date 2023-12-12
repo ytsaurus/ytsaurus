@@ -1099,7 +1099,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     def _prepare_for_module_preemption_test(self):
         update_pool_tree_config_option("default", "scheduling_segments/module_assignment_heuristic", "min_remaining_feasible_capacity")
-        update_pool_tree_config_option("default", "priority_module_assignment_timeout", 0)
+        update_pool_tree_config_option("default", "scheduling_segments/priority_module_assignment_timeout", 0)
 
         create_pool(
             "priority_large_gpu",
