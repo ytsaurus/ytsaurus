@@ -263,7 +263,8 @@ protected:
             return MakeFuture(TError(clientOrError));
         }
 
-        return clientOrError.Value()->GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
+        return clientOrError.Value()->GetNode(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
             .Apply(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
                 if (!resultOrError.IsOK()) {
                     // COMPAT(akozhikhov).
@@ -514,14 +515,26 @@ public:
     {
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
 
-        Host_->SubscribeReplicatedTableCreated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicatedTableCreated, MakeWeak(this)));
-        Host_->SubscribeReplicatedTableDestroyed(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicatedTableDestroyed, MakeWeak(this)));
+        Host_->SubscribeReplicatedTableCreated(BIND_NO_PROPAGATE(
+            &TNewReplicatedTableTracker::OnReplicatedTableCreated,
+            MakeWeak(this)));
+        Host_->SubscribeReplicatedTableDestroyed(BIND_NO_PROPAGATE(
+            &TNewReplicatedTableTracker::OnReplicatedTableDestroyed,
+            MakeWeak(this)));
 
-        Host_->SubscribeReplicationCollocationCreated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicationCollocationCreated, MakeWeak(this)));
-        Host_->SubscribeReplicationCollocationDestroyed(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicationCollocationDestroyed, MakeWeak(this)));
+        Host_->SubscribeReplicationCollocationCreated(BIND_NO_PROPAGATE(
+            &TNewReplicatedTableTracker::OnReplicationCollocationCreated,
+            MakeWeak(this)));
+        Host_->SubscribeReplicationCollocationDestroyed(BIND_NO_PROPAGATE(
+            &TNewReplicatedTableTracker::OnReplicationCollocationDestroyed,
+            MakeWeak(this)));
 
-        Host_->SubscribeReplicaCreated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicaCreated, MakeWeak(this)));
-        Host_->SubscribeReplicaDestroyed(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicaDestroyed, MakeWeak(this)));
+        Host_->SubscribeReplicaCreated(BIND_NO_PROPAGATE(
+            &TNewReplicatedTableTracker::OnReplicaCreated,
+            MakeWeak(this)));
+        Host_->SubscribeReplicaDestroyed(BIND_NO_PROPAGATE(
+            &TNewReplicatedTableTracker::OnReplicaDestroyed,
+            MakeWeak(this)));
     }
 
     void EnableTracking() override
@@ -1032,7 +1045,8 @@ public:
                 changeReplicaState(EReplicaState::GoodSync, EReplicaState::GoodAsync);
             }
 
-            YT_LOG_DEBUG("Grouped replicas by target state (TableId: %v, ContentType: %v, GoodSync: %v, BadSync: %v, GoodAsync: %v, BadAsync: %v)",
+            YT_LOG_DEBUG("Grouped replicas by target state "
+                "(TableId: %v, ContentType: %v, GoodSync: %v, BadSync: %v, GoodAsync: %v, BadAsync: %v)",
                 Id_,
                 contentType,
                 MakeFormattableView(replicasByState[EReplicaState::GoodSync], TReplicaIdFormatter()),
@@ -1048,7 +1062,7 @@ public:
             return &ReplicaIds_;
         }
 
-        bool ReadyForDeletion() const
+        bool IsReadyForDeletion() const
         {
             return ReplicaIds_.empty() && Destroyed_;
         }
@@ -1339,12 +1353,16 @@ private:
                     }
                 }
 
-                YT_LOG_DEBUG("Identified good clusters for collocation (CollocationId: %v, ContentType: %v, GoodClusters: %v)",
+                YT_LOG_DEBUG("Identified good clusters for collocation "
+                    "(CollocationId: %v, ContentType: %v, GoodClusters: %v)",
                     collocationId,
                     contentType,
                     goodReplicaClusters);
 
-                auto it = EmplaceOrCrash(collocationIdToClusterPriorities[contentType], collocationId, THashMap<TString, int>());
+                auto it = EmplaceOrCrash(
+                    collocationIdToClusterPriorities[contentType],
+                    collocationId,
+                    THashMap<TString, int>());
                 if (goodReplicaClusters) {
                     for (auto clusterName : *goodReplicaClusters) {
                         it->second[clusterName] = 2;
@@ -1361,7 +1379,9 @@ private:
                 replicaClusterPriorities.emplace();
             }
             if (table.GetCollocationId() != NullObjectId) {
-                replicaClusterPriorities = GetOrCrash(collocationIdToClusterPriorities[replicaFamily.ContentType], table.GetCollocationId());
+                replicaClusterPriorities = GetOrCrash(
+                    collocationIdToClusterPriorities[replicaFamily.ContentType],
+                    table.GetCollocationId());
             }
 
             if (preferredSyncReplicaClusters) {
@@ -1592,10 +1612,11 @@ private:
             if (table->GetCollocationId() != NullObjectId) {
                 auto& collocation = GetOrCrash(IdToCollocation_, table->GetCollocationId());
                 EraseOrCrash(collocation.TableIds, tableId);
+                table->SetCollocationId(NullObjectId);
             }
 
             table->MarkDestroyed();
-            if (table->ReadyForDeletion()) {
+            if (table->IsReadyForDeletion()) {
                 EraseOrCrash(IdToTable_, tableId);
             }
         }));
@@ -1667,7 +1688,7 @@ private:
                 if (auto* replicatedTable = replica->GetReplicatedTable()) {
                     YT_VERIFY(IdToTable_.contains(replicatedTable->GetId()));
                     EraseOrCrash(*replicatedTable->GetReplicaIds(), replicaId);
-                    if (replicatedTable->ReadyForDeletion()) {
+                    if (replicatedTable->IsReadyForDeletion()) {
                         EraseOrCrash(IdToTable_, replicatedTable->GetId());
                     }
                 }
