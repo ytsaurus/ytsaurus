@@ -247,16 +247,6 @@ private:
                     .Value(node->GetRegistrationPending());
                 return true;
 
-            case EInternedAttributeKey::Annotations: {
-                if (!node->GetAnnotations()) {
-                    break;
-                }
-
-                BuildYsonFluently(consumer)
-                    .Value(node->GetAnnotations());
-                return true;
-            }
-
             case EInternedAttributeKey::Version: {
                 BuildYsonFluently(consumer)
                     .Value(node->GetVersion());
@@ -655,6 +645,26 @@ private:
         }
 
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        auto* node = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::Annotations: {
+                if (!node->GetAnnotations()) {
+                    break;
+                }
+
+                return MakeFuture(node->GetAnnotations());
+            }
+
+            default:
+                break;
+        }
+
+        return TNonversionedObjectProxyBase::GetBuiltinAttributeAsync(key);
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
