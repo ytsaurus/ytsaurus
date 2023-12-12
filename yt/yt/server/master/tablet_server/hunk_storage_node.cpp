@@ -60,6 +60,27 @@ void THunkStorageNode::ValidateUnfreeze() const
     THROW_ERROR_EXCEPTION("Hunk storage does not support unfreeze");
 }
 
+void THunkStorageNode::ValidateReshard(
+    const TBootstrap* bootstrap,
+    int firstTabletIndex,
+    int lastTabletIndex,
+    int newTabletCount,
+    const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+    const std::vector<i64>& trimmedRowCounts) const
+{
+    TTabletOwnerBase::ValidateReshard(
+        bootstrap,
+        firstTabletIndex,
+        lastTabletIndex,
+        newTabletCount,
+        pivotKeys,
+        trimmedRowCounts);
+
+    if (!trimmedRowCounts.empty()) {
+        THROW_ERROR_EXCEPTION("Cannot reshard hunk storage node with \"trimmed_row_counts\"");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

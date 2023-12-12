@@ -623,14 +623,16 @@ void TTableNode::ValidateReshard(
     int firstTabletIndex,
     int lastTabletIndex,
     int newTabletCount,
-    const std::vector<TLegacyOwningKey>& pivotKeys) const
+    const std::vector<TLegacyOwningKey>& pivotKeys,
+    const std::vector<i64>& trimmedRowCounts) const
 {
     TTabletOwnerBase::ValidateReshard(
         bootstrap,
         firstTabletIndex,
         lastTabletIndex,
         newTabletCount,
-        pivotKeys);
+        pivotKeys,
+        trimmedRowCounts);
 
     // First, check parameters with little knowledge of the table.
     // Primary master must ensure that the table could be created.
@@ -684,6 +686,10 @@ void TTableNode::ValidateReshard(
         if (!IsPhysicallySorted() && pivotKeys.empty()) {
             THROW_ERROR_EXCEPTION("Pivot keys must be provided to reshard a replicated table");
         }
+
+        if (!trimmedRowCounts.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard sorted table with \"trimmed_row_counts\"");
+        }
     } else {
         if (!pivotKeys.empty()) {
             THROW_ERROR_EXCEPTION("Table is ordered; must provide tablet count");
@@ -697,6 +703,12 @@ void TTableNode::ValidateReshard(
     if (IsPhysicallyLog() && !IsLogicallyEmpty()) {
         THROW_ERROR_EXCEPTION("Cannot reshard non-empty table of type %Qlv",
             GetType());
+    }
+
+    if (IsPhysicallyLog()) {
+        if (!trimmedRowCounts.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard log table with \"trimmed_row_counts\"");
+        }
     }
 
     ParseTabletRangeOrThrow(this, &firstTabletIndex, &lastTabletIndex); // may throw
@@ -719,6 +731,23 @@ void TTableNode::ValidateReshard(
                         "Last pivot key must be strictly less than that of the tablet "
                         "which follows the resharded range");
                 }
+            }
+        }
+    } else {
+        int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
+        int createdTabletCount = std::max(0, newTabletCount - oldTabletCount);
+        if (!trimmedRowCounts.empty() && ssize(trimmedRowCounts) != createdTabletCount) {
+            THROW_ERROR_EXCEPTION("\"trimmed_row_counts\" has invalid size: expected "
+                "%v or %v, got %v",
+                0,
+                createdTabletCount,
+                ssize(trimmedRowCounts));
+        }
+
+        for (auto count : trimmedRowCounts) {
+            if (count < 0) {
+                THROW_ERROR_EXCEPTION("Trimmed row count must be nonnegative, got %v",
+                    count);
             }
         }
     }

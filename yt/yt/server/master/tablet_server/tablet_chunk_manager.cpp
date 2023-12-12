@@ -462,7 +462,12 @@ public:
                 attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
             } else {
                 for (int index = oldTabletCount; index < newTabletCount; ++index) {
-                    newTabletChunkLists[EChunkListContentType::Main].push_back(chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet));
+                    auto* newMainChunkList = chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet);
+
+                    auto* tablet = newTablets[index]->As<TTablet>();
+                    SetLogicalRowCount(newMainChunkList, tablet->GetTrimmedRowCount());
+
+                    newTabletChunkLists[EChunkListContentType::Main].push_back(newMainChunkList);
                     newTabletChunkLists[EChunkListContentType::Hunk].push_back(chunkManager->CreateChunkList(EChunkListKind::Hunk));
                 }
             }
@@ -937,6 +942,9 @@ public:
             : EChunkListKind::OrderedDynamicTablet);
         if (table->IsPhysicallySorted()) {
             tabletChunkList->SetPivotKey(EmptyKey());
+        } else {
+            auto* tablet = table->Tablets()[0]->As<TTablet>();
+            SetLogicalRowCount(tabletChunkList, tablet->GetTrimmedRowCount());
         }
         chunkManager->AttachToChunkList(newChunkList, tabletChunkList);
 
@@ -1837,6 +1845,20 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->AttachToChunkList(chunkList, storeChildren);
         chunkManager->AttachToChunkList(hunkChunkList, hunkChildren);
+    }
+
+    void SetLogicalRowCount(TChunkList* chunkList, i64 trimmedRowCount)
+    {
+        YT_VERIFY(chunkList->Children().empty());
+
+        if (trimmedRowCount == 0) {
+            return;
+        }
+
+        chunkList->Statistics().LogicalRowCount = trimmedRowCount;
+        auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+        cumulativeStatistics.PushBack(TCumulativeStatisticsEntry(trimmedRowCount, /*chunkCount*/ 0, /*dataSize*/ 0));
+        cumulativeStatistics.TrimFront(1);
     }
 };
 

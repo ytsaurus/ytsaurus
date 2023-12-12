@@ -1761,6 +1761,8 @@ NTabletClient::NProto::TReqReshard TClient::MakeReshardRequest(
     if (options.LastTabletIndex) {
         req.set_last_tablet_index(*options.LastTabletIndex);
     }
+    ToProto(req.mutable_trimmed_row_counts(), options.TrimmedRowCounts);
+
     return req;
 }
 

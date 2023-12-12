@@ -9,7 +9,8 @@ from yt_commands import (
     mount_table, reshard_table, generate_timestamp, wait_for_cells,
     get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table,
-    get_singular_chunk_id, create_dynamic_table, build_snapshot, generate_uuid)
+    get_singular_chunk_id, create_dynamic_table, build_snapshot, generate_uuid,
+    raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -18,6 +19,7 @@ import yt.yson as yson
 import pytest
 
 import time
+import random
 
 ##################################################################
 
@@ -1261,6 +1263,96 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 1
         sync_mount_table("//tmp/t")
         assert _select() == [4]
+
+    @authors("ifsmirnov")
+    def test_create_with_trimmed_row_count(self):
+        sync_create_cells(1)
+
+        with raises_yt_error():
+            self._create_simple_table("//tmp/t", trimmed_row_counts=[1])
+        with raises_yt_error():
+            self._create_simple_table("//tmp/t", trimmed_row_counts=[1, 2], tablet_count=4)
+
+        self._create_simple_table("//tmp/t", trimmed_row_counts=[10, 20], tablet_count=2)
+        tablets = get("//tmp/t/@tablets")
+        assert tablets[0]["flushed_row_count"] == 10
+        assert tablets[0]["flushed_row_count"] == 10
+        assert tablets[1]["trimmed_row_count"] == 20
+        assert tablets[1]["trimmed_row_count"] == 20
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 10, "$tablet_index": 0}, {"a": 20, "$tablet_index": 1}])
+        assert_items_equal(
+            select_rows("[$row_index], a from [//tmp/t]"),
+            [{"a": 10, "$row_index": 10}, {"a": 20, "$row_index": 20}])
+
+        sync_unmount_table("//tmp/t")
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    @authors("ifsmirnov")
+    def test_reshard_with_trimmed_row_count(self):
+        if self.DRIVER_BACKEND == "rpc":
+            pytest.skip("No trimmed_row_counts in rpc proxy")
+
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 5)
+        sync_mount_table("//tmp/t")
+        for i in range(5):
+            insert_rows(
+                "//tmp/t",
+                [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}],
+            )
+            trim_rows("//tmp/t", i, 1)
+        sync_unmount_table("//tmp/t")
+
+        with raises_yt_error():
+            sync_reshard_table("//tmp/t", 5, trimmed_row_counts=[1])
+        with raises_yt_error():
+            sync_reshard_table("//tmp/t", 3, first_tablet_index=0, last_tablet_index=2, trimmed_row_counts=[1, 2, 3])
+        with raises_yt_error():
+            sync_reshard_table("//tmp/t", 3, first_tablet_index=0, last_tablet_index=0, trimmed_row_counts=[1, 2, 3])
+
+        sync_reshard_table("//tmp/t", 5, first_tablet_index=1, last_tablet_index=3, trimmed_row_counts=[8, 9])
+
+        tablets = get("//tmp/t/@tablets")
+        assert [t["flushed_row_count"] for t in tablets] == [2, 2, 2, 2, 8, 9, 2]
+        assert [t["trimmed_row_count"] for t in tablets] == [1, 1, 1, 1, 8, 9, 1]
+
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    @authors("ifsmirnov")
+    def test_stress_reshard_with_trimmed_row_count(self):
+        if self.DRIVER_BACKEND == "rpc":
+            pytest.skip("No trimmed_row_counts in rpc proxy")
+
+        sync_create_cells(1)
+
+        trimmed_row_counts = [1, 2, 3, 4, 5]
+        self._create_simple_table("//tmp/t", tablet_count=5, trimmed_row_counts=trimmed_row_counts)
+        rnd = random.Random(131827381923)
+        for i in range(20):
+            first = rnd.randint(0, len(trimmed_row_counts) - 1)
+            last = rnd.randint(0, len(trimmed_row_counts) - 1)
+            if first > last:
+                first, last = last, first
+            old_count = last - first + 1
+            new_count = rnd.randint(1, 5)
+            created_tablet_count = max(0, new_count - old_count)
+            if rnd.randint(0, 1) == 0:
+                new_trimmed_row_counts = [rnd.randint(0, 10) for j in range(created_tablet_count)]
+            else:
+                new_trimmed_row_counts = []
+            sync_reshard_table("//tmp/t", new_count, first_tablet_index=first, last_tablet_index=last, trimmed_row_counts=new_trimmed_row_counts)
+
+            if new_count > old_count:
+                trimmed_row_counts[last+1:last+1] = new_trimmed_row_counts or [0] * created_tablet_count
+            else:
+                del trimmed_row_counts[first+new_count:first+old_count]
+
+            self._verify_chunk_tree_statistics("//tmp/t")
+            assert [t["trimmed_row_count"] for t in get("//tmp/t/@tablets")] == trimmed_row_counts
 
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):

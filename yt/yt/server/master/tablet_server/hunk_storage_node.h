@@ -34,6 +34,13 @@ protected:
 
     void ValidateFreeze() const override;
     void ValidateUnfreeze() const override;
+    void ValidateReshard(
+        const NCellMaster::TBootstrap* bootstrap,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+        const std::vector<i64>& trimmedRowCounts) const override;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(THunkStorageNode)

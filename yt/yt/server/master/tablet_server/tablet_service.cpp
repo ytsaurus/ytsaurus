@@ -752,17 +752,20 @@ private:
         int tabletCount = request->tablet_count();
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
+        auto trimmedRowCounts = FromProto<std::vector<i64>>(request->trimmed_row_counts());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
         YT_LOG_DEBUG("Preparing table reshard (TableId: %v, TransactionId: %v, %v, "
-            "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
+            "TabletCount: %v, PivotKeysSize: %v, TrimmedRowCountsSize: %v, "
+            "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
             NRpc::GetCurrentAuthenticationIdentity(),
             tabletCount,
             pivotKeys.size(),
+            trimmedRowCounts.size(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -785,7 +788,8 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             tabletCount,
-            pivotKeys);
+            pivotKeys,
+            trimmedRowCounts);
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
@@ -802,14 +806,17 @@ private:
         int tabletCount = request->tablet_count();
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
+        auto trimmedRowCounts = FromProto<std::vector<i64>>(request->trimmed_row_counts());
 
         YT_LOG_DEBUG("Committing table reshard (TableId: %v, TransactionId: %v, %v, "
-            "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
+            "TabletCount: %v, PivotKeysSize: %v, TrimmedRowCountsSize: %v, "
+            "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
             NRpc::GetCurrentAuthenticationIdentity(),
             tabletCount,
             pivotKeys.size(),
+            trimmedRowCounts.size(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -830,7 +837,8 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             tabletCount,
-            pivotKeys);
+            pivotKeys,
+            trimmedRowCounts);
 
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitReshard");
     }
