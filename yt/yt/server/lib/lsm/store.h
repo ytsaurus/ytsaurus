@@ -12,6 +12,20 @@ namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRowDigestUpcomingCompactionInfo
+{
+    EStoreCompactionReason Reason = EStoreCompactionReason::None;
+    TInstant Timestamp;
+};
+
+struct TCompactionHints
+{
+    TRowDigestUpcomingCompactionInfo RowDigest;
+    bool IsChunkViewTooNarrow = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStore
 {
 public:
@@ -45,8 +59,7 @@ public:
     // Sorted stores.
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, MinKey);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, UpperBoundKey);
-    DEFINE_BYREF_RW_PROPERTY(std::optional<NTableClient::TVersionedRowDigest>, RowDigest);
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsChunkViewTooNarrow, false);
+    DEFINE_BYREF_RW_PROPERTY(TCompactionHints, CompactionHints);
 
     // Ordered stores.
     // Nothing here yet.

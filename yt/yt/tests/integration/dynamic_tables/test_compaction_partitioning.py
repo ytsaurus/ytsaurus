@@ -568,7 +568,6 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert len(get("//tmp/t/@chunk_ids")) > 1
 
         set("//tmp/t/@mount_config/row_digest_compaction", {
-            "check_period": 1000,
             "max_obsolete_timestamp_ratio": 1,
             "max_timestamps_per_value": delete_ts_count // 4,
         })
@@ -673,6 +672,57 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         remount_table("//tmp/t")
 
         wait(lambda: all(get(f'#{tablet_id}/@statistics/compressed_data_size') < size for tablet_id in tablet_ids))
+
+    @authors("dave11ar")
+    def test_timestamp_digest_ttl_cleanup_expected(self):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "row_digest_compaction": {
+                    "period": yson.YsonEntity(),
+                },
+                "min_data_ttl": 1000,
+                "max_data_ttl": 1000
+            },
+            chunk_writer={
+                "versioned_row_digest": {
+                    "enable": True,
+                }
+            },
+            compression_codec="none"
+        )
+        sync_mount_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "use_row_digests": True,
+                }
+            }
+        })
+
+        def check(min_data_versions, max_data_versions, max_obsolete_timestamp_ratio):
+            for i in range(10):
+                insert_rows("//tmp/t", [{"key": 1, "value": "a" * i * 2**20}])
+
+            sync_flush_table("//tmp/t")
+
+            wait(lambda: get("//tmp/t/@chunk_ids"))
+            chunk_id = get("//tmp/t/@chunk_ids")[0]
+
+            set("//tmp/t/@min_data_versions", min_data_versions)
+            set("//tmp/t/@max_data_versions", max_data_versions)
+            set("//tmp/t/@mount_config/row_digest_compaction", {
+                "max_obsolete_timestamp_ratio": max_obsolete_timestamp_ratio,
+            })
+            remount_table("//tmp/t")
+
+            wait(lambda: chunk_id not in get("//tmp/t/@chunk_ids"))
+
+        check(1, 1, 0.89)
+        check(0, 1, 0.99)
+        check(0, 0, 0.99)
 
 ################################################################################
 

@@ -149,6 +149,8 @@ DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
 DECLARE_REFCOUNTED_STRUCT(IGranuleFilter)
 
+struct TVersionedRowDigest;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
