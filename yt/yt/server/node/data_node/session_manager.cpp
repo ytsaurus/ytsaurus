@@ -296,7 +296,9 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
     VERIFY_SPINLOCK_AFFINITY(SessionMapLock_);
 
     YT_VERIFY(SessionMap_.erase(session->GetId()) == 1);
+
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
+    session->UnlockChunk();
     session->OnUnregistered();
 }
 

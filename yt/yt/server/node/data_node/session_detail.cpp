@@ -171,6 +171,13 @@ void TSessionBase::OnUnregistered()
     UnregisteredEvent_.Set();
 }
 
+void TSessionBase::UnlockChunk()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = std::move(LockedChunkGuard_);
+}
+
 TFuture<void> TSessionBase::GetUnregisteredEvent()
 {
     VERIFY_THREAD_AFFINITY_ANY();

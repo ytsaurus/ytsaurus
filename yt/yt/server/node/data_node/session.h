@@ -100,6 +100,8 @@ struct ISession
     //! Called by session manager. Indicates that the session was unregistered.
     virtual void OnUnregistered() = 0;
 
+    virtual void UnlockChunk() = 0;
+
     virtual TFuture<void> GetUnregisteredEvent() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), Finished);
