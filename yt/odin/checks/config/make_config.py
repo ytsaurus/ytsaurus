@@ -770,6 +770,7 @@ def get_checks_config():
                         "seneca-klg": 8891,
                         "socrates": 86,
                         "vanga": 93,
+                        "testing-gnd": 8999,
                         "yp-iva": 550,
                         "yp-man": 98,
                         "yp-man-pre": 196,
@@ -1241,6 +1242,11 @@ def get_checks_config():
                 bundle_controller,
             ),
             "ofd-xdc": deep_merge(disable_remote_copy, snapshot_validation),
+            "testing-gnd": deep_merge(
+                snapshot_validation,
+                allow_unaware_nodes,
+                nochyt,
+            ),
             "yp-sas-test": spare_tablet_nodes_small,
             "yp-adm-pre": deep_merge(
                 spare_tablet_nodes_small,
