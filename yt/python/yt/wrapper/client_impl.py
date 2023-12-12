@@ -2409,7 +2409,7 @@ class YtClient(ClientState):
     def start_query(
             self,
             engine, query,
-            settings=None, files=None, stage=None):
+            settings=None, files=None, stage=None, annotations=None):
         """
         Start query.
 
@@ -2423,12 +2423,13 @@ class YtClient(ClientState):
         :type files: list or None
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
-
+        :param annotations: a dictionary of annotations
+        :type stage: dict or None
         """
         return client_api.start_query(
             engine, query,
             client=self,
-            settings=settings, files=files, stage=stage)
+            settings=settings, files=files, stage=stage, annotations=annotations)
 
     def start_spark_cluster(
             self,
