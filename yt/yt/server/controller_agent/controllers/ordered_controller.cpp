@@ -1129,7 +1129,8 @@ private:
 
     IAttributeDictionaryPtr InputTableAttributes_;
 
-    void ValidateTableType(auto table) const {
+    void ValidateTableType(auto table) const
+    {
         if (table->Type != EObjectType::Table && table->Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Only files and tables are allowed, but %v has type %Qlv",
                 table->GetPath(),
@@ -1152,10 +1153,10 @@ private:
 
         THROW_ERROR_EXCEPTION_UNLESS(
             OutputTables_[0]->Type == InputTables_[0]->Type,
-            "Invalid output object type %Qlv. Expected %Qlv, because input object %v has this type",
-            OutputTables_[0]->Type,
+            "Output object type does not match that of the input object %v: expected %Qlv, found %Qlv",
+            InputTables_[0]->GetPath(),
             InputTables_[0]->Type,
-            InputTables_[0]->GetPath());
+            OutputTables_[0]->Type);
 
         YT_VERIFY(!StderrTable_ && !CoreTable_);
     }

@@ -1031,8 +1031,8 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         disallow(["//tmp/file"], "<compression_codec=zstd_6>//tmp/file", error="disallowed for files")
         disallow(["//tmp/file"], "<erasure_codec=reed_solomon_6_3>//tmp/file", error="disallowed for files")
 
-        disallow(["//tmp/table"], "//tmp/file", error="Invalid output object type")
-        disallow(["//tmp/file"], "//tmp/table", error="Invalid output object type")
+        disallow(["//tmp/table"], "//tmp/file", error="Output object type does not match that of the input object")
+        disallow(["//tmp/file"], "//tmp/table", error="Output object type does not match that of the input object")
 
         disallow(["//tmp/document"], "//tmp/document", error="Only files and tables are allowed")
 
