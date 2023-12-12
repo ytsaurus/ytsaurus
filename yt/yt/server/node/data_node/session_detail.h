@@ -58,6 +58,8 @@ public:
 
     void OnUnregistered() override;
 
+    void UnlockChunk() override;
+
     TFuture<void> GetUnregisteredEvent() override;
 
     DEFINE_SIGNAL_OVERRIDE(void(const TError& error), Finished);
