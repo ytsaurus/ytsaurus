@@ -4,6 +4,11 @@
 
 ##  Конференции, публикации
 
+### 2023: Транзакционная репликация в YTsaurus
+- **Мероприятие**: HighLoad++ 2023
+- **Материалы**: [YouTube](https://youtu.be/grNyiJrPE3w)
+- **Докладчик**: Руслан Савченко
+
 ### 2023: Cypress — a distributed transactional file system in YTsaurus
 - **Мероприятие**: HighLoad Serbia 2023
 - **Материалы**: [YouTube](https://www.youtube.com/watch?v=7FsrQyd5yx0)
