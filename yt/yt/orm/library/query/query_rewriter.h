@@ -31,6 +31,7 @@ private:
     void Visit(NQueryClient::NAst::TExpressionPtr* expr);
     void Visit(NQueryClient::NAst::TNullableExpressionList& list);
     void Visit(NQueryClient::NAst::TExpressionList& list);
+    void Visit(NQueryClient::NAst::TWhenThenExpressionList& list);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

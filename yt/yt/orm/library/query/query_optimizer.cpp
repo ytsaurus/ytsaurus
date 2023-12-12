@@ -70,8 +70,13 @@ protected:
             return Optimize(*typedExpr);
         } else if (auto* typedExpr = expr->As<TTransformExpression>()) {
             return Optimize(*typedExpr);
+        } else if (auto* typedExpr = expr->As<TCaseExpression>()) {
+            return Optimize(*typedExpr);
+        } else if (auto* typedExpr = expr->As<TLikeExpression>()) {
+            return Optimize(*typedExpr);
         } else {
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported expression in user query: %Qv",
+                FormatExpression(*expr));
         }
     }
 
@@ -155,6 +160,35 @@ protected:
         return Optimize(expression.Expr);
     }
 
+    virtual bool Optimize(TWhenThenExpressionList& list)
+    {
+        TOptimizeResultCollector collector;
+        for (auto& expr : list) {
+            collector(Optimize(expr.first));
+            collector(Optimize(expr.second));
+        }
+
+        return std::move(collector).OptimizedAnything();
+    }
+
+    virtual bool Optimize(TCaseExpression& expression)
+    {
+        TOptimizeResultCollector collector;
+        collector(Optimize(expression.DefaultExpression));
+        collector(Optimize(expression.OptionalOperand));
+        collector(Optimize(expression.WhenThenExpressions));
+        return std::move(collector).OptimizedAnything();
+    }
+
+    virtual bool Optimize(TLikeExpression& expression)
+    {
+        TOptimizeResultCollector collector;
+        collector(Optimize(expression.Pattern));
+        collector(Optimize(expression.Text));
+        collector(Optimize(expression.EscapeCharacter));
+        return std::move(collector).OptimizedAnything();
+    }
+
     virtual bool OptimizationAllowed(const TExpressionPtr& expr) const
     {
         if (expr->As<TLiteralExpression>()) {
@@ -175,8 +209,13 @@ protected:
             return OptimizationAllowed(typedExpr->Expr);
         } else if (auto* typedExpr = expr->As<TTransformExpression>()) {
             return OptimizationAllowed(typedExpr->Expr) && OptimizationAllowed(typedExpr->DefaultExpr);
+        } else if (auto* typedExpr = expr->As<TCaseExpression>()) {
+            return OptimizationAllowed(*typedExpr);
+        } else if (auto* typedExpr = expr->As<TLikeExpression>()) {
+            return OptimizationAllowed(*typedExpr);
         } else {
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported expression in user query: %Qv",
+                FormatExpression(*expr));
         }
     }
 
@@ -213,6 +252,31 @@ protected:
     virtual bool OptimizationAllowed(const TFunctionExpression& expression) const
     {
         return OptimizationAllowed(expression.Arguments);
+    }
+
+    virtual bool OptimizationAllowed(const TWhenThenExpressionList& list) const
+    {
+        for (auto& expr : list) {
+            if (!OptimizationAllowed(expr.first) || !OptimizationAllowed(expr.second)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    virtual bool OptimizationAllowed(const TCaseExpression& expression) const
+    {
+        return OptimizationAllowed(expression.DefaultExpression) &&
+            OptimizationAllowed(expression.WhenThenExpressions) &&
+            OptimizationAllowed(expression.OptionalOperand);
+    }
+
+    virtual bool OptimizationAllowed(const TLikeExpression& expression) const
+    {
+        return OptimizationAllowed(expression.EscapeCharacter) &&
+            OptimizationAllowed(expression.Pattern) &&
+            OptimizationAllowed(expression.Text);
     }
 };
 

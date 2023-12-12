@@ -56,8 +56,17 @@ void TQueryRewriter::Visit(TExpressionPtr* expr)
     } else if (auto* typedExpr = (*expr)->As<TTransformExpression>()) {
         Visit(typedExpr->Expr);
         Visit(typedExpr->DefaultExpr);
+    } else if (auto* typedExpr = (*expr)->As<TCaseExpression>()) {
+        Visit(typedExpr->OptionalOperand);
+        Visit(typedExpr->WhenThenExpressions);
+        Visit(typedExpr->DefaultExpression);
+    } else if (auto* typedExpr = (*expr)->As<TLikeExpression>()) {
+        Visit(typedExpr->Text);
+        Visit(typedExpr->Pattern);
+        Visit(typedExpr->EscapeCharacter);
     } else {
-        YT_ABORT();
+        THROW_ERROR_EXCEPTION("Unsupported expression in user query: %Qv",
+            FormatExpression(**expr));
     }
 }
 
@@ -72,6 +81,14 @@ void TQueryRewriter::Visit(TExpressionList& list)
 {
     for (auto& expr : list) {
         Visit(&expr);
+    }
+}
+
+void TQueryRewriter::Visit(TWhenThenExpressionList& list)
+{
+    for (auto& expr : list) {
+        Visit(expr.first);
+        Visit(expr.second);
     }
 }
 
