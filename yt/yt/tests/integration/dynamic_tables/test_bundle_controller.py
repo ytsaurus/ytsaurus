@@ -45,3 +45,5 @@ class TestBundleController(YTEnvSetup):
         assert exists("//sys/bundle_controller")
         config = self._get_bundle_config("test-bundle")
         assert config["bundle_name"] == "test-bundle"
+        assert config["rpc_proxy_count"] == 2
+        assert config["tablet_node_count"] == 5

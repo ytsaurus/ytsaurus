@@ -51,6 +51,8 @@ private:
             request->bundle_name());
 
         response->set_bundle_name(request->bundle_name());
+        response->set_rpc_proxy_count(2);
+        response->set_tablet_node_count(5);
         context->Reply();
     }
 };

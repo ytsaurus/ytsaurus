@@ -29,7 +29,9 @@ TBundleConfigDescriptor TClient::DoGetBundleConfig(
         .ValueOrThrow();
 
     return TBundleConfigDescriptor {
-        .BundleName = rsp->bundle_name()
+        .BundleName = rsp->bundle_name(),
+        .RpcProxyCount = rsp->rpc_proxy_count(),
+        .TabletNodeCount = rsp->tablet_node_count()
     };
 }
 
