@@ -52,7 +52,7 @@ class SparkDiscovery(object):
         except YtHttpResponseError as e:
             logging.warning("Failed to get path {}, message: {}".format(path, e.message))
             for inner in e.inner_errors:
-                logging.warning("Failed to get path {}, inner message {}".format(path, inner["message"]))
+                logging.debug("Failed to get path {}, inner message {}".format(path, inner["message"]))
             raise e
 
     @staticmethod

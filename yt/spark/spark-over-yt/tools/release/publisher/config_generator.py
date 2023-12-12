@@ -42,24 +42,21 @@ GLOBAL_CONFIG = {
     'worker_num_limit': 1000
 }
 
+
 SPARK_CONFS = {
     'hahn': {
         "spark.yt.log.enabled": "false",
         "spark.hadoop.yt.proxyRole": "spark",
-        "spark.datasource.yt.recursiveFileLookup": "true"
     },
     'hume': {
         "spark.test": "test",
-        "spark.datasource.yt.recursiveFileLookup": "true"
     },
     'vanga': {
         "spark.yt.log.enabled": "false",
-        "spark.datasource.yt.recursiveFileLookup": "true"
     },
     'arnold': {
         "spark.yt.log.enabled": "false",
         "spark.hadoop.yt.proxyRole": "spark",
-        "spark.datasource.yt.recursiveFileLookup": "true"
     }
 }
 
@@ -77,7 +74,6 @@ def get_spark_conf(proxy: str):
         return {
             "spark.yt.log.enabled": "false",
             "spark.hadoop.yt.proxyRole": "spark",
-            "spark.datasource.yt.recursiveFileLookup": "true"
         }
 
 

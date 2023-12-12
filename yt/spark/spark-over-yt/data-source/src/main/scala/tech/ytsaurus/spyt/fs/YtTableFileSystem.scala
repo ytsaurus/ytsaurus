@@ -35,7 +35,12 @@ class YtTableFileSystem extends YtFileSystemBase {
         YtWrapper.tableType(attributes) match {
           case TableType.Static => lockStaticTable(path, attributes)
           case TableType.Dynamic =>
-            if (!isDriver) throw new IllegalStateException("Listing dynamic tables on executors is not supported")
+            if (!isDriver) {
+              throw new IllegalStateException(
+                "Listing dynamic tables is supported only on driver, " +
+                  "probably your table count exceeded `spark.sql.sources.parallelPartitionDiscovery.threshold`"
+              )
+            }
             lockDynamicTable(path, attributes)
         }
       case PathType.Directory => listYtDirectory(path)
