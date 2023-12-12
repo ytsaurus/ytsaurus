@@ -1887,8 +1887,8 @@ done
             assert read_table("//tmp/t_out") == rows
 
     @authors("coteeq")
-    @pytest.mark.parametrize("prefetch", [True, False])
-    def test_prefetch_chunk_lists(self, prefetch):
+    @pytest.mark.parametrize("preallocate", [True, False])
+    def test_preallocate_chunk_lists(self, preallocate):
         if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
             pytest.skip()
 
@@ -1902,7 +1902,7 @@ done
             out="//tmp/t2",
             command=with_breakpoint("cat && echo stderr > /proc/self/fd/2 && BREAKPOINT"),
             spec={
-                "enable_chunk_lists_prefetch": prefetch,
+                "enable_chunk_lists_preallocation": preallocate,
                 "stderr_table_path": "<create=%true>//tmp/stderr"
             },
         )
@@ -1911,7 +1911,7 @@ done
         wait_breakpoint()
 
         def assert_failed_jobs(actual):
-            if prefetch:
+            if preallocate:
                 assert actual == 0
             else:
                 assert actual > 0
