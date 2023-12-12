@@ -55,7 +55,16 @@ std::unique_ptr<TMutation> CreateMutation(
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context)
 {
     auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
-    mutation->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName());
+    const auto& header = context->GetRequestHeader();
+    // COPMAT(danilalexeev): legacy RPC codecs
+    TSharedRef requestData;
+    if (header.has_request_codec()) {
+        YT_VERIFY(header.request_codec() == ToProto<int>(NCompression::ECodec::None));
+        requestData = PushEnvelope(context->GetRequestBody());
+    } else {
+        requestData = context->GetRequestBody();
+    }
+    mutation->SetRequestData(requestData, context->Request().GetTypeName());
     mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
     return mutation;
 }
