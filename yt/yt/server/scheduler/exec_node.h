@@ -134,7 +134,7 @@ public:
     /*!
      *  Thread affinity: any
      */
-    TExecNodeDescriptor BuildExecDescriptor() const;
+    TExecNodeDescriptorPtr BuildExecDescriptor() const;
 
     //! Set the node's IO weight.
     void SetIOWeights(const THashMap<TString, double>& mediumToWeight);

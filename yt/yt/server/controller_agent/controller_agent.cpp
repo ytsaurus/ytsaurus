@@ -108,7 +108,7 @@ class TSchedulingContext
 public:
     TSchedulingContext(
         const NScheduler::NProto::TScheduleJobRequest* request,
-        const TExecNodeDescriptor& nodeDescriptor,
+        const TExecNodeDescriptorPtr& nodeDescriptor,
         const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
         : DiskResources_(request->node_disk_resources())
         , JobId_(FromProto<TJobId>(request->job_id()))
@@ -122,7 +122,7 @@ public:
         return PoolPath_;
     }
 
-    const TExecNodeDescriptor& GetNodeDescriptor() const override
+    const TExecNodeDescriptorPtr& GetNodeDescriptor() const override
     {
         return NodeDescriptor_;
     }
@@ -150,7 +150,7 @@ public:
 private:
     const NNodeTrackerClient::NProto::TDiskResources& DiskResources_;
     const TJobId JobId_;
-    const TExecNodeDescriptor& NodeDescriptor_;
+    const TExecNodeDescriptorPtr& NodeDescriptor_;
     const NScheduler::NProto::TScheduleJobSpec ScheduleJobSpec_;
     const std::optional<TString> PoolPath_;
 };
@@ -1687,8 +1687,9 @@ private:
             int onlineExecNodeCount = 0;
             auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
             for (const auto& protoDescriptor : rsp->exec_nodes().exec_nodes()) {
-                auto descriptor = FromProto<TExecNodeDescriptor>(protoDescriptor);
-                if (descriptor.Online) {
+                auto descriptor = New<TExecNodeDescriptor>();
+                FromProto(descriptor.Get(), protoDescriptor);
+                if (descriptor->Online) {
                     ++onlineExecNodeCount;
                 }
                 YT_VERIFY(execNodeDescriptors->emplace(
@@ -1850,7 +1851,7 @@ private:
                             return;
                         }
 
-                        const auto& execNodeDescriptor = descriptorIt->second;
+                        const auto& execNodeDescriptor = *descriptorIt->second;
                         if (!execNodeDescriptor.Online) {
                             replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::NodeOffline, controller);
                             YT_LOG_DEBUG("Failed to schedule job due to node is offline (OperationId: %v, JobId: %v, NodeId: %v)",
@@ -2015,12 +2016,12 @@ private:
 
         TJobResources maxAvailableResources;
         for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
-            if (filter.CanSchedule(descriptor.Tags)) {
+            if (filter.CanSchedule(descriptor->Tags)) {
                 YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
-                if (descriptor.Online) {
+                if (descriptor->Online) {
                     YT_VERIFY(result.Online->emplace(nodeId, descriptor).second);
                 }
-                maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
+                maxAvailableResources = Max(maxAvailableResources, descriptor->ResourceLimits);
             }
         }
 

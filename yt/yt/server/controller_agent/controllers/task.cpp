@@ -524,8 +524,8 @@ void TTask::ScheduleJob(
     joblet->StartTime = TInstant::Now();
     joblet->PoolPath = context->GetPoolPath();
 
-    auto nodeId = context->GetNodeDescriptor().Id;
-    const auto& address = context->GetNodeDescriptor().Address;
+    auto nodeId = context->GetNodeDescriptor()->Id;
+    const auto& address = context->GetNodeDescriptor()->Address;
 
     if (treeIsProbing) {
         joblet->CompetitionType = EJobCompetitionType::Probing;

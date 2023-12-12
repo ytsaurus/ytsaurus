@@ -1064,8 +1064,8 @@ void TScheduleJobsContext::AnalyzePreemptibleJobs(
                 operationElement->GetId(),
                 operationState->SchedulingSegment,
                 NodeSchedulingSegment_,
-                SchedulingContext_->GetNodeDescriptor().Address,
-                SchedulingContext_->GetNodeDescriptor().DataCenter);
+                SchedulingContext_->GetNodeDescriptor()->Address,
+                SchedulingContext_->GetNodeDescriptor()->DataCenter);
 
             forcefullyPreemptibleJobs->insert(job.Get());
         }
@@ -1276,16 +1276,16 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
         YT_LOG_INFO("Resource usage exceeds node resource limits even after preemption (ResourceLimits: %v, ResourceUsage: %v, NodeId: %v, Address: %v)",
             FormatResources(SchedulingContext_->ResourceLimits()),
             FormatResources(SchedulingContext_->ResourceUsage()),
-            SchedulingContext_->GetNodeDescriptor().Id,
-            SchedulingContext_->GetNodeDescriptor().Address);
+            SchedulingContext_->GetNodeDescriptor()->Id,
+            SchedulingContext_->GetNodeDescriptor()->Address);
     }
 }
 
 void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
 {
     YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
-        SchedulingContext_->GetNodeDescriptor().Id,
-        SchedulingContext_->GetNodeDescriptor().Address);
+        SchedulingContext_->GetNodeDescriptor()->Id,
+        SchedulingContext_->GetNodeDescriptor()->Address);
 
     auto jobInfos = CollectRunningJobsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
     SortJobsWithPreemptionInfo(&jobInfos);
@@ -1296,7 +1296,7 @@ void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
             YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v, NodeAddress: %v)",
                 jobInfo.Job->GetId(),
                 jobInfo.OperationElement->GetId(),
-                SchedulingContext_->GetNodeDescriptor().Address);
+                SchedulingContext_->GetNodeDescriptor()->Address);
 
             jobInfo.Job->SetPreemptionReason("Preempted due to node resource ovecommit");
             PreemptJob(jobInfo.Job, jobInfo.OperationElement, EJobPreemptionReason::ResourceOvercommit);
@@ -1651,7 +1651,7 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
         "(SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v, "
         "UsageDiscount: {Total: %v, Unconditional: %v, Conditional: %v}, StageType: %v)",
         DynamicAttributesOf(element).SatisfactionRatio,
-        SchedulingContext_->GetNodeDescriptor().Id,
+        SchedulingContext_->GetNodeDescriptor()->Id,
         FormatResourceUsage(SchedulingContext_->ResourceUsage(), SchedulingContext_->ResourceLimits()),
         FormatResources(SchedulingContext_->UnconditionalResourceUsageDiscount() +
             SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
@@ -1714,7 +1714,7 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
                 [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
                     builder->AppendFormat("%v", StrategyHost_->FormatResources(resources));
                 }),
-            SchedulingContext_->GetNodeDescriptor().Address);
+            SchedulingContext_->GetNodeDescriptor()->Address);
 
         OnMinNeededResourcesUnsatisfied(
             element,
@@ -1832,7 +1832,7 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
     YT_ELEMENT_LOG_DETAILED(element,
         "Scheduled a job (SatisfactionRatio: %v, NodeId: %v, JobId: %v, JobResourceLimits: %v)",
         DynamicAttributesOf(element).SatisfactionRatio,
-        SchedulingContext_->GetNodeDescriptor().Id,
+        SchedulingContext_->GetNodeDescriptor()->Id,
         startDescriptor.Id,
         StrategyHost_->FormatResources(startDescriptor.ResourceLimits));
 
@@ -2359,7 +2359,7 @@ void TScheduleJobsContext::LogStageStatistics()
         StageState_->TotalHeapElementCount,
         StageState_->DeactivationReasons,
         SchedulingContext_->CanStartMoreJobs(),
-        SchedulingContext_->GetNodeDescriptor().Address,
+        SchedulingContext_->GetNodeDescriptor()->Address,
         NodeSchedulingSegment_,
         StageState_->MaxSchedulingIndex);
 }
@@ -2476,12 +2476,12 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     bool skipScheduleJobs)
 {
-    auto nodeId = schedulingContext->GetNodeDescriptor().Id;
+    auto nodeId = schedulingContext->GetNodeDescriptor()->Id;
     auto* nodeState = FindNodeState(nodeId);
     if (!nodeState) {
         YT_LOG_DEBUG("Skipping scheduling heartbeat because node is not registered in tree (NodeId: %v, NodeAddress: %v)",
             nodeId,
-            schedulingContext->GetNodeDescriptor().Address);
+            schedulingContext->GetNodeDescriptor()->Address);
 
         return;
     }
@@ -3238,7 +3238,7 @@ void TFairShareTreeJobScheduler::DoRegularJobScheduling(TScheduleJobsContext* co
 void TFairShareTreeJobScheduler::DoPreemptiveJobScheduling(TScheduleJobsContext* context)
 {
     bool scheduleJobsWithPreemption = [&] {
-        auto nodeId = context->SchedulingContext()->GetNodeDescriptor().Id;
+        auto nodeId = context->SchedulingContext()->GetNodeDescriptor()->Id;
         auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
         auto& nodeIdToLastPreemptiveSchedulingTime = NodeStateShards_[nodeShardId].NodeIdToLastPreemptiveSchedulingTime;
 

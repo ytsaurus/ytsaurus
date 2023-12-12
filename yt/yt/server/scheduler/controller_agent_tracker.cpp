@@ -820,7 +820,7 @@ public:
                     YT_LOG_DEBUG("Filling exec node descriptors");
                     auto descriptors = scheduler->GetCachedExecNodeDescriptors();
                     for (const auto& [_, descriptor] : *descriptors) {
-                        ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
+                        ToProto(response->mutable_exec_nodes()->add_exec_nodes(), *descriptor);
                     }
                     YT_LOG_DEBUG("Exec node descriptors filled");
                 })

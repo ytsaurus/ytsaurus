@@ -22,6 +22,7 @@ namespace NYT::NScheduler {
 
 //! An immutable snapshot of TExecNode.
 struct TExecNodeDescriptor
+    : public TRefCounted
 {
     TExecNodeDescriptor() = default;
 
@@ -54,6 +55,8 @@ struct TExecNodeDescriptor
 
     void Persist(const TStreamPersistenceContext& context);
 };
+
+DEFINE_REFCOUNTED_TYPE(TExecNodeDescriptor)
 
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor);
 void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NProto::TExecNodeDescriptor& protoDescriptor);

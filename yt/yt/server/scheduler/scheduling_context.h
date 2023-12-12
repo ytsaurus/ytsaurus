@@ -65,7 +65,7 @@ struct ISchedulingContext
 {
     virtual int GetNodeShardId() const = 0;
 
-    virtual const TExecNodeDescriptor& GetNodeDescriptor() const = 0;
+    virtual const TExecNodeDescriptorPtr& GetNodeDescriptor() const = 0;
 
     virtual const TJobResources& ResourceLimits() const = 0;
     virtual TJobResources& ResourceUsage() = 0;

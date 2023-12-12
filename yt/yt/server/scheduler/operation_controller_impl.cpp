@@ -651,7 +651,7 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto nodeId = context->GetNodeDescriptor().Id;
+    auto nodeId = context->GetNodeDescriptor()->Id;
     auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     auto jobId = GenerateJobId(cellTag, nodeId);
 
@@ -709,7 +709,7 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
 
     YT_LOG_TRACE("Job schedule request enqueued (JobId: %v, NodeAddress: %v)",
         jobId,
-        context->GetNodeDescriptor().Address);
+        context->GetNodeDescriptor()->Address);
 
     return nodeShard->BeginScheduleJob(incarnationId, OperationId_, jobId);
 }
