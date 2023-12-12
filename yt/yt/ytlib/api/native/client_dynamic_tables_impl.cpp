@@ -2775,7 +2775,7 @@ public:
 
     i64 GetDataWeight() const
     {
-        return RowCount_;
+        return DataWeight_;
     }
 
     std::vector<TTypeErasedRow> GetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
