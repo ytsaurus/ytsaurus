@@ -242,7 +242,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 
 	return []strawberry.OptionGroupDescriptor{
 		{
-			Title: "Basic CHYT options",
+			Title: "Resources",
 			Options: []strawberry.OptionDescriptor{
 				{
 					Title:        "Instance count",
@@ -274,18 +274,10 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					MaxValue:     300 * 1024 * 1024 * 1024,
 					Description:  "Amount of RAM per instance in bytes.",
 				},
-				{
-					Title:        "Query settings",
-					Name:         "query_settings",
-					Type:         strawberry.TypeYson,
-					CurrentValue: speclet.QuerySettings,
-					DefaultValue: map[string]any{},
-					Description:  "Map with default query settings.",
-				},
 			},
 		},
 		{
-			Title:  "Advanced CHYT options",
+			Title:  "Advanced options",
 			Hidden: true,
 			Options: []strawberry.OptionDescriptor{
 				{
@@ -308,6 +300,14 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Type:         strawberry.TypePath,
 					CurrentValue: speclet.GeoDataPath,
 					DefaultValue: DefaultGeoDataPath,
+				},
+				{
+					Title:        "Query settings",
+					Name:         "query_settings",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.QuerySettings,
+					DefaultValue: map[string]any{},
+					Description:  "Map with default query settings.",
 				},
 				{
 					Title:        "ClickHouse config",
