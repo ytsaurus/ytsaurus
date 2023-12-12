@@ -197,7 +197,7 @@ TString TJobProxy::GetSlotPath() const
 
 TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
 {
-    return *Config_->BusServer->UnixDomainSocketPath;
+    return AdjustPath(*Config_->BusServer->UnixDomainSocketPath);
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
