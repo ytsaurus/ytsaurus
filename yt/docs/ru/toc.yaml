@@ -110,7 +110,11 @@ items:
         - name: Сортированные таблицы
           href: user-guide/dynamic-tables/sorted-dynamic-tables.md
         - name: Упорядоченные таблицы
-          href: user-guide/dynamic-tables/ordered-dynamic-tables.md
+          items:
+            - name: Обзор
+              href: user-guide/dynamic-tables/ordered-dynamic-tables.md
+            - name: Queue API
+              href: user-guide/dynamic-tables/queues.md
         - name: Реплицированные таблицы
           href: user-guide/dynamic-tables/replicated-dynamic-tables.md
         - name: Транзакции
@@ -298,7 +302,7 @@ items:
             - name: Решение проблем
               href: user-guide/data-processing/spyt/problems.md
         - name: YQL
-          when: audience == "public" 
+          when: audience == "public"
           items:
             - include: { mode: link, path: yql/toc.yaml }
       - name: Прокси
