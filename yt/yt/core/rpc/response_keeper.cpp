@@ -108,6 +108,7 @@ public:
         return DoFindRequest(id, isRetry);
     }
 
+    [[nodiscard]]
     std::function<void()> EndRequest(
         TMutationId id,
         TSharedRefArray response,
@@ -162,6 +163,7 @@ public:
         }
     }
 
+    [[nodiscard]]
     std::function<void()> EndRequest(
         TMutationId id,
         TErrorOr<TSharedRefArray> responseOrError,
@@ -232,10 +234,13 @@ public:
             context->GetAsyncResponseMessage()
                 .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {
                     if (!responseMessageOrError.IsOK()) {
-                        EndRequest(
+                        if (auto setResponseKeeperPromise = EndRequest(
                             mutationId,
                             CreateErrorResponseMessage(responseMessageOrError),
-                            /*remember*/ false);
+                            /*remember*/ false))
+                        {
+                            setResponseKeeperPromise();
+                        }
                         return;
                     }
 
@@ -245,10 +250,9 @@ public:
                     YT_VERIFY(TryParseResponseHeader(responseMessage, &header));
                     bool remember = FromProto<NRpc::EErrorCode>(header.error().code()) != NRpc::EErrorCode::Unavailable;
 
-                    EndRequest(
-                        mutationId,
-                        responseMessage,
-                        remember);
+                    if (auto setResponseKeeperPromise = EndRequest(mutationId, responseMessage, remember)) {
+                        setResponseKeeperPromise();
+                    }
                 }).Via(Invoker_));
         }
 
@@ -349,7 +353,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Response Keeper eviction tick started");
+        YT_LOG_DEBUG("Response keeper eviction tick started");
 
         NProfiling::TWallTimer timer;
         int counter = 0;
@@ -363,7 +367,7 @@ private:
 
             if (++counter % EvictionTickTimeCheckPeriod == 0) {
                 if (timer.GetElapsedTime() > Config_->MaxEvictionTickTime) {
-                    YT_LOG_DEBUG("Response Keeper eviction tick interrupted (ResponseCount: %v)",
+                    YT_LOG_DEBUG("Response keeper eviction tick interrupted (ResponseCount: %v)",
                         counter);
                     return;
                 }
@@ -377,7 +381,7 @@ private:
             ResponseEvictionQueue_.pop();
         }
 
-        YT_LOG_DEBUG("Response Keeper eviction tick completed (ResponseCount: %v)",
+        YT_LOG_DEBUG("Response keeper eviction tick completed (ResponseCount: %v)",
             counter);
     }
 };
