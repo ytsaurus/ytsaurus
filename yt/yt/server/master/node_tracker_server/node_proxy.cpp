@@ -145,8 +145,7 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimits)
-            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimits));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimitsOverrides)
             .SetWritable(true)
             .SetReplicated(true));
@@ -477,9 +476,6 @@ private:
                 return true;
 
             case EInternedAttributeKey::ResourceLimits:
-                if (!isGood) {
-                    break;
-                }
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimits());
                 return true;
