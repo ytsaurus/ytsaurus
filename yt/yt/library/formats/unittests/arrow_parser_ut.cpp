@@ -230,6 +230,44 @@ std::string MakeDictionaryArray()
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
+std::string MakeStructArray(const std::vector<std::string>& stringData, const std::vector<int64_t>& intData)
+{
+    arrow::MemoryPool* pool = arrow::default_memory_pool();
+
+    std::shared_ptr<arrow::StringBuilder> stringBuilder;
+    std::shared_ptr<arrow::Int64Builder> intBuilder;
+
+    std::vector<std::shared_ptr<arrow::Field>> fields = {
+        std::make_shared<arrow::Field>("bar", std::make_shared<arrow::StringType>()),
+        std::make_shared<arrow::Field>("foo", std::make_shared<arrow::Int64Type>())
+    };
+
+    stringBuilder = std::make_shared<arrow::StringBuilder>(pool);
+    intBuilder = std::make_shared<arrow::Int64Builder>(pool);
+
+    arrow::StructBuilder structBuilder(
+        std::make_shared<arrow::StructType>(fields),
+        pool,
+        {stringBuilder, intBuilder}
+    );
+
+    for (int index = 0; index < std::ssize(stringData); index++) {
+        ThrowOnError(structBuilder.Append());
+        ThrowOnError(stringBuilder->Append(stringData[index]));
+        ThrowOnError(intBuilder->Append(intData[index]));
+    }
+
+    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("struct", structBuilder.type())});
+
+    std::shared_ptr<arrow::Array> structArray;
+    ThrowOnError(structBuilder.Finish(&structArray));
+    std::vector<std::shared_ptr<arrow::Array>> columns = {structArray};
+
+    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TArrowParserTest, Simple)
@@ -432,6 +470,28 @@ TEST(TArrowParserTest, SeveralIntArrays)
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 3);
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(3, "integer")), 5);
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(4, "integer")), 6);
+}
+
+TEST(TArrowParserTest, Struct)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("struct", StructLogicalType({
+            {"bar",   SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"foo",   SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        })),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeStructArray({"one", "two"}, {1, 2}));
+    parser->Finish();
+
+    auto structNode = GetComposite(collectedRows.GetRowValue(0, "struct"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(structNode), "[\"one\";1;]");
+    structNode = GetComposite(collectedRows.GetRowValue(1, "struct"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(structNode), "[\"two\";2;]");
 }
 
 TEST(TArrowParserTest, BlockingInput)
