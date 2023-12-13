@@ -317,7 +317,7 @@ protected:
         if (requestHeader.has_response_codec()) {
             serializedBody = SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
             attachmentCodecId = bodyCodecId;
-            underlyingContext->SetResponseBodySerializedWithCompression();
+            UnderlyingContext_->SetResponseBodySerializedWithCompression();
         } else {
             serializedBody = SerializeProtoToRefWithEnvelope(*Response_, bodyCodecId);
             attachmentCodecId = NCompression::ECodec::None;
