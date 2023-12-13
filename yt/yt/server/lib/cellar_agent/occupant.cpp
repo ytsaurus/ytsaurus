@@ -515,9 +515,10 @@ public:
                 CreateHydraManagerUpstreamSynchronizer(hydraManager),
                 Bootstrap_->GetNativeAuthenticator());
 
-            WaitFor(BIND(SetLeaseManager, LeaseManager_)
+            BIND(SetLeaseManager, LeaseManager_)
                 .AsyncVia(occupier->GetOccupierAutomatonInvoker())
-                .Run())
+                .Run()
+                .Get()
                 .ThrowOnError();
 
             auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
@@ -626,7 +627,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (CanConfigure()) {
-            HydraManager_.Acquire()->Reconfigure(dynamicConfig);
+            if (const auto& hydraManager = HydraManager_.Acquire()) {
+                hydraManager->Reconfigure(dynamicConfig);
+            }
         }
     }
 
