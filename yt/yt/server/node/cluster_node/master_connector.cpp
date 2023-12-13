@@ -249,7 +249,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return NodeId_ != InvalidNodeId;
+        return GetNodeId() != InvalidNodeId;
     }
 
     NNodeTrackerClient::TNodeId GetNodeId() const override
