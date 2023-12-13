@@ -772,7 +772,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("adjust_dynamic_table_data_slices", &TThis::AdjustDynamicTableDataSlices)
         .Default(false);
 
-    registrar.Parameter("enable_chunk_lists_prefetch", &TThis::EnableChunkListsPrefetch)
+    registrar.Parameter("enable_chunk_lists_preallocation", &TThis::EnableChunkListsPreallocation)
         .Default(false);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {

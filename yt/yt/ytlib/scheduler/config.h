@@ -1079,7 +1079,7 @@ public:
 
     bool AdjustDynamicTableDataSlices;
 
-    bool EnableChunkListsPrefetch;
+    bool EnableChunkListsPreallocation;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
