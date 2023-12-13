@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, create, read_table, write_table
+from yt_commands import authors, create, read_table, write_table, map
 
 from yt_type_helpers import optional_type, list_type
 
@@ -48,6 +48,7 @@ def parse_arrow_stream(data):
 class TestArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    NUM_SCHEDULERS = 1
 
     def test_simple_reader(self, optimize_for):
         create(
@@ -254,6 +255,73 @@ class TestArrowFormat(YTEnvSetup):
         )
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
+
+    @authors("apollo1321")
+    def test_map(self, optimize_for):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "int", "type_v3": "int64"},
+                    {"name": "opt_string", "type_v3": optional_type("string")},
+                    {"name": "uint", "type_v3": "uint64"},
+                    {"name": "double", "type_v3": "double"},
+                    {"name": "utf8", "type_v3": "utf8"},
+                    {"name": "bool", "type_v3": "bool"},
+                ],
+                "optimize_for": optimize_for
+            },
+            force=True,
+        )
+
+        write_table(
+            "//tmp/t_in",
+            [
+                {
+                    "int": 53,
+                    "opt_string": "foobar",
+                    "uint": 120,
+                    "double": 3.14,
+                    "utf8": HELLO_WORLD.decode("utf-8"),
+                    "bool": True,
+                },
+                {
+                    "int": -82,
+                    "opt_string": None,
+                    "uint": 42,
+                    "double": 1.5,
+                    "utf8": GOODBYE_WORLD.decode("utf-8"),
+                    "bool": False,
+                },
+            ],
+        )
+
+        create("table", "//tmp/t_out")
+
+        input_format = yson.YsonString(b"arrow")
+
+        output_format = yson.YsonString(b"skiff")
+        output_format.attributes["table_skiff_schemas"] = [
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "yson32",
+                        "name": "$other_columns",
+                    },
+                ],
+            }
+        ]
+
+        map(
+            in_="//tmp/t_in{int,uint,double}",
+            out="//tmp/t_out",
+            command="cat > /dev/null",
+            spec={"mapper": {"input_format": input_format, "output_format": output_format}},
+        )
+
+        assert read_table("//tmp/t_out") == []
 
 
 @authors("nadya73")
