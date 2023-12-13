@@ -530,6 +530,7 @@ void TJaegerTracer::Flush()
     DequeueAll(config);
 
     if (TInstant::Now() - LastSuccessfullFlushTime_ > config->QueueStallTimeout) {
+        YT_LOG_DEBUG("Queue stall timeout expired (QueueStallTimeout: %v)", config->QueueStallTimeout);
         DropFullQueue();
     }
 
@@ -551,6 +552,14 @@ void TJaegerTracer::Flush()
 
     std::stack<TString> toRemove;
     auto keys = ExtractKeys(BatchInfo_);
+
+    if (keys.empty()) {
+        YT_LOG_DEBUG("Span batch info is empty");
+        LastSuccessfullFlushTime_ = flushStartTime;
+        NotifyEmptyQueue();
+        return;
+    }
+
     for (const auto& endpoint : keys) {
         auto [batches, batchCount, spanCount] = PeekQueue(config, endpoint);
         if (batchCount <= 0) {
@@ -558,6 +567,7 @@ void TJaegerTracer::Flush()
                 toRemove.push(endpoint);
             }
             YT_LOG_DEBUG("Span queue is empty (Endpoint: %v)", endpoint);
+            LastSuccessfullFlushTime_ = flushStartTime;
             continue;
         }
 
