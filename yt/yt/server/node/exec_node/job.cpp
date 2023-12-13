@@ -2896,7 +2896,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
         auto& [slotStatistics, slotStatisticsLastUpdateTime] = GpuStatistics_[index];
 
-        TGpuInfo gpuInfo;
+        NGpu::TGpuInfo gpuInfo;
         {
             auto it = gpuInfoMap.find(slot->GetDeviceIndex());
             if (it == gpuInfoMap.end()) {

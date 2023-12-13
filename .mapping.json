@@ -861,6 +861,7 @@
   "yt/yt/library/error_skeleton/unittests/CMakeLists.txt":"",
   "yt/yt/library/formats/CMakeLists.txt":"",
   "yt/yt/library/formats/unittests/CMakeLists.txt":"",
+  "yt/yt/library/gpu/CMakeLists.txt":"",
   "yt/yt/library/heavy_schema_validation/CMakeLists.txt":"",
   "yt/yt/library/monitoring/CMakeLists.txt":"",
   "yt/yt/library/named_value/CMakeLists.txt":"",

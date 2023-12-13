@@ -4,12 +4,13 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
-#include <yt/yt/server/lib/exec_node/gpu_info_provider.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/server/node/data_node/artifact.h>
+
+#include <yt/yt/library/gpu/gpu_info_provider.h>
 
 #include <yt/yt/client/hydra/public.h>
 
@@ -79,7 +80,7 @@ public:
     int GetFreeGpuCount() const;
     int GetUsedGpuCount() const;
     const std::vector<TString>& GetGpuDevices() const;
-    THashMap<int, TGpuInfo> GetGpuInfoMap() const;
+    THashMap<int, NGpu::TGpuInfo> GetGpuInfoMap() const;
 
     TErrorOr<TGpuSlotPtr> AcquireGpuSlot();
 
@@ -114,7 +115,7 @@ private:
     std::vector<TString> GpuDevices_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
+    THashMap<int, NGpu::TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> LostGpuDeviceIndices_;
 
     THashSet<int> AcquiredGpuDeviceIndices_;
@@ -134,7 +135,7 @@ private:
     NHydra::TRevision DriverLayerRevision_ = 0;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
-    TAtomicIntrusivePtr<IGpuInfoProvider> GpuInfoProvider_;
+    TAtomicIntrusivePtr<NGpu::IGpuInfoProvider> GpuInfoProvider_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

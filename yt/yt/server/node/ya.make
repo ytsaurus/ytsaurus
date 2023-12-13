@@ -182,6 +182,7 @@ PEERDIR(
     yt/yt/library/containers
     yt/yt/library/containers/cri
     yt/yt/library/containers/disk_manager
+    yt/yt/library/gpu
 
     yt/yt/ytlib/distributed_throttler
 

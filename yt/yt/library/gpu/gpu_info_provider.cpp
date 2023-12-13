@@ -1,30 +1,17 @@
 #include "gpu_info_provider.h"
 
+#include "config.h"
+
+#include "nvidia_smi_gpu_info_provider.h"
+#include "nv_manager_gpu_info_provider.h"
+
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NExecNode {
+#include <library/cpp/yt/string/string_builder.h>
 
-////////////////////////////////////////////////////////////////////////////////
+namespace NYT::NGpu {
 
-namespace NDetail {
-
-void FormatValue(TStringBuilderBase* builder, const TCondition& condition, TStringBuf /*format*/)
-{
-    builder->AppendFormat("{Status: %v, LastTransitionTime: %v}",
-        condition.Status,
-        condition.LastTransitionTime);
-}
-
-void Serialize(const TCondition& condition, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("status").Value(condition.Status)
-            .OptionalItem("last_transition_time", condition.LastTransitionTime)
-        .EndMap();
-}
-
-} // namespace NDetail
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +20,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
     builder->AppendFormat(
         "{UpdateTime: %v, Index: %v, Name: %v, UtilizationGpuRate: %v, UtilizationMemoryRate: %v, "
         "MemoryUsed: %v, MemoryTotal: %v, PowerDraw: %v, PowerLimit: %v, ClocksSM: %v, ClocksMaxSM: %v, "
-        "SMUtilizationRate: %v, SMOccupancyRate: %v, Stuck: %v}",
+        "SMUtilizationRate: %v, SMOccupancyRate: %v, Stuck: {Status: %v, LastTransitionTime: %v}}",
         gpuInfo.UpdateTime,
         gpuInfo.Index,
         gpuInfo.Name,
@@ -47,12 +34,13 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
         gpuInfo.ClocksMaxSM,
         gpuInfo.SMUtilizationRate,
         gpuInfo.SMOccupancyRate,
-        gpuInfo.Stuck);
+        gpuInfo.Stuck.Status,
+        gpuInfo.Stuck.LastTransitionTime);
 }
 
 void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
+    BuildYsonFluently(consumer)
         .BeginMap()
             .Item("update_time").Value(gpuInfo.UpdateTime)
             .Item("index").Value(gpuInfo.Index)
@@ -67,30 +55,27 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer)
             .Item("clocks_max_sm").Value(gpuInfo.ClocksMaxSM)
             .Item("sm_utilization_rate").Value(gpuInfo.SMUtilizationRate)
             .Item("sm_occupancy_rate").Value(gpuInfo.SMOccupancyRate)
-            .Item("stuck").Value(gpuInfo.Stuck)
+            .Item("stuck").BeginMap()
+                .Item("status").Value(gpuInfo.Stuck.Status)
+                .Item("last_transition_time").Value(gpuInfo.Stuck.LastTransitionTime)
+            .EndMap()
         .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGpuInfoProviderMock
-    : public IGpuInfoProvider
+IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfigPtr config)
 {
-    virtual std::vector<TGpuInfo> GetGpuInfos(TDuration /*checkTimeout*/)
-    {
-        THROW_ERROR_EXCEPTION("GPU info provider library is not available under this build configuration");
+    switch (config->Type) {
+    case EGpuInfoSourceType::NvGpuManager:
+        return CreateNvManagerGpuInfoProvider(std::move(config));
+    case EGpuInfoSourceType::NvidiaSmi:
+        return CreateNvidiaSmiGpuInfoProvider();
+    default:
+        YT_ABORT();
     }
-};
-
-DEFINE_REFCOUNTED_TYPE(TGpuInfoProviderMock)
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_WEAK IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& /*config*/)
-{
-    return New<TGpuInfoProviderMock>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NExecNode
+} // namespace NYT::NGpu

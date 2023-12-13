@@ -1,29 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 
-#include "config.h"
+#include <library/cpp/yt/yson/consumer.h>
 
-namespace NYT::NExecNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCondition
-{
-    bool Status = false;
-    std::optional<TInstant> LastTransitionTime;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TCondition& gpuInfo, TStringBuf /*format*/);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
+namespace NYT::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +25,12 @@ struct TGpuInfo
     i64 ClocksMaxSM = 0;
     double SMUtilizationRate = 0.0;
     double SMOccupancyRate = 0.0;
-    NDetail::TCondition Stuck;
+
+    struct
+    {
+        bool Status = false;
+        std::optional<TInstant> LastTransitionTime;
+    } Stuck;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBuf /*format*/);
@@ -55,13 +41,15 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer);
 struct IGpuInfoProvider
     : public TRefCounted
 {
-    virtual std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout) = 0;
+    virtual std::vector<TGpuInfo> GetGpuInfos(TDuration timeout) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider)
 
-IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& config);
+////////////////////////////////////////////////////////////////////////////////
+
+IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NExecNode
+} // namespace NYT::NGpu

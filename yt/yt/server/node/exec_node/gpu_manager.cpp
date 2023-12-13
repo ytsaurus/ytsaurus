@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/proc.h>
 
+#include <yt/yt/library/gpu/config.h>
+
 #include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -40,6 +42,7 @@ using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NChunkClient;
 using namespace NJobAgent;
+using namespace NGpu;
 using namespace NYTree;
 using namespace NCypressClient;
 using namespace NDataNode;

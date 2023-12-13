@@ -18,8 +18,4 @@ PEERDIR(
     yt/yt/server/lib/misc
 )
 
-IF (NOT OPENSOURCE)
-    INCLUDE(ya_non_opensource.inc)
-ENDIF()
-
 END()

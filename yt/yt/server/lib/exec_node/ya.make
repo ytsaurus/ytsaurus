@@ -7,7 +7,6 @@ SRCS(
     config.cpp
     job_report.cpp
     gpu_helpers.cpp
-    gpu_info_provider.cpp
     helpers.cpp
 
     proto/supervisor_service.proto
@@ -20,6 +19,7 @@ PEERDIR(
     yt/yt/server/lib/nbd
     yt/yt/library/containers
     yt/yt/library/containers/cri
+    yt/yt/library/gpu
     yt/yt/server/lib/misc
 )
 
@@ -28,9 +28,3 @@ IF (NOT OPENSOURCE)
 ENDIF()
 
 END()
-
-IF (NOT OPENSOURCE)
-    RECURSE_FOR_TESTS(
-        unittests
-    )
-ENDIF()

@@ -6,17 +6,19 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
+#include <yt/yt/server/lib/misc/config.h>
+
+#include <yt/yt/server/lib/nbd/config.h>
+
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/containers/cri/config.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
 
-#include <yt/yt/server/lib/misc/config.h>
-
-#include <yt/yt/server/lib/nbd/config.h>
-
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/library/gpu/config.h>
 
 #include <yt/yt/core/ytree/node.h>
 
@@ -449,31 +451,6 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EGpuInfoSourceType,
-    (NvGpuManager)
-    (NvidiaSmi)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TGpuInfoSourceConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    EGpuInfoSourceType Type;
-    TString NvGpuManagerServiceAddress;
-    TString NvGpuManagerServiceName;
-    std::optional<TString> NvGpuManagerDevicesCgroupPath;
-    bool GpuIndexesFromNvidiaSmi;
-
-    REGISTER_YSON_STRUCT(TGpuInfoSourceConfig);
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TGpuManagerTestingConfig
     : public NYTree::TYsonStruct
 {
@@ -519,7 +496,7 @@ public:
     // we can update splay in periodic executor
     TDuration DriverLayerFetchSplay;
 
-    TGpuInfoSourceConfigPtr GpuInfoSource;
+    NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
 
     TGpuManagerTestingConfigPtr Testing;
 
@@ -546,7 +523,7 @@ public:
 
     std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
 
-    TGpuInfoSourceConfigPtr GpuInfoSource;
+    NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 

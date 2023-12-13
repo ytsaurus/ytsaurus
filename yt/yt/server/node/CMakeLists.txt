@@ -80,6 +80,7 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-containers
   library-containers-cri
   library-containers-disk_manager
+  yt-library-gpu
   yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
