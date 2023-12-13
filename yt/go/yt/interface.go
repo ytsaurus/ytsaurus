@@ -794,6 +794,8 @@ type SetUserPasswordOptions struct{}
 
 type IssueTokenOptions struct{}
 
+type RevokeTokenOptions struct{}
+
 type AddMaintenanceOptions struct {
 }
 
@@ -943,6 +945,16 @@ type AdminClient interface {
 		password string,
 		options *IssueTokenOptions,
 	) (token string, err error)
+
+	// http:verb:"revoke_token"
+	// http:params:"user","password_sha256","token_sha256"
+	RevokeToken(
+		ctx context.Context,
+		user string,
+		password string,
+		token string,
+		options *RevokeTokenOptions,
+	) error
 
 	// http:verb:"add_maintenance"
 	// http:params:"component","address","type","comment"

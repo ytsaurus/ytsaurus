@@ -284,6 +284,26 @@ func (e *Encoder) IssueToken(
 	return
 }
 
+func (e *Encoder) RevokeToken(
+	ctx context.Context,
+	user string,
+	password string,
+	token string,
+	options *yt.RevokeTokenOptions,
+) (err error) {
+	passwordSHA256 := ""
+	if password != "" {
+		passwordSHA256 = encodeSHA256(password)
+	}
+	tokenSHA256 := encodeSHA256(token)
+
+	call := e.newCall(NewRevokeTokenParams(user, passwordSHA256, tokenSHA256, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
+
 func (e *Encoder) BuildMasterSnapshots(
 	ctx context.Context,
 	options *yt.BuildMasterSnapshotsOptions,

@@ -23,7 +23,7 @@ func TestAdminClient(t *testing.T) {
 	RunClientTests(t, []ClientTest{
 		{Name: "AddRemoveMember", Test: suite.TestAddRemoveMember},
 		{Name: "SetUserPassword", Test: suite.TestSetUserPassword, SkipRPC: true},
-		{Name: "IssueToken", Test: suite.TestIssueToken, SkipRPC: true},
+		{Name: "IssueRevokeToken", Test: suite.TestIssueRevokeToken, SkipRPC: true},
 		{Name: "AddRemoveMaintenance", Test: suite.TestAddRemoveMaintenance},
 		{Name: "TransferAccountResources", Test: suite.TestTransferAccountResources},
 		{Name: "TransferPoolResources", Test: suite.TestTransferPoolResources, SkipRPC: true},
@@ -76,13 +76,16 @@ func (s *Suite) TestSetUserPassword(t *testing.T, yc yt.Client) {
 	require.NotEmpty(t, hashedPassword)
 }
 
-func (s *Suite) TestIssueToken(t *testing.T, yc yt.Client) {
+func (s *Suite) TestIssueRevokeToken(t *testing.T, yc yt.Client) {
 	user := "user-" + guid.New().String()
 	_ = s.CreateUser(t, user)
 
 	token, err := yc.IssueToken(s.Ctx, user, "", nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
+
+	err = yc.RevokeToken(s.Ctx, user, "", token, nil)
+	require.NoError(t, err)
 }
 
 func (s *Suite) TestAddRemoveMaintenance(t *testing.T, yc yt.Client) {
