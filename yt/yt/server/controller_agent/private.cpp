@@ -28,7 +28,7 @@ TTraceContextGuard CreateOperationTraceContextGuard(
     TOperationId operationId)
 {
     auto traceContext = CreateTraceContextFromCurrent(std::move(spanName));
-    traceContext->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+    traceContext->SetAllocationTags({{OperationIdTag, ToString(operationId)}});
     return TTraceContextGuard(std::move(traceContext));
 }
 

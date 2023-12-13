@@ -178,7 +178,9 @@ public:
             : CreateTraceContextFromCurrent("OperationControllerWrapper"))
         , TraceContextFinishGuard_(TraceContext_)
     {
-        TraceContext_->SetAllocationTags({{OperationIdAllocationTag, ToString(Id_)}});
+        auto operationIdString = ToString(Id_);
+        TraceContext_->SetAllocationTags({{OperationIdTag, operationIdString}});
+        TraceContext_->AddProfilingTag(OperationIdTag, operationIdString);
     }
 
     ~TOperationControllerWrapper() override
@@ -189,7 +191,7 @@ public:
         YT_VERIFY(snapshot);
 
         YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
-            snapshot->GetUsage(OperationIdAllocationTag, ToString(Id_)));
+            snapshot->GetUsage(OperationIdTag, ToString(Id_)));
 
         DtorInvoker_->Invoke(BIND([
             underlying = std::move(Underlying_),
@@ -201,7 +203,7 @@ public:
             const auto snapshotBefore = GetMemoryUsageSnapshot();
             YT_VERIFY(snapshotBefore);
 
-            auto memoryUsageBefore = snapshotBefore->GetUsage(OperationIdAllocationTag, ToString(id));
+            auto memoryUsageBefore = snapshotBefore->GetUsage(OperationIdTag, ToString(id));
             YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v)", memoryUsageBefore);
             if (auto refCount = ResetAndGetResidualRefCount(underlying)) {
                 YT_LOG_WARNING(
@@ -213,7 +215,7 @@ public:
             const auto snapshotAfter = GetMemoryUsageSnapshot();
             YT_VERIFY(snapshotAfter);
 
-            auto memoryUsageAfter = snapshotAfter->GetUsage(OperationIdAllocationTag, ToString(id));
+            auto memoryUsageAfter = snapshotAfter->GetUsage(OperationIdTag, ToString(id));
             YT_LOG_INFO("Finished destructing operation controller (Elapsed: %v, MemoryUsageAfter: %v, MemoryUsageDecrease: %v)",
                 timer.GetElapsedTime(),
                 memoryUsageAfter,

@@ -2487,7 +2487,9 @@ TJobTrackerOperationHandler::TJobTrackerOperationHandler(
     , TraceContext_(CreateTraceContextFromCurrent("JobTrackerOperationHandler"))
     , TraceContextFinishGuard_(TraceContext_)
 {
-    TraceContext_->SetAllocationTags({{OperationIdAllocationTag, ToString(operationId)}});
+    auto operationIdString = ToString(operationId);
+    TraceContext_->SetAllocationTags({{OperationIdTag, operationIdString}});
+    TraceContext_->AddProfilingTag(OperationIdTag, operationIdString);
 }
 
 void TJobTrackerOperationHandler::RegisterJob(TStartedJobInfo jobInfo)

@@ -8707,7 +8707,7 @@ i64 TOperationControllerBase::GetMemoryUsage() const
     const auto snapshot = GetMemoryUsageSnapshot();
     YT_VERIFY(snapshot);
 
-    return snapshot->GetUsage(OperationIdAllocationTag, ToString(OperationId));
+    return snapshot->GetUsage(OperationIdTag, ToString(OperationId));
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
