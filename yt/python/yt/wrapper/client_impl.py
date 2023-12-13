@@ -2570,6 +2570,7 @@ class YtClient(ClientState):
 
         Automatically calculates desired chunk size and data size per job. Also can be used to convert chunks in
         table between old and new formats (optimize_for parameter).
+        "desired_chunk_size" parameter implicit disable job splitting mode (in some cases jobs becomes unoptimal but do not divide chunk into smaller)
 
         """
         return client_api.transform(

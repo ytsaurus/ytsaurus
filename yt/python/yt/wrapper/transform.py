@@ -18,7 +18,7 @@ from copy import deepcopy
 from random import Random
 
 
-def _get_compression_ratio(table, codec, client, spec):
+def _get_compression_ratio(table, erasure_codec, compression_codec, optimize_for, spec, client):
     def exact_chunk_index_limit(chunk_index):
         return {"lower_limit": {"chunk_index": chunk_index}, "upper_limit": {"chunk_index": chunk_index + 1}}
 
@@ -28,7 +28,14 @@ def _get_compression_ratio(table, codec, client, spec):
             "title": "Merge to calculate compression ratio",
             "force_transform": True,
         })
-        set(tmp + "/@compression_codec", codec, client=client)
+        if compression_codec is not None:
+            set(tmp + "/@compression_codec", compression_codec, client=client)
+
+        if erasure_codec is not None:
+            set(tmp + "/@erasure_codec", erasure_codec, client=client)
+
+        if optimize_for is not None:
+            set(tmp + "/@optimize_for", optimize_for, client=client)
 
         probe_chunk_count = get_config(client)["transform_options"]["chunk_count_to_compute_compression_ratio"]
         chunk_count = get(table + "/@chunk_count", client=client)
@@ -42,6 +49,7 @@ def _get_compression_ratio(table, codec, client, spec):
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
         ratio = get(tmp + "/@compression_ratio", client=client)
+        logger.debug("Estimated compression ratio of '%s' (codec: %s, erasure: %s, optimize: %s) is %s", table, compression_codec, erasure_codec, optimize_for, ratio)
         return None if ratio < 0.00001 else ratio
 
 
@@ -65,6 +73,7 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
 
     Automatically calculates desired chunk size and data size per job. Also can be used to convert chunks in
     table between old and new formats (optimize_for parameter).
+    "desired_chunk_size" parameter implicit disable job splitting mode (in some cases jobs becomes unoptimal but do not divide chunk into smaller)
     """
 
     spec = get_value(spec, {})
@@ -76,6 +85,9 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
 
     if desired_chunk_size is None:
         desired_chunk_size = get_config(client)["transform_options"]["desired_chunk_size"]
+        job_splitting = None
+    else:
+        job_splitting = False
 
     if not exists(src, client=client):
         logger.debug("Source table %s does not exist", src)
@@ -114,7 +126,7 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
             logger.info("Table %s already has proper codecs", dst)
             return False
 
-        ratio = _get_compression_ratio(src, compression_codec, spec=spec, client=client) if compression_codec is not None else None
+        ratio = _get_compression_ratio(src, erasure_codec, compression_codec, optimize_for, spec=spec, client=client) if compression_codec is not None else None
 
         if ratio is None:
             ratio = get(src + "/@compression_ratio", client=client)
@@ -124,6 +136,8 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
             data_size_per_job = min(1, max_data_size_per_job)
         else:
             data_size_per_job = max(1, min(max_data_size_per_job, int(desired_chunk_size / ratio)))
+            # force "one job - one chunk" mode (real chunk size based on data_size_per_job)
+            desired_chunk_size = desired_chunk_size * 2 + 1024 ** 3
 
         spec = update(
             {
@@ -135,9 +149,12 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
                     "table_writer": {
                         "desired_chunk_size": desired_chunk_size
                     }
-                }
+                },
             },
             spec)
+
+        if job_splitting is not None:
+            spec.update({"enable_job_splitting": job_splitting})
 
         logger.debug("Transform from '%s' to '%s' (spec: '%s')", src, dst, spec)
         if client is not None:
