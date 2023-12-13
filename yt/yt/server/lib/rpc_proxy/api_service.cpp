@@ -3979,12 +3979,14 @@ private:
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
 
+        std::optional<i64> offset = YT_PROTO_OPTIONAL(*request, offset);
+
         context->SetRequestInfo(
             "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "
             "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
             request->consumer_path(),
             request->queue_path(),
-            request->offset(),
+            offset,
             request->partition_index(),
             rowBatchReadOptions.MaxRowCount,
             rowBatchReadOptions.MaxDataWeight,
@@ -4001,7 +4003,7 @@ private:
                 return client->PullConsumer(
                     consumerPath,
                     queuePath,
-                    request->offset(),
+                    offset,
                     request->partition_index(),
                     rowBatchReadOptions,
                     options);

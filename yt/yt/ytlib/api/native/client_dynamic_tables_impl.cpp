@@ -72,6 +72,8 @@
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/queue_client/consumer_client.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/helpers.h>
 
@@ -2544,7 +2546,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
 IQueueRowsetPtr TClient::DoPullConsumer(
     const NYPath::TRichYPath& consumerPath,
     const NYPath::TRichYPath& queuePath,
-    i64 offset,
+    std::optional<i64> offset,
     int partitionIndex,
     const TQueueRowBatchReadOptions& rowBatchReadOptions,
     const TPullConsumerOptions& options)
@@ -2566,7 +2568,7 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     if (!registrationCheckResult.Registration) {
         THROW_ERROR_EXCEPTION(
             NYT::NSecurityClient::EErrorCode::AuthorizationError,
-            "Consumer %Qv is not registered for queue %Qv",
+            "Consumer %v is not registered for queue %v",
             registrationCheckResult.ResolvedConsumer,
             registrationCheckResult.ResolvedQueue)
             << TErrorAttribute("raw_queue", queuePath)
@@ -2576,11 +2578,44 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     auto queueClusterClient = MakeStrong(static_cast<IInternalClient*>(this));
     if (auto queueCluster = queuePath.GetCluster()) {
         auto queueClusterConnection = FindRemoteConnection(Connection_, *queueCluster);
-        YT_VERIFY(queueClusterConnection);
+        if (!queueClusterConnection) {
+            THROW_ERROR_EXCEPTION(
+                "Queue cluster %Qv was not found for path %v",
+                *queueCluster,
+                queuePath
+            );
+        }
 
         auto queueClientOptions = TClientOptions::FromUser(Options_.GetAuthenticatedUser());
         queueClusterClient = DynamicPointerCast<IInternalClient>(queueClusterConnection->CreateNativeClient(queueClientOptions));
         YT_VERIFY(queueClusterClient);
+    }
+
+    i64 resultOffset = 0;
+    if (offset) {
+        resultOffset = *offset;
+    } else {
+        // PullConsumer is supported only for consumers from current cluster.
+        IClientPtr consumerClusterClient = MakeStrong(this);
+
+        auto subConsumerClient = CreateSubConsumerClient(consumerClusterClient, consumerPath.GetPath(), queuePath);
+        auto partitions = WaitFor(subConsumerClient->CollectPartitions(consumerClusterClient, std::vector<int>{partitionIndex}))
+            .ValueOrThrow();
+        if (partitions.size() < 1) {
+            YT_LOG_DEBUG(
+                "Consumer partition was not found during offset calculation (PartitionIndex: %v, ConsumerPath: %v, QueuePath: %v)",
+                partitionIndex,
+                consumerPath,
+                queuePath
+
+            );
+            THROW_ERROR_EXCEPTION(
+                "Failed to calculate current offset for consumer %v for queue %v",
+                consumerPath,
+                queuePath
+            );
+        }
+        resultOffset = partitions[0].NextRowIndex;
     }
 
     TPullQueueOptions pullQueueOptions = options;
@@ -2588,7 +2623,7 @@ IQueueRowsetPtr TClient::DoPullConsumer(
 
     return WaitFor(queueClusterClient->PullQueueUnauthenticated(
         queuePath,
-        offset,
+        resultOffset,
         partitionIndex,
         rowBatchReadOptions,
         pullQueueOptions))
