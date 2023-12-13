@@ -12,6 +12,7 @@ from ..errors import YtError
 if is_schema_module_available():
     from .types import (  # noqa
         Int8, Int16, Int32, Int64, Uint8, Uint16, Uint32, Uint64,
+        Float, Double,
         Date, Datetime, Timestamp, Interval,
         YsonBytes, OtherColumns, FormattedPyDatetime)
 

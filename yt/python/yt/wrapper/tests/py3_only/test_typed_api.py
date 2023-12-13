@@ -13,6 +13,8 @@ from yt.wrapper.schema import (
     Uint16,
     Uint32,
     Uint64,
+    Float,
+    Double,
     Date,
     Datetime,
     Timestamp,
@@ -1043,6 +1045,13 @@ class TestTypedApi(object):
         ]:
             assert 10 == write_and_read_primitive(py_type, ti_type, 10, mode="write_unstructured_read_structured")
             assert 10 == write_and_read_primitive(py_type, ti_type, 10, mode="write_structured_read_unstructured")
+
+        for py_type, ti_type in [
+            (Float, ti.Float),
+            (Double, ti.Double),
+        ]:
+            assert 1.25 == write_and_read_primitive(py_type, ti_type, 1.25, mode="write_unstructured_read_structured")
+            assert 1.25 == write_and_read_primitive(py_type, ti_type, 1.25, mode="write_structured_read_unstructured")
 
         with pytest.raises(yt.YtError, match="signedness"):
             write_and_read_primitive(Int64, ti.Uint64, 10, mode="write_unstructured_read_structured")
