@@ -1,4 +1,3 @@
-
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/interface/private/dummy_pipeline.h>
 
