@@ -102,7 +102,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
 
 TGpuManager::TGpuManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
-    , StaticConfig_(Bootstrap_->GetConfig()->ExecNode->JobController->GpuManager)
+    , StaticConfig_(Bootstrap_->GetConfig()->ExecNode->GpuManager)
     , DynamicConfig_(New<TGpuManagerDynamicConfig>())
     , HealthCheckExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),

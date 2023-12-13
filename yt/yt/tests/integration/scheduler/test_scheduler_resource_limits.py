@@ -787,13 +787,11 @@ class TestSchedulerGpu(YTEnvSetup):
             config["job_resource_manager"]["resource_limits"]["cpu"] = 4
             job_controller_config_patch = {
                 "exec_node": {
-                    "job_controller": {
-                        "gpu_manager": {
-                            "testing": {
-                                "test_resource": True,
-                                "test_gpu_count": 4,
-                            },
-                        }
+                    "gpu_manager": {
+                        "testing": {
+                            "test_resource": True,
+                            "test_gpu_count": 4,
+                        },
                     }
                 }
             }

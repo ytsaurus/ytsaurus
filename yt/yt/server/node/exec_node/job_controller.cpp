@@ -113,7 +113,6 @@ public:
 public:
     TJobController(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
-        , StaticConfig_(bootstrap->GetConfig()->ExecNode->JobController)
         , DynamicConfig_(New<TJobControllerDynamicConfig>())
         , Profiler_("/job_controller")
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
@@ -454,7 +453,6 @@ public:
 
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
-    const TJobControllerConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_;
 
     TJobResourceManagerPtr JobResourceManager_;

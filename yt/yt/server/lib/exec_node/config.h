@@ -620,21 +620,6 @@ DEFINE_REFCOUNTED_TYPE(TJobCommonConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobControllerConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    TGpuManagerConfigPtr GpuManager;
-
-    REGISTER_YSON_STRUCT(TJobControllerConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobControllerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -655,8 +640,6 @@ public:
     TDuration JobProxyBuildInfoUpdatePeriod;
 
     bool DisableJobProxyProfiling;
-
-    TGpuManagerDynamicConfigPtr GpuManager;
 
     NJobProxy::TJobProxyDynamicConfigPtr JobProxy;
 
@@ -772,7 +755,7 @@ public:
 
     TSlotManagerConfigPtr SlotManager;
 
-    TJobControllerConfigPtr JobController;
+    TGpuManagerConfigPtr GpuManager;
 
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
 
@@ -796,6 +779,8 @@ public:
     TSlotManagerDynamicConfigPtr SlotManager;
 
     TVolumeManagerDynamicConfigPtr VolumeManager;
+
+    TGpuManagerDynamicConfigPtr GpuManager;
 
     TJobControllerDynamicConfigPtr JobController;
 

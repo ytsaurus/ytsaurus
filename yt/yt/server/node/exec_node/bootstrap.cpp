@@ -380,8 +380,8 @@ private:
             oldConfig->ExecNode->SchedulerConnector,
             newConfig->ExecNode->SchedulerConnector);
         GpuManager_->OnDynamicConfigChanged(
-            oldConfig->ExecNode->JobController->GpuManager,
-            newConfig->ExecNode->JobController->GpuManager);
+            oldConfig->ExecNode->GpuManager,
+            newConfig->ExecNode->GpuManager);
         JobReporter_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobReporter,
             newConfig->ExecNode->JobReporter);

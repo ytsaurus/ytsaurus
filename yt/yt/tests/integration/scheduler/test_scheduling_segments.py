@@ -76,12 +76,10 @@ class TestSchedulingSegments(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "gpu_manager": {
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 8
-                    },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
                 },
             },
             "job_proxy": {
@@ -938,12 +936,10 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "gpu_manager": {
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 8
-                    },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
                 },
             },
             "job_proxy": {
@@ -1700,12 +1696,10 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "gpu_manager": {
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 8
-                    },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
                 },
             },
         },
@@ -1861,12 +1855,10 @@ class TestRunningJobStatistics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "gpu_manager": {
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 8
-                    },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
                 },
             },
             "job_proxy": {

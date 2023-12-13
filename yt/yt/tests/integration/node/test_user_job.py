@@ -2059,12 +2059,10 @@ class TestUserJobMonitoring(YTEnvSetup):
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,
             },
-            "job_controller": {
-                "gpu_manager": {
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 8,
-                    },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
                 },
             },
         },
@@ -2735,14 +2733,12 @@ class TestConsecutiveJobAborts(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "gpu_manager": {
-                    "driver_version": "0",
-                    "testing": {
-                        "test_resource": True,
-                        "test_layers": True,
-                        "test_gpu_count": 1,
-                    },
+            "gpu_manager": {
+                "driver_version": "0",
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
                 },
             },
             "job_proxy": {
@@ -3617,13 +3613,11 @@ class TestGpuStatistics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_controller": {
-                "gpu_manager": {
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 1,
-                        "test_utilization_gpu_rate": 0.5,
-                    },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 1,
+                    "test_utilization_gpu_rate": 0.5,
                 },
             },
         },

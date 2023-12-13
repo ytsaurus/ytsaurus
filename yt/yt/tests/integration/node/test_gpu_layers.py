@@ -32,14 +32,12 @@ class TestGpuJobSetup(YTEnvSetup):
             "enable_unrecognized_options_alert": True,
         },
         "exec_node": {
-            "job_controller": {
-                "gpu_manager": {
-                    # For to GPU manager to initialize properly.
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 1,
-                        "test_setup_commands": True,
-                    },
+            "gpu_manager": {
+                # For to GPU manager to initialize properly.
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 1,
+                    "test_setup_commands": True,
                 },
             },
             "job_proxy": {
@@ -64,14 +62,14 @@ class TestGpuJobSetup(YTEnvSetup):
                             "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
                         },
                     },
-                    "gpu_manager": {
-                        "job_setup_command": {
-                            "path": "/static-bin/static-bash",
-                            "args": [
-                                "-c",
-                                "echo SETUP-GPU-OUTPUT > /gpu_setup_output_file",
-                            ],
-                        },
+                },
+                "gpu_manager": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": [
+                            "-c",
+                            "echo SETUP-GPU-OUTPUT > /gpu_setup_output_file",
+                        ],
                     },
                 },
             },
@@ -143,17 +141,15 @@ class TestGpuJobSetup(YTEnvSetup):
         self.setup_files()
         update_nodes_dynamic_config({
             "exec_node": {
-                "job_controller": {
-                    "gpu_manager": {
-                        "job_setup_command": {
-                            "path": "/static-bin/static-bash",
-                            "args": [
-                                "-c",
-                                "echo SETUP-GPU-OUTPUT-DYNAMIC > /gpu_setup_output_file",
-                            ],
-                        },
-                        "cuda_toolkit_min_driver_version": {"1": "0"},
+                "gpu_manager": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": [
+                            "-c",
+                            "echo SETUP-GPU-OUTPUT-DYNAMIC > /gpu_setup_output_file",
+                        ],
                     },
+                    "cuda_toolkit_min_driver_version": {"1": "0"},
                 },
             },
         })
@@ -206,11 +202,11 @@ class TestSkipGpuJobSetup(YTEnvSetup):
                             "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
                         },
                     },
-                    "gpu_manager": {
-                        "job_setup_command": {
-                            "path": "/static-bin/static-bash",
-                            "args": ["-c", "echo SETUP-JUNK > /setup_output_file"],
-                        },
+                },
+                "gpu_manager": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": ["-c", "echo SETUP-JUNK > /setup_output_file"],
                     },
                 },
             },
@@ -268,16 +264,14 @@ class TestGpuLayer(YTEnvSetup):
             "job_proxy": {
                 "test_root_fs": True,
             },
-            "job_controller": {
-                "gpu_manager": {
-                    "driver_layer_directory_path": "//tmp/drivers",
-                    "driver_version": "test_version",
-                    "driver_layer_fetch_splay": 1000,
-                    "testing": {
-                        "test_resource": True,
-                        "test_layers": True,
-                        "test_gpu_count": 1,
-                    },
+            "gpu_manager": {
+                "driver_layer_directory_path": "//tmp/drivers",
+                "driver_version": "test_version",
+                "driver_layer_fetch_splay": 1000,
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
                 },
             },
             "slot_manager": {
@@ -299,9 +293,9 @@ class TestGpuLayer(YTEnvSetup):
                             "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
                         },
                     },
-                    "gpu_manager": {
-                        "driver_layer_fetch_period": 10000,
-                    },
+                },
+                "gpu_manager": {
+                    "driver_layer_fetch_period": 10000,
                 },
             },
         },
@@ -392,17 +386,15 @@ class TestGpuLayerUpdate(YTEnvSetup):
             "job_proxy": {
                 "test_root_fs": True,
             },
-            "job_controller": {
-                "gpu_manager": {
-                    "driver_layer_directory_path": "//tmp/drivers",
-                    "driver_version": "test_version",
-                    "driver_layer_fetch_splay": 1000,
-                    "testing": {
-                        "test_resource": True,
-                        "test_layers": True,
-                        "test_gpu_count": 1,
-                    },
-                }
+            "gpu_manager": {
+                "driver_layer_directory_path": "//tmp/drivers",
+                "driver_version": "test_version",
+                "driver_layer_fetch_splay": 1000,
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
+                },
             },
             "slot_manager": {
                 "job_environment": {
@@ -419,9 +411,9 @@ class TestGpuLayerUpdate(YTEnvSetup):
                     "job_common": {
                         "use_artifact_binds": True,
                     },
-                    "gpu_manager": {
-                        "driver_layer_fetch_period": 10000,
-                    },
+                },
+                "gpu_manager": {
+                    "driver_layer_fetch_period": 10000,
                 },
             },
         },
@@ -518,15 +510,13 @@ class TestCudaLayer(YTEnvSetup):
             "job_proxy": {
                 "test_root_fs": True,
             },
-            "job_controller": {
-                "gpu_manager": {
-                    "driver_version": "0",
-                    "cuda_toolkit_min_driver_version": {"0": "0"},
-                    "testing": {
-                        "test_resource": True,
-                        "test_layers": True,
-                        "test_gpu_count": 1,
-                    },
+            "gpu_manager": {
+                "driver_version": "0",
+                "cuda_toolkit_min_driver_version": {"0": "0"},
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
                 },
             },
             "slot_manager": {
@@ -622,10 +612,8 @@ class TestCudaLayer(YTEnvSetup):
         self.setup_files(cuda_version="1")
         update_nodes_dynamic_config({
             "exec_node": {
-                "job_controller": {
-                    "gpu_manager": {
-                        "cuda_toolkit_min_driver_version": {"1": "0"},
-                    },
+                "gpu_manager": {
+                    "cuda_toolkit_min_driver_version": {"1": "0"},
                 },
             },
         })
@@ -670,16 +658,14 @@ class TestForceCudaLayer(YTEnvSetup):
             "job_proxy": {
                 "test_root_fs": True,
             },
-            "job_controller": {
-                "gpu_manager": {
-                    "driver_version": "0",
-                    "driver_layer_directory_path": "//tmp/drivers",
-                    "cuda_toolkit_min_driver_version": {"0": "0"},
-                    "testing": {
-                        "test_resource": True,
-                        "test_gpu_count": 1,
-                    },
-                }
+            "gpu_manager": {
+                "driver_version": "0",
+                "driver_layer_directory_path": "//tmp/drivers",
+                "cuda_toolkit_min_driver_version": {"0": "0"},
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 1,
+                },
             },
             "slot_manager": {
                 "job_environment": {
@@ -696,14 +682,14 @@ class TestForceCudaLayer(YTEnvSetup):
                     "job_common": {
                         "use_artifact_binds": True,
                     },
-                    "gpu_manager": {
-                        "job_setup_command": {
-                            "path": "/static-bin/static-bash",
-                            "args": [
-                                "-c",
-                                "echo SETUP-OUTPUT > /playground/setup_output_file",
-                            ],
-                        },
+                },
+                "gpu_manager": {
+                    "job_setup_command": {
+                        "path": "/static-bin/static-bash",
+                        "args": [
+                            "-c",
+                            "echo SETUP-OUTPUT > /playground/setup_output_file",
+                        ],
                     },
                 },
             },
@@ -973,14 +959,12 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             "job_proxy": {
                 "test_root_fs": True,
             },
-            "job_controller": {
-                "gpu_manager": {
-                    "driver_version": "0",
-                    "testing": {
-                        "test_resource": True,
-                        "test_layers": True,
-                        "test_gpu_count": 1,
-                    },
+            "gpu_manager": {
+                "driver_version": "0",
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
                 },
             },
             "slot_manager": {
@@ -1332,15 +1316,13 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
             "job_proxy": {
                 "test_root_fs": True,
             },
-            "job_controller": {
-                "gpu_manager": {
-                    "driver_version": "0",
-                    "testing": {
-                        "test_resource": True,
-                        "test_layers": True,
-                        "test_gpu_count": 1,
-                        "test_extra_gpu_check_command_failure": True,
-                    },
+            "gpu_manager": {
+                "driver_version": "0",
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
+                    "test_extra_gpu_check_command_failure": True,
                 },
             },
             "slot_manager": {

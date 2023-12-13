@@ -655,14 +655,6 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobControllerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("gpu_manager", &TThis::GpuManager)
-        .DefaultNew();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
     // Make it greater than interrupt preemption timeout.
@@ -686,9 +678,6 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("recently_removed_jobs_store_timeout", &TThis::RecentlyRemovedJobsStoreTimeout)
         .Default(TDuration::Seconds(60));
-
-    registrar.Parameter("gpu_manager", &TThis::GpuManager)
-        .DefaultNew();
 
     registrar.Parameter("job_proxy_build_info_update_period", &TThis::JobProxyBuildInfoUpdatePeriod)
         .Default(TDuration::Seconds(5));
@@ -800,7 +789,7 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("slot_manager", &TThis::SlotManager)
         .DefaultNew();
 
-    registrar.Parameter("job_controller", &TThis::JobController)
+    registrar.Parameter("gpu_manager", &TThis::GpuManager)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_solomon_exporter", &TThis::JobProxySolomonExporter)
@@ -824,6 +813,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_controller", &TThis::JobController)
+        .DefaultNew();
+
+    registrar.Parameter("gpu_manager", &TThis::GpuManager)
         .DefaultNew();
 
     registrar.Parameter("job_reporter", &TThis::JobReporter)
