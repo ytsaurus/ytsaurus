@@ -122,6 +122,12 @@ TEST(TClientsCacheTest, MakeClusterConfig) {
         EXPECT_EQ(cfg.GetProxyRole(), "overwriting_role");
         EXPECT_EQ(cfg.GetChannelPoolSize(), 43u);
     }
+    {
+        auto cfg = MakeClusterConfig(clustersCfg, "seneca-vla.yt.yandex.net");
+        EXPECT_EQ(cfg.GetClusterName(), "seneca-vla.yt.yandex.net");
+        EXPECT_EQ(cfg.GetProxyRole(), "seneca_vla_role");
+        EXPECT_EQ(cfg.GetChannelPoolSize(), 43u);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
