@@ -458,13 +458,19 @@ private:
 
     TString GetOutputTableName(ui64 unixTs)
     {
+        auto periodInSeconds = ExportConfig_.ExportPeriod.Seconds();
+
+        if (!ExportConfig_.UseUpperBoundForTableNames) {
+            unixTs -= periodInSeconds;
+        }
+
         auto instant = TInstant::Seconds(unixTs);
 
         auto outputTableName = ExportConfig_.OutputTableNamePattern;
 
         std::vector<std::pair<TString, TString>> variables = {
             {"%UNIX_TS", ToString(unixTs)},
-            {"%PERIOD", ToString(ExportConfig_.ExportPeriod.Seconds())},
+            {"%PERIOD", ToString(periodInSeconds)},
             {"%ISO", instant.ToStringUpToSeconds()},
         };
 
@@ -489,8 +495,19 @@ private:
         TCreateNodeOptions createOptions;
         createOptions.TransactionId = Options_.TransactionId;
         createOptions.Attributes = CreateEphemeralAttributes();
+        if (ExportConfig_.ExportTtl) {
+            createOptions.Attributes->Set("expiration_time", ExportInstant_ + ExportConfig_.ExportTtl);
+        }
         WaitFor(Client_->CreateNode(DestinationObject_.GetPath(), EObjectType::Table, createOptions))
             .ThrowOnError();
+
+        YT_LOG_DEBUG(
+            "Created output node for export (DestinationPath: %v, OutputTableNamePattern: %v, UseUpperBoundForTableNames: %v, ExportTtl: %v, ExportFragmentUnixTs: %v)",
+            destinationPath,
+            ExportConfig_.OutputTableNamePattern,
+            ExportConfig_.UseUpperBoundForTableNames,
+            ExportConfig_.ExportTtl,
+            ExportFragmentUnixTs_);
 
         GetAndFillBasicAttributes(DestinationObject_, /*populateSecurityTags*/ false);
     }
