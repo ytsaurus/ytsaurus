@@ -94,6 +94,8 @@ TNodeId NodeIdFromObjectId(NObjectClient::TObjectId objectId);
 
 void ValidateNodeTags(const std::vector<TString>& tags);
 
+const TString& FormatShortly(ENodeFlavor flavor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {

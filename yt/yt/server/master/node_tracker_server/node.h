@@ -128,7 +128,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, Annotations);
     DEFINE_BYVAL_RW_PROPERTY(TString, Version);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<ENodeFlavor>, Flavors);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<ENodeFlavor>, Flavors);
 
     //! Helpers for |Flavors| access.
     bool IsDataNode() const;
@@ -464,6 +464,8 @@ private:
     void SetNodeTags(const std::vector<TString>& tags);
     void SetUserTags(const std::vector<TString>& tags);
     void RebuildTags();
+
+    void SetFlavors(const THashSet<ENodeFlavor>& newFlavors);
 
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
     void SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);

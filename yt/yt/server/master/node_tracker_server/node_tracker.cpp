@@ -2297,7 +2297,7 @@ private:
         YT_VERIFY(HasHydraContext());
 
         RemoveFromFlavorSets(node);
-        node->Flavors() = newFlavors;
+        node->SetFlavors(newFlavors);
         InsertToFlavorSets(node);
     }
 
