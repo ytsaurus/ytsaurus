@@ -7,7 +7,7 @@ from .common import datetime_to_string, set_param, get_value
 from datetime import datetime
 
 
-def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, client=None):
+def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, client=None):
     """Start query.
 
     :param engine: one of "ql", "yql".
@@ -22,6 +22,8 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
     :type stage: str
     :param annotations: a dictionary of annotations
     :type stage: dict or None
+    :param access_control_object: access control object name to constraint access to a query
+    :type access_control_object: str or None
     """
 
     params = {
@@ -32,6 +34,9 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
         "stage": get_value(stage, "production"),
         "annotations": get_value(annotations, {}),
     }
+
+    if access_control_object is not None:
+        params["access_control_object"] = access_control_object
 
     response = make_formatted_request("start_query", params, format=None, client=client)
 
