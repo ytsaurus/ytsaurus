@@ -517,6 +517,9 @@ public:
     i64 RowDigestCacheSize;
     bool UseRowDigests;
 
+    int MaxCompactionStructuredLogEvents;
+    int MaxPartitioningStructuredLogEvents;
+
     REGISTER_YSON_STRUCT(TStoreCompactorDynamicConfig);
 
     static void Register(TRegistrar registrar);
