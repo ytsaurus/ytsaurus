@@ -355,8 +355,7 @@ void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
         .Item("upper_bound_key").Value(GetUpperBoundKey())
         .Item("max_clip_timestamp").Value(MaxClipTimestamp_)
         .DoIf(TypeFromId(StoreId_) == EObjectType::ChunkView, [&] (auto fluent) {
-            fluent
-                .Item("chunk_view_size_fetch_status").Value(ChunkViewSizeFetchStatus_);
+            fluent.Item("chunk_view_size_fetch_status").Value(CompactionHints().ChunkViewSize);
         });
 }
 

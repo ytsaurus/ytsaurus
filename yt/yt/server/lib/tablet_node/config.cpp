@@ -57,9 +57,6 @@ void TRowDigestCompactionConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_timestamps_per_value", &TThis::MaxTimestampsPerValue)
         .GreaterThanOrEqual(1)
         .Default(8192);
-
-    registrar.Parameter("check_period", &TThis::CheckPeriod)
-        .Default(TDuration::Minutes(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -587,9 +584,12 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("row_digest_request_throttler", &TThis::RowDigestRequestThrottler)
         .DefaultNew();
-    registrar.Parameter("row_digest_cache_size", &TThis::RowDigestCacheSize)
-        .GreaterThan(0)
-        .Default(50_MB);
+    registrar.Parameter("chunk_view_size_request_throttler", &TThis::ChunkViewSizeRequestThrottler)
+        .DefaultNew();
+    registrar.Parameter("row_digest_throttler_try_acquire_backoff", &TThis::RowDigestThrottlerTryAcquireBackoff)
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("chunk_view_size_throttler_try_acquire_backoff", &TThis::ChunkViewSizeThrottlerTryAcquireBackoff)
+        .Default(TDuration::Seconds(1));
     registrar.Parameter("use_row_digests", &TThis::UseRowDigests)
         .Default(false);
 
