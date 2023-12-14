@@ -2818,26 +2818,44 @@ private:
         auto replicationRound = chaosData->ReplicationRound.load();
         YT_VERIFY(replicationRound == round);
 
-        auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
-        tablet->RuntimeData()->ReplicationProgress.Store(progress);
+        auto tabletProgress = tablet->RuntimeData()->ReplicationProgress.Acquire();
 
+        auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
+        bool isStrictlyAdvanced = IsReplicationProgressGreaterOrEqual(*progress, *tabletProgress);
         THashMap<TTabletId, i64> currentReplicationRowIndexes;
-        for (auto protoEndReplicationRowIndex : request->new_replication_row_indexes()) {
-            auto tabletId = FromProto<TTabletId>(protoEndReplicationRowIndex.tablet_id());
-            auto endReplicationRowIndex = protoEndReplicationRowIndex.replication_row_index();
-            YT_VERIFY(currentReplicationRowIndexes.insert(std::make_pair(tabletId, endReplicationRowIndex)).second);
+
+        if (isStrictlyAdvanced) {
+            tablet->RuntimeData()->ReplicationProgress.Store(progress);
+            for (auto protoEndReplicationRowIndex : request->new_replication_row_indexes()) {
+                auto tabletId = FromProto<TTabletId>(protoEndReplicationRowIndex.tablet_id());
+                auto endReplicationRowIndex = protoEndReplicationRowIndex.replication_row_index();
+                YT_VERIFY(currentReplicationRowIndexes.insert(std::make_pair(tabletId, endReplicationRowIndex)).second);
+            }
+
+            chaosData->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);
+
+            YT_LOG_DEBUG("Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, "
+                "ReplicationRowIndexes: %v, NewReplicationRound: %v)",
+                inCommit ? "committed" : "serialized",
+                tabletId,
+                transaction->GetId(),
+                static_cast<NChaosClient::TReplicationProgress>(*progress),
+                currentReplicationRowIndexes,
+                replicationRound + 1);
+        } else {
+            YT_LOG_ALERT("Skip writing pulled rows due to not strictly advanced progress %v "
+                "(TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, "
+                "NewReplicationRound: %v)",
+                inCommit ? "committed" : "serialized",
+                tabletId,
+                transaction->GetId(),
+                static_cast<NChaosClient::TReplicationProgress>(*progress),
+                currentReplicationRowIndexes,
+                replicationRound + 1);
         }
 
-        chaosData->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);
-        chaosData->ReplicationRound = round + 1;
 
-        YT_LOG_DEBUG("Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
-            inCommit ? "committed" : "serialized",
-            tabletId,
-            transaction->GetId(),
-            static_cast<NChaosClient::TReplicationProgress>(*progress),
-            currentReplicationRowIndexes,
-            replicationRound + 1);
+        chaosData->ReplicationRound = round + 1;
     }
 
     void HydraAbortWritePulledRows(
