@@ -209,7 +209,7 @@ private:
         TCypressNodeTypeHandlerBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
-        chaosManager->SetChaosCellBundle(clonedTrunkNode, sourceNode->ChaosCellBundle().Get());
+        chaosManager->SetChaosCellBundle(clonedTrunkNode, sourceNode->GetTrunkNode()->ChaosCellBundle().Get());
 
         clonedTrunkNode->SetReplicationCardId(sourceNode->GetReplicationCardId());
         // NB: Cannot share ownership.
