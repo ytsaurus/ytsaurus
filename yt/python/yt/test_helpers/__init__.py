@@ -58,17 +58,16 @@ from yt.common import wait, WaitFailed  # noqa
 
 # A simplified version of the same method of unittest.TestCase
 def _compute_items_difference(actual_seq, expected_seq):
+    actual_list = list(actual_seq)
+    expected_list = list(expected_seq)
     try:
-        actual = Counter(iter(actual_seq))
-        expected = Counter(iter(expected_seq))
-    except TypeError:
-        # Unhashable items (example: set(), list(), ...)
-        actual = list(actual_seq)
-        expected = list(expected_seq)
-        missing, unexpected = unorderable_list_difference(expected, actual)
-    else:
+        actual = Counter(actual_list)
+        expected = Counter(expected_list)
         missing = list(expected - actual)
         unexpected = list(actual - expected)
+    except TypeError:
+        # Unhashable items (example: set(), list(), ...)
+        missing, unexpected = unorderable_list_difference(expected_list, actual_list)
     return [missing, unexpected]
 
 
