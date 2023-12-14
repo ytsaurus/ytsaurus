@@ -3,12 +3,15 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_commands import (
     authors, print_debug, wait, create, get, set, create_user,
     create_tablet_cell_bundle, remove_tablet_cell,
-    insert_rows, select_rows, lookup_rows, sync_create_cells, sync_mount_table, sync_flush_table, generate_uuid)
+    insert_rows, select_rows, lookup_rows, sync_create_cells,
+    sync_mount_table, sync_flush_table, generate_uuid, sync_reshard_table)
 
 from yt_helpers import profiler_factory
 
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal
+
+from functools import partial
 
 import pytest
 
@@ -19,6 +22,12 @@ import time
 
 class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "enable_hunks": True
+        }
+    }
 
     @authors("gridem")
     def test_sorted_tablet_node_profiling(self):
@@ -231,3 +240,123 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         counter = profiler.get("write/row_count", {"table_path": "//tmp/path_letters/t_"})
         assert counter == 1
+
+    @authors("dave11ar")
+    def test_tablet_counters(self):
+        def _create_table(creator, **attributes):
+            creator(
+                **attributes,
+                enable_dynamic_store_read=False,
+                hunk_chunk_reader={
+                    "max_hunk_count_per_read": 2,
+                    "max_total_hunk_length_per_read": 60,
+                    "fragment_read_hedging_delay": 1,
+                    "max_inflight_fragment_length": 60,
+                    "max_inflight_fragment_count": 2,
+                },
+                hunk_chunk_writer={
+                    "desired_block_size": 50,
+                },
+            )
+
+        sync_create_cells(1)
+
+        def _wait_counters(
+                profiling,
+                overlapping_store_count,
+                eden_store_count,
+                data_weight,
+                uncompressed_data_size,
+                compressed_data_size,
+                row_count,
+                chunk_count,
+                hunk_count,
+                total_hunk_length,
+                hunk_chunk_count):
+            wait(
+                lambda: profiling.get_counter("tablet/overlapping_store_count") == overlapping_store_count
+                and profiling.get_counter("tablet/eden_store_count") == eden_store_count
+                and profiling.get_counter("tablet/data_weight") == data_weight
+                and profiling.get_counter("tablet/uncompressed_data_size") == uncompressed_data_size
+                and profiling.get_counter("tablet/compressed_data_size") == compressed_data_size
+                and profiling.get_counter("tablet/row_count") == row_count
+                and profiling.get_counter("tablet/chunk_count") == chunk_count
+                and profiling.get_counter("tablet/hunk_count") == hunk_count
+                and profiling.get_counter("tablet/total_hunk_length") == total_hunk_length
+                and profiling.get_counter("tablet/hunk_chunk_count") == hunk_chunk_count
+                and profiling.get_counter("tablet/tablet_count") == 2
+            )
+
+        table_sorted = "//tmp/t_sorted"
+        _create_table(
+            self._create_simple_table,
+            path=table_sorted,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+            ],
+        )
+        sync_reshard_table(table_sorted, [[], [1]])
+        sync_mount_table(table_sorted)
+
+        wait_sorted = partial(_wait_counters, self._get_table_profiling(table_sorted), 2, 1)
+
+        insert_rows(table_sorted, [{"key": 0, "value": "a" * 100}])
+        sync_flush_table(table_sorted)
+        wait_sorted(data_weight=29,
+                    uncompressed_data_size=77,
+                    compressed_data_size=121,
+                    row_count=1,
+                    chunk_count=1,
+                    hunk_count=1,
+                    total_hunk_length=100,
+                    hunk_chunk_count=1)
+
+        insert_rows(table_sorted, [{"key": 2, "value": "c" * 100}, {"key": 3, "value": "b" * 100}])
+        sync_flush_table(table_sorted)
+        wait_sorted(data_weight=87,
+                    uncompressed_data_size=215,
+                    compressed_data_size=285,
+                    row_count=3,
+                    chunk_count=2,
+                    hunk_count=3,
+                    total_hunk_length=300,
+                    hunk_chunk_count=2)
+
+        # TODO(dave11ar): add hunk test when hunk_chunk_count in hunk_storage become determined
+        table_ordered = "//tmp/t_ordered"
+        _create_table(
+            self._create_ordered_table,
+            path=table_ordered,
+            tablet_count=2,
+            schema=[
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1}
+            ],
+        )
+
+        sync_mount_table(table_ordered)
+
+        wait_ordered = partial(_wait_counters, self._get_table_profiling(table_ordered), 0, 0)
+
+        insert_rows(table_ordered, [{"key": 0, "value": "a" * 100}])
+        sync_flush_table(table_ordered)
+        wait_ordered(data_weight=109,
+                     uncompressed_data_size=112,
+                     compressed_data_size=48,
+                     row_count=1,
+                     chunk_count=1,
+                     hunk_count=0,
+                     total_hunk_length=0,
+                     hunk_chunk_count=0)
+
+        insert_rows(table_ordered, [{"key": 2, "value": "b" * 100}])
+        sync_flush_table(table_ordered)
+        wait_ordered(data_weight=218,
+                     uncompressed_data_size=224,
+                     compressed_data_size=96,
+                     row_count=2,
+                     chunk_count=2,
+                     hunk_count=0,
+                     total_hunk_length=0,
+                     hunk_chunk_count=0)

@@ -209,6 +209,15 @@ struct TTabletCounters
 
     NProfiling::TGauge OverlappingStoreCount;
     NProfiling::TGauge EdenStoreCount;
+    NProfiling::TGauge DataWeight;
+    NProfiling::TGauge UncompressedDataSize;
+    NProfiling::TGauge CompressedDataSize;
+    NProfiling::TGauge RowCount;
+    NProfiling::TGauge ChunkCount;
+    NProfiling::TGauge HunkCount;
+    NProfiling::TGauge TotalHunkLength;
+    NProfiling::TGauge HunkChunkCount;
+    NProfiling::TGauge TabletCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -461,6 +470,9 @@ private:
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
     TTabletDistributedThrottlerCounters ThrottlerCounters_;
     TLsmCounters LsmCounters_;
+
+    template <class TCounter>
+    TCounter* GetCounterUnlessDisabled(TCounter* counter);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableProfiler)

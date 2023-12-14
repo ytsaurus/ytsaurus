@@ -137,7 +137,7 @@ public:
         {
             auto row = CaptureRow(Store_->GetRow(CurrentRowIndex_));
             rows.push_back(row);
-            dataWeight += GetDataWeight(row);
+            dataWeight += NTableClient::GetDataWeight(row);
             ++CurrentRowIndex_;
         }
         if (rows.empty()) {
@@ -359,10 +359,11 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 
     // NB: Includes the weight of the $timestamp column if it exists.
     // NB: Be sure to place writes of all additional columns before this line.
-    auto dataWeight = static_cast<i64>(GetDataWeight(dynamicRow));
+    auto dataWeight = static_cast<i64>(NTableClient::GetDataWeight(dynamicRow));
     if (CumulativeDataWeightColumnId_) {
         // Account for the $cumulative_data_weight column we are adding.
-        dataWeight += static_cast<i64>(GetDataWeight(EValueType::Uint64)) - static_cast<i64>(GetDataWeight(EValueType::Null));
+        dataWeight += static_cast<i64>(NTableClient::GetDataWeight(EValueType::Uint64)) -
+            static_cast<i64>(NTableClient::GetDataWeight(EValueType::Null));
 
         GetTablet()->IncreaseCumulativeDataWeight(dataWeight);
         dynamicRow[*CumulativeDataWeightColumnId_] = MakeUnversionedInt64Value(

@@ -902,6 +902,7 @@ void TTablet::Load(TLoadContext& context)
         HunkLockManager_->Load(context);
     }
 
+    UpdateTabletSizeMetrics();
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
 }
@@ -1196,6 +1197,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
         existingPartitionIds,
         PartitionList_[firstIndex].get());
 
+    UpdateTabletSizeMetrics();
     UpdateOverlappingStoreCount();
 }
 
@@ -1296,6 +1298,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         index,
         pivotKeys.size());
 
+    UpdateTabletSizeMetrics();
     UpdateOverlappingStoreCount();
 }
 
@@ -1362,6 +1365,8 @@ void TTablet::AddStore(IStorePtr store, bool onFlush)
     if (store->IsDynamic()) {
         ++DynamicStoreCount_;
     }
+
+    UpdateTabletSizeMetrics();
 }
 
 void TTablet::RemoveStore(IStorePtr store)
@@ -1386,6 +1391,8 @@ void TTablet::RemoveStore(IStorePtr store)
         auto orderedStore = store->AsOrdered();
         EraseOrCrash(StoreRowIndexMap_, orderedStore->GetStartingRowIndex());
     }
+
+    UpdateTabletSizeMetrics();
 }
 
 IStorePtr TTablet::FindStore(TStoreId id)
@@ -1878,6 +1885,8 @@ void TTablet::ReconfigureProfiling()
         PhysicalSchema_);
     TabletCounters_ = TableProfiler_->GetTabletCounters();
 
+    TabletCounters_.TabletCount.Update(1);
+
     UpdateReplicaCounters();
 }
 
@@ -2071,6 +2080,58 @@ int TTablet::ComputeDynamicStoreCount() const
     return dynamicStoreCount;
 }
 
+
+void TTablet::UpdateTabletSizeMetrics()
+{
+    i64 dataWeight = 0;
+    i64 uncompressedDataSize = 0;
+    i64 compressedDataSize = 0;
+    i64 rowCount = 0;
+    i64 chunkCount = 0;
+
+    i64 hunkCount = 0;
+    i64 totalHunkLength = 0;
+
+    auto handleStore = [&] (const IStorePtr& store) {
+        if (store->IsChunk()) {
+            dataWeight += store->GetDataWeight();
+            uncompressedDataSize += store->GetUncompressedDataSize();
+            compressedDataSize += store->GetCompressedDataSize();
+            rowCount += store->GetRowCount();
+            ++chunkCount;
+        }
+    };
+
+    if (IsPhysicallySorted()) {
+        for (const auto& partition : PartitionList_) {
+            for (const auto& store : partition->Stores()) {
+                handleStore(store);
+            }
+        }
+        for (const auto& store : Eden_->Stores()) {
+            handleStore(store);
+        }
+    } else {
+        for (const auto& [storeId, store] : StoreIdMap_) {
+            handleStore(store);
+        }
+    }
+
+    for (const auto& [hunkChunkId, hunkChunk] : HunkChunkMap_) {
+        hunkCount += hunkChunk->GetHunkCount();
+        totalHunkLength += hunkChunk->GetTotalHunkLength();
+    }
+
+    TabletCounters_.DataWeight.Update(dataWeight);
+    TabletCounters_.UncompressedDataSize.Update(uncompressedDataSize);
+    TabletCounters_.CompressedDataSize.Update(compressedDataSize);
+    TabletCounters_.RowCount.Update(rowCount);
+    TabletCounters_.ChunkCount.Update(chunkCount);
+
+    TabletCounters_.HunkCount.Update(hunkCount);
+    TabletCounters_.TotalHunkLength.Update(totalHunkLength);
+    TabletCounters_.HunkChunkCount.Update(ssize(HunkChunkMap_));
+}
 
 void TTablet::UpdateOverlappingStoreCount()
 {

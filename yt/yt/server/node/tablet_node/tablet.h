@@ -810,6 +810,7 @@ private:
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
+    void UpdateTabletSizeMetrics();
     void UpdateOverlappingStoreCount();
     int ComputeEdenOverlappingStoreCount() const;
     int ComputeDynamicStoreCount() const;

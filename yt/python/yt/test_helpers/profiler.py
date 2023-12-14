@@ -214,7 +214,6 @@ class ProfilerFactory(object):
         fixed_tags["tablet_cell_bundle"] = tablet_cell_bundle
 
         tablets = self.yt_client.get(table + "/@tablets")
-        assert len(tablets) == 1
         address = self.yt_client.get("#{0}/@peers/0/address".format(tablets[0]["cell_id"]))
         return Profiler(
             self.yt_client,

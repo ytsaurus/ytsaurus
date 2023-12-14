@@ -599,6 +599,11 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
     TStoreBase::SetStoreState(state);
 }
 
+i64 TDynamicStoreBase::GetDataWeight() const
+{
+    return GetPoolCapacity();
+}
+
 i64 TDynamicStoreBase::GetCompressedDataSize() const
 {
     return GetPoolCapacity();
@@ -827,6 +832,11 @@ void TChunkStoreBase::Initialize()
 const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
 {
     return *ChunkMeta_;
+}
+
+i64 TChunkStoreBase::GetDataWeight() const
+{
+    return MiscExt_.data_weight();
 }
 
 i64 TChunkStoreBase::GetCompressedDataSize() const
