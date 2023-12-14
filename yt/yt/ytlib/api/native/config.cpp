@@ -245,6 +245,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(64_MB);
     registrar.Parameter("max_rows_per_transaction", &TThis::MaxRowsPerTransaction)
         .GreaterThan(0)
+        .LessThanOrEqual(MaxRowsPerTransactionHardLimit)
         .Default(100'000);
 
     registrar.Parameter("default_lookup_rows_timeout", &TThis::DefaultLookupRowsTimeout)
