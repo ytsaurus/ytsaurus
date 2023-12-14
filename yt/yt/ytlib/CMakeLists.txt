@@ -1272,6 +1272,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/lazy_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp

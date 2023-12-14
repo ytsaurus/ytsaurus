@@ -26,7 +26,7 @@
 
 #include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/lazy_client.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -130,25 +130,9 @@ public:
         return NativeRootClient_;
     }
 
-    const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClientOrThrow() const override
+    ISequoiaClientPtr GetSequoiaClient() const override
     {
-        if (!SequoiaClientPromise_.IsSet()) {
-            auto underlyingError = TError(
-                NSequoiaClient::EErrorCode::SequoiaClientNotReady,
-                "Sequoia client is not ready yet");
-            THROW_ERROR_EXCEPTION(
-                TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
-                << underlyingError);
-        }
-
-        return SequoiaClientPromise_
-            .Get()
-            .ValueOrThrow();
-    }
-
-    const TFuture<ISequoiaClientPtr> GetSequoiaClient() const override
-    {
-        return SequoiaClientPromise_.ToFuture();
+        return SequoiaClient_;
     }
 
     const NApi::NNative::IConnectionPtr& GetGroundConnection() const override
@@ -178,11 +162,10 @@ private:
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    TCallback<void(const TString &, NYTree::INodePtr)> GroundConnectionCallback_;
-
     NApi::NNative::IConnectionPtr GroundConnection_;
     NApi::NNative::IClientPtr GroundRootClient_;
-    TPromise<ISequoiaClientPtr> SequoiaClientPromise_;
+
+    ILazySequoiaClientPtr SequoiaClient_;
 
     IYPathServicePtr SequoiaService_;
 
@@ -216,16 +199,12 @@ private:
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
-        SequoiaClientPromise_ = NewPromise<NSequoiaClient::ISequoiaClientPtr>();
+        SequoiaClient_ = CreateLazySequoiaClient(NativeRootClient_, Logger);
 
-        // If sequoia is local it's safe to create the client right now.
+        // If Sequoia is local it's safe to create the client right now.
         const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
         if (!groundClusterName) {
-            auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
-                /*nativeClient*/ NativeRootClient_,
-                /*groundClient*/ NativeRootClient_,
-                Logger);
-            SequoiaClientPromise_.Set(std::move(sequoiaClient));
+            SequoiaClient_->SetGroundClient(NativeRootClient_);
         }
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
@@ -280,33 +259,16 @@ private:
 
     void DoRun()
     {
-        const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
-        if (groundClusterName) {
-            GroundConnectionCallback_ = BIND(
-                [
-                    groundClusterName,
-                    nativeConnection=NativeConnection_,
-                    nativeRootClient=NativeRootClient_,
-                    sequoiaClientPromise=SequoiaClientPromise_,
-                    callback = &GroundConnectionCallback_
-                ] (const TString& clusterName, const INodePtr& /*configNode*/) {
-                    if (clusterName == *groundClusterName && !sequoiaClientPromise.IsSet()) {
-                        auto groundConnection = nativeConnection->GetClusterDirectory()->FindConnection(*groundClusterName);
-                        YT_VERIFY(groundConnection);
-
-                        auto groundRootClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
-                        auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
-                            nativeRootClient,
-                            std::move(groundRootClient),
-                            Logger);
-                        sequoiaClientPromise.TrySet(std::move(sequoiaClient));
-                        nativeConnection->GetClusterDirectory()->UnsubscribeOnClusterUpdated(*callback);
+        if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
+            NativeConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
+                BIND([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
+                    if (clusterName == *groundClusterName) {
+                        auto groundConnection = NativeConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
+                        auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
+                        SequoiaClient_->SetGroundClient(std::move(groundClient));
                     }
-                });
-
-            NativeConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(GroundConnectionCallback_);
+                }));
         }
-
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);

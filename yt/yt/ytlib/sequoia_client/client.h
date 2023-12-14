@@ -13,7 +13,6 @@ namespace NYT::NSequoiaClient {
 struct ISequoiaClient
     : public TRefCounted
 {
-public:
     virtual TFuture<NApi::TUnversionedLookupRowsResult> LookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,

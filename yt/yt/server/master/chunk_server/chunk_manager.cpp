@@ -2786,14 +2786,12 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& client) {
-                return client->SelectRows<NRecords::TLocationReplicas>({
-                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                    Format("node_id = %v", nodeId),
-                    Format("id_hash = %v", HashFromId(locationUuid)),
-                    Format("location_uuid = %Qv", locationUuid),
-                });
-            }));
+            ->SelectRows<NRecords::TLocationReplicas>({
+                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                Format("node_id = %v", nodeId),
+                Format("id_hash = %v", HashFromId(locationUuid)),
+                Format("location_uuid = %Qv", locationUuid),
+            });
     }
 
     TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const override
@@ -2807,12 +2805,10 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaClientPtr& client) {
-                return client->SelectRows<NRecords::TLocationReplicas>({
-                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                    Format("node_id = %v", nodeId),
-                });
-            }));
+            ->SelectRows<NRecords::TLocationReplicas>({
+                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                Format("node_id = %v", nodeId),
+            });
     }
 
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
@@ -3381,10 +3377,8 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([] (const ISequoiaClientPtr& client) {
-                return client->StartTransaction();
-            }))
-            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
+            ->StartTransaction()
+            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
                 for (const auto& protoReplica : request.replicas()) {
                     auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
@@ -3438,10 +3432,8 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([] (const ISequoiaClientPtr& client) {
-                return client->StartTransaction();
-            }))
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) {
+            ->StartTransaction()
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
 
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
@@ -5314,16 +5306,14 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([buildFilter] (const ISequoiaClientPtr& client) {
-                return client->SelectRows<NRecords::TChunkReplicas>({
-                    buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                        builder->AppendFormat("%v", HashFromId(chunkId));
-                    }),
-                    buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                        builder->AppendFormat("%Qv", chunkId);
-                    }),
-                });
-            }));
+            ->SelectRows<NRecords::TChunkReplicas>({
+                buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                    builder->AppendFormat("%v", HashFromId(chunkId));
+                }),
+                buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                    builder->AppendFormat("%Qv", chunkId);
+                }),
+            });
     }
 
     void OnSequoiaReplicaRemoval()

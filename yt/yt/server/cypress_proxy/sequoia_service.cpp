@@ -47,8 +47,7 @@ public:
         const IYPathServiceContextPtr& context) override
     {
         auto Logger = CypressProxyLogger.WithTag("CypressRequestId: %v", context->GetRequestId());
-        auto client = WaitForFast(Bootstrap_->GetSequoiaClient())
-            .ValueOrThrow();
+        auto client = Bootstrap_->GetSequoiaClient();
         auto transaction = WaitFor(client->StartTransaction())
             .ValueOrThrow();
 

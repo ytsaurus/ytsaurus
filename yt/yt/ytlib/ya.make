@@ -363,6 +363,7 @@ SRCS(
     security_client/proto/user_ypath.proto
 
     sequoia_client/client.cpp
+    sequoia_client/lazy_client.cpp
     sequoia_client/helpers.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp

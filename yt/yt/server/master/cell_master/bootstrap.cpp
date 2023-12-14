@@ -146,7 +146,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/lazy_client.h>
 
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -216,6 +216,7 @@ using namespace NProfiling;
 using namespace NRpc;
 using namespace NSchedulerPoolServer;
 using namespace NSecurityServer;
+using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTableServer;
 using namespace NTabletServer;
@@ -340,25 +341,9 @@ const NNative::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
-const NSequoiaClient::ISequoiaClientPtr& TBootstrap::GetSequoiaClientOrThrow() const
+ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
 {
-    if (!SequoiaClientPromise_.IsSet()) {
-        auto underlyingError = TError(
-            NSequoiaClient::EErrorCode::SequoiaClientNotReady,
-            "Sequoia client is not ready yet");
-        THROW_ERROR_EXCEPTION(
-            TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
-            << underlyingError);
-    }
-
-    return SequoiaClientPromise_
-        .Get()
-        .ValueOrThrow();
-}
-
-const TFuture<NSequoiaClient::ISequoiaClientPtr> TBootstrap::GetSequoiaClient() const
-{
-    return SequoiaClientPromise_.ToFuture();
+    return SequoiaClient_;
 }
 
 const TCellManagerPtr& TBootstrap::GetCellManager() const
@@ -777,16 +762,13 @@ void TBootstrap::DoInitialize()
     ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
 
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
-    SequoiaClientPromise_ = NewPromise<NSequoiaClient::ISequoiaClientPtr>();
 
-    // If sequoia is local it's safe to create the client right now.
+    SequoiaClient_ = CreateLazySequoiaClient(RootClient_, Logger);
+
+    // If Sequoia is local it's safe to create the client right now.
     const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
     if (!groundClusterName) {
-        auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
-            /*nativeClient*/ RootClient_,
-            /*groundClient*/ RootClient_,
-            Logger);
-        SequoiaClientPromise_.Set(std::move(sequoiaClient));
+        SequoiaClient_->SetGroundClient(RootClient_);
     }
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
@@ -1097,33 +1079,16 @@ void TBootstrap::InitializeTimestampProvider()
 
 void TBootstrap::DoRun()
 {
-    const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
-    if (groundClusterName) {
-        GroundConnectionCallback_ = BIND(
-            [
-                groundClusterName,
-                clusterConnection=ClusterConnection_,
-                rootClient=RootClient_,
-                sequoiaClientPromise=SequoiaClientPromise_,
-                callback = &GroundConnectionCallback_
-            ] (const TString& clusterName, const INodePtr& /*configNode*/) {
-                if (clusterName == *groundClusterName && !sequoiaClientPromise.IsSet()) {
-                    auto groundConnection = clusterConnection->GetClusterDirectory()->FindConnection(*groundClusterName);
-                    YT_VERIFY(groundConnection);
-
-                    auto groundRootClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
-                    auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
-                        rootClient,
-                        std::move(groundRootClient),
-                        Logger);
-                    sequoiaClientPromise.TrySet(std::move(sequoiaClient));
-                    clusterConnection->GetClusterDirectory()->UnsubscribeOnClusterUpdated(*callback);
+    if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
+        ClusterConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
+            BIND([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
+                if (clusterName == *groundClusterName) {
+                    auto groundConnection = ClusterConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
+                    auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
+                    SequoiaClient_->SetGroundClient(std::move(groundClient));
                 }
-            });
-
-        ClusterConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(GroundConnectionCallback_);
+            }));
     }
-
     ClusterConnection_->GetClusterDirectorySynchronizer()->Start();
 
     // Initialize periodic update of latest timestamp.
