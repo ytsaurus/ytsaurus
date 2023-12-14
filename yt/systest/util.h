@@ -13,8 +13,12 @@ std::vector<TNode> ArrangeValuesToIndex(
     const std::unordered_map<TString, int>& index,
     const TNode::TMapType& mapRow);
 
-size_t ComputeNodeByteSize(const TNode& node);
+ssize_t ComputeNodeByteSize(const TNode& node);
 
 std::vector<TNode> ExtractInputValues(TRange<TNode> values, TRange<int> input);
+
+int CompareRowPrefix(int prefixLength, TRange<TNode> lhs, TRange<TNode> rhs);
+
+TString DebugString(const TNode& node);
 
 }  // namespace NYT::NTest

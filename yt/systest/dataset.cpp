@@ -46,7 +46,6 @@ TStoredDataset MaterializeIntoTable(IClientPtr client, const TString& tablePath,
         tablePath,
         totalRecords,
         totalSize,
-        &dataset
     };
 }
 
@@ -93,7 +92,6 @@ TStoredDataset VerifyTable(IClientPtr client,  const TString& tablePath, const I
         tablePath,
         rowIndex,
         totalSize,
-        &dataset
     };
 }
 

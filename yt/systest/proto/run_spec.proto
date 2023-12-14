@@ -10,6 +10,11 @@ message TMapRunSpec {
 
 message TReduceRunSpec {
     required TTable table = 1;
-    repeated string reduce_by = 3;
-    required TReducer operation = 4;
+    repeated string reduce_by = 2;
+    required TReducer operation = 3;
 };
+
+message TSortRunSpec {
+    required TTable table = 1;
+    repeated string sort_by = 2;
+}

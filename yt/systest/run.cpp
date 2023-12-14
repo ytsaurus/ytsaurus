@@ -210,7 +210,6 @@ void RunMap(IClientPtr client, const TTestHome& home,
     TMapOperationSpec spec;
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
-    spec.CoreTablePath(home.CoreTable());
     spec.StderrTablePath(home.StderrTable());
     spec.JobCount(10);
     spec.Ordered(true);
@@ -235,7 +234,6 @@ void RunReduce(IClientPtr client, const TTestHome& home,
     TReduceOperationSpec spec;
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
-    spec.CoreTablePath(home.CoreTable());
     spec.StderrTablePath(home.StderrTable());
 
     TVector<TString> reduceColumns(operation.ReduceBy.begin(), operation.ReduceBy.end());

@@ -3,6 +3,7 @@
 #include <yt/systest/dataset.h>
 #include <yt/systest/table_dataset.h>
 #include <yt/systest/test_home.h>
+#include <yt/systest/validator.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -10,7 +11,6 @@ namespace NYT::NTest {
 
 struct TRunnerConfig
 {
-    TString HomeDirectory;
     int NumBootstrapRecords;
     int Seed;
     int NumOperations;
@@ -27,7 +27,7 @@ struct TRunnerConfig
 class TRunner
 {
 public:
-    TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr rpcClient);
+    TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr rpcClient, TTestHome& testHome, TValidator& validator);
     void Run();
 
 private:
@@ -44,7 +44,9 @@ private:
     IClientPtr Client_;
     NApi::IClientPtr RpcClient_;
 
-    TTestHome TestHome_;
+    TTestHome& TestHome_;
+    TValidator& Validator_;
+
     TStoredDataset BootstrapInfo_;
 
     std::vector<TDatasetInfo> Infos_;

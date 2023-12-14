@@ -8,7 +8,7 @@ namespace NYT::NTest {
 class TTableDataset : public IDataset
 {
 public:
-    TTableDataset(const TTable& table, IClientPtr client, const TString& path);
+    TTableDataset(const TTable& table, IClientPtr client, const TRichYPath& path);
 
     virtual const TTable& table_schema() const;
     virtual std::unique_ptr<IDatasetIterator> NewIterator() const;
@@ -16,7 +16,7 @@ public:
 private:
     const TTable& Table_;
     IClientPtr Client_;
-    const TString Path_;
+    const TRichYPath Path_;
 };
 
 }  // namespace NYT::NTest

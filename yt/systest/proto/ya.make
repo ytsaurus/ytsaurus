@@ -4,6 +4,7 @@ SRCS(
     operation.proto
     run_spec.proto
     table.proto
+    validator.proto
 )
 
 PEERDIR(

@@ -8,6 +8,8 @@ namespace NYT::NTest {
 
 struct TConfig {
     TRunnerConfig RunnerConfig;
+    TValidatorConfig ValidatorConfig;
+    TString HomeDirectory;
     bool Ipv4;
 
     TConfig();

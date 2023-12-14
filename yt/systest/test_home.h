@@ -15,6 +15,7 @@ public:
     const TString& Dir() const { return Dir_; }
     const TString& CoreTable() const { return CoreTable_; }
     const TString& StderrTable() const { return StderrTable_; }
+    TString ValidatorsDir() const { return Dir_ + "/validators"; }
 
     TString CreateRandomTablePath();
 

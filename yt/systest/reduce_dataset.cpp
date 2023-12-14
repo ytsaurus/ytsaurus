@@ -160,9 +160,11 @@ void TReduceDataset::ComputeColumnIndices()
 
     ReduceByIndices_ = computeIndices(Operation_.ReduceBy, columns, order);
 
+    const int sortColumns = Inner_.table_schema().SortColumns;
     for (int index : ReduceByIndices_) {
-        if (index >= Inner_.table_schema().SortColumns) {
-            THROW_ERROR_EXCEPTION("Table must be sorted by a reduce column");
+        if (index >= sortColumns) {
+            THROW_ERROR_EXCEPTION("Table must be sorted by a reduce column, column %v "
+                "not in %v sort columns", columns[index].Name, sortColumns);
         }
     }
 }

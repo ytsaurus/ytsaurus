@@ -4,6 +4,8 @@
 
 namespace NYT::NTest {
 
+void ApplySortOperation(const TTable& table, const TSortOperation& operation, TTable* output);
+
 class TSortDataset : public IDataset
 {
 public:
@@ -34,6 +36,23 @@ private:
     const int NumColumns_;
     std::vector<bool> ColumnSorted_;
     TTable Table_;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TMergeSortedDataset : public IDataset
+{
+public:
+    // Every inner dataset must have the same table schema.
+    TMergeSortedDataset(std::vector<const IDataset*> inner);
+
+    virtual const TTable& table_schema() const;
+    virtual std::unique_ptr<IDatasetIterator> NewIterator() const;
+
+private:
+    friend class TMergeSortedDatasetIterator;
+
+    std::vector<const IDataset*> Inner_;
 };
 
 }  // namespace NYT::NTest

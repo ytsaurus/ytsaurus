@@ -96,6 +96,25 @@ std::unique_ptr<IReducer> CreateFromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TSortRunSpec *proto, const TTable& table, const TSortOperation& operation)
+{
+    ToProto(proto->mutable_table(), table);
+    for (const auto& column : operation.SortBy) {
+        proto->add_sort_by(column);
+    }
+}
+
+void FromProto(TTable* table, TSortOperation* operation, const NProto::TSortRunSpec& proto)
+{
+    FromProto(table, proto.table());
+    operation->SortBy.clear();
+    for (const auto& column : proto.sort_by()) {
+        operation->SortBy.push_back(column);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TOperationInputColumns* proto, TRange<int> inputColumns)
 {
     for (int index : inputColumns) {

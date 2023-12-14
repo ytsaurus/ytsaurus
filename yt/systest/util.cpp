@@ -3,6 +3,8 @@
 
 namespace NYT::NTest {
 
+using namespace NNodeCmp;
+
 namespace {
 
 class TByteCountOutputStream : public IOutputStream
@@ -57,7 +59,7 @@ std::vector<TNode> ArrangeValuesToIndex(
     return result;
 }
 
-size_t ComputeNodeByteSize(const TNode& node)
+ssize_t ComputeNodeByteSize(const TNode& node)
 {
     TByteCountOutputStream byteCountStream;
     node.Save(&byteCountStream);
@@ -71,6 +73,27 @@ std::vector<TNode> ExtractInputValues(TRange<TNode> values, TRange<int> input)
         result.push_back(values[position]);
     }
     return result;
+}
+
+TString DebugString(const TNode& node)
+{
+    TTempBufOutput outputStream;
+    node.Save(&outputStream);
+    return TString(outputStream.Data(), outputStream.Filled());
+}
+
+int CompareRowPrefix(int prefixLength, TRange<TNode> lhs, TRange<TNode> rhs)
+{
+    for (int i = 0; i < prefixLength; ++i) {
+        if (lhs[i] != rhs[i]) {
+            if (lhs[i] < rhs[i]) {
+                return -1;
+            } else {
+                return 1;
+            }
+        }
+    }
+    return 0;
 }
 
 }  // namespace NYT::NTest

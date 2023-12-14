@@ -13,7 +13,7 @@ void TConfig::RegisterOptions(NLastGetopt::TOpts* opts)
         .DefaultValue(4);
 
     opts->AddLongOption("home")
-        .StoreResult(&RunnerConfig.HomeDirectory)
+        .StoreResult(&HomeDirectory)
         .DefaultValue("//home");
 
     opts->AddLongOption("num-bootstrap-records")
@@ -39,6 +39,14 @@ void TConfig::RegisterOptions(NLastGetopt::TOpts* opts)
     opts->AddLongOption("enable-deletes")
         .StoreResult(&RunnerConfig.EnableDeletes)
         .DefaultValue(false);
+
+    opts->AddLongOption("validator-jobs")
+        .StoreResult(&ValidatorConfig.NumJobs)
+        .DefaultValue(4);
+
+    opts->AddLongOption("validator-interval-bytes")
+        .StoreResult(&ValidatorConfig.IntervalBytes)
+        .DefaultValue(64 << 20);
 }
 
 }  // namespace NYT::NTest

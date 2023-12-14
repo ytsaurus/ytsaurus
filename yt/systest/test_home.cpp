@@ -1,4 +1,5 @@
 
+#include <library/cpp/yt/logging/logger.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
@@ -37,8 +38,12 @@ void TTestHome::Init()
     StderrTable_ = Dir_ + "/stderr";
 
     Client_->Create(Dir_, ENodeType::NT_MAP);
+    Client_->Create(ValidatorsDir(), ENodeType::NT_MAP);
     Client_->Create(CoreTable_, ENodeType::NT_TABLE);
     Client_->Create(StderrTable_, ENodeType::NT_TABLE);
+
+    NLogging::TLogger Logger("test");
+    YT_LOG_INFO("Initialized test home (Directory: %v)", Dir_);
 }
 
 TString TTestHome::CreateRandomTablePath()

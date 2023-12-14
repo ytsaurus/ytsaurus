@@ -1,6 +1,11 @@
 
 #include <library/cpp/yt/logging/logger.h>
 #include <library/cpp/yson/node/node.h>
+
+#include <yt/yt/core/misc/heap.h>
+
+#include <yt/systest/util.h>
+
 #include <yt/systest/sort_dataset.h>
 
 namespace NYT::NTest {
@@ -20,6 +25,64 @@ private:
     const TSortDataset::TDataEntry* Data_;
     const TSortDataset::TDataEntry* End_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeSortedDatasetIterator : public IDatasetIterator
+{
+public:
+    TMergeSortedDatasetIterator(int sortColumns, std::vector<std::unique_ptr<IDatasetIterator>> iterators);
+
+    TRange<TNode> Values() const override;
+    bool Done() const override;
+    void Next() override;
+
+private:
+    bool IteratorCmp(const IDatasetIterator* lhs, const IDatasetIterator* rhs);
+
+    const int SortColumns_;
+    std::vector<std::unique_ptr<IDatasetIterator>> Iterators_;
+    std::vector<IDatasetIterator*> Heap_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void ApplySortOperationInternal(
+    const TTable& table,
+    const TSortOperation& operation,
+    TTable* output,
+    std::vector<bool>* sortedMask,
+    std::vector<int>* sortByIndices)
+{
+    sortedMask->clear();
+    sortedMask->resize(std::ssize(table.DataColumns), false);
+    std::unordered_map<TString, int> index;
+    for (int i = 0; i < std::ssize(table.DataColumns); i++) {
+        index.insert(std::make_pair(table.DataColumns[i].Name, i));
+    }
+    for (const auto& sortColumn : operation.SortBy) {
+        auto position = index.find(sortColumn);
+        if (position == index.end()) {
+            THROW_ERROR_EXCEPTION("Sort column %v missing from input schema", sortColumn);
+        }
+        output->DataColumns.push_back(table.DataColumns[position->second]);
+        (*sortedMask)[position->second] = true;
+        sortByIndices->push_back(position->second);
+    }
+    for (int i = 0; i < std::ssize(table.DataColumns); i++) {
+        if ((*sortedMask)[i]) {
+            continue;
+        }
+        output->DataColumns.push_back(table.DataColumns[i]);
+    }
+    output->SortColumns = std::ssize(operation.SortBy);
+}
+
+void ApplySortOperation(const TTable& table, const TSortOperation& operation, TTable* output) {
+    std::vector<bool> sortedMask;
+    std::vector<int> sortByIndices;
+    ApplySortOperationInternal(table, operation, output, &sortedMask, &sortByIndices);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,38 +109,65 @@ void TSortIterator::Next()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMergeSortedDatasetIterator::TMergeSortedDatasetIterator(
+    int sortColumns,
+    std::vector<std::unique_ptr<IDatasetIterator>> iterators)
+    : SortColumns_(sortColumns)
+    , Iterators_(std::move(iterators))
+{
+    for (auto& entry : Iterators_) {
+        Heap_.push_back(entry.get());
+    }
+    MakeHeap(Heap_.begin(), Heap_.end(), BIND(&TMergeSortedDatasetIterator::IteratorCmp, this));
+}
+
+TRange<TNode> TMergeSortedDatasetIterator::Values() const
+{
+    return Heap_[0]->Values();
+}
+
+bool TMergeSortedDatasetIterator::Done() const
+{
+    return Heap_[0]->Done();
+}
+
+void TMergeSortedDatasetIterator::Next()
+{
+    Heap_[0]->Next();
+    AdjustHeapFront(Heap_.begin(), Heap_.end(), BIND(&TMergeSortedDatasetIterator::IteratorCmp, this));
+}
+
+bool TMergeSortedDatasetIterator::IteratorCmp(const IDatasetIterator* lhs, const IDatasetIterator* rhs)
+{
+    if (lhs->Done() != rhs->Done()) {
+        return lhs->Done() < rhs->Done();
+    }
+    if (lhs->Done()) {
+        return false;
+    }
+
+    for (int i = 0; i < SortColumns_; ++i) {
+        if (lhs->Values()[i] < rhs->Values()[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSortDataset::TSortDataset(const IDataset& inner, const TSortOperation& operation)
     : Inner_(inner)
     , Operation_(operation)
     , NumColumns_(std::ssize(Inner_.table_schema().DataColumns))
-    , ColumnSorted_(std::ssize(Inner_.table_schema().DataColumns), false)
 {
-    BuildOutputTableSchema();
+    ApplySortOperationInternal(
+        Inner_.table_schema(),
+        Operation_,
+        &Table_,
+        &ColumnSorted_,
+        &SortByIndices_);
     ConsumeAndSortInner();
-}
-
-void TSortDataset::BuildOutputTableSchema()
-{
-    std::unordered_map<TString, int> index;
-    for (int i = 0; i < std::ssize(Inner_.table_schema().DataColumns); i++) {
-        index.insert(std::make_pair(Inner_.table_schema().DataColumns[i].Name, i));
-    }
-    for (const auto& sortColumn : Operation_.SortBy) {
-        auto position = index.find(sortColumn);
-        if (position == index.end()) {
-            THROW_ERROR_EXCEPTION("Sort column %v missing from input schema", sortColumn);
-        }
-        Table_.DataColumns.push_back(Inner_.table_schema().DataColumns[position->second]);
-        ColumnSorted_[position->second] = true;
-        SortByIndices_.push_back(position->second);
-    }
-    for (int i = 0; i < NumColumns_; i++) {
-        if (ColumnSorted_[i]) {
-            continue;
-        }
-        Table_.DataColumns.push_back(Inner_.table_schema().DataColumns[i]);
-    }
-    Table_.SortColumns = std::ssize(Operation_.SortBy);
 }
 
 std::vector<TNode> TSortDataset::BuildValues(TRange<TNode> values) const
@@ -109,16 +199,7 @@ void TSortDataset::ConsumeAndSortInner()
 
 int TSortDataset::Comparator(const TDataEntry& lhs, const TDataEntry& rhs) const
 {
-    for (int i = 0; i < Table_.SortColumns; ++i) {
-        if (lhs.Values[i] != rhs.Values[i]) {
-            if (lhs.Values[i] < rhs.Values[i]) {
-                return -1;
-            } else {
-                return 1;
-            }
-        }
-    }
-    return 0;
+    return CompareRowPrefix(Table_.SortColumns, lhs.Values, rhs.Values);
 }
 
 const TTable& TSortDataset::table_schema() const
@@ -129,6 +210,30 @@ const TTable& TSortDataset::table_schema() const
 std::unique_ptr<IDatasetIterator> TSortDataset::NewIterator() const
 {
     return std::make_unique<TSortIterator>(&Data_[0], std::ssize(Data_));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMergeSortedDataset::TMergeSortedDataset(std::vector<const IDataset*> inner)
+    : Inner_(inner)
+{
+    YT_VERIFY(std::ssize(Inner_) > 0);
+}
+
+const TTable& TMergeSortedDataset::table_schema() const
+{
+    return Inner_[0]->table_schema();
+}
+
+std::unique_ptr<IDatasetIterator> TMergeSortedDataset::NewIterator() const
+{
+    std::vector<std::unique_ptr<IDatasetIterator>> iterators;
+    for (auto& dataset : Inner_) {
+        iterators.push_back(dataset->NewIterator());
+    }
+    return std::make_unique<TMergeSortedDatasetIterator>(
+        table_schema().SortColumns,
+        std::move(iterators));
 }
 
 }  // namespace NYT::NTest

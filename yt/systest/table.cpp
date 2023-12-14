@@ -114,12 +114,17 @@ void FromProto(TDataColumn* column, const NProto::TDataColumn& proto)
 
 void FromProto(TTable* table, const NProto::TTable& proto)
 {
-  table->DataColumns.clear();
-  for (const auto& protoColumn : proto.columns()) {
-    TDataColumn column;
-    FromProto(&column, protoColumn);
-    table->DataColumns.push_back(std::move(column));
-  }
+    table->DataColumns.clear();
+    for (const auto& protoColumn : proto.columns()) {
+        TDataColumn column;
+        FromProto(&column, protoColumn);
+        table->DataColumns.push_back(std::move(column));
+    }
+    table->DeletedColumnNames.clear();
+    for (const auto& name : proto.deleted_column_name()) {
+        table->DeletedColumnNames.push_back(name);
+    }
+    table->SortColumns = proto.sort_columns();
 }
 
 void ToProto(NProto::TTable* proto, const TTable &table)
@@ -127,6 +132,10 @@ void ToProto(NProto::TTable* proto, const TTable &table)
     for (const auto& column : table.DataColumns) {
         ToProto(proto->add_columns(), column);
     }
+    for (const auto& name : table.DeletedColumnNames) {
+        proto->add_deleted_column_name(name);
+    }
+    proto->set_sort_columns(table.SortColumns);
 }
 
 void AlterTable(NApi::IClientPtr client, const TString& path, const TTable& table)

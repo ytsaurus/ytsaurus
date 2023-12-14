@@ -4,6 +4,7 @@
 #include <library/cpp/yt/memory/range.h>
 
 #include <yt/systest/proto/operation.pb.h>
+#include <yt/systest/proto/run_spec.pb.h>
 #include <yt/systest/table.h>
 
 #include <optional>
@@ -80,6 +81,11 @@ struct TReduceOperation
     std::unique_ptr<IReducer> Reducer;
     std::vector<TString> ReduceBy;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TSortRunSpec *proto, const TTable& table, const TSortOperation& operation);
+void FromProto(TTable* table, TSortOperation* operation, const NProto::TSortRunSpec& proto);
 
 ////////////////////////////////////////////////////////////////////////////////
 

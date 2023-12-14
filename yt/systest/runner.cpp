@@ -84,12 +84,13 @@ TRunnerConfig::TRunnerConfig()
 {
 }
 
-TRunner::TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr rpcClient)
+TRunner::TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr rpcClient, TTestHome& testHome, TValidator& validator)
     : Logger("test")
     , RunnerConfig_(runnerConfig)
     , Client_(client)
     , RpcClient_(rpcClient)
-    , TestHome_(Client_, RunnerConfig_.HomeDirectory)
+    , TestHome_(testHome)
+    , Validator_(validator)
 {
     YT_VERIFY(RunnerConfig_.EnableRenames || !RunnerConfig_.EnableDeletes);
 }
@@ -97,6 +98,7 @@ TRunner::TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr
 void TRunner::Run()
 {
     std::mt19937 RandomEngine(RunnerConfig_.Seed);
+
     YT_LOG_INFO("Running test runner");
 
     if (RunnerConfig_.EnableRenames) {
@@ -109,9 +111,6 @@ void TRunner::Run()
         RpcClient_->SetNode("//sys/@config/enable_static_table_drop_column", NYson::TYsonString(TStringBuf("%true"))).Get().ThrowOnError();
     }
 
-    TestHome_.Init();
-    YT_LOG_INFO("Initialized test home (Directory: %v)", TestHome_.Dir());
-
     std::unique_ptr<IDataset> bootstrapDataset = std::make_unique<TBootstrapDataset>(RunnerConfig_.NumBootstrapRecords);
 
     auto bootstrapPath = TestHome_.CreateRandomTablePath();
@@ -120,8 +119,8 @@ void TRunner::Run()
     auto bootstrapInfo = MaterializeIntoTable(Client_, bootstrapPath, *bootstrapDataset);
 
     Infos_.push_back(TDatasetInfo{
-        bootstrapInfo.Dataset,
-        bootstrapInfo.Dataset,
+        bootstrapDataset.get(),
+        bootstrapDataset.get(),
         bootstrapInfo
     });
 
@@ -136,7 +135,12 @@ void TRunner::Run()
 
         RunMap(Client_, TestHome_, currentInfo.Stored.Path, path, currentInfo.Dataset->table_schema(), dataset->table_schema(), *operation);
         auto shallowDataset = std::make_unique<TTableDataset>(dataset->table_schema(), Client_, path);
-        auto storedDataset = VerifyTable(Client_, path, *dataset);
+
+        TStoredDataset storedDataset = Validator_.VerifyMap(
+            currentInfo.Stored.Path,
+            path,
+            currentInfo.Dataset->table_schema(),
+            *operation);
 
         Infos_.push_back(TDatasetInfo{
             dataset.get(),
@@ -280,7 +284,11 @@ void TRunner::RunSortAndReduce(const TDatasetInfo& info, const std::vector<TStri
     RunSort(Client_, info.Stored.Path, sortedPath,
         TSortColumns(TVector<TString>(columns.begin(), columns.end())));
 
-    auto sortedDataset = std::make_unique<TSortDataset>(*info.ShallowDataset, TSortOperation{columns});
+    TSortOperation sortOperation{columns};
+
+    Validator_.VerifySort(info.Stored.Path, sortedPath, info.Dataset->table_schema(), sortOperation);
+
+    auto sortedDataset = std::make_unique<TSortDataset>(*info.ShallowDataset, sortOperation);
     const auto& sortedSchema = sortedDataset->table_schema();
 
     int sumIndex = -1;
@@ -309,6 +317,7 @@ void TRunner::RunSortAndReduce(const TDatasetInfo& info, const std::vector<TStri
     auto reduceDataset = std::make_unique<TReduceDataset>(*sortedDataset, reduceOperation);
     RunReduce(Client_, TestHome_, sortedPath, reducePath, sortedDataset->table_schema(), reduceDataset->table_schema(), reduceOperation);
 
+    Validator_.VerifyReduce(sortedPath, reducePath, sortedDataset->table_schema(), reduceOperation);
     VerifyTable(Client_, reducePath, *reduceDataset);
 }
 

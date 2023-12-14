@@ -1,0 +1,80 @@
+package NYT.NTest.NProto;
+
+import "yt/systest/proto/run_spec.proto";
+import "yt/systest/proto/table.proto";
+
+message TTableInterval
+{
+    required string table_path = 1;
+    required int64 start_row_index = 3;
+    required int64 limit_row_index = 4; 
+};
+
+message TReqMapInterval
+{
+    required TTableInterval input = 1;
+    required string output_path = 2;
+    required TMapRunSpec map_spec = 3;
+}
+
+message TReqReduceInterval
+{
+    required TTableInterval input = 1;
+    required string output_path = 2;
+
+    required TReduceRunSpec reduce_spec = 3;
+}
+
+message TReqSortInterval
+{
+    required TTableInterval input = 1;
+    required string output_path = 2;
+
+    required TSortRunSpec sort_spec = 3;
+}
+
+message TReqMergeSortedIntervals
+{
+    repeated string interval_path = 1;
+    required string output_path = 2;
+    required TTable table = 3;
+}
+
+message TReqCompareInterval
+{
+    required string interval_path = 1;
+    required string target_path = 2;
+    required int64 start_row_index = 3;
+    required int64 limit_row_index = 4;
+}
+
+message TReqCompareSorted
+{
+    required string path_a = 1;
+    required string path_b = 2;
+    required TTable table = 3;
+}
+
+message TRspMapInterval
+{
+}
+
+message TRspReduceInterval
+{
+}
+
+message TRspSortInterval
+{
+}
+
+message TRspMergeSortedIntervals
+{
+}
+
+message TRspCompareInterval
+{
+}
+
+message TRspCompareSorted
+{
+}

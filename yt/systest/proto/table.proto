@@ -19,4 +19,6 @@ message TDataColumn {
 
 message TTable {
     repeated TDataColumn columns = 1;
+    repeated string deleted_column_name = 2;
+    optional int32 sort_columns = 3;
 }

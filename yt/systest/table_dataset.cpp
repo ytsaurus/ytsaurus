@@ -63,7 +63,7 @@ void TTableDatasetIterator::Next()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableDataset::TTableDataset(const TTable& table, IClientPtr client, const TString& path)
+TTableDataset::TTableDataset(const TTable& table, IClientPtr client, const TRichYPath& path)
     : Table_(table)
     , Client_(client)
     , Path_(path)

@@ -75,9 +75,8 @@ std::unique_ptr<IMultiMapper> FilterByInt8(const TTable& table, int8_t value)
 }
 
 std::unique_ptr<IMultiMapper> CreateRandomMap(
-    std::mt19937& randomEngine, int seed, const TStoredDataset& info)
+    std::mt19937& randomEngine, int seed, const TTable& table, const TStoredDataset& info)
 {
-    const TTable& table = info.Dataset->table_schema();
     NYT::NLogging::TLogger Logger("test");
     if (info.TotalBytes < 20000) {
         YT_LOG_INFO("Generate Random Column (InputBytes: %v, InputRecords: %v)",

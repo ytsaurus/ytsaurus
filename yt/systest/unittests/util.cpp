@@ -1,4 +1,5 @@
 
+#include <yt/systest/util.h>
 #include <yt/systest/unittests/util.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -18,13 +19,6 @@ bool equals(TRange<TNode> lhs, TRange<TNode> rhs)
     return true;
 }
 
-TString ToString(const TNode& node)
-{
-    TTempBufOutput outputStream;
-    node.Save(&outputStream);
-    return TString(outputStream.Data(), outputStream.Filled());
-}
-
 TString ToString(TRange<TNode> nodes)
 {
     TString ret;
@@ -32,7 +26,7 @@ TString ToString(TRange<TNode> nodes)
         if (i > 0) {
             ret += ", ";
         }
-        ret += ToString(nodes[i]);
+        ret += DebugString(nodes[i]);
     }
     return ret;
 }

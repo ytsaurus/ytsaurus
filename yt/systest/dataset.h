@@ -53,8 +53,6 @@ struct TStoredDataset
     TString Path;
     i64 TotalRecords;
     i64 TotalBytes;
-
-    const IDataset* Dataset;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

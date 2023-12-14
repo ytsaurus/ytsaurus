@@ -25,6 +25,9 @@ SRCS(
     test_home.cpp
     test_program.cpp
     util.cpp
+    validator.cpp
+    validator_job.cpp
+    validator_service.cpp
 )
 
 PEERDIR(
@@ -37,6 +40,7 @@ PEERDIR(
     yt/systest/proto
 
     yt/yt/client
+    yt/yt/core
 
     yt/yt/library/containers
     yt/yt/library/program

@@ -8,6 +8,7 @@
 #include <yt/systest/dataset_operation.h>
 #include <yt/systest/map_dataset.h>
 #include <yt/systest/reduce_dataset.h>
+#include <yt/systest/validator.h>
 
 #include <yt/systest/operation.h>
 #include <yt/systest/operation/map.h>
@@ -86,8 +87,17 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
     auto client = NYT::CreateClientFromEnv();
     auto rpcClient = CreateRpcClient(Config_);
 
-    TRunner runner(Config_.RunnerConfig, client, rpcClient);
+    TTestHome testHome(client, Config_.HomeDirectory);
+    testHome.Init();
+
+    TValidator validator(Config_.ValidatorConfig, client, rpcClient, testHome);
+    YT_LOG_INFO("Starting validator");
+    validator.Start();
+
+    TRunner runner(Config_.RunnerConfig, client, rpcClient, testHome, validator);
     runner.Run();
+
+    validator.Stop();
 }
 
 }  // namespace NYT::NTest
