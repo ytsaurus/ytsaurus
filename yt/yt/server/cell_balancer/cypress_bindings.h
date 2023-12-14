@@ -2,11 +2,7 @@
 
 #include "private.h"
 
-#include <optional>
-#include <yt/yt/client/tablet_client/public.h>
-
-#include <yt/yt/core/ytree/yson_serializable.h>
-#include <yt/yt/core/ytree/yson_struct.h>
+#include <yt/yt/ytlib/bundle_controller/bundle_controller_settings.h>
 
 namespace NYT::NCellBalancer {
 
@@ -14,16 +10,12 @@ namespace NYT::NCellBalancer {
 
 DECLARE_REFCOUNTED_STRUCT(TSysConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
-DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
-DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimits)
 DECLARE_REFCOUNTED_STRUCT(TDefaultInstanceConfig)
 DECLARE_REFCOUNTED_STRUCT(TInstanceSize)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
-DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
-DECLARE_REFCOUNTED_STRUCT(TMemoryLimits)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerState)
 DECLARE_REFCOUNTED_STRUCT(TZoneInfo)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequestSpec)
@@ -109,66 +101,6 @@ public:
 private:
     inline static std::vector<TString> Attributes_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCpuLimits
-    : public NYTree::TYsonStruct
-{
-    int WriteThreadPoolSize;
-    int LookupThreadPoolSize;
-    int QueryThreadPoolSize;
-
-    REGISTER_YSON_STRUCT(TCpuLimits);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCpuLimits)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TMemoryLimits
-    : public NYTree::TYsonStruct
-{
-    std::optional<i64> TabletStatic;
-    std::optional<i64> TabletDynamic;
-    std::optional<i64> CompressedBlockCache;
-    std::optional<i64> UncompressedBlockCache;
-    std::optional<i64> KeyFilterBlockCache;
-    std::optional<i64> VersionedChunkMeta;
-    std::optional<i64> LookupRowCache;
-
-    REGISTER_YSON_STRUCT(TMemoryLimits);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TMemoryLimits)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TInstanceResources
-    : public NYTree::TYsonStruct
-{
-    int Vcpu;
-    i64 Memory;
-    std::optional<i64> Net;
-
-    TString Type;
-
-    TInstanceResources& operator=(const THulkInstanceResources& resources);
-
-    bool operator==(const TInstanceResources& resources) const;
-
-    void Clear();
-
-    REGISTER_YSON_STRUCT(TInstanceResources);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TInstanceResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -381,23 +313,6 @@ struct TZoneInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TZoneInfo)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct THulkInstanceResources
-    : public NYTree::TYsonStruct
-{
-    int Vcpu;
-    i64 MemoryMb;
-    std::optional<int> NetworkBandwidth;
-
-    THulkInstanceResources& operator=(const TInstanceResources& resources);
-
-    REGISTER_YSON_STRUCT(THulkInstanceResources);
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(THulkInstanceResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 

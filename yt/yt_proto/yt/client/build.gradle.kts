@@ -40,6 +40,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
         include("yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto")
         include("yt/yt_proto/yt/client/api/rpc_proxy/proto/discovery_service.proto")
+        include("yt/yt_proto/yt/client/bundle_controller/proto/bundle_controller_service.proto")
         include("yt/yt_proto/yt/client/cell_master/proto/cell_directory.proto")
         include("yt/yt_proto/yt/client/chaos_client/proto/replication_card.proto")
         include("yt/yt_proto/yt/client/chunk_client/proto/data_statistics.proto")

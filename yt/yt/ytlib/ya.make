@@ -81,7 +81,7 @@ SRCS(
 
     bundle_controller/config.cpp
     bundle_controller/bundle_controller_channel.cpp
-    bundle_controller/proto/bundle_controller_service.proto
+    bundle_controller/bundle_controller_settings.cpp
 
     cell_balancer/proto/cell_tracker_service.proto
 
