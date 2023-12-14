@@ -9,7 +9,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, print_debug, wait, execute_command, get_driver, create_user, make_ace, check_permission,
-    get, set, ls, create, exists, remove, copy, start_transaction, commit_transaction,
+    get, set, ls, create, exists, remove, copy, move, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table, remount_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows, lock_rows,
@@ -391,6 +391,29 @@ class TestChaos(ChaosTestBase):
         assert progress["segments"][2] == replication_progress["segments"][2]
         assert str(progress["upper_key"]) == str(replication_progress["upper_key"])
         assert progress["segments"][1]["timestamp"] >= row.attributes["write_timestamps"][0]
+
+    @authors("osidorkin")
+    def test_chaos_table_move_under_transaction(self):
+        cb_name = "cb"
+        table_name = "//tmp/chaos_table"
+        table_name2 = "//tmp/chaos_table2"
+        cell_id = self._sync_create_chaos_bundle_and_cell(name=cb_name)
+        set(f"//sys/chaos_cell_bundles/{cb_name}/@metadata_cell_id", cell_id)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create("chaos_replicated_table",
+               table_name,
+               attributes={"chaos_cell_bundle": cb_name, "schema": schema})
+
+        tx = start_transaction()
+        move(table_name, table_name2, tx=tx)
+        commit_transaction(tx)
+
+        assert exists(table_name2)
 
     @authors("savrus")
     def test_end_replication_row_index(self):
