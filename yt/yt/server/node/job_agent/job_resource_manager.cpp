@@ -786,15 +786,12 @@ public:
                 gpuSlots = AcquireGpuSlots(neededResources);
             }
         } catch (const std::exception& ex) {
-            BIND(&TJobResourceManager::TImpl::OnResourcesAcquisitionFailed,
-                MakeStrong(this),
+            OnResourcesAcquisitionFailed(
                 resourceHolder,
-                Passed(std::move(userSlot)),
-                Passed(std::move(gpuSlots)),
-                Passed(std::move(ports)),
-                neededResources)
-                .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run();
+                std::move(userSlot),
+                std::move(gpuSlots),
+                std::move(ports),
+                neededResources);
 
             // Provide job abort.
             THROW_ERROR_EXCEPTION(ex);
