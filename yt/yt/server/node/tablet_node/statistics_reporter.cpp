@@ -106,7 +106,7 @@ void TStatisticsReporter::DoReportStatistics()
         return;
     }
 
-    TYPath tablePath = TablePath_;
+    auto tablePath = TablePath_;
     guard.Release();
 
     YT_LOG_DEBUG("Started round of reporting tablet statistics");
@@ -116,7 +116,7 @@ void TStatisticsReporter::DoReportStatistics()
     auto transaction = WaitFor(Bootstrap_->GetClient()->StartTransaction(ETransactionType::Tablet))
         .ValueOrThrow();
 
-    const auto& tabletSnapshots = Bootstrap_->GetTabletSnapshotStore()->GetTabletSnapshots();
+    auto tabletSnapshots = Bootstrap_->GetTabletSnapshotStore()->GetTabletSnapshots();
 
     std::vector<TUnversionedRow> rows;
     rows.reserve(tabletSnapshots.size());
@@ -132,26 +132,22 @@ void TStatisticsReporter::DoReportStatistics()
         i64 uncompressedDataSize = 0;
         i64 compressedDataSize = 0;
 
-        auto handleStore = [&] (const IStorePtr& store) {
-            if (!store->IsDynamic()) {
-                uncompressedDataSize += store->GetUncompressedDataSize();
-                compressedDataSize += store->GetCompressedDataSize();
+        auto handleStores = [&] <class TContainer> (const TContainer& container) {
+            for (const auto& store : container) {
+                if (!store->IsDynamic()) {
+                    uncompressedDataSize += store->GetUncompressedDataSize();
+                    compressedDataSize += store->GetCompressedDataSize();
+                }
             }
         };
 
         if (tabletSnapshot->PhysicalSchema->IsSorted()) {
             for (const auto& partition : tabletSnapshot->PartitionList) {
-                for (const auto& store : partition->Stores) {
-                    handleStore(store);
-                }
+                handleStores(partition->Stores);
             }
-            for (const auto& store : tabletSnapshot->Eden->Stores) {
-                handleStore(store);
-            }
+            handleStores(tabletSnapshot->Eden->Stores);
         } else {
-            for (const auto& store : tabletSnapshot->OrderedStores) {
-                handleStore(store);
-            }
+            handleStores(tabletSnapshot->OrderedStores);
         }
 
         TUnversionedRowBuilder builder;
@@ -185,7 +181,8 @@ void TStatisticsReporter::DoReportStatistics()
         MakeSharedRange(std::move(rows), std::move(rowBuffer)));
 
     // TODO(dave11ar): Profile query rate, duration and errors.
-    WaitFor(transaction->Commit()).ThrowOnError();
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 
     YT_LOG_DEBUG("Finished round of reporting tablet statistics (TabletCount: %v, ElapsedTime: %v)",
         tabletSnapshots.size(),
