@@ -45,27 +45,5 @@ class TestBundleController(YTEnvSetup):
         assert exists("//sys/bundle_controller")
         config = self._get_bundle_config("test-bundle")
         assert config["bundle_name"] == "test-bundle"
-        assert config["rpc_proxy_count"] == 6
-        assert config["tablet_node_count"] == 1
-
-        assert config["cpu_limits"]["lookup_thread_pool_size"] == 16
-        assert config["cpu_limits"]["query_thread_pool_size"] == 4
-        assert config["cpu_limits"]["write_thread_pool_size"] == 10
-
-        assert config["memory_limits"]["compressed_block_cache"] == 17179869184
-        assert config["memory_limits"]["key_filter_block_cache"] == 1024
-        assert config["memory_limits"]["lookup_row_cache"] == 1024
-        assert config["memory_limits"]["tablet_dynamic"] == 10737418240
-        assert config["memory_limits"]["tablet_static"] == 10737418240
-        assert config["memory_limits"]["uncompressed_block_cache"] == 17179869184
-        assert config["memory_limits"]["versioned_chunk_meta"] == 10737418240
-
-        assert config["rpc_proxy_resource_guarantee"]["memory"] == 21474836480
-        assert config["rpc_proxy_resource_guarantee"]["net"] == 1090519040
-        assert config["rpc_proxy_resource_guarantee"]["type"] == "medium"
-        assert config["rpc_proxy_resource_guarantee"]["vcpu"] == 10000
-
-        assert config["tablet_node_resource_guarantee"]["memory"] == 107374182400
-        assert config["tablet_node_resource_guarantee"]["net"] == 5368709120
-        assert config["tablet_node_resource_guarantee"]["type"] == "cpu_intensive"
-        assert config["tablet_node_resource_guarantee"]["vcpu"] == 28000
+        assert config["rpc_proxy_count"] == 2
+        assert config["tablet_node_count"] == 5

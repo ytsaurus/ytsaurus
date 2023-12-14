@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt_proto/yt/client/bundle_controller/proto/bundle_controller_service.pb.h>
+#include <yt/yt/ytlib/bundle_controller/proto/bundle_controller_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

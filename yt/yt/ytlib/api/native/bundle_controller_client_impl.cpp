@@ -15,7 +15,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
+TBundleConfigDescriptor TClient::DoGetBundleConfig(
     const TString& bundleName,
     const TGetBundleConfigOptions& /*options*/)
 {
@@ -28,17 +28,11 @@ TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    auto result = New<TBundleConfigDescriptor>();
-    result->BundleName = rsp->bundle_name();
-    result->RpcProxyCount = rsp->rpc_proxy_count();
-    result->TabletNodeCount = rsp->tablet_node_count();
-
-    NCellBalancer::NProto::FromProto(result->CpuLimits, rsp->mutable_cpu_limits());
-    NCellBalancer::NProto::FromProto(result->MemoryLimits, rsp->mutable_memory_limits());
-    NCellBalancer::NProto::FromProto(result->RpcProxyResourceGuarantee, rsp->mutable_rpc_proxy_resource_guarantee());
-    NCellBalancer::NProto::FromProto(result->TabletNodeResourceGuarantee, rsp->mutable_tablet_node_resource_guarantee());
-
-    return result;
+    return TBundleConfigDescriptor {
+        .BundleName = rsp->bundle_name(),
+        .RpcProxyCount = rsp->rpc_proxy_count(),
+        .TabletNodeCount = rsp->tablet_node_count()
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

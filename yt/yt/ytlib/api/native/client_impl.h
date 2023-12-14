@@ -24,7 +24,6 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_service_proxy.h>
-#include <yt/yt/ytlib/bundle_controller/bundle_controller_settings.h>
 
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -786,7 +785,7 @@ public:
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
 
-    IMPLEMENT_METHOD(TBundleConfigDescriptorPtr, GetBundleConfig, (
+    IMPLEMENT_METHOD(TBundleConfigDescriptor, GetBundleConfig, (
         const TString& bundleName,
         const TGetBundleConfigOptions& options),
         (bundleName, options))
@@ -1857,7 +1856,7 @@ private:
     // BundleController
     //
 
-    TBundleConfigDescriptorPtr DoGetBundleConfig(
+    TBundleConfigDescriptor DoGetBundleConfig(
         const TString& bundleName,
         const TGetBundleConfigOptions& options);
 };

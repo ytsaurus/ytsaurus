@@ -1,0 +1,18 @@
+package NYT.NBundleController.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetBundleConfig
+{
+    required string bundle_name = 1;
+}
+
+message TRspGetBundleConfig
+{
+    // TODO(alexmipt): Dummy field. To be removed in the future.
+    optional string bundle_name = 1;
+    optional int32 rpc_proxy_count = 2;
+    optional int32 tablet_node_count = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
