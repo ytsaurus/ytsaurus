@@ -73,6 +73,7 @@ target_link_libraries(yt-server-node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  yt-library-gpu
   library-query-engine
   library-query-row_comparer
   library-dns_over_rpc-server

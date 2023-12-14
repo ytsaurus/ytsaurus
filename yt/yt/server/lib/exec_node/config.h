@@ -6,17 +6,19 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
+#include <yt/yt/server/lib/misc/config.h>
+
+#include <yt/yt/server/lib/nbd/config.h>
+
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/containers/cri/config.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
 
-#include <yt/yt/server/lib/misc/config.h>
-
-#include <yt/yt/server/lib/nbd/config.h>
-
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/library/gpu/config.h>
 
 #include <yt/yt/core/ytree/node.h>
 

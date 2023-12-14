@@ -1,0 +1,14 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NGpu {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns a mapping from GPU UUID to Minor Number using `nvidia-smi -q`.
+THashMap<TString, int> GetGpuMinorNumbers(TDuration timeout);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NGpu

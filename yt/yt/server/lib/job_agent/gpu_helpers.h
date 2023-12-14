@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "gpu_info_provider.h"
+#include <yt/yt/library/gpu/gpu_info_provider.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -20,7 +20,7 @@ std::vector<TGpuDeviceDescriptor> ListGpuDevices();
 
 TString GetGpuDeviceName(int deviceIndex);
 
-void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo);
+void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const NGpu::TGpuInfo& gpuInfo);
 
 struct TGpuDriverVersion
 {

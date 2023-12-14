@@ -102,7 +102,7 @@ TString GetGpuDeviceName(int deviceNumber)
     return DevNvidiaPath + ToString(deviceNumber);
 }
 
-void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo)
+void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const NGpu::TGpuInfo& gpuInfo)
 {
     writer->AddGauge("/utilization_gpu_rate", gpuInfo.UtilizationGpuRate);
     writer->AddGauge("/utilization_memory_rate", gpuInfo.UtilizationMemoryRate);

@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/library/gpu/config.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -46,27 +48,6 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EGpuInfoSourceType,
-    (NvGpuManager)
-    (NvidiaSmi)
-);
-
-class TGpuInfoSourceConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    EGpuInfoSourceType Type;
-    TString NvGpuManagerServiceAddress;
-    TString NvGpuManagerServiceName;
-    std::optional<TString> NvGpuManagerDevicesCgroupPath;
-    bool GpuIndexesFromNvidiaSmi;
-
-    REGISTER_YSON_STRUCT(TGpuInfoSourceConfig);
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfig)
-
 class TGpuManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -87,7 +68,7 @@ public:
 
     THashMap<TString, TString> CudaToolkitMinDriverVersion;
 
-    TGpuInfoSourceConfigPtr GpuInfoSource;
+    NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
 
     // TODO(eshcherbin): Extract test options to subconfig?
     //! This is a special testing option.
@@ -124,7 +105,7 @@ public:
 
     std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
 
-    TGpuInfoSourceConfigPtr GpuInfoSource;
+    NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 

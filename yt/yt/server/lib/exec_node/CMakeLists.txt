@@ -32,6 +32,7 @@ target_link_libraries(server-lib-exec_node PUBLIC
   server-lib-job_proxy
   server-lib-nbd
   yt-library-containers
+  yt-library-gpu
   server-lib-misc
   contrib-libs-protobuf
 )
