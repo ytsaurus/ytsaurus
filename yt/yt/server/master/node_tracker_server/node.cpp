@@ -1183,6 +1183,15 @@ void TNode::RebuildTags()
     if (auto* host = GetHost()) {
         Tags_.insert(host->GetName());
     }
+    for (auto flavor : Flavors_) {
+        Tags_.insert(FormatShortly(flavor));
+    }
+}
+
+void TNode::SetFlavors(const THashSet<ENodeFlavor>& newFlavors)
+{
+    Flavors_ = newFlavors;
+    RebuildTags();
 }
 
 void TNode::SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
