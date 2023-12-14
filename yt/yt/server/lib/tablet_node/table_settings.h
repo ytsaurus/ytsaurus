@@ -206,7 +206,7 @@ struct TRawTableSettings
     //! Initializes all provided IO configs with corresponding New<...>().
     void CreateNewProvidedConfigs();
 
-    //! Removes from the |Experiments| map all experiments which do not match |descritor|.
+    //! Removes from the |Experiments| map all experiments which do not match |descriptor|.
     void DropIrrelevantExperiments(
         const TTableConfigExperiment::TTableDescriptor& descriptor,
         bool oldBehaviorCompat);

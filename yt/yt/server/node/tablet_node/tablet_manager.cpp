@@ -1107,7 +1107,7 @@ private:
                 .TablePath = path,
                 .TabletCellBundle = Slot_->GetTabletCellBundleName(),
                 // NB: Generally InMemoryMode is taken from mount config, but it is not assembled yet at this point.
-                // Experiments never affect in memory mode, so it is safe to use the raw value.
+                // Experiments never affect in-memory mode, so it is safe to use the raw value.
                 .InMemoryMode = rawSettings.Provided.MountConfigNode->GetChildValueOrDefault<EInMemoryMode>(
                     "in_memory_mode",
                     EInMemoryMode::None),
@@ -4701,7 +4701,7 @@ private:
             .TableId = tablet->GetTableId(),
             .TablePath = tablet->GetTablePath(),
             .TabletCellBundle = Slot_->GetTabletCellBundleName(),
-            // NB: Experiments never affect in memory mode.
+            // NB: Experiments never affect in-memory mode.
             .InMemoryMode = tablet->GetSettings().MountConfig->InMemoryMode,
             .Sorted = tablet->GetTableSchema()->IsSorted(),
             .Replicated = tablet->IsReplicated(),
