@@ -8,6 +8,7 @@
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_profiling.h"
@@ -334,7 +335,9 @@ private:
                 tablet->GetLoggingTag(),
                 store->GetId());
 
-        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("StoreFlusher"));
+        auto traceContext = TTraceContext::NewRoot("StoreFlusher");
+        auto traceId = traceContext->GetTraceId();
+        TTraceContextGuard traceContextGuard(std::move(traceContext));
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
@@ -374,6 +377,12 @@ private:
 
             YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
                 transaction->GetId());
+
+            tablet->GetStructuredLogger()->LogEvent("start_flush")
+                .Item("store_id").Value(store->GetId())
+                .Item("tablet_id").Value(tablet->GetId())
+                .Item("transaction_id").Value(transaction->GetId())
+                .Item("trace_id").Value(traceId);
 
             auto throttler = Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletStoreFlush);
 
@@ -433,6 +442,25 @@ private:
             auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
             transaction->AddAction(masterCellId, actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
+
+            tablet->GetStructuredLogger()->LogEvent("end_flush")
+                .Item("store_id").Value(store->GetId())
+                .Item("tablet_id").Value(tablet->GetId())
+                .Item("store_ids_to_add")
+                    .BeginList()
+                        .DoFor(flushResult.StoresToAdd, [] (TFluentList fluent, const TAddStoreDescriptor& descriptor) {
+                            fluent
+                                .Item().Value(FromProto<TGuid>(descriptor.store_id()));
+                        })
+                    .EndList()
+                .Item("hunk_ids_to_add")
+                    .BeginList()
+                        .DoFor(flushResult.HunkChunksToAdd, [] (TFluentList fluent, const TAddHunkChunkDescriptor& descriptor) {
+                            fluent
+                                .Item().Value(FromProto<TGuid>(descriptor.chunk_id()));
+                        })
+                    .EndList()
+                .Item("trace_id").Value(traceId);
 
             const auto& tabletManager = slot->GetTabletManager();
             WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
