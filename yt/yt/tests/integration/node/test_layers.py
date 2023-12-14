@@ -876,6 +876,16 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         for job_id in job_ids:
             assert b"squash_file" in op.read_stderr(job_id)
 
+        # Check solomon counters.
+        job = get_job(op.id, job_id)
+        profiler = profiler_factory().at_node(job["address"])
+
+        wait(lambda: profiler.get("volumes/create", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) > 0)
+        wait(lambda: profiler.get("volumes/create_time", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) >= 0)
+
+        wait(lambda: profiler.get("volumes/remove", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) > 0)
+        wait(lambda: profiler.get("volumes/remove_time", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) >= 0)
+
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
     def test_corrupted_squashfs_layer(self):
@@ -885,22 +895,34 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_in",
-                out="//tmp/t_out",
-                command="ls $YT_ROOT_FS 1>&2",
-                spec={
-                    "max_failed_job_count": 1,
-                    "mapper": {
-                        "layer_paths": ["//tmp/corrupted_squashfs.img"],
-                    },
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="ls $YT_ROOT_FS 1>&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/corrupted_squashfs.img"],
                 },
-            )
+            },
+        )
+
+        with pytest.raises(YtError):
+            op.track()
 
         # YT-14186: Corrupted user layer should not disable jobs on node.
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+        # Check solomon counters.
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+
+        job = get_job(op.id, job_ids[0])
+        profiler = profiler_factory().at_node(job["address"])
+        wait(lambda: profiler.get("volumes/create", {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}) > 0)
+        wait(lambda: profiler.get("volumes/create_errors", {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}) > 0)
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
