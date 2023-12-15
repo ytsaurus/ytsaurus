@@ -1087,9 +1087,7 @@ public:
         TCodegenSource* codegenSource,
         const TConstBaseQueryPtr& query,
         size_t* slotCount,
-        size_t finalSlot,
-        size_t intermediateSlot,
-        size_t totalsSlot,
+        size_t inputSlot,
         TTableSchemaPtr schema,
         bool mergeMode);
 
@@ -1119,13 +1117,15 @@ void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstBaseQueryPtr& query,
     size_t* slotCount,
-    size_t finalSlot,
-    size_t intermediateSlot,
-    size_t totalsSlot,
+    size_t inputSlot,
     TTableSchemaPtr schema,
     bool mergeMode)
 {
     size_t dummySlot = (*slotCount)++;
+
+    size_t finalSlot = dummySlot;
+    size_t intermediateSlot = dummySlot;
+    size_t totalsSlot = dummySlot;
 
     bool finalMode = query->IsFinal;
 
@@ -1208,11 +1208,10 @@ void TQueryProfiler::Profile(
         // disjoint). Grouped rows with boundary primary key prefix (with respect to tablet) are transferred to
         // intermediate slot and need final grouping.
 
-        size_t newFinalSlot;
-        std::tie(intermediateSlot, newFinalSlot) = MakeCodegenGroupOp(
+        auto fragmentSlots = MakeCodegenGroupOp(
             codegenSource,
             slotCount,
-            intermediateSlot,
+            inputSlot,
             fragmentInfos,
             std::move(groupExprIds),
             std::move(aggregateExprIdsByFunc),
@@ -1226,6 +1225,11 @@ void TQueryProfiler::Profile(
             // Prefix comparer can be used only if input is ordered.
             !mergeMode || query->IsOrdered() ? groupClause->CommonPrefixWithPrimaryKey : 0,
             ComparerManager_);
+
+        intermediateSlot = fragmentSlots.Intermediate;
+        finalSlot = fragmentSlots.Final;
+        size_t deltaFinalSlot = fragmentSlots.DeltaFinal;
+        totalsSlot = fragmentSlots.Totals;
 
         Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
         Fold(static_cast<int>(groupClause->TotalsMode));
@@ -1248,21 +1252,22 @@ void TQueryProfiler::Profile(
         // COMPAT(lukyan)
         if (finalMode || query->UseDisjointGroupBy) {
             // Boundary segments are also final
-            newFinalSlot = MakeCodegenMergeOp(
+            deltaFinalSlot = MakeCodegenMergeOp(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                newFinalSlot);
+                deltaFinalSlot);
 
             intermediateSlot = dummySlot;
         } else if (mergeMode) {
+            // TODO(dtorilov): This relates to Node query level; consider removing this merge operation.
             intermediateSlot = MakeCodegenMergeOp(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                newFinalSlot);
+                deltaFinalSlot);
 
-            newFinalSlot = dummySlot;
+            deltaFinalSlot = dummySlot;
         }
 
         size_t keySize = groupClause->GroupItems.size();
@@ -1272,10 +1277,10 @@ void TQueryProfiler::Profile(
                 Fold(static_cast<int>(EFoldingObjectType::HavingOp));
 
                 // Finalizes row to evaluate predicate and filters source values.
-                newFinalSlot = MakeCodegenFilterFinalizedOp(
+                deltaFinalSlot = MakeCodegenFilterFinalizedOp(
                     codegenSource,
                     slotCount,
-                    newFinalSlot,
+                    deltaFinalSlot,
                     havingFragmentsInfos,
                     havingPredicateId,
                     keySize,
@@ -1285,10 +1290,10 @@ void TQueryProfiler::Profile(
 
             if (groupClause->TotalsMode != ETotalsMode::None) {
                 size_t totalsSlotNew;
-                std::tie(totalsSlotNew, newFinalSlot) = MakeCodegenDuplicateOp(
+                std::tie(totalsSlotNew, deltaFinalSlot) = MakeCodegenDuplicateOp(
                     codegenSource,
                     slotCount,
-                    newFinalSlot);
+                    deltaFinalSlot);
 
                 if (mergeMode) {
                     totalsSlot = MakeCodegenMergeOp(
@@ -1301,20 +1306,20 @@ void TQueryProfiler::Profile(
                 }
             }
 
-            newFinalSlot = MakeCodegenFinalizeOp(
+            deltaFinalSlot = MakeCodegenFinalizeOp(
                 codegenSource,
                 slotCount,
-                newFinalSlot,
+                deltaFinalSlot,
                 keySize,
                 codegenAggregates,
                 stateTypes);
 
             if (addHaving && groupClause->TotalsMode != ETotalsMode::AfterHaving) {
                 Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-                newFinalSlot = MakeCodegenFilterOp(
+                deltaFinalSlot = MakeCodegenFilterOp(
                     codegenSource,
                     slotCount,
-                    newFinalSlot,
+                    deltaFinalSlot,
                     havingFragmentsInfos,
                     havingPredicateId);
             }
@@ -1323,10 +1328,10 @@ void TQueryProfiler::Profile(
                 finalSlot = MakeCodegenMergeOp(
                     codegenSource,
                     slotCount,
-                    newFinalSlot,
+                    deltaFinalSlot,
                     finalSlot);
             } else {
-                finalSlot = newFinalSlot;
+                finalSlot = deltaFinalSlot;
             }
         }
 
@@ -1355,6 +1360,7 @@ void TQueryProfiler::Profile(
             MakeCodegenFragmentBodies(codegenSource, havingFragmentsInfos);
         }
     } else {
+        intermediateSlot = inputSlot;
         finalSlot = MakeCodegenMergeOp(
             codegenSource,
             slotCount,
@@ -1365,6 +1371,7 @@ void TQueryProfiler::Profile(
 
     intermediateSlot = MakeCodegenOnceOp(codegenSource, slotCount, intermediateSlot);
     finalSlot = MakeCodegenOnceOp(codegenSource, slotCount, finalSlot);
+    totalsSlot = MakeCodegenOnceOp(codegenSource, slotCount, totalsSlot);
 
     if (auto orderClause = query->OrderClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::OrderOp));
@@ -1700,8 +1707,7 @@ void TQueryProfiler::Profile(
         MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
     }
 
-    size_t dummySlot = (*slotCount)++;
-    Profile(codegenSource, query, slotCount, dummySlot, currentSlot, dummySlot, schema, /*mergeMode*/ false);
+    Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ false);
 }
 
 void TQueryProfiler::Profile(
@@ -1719,20 +1725,8 @@ void TQueryProfiler::Profile(
         slotCount,
         GetPIConvertibleColumnIndices(query->GetReadSchema()));
 
-    size_t finalSlot;
-    size_t intermediateSlot;
-    size_t totalsSlot;
-
-    Fold(static_cast<int>(EFoldingObjectType::SplitterOp));
-
-    std::tie(finalSlot, intermediateSlot, totalsSlot) = MakeCodegenSplitterOp(
-        codegenSource,
-        slotCount,
-        currentSlot,
-        schema->GetColumnCount());
-
     // Front query always perform merge.
-    Profile(codegenSource, query, slotCount, finalSlot, intermediateSlot, totalsSlot, schema, /*mergeMode*/ true);
+    Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ true);
 }
 
 size_t TQueryProfiler::Profile(

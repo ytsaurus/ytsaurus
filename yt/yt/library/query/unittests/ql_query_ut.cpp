@@ -1764,7 +1764,9 @@ protected:
             return pipe->GetReader();
         };
 
-        auto frontReader = CreateFullPrefetchingOrderedSchemafulReader(getNextReader);
+        auto frontReader = frontQuery->IsOrdered()
+            ? CreateFullPrefetchingOrderedSchemafulReader(getNextReader)
+            : CreateFullPrefetchingShufflingSchemafulReader(getNextReader);
 
         IUnversionedRowsetWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncResultRowset;
@@ -2614,14 +2616,18 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
 TEST_F(TQueryEvaluateTest, GroupByString)
 {
     auto split = MakeSplit({
-        {"a", EValueType::Int64},
+        {"a", EValueType::Int64, ESortOrder::Ascending},
         {"s", EValueType::String}
     });
 
     std::vector<TString> source = {
+        R"(a=42;s="d")",
+
         R"(a=1;s="a")",
         R"(a=2;s="b")",
         R"(a=3;s="c")",
+
+        R"(a=42;s="d")",
 
         R"(a=4;s="a")",
         R"(a=5;s="b")",
@@ -2651,6 +2657,312 @@ TEST_F(TQueryEvaluateTest, GroupByString)
 
     SUCCEED();
 }
+
+TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated1)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"c", EValueType::Int64},
+        {"d", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {"a=1;b=0;c=11;d=3", "a=2;b=1;c=12;d=2", "a=3;b=2;c=13;d=1"},
+        {"a=4;b=0;c=14;d=3", "a=5;b=1;c=15;d=2", "a=6;b=2;c=16;d=1"},
+        {"a=7;b=0;c=17;d=3", "a=8;b=1;c=18;d=2", "a=9;b=2;c=19;d=1"},
+    };
+
+    {
+        // Simple.
+        auto resultSplit = MakeSplit({{"m", EValueType::Int64}});
+        auto result = YsonToRows({"m=0", "m=1", "m=2"}, resultSplit);
+        EvaluateCoordinatedGroupBy("m from [//t] group by a % 3 as m order by m limit 3", split, sources, ResultMatcher(result));
+    }
+    {
+        // No primary key inside group key.
+        auto resultSplit = MakeSplit({{"d", EValueType::Int64}});
+        auto result = YsonToRows({"d=1", "d=2", "d=3"}, resultSplit);
+        EvaluateCoordinatedGroupBy("d from [//t] group by d order by d limit 3", split, sources, ResultMatcher(result));
+    }
+    {
+        // Full primary key inside group key.
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+        auto result = YsonToRows({"a=1;b=0", "a=2;b=1", "a=3;b=2", "a=4;b=0", "a=5;b=1"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a, b from [//t] group by a, b order by a, b limit 5", split, sources, ResultMatcher(result));
+    }
+    {
+        // Full primary key inside group key, offset.
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+        auto result = YsonToRows({"a=3;b=2", "a=4;b=0", "a=5;b=1", "a=6;b=2", "a=7;b=0"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a, b from [//t] group by a, b order by a, b offset 2 limit 5", split, sources, ResultMatcher(result));
+    }
+    {
+        // Primary key prefix inside group key.
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
+        auto result = YsonToRows({"a=1", "a=2", "a=3", "a=4", "a=5"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a from [//t] group by a order by a limit 5", split, sources, ResultMatcher(result));
+    }
+    {
+        // Primary key prefix inside group key, offset.
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
+        auto result = YsonToRows({"a=3", "a=4", "a=5", "a=6", "a=7"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a from [//t] group by a order by a offset 2 limit 5", split, sources, ResultMatcher(result));
+    }
+    {
+        // Primary key prefix inside group key, no sorting, limit.
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
+        auto result = YsonToRows({"a=1", "a=2", "a=3", "a=4", "a=5"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a from [//t] group by a limit 5", split, sources, ResultMatcher(result));
+    }
+    {
+        // Primary key prefix inside group key, no sorting, offset, limit.
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
+        auto result = YsonToRows({"a=3", "a=4", "a=5", "a=6", "a=7"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a from [//t] group by a offset 2 limit 5", split, sources, ResultMatcher(result));
+    }
+    {
+        // Primary key suffix inside group key.
+        auto resultSplit = MakeSplit({{"b", EValueType::Int64}});
+        auto result = YsonToRows({"b=0", "b=1", "b=2"}, resultSplit);
+        EvaluateCoordinatedGroupBy("b from [//t] group by b order by b limit 5", split, sources, ResultMatcher(result));
+    }
+    {
+        // Primary key suffix inside group key, offset.
+        auto resultSplit = MakeSplit({{"b", EValueType::Int64}});
+        auto result = YsonToRows({"b=2"}, resultSplit);
+        EvaluateCoordinatedGroupBy("b from [//t] group by b order by b offset 2 limit 5", split, sources, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated2)
+{
+    for (int dataLength = 100; dataLength <= 1000; dataLength += 100) {
+        for (int splitLength = 20; splitLength < 50; splitLength += 5) {
+            int offset = (std::rand() % (dataLength * 2));
+            int limit = (std::rand() % (dataLength * 2));
+
+            auto split = MakeSplit({{"a", EValueType::Int64, ESortOrder::Ascending}});
+            auto sources = std::vector<std::vector<TString>>{};
+            for (int a = 0; a < dataLength; ++a) {
+                if (sources.empty() || std::ssize(sources.back()) == splitLength) {
+                    sources.emplace_back();
+                }
+                sources.back().push_back(Format("a=%v", a));
+            }
+
+            auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
+            auto resultData = std::vector<TString>{};
+            for (int a = offset; a < std::min(offset + limit, dataLength); ++a) {
+                resultData.push_back(Format("a=%v", a));
+            }
+            auto result = YsonToRows(resultData, resultSplit);
+
+            EvaluateCoordinatedGroupBy(
+                Format("a from [//t] group by a order by a offset %v limit %v", offset, limit),
+                split,
+                sources,
+                ResultMatcher(result));
+        }
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {"a=1;b=0", "a=2;b=1", "a=3;b=2"},
+        {"a=4;b=0", "a=5;b=1", "a=6;b=2"},
+        {"a=7;b=0", "a=8;b=1", "a=9;b=2"},
+    };
+
+    {
+        auto resultSplit = MakeSplit({{"s", EValueType::Int64}, {"b", EValueType::Int64}});
+        auto result = YsonToRows({"s=12;b=0"}, resultSplit);
+        EvaluateCoordinatedGroupBy("sum(a) as s, b FROM [//t] where b = 0    group by b order by b limit 3", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy("sum(a) as s, b FROM [//t] where b in (0) group by b order by b limit 3", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"s", EValueType::Int64}, {"b", EValueType::Int64}});
+        auto result = YsonToRows({"s=12;b=0", "s=15;b=1"}, resultSplit);
+        EvaluateCoordinatedGroupBy("sum(a) as s, b FROM [//t] where b = 0 or b = 1 group by b order by b limit 3", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy("sum(a) as s, b FROM [//t] where b in (0, 1)    group by b order by b limit 3", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"s", EValueType::Int64}, {"b", EValueType::Int64}});
+        auto result = YsonToRows({"s=12;b=0", "s=15;b=1", "s=18;b=2"}, resultSplit);
+        EvaluateCoordinatedGroupBy("sum(a) as s, b FROM [//t] where b = 0 or b = 1 or b = 2 group by b order by b limit 3", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy("sum(a) as s, b FROM [//t] where b in (0, 1, 2)          group by b order by b limit 3", split, sources, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated4)
+{
+    // Was broken by first iteration of "Optimize Group By + Order By".
+    auto split = MakeSplit({
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"k2", EValueType::Int64, ESortOrder::Ascending},
+        {"k3", EValueType::Int64, ESortOrder::Ascending},
+    });
+
+    std::vector<std::vector<TString>> sources = {
+        {"k1=1;k2=2;k3=5"},
+        {"k1=1;k2=3;k3=6"},
+        {"k1=1;k2=3;k3=8"},
+        {"k1=1;k2=4;k3=7"},
+    };
+
+    auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"k3", EValueType::Int64}, {"k2", EValueType::Int64}});
+    auto result = YsonToRows({"k1=1;k3=5;k2=2", "k1=1;k3=6;k2=3", "k1=1;k3=7;k2=4", "k1=1;k3=8;k2=3"}, resultSplit);
+    EvaluateCoordinatedGroupBy("k1, k3, k2 from [//t] where k1 in (1) group by k1, k3, k2 order by k1, k3, k2 limit 10000", split, sources, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinatedWithPrimaryKeyPrefix)
+{
+    auto split = MakeSplit({
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"k2", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {"k1=1;k2=1;v=0", "k1=1;k2=2;v=0", "k1=2;k2=3;v=0", "k1=3;k2=4;v=0", "k1=4;k2=5;v=0", "k1=5;k2=6;v=0"},
+        {"k1=6;k2=7;v=0", "k1=6;k2=8;v=0", "k1=7;k2=9;v=0", "k1=8;k2=10;v=0", "k1=9;k2=11;v=0"},
+    };
+
+    auto resultSplit = MakeSplit({{"k1", EValueType::Int64}});
+    auto resultData = std::vector<TString>{};
+    for (int i = 1; i <= 9; ++i) {
+        resultData.push_back(Format("k1=%v", i));
+    }
+    auto result = YsonToRows(resultData, resultSplit);
+    EvaluateCoordinatedGroupBy("k1 from [//t] group by k1 order by k1 limit 1000", split, sources, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinatedWithAggregates)
+{
+    auto split = MakeSplit({
+        {"k1", EValueType::String, ESortOrder::Ascending},
+        {"k2", EValueType::Int64, ESortOrder::Ascending},
+        {"v1", EValueType::Int64},
+        {"v2", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {"k1=a;k2=0;v1=1;v2=1", "k1=a;k2=1;v1=2;v2=2", "k1=a;k2=2;v1=4;v2=4"},
+        {"k1=a;k2=3;v1=2;v2=6", "k1=a;k2=4;v1=1;v2=9"},
+        {"k1=b;k2=5;v1=3;v2=3", "k1=b;k2=6;v1=1;v2=5"},
+        {"k1=b;k2=7;v1=3;v2=7", "k1=b;k2=8;v1=4;v2=8"},
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"k1", EValueType::String},
+            {"v1", EValueType::Int64},
+            {"s", EValueType::Int64},
+        });
+        auto result = YsonToRows({
+            "k1=a;v1=1;s=10",
+            "k1=a;v1=2;s=8",
+            "k1=a;v1=4;s=4",
+            "k1=b;v1=1;s=5",
+            "k1=b;v1=3;s=10",
+            "k1=b;v1=4;s=8",
+        }, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, v1, sum(v2) as s from [//t] group by k1, v1 order by k1, v1 limit 1000", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({"k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=b;s=1", "k1=b;s=1", "k1=b;s=1", "k1=b;s=1"}, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1, k2 order by k1, k2 limit 1000", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({"k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=b;s=1"}, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1, k2 order by k1, k2 limit 6", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({"k1=a;s=5", "k1=b;s=4"}, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1 order by k1 limit 1000", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({"k1=a;s=5", "k1=b;s=4"}, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1 order by k1 limit 3", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"s", EValueType::Int64}});
+        auto result = YsonToRows({}, resultSplit);
+        EvaluateCoordinatedGroupBy("sum(1) as s from [//t] group by 1000+1 limit 0", split, sources, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"s", EValueType::Int64}});
+        auto result = YsonToRows({"s=9"}, resultSplit);
+        for (int i = 1; i < 15; ++i) {
+            EvaluateCoordinatedGroupBy(
+                Format("sum(1) as s from [//t] group by 1000+1 limit %v", i),
+                split,
+                sources,
+                ResultMatcher(result));
+        }
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByNoLimitCoordinated)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{};
+    for (int i = 0; i < 100; ++i) {
+        if (i == 0 || i == 30 || i == 60) {
+            sources.emplace_back();
+        }
+
+        sources.back().push_back(Format("a=%v;b=%v;v=%v", i / 10, i % 10, i));
+    }
+
+    auto grouped = THashMap<std::pair<int, int>, int>{};
+
+    for (int i = 0; i < 100; ++i) {
+        int k = i / 10;
+        int x = i % 2;
+        int b = i % 10;
+        grouped[std::make_pair(k, x)] += b;
+    }
+
+    auto unsortedRows = std::vector<std::tuple<int, int, int>>{};
+    for (auto& [key, value] : grouped) {
+        unsortedRows.emplace_back(key.first, key.second, value);
+    }
+
+    std::sort(unsortedRows.begin(), unsortedRows.end());
+    auto sortedRows = std::vector<TString>{};
+    for (auto& item : unsortedRows) {
+        sortedRows.push_back(Format("k=%v;x=%v;s=%v", std::get<0>(item), std::get<1>(item), std::get<2>(item)));
+    }
+
+    auto resultSplit = MakeSplit({{"k", EValueType::Int64}, {"x", EValueType::Int64}, {"s", EValueType::Int64}});
+    auto result = YsonToRows(sortedRows, resultSplit);
+
+    for (int i = 0; i < 100; ++i) {
+        EvaluateCoordinatedGroupBy(
+            "k, x, sum(b) as s from [//t] group by a as k, v % 2 as x",
+            split,
+            sources,
+            OrderedResultMatcher(result, {"k", "x"}));
+    }
+}
+
+// TODO(dtorilov): Coordinated tests for totals.
 
 TEST_F(TQueryEvaluateTest, GroupByAny)
 {

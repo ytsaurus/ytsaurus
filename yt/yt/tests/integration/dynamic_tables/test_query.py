@@ -150,24 +150,30 @@ class TestQuery(YTEnvSetup):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"s": 2 * i + 10 * i - 1} for i in range(1, 10)]
-        actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
-        assert expected == actual
+
+        for _ in range(100):
+            actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
+            assert expected == actual
 
     @authors("sandello")
     def test_group_by1(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"s": 450}]
-        actual = select_rows("sum(b) as s from [//tmp/t] group by 1 as k")
-        assert_items_equal(actual, expected)
+
+        for _ in range(100):
+            actual = select_rows("sum(b) as s from [//tmp/t] group by 1 as k")
+            assert_items_equal(actual, expected)
 
     @authors("sandello", "lukyan", "asaitgalin")
     def test_group_by2(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
-        actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
-        assert_items_equal(actual, expected)
+
+        for _ in range(100):
+            actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
+            assert_items_equal(actual, expected)
 
     @authors("lukyan")
     def test_group_by_primary_prefix(self):
@@ -204,8 +210,9 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"k": k, "x": x, "s": s} for (k, x), s in list(grouped.items())]
 
-        actual = select_rows("k, x, sum(b) as s from [//tmp/t] group by a as k, v % 2 as x")
-        assert_items_equal(actual, expected)
+        for _ in range(100):
+            actual = select_rows("k, x, sum(b) as s from [//tmp/t] group by a as k, v % 2 as x")
+            assert_items_equal(actual, expected)
 
     @authors("lukyan")
     def test_group_by_disjoint(self):
@@ -261,8 +268,9 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"k": k, "x": x, "s": s} for (k, x), s in list(grouped.items())]
 
-        actual = select_rows("k, x, sum(b) as s from [//tmp/t] join [//tmp/j] using a group by a as k, v % 2 as x")
-        assert_items_equal(actual, expected)
+        for _ in range(100):
+            actual = select_rows("k, x, sum(b) as s from [//tmp/t] join [//tmp/j] using a group by a as k, v % 2 as x")
+            assert_items_equal(actual, expected)
 
     @authors("lukyan")
     def test_having(self):
@@ -287,14 +295,16 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", data)
 
         expected = [{"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0}]
-        actual = select_rows(
-            """
-            k, avg(a) as aa, min(b) as mb, avg(b) as ab
-            from [//tmp/t]
-            group by a % 2 as k
-            having mb < 5"""
-        )
-        assert expected == actual
+
+        for _ in range(100):
+            actual = select_rows(
+                """
+                k, avg(a) as aa, min(b) as mb, avg(b) as ab
+                from [//tmp/t]
+                group by a % 2 as k
+                having mb < 5"""
+            )
+            assert expected == actual
 
     @authors("lbrown")
     def test_merging_group_by(self):
@@ -326,14 +336,16 @@ class TestQuery(YTEnvSetup):
             {"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0},
             {"k": 1, "aa": 50.0, "mb": 10, "ab": 500.0},
         ]
-        actual = select_rows(
-            """
-            k, avg(a) as aa, min(b) as mb, avg(b) as ab
-            from [//tmp/t]
-            group by a % 2 as k
-            order by k limit 2"""
-        )
-        assert expected == actual
+
+        for _ in range(100):
+            actual = select_rows(
+                """
+                k, avg(a) as aa, min(b) as mb, avg(b) as ab
+                from [//tmp/t]
+                group by a % 2 as k
+                order by k limit 2"""
+            )
+            assert expected == actual
 
     @authors("lbrown")
     def test_merging_group_by2(self):
@@ -362,16 +374,20 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", data)
 
         expected = [{"k": 0, "m": "98"}, {"k": 1, "m": "99"}]
-        actual = select_rows("k, max(b) as m from [//tmp/t] group by a % 2 as k order by k limit 2")
-        assert expected == actual
+
+        for _ in range(100):
+            actual = select_rows("k, max(b) as m from [//tmp/t] group by a % 2 as k order by k limit 2")
+            assert expected == actual
 
     @authors("lukyan")
     def test_limit(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"a": 1, "b": 10}]
-        actual = select_rows("* from [//tmp/t] limit 1")
-        assert expected == actual
+
+        for _ in range(100):
+            actual = select_rows("* from [//tmp/t] limit 1")
+            assert expected == actual
 
     @authors("lukyan")
     def test_order_by(self):

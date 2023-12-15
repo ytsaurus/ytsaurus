@@ -166,12 +166,6 @@ size_t MakeCodegenScanOp(
     size_t* slotCount,
     const std::vector<int>& convertibleColumnIndices);
 
-std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
-    TCodegenSource* codegenSource,
-    size_t* slotCount,
-    size_t slot,
-    size_t streamIndex);
-
 size_t MakeCodegenFilterOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
@@ -207,7 +201,15 @@ size_t MakeCodegenMultiJoinOp(
     std::vector<std::pair<size_t, EValueType>> primaryColumns,
     TComparerManagerPtr comparerManager);
 
-std::pair<size_t, size_t> MakeCodegenGroupOp(
+struct TGroupOpSlots
+{
+    size_t Intermediate;
+    size_t Final;
+    size_t DeltaFinal;
+    size_t Totals;
+};
+
+TGroupOpSlots MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t producerSlot,

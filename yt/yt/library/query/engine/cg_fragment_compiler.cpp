@@ -2387,86 +2387,6 @@ size_t MakeCodegenScanOp(
     return consumerSlot;
 }
 
-std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
-    TCodegenSource* codegenSource,
-    size_t* slotCount,
-    size_t producerSlot,
-    size_t streamIndex)
-{
-    size_t finalConsumerSlot = (*slotCount)++;
-    size_t intermediateConsumerSlot = (*slotCount)++;
-    size_t totalsConsumerSlot = (*slotCount)++;
-
-    *codegenSource = [
-        =,
-        codegenSource = std::move(*codegenSource)
-    ] (TCGOperatorContext& builder) {
-
-        Value* finalFinish = builder->CreateAlloca(builder->getInt1Ty());
-        Value* intermediateFinish = builder->CreateAlloca(builder->getInt1Ty());
-        Value* totalsFinish = builder->CreateAlloca(builder->getInt1Ty());
-
-        builder->CreateStore(builder->getFalse(), finalFinish);
-        builder->CreateStore(builder->getFalse(), intermediateFinish);
-        builder->CreateStore(builder->getFalse(), totalsFinish);
-
-        builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
-            auto* ifFinalBB = builder->CreateBBHere("ifFinal");
-            auto* ifIntermediateBB = builder->CreateBBHere("ifIntermediate");
-            auto* ifTotalsBB = builder->CreateBBHere("ifTotals");
-            auto* endIfBB = builder->CreateBBHere("endIf");
-
-            Value* finalFinishRef = builder->ViaClosure(finalFinish);
-            Value* intermediateFinishRef = builder->ViaClosure(intermediateFinish);
-            Value* totalsFinishRef = builder->ViaClosure(totalsFinish);
-
-            auto streamIndexValue = TCGValue::LoadFromRowValues(
-                builder,
-                values,
-                streamIndex,
-                EValueType::Uint64,
-                "reference.streamIndex");
-
-            auto switcher = builder->CreateSwitch(streamIndexValue.GetTypedData(builder), endIfBB);
-
-            switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Final)), ifFinalBB);
-            switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate)), ifIntermediateBB);
-            switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Totals)), ifTotalsBB);
-
-            builder->SetInsertPoint(ifFinalBB);
-            builder->CreateStore(
-                builder[finalConsumerSlot](builder, values),
-                finalFinishRef);
-            builder->CreateBr(endIfBB);
-
-            builder->SetInsertPoint(ifIntermediateBB);
-            builder->CreateStore(
-                builder[intermediateConsumerSlot](builder, values),
-                intermediateFinishRef);
-            builder->CreateBr(endIfBB);
-
-            builder->SetInsertPoint(ifTotalsBB);
-            builder->CreateStore(
-                builder[totalsConsumerSlot](builder, values),
-                totalsFinishRef);
-            builder->CreateBr(endIfBB);
-
-            builder->SetInsertPoint(endIfBB);
-
-            // FIXME(lukyan): This is logically wrong but fixes YT-11823
-            return builder->CreateOr(
-                builder->CreateLoad(builder->getInt1Ty(), finalFinishRef),
-                builder->CreateOr(
-                    builder->CreateLoad(builder->getInt1Ty(), intermediateFinishRef),
-                    builder->CreateLoad(builder->getInt1Ty(), totalsFinishRef)));
-        };
-
-        codegenSource(builder);
-    };
-
-    return std::make_tuple(finalConsumerSlot, intermediateConsumerSlot, totalsConsumerSlot);
-}
-
 size_t MakeCodegenMultiJoinOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
@@ -2982,7 +2902,7 @@ size_t MakeCodegenOnceOp(
     return consumerSlot;
 }
 
-std::pair<size_t, size_t> MakeCodegenGroupOp(
+TGroupOpSlots MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t producerSlot,
@@ -3000,6 +2920,8 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
 {
     size_t intermediateSlot = (*slotCount)++;
     size_t finalSlot = (*slotCount)++;
+    size_t deltaFinalSlot = (*slotCount)++;
+    size_t totalsSlot = (*slotCount)++;
 
     *codegenSource = [
         =,
@@ -3068,7 +2990,24 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 }
 
                 Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
-                Value* streamTag = builder->getInt64(0); // Dummy tag.
+
+                bool shouldReadStreamTagFromRow = isMerge;
+                Value* streamTag = nullptr;
+                if (shouldReadStreamTagFromRow) {
+                    size_t streamIndex = groupRowSize;
+                    auto streamIndexValue = TCGValue::LoadFromRowValues(
+                        builder,
+                        values,
+                        streamIndex,
+                        EValueType::Uint64,
+                        "reference.streamIndex");
+                    streamTag = streamIndexValue.GetTypedData(builder);
+                } else {
+                    // We consider all incoming rows as intermediate for NodeThread and Non-Coordinated queries.
+                    streamTag = builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate));
+
+                    // TODO(dtorilov): If query is disjoint, we can set Final tag here.
+                }
 
                 auto groupValues = builder->CreateCall(
                     builder.Module->GetRoutine("InsertGroupRow"),
@@ -3140,7 +3079,15 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
         });
 
         auto consumeIntermediate = MakeConsumer(builder, "ConsumeGroupedIntermediateRows", intermediateSlot);
-        auto consumeFinal = MakeConsumer(builder, "ConsumeGroupedFinalRows", finalSlot);
+        auto consumeFinal = TLlvmClosure();
+        auto consumeDeltaFinal = MakeConsumer(builder, "ConsumeGroupedDeltaFinalRows", deltaFinalSlot);
+        auto consumeTotals = TLlvmClosure();
+
+        if (isMerge) {
+            // Totals and final streams do not appear in inputs of NodeTread and Non-Coordinated queries.
+            consumeFinal = MakeConsumer(builder, "ConsumeGroupedFinalRows", finalSlot);
+            consumeTotals = MakeConsumer(builder, "ConsumeGroupedTotalsRows", totalsSlot);
+        }
 
         builder->CreateCall(
             builder.Module->GetRoutine("GroupOpHelper"),
@@ -3162,12 +3109,18 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 consumeIntermediate.ClosurePtr,
                 consumeIntermediate.Function,
 
-                consumeFinal.ClosurePtr,
-                consumeFinal.Function,
+                isMerge ? consumeFinal.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
+                isMerge ? consumeFinal.Function : ConstantInt::getNullValue(builder->getPtrTy()),
+
+                consumeDeltaFinal.ClosurePtr,
+                consumeDeltaFinal.Function,
+
+                isMerge ? consumeTotals.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
+                isMerge ? consumeTotals.Function : ConstantInt::getNullValue(builder->getPtrTy()),
             });
     };
 
-    return std::make_pair(intermediateSlot, finalSlot);
+    return {intermediateSlot, finalSlot, deltaFinalSlot, totalsSlot};
 }
 
 size_t MakeCodegenGroupTotalsOp(
