@@ -54,6 +54,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_executable(unittester-core-yson)
 target_compile_options(unittester-core-yson PRIVATE
@@ -86,12 +98,14 @@ target_proto_messages(unittester-core-yson PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_ut.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ut.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ext_ut.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_schema_ut.proto
 )
 target_sources(unittester-core-yson PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/depth_limiting_yson_consumer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/filter_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/lexer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/protobuf_scalar_type_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/protobuf_yson_schema_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/protobuf_yson_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/ypath_designated_yson_consumer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/yson_parser_ut.cpp

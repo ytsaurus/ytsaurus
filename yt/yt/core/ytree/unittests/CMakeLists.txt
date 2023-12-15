@@ -63,6 +63,7 @@ target_sources(unittester-core-ytree PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/service_combiner_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/tree_builder_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/lazy_ypath_service_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_schema_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_serializable_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_struct_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_fluent_ut.cpp
