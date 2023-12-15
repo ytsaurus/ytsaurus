@@ -37,6 +37,7 @@ using NYT::NQueryClient::THasherFunction;
 using NYT::NQueryClient::TTernaryComparerFunction;
 using NYT::NQueryClient::TMultiJoinParameters;
 using NYT::NQueryClient::TMultiJoinClosure;
+using NYT::NQueryClient::TLikeExpressionContext;
 using NYT::NTableClient::TRowBuffer;
 using NYT::TSharedRange;
 
@@ -46,115 +47,36 @@ struct TTypeBuilder<bool>
 { };
 
 // Opaque types
-template <>
-struct TTypeBuilder<TWriteOpClosure*>
-    : public TTypeBuilder<void*>
-{ };
 
-template <>
-struct TTypeBuilder<TGroupByClosure*>
-    : public TTypeBuilder<void*>
-{ };
+#define OPAQUE_TYPE(type) \
+    template <> \
+    struct TTypeBuilder< type > \
+        : public TTypeBuilder<void*> \
+    { };
 
-template <>
-struct TTypeBuilder<TExpressionContext*>
-    : public TTypeBuilder<void*>
-{ };
+    OPAQUE_TYPE(TWriteOpClosure*)
+    OPAQUE_TYPE(TGroupByClosure*)
+    OPAQUE_TYPE(TExpressionContext*)
+    OPAQUE_TYPE(TFunctionContext*)
+    OPAQUE_TYPE(TExecutionContext*)
+    OPAQUE_TYPE(std::vector<TRow>*)
+    OPAQUE_TYPE(std::vector<TMutableRow>*)
+    OPAQUE_TYPE(const std::vector<TRow>*)
+    OPAQUE_TYPE(const std::vector<TMutableRow>*)
+    OPAQUE_TYPE(TLookupRows*)
+    OPAQUE_TYPE(TJoinLookupRows*)
+    OPAQUE_TYPE(TJoinLookup*)
+    OPAQUE_TYPE(TTopCollector*)
+    OPAQUE_TYPE(TSharedRange<TRow>*)
+    OPAQUE_TYPE(TSharedRange<TRowRange>*)
+    OPAQUE_TYPE(TSharedRange<TPIRowRange>*)
+    OPAQUE_TYPE(TMultiJoinParameters*)
+    OPAQUE_TYPE(TMultiJoinClosure*)
+    OPAQUE_TYPE(std::unique_ptr<TLookupRows>*)
+    OPAQUE_TYPE(TSharedRange<TRange<TPIValue>>*)
+    OPAQUE_TYPE(TLikeExpressionContext*)
 
-template <>
-struct TTypeBuilder<TFunctionContext*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TExecutionContext*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<std::vector<TRow>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<std::vector<TMutableRow>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<const std::vector<TRow>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<const std::vector<TMutableRow>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TLookupRows*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TJoinLookupRows*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TJoinLookup*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<std::vector<std::pair<TRow, i64>>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TTopCollector*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TSharedRange<TRow>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TSharedRange<TRowRange>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TSharedRange<TPIRowRange>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TMultiJoinParameters*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TMultiJoinClosure*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<std::unique_ptr<TLookupRows>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TSharedRange<TRange<TPIValue>>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<NQueryClient::TLikeExpressionContext*>
-    : public TTypeBuilder<void*>
-{ };
+#undef OPAQUE_TYPE
 
 // Aggregate types
 

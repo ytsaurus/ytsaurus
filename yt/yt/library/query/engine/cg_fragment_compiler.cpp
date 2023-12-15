@@ -2272,7 +2272,7 @@ TCodegenExpression MakeCodegenLikeExpr(
             TTypeBuilder<TPIValue>::Get(builder->getContext()),
             8,
             builder->getInt64(1),
-            "text");
+            "result");
 
         builder->CreateCall(
             builder.Module->GetRoutine("LikeOpHelper"),

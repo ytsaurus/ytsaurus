@@ -653,6 +653,14 @@ bool Compare(
         }
 
         CHECK(Compare(caseLhs->DefaultExpression, lhsSchema, caseRhs->DefaultExpression, rhsSchema, maxIndex));
+    } else if (auto likeLhs = lhs->As<TLikeExpression>()) {
+        auto likeRhs = rhs->As<TLikeExpression>();
+        CHECK(likeRhs);
+
+        CHECK(Compare(likeLhs->Text, lhsSchema, likeRhs->Text, rhsSchema, maxIndex));
+        CHECK(likeLhs->Opcode == likeRhs->Opcode);
+        CHECK(Compare(likeLhs->Pattern, lhsSchema, likeRhs->Pattern, rhsSchema, maxIndex));
+        CHECK(Compare(likeLhs->EscapeCharacter, lhsSchema, likeRhs->EscapeCharacter, rhsSchema, maxIndex));
     } else {
         YT_ABORT();
     }
