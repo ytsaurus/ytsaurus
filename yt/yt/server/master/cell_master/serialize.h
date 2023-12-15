@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTransactionACLs)                                           (2450))  // h0pless
     ((AddTransactionCompatibilityWithMethodCheck)                   (2451))  // h0pless
     ((DontValidatePermissionsOnNodeUnregistration)                  (2452))  // kvk1920
+    ((LimitForChunkCountInMergePipeline)                            (2453))  // cherepashka
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch

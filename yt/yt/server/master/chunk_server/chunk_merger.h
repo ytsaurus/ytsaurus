@@ -171,6 +171,8 @@ private:
 
     bool Enabled_ = false;
 
+    THashMap<NCypressClient::TObjectId, EChunkMergeStatus> NodeToMergeStatus_;
+
     // Persistent fields.
     NTransactionServer::TTransactionRotator TransactionRotator_;
     THashMap<NCypressClient::TObjectId, NSecurityServer::TAccountId> NodesBeingMerged_;
@@ -291,6 +293,8 @@ private:
     void StartMergeTransaction();
 
     void OnTransactionFinished(NTransactionServer::TTransaction* transaction);
+
+    bool CanAdvanceNodeInMergePipeline();
 
     void ProcessTouchedNodes();
 

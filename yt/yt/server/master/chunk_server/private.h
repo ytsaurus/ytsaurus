@@ -52,6 +52,11 @@ DEFINE_ENUM(ERemoveReplicaReason,
     (NodeDisposed)
 );
 
+DEFINE_ENUM(EChunkMergeStatus,
+    ((AwaitingMerge)                (0))
+    ((InMergePipeline)              (1))
+);
+
 // This enum is used only for text representation of table chunk formats in deprecated
 // TableChunkFormat and TableChunkFormatStatistics attributes.
 // Keep in sync with NChunkClient::EChunkFormat.

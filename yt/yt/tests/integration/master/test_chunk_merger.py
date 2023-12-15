@@ -586,6 +586,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/@config/chunk_manager/chunk_merger/reschedule_merge_on_success", True)
 
         create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
         for _ in range(32):
             write_table("<append=true>//tmp/t", {"a": "b"})
 
@@ -595,12 +596,8 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/chunk_merger/max_jobs_per_chunklist", 2)
 
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
-        set("//tmp/t/@chunk_merger_mode", "deep")
-
         set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        self._wait_for_merge("//tmp/t", "deep")
 
         assert get("//tmp/t/@chunk_count") == 1
 
@@ -611,6 +608,7 @@ class TestChunkMerger(YTEnvSetup):
             create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
         else:
             create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
@@ -637,8 +635,6 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
         set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
         set("//tmp/t/@chunk_merger_mode", "deep")
-
-        wait(lambda: get("//tmp/t/@is_being_merged"))
 
         write_table("//tmp/t", all_rows[3])
         write_table("<append=true>//tmp/t", all_rows[4])
