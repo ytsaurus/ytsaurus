@@ -2328,7 +2328,8 @@ IQueueRowsetPtr TClient::DoPullQueue(
     if ((tableInfo->IsReplicated() ||
         tableInfo->IsChaosReplicated() ||
         (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync)) &&
-        options.UseNativeTabletNodeApi) {
+        options.UseNativeTabletNodeApi)
+    {
 
         auto bannedReplicaTracker = static_cast<bool>(tableInfo->ReplicationCardId) || tableInfo->IsChaosReplicated()
             ? Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId)
