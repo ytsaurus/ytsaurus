@@ -23,6 +23,7 @@ class TVirtualStaticTable
 public:
     TVirtualStaticTable(
         const THashSet<NChunkClient::TInputChunkPtr>& chunks,
+        NTableClient::TTableSchemaPtr schema,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
@@ -49,6 +50,8 @@ private:
     NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 
     const THashSet<NChunkClient::TInputChunkPtr>& Chunks_;
+
+    NTableClient::TTableSchemaPtr Schema_;
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 

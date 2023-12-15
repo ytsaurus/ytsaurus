@@ -1,5 +1,7 @@
 package NYT.NControllerAgent.NProto;
 
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TOutputResult
@@ -16,6 +18,8 @@ message TOutputResult
     optional bytes min = 4;
 
     optional bytes max = 5;
+
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

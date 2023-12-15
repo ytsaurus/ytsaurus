@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
+#include <yt/yt/server/lib/misc/job_table_schema.h>
+
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -32,8 +34,10 @@ using namespace NNodeTrackerClient;
 
 using TVertexDescriptor = TString;
 
-TString TDataFlowGraph::SourceDescriptor("source");
-TString TDataFlowGraph::SinkDescriptor("sink");
+const TString TDataFlowGraph::SourceDescriptor("source");
+const TString TDataFlowGraph::SinkDescriptor("sink");
+const TString TDataFlowGraph::CoreDescriptor("core");
+const TString TDataFlowGraph::StderrDescriptor("stderr");
 
 DECLARE_REFCOUNTED_CLASS(TVertex)
 DECLARE_REFCOUNTED_CLASS(TEdge)
@@ -117,12 +121,14 @@ class TLivePreview
 public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkClient::TInputChunkPtr>, Chunks);
+    DEFINE_BYREF_RW_PROPERTY(TTableSchemaPtr, Schema, New<TTableSchema>());
 
 public:
     TLivePreview() = default;
 
-    explicit TLivePreview(TNodeDirectoryPtr nodeDirectory)
-        : NodeDirectory_(std::move(nodeDirectory))
+    TLivePreview(TTableSchemaPtr schema, TNodeDirectoryPtr nodeDirectory)
+        : Schema_(std::move(schema))
+        , NodeDirectory_(std::move(nodeDirectory))
     {
         Initialize();
     }
@@ -134,6 +140,11 @@ public:
         Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, Chunks_);
         Persist(context, NodeDirectory_);
 
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= ESnapshotVersion::VirtualTableSchema) {
+            Persist(context, *Schema_);
+        }
+
         if (context.IsLoad()) {
             Initialize();
         }
@@ -144,7 +155,7 @@ private:
 
     void Initialize()
     {
-        Service_ = New<TVirtualStaticTable>(Chunks_, NodeDirectory_);
+        Service_ = New<TVirtualStaticTable>(Chunks_, Schema_, NodeDirectory_);
     }
 };
 
@@ -301,7 +312,15 @@ public:
             LivePreviews_->resize(index + 1);
         }
         if (!(*LivePreviews_)[index]) {
-            (*LivePreviews_)[index] = New<TLivePreview>(NodeDirectory_);
+            // TODO(gritukan): Pass schemas from controller.
+            auto schema = New<TTableSchema>();
+            if (VertexDescriptor_ == TDataFlowGraph::CoreDescriptor) {
+                schema = GetCoreBlobTableSchema().ToTableSchema();
+            } else if (VertexDescriptor_ == TDataFlowGraph::StderrDescriptor) {
+                schema = GetStderrBlobTableSchema().ToTableSchema();
+            }
+
+            (*LivePreviews_)[index] = New<TLivePreview>(std::move(schema), NodeDirectory_);
         }
 
         YT_VERIFY((*LivePreviews_)[index]->Chunks().insert(std::move(chunk)).second);
@@ -384,6 +403,11 @@ public:
         if (context.IsLoad()) {
             Initialize();
         }
+    }
+
+    void RegisterVertex(const TDataFlowGraph::TVertexDescriptor& vertex)
+    {
+        GetOrRegisterVertex(vertex);
     }
 
     void RegisterEdge(
@@ -549,6 +573,11 @@ IYPathServicePtr TDataFlowGraph::GetService() const
 void TDataFlowGraph::Persist(const TPersistenceContext& context)
 {
     Impl_->Persist(context);
+}
+
+void TDataFlowGraph::RegisterVertex(const TVertexDescriptor& vertex)
+{
+    Impl_->RegisterVertex(vertex);
 }
 
 void TDataFlowGraph::RegisterEdge(
