@@ -18,6 +18,9 @@ using IRawYtReadPtr = ::TIntrusivePtr<IRawYtRead>;
 class IRawYtWrite;
 using IRawYtWritePtr = ::TIntrusivePtr<IRawYtWrite>;
 
+class IRawYtSortedWrite;
+using IRawYtSortedWritePtr = ::TIntrusivePtr<IRawYtSortedWrite>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class IYtNotSerializableJobInput
@@ -178,8 +181,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class IRawYtSortedWrite
+    : public IRawYtWrite
+{
+public:
+    using IRawYtWrite::IRawYtWrite;
+
+    virtual const NYT::TSortColumns& GetColumnsToSort() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IRawYtReadPtr MakeYtNodeInput(NYT::TRichYPath path);
 IRawYtWritePtr MakeYtNodeWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema);
+IRawYtSortedWritePtr MakeYtNodeSortedWrite(
+    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort);
 
 ////////////////////////////////////////////////////////////////////////////////
 

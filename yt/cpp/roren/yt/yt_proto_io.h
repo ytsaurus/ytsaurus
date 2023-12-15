@@ -258,17 +258,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IRawYtSortedWrite
-    : public IRawYtWrite
-{
-public:
-    using IRawYtWrite::IRawYtWrite;
-
-    virtual const NYT::TSortColumns& GetColumnsToSort() const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TMessage>
     requires std::derived_from<TMessage, ::google::protobuf::Message>
 class TRawYtProtoSortedWrite

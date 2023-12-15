@@ -254,6 +254,67 @@ IRawYtWritePtr MakeYtNodeWrite(NYT::TRichYPath path, NYT::TTableSchema tableSche
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRawYtNodeSortedWrite
+    : public IRawYtSortedWrite
+{
+public:
+    TRawYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
+        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort))
+    { }
+
+    const NYT::TSortColumns& GetColumnsToSort() const override
+    {
+        return ColumnsToSort_;
+    }
+
+    IYtJobOutputPtr CreateJobOutput(int sinkIndex) const override
+    {
+        return ::MakeIntrusive<TYtJobNodeOutput>(sinkIndex);
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return std::vector<TDynamicTypeTag>{TTypeTag<NYT::TNode>("yt-node-sorted-write-input-0")};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {};
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawWritePtr {
+            return ::MakeIntrusive<TRawYtNodeSortedWrite>(
+                NYT::TRichYPath{},
+                NYT::TTableSchema{},
+                NYT::TSortColumns{}
+            );
+        };
+    }
+
+    void Save(IOutputStream*) const override
+    {
+        Y_ABORT("TRawYtProtoSortedWrite object is not supposed to be SaveLoad-ed");
+    }
+
+    void Load(IInputStream*) override
+    {
+        Y_ABORT("TRawYtProtoSortedWrite object is not supposed to be SaveLoad-ed");
+    }
+
+private:
+    NYT::TSortColumns ColumnsToSort_;
+};
+
+IRawYtSortedWritePtr MakeYtNodeSortedWrite(
+    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
+{
+    return ::MakeIntrusive<TRawYtNodeSortedWrite>(std::move(path), std::move(tableSchema), std::move(columnsToSort));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDecodingJobInput
     : public IYtJobInput
 {

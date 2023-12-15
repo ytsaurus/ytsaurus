@@ -73,7 +73,7 @@ private:
     NPrivate::IRawYtWritePtr  CreateSortedWrite() const
     {
         if constexpr (std::is_same_v<TInputRow, NYT::TNode>) {
-            return nullptr;
+            return NPrivate::MakeYtNodeSortedWrite(Path_, Schema_, *ColumnsToSort_);
         } else if constexpr (std::is_base_of_v<::google::protobuf::Message, TInputRow>) {
             return NPrivate::MakeYtProtoSortedWrite<TInputRow>(Path_, Schema_, *ColumnsToSort_);
         } else {
