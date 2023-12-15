@@ -117,6 +117,8 @@ void TVirtualStaticTable::ListSystemAttributes(std::vector<TAttributeDescriptor>
         descriptors->push_back(EInternedAttributeKey::SortedBy);
     }
     descriptors->push_back(EInternedAttributeKey::SchemaMode);
+    descriptors->push_back(EInternedAttributeKey::KeyColumns);
+    descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
     descriptors->push_back(EInternedAttributeKey::ChunkCount);
     descriptors->push_back(EInternedAttributeKey::Dynamic);
     descriptors->push_back(EInternedAttributeKey::Type);
@@ -148,6 +150,14 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         case EInternedAttributeKey::SchemaMode:
             BuildYsonFluently(consumer)
                 .Value(ETableSchemaMode::Weak);
+            return true;
+        case EInternedAttributeKey::KeyColumns:
+            BuildYsonFluently(consumer)
+                .Value(Schema_->GetKeyColumns());
+            return true;
+        case EInternedAttributeKey::UserAttributeKeys:
+            BuildYsonFluently(consumer)
+                .Value(std::vector<TString>{});
             return true;
         case EInternedAttributeKey::ChunkCount:
             BuildYsonFluently(consumer)
