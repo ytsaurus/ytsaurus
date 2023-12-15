@@ -81,7 +81,7 @@ void ReorderAndSaveRows(
 {
     std::vector<int> sourceIdToTargetId;
 
-    for (const auto& row : rows) {
+    for (const auto row : rows) {
         if (!row) {
             resultRows.push_back(row);
             continue;
@@ -265,12 +265,12 @@ TYqlRowset BuildRowset(
 
     ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, consumer.GetRows(), resultRows);
 
-    auto incompletePtr = writeNode->FindChild("Incomplete");
-    bool incomplete = incompletePtr ? incompletePtr->AsBoolean()->GetValue() : false;
+    auto incompleteNode = writeNode->FindChild("Incomplete");
+    bool incomplete = incompleteNode ? incompleteNode->AsBoolean()->GetValue() : false;
 
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
 
-    return TYqlRowset {
+    return TYqlRowset{
         .TargetSchema = targetSchema,
         .ResultRows = resultRows,
         .RowBuffer = rowBuffer,
@@ -278,8 +278,8 @@ TYqlRowset BuildRowset(
     };
 }
 
-
-TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset) {
+TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)
+{
     auto wireWriter = CreateWireProtocolWriter();
     wireWriter->WriteTableSchema(*rowset.TargetSchema);
     wireWriter->WriteSchemafulRowset(rowset.ResultRows);
@@ -288,7 +288,6 @@ TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset) {
     struct TYqlRefMergeTag {};
     return {.WireRowset = MergeRefsToRef<TYqlRefMergeTag>(refs), .Incomplete = rowset.Incomplete};
 }
-
 
 std::vector<TWireYqlRowset> BuildRowsets(
     const TClientDirectoryPtr& clientDirectory,
@@ -311,7 +310,6 @@ std::vector<TWireYqlRowset> BuildRowsets(
     }
     return rowsets;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////
 

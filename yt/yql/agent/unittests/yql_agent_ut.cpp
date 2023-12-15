@@ -36,7 +36,8 @@ TEST(TYqlAgentBuildRowsetTest, SkiffFormat)
     std::vector<TString> columns = {"integer", "string"};
     TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema(columns[0], EValueType::Int64),
-        TColumnSchema(columns[1], EValueType::String)});
+        TColumnSchema(columns[1], EValueType::String)
+    });
 
     auto nameTable = TNameTable::FromSchema(*tableSchema);
 
@@ -94,7 +95,7 @@ TEST(TYqlAgentBuildRowsetTest, SkiffFormat)
     skiffWriter->Write(rows);
     skiffWriter->Close().Get().ThrowOnError();
 
-    INodePtr resultNode = ConvertTo<INodePtr>(BuildYsonStringFluently()
+    auto resultNode = ConvertTo<INodePtr>(BuildYsonStringFluently()
         .BeginMap()
             .Item("Write")
             .BeginList()
@@ -124,7 +125,6 @@ TEST(TYqlAgentBuildRowsetTest, SkiffFormat)
     EXPECT_EQ(*yqlRowset.TargetSchema, *tableSchema);
     EXPECT_EQ(yqlRowset.Incomplete, true);
 }
-
 
 TEST(TYqlAgentBuildRowsetTest, ReorderAndSaveRows)
 {
