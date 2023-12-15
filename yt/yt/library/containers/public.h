@@ -48,6 +48,7 @@ DEFINE_ENUM(EPortoErrorCode,
     ((SocketTimeout)                 ((PortoErrorCodeBase + Porto::EError::SocketTimeout)))
     ((Taint)                         ((PortoErrorCodeBase + Porto::EError::Taint)))
     ((Queued)                        ((PortoErrorCodeBase + Porto::EError::Queued)))
+    ((InvalidFilesystem)             ((PortoErrorCodeBase + Porto::EError::InvalidFilesystem)))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

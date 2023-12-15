@@ -1166,12 +1166,7 @@ private:
 
             auto errorOrValue = WaitFor(VolumeExecutor_->CreateVolume(mountPath, volumeProperties));
             if (!errorOrValue.IsOK()) {
-                // TODO(yuryalekseev): Wait for porto to add Porto::InvalidImage
-                //if (errorOrValue.GetCode() == Porto::InvalidImage) {
-                //    isInvalidImage = true;
-                //}
-                auto it = volumeProperties.find("backend");
-                if (errorOrValue.GetCode() == EPortoErrorCode::Unknown && it != volumeProperties.end() && (it->second == "squash" || it->second == "nbd")) {
+                if (errorOrValue.GetCode() == EPortoErrorCode::InvalidFilesystem) {
                     isInvalidImage = true;
                 }
             }
