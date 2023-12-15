@@ -20,6 +20,7 @@
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
+#include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
@@ -199,7 +200,8 @@ public:
         bool produceAllVersions,
         const TSharedRange<TRowRange>& singletonClippingRange,
         const TChunkReaderMemoryManagerPtr& memoryManager,
-        IInvokerPtr sessionInvoker)
+        IInvokerPtr sessionInvoker,
+        TKeyFilterStatisticsPtr keyFilterStatistics)
         : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
@@ -213,6 +215,7 @@ public:
             timestamp,
             produceAllVersions,
             schemaIdMapping)
+        , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , Ranges_(std::move(ranges))
         , ClippingRange_(singletonClippingRange)
     {
@@ -254,6 +257,7 @@ public:
 
         i64 rowCount = 0;
         i64 dataWeight = 0;
+        i64 falsePositiveRangeCount = 0;
 
         auto hasHunkColumns = ChunkMeta_->ChunkSchema()->HasHunkColumns();
 
@@ -261,6 +265,9 @@ public:
             if (CheckKeyLimit_ &&
                 CompareKeys(BlockReader_->GetKey(), GetCurrentRangeUpperKey(), KeyComparer_) >= 0)
             {
+                falsePositiveRangeCount += static_cast<i64>(IsLastRangeEmpty_);
+                IsLastRangeEmpty_ = true;
+
                 if (++RangeIndex_ < std::ssize(Ranges_)) {
                     if (!BlockReader_->SkipToKey(GetCurrentRangeLowerKey())) {
                         BlockEnded_ = true;
@@ -285,6 +292,8 @@ public:
                 if (hasHunkColumns) {
                     GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
                 }
+
+                IsLastRangeEmpty_ = false;
             }
 
             rows.push_back(row);
@@ -292,12 +301,17 @@ public:
 
             if (!BlockReader_->NextRow()) {
                 BlockEnded_ = true;
+                falsePositiveRangeCount += static_cast<i64>(IsLastRangeEmpty_);
+                IsLastRangeEmpty_ = true;
                 break;
             }
         }
 
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
+        if (KeyFilterStatistics_ && falsePositiveRangeCount > 0) {
+            KeyFilterStatistics_->FalsePositiveEntryCount.fetch_add(falsePositiveRangeCount, std::memory_order::relaxed);
+        }
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -306,12 +320,13 @@ private:
     using TBlockReaderAdapter<TBlockReader>::ResetBlockReader;
     using TBlockReaderAdapter<TBlockReader>::BlockReader_;
 
+    TKeyFilterStatisticsPtr KeyFilterStatistics_;
     std::vector<size_t> BlockIndexes_;
-    int NextBlockIndex_ = 0;
     TSharedRange<TRowRange> Ranges_;
-    int RangeIndex_ = 0;
     TSharedRange<TRowRange> ClippingRange_;
-
+    int NextBlockIndex_ = 0;
+    int RangeIndex_ = 0;
+    bool IsLastRangeEmpty_ = true;
 
     const TLegacyKey& GetCurrentRangeLowerKey() const
     {
@@ -1682,7 +1697,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     bool produceAllVersions,
     const TSharedRange<TRowRange>& singletonClippingRange,
     const TChunkReaderMemoryManagerPtr& memoryManager,
-    IInvokerPtr sessionInvoker)
+    IInvokerPtr sessionInvoker,
+    TKeyFilterStatisticsPtr keyFilterStatistics)
 {
     const auto& blockCache = chunkState->BlockCache;
 
@@ -1737,7 +1753,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     produceAllVersions,
                     singletonClippingRange,
                     memoryManager,
-                    sessionInvoker);
+                    sessionInvoker,
+                    std::move(keyFilterStatistics));
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -1879,7 +1896,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TChunkReaderMemoryManagerPtr& memoryManager,
-    IInvokerPtr sessionInvoker)
+    IInvokerPtr sessionInvoker,
+    TKeyFilterStatisticsPtr keyFilterStatistics)
 {
     return CreateVersionedChunkReader(
         config,
@@ -1893,7 +1911,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         produceAllVersions,
         {},
         memoryManager,
-        sessionInvoker);
+        sessionInvoker,
+        std::move(keyFilterStatistics));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

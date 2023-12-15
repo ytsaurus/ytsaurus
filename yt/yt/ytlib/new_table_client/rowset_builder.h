@@ -35,7 +35,9 @@ struct IRowsetBuilder
 
     virtual bool IsReadListEmpty() const = 0;
 
-    virtual void BuildReadListForWindow(TSpanMatching initialWindow) = 0;
+    virtual void BuildReadListForWindow(
+        TSpanMatching initialWindow,
+        const NTableClient::TKeyFilterStatisticsPtr& keyFilterStatistics) = 0;
 
     virtual ui32 ReadRowsByList(
         TMutableVersionedRow* rows,

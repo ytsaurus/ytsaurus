@@ -52,8 +52,10 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/config.h>
-#include <yt/yt/client/table_client/pipe.h>
+#include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
+
+#include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
@@ -142,14 +144,14 @@ class TProfilingReaderWrapper
 {
 private:
     const ISchemafulUnversionedReaderPtr Underlying_;
-    const TSelectReadCounters Counters_;
+    const TSelectRowsCounters Counters_;
 
     std::optional<TWallTimer> Timer_;
 
 public:
     TProfilingReaderWrapper(
         ISchemafulUnversionedReaderPtr underlying,
-        TSelectReadCounters counters,
+        TSelectRowsCounters counters,
         bool enableDetailedProfiling)
         : Underlying_(std::move(underlying))
         , Counters_(std::move(counters))
@@ -272,15 +274,20 @@ public:
 
     IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics()
     {
-        if (MultipleTables_ || Map_.empty()) {
-            return nullptr;
-        }
+        auto tabletSnapshot = GetAnyTabletSnapshot();
+        return tabletSnapshot
+            ? NTableClient::CreateHunkChunkReaderStatistics(
+                tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
+                tabletSnapshot->PhysicalSchema)
+            : nullptr;
+    }
 
-        // Any tablet snapshot would suffice.
-        auto tabletSnapshot = Map_.begin()->second;
-        return NTableClient::CreateHunkChunkReaderStatistics(
-            tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
-            tabletSnapshot->PhysicalSchema);
+    TKeyFilterStatisticsPtr CreateKeyFilterStatistics()
+    {
+        auto tabletSnapshot = GetAnyTabletSnapshot();
+        return tabletSnapshot && tabletSnapshot->Settings.MountConfig->EnableKeyFilterForLookup
+            ? New<TKeyFilterStatistics>()
+            : nullptr;
     }
 
 private:
@@ -293,6 +300,11 @@ private:
     NProfiling::TTagIdList ProfilerTags_;
     bool MultipleTables_ = false;
     TTableProfilerPtr TableProfiler_;
+
+    TTabletSnapshotPtr GetAnyTabletSnapshot()
+    {
+        return MultipleTables_ || Map_.empty() ? nullptr : Map_.begin()->second;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -810,8 +822,11 @@ private:
 
     TQueryStatistics DoExecute()
     {
-        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectCpuCounters(GetProfilingUser(Identity_));
+        auto tags = GetProfilingUser(Identity_);
+        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectRowsCounters(tags);
+
         ChunkReadOptions_.HunkChunkReaderStatistics = TabletSnapshots_.CreateHunkChunkReaderStatistics();
+        ChunkReadOptions_.KeyFilterStatistics = TabletSnapshots_.CreateKeyFilterStatistics();
 
         auto statistics = DoExecuteImpl();
 
@@ -819,6 +834,16 @@ private:
             auto failed = std::uncaught_exceptions() != 0;
             counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics, failed);
             counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics, failed);
+
+            if (const auto& keyFilterStatistics = ChunkReadOptions_.KeyFilterStatistics) {
+                const auto& rangeFilterCounters = counters->RangeFilterCounters;
+                rangeFilterCounters.InputRangeCount.Increment(
+                    keyFilterStatistics->InputEntryCount.load(std::memory_order::relaxed));
+                rangeFilterCounters.FilteredOutRangeCount.Increment(
+                    keyFilterStatistics->FilteredOutEntryCount.load(std::memory_order::relaxed));
+                rangeFilterCounters.FalsePositiveRangeCount.Increment(
+                    keyFilterStatistics->FalsePositiveEntryCount.load(std::memory_order::relaxed));
+            }
         });
 
         auto cpuTime = statistics.SyncTime;
@@ -1190,7 +1215,7 @@ private:
 
         return New<TProfilingReaderWrapper>(
             reader,
-            *tableProfiler->GetSelectReadCounters(userTag),
+            *tableProfiler->GetSelectRowsCounters(userTag),
             enableDetailedProfiling);
     }
 
@@ -1215,7 +1240,7 @@ private:
 
         return New<TProfilingReaderWrapper>(
             reader,
-            *tableProfiler->GetSelectReadCounters(userTag),
+            *tableProfiler->GetSelectRowsCounters(userTag),
             enableDetailedProfiling);
     }
 };

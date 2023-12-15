@@ -281,3 +281,33 @@ class DynamicTablesBase(YTEnvSetup):
                 if not err.is_resolve_error():
                     raise
         raise RuntimeError
+
+    def _get_key_filter_profiling_wrapper(self, method, table, user=None):
+        self_ = self
+
+        class Wrapper:
+            def __init__(self):
+                self.input = 0
+                self.filtered_out = 0
+                self.false_positive = 0
+                self.method = method
+                self.entry = "range" if self.method == "select" else "key"
+                self.tablet_profiling = self_._get_table_profiling(table, user)
+
+            def _get_counter(self, counter):
+                return self.tablet_profiling.get_counter(
+                    f"{self.method}/{self.entry}_filter/{counter}_{self.entry}_count"
+                )
+
+            def get_counters_delta(self):
+                input = self._get_counter("input") - self.input
+                filtered_out = self._get_counter("filtered_out") - self.filtered_out
+                false_positive = self._get_counter("false_positive") - self.false_positive
+
+                self.input += input
+                self.filtered_out += filtered_out
+                self.false_positive += false_positive
+
+                return input, filtered_out, false_positive
+
+        return Wrapper()

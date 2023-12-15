@@ -177,7 +177,8 @@ private:
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const NTableClient::TChunkStatePtr& chunkState,
-        TSharedRange<NTableClient::TRowRange> ranges) const;
+        TSharedRange<NTableClient::TRowRange> ranges,
+        bool* keyFilterUsed) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)

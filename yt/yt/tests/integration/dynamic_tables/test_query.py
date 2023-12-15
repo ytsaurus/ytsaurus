@@ -1,4 +1,6 @@
-from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
+from yt_env_setup import find_ut_file, skip_if_rpc_driver_backend
+
+from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_helpers import profiler_factory
 
@@ -35,7 +37,7 @@ import functools
 ##################################################################
 
 
-class TestQuery(YTEnvSetup):
+class TestQuery(DynamicTablesBase):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1666,7 +1668,7 @@ class TestQuery(YTEnvSetup):
             actual = select_rows(query, placeholder_values=placeholders)
             assert expected == actual
 
-    @authors("akozhikhov")
+    @authors("akozhikhov", "dave11ar")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_filter_ranges(self, optimize_for):
         sync_create_cells(1)
@@ -1697,6 +1699,7 @@ class TestQuery(YTEnvSetup):
 
         sync_mount_table("//tmp/t")
 
+        profiling = self._get_key_filter_profiling_wrapper("select", "//tmp/t")
         rows = [
             {"a": 1, "b": 1, "c": 1, "d": 1},
             {"a": 3, "b": 3, "c": 3, "d": 3},
@@ -1706,22 +1709,26 @@ class TestQuery(YTEnvSetup):
 
         sync_flush_table("//tmp/t")
 
-        def _check_query(expected, predicate):
-            actual = select_rows(f"* from [//tmp/t] where {predicate}")
-            assert_items_equal(expected, actual)
+        def _check_query(expected, predicate, min_input):
+            def _check_counters():
+                input, filtered_out, false_positive = profiling.get_counters_delta()
+                return input >= min_input and 0 <= filtered_out + false_positive <= input
 
-        _check_query(rows[0:1], "(a) in ((1), (2))")
-        _check_query(rows[0:1], "(a, b) in ((1, 1), (1, 2), (2, 1))")
-        _check_query(rows[0:2], "(a, b, c) in ((1, 1, 1), (2, 2, 2), (3, 3, 3))")
+            assert expected == select_rows(f"* from [//tmp/t] where {predicate}")
+            wait(lambda: _check_counters())
 
-        _check_query(rows[0:1], "(a) between (1) and (2)")
-        _check_query(rows[0:1], "(a, b) between ((1) and (1, 2))")
-        _check_query([], "(a, b) between (1, 2) and (2, 1)")
-        _check_query([], "(a, b) between ((2) and (2, 1))")
+        _check_query(rows[0:1], "(a) in ((1), (2))", 1)
+        _check_query(rows[0:1], "(a, b) in ((1, 1), (1, 2), (2, 1))", 3)
+        _check_query(rows[0:2], "(a, b, c) in ((1, 1, 1), (2, 2, 2), (3, 3, 3))", 3)
+
+        _check_query(rows[0:1], "(a) between (1) and (2)", 0)
+        _check_query(rows[0:1], "(a, b) between ((1) and (1, 2))", 1)
+        _check_query([], "(a, b) between (1, 2) and (2, 1)", 1)
+        _check_query([], "(a, b) between ((2) and (2, 1))", 1)
         _check_query([rows[1], rows[2]], """(a, b, c) between (
                      (3, 3, 2) and (3, 3, 4),
                      (5, 3) and (5, 4),
-                     (5, 5, 5) and (5, 6))""")
+                     (5, 5, 5) and (5, 6))""", 1)
 
     @authors("dtorilov")
     def test_select_with_case_operator(self):

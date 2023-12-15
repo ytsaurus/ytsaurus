@@ -4,6 +4,8 @@
 #include "reader_statistics.h"
 #include "column_block_manager.h"
 
+#include <yt/yt/ytlib/table_client/key_filter.h>
+
 namespace NYT::NNewTableClient {
 
 using NTableClient::NullTimestamp;
@@ -2024,7 +2026,9 @@ private:
         return ReadList_.Front().Lower;
     }
 
-    void BuildReadListForWindow(TSpanMatching initialWindow) override
+    void BuildReadListForWindow(
+        TSpanMatching initialWindow,
+        const NTableClient::TKeyFilterStatisticsPtr& keyFilterStatistics) override
     {
         std::vector<TSpanMatching> matchings;
         std::vector<TSpanMatching> nextMatchings;
@@ -2063,10 +2067,13 @@ private:
         ReadListHolder_.Resize(matchings.size());
         auto it = ReadListHolder_.GetData();
 
+        i64 falsePositiveCount = 0;
         ui32 lastBound = SentinelRowIndex;
         for (const auto& [chunkSpan, controlSpan] : matchings) {
             YT_VERIFY(controlSpan.Lower == controlSpan.Upper ||
                 controlSpan.Lower + 1 == controlSpan.Upper);
+
+            falsePositiveCount += static_cast<i64>(IsEmpty(chunkSpan));
 
             if (chunkSpan.Lower == lastBound) {
                 // Concat adjacent spans.
@@ -2077,6 +2084,9 @@ private:
             lastBound = chunkSpan.Upper;
         }
 
+        if (keyFilterStatistics && falsePositiveCount > 0) {
+            keyFilterStatistics->FalsePositiveEntryCount.fetch_add(falsePositiveCount, std::memory_order::relaxed);
+        }
         ReadList_ = MakeMutableRange(ReadListHolder_.GetData(), it);
     }
 };
@@ -2179,7 +2189,9 @@ private:
         return 0;
     }
 
-    void BuildReadListForWindow(TSpanMatching initialWindow) override
+    void BuildReadListForWindow(
+        TSpanMatching initialWindow,
+        const NTableClient::TKeyFilterStatisticsPtr& /*keyFilterStatistics*/) override
     {
         // TODO(lukyan): Reuse vectors.
         std::vector<TSpanMatching> matchings;
@@ -2366,7 +2378,9 @@ private:
     TRange<std::pair<ui32, ui32>> ReadList_;
     ui32 NextKeyIndex_ = 0;
 
-    void BuildReadListForWindow(TSpanMatching initialWindow) override
+    void BuildReadListForWindow(
+        TSpanMatching initialWindow,
+        const NTableClient::TKeyFilterStatisticsPtr& /*keyFilterStatistics*/) override
     {
         auto initialControlSpan = initialWindow.Control;
         ReadList_ = MakeMutableRange(KeysWithHints_.RowIndexesToKeysIndexes)
