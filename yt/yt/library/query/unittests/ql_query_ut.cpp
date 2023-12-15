@@ -8070,6 +8070,109 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple("a from [//t] where a rlike '123' escape 'x'", "ESCAPE should not be used together with REGEXP (RLIKE)")
 ));
 
+
+TEST_F(TQueryEvaluateTest, Greatest)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Uint64},
+        {"c", EValueType::Double},
+        {"d", EValueType::Boolean},
+        {"e", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=1u;c=1.;d=%true;e=\"a\"",
+        "a=-10;b=10u;c=-10.;d=%false;e=\"xa\"",
+        "a=1333;b=1333u;c=1333.3;d=%true;e=\"abac\""
+    };
+
+    auto resultMatcherInt = ResultMatcher(
+        YsonToRows({
+            "r1=1;r2=5;r3=7",
+            "r1=-10;r2=5;r3=7",
+            "r1=1333;r2=1333;r3=1333"
+        },
+        MakeSplit({
+            {"r1", EValueType::Int64},
+            {"r2", EValueType::Int64},
+            {"r3", EValueType::Int64}
+        })));
+
+    auto resultMatcherUint = ResultMatcher(
+        YsonToRows({
+            "r1=1u;r2=5u",
+            "r1=10u;r2=10u",
+            "r1=1333u;r2=1333u"
+        },
+        MakeSplit({
+            {"r1", EValueType::Uint64},
+            {"r2", EValueType::Uint64}
+        })));
+
+    auto resultMatcherDouble = ResultMatcher(
+        YsonToRows({
+            "r1=1.;r2=5.",
+            "r1=-10.;r2=5.",
+            "r1=1333.3;r2=1333.3"
+        },
+        MakeSplit({
+            {"r1", EValueType::Double},
+            {"r2", EValueType::Double}
+        })));
+
+    auto resultMatcherBool = ResultMatcher(
+        YsonToRows({
+            "r1=%true;r2=%true",
+            "r1=%false;r2=%false",
+            "r1=%true;r2=%true"
+        },
+        MakeSplit({
+            {"r1", EValueType::Boolean},
+            {"r2", EValueType::Boolean}
+        })));
+
+    auto resultMatcherString = ResultMatcher(
+        YsonToRows({
+            "r1=\"a\";r2=\"ada\"",
+            "r1=\"xa\";r2=\"xa\"",
+            "r1=\"abac\";r2=\"ada\""
+        },
+        MakeSplit({
+            {"r1", EValueType::String},
+            {"r2", EValueType::String}
+        })));
+
+    Evaluate(
+        "greatest(a) as r1, greatest(5, a) as r2, greatest(0, 7, a) as r3 FROM [//t]",
+        split,
+        source,
+        resultMatcherInt);
+    Evaluate("greatest(b) as r1, greatest(5u, b) as r2 FROM [//t]", split, source, resultMatcherUint);
+    Evaluate("greatest(c) as r1, greatest(5., c) as r2 FROM [//t]", split, source, resultMatcherDouble);
+    Evaluate("greatest(d) as r1, greatest(%false, d) as r2 FROM [//t]", split, source, resultMatcherBool);
+    Evaluate("greatest(e) as r1, greatest('ada', e) as r2 FROM [//t]", split, source, resultMatcherString);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GreatestError)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Boolean},
+    });
+
+    std::vector<TString> source = {
+        "a=1",
+        "b=%false"
+    };
+
+    EvaluateExpectingError("greatest(a, null) FROM [//t]", split, source);
+    EvaluateExpectingError("greatest(null, a) FROM [//t]", split, source);
+
+    SUCCEED();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

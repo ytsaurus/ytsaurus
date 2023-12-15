@@ -180,6 +180,12 @@ get_built_tool_path(
   tools/rescompiler/bin
   rescompiler
 )
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
 
 add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
@@ -290,6 +296,7 @@ target_sources(library-query-engine.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/fc2bd36183284aed418f1589e5511393.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/b3a3e9a9b46f60092a08755bf58496fd.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/aef3fcfb2f42efbbe6e19dc5e42865dc.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/d34e0bd6058ed25e8015ef8decbea547.cpp
 )
 add_custom_command(
   OUTPUT
@@ -987,6 +994,30 @@ add_custom_command(
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/xdelta_merged.bc
 )
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/greatest_optimized.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/greatest_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/greatest_merged.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/greatest_optimized.bc
+  -internalize-public-api-list=greatest
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/greatest_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/greatest.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/greatest.cpp.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/greatest_merged.bc
+)
 llvm_compile_c(library-query-engine.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/avg.c
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/avg.c.bc
@@ -1186,6 +1217,13 @@ llvm_compile_cxx(library-query-engine.global
 llvm_compile_cxx(library-query-engine.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/has_permissions.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/has_permissions.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+llvm_compile_cxx(library-query-engine.global
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/greatest.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/greatest.cpp.bc
   ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm
@@ -1392,4 +1430,11 @@ resources(library-query-engine.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/xdelta_optimized.bc
   KEYS
   /llvm_bc/xdelta
+)
+resources(library-query-engine.global
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/d34e0bd6058ed25e8015ef8decbea547.cpp
+  INPUTS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/greatest_optimized.bc
+  KEYS
+  /llvm_bc/greatest
 )

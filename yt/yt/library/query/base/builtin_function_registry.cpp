@@ -384,6 +384,23 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         EValueType::Any,
         "replica_set",
         ECallingConvention::UnversionedValue);
+
+    const TTypeParameter typeParameterGreatest = 0;
+    auto anyConstraintsGreatest = std::unordered_map<TTypeParameter, TUnionType>();
+    anyConstraintsGreatest[typeParameterGreatest] = {
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::Double,
+        EValueType::String,
+    };
+    builder->RegisterFunction(
+        "greatest",
+        anyConstraintsGreatest,
+        {typeParameterGreatest},
+        typeParameterGreatest,
+        typeParameterGreatest,
+        "greatest");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

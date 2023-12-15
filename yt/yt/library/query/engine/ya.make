@@ -298,4 +298,11 @@ LLVM_BC(
         xdelta_finalize
 )
 
+LLVM_BC(
+    udf/greatest.cpp
+    NAME greatest
+    SYMBOLS
+        greatest
+)
+
 END()
