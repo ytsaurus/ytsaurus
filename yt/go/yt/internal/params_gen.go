@@ -310,6 +310,13 @@ func writeLinkNodeOptions(w *yson.Writer, o *yt.LinkNodeOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func writeConcatNodeOptions(w *yson.Writer, o *yt.ConcatNodeOptions) {
+	if o == nil {
+		return
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
 func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 	if o == nil {
 		return
@@ -1788,6 +1795,54 @@ func (p *LinkNodeParams) MutatingOptions() **yt.MutatingOptions {
 
 func (p *LinkNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
+}
+
+type ConcatNodeParams struct {
+	verb    Verb
+	source  []ypath.YPath
+	target  ypath.YPath
+	options *yt.ConcatNodeOptions
+}
+
+func NewConcatNodeParams(
+	source []ypath.YPath,
+	target ypath.YPath,
+	options *yt.ConcatNodeOptions,
+) *ConcatNodeParams {
+	if options == nil {
+		options = &yt.ConcatNodeOptions{}
+	}
+	return &ConcatNodeParams{
+		Verb("concatenate"),
+		source,
+		target,
+		options,
+	}
+}
+
+func (p *ConcatNodeParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ConcatNodeParams) YPath() (ypath.YPath, bool) {
+	return p.target, true
+}
+func (p *ConcatNodeParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("source", p.source),
+		log.Any("target", p.target),
+	}
+}
+
+func (p *ConcatNodeParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("source_paths")
+	w.Any(p.source)
+	w.MapKeyString("destination_path")
+	w.Any(p.target)
+	writeConcatNodeOptions(w, p.options)
+}
+
+func (p *ConcatNodeParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
 }
 
 type StartTxParams struct {

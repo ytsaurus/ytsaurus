@@ -2,6 +2,7 @@ package rpcclient
 
 import (
 	"go.ytsaurus.tech/library/go/core/log"
+
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/yt"
 )
@@ -365,6 +366,33 @@ func (r *LinkNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 
 func (r *LinkNodeRequest) SetRetry(retry bool) {
 	*r.MutatingOptions.Retry = retry
+}
+
+type ConcatNodeRequest struct {
+	*rpc_proxy.TReqConcatenateNodes
+}
+
+func NewConcatNodeRequest(r *rpc_proxy.TReqConcatenateNodes) *ConcatNodeRequest {
+	return &ConcatNodeRequest{TReqConcatenateNodes: r}
+}
+
+func (r *ConcatNodeRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("target", r.GetDstPath()),
+		log.Strings("source", r.GetSrcPaths()),
+	}
+}
+
+func (r *ConcatNodeRequest) Path() (string, bool) {
+	return r.GetDstPath(), true
+}
+
+func (r *ConcatNodeRequest) SetTxOptions(opts *TransactionOptions) {
+	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
+}
+
+func (r *ConcatNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
 }
 
 var _ TransactionalRequest = (*StartTxRequest)(nil)

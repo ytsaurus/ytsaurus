@@ -213,4 +213,21 @@ func TestCypress(t *testing.T) {
 			require.Contains(t, err.Error(), "привет")
 		})
 	})
+
+	t.Run("ConcatNode", func(t *testing.T) {
+		t.Parallel()
+		yc := env.YT
+		var err error
+
+		src1 := tmpPath()
+		src2 := tmpPath()
+		dst := tmpPath()
+
+		_, err = yc.CreateNode(ctx, dst, yt.NodeTable, nil)
+		require.NoError(t, err)
+		_, err = yc.CreateNode(ctx, src1, yt.NodeTable, nil)
+		require.NoError(t, err)
+		_, err = yc.CreateNode(ctx, src2, yt.NodeTable, nil)
+		require.NoError(t, err)
+	})
 }

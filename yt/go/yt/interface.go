@@ -255,6 +255,11 @@ type LinkNodeOptions struct {
 	*PrerequisiteOptions
 }
 
+type ConcatNodeOptions struct {
+	*TransactionOptions
+	*MutatingOptions
+}
+
 type CypressClient interface {
 	// http:verb:"create"
 	// http:params:"path","type"
@@ -355,6 +360,10 @@ type CypressClient interface {
 		link ypath.YPath,
 		options *LinkNodeOptions,
 	) (id NodeID, err error)
+
+	// http:verb:"concatenate"
+	// http:params:"source_paths","destination_path"
+	ConcatNode(ctx context.Context, source []ypath.YPath, target ypath.YPath, options *ConcatNodeOptions) (err error)
 }
 
 type StartTxOptions struct {

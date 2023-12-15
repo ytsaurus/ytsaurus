@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -26,6 +27,7 @@ func TestCypressClient(t *testing.T) {
 		{Name: "CopyNode", Test: suite.TestCopyNode},
 		{Name: "MoveNode", Test: suite.TestMoveNode},
 		{Name: "LinkNode", Test: suite.TestLinkNode},
+		{Name: "ConcatNode", Test: suite.TestConcatNode},
 		{Name: "CreateObject", Test: suite.TestCreateObject},
 		{Name: "BinaryPath", Test: suite.TestBinaryPath},
 	})
@@ -259,6 +261,28 @@ func (s *Suite) TestLinkNode(t *testing.T, yc yt.Client) {
 	err = yc.GetNode(ctx, link.SuppressSymlink().Attr("type"), &typ, nil)
 	require.NoError(t, err)
 	require.Equal(t, yt.NodeLink, typ)
+}
+
+func (s *Suite) TestConcatNode(t *testing.T, yc yt.Client) {
+	t.Parallel()
+	var err error
+
+	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	defer cancel()
+
+	src1 := tmpPath()
+	src2 := tmpPath()
+	dst := tmpPath()
+
+	_, err = yc.CreateNode(ctx, dst, yt.NodeTable, nil)
+	require.NoError(t, err)
+	_, err = yc.CreateNode(ctx, src1, yt.NodeTable, nil)
+	require.NoError(t, err)
+	_, err = yc.CreateNode(ctx, src2, yt.NodeTable, nil)
+	require.NoError(t, err)
+
+	err = yc.ConcatNode(ctx, []ypath.YPath{src1, src2}, dst, nil)
+	require.NoError(t, err)
 }
 
 func (s *Suite) TestCreateObject(t *testing.T, yc yt.Client) {
