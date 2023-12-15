@@ -888,6 +888,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
+    @pytest.mark.xfail(run=False, reason="Wait for release of this commit to hahn/arnold")
     def test_corrupted_squashfs_layer(self):
         self.setup_files()
 
