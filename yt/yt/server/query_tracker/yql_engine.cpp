@@ -201,7 +201,7 @@ private:
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
             if (error.IsOK()) {
-                wireRowsetOrErrors.push_back(TWireRowset{ .Rowset = rsp->Attachments()[index], .IsTruncated = rsp->incomplete()[index] });
+                wireRowsetOrErrors.push_back(TWireRowset{.Rowset = rsp->Attachments()[index], .IsTruncated = rsp->incomplete()[index]});
             } else {
                 wireRowsetOrErrors.push_back(error);
             }

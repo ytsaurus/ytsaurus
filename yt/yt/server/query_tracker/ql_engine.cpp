@@ -73,7 +73,7 @@ private:
             OnQueryFailed(queryResultOrError);
             return;
         }
-        OnQueryCompleted({TRowset{ .Rowset = queryResultOrError.Value().Rowset }});
+        OnQueryCompleted({TRowset{.Rowset = queryResultOrError.Value().Rowset}});
     }
 };
 

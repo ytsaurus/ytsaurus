@@ -291,7 +291,7 @@ private:
         wireRowsetOrErrors.reserve(rsp->Attachments().size());
         for (const auto& ref : rsp->Attachments()) {
             if (!ref.Empty()) {
-                wireRowsetOrErrors.emplace_back(TWireRowset{ .Rowset = ref });
+                wireRowsetOrErrors.emplace_back(TWireRowset{.Rowset = ref});
             }
         }
         OnQueryCompletedWire(wireRowsetOrErrors);

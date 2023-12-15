@@ -178,7 +178,7 @@ void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& r
             auto refs = writer->Finish();
             struct THandlerTag { };
             auto result = MergeRefsToRef<THandlerTag>(refs);
-            wireRowsetOrErrors.push_back(TWireRowset{ .Rowset = std::move(result), .IsTruncated = rowsetOrError.Value().IsTruncated });
+            wireRowsetOrErrors.push_back(TWireRowset{.Rowset = std::move(result), .IsTruncated = rowsetOrError.Value().IsTruncated});
         } else {
             wireRowsetOrErrors.push_back(static_cast<TError>(rowsetOrError));
         }
@@ -191,9 +191,13 @@ void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TWireRow
     YT_LOG_INFO("Query completed (ResultCount: %v)", wireRowsetOrErrors.size());
     for (const auto& [index, wireRowsetOrError] : Enumerate(wireRowsetOrErrors)) {
         if (wireRowsetOrError.IsOK()) {
-            YT_LOG_DEBUG("Result rowset (Index: %v, WireRowsetBytes: %v)", index, wireRowsetOrError.Value().Rowset.size());
+            YT_LOG_DEBUG("Result rowset (Index: %v, WireRowsetBytes: %v)",
+                index,
+                wireRowsetOrError.Value().Rowset.size());
         } else {
-            YT_LOG_DEBUG("Result error (Index: %v, Error: %v)", index, static_cast<TError>(wireRowsetOrError));
+            YT_LOG_DEBUG("Result error (Index: %v, Error: %v)",
+                index,
+                static_cast<TError>(wireRowsetOrError));
         }
     }
 

@@ -116,7 +116,7 @@ public:
                             EYsonType::Node);
                         builder.AddRow(TUnversionedRow(owningRow));
                     }
-                    rowsetOrErrors.emplace_back(TRowset{ .Rowset = CreateRowset(result->Schema, builder.Build()), .IsTruncated = result->IsTruncated });
+                    rowsetOrErrors.emplace_back(TRowset{.Rowset = CreateRowset(result->Schema, builder.Build()), .IsTruncated = result->IsTruncated});
                 }
             }
             DelayedCookie_ = TDelayedExecutor::Submit(
