@@ -802,9 +802,9 @@ public:
             } else if constexpr (std::is_same_v<TSortOutputConnector, TType>) {
                 return ToString("Sort");
             } else if constexpr (std::is_same_v<TMapperOutputConnector, TType>) {
-                return ToString("Map.") + connector.MapperIndex + "." + connector.NodeId;
+                return ToString("Map.") + ToString(connector.MapperIndex) + "." + ToString(connector.NodeId);
             } else if constexpr (std::is_same_v<TReducerOutputConnector, TType>) {
-                return ToString("Reduce.") + connector.NodeId;
+                return ToString("Reduce.") + ToString(connector.NodeId);
             } else {
                 static_assert(TDependentFalse<TType>);
             }
@@ -858,9 +858,9 @@ public:
             } else if constexpr (std::is_same_v<TSortOutputConnector, TType>) {
                 return ToString("Sort");
             } else if constexpr (std::is_same_v<TMapperOutputConnector, TType>) {
-                return ToString("Map.") + connector.MapperIndex + "." + connector.NodeId;
+                return ToString("Map.") + ToString(connector.MapperIndex) + "." + ToString(connector.NodeId);
             } else if constexpr (std::is_same_v<TReducerOutputConnector, TType>) {
-                return ToString("Reduce.") + connector.NodeId;
+                return ToString("Reduce.") + ToString(connector.NodeId);
             } else {
                 static_assert(TDependentFalse<TType>);
             }
