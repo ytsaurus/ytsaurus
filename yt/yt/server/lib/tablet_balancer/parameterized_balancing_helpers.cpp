@@ -9,6 +9,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -75,6 +76,7 @@ public:
     TParameterizedReassignSolver(
         TTabletCellBundlePtr bundle,
         std::vector<TString> performanceCountersKeys,
+        TTableSchemaPtr performanceCountersTableSchema,
         TParameterizedReassignSolverConfig config,
         TGroupName groupName,
         TTableParameterizedMetricTrackerPtr metricTracker,
@@ -116,6 +118,7 @@ private:
     const TTabletCellBundlePtr Bundle_;
     const TLogger Logger;
     const std::vector<TString> PerformanceCountersKeys_;
+    const TTableSchemaPtr PerformanceCountersTableSchema_;
     const TParameterizedReassignSolverConfig Config_;
     const TGroupName GroupName_;
     TTableParameterizedMetricTrackerPtr MetricTracker_;
@@ -160,6 +163,7 @@ private:
 TParameterizedReassignSolver::TParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
+    TTableSchemaPtr performanceCountersTableSchema,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -169,6 +173,7 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
         .WithTag("BundleName: %v", Bundle_->Name)
         .WithTag("Group: %v", groupName))
     , PerformanceCountersKeys_(std::move(performanceCountersKeys))
+    , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
     , Config_(std::move(config))
     , GroupName_(std::move(groupName))
     , MetricTracker_(std::move(metricTracker))
@@ -379,7 +384,7 @@ double TParameterizedReassignSolver::GetTabletMetric(const TTabletPtr& tablet) c
 {
     auto value = Evaluator_->Evaluate({
         ConvertToYsonString(tablet->Statistics.OriginalNode),
-        tablet->GetPerformanceCountersYson(PerformanceCountersKeys_)
+        tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, PerformanceCountersTableSchema_)
     }).ValueOrThrow();
 
     switch (value.Type) {
@@ -812,6 +817,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
+    TTableSchemaPtr performanceCountersTableSchema,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -820,6 +826,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     return New<TParameterizedReassignSolver>(
         std::move(bundle),
         std::move(performanceCountersKeys),
+        std::move(performanceCountersTableSchema),
         std::move(config),
         std::move(groupName),
         std::move(metricTracker),

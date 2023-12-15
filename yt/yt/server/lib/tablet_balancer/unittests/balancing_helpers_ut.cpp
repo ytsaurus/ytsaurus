@@ -11,6 +11,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -569,6 +570,7 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
     auto descriptors = ReassignTabletsParameterized(
         bundle,
         /*performanceCountersKeys*/ {},
+        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -760,6 +762,7 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
         ReassignTabletsParameterized(
             bundle,
             /*performanceCountersKeys*/ {},
+            /*performanceCountersTableSchema*/ nullptr,
             TParameterizedReassignSolverConfig{
                 .MaxMoveActionCount = 3
             }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -808,6 +811,7 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
     auto descriptors = ReassignTabletsParameterized(
         bundle,
         /*performanceCountersKeys*/ {},
+        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),

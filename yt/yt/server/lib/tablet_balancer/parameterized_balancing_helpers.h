@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/logging/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -57,6 +59,7 @@ bool IsTableMovable(TTableId tableId);
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
+    NTableClient::TTableSchemaPtr performanceCountersTableSchema,
     TParameterizedReassignSolverConfig config,
     TString groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,

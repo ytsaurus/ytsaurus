@@ -50,6 +50,9 @@ public:
 
     std::optional<TDuration> Period;
 
+    NYPath::TYPath StatisticsTablePath;
+    bool UseStatisticsReporter;
+
     bool EnableSwaps;
     int MaxParameterizedMoveActionCount;
     double ParameterizedNodeDeviationThreshold;

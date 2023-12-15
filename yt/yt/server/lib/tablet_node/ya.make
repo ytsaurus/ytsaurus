@@ -6,6 +6,7 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     config.cpp
+    performance_counters.cpp
     table_settings.cpp
 
     proto/tablet_manager.proto

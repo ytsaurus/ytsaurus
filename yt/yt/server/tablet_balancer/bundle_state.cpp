@@ -16,8 +16,14 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/query_client/query_builder.h>
+
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
+
+#include <util/string/join.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -28,6 +34,7 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
+using namespace NTabletNode;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
@@ -155,9 +162,17 @@ TFuture<void> TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMaster
         .Run();
 }
 
-TFuture<void> TBundleState::FetchStatistics(const IListNodePtr& nodeStatistics)
+TFuture<void> TBundleState::FetchStatistics(
+    const IListNodePtr& nodeStatistics,
+    bool useStatisticsReporter,
+    const TYPath& statisticsTablePath)
 {
-    return BIND(&TBundleState::DoFetchStatistics, MakeStrong(this), nodeStatistics)
+    return BIND(
+            &TBundleState::DoFetchStatistics,
+            MakeStrong(this),
+            nodeStatistics,
+            useStatisticsReporter,
+            statisticsTablePath)
         .AsyncVia(Invoker_)
         .Run();
 }
@@ -274,7 +289,10 @@ bool TBundleState::IsParameterizedBalancingEnabled() const
     return false;
 }
 
-void TBundleState::DoFetchStatistics(const IListNodePtr& nodeStatistics)
+void TBundleState::DoFetchStatistics(
+    const IListNodePtr& nodeStatistics,
+    bool useStatisticsReporter,
+    const TYPath& statisticsTablePath)
 {
     YT_LOG_DEBUG("Started fetching actual table settings (TableCount: %v)", Bundle_->Tables.size());
     Counters_->ActualTableSettingsRequestCount.Increment(Bundle_->Tables.size());
@@ -310,8 +328,14 @@ void TBundleState::DoFetchStatistics(const IListNodePtr& nodeStatistics)
 
     YT_LOG_DEBUG("Started fetching table statistics (TableCount: %v)", tableIdsToFetch.size());
     Counters_->TableStatisticsRequestCount.Increment(tableIdsToFetch.size());
-    auto tableIdToStatistics = FetchTableStatistics(tableIdsToFetch);
+
+    auto tableIdToStatistics = FetchTableStatistics(tableIdsToFetch, !useStatisticsReporter);
+
     YT_LOG_DEBUG("Finished fetching table statistics (TableCount: %v)", tableIdToStatistics.size());
+
+    if (useStatisticsReporter) {
+        FetchPerformanceCountersFromTable(&tableIdToStatistics, statisticsTablePath);
+    }
 
     THashSet<TTableId> missingTables;
     for (const auto& tableId : tableIdsToFetch) {
@@ -328,7 +352,7 @@ void TBundleState::DoFetchStatistics(const IListNodePtr& nodeStatistics)
         auto& table = GetOrCrash(Bundle_->Tables, tableId);
         SetTableStatistics(table, statistics);
 
-        for (const auto& tabletResponse : statistics) {
+        for (auto& tabletResponse : statistics) {
             TTabletPtr tablet;
 
             if (auto it = Tablets_.find(tabletResponse.TabletId); it != Tablets_.end()) {
@@ -360,9 +384,16 @@ void TBundleState::DoFetchStatistics(const IListNodePtr& nodeStatistics)
 
             tablet->Index = tabletResponse.Index;
             tablet->Statistics = std::move(tabletResponse.Statistics);
-            tablet->PerformanceCounters = std::move(tabletResponse.PerformanceCounters);
             tablet->State = tabletResponse.State;
             tablet->MountTime = tabletResponse.MountTime;
+
+            Visit(std::move(tabletResponse.PerformanceCounters),
+                [&] (TTablet::TPerformanceCountersProtoList&& performanceCounters) {
+                    tablet->PerformanceCounters = std::move(performanceCounters);
+                },
+                [&] (TUnversionedOwningRow&& performanceCounters) {
+                    tablet->PerformanceCounters = std::move(performanceCounters);
+                });
 
             YT_VERIFY(tablet->Index == std::ssize(table->Tablets));
 
@@ -608,15 +639,18 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
 }
 
 THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundleState::FetchTableStatistics(
-    const THashSet<TTableId>& tableIds) const
+    const THashSet<TTableId>& tableIds,
+    bool fetchPerformanceCounters) const
 {
     auto cellTagToBatch = FetchTableAttributes(
         Client_,
         tableIds,
         Bundle_->Tables,
-        [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
+        [fetchPerformanceCounters] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
-            ToProto(request->mutable_requested_performance_counters(), DefaultPerformanceCountersKeys);
+            if (fetchPerformanceCounters) {
+                ToProto(request->mutable_requested_performance_counters(), DefaultPerformanceCountersKeys);
+            }
     });
 
     THashMap<TTableId, std::vector<TTabletStatisticsResponse>> tableStatistics;
@@ -649,8 +683,11 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
                         tablet.statistics(),
                         statisticsFieldNames,
                         /*saveOriginalNode*/ table->IsParameterizedBalancingEnabled()),
-                    .PerformanceCounters = tablet.performance_counters(),
                 });
+
+                if (fetchPerformanceCounters) {
+                    tablets.back().PerformanceCounters = tablet.performance_counters();
+                }
 
                 if (tablet.has_cell_id()) {
                     tablets.back().CellId = FromProto<TTabletCellId>(tablet.cell_id());
@@ -666,6 +703,87 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
     }
 
     return tableStatistics;
+}
+
+void TBundleState::FetchPerformanceCountersFromTable(
+    THashMap<TTableId, std::vector<TTabletStatisticsResponse>>* tableIdToStatistics,
+    const NYPath::TYPath& statisticsTablePath)
+{
+    YT_VERIFY(!statisticsTablePath.Empty());
+
+    THashSet<TTableId> tableIdsToFetch;
+    for (const auto& [tableId, tablets] : *tableIdToStatistics) {
+        const auto& table = GetOrCrash(Bundle_->Tables, tableId);
+        if (table->IsParameterizedBalancingEnabled()) {
+            tableIdsToFetch.insert(tableId);
+        }
+    }
+
+    if (tableIdsToFetch.empty()) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Started fetching table performance counters from archive (TableCount: %v)",
+        tableIdsToFetch.size());
+
+    std::vector<TString> quotedTableIds;
+    for (auto tableId : tableIdsToFetch) {
+        quotedTableIds.push_back("\"" + ToString(tableId) + "\"");
+    }
+
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(statisticsTablePath);
+    builder.AddSelectExpression("*");
+    builder.AddWhereConjunct(Format(
+        "table_id in (%v)",
+        JoinSeq(", ", quotedTableIds)));
+
+    auto selectResult = WaitFor(Client_->SelectRows(builder.Build()))
+        .ValueOrThrow();
+    PerformanceCountersTableSchema_ = selectResult.Rowset->GetSchema();
+
+    THashMap<TTableId, THashMap<TTabletId, TUnversionedOwningRow>> tableToPerformanceCounters;
+    for (const auto& row : selectResult.Rowset->GetRows()) {
+        auto tableId = TGuid::FromString(FromUnversionedValue<TString>(
+            row[PerformanceCountersTableSchema_->GetColumnIndexOrThrow("table_id")]));
+        auto tabletId = TGuid::FromString(FromUnversionedValue<TString>(
+            row[PerformanceCountersTableSchema_->GetColumnIndexOrThrow("tablet_id")]));
+        tableToPerformanceCounters[tableId][tabletId] = TUnversionedOwningRow(row);
+    }
+
+
+    THashSet<TTableId> aliveTables;
+    for (auto& [tableId, tablets] : *tableIdToStatistics) {
+        if (!tableIdsToFetch.contains(tableId)) {
+            aliveTables.insert(tableId);
+            continue;
+        }
+
+        auto it = tableToPerformanceCounters.find(tableId);
+        if (it == tableToPerformanceCounters.end()) {
+            // The table has already been deleted or
+            // the table is too new, then we just pretend that we haven’t seen it yet.
+            continue;
+        }
+
+        aliveTables.insert(tableId);
+
+        auto& tabletToPerformanceCounters = it->second;
+        for (auto& tablet : tablets) {
+            // There might be no such tablet in select result if the tablet has been unmounted for a long time
+            // and performance counters have already been removed by ttl from the table.
+            if (auto performanceCountersIt = tabletToPerformanceCounters.find(tablet.TabletId);
+                performanceCountersIt != tabletToPerformanceCounters.end())
+            {
+                tablet.PerformanceCounters = std::move(performanceCountersIt->second);
+            }
+        }
+    }
+
+    DropMissingKeys(*tableIdToStatistics, aliveTables);
+
+    YT_LOG_DEBUG("Finished fetching table performance counters from archive (TableCount: %v)",
+        tableToPerformanceCounters.size());
 }
 
 const TTableProfilingCounters& TBundleState::GetProfilingCounters(

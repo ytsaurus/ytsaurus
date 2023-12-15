@@ -9,10 +9,11 @@
 #include <yt/yt/server/lib/tablet_balancer/tablet.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
-#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+#include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -174,6 +175,7 @@ TTabletActionBatch Balance(
                 .MoveDescriptors = ReassignTabletsParameterized(
                     bundle,
                     DefaultPerformanceCountersKeys,
+                    /*performanceCountersTableSchema*/ nullptr,
                     config,
                     group,
                     /*metricTracker*/ nullptr,
