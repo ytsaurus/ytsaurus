@@ -48,6 +48,7 @@ struct TParameterizedReassignSolverConfig;
 
 DECLARE_REFCOUNTED_STRUCT(TTableParameterizedMetricTracker)
 DECLARE_REFCOUNTED_STRUCT(IParameterizedReassignSolver)
+DECLARE_REFCOUNTED_STRUCT(IParameterizedResharder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

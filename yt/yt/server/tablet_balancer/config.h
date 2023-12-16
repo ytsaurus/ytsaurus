@@ -64,6 +64,7 @@ public:
     TDuration BundleErrorsTtl;
 
     bool FetchTabletCellsFromSecondaryMasters;
+    bool EnableParameterizedReshardByDefault;
     bool PickReshardPivotKeys;
     bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;

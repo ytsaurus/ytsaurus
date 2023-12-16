@@ -10,6 +10,7 @@ SRCS(
     dynamic_config_manager.cpp
     helpers.cpp
     program.cpp
+    reshard_iteration.cpp
     table_registry.cpp
     tablet_action.cpp
     tablet_balancer.cpp

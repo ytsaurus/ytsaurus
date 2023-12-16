@@ -28,6 +28,8 @@ struct TTableProfilingCounters
     NProfiling::TCounter TabletSplits;
     NProfiling::TCounter NonTrivialReshards;
     NProfiling::TCounter ParameterizedMoves;
+    NProfiling::TCounter ParameterizedReshardMerges;
+    NProfiling::TCounter ParameterizedReshardSplits;
 };
 
 struct TBundleProfilingCounters

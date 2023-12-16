@@ -35,6 +35,7 @@ target_sources(yt-server-tablet_balancer PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/dynamic_config_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/program.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/reshard_iteration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/table_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/tablet_action.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/tablet_balancer.cpp

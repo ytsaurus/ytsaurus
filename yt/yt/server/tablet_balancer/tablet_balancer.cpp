@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "public.h"
+#include "reshard_iteration.h"
 #include "tablet_action.h"
 #include "tablet_balancer.h"
 #include "table_registry.h"
@@ -167,6 +168,12 @@ private:
     void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState);
     void TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    void TryBalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    void BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+
+    void ExecuteReshardIteration(
+        const IReshardIterationPtr& reshardIteration,
+        const TBundleStatePtr& bundleState);
 
     THashSet<TGroupName> GetBalancingGroups(const TBundleStatePtr& bundleState) const;
 
@@ -309,8 +316,8 @@ void TTabletBalancer::BalancerIteration()
     auto nodeList = FetchNodeStatistics();
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetBundle()->Config) {
-            YT_LOG_ERROR("Skip balancing iteration since bundle has unparsable "
-                "tablet balancer config (BundleName: %v)",
+            YT_LOG_ERROR(
+                "Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
                 bundleName);
 
             SaveRetryableBundleError(bundleName, TError(
@@ -414,6 +421,9 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
             }
         } else if (DidBundleBalancingTimeHappen(bundle->GetBundle(), groupTag, groupConfig->Schedule)) {
             GroupsToMoveOnNextIteration_.insert(std::move(groupTag));
+            if (groupConfig->Type == EBalancingType::Parameterized) {
+                TryBalanceViaReshardParameterized(bundle, groupName);
+            }
             BalanceViaReshard(bundle, groupName);
         } else {
             YT_LOG_INFO("Skip balancing iteration because the time has not yet come (BundleName: %v, Group: %v)",
@@ -698,16 +708,17 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
                 break;
             }
 
-            ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, CorrelationId: %v)",
-                descriptor.TabletId,
-                descriptor.TabletCellId,
-                descriptor.CorrelationId);
-
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
                 tablet->Table,
                 LegacyInMemoryGroupName).InMemoryMoves.Increment(1);
+
+            ++actionCount;
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",
+                descriptor.TabletId,
+                descriptor.TabletCellId,
+                tablet->Table->Path,
+                descriptor.CorrelationId);
         }
     }
 
@@ -753,16 +764,17 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
                 break;
             }
 
-            ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, CorrelationId: %v)",
-                descriptor.TabletId,
-                descriptor.TabletCellId,
-                descriptor.CorrelationId);
-
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
                 tablet->Table,
                 LegacyGroupName).OrdinaryMoves.Increment(1);
+
+            ++actionCount;
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",
+                descriptor.TabletId,
+                descriptor.TabletCellId,
+                tablet->Table->Path,
+                descriptor.CorrelationId);
         }
     }
 
@@ -825,16 +837,17 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
                 break;
             }
 
-            ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, TabletCellId: %v, CorrelationId: %v)",
-                descriptor.TabletId,
-                descriptor.TabletCellId,
-                descriptor.CorrelationId);
-
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
                 tablet->Table,
                 groupName).ParameterizedMoves.Increment(1);
+
+            ++actionCount;
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",
+                descriptor.TabletId,
+                descriptor.TabletCellId,
+                tablet->Table->Path,
+                descriptor.CorrelationId);
 
             ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
         }
@@ -847,6 +860,14 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
     YT_LOG_DEBUG("Balance tablets via parameterized move finished (ActionCount: %v)", actionCount);
 }
 
+void TTabletBalancer::BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+{
+    ExecuteReshardIteration(CreateParameterizedReshardIteration(
+        bundleState->GetBundle()->Name,
+        groupName,
+        DynamicConfig_.Acquire()), bundleState);
+}
+
 void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
     const auto bundle = bundleState->GetBundle();
@@ -855,7 +876,7 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
     } catch (const std::exception& ex) {
         const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
         YT_LOG_ERROR(ex,
-            "Parameterized balancing failed with an exception "
+            "Parameterized balancing via move failed with an exception "
             "(BundleName: %v, Group: %v, GroupType: %lv, GroupMetric: %v)",
             bundle->Name,
             groupName,
@@ -864,7 +885,32 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
 
         SaveFatalBundleError(bundle->Name, TError(
             EErrorCode::ParameterizedBalancingFailed,
-            "Parameterized balancing for group %Qv failed",
+            "Parameterized move balancing for group %Qv failed",
+            groupName)
+            << ex);
+    }
+}
+
+void TTabletBalancer::TryBalanceViaReshardParameterized(
+    const TBundleStatePtr& bundleState,
+    const TGroupName& groupName)
+{
+    const auto bundle = bundleState->GetBundle();
+    try {
+        BalanceViaReshardParameterized(bundleState, groupName);
+    } catch (const std::exception& ex) {
+        const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
+        YT_LOG_ERROR(ex,
+            "Parameterized balancing via reshard failed with an exception "
+            "(BundleName: %v, Group: %v, GroupType: %lv, GroupMetric: %v)",
+            bundle->Name,
+            groupName,
+            groupConfig->Type,
+            groupConfig->Parameterized->Metric);
+
+        SaveFatalBundleError(bundle->Name, TError(
+            EErrorCode::ParameterizedBalancingFailed,
+            "Parameterized reshard balancing for group %Qv failed",
             groupName)
             << ex);
     }
@@ -884,42 +930,34 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const T
     }
 }
 
-void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+void TTabletBalancer::ExecuteReshardIteration(
+    const IReshardIterationPtr& reshardIteration,
+    const TBundleStatePtr& bundleState)
 {
-    YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v, Group: %v)",
-        bundleState->GetBundle()->Name,
-        groupName);
+    reshardIteration->StartIteration();
 
-    auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, groupName);
+    auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, reshardIteration->GetGroupName());
     if (!groupConfig->EnableReshard) {
         YT_LOG_DEBUG("Balancing tablets via reshard is disabled (BundleName: %v, Group: %v)",
-            bundleState->GetBundle()->Name,
-            groupName);
+            reshardIteration->GetBundleName(),
+            reshardIteration->GetGroupName());
         return;
     }
 
-    std::vector<TTablePtr> tables;
-    for (const auto& [id, table] : bundleState->GetBundle()->Tables) {
-        if (TypeFromId(id) != EObjectType::Table) {
-            continue;
-        }
-
-        if (table->GetBalancingGroup() != groupName) {
-            continue;
-        }
-
-        tables.push_back(table);
+    if (!reshardIteration->IsGroupBalancingEnabled(groupConfig)) {
+        return;
     }
 
+    reshardIteration->Prepare(bundleState, groupConfig);
+
+    auto tables = reshardIteration->GetTablesToReshard(bundleState->GetBundle());
     Shuffle(tables.begin(), tables.end());
 
     int actionCount = 0;
     bool actionLimitExceeded = false;
-    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, groupName);
+    auto groupTag = TGlobalGroupTag(reshardIteration->GetBundleName(), reshardIteration->GetGroupName());
 
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    bool pickReshardPivotKeys = dynamicConfig->PickReshardPivotKeys;
-    bool enableVerboseLogging = dynamicConfig->EnableReshardVerboseLogging ||
+    bool enableVerboseLogging = reshardIteration->GetDynamicConfig()->EnableReshardVerboseLogging ||
         bundleState->GetBundle()->Config->EnableVerboseLogging;
 
     for (const auto& table : tables) {
@@ -927,26 +965,11 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             break;
         }
 
-        std::vector<TTabletPtr> tablets;
-        for (const auto& tablet : table->Tablets) {
-            if (IsTabletReshardable(tablet, /*ignoreConfig*/ false)) {
-                tablets.push_back(tablet);
-            }
-        }
-
-        if (tablets.empty()) {
+        if (!reshardIteration->IsTableBalancingEnabled(table)) {
             continue;
         }
 
-        auto descriptors = WaitFor(
-            BIND(
-                MergeSplitTabletsOfTable,
-                std::move(tablets),
-                dynamicConfig->MinDesiredTabletSize,
-                pickReshardPivotKeys,
-                Logger)
-            .AsyncVia(WorkerPool_->GetInvoker())
-            .Run())
+        auto descriptors = WaitFor(reshardIteration->MergeSplitTable(table, WorkerPool_->GetInvoker()))
             .ValueOrThrow();
 
         std::vector<TReshardDescriptor> scheduledDescriptors;
@@ -954,14 +977,14 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             auto firstTablet = GetOrCrash(bundleState->Tablets(), descriptor.Tablets[0]);
             auto firstTabletIndex = firstTablet->Index;
             auto lastTabletIndex = firstTablet->Index + std::ssize(descriptor.Tablets) - 1;
-            if (pickReshardPivotKeys) {
+            if (reshardIteration->GetDynamicConfig()->PickReshardPivotKeys) {
                 try {
                     PickReshardPivotKeysIfNeeded(
                         &descriptor,
                         table,
                         firstTabletIndex,
                         lastTabletIndex,
-                        dynamicConfig->ReshardSlicingAccuracy,
+                        reshardIteration->GetDynamicConfig()->ReshardSlicingAccuracy,
                         enableVerboseLogging);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex,
@@ -978,7 +1001,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
 
                     PickPivotFailures_.Increment(1);
 
-                    if (dynamicConfig->CancelActionIfPickPivotKeysFails) {
+                    if (reshardIteration->GetDynamicConfig()->CancelActionIfPickPivotKeysFails) {
                         YT_LOG_DEBUG(ex,
                             "Cancelled tablet action creation because pick pivot keys failed "
                             "(TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v, "
@@ -1016,38 +1039,41 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
 
             ++actionCount;
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, "
-                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, CorrelationId: %v)",
+                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, TablePath: %v, CorrelationId: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize,
                 table->Id,
                 firstTabletIndex,
                 lastTabletIndex,
+                table->Path,
                 descriptor.CorrelationId);
 
             scheduledDescriptors.emplace_back(std::move(descriptor));
         }
 
-        const auto& profilingCounters = bundleState->GetProfilingCounters(table.Get(), groupName);
+        const auto& profilingCounters = bundleState->GetProfilingCounters(
+            table.Get(),
+            reshardIteration->GetGroupName());
         for (const auto& descriptor : scheduledDescriptors) {
-            if (descriptor.TabletCount == 1) {
-                profilingCounters.TabletMerges.Increment(1);
-            } else if (std::ssize(descriptor.Tablets) == 1) {
-                profilingCounters.TabletSplits.Increment(1);
-            } else {
-                profilingCounters.NonTrivialReshards.Increment(1);
-            }
+            reshardIteration->UpdateProfilingCounters(table, profilingCounters, descriptor);
         }
     }
 
     if (actionCount > 0) {
-        ParameterizedBalancingScheduler_.UpdateBalancingTime({bundleState->GetBundle()->Name, groupName});
+        ParameterizedBalancingScheduler_.UpdateBalancingTime(
+            {reshardIteration->GetBundleName(), reshardIteration->GetGroupName()});
     }
 
-    YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
+    reshardIteration->FinishIteration(actionCount);
+}
+
+void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+{
+    ExecuteReshardIteration(CreateSizeReshardIteration(
         bundleState->GetBundle()->Name,
         groupName,
-        actionCount);
+        DynamicConfig_.Acquire()), bundleState);
 }
 
 void TTabletBalancer::SaveFatalBundleError(const TString& bundleName, TError error) const

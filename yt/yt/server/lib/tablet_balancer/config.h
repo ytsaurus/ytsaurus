@@ -21,6 +21,7 @@ class TParameterizedBalancingConfig
 public:
     TString Metric;
     std::optional<bool> EnableSwaps;
+    std::optional<bool> EnableReshard;
     std::optional<int> MaxActionCount;
     std::optional<double> NodeDeviationThreshold;
     std::optional<double> CellDeviationThreshold;

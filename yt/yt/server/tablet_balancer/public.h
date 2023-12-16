@@ -24,6 +24,8 @@ DECLARE_REFCOUNTED_CLASS(TTabletBalancerServerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)
 
+struct TTableProfilingCounters;
+
 DECLARE_REFCOUNTED_STRUCT(TBundleProfilingCounters)
 DECLARE_REFCOUNTED_CLASS(TBundleState)
 
@@ -42,6 +44,8 @@ YT_DEFINE_ERROR_ENUM(
 );
 
 DECLARE_REFCOUNTED_CLASS(TTableRegistry)
+
+DECLARE_REFCOUNTED_STRUCT(IReshardIteration)
 
 ////////////////////////////////////////////////////////////////////////////////
 
