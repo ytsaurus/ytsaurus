@@ -339,6 +339,25 @@ def get_spark_conf(config, enablers):
     return " ".join(spark_conf)
 
 
+# COMPAT(atokarew): for spark clusters <= 1.75.2 that doesn't have setup-spyt-env.sh installed
+def setup_spyt_env(spark_home, additional_parameters, setup_spyt_env_sh_exists):
+    if setup_spyt_env_sh_exists:
+        cmd = ["./setup-spyt-env.sh", "--spark-home", spark_home] + additional_parameters
+        return " ".join(cmd)
+
+    spark_root = spark_home + "/spark"
+    cmd = [
+        f"mkdir -p {spark_home}",
+        f"tar --warning=no-unknown-keyword -xf spark.tgz -C {spark_home}",
+        f"(if [ -f spark-extra.zip ]; then unzip -o spark-extra.zip -d {spark_root}; fi)"
+    ]
+
+    if ("--enable-livy" in additional_parameters):
+        cmd.append(f"tar --warning=no-unknown-keyword -xf livy.tgz -C {spark_home}")
+
+    return " && ".join(cmd)
+
+
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker, enable_tmpfs, tmpfs_limit,
                                worker_disk_name, worker_disk_limit, worker_disk_account,
@@ -360,10 +379,20 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     default_java_home = environment["JAVA_HOME"]
 
     spark_home = "./tmpfs" if enable_tmpfs else "."
+    setup_spyt_env_sh_exists = False
+    version_parts = re.split(r'\D', config['cluster_version'], 3)
+    if len(version_parts) > 2:
+        maj_version = int(version_parts[1])
+        min_version = int(version_parts[2])
+        if maj_version > 75 or (maj_version == 75 and min_version >= 3):
+            setup_spyt_env_sh_exists = True
+    if not setup_spyt_env_sh_exists:
+        logger.warn("You're using new ytsaurus-spyt client with older spyt cluster, which may cause incomatibilities. "
+                    "Please consider either upgrading your cluster or downgrading your local ytsaurus-spyt package to "
+                    "match your cluster version")
 
     def _launcher_command(component, additional_parameters=[], xmx="512m", extra_java_opts=None, launcher_opts=""):
-        setup_spyt_env = ["./setup-spyt-env.sh", "--spark-home", spark_home] + additional_parameters
-        setup_spyt_env_cmd = " ".join(setup_spyt_env)
+        setup_spyt_env_cmd = setup_spyt_env(spark_home, additional_parameters, setup_spyt_env_sh_exists)
 
         java_bin = os.path.join(default_java_home, 'bin', 'java')
         extra_java_opts_str = " " + " ".join(extra_java_opts) if extra_java_opts else ""
