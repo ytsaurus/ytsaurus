@@ -19,6 +19,8 @@ using namespace NDataNodeTrackerClient;
 using namespace NHydra;
 using namespace NRpc;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeTrackerService

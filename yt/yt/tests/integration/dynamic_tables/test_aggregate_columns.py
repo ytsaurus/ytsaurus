@@ -472,29 +472,29 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
-            [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]],
+            [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]],
             []
         ])}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
-        assert value == [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]]
+        assert value == [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
             [],
-            [['a-b-c-d', 1, 2]]
+            [['a-b-c-d', 1, yson.YsonUint64(2)]]
         ])}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
-        assert value == [['a-b-c-f', 3, 4]]
+        assert value == [['a-b-c-f', 3, yson.YsonUint64(4)]]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
-            [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]],
+            [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]],
             []
         ])}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
-        assert value == [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]]
+        assert value == [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
             [],
-            [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]]
+            [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]]
         ])}], aggregate=True)
 
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]

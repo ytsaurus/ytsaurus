@@ -17,6 +17,7 @@ class Field:
     column_type: str
     sort_order: Optional[str]
     lock: Optional[str]
+    aggregate: Optional[bool]
 
 
 @dataclass

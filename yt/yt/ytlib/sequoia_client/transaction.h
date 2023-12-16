@@ -67,7 +67,8 @@ struct ISequoiaTransaction
     template <class TRecord>
     void WriteRow(
         const TRecord& record,
-        NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive);
+        NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive,
+        NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
     virtual void DeleteRow(
         ESequoiaTable table,

@@ -9,6 +9,8 @@ namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaIndex value, TStringBuf /*spec*/)
@@ -135,6 +137,47 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chun
     auto* chunk = chunkWithIndexes.GetPtr();
     YT_VERIFY(chunk);
     return {chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TSequoiaChunkReplica::operator==(TSequoiaChunkReplica other) const
+{
+    return LocationUuid == other.LocationUuid;
+}
+
+void TSequoiaChunkReplica::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, ChunkId);
+    Save(context, ReplicaIndex);
+    Save(context, NodeId);
+    Save(context, LocationUuid);
+}
+
+void TSequoiaChunkReplica::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, ChunkId);
+    Load(context, ReplicaIndex);
+    Load(context, NodeId);
+    Load(context, LocationUuid);
+}
+
+void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica)
+{
+    replica->NodeId = FromProto<TNodeId>(protoReplica.node_id());
+    replica->ReplicaIndex = protoReplica.replica_index();
+    replica->LocationUuid = FromProto<TChunkLocationUuid>(protoReplica.location_uuid());
+    replica->ChunkId = FromProto<TChunkId>(protoReplica.chunk_id());
+}
+
+void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkReplica& replica)
+{
+    protoReplica->set_node_id(ToProto<ui32>(replica.NodeId));
+    protoReplica->set_replica_index(replica.ReplicaIndex);
+    ToProto(protoReplica->mutable_chunk_id(), replica.ChunkId);
+    ToProto(protoReplica->mutable_location_uuid(), replica.LocationUuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -89,14 +89,28 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 
 TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     const TRowBufferPtr& rowBuffer,
-    const {{type.type_name}}IdMapping& idMapping) const
+    const {{type.type_name}}IdMapping& idMapping,
+    EValueFlags flags) const
 {
     std::array values{
 {%- for field in type.fields if field.sort_order %}
-        ToUnversionedValue(Key.{{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
+        ToUnversionedValue(
+            Key.{{field.cpp_name}},
+            rowBuffer,
+            GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
 {%- endfor %}
 {%- for field in type.fields if not field.sort_order %}
-        ToUnversionedValue({{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
+        ToUnversionedValue(
+            {{field.cpp_name}},
+            rowBuffer,
+            GetColumnIdOrThrow(idMapping.{{field.cpp_name}},
+            TStringBuf("{{field.column_name}}")),
+            {% if field.aggregate %}
+                flags & NYT::NTableClient::EValueFlags::Aggregate
+            {% else %}
+                flags & NYT::NTableClient::EValueFlags::None
+            {% endif %}
+            ),
 {%- endfor %}
     };
     return rowBuffer->CaptureRow(MakeRange(values), /*captureValues*/ false);
@@ -130,15 +144,30 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
 
 TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     const TRowBufferPtr& rowBuffer,
-    const {{type.type_name}}IdMapping& idMapping) const
+    const {{type.type_name}}IdMapping& idMapping,
+    EValueFlags flags) const
 {
     TUnversionedRowBuilder builder;
 {%- for field in type.fields if field.sort_order %}
-    builder.AddValue(ToUnversionedValue(Key.{{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))));
+    builder.AddValue(
+        ToUnversionedValue(
+            Key.{{field.cpp_name}},
+            rowBuffer,
+            GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))));
 {%- endfor %}
 {%- for field in type.fields if not(field.sort_order) %}
     if (idMapping.{{field.cpp_name}} && {{field.cpp_name}}) {
-        builder.AddValue(ToUnversionedValue(*{{field.cpp_name}}, rowBuffer, *idMapping.{{field.cpp_name}}));
+        builder.AddValue(
+            ToUnversionedValue
+            (*{{field.cpp_name}},
+            rowBuffer,
+            *idMapping.{{field.cpp_name}},
+            {% if field.aggregate %}
+                flags & NYT::NTableClient::EValueFlags::Aggregate
+            {% else %}
+                flags & NYT::NTableClient::EValueFlags::None
+            {% endif %}
+        ));
     }
 {%- endfor %}
     return rowBuffer->CaptureRow(builder.GetRow(), /*captureValues*/ false);

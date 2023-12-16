@@ -68,9 +68,7 @@ CHUNK_REPLICAS_TABLE = SequoiaTable(
     schema=[
         {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
         {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
-        {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
-        {"name": "replica_index", "type": "int32", "sort_order": "ascending"},
-        {"name": "node_id", "type": "uint32"},
+        {"name": "replicas", "type": "any", "aggregate": "_yt_replica_set"},
     ])
 
 LOCATION_REPLICAS_TABLE = SequoiaTable(

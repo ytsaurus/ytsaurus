@@ -3,6 +3,8 @@ namespace: NYT::NSequoiaClient::NRecords
 h_verbatim: |
   #include <yt/yt/client/node_tracker_client/public.h>
 
+  #include <library/cpp/yt/yson_string/string.h>
+
 types:
   - type_name: TChunkReplicas
     fields:
@@ -18,22 +20,11 @@ types:
         column_type: String
         sort_order: Ascending
 
-      - cpp_name: LocationUuid
-        cpp_type: NChunkClient::TChunkLocationUuid
-        column_name: location_uuid
-        column_type: String
-        sort_order: Ascending
-
-      - cpp_name: ReplicaIndex
-        cpp_type: i32
-        column_name: replica_index
-        column_type: Int32
-        sort_order: Ascending
-
-      - cpp_name: NodeId
-        cpp_type: NNodeTrackerClient::TNodeId
-        column_name: node_id
-        column_type: Uint32
+      - cpp_name: Replicas
+        cpp_type: NYson::TYsonString
+        column_name: replicas
+        column_type: Any
+        aggregate: True
 
     verbatim: |
       static constexpr auto Table = ESequoiaTable::ChunkReplicas;

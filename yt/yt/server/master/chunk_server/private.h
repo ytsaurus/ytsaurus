@@ -13,6 +13,7 @@ namespace NYT::NChunkServer {
 namespace NProto {
 
 class TReqUpdateChunkPresence;
+class TSequoiaReplicaInfo;
 
 } // namespace NProto
 

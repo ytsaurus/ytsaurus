@@ -43,16 +43,18 @@ message TReqConfirmChunkListsRequisitionTraverseFinished
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TSequoiaReplicaInfo
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required NYT.NProto.TGuid location_uuid = 2;
+    required int32 node_id = 3;
+    required int32 replica_index = 4;
+}
+
 message TReqRemoveDeadSequoiaChunkReplicas
 {
-    message TReplicaInfo
-    {
-        required NYT.NProto.TGuid chunk_id = 1;
-        required NYT.NProto.TGuid location_uuid = 2;
-        required int32 node_id = 3;
-        required int32 replica_index = 4;
-    }
-    repeated TReplicaInfo replicas = 1;
+    repeated TSequoiaReplicaInfo replicas = 1;
+    repeated NYT.NProto.TGuid chunk_ids = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

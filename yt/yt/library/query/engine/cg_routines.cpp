@@ -2411,7 +2411,7 @@ struct TChunkReplica
 {
     TChunkId LocationUuid;
     i64 Index;
-    i64 NodeId;
+    ui64 NodeId;
 
     auto operator<=>(const TChunkReplica& other) const = default;
 };
@@ -2472,7 +2472,7 @@ TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
 
     replica.LocationUuid = TGuid::FromString(Consume(cursor, EYsonItemType::StringValue).UncheckedAsString());
     replica.Index = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
-    replica.NodeId = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
+    replica.NodeId = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
 
     Consume(cursor, EYsonItemType::EndList);
 
