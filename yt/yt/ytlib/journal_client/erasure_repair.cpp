@@ -73,8 +73,7 @@ void DoRepairErasedParts(
         auto future = partsReader->ReadRows(
             options,
             firstRowIndex,
-            rowCount - firstRowIndex,
-            /*enableFastPath*/ true);
+            rowCount - firstRowIndex);
         auto rowLists = WaitFor(future)
             .ValueOrThrow();
 
