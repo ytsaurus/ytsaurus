@@ -247,21 +247,10 @@ private:
                     .Value(node->GetRegistrationPending());
                 return true;
 
-            case EInternedAttributeKey::Annotations: {
-                if (!node->GetAnnotations()) {
-                    break;
-                }
-
-                BuildYsonFluently(consumer)
-                    .Value(node->GetAnnotations());
-                return true;
-            }
-
-            case EInternedAttributeKey::Version: {
+            case EInternedAttributeKey::Version:
                 BuildYsonFluently(consumer)
                     .Value(node->GetVersion());
                 return true;
-            }
 
             case EInternedAttributeKey::MulticellStates:
                 BuildYsonFluently(consumer)
@@ -655,6 +644,29 @@ private:
         }
 
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        const auto* node = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::Annotations:
+                if (!node->GetAnnotations()) {
+                    break;
+                }
+
+                // Annotations are heavy; exposing them via async interface and ensuring the returned future
+                // is set in a dedicated thread pool enables some degree of offloading.
+                return BIND([annotation = node->GetAnnotations()] {return annotation;})
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                    .Run();
+
+            default:
+                break;
+        }
+
+        return TNonversionedObjectProxyBase::GetBuiltinAttributeAsync(key);
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
