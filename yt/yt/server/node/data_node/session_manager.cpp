@@ -136,6 +136,16 @@ ISessionPtr TSessionManager::StartSession(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto chunkCellTag = CellTagFromId(sessionId.ChunkId);
+    const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
+    if (Find(masterCellTags, chunkCellTag) == masterCellTags.end()) {
+        YT_LOG_ALERT("Attempt to start a write session with an unknown master cell tag (SessionId: %v, CellTag: %v)",
+            sessionId,
+            chunkCellTag);
+        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+            chunkCellTag);
+    }
+
     auto guard = WriterGuard(SessionMapLock_);
 
     if (std::ssize(SessionMap_) >= Config_->MaxWriteSessions) {
