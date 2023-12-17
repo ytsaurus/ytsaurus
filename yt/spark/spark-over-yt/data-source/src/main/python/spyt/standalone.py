@@ -479,10 +479,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             "discovery_path": spark_discovery.base_discovery_path,
             "cluster_version": config["cluster_version"],
             "client_version": __version__,
-            "enable_byop": enablers.enable_byop,
-            "enable_arrow": enablers.enable_arrow,
-            "enable_mtn": enablers.enable_mtn,
-            "enable_preference_ipv6": enablers.enable_preference_ipv6,
+            "enablers": str(enablers),
             "job_types": job_types
         }
     }

@@ -97,7 +97,18 @@ case class SpytEnablers(enable_byop: Boolean = true,
                         enable_mtn: Boolean = true,
                         enable_solomon_agent: Boolean = true,
                         enable_preference_ipv6: Boolean = true,
-                        enable_tcp_proxy: Boolean = true) extends YsonableConfig
+                        enable_tcp_proxy: Boolean = true) extends YsonableConfig {
+  override def toYson(builder: YTreeBuilder): YTreeBuilder = {
+    builder.beginMap()
+      .key("spark.hadoop.yt.byop.enabled").value(enable_byop)
+      .key("spark.hadoop.yt.read.arrow.enabled").value(enable_arrow)
+      .key("spark.hadoop.yt.mtn.enabled").value(enable_mtn)
+      .key("spark.hadoop.yt.solomonAgent.enabled").value(enable_solomon_agent)
+      .key("spark.hadoop.yt.preferenceIpv6.enabled").value(enable_preference_ipv6)
+      .key("spark.hadoop.yt.tcpProxy.enabled").value(enable_tcp_proxy)
+      .endMap()
+  }
+}
 
 object SparkLaunchConfig {
   val defaultLayers = Seq(

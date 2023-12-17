@@ -107,12 +107,12 @@ def prepare_launch_config(conf_local_dir: str, client: Client, versions: Version
     launch_config['spark_yt_base_path'] = client.resolve_from_root(bin_remote_dir(versions))
     launch_config['file_paths'] = get_file_paths(conf_local_dir, client.root_path, versions)
     launch_config['enablers'] = {
-        "enable_byop": not os_release,
-        "enable_preference_ipv6": not os_release,
-        "enable_arrow": True,
-        "enable_solomon_agent": not os_release,
-        "enable_mtn": not os_release,
-        "enable_tcp_proxy": os_release
+        "spark.hadoop.yt.byop.enabled": not os_release,
+        "spark.hadoop.yt.preferenceIpv6.enabled": not os_release,
+        "spark.hadoop.yt.read.arrow.enabled": True,
+        "spark.hadoop.yt.solomonAgent.enabled": not os_release,
+        "spark.hadoop.yt.mtn.enabled": not os_release,
+        "spark.hadoop.yt.tcpProxy.enabled": os_release
     }
     if not os_release:
         launch_config['layer_paths'] = [
