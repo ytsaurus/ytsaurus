@@ -27,6 +27,7 @@
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
+#include <yt/yt/server/lib/misc/tagged_counters.h>
 
 #include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
@@ -146,13 +147,13 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NProfiling::TProfiler VolumeProfiler("/volumes");
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVolumeProfilerCounters
 {
 public:
+    TVolumeProfilerCounters()
+        : VolumeProfiler_("/volumes")
+    { }
+
     NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
     {
         auto key = CreateKey(tagSet, name);
@@ -160,7 +161,7 @@ public:
         auto guard = Guard(Lock_);
         auto [it, inserted] = Counters_.emplace(key, NProfiling::TCounter());
         if (inserted) {
-            it->second = VolumeProfiler.WithTags(tagSet).Counter(name);
+            it->second = VolumeProfiler_.WithTags(tagSet).Counter(name);
         }
 
         return it->second;
@@ -173,7 +174,7 @@ public:
         auto guard = Guard(Lock_);
         auto [it, inserted] = Gauges_.emplace(key, NProfiling::TGauge());
         if (inserted) {
-            it->second = VolumeProfiler.WithTags(tagSet).Gauge(name);
+            it->second = VolumeProfiler_.WithTags(tagSet).Gauge(name);
         }
 
         return it->second;
@@ -193,7 +194,7 @@ public:
                 TDuration::Seconds(1),
                 TDuration::Seconds(5),
                 TDuration::Seconds(10)};
-            it->second = VolumeProfiler.WithTags(tagSet).TimeHistogram(name, std::move(bounds));
+            it->second = VolumeProfiler_.WithTags(tagSet).TimeHistogram(name, std::move(bounds));
         }
 
         return it->second;
@@ -206,7 +207,7 @@ public:
         auto guard = Guard(Lock_);
         auto [it, inserted] = EventTimers_.emplace(key, NProfiling::TEventTimer());
         if (inserted) {
-            it->second = VolumeProfiler.WithTags(tagSet).Timer(name);
+            it->second = VolumeProfiler_.WithTags(tagSet).Timer(name);
         }
 
         return it->second;
@@ -218,70 +219,29 @@ public:
     }
 
 private:
-    static TString CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+    using TKey = NProfiling::TTagList;
+
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
     {
-        TString key;
-        for (const auto& [_, value] : tagSet.Tags()) {
-            key += value;
-        }
-        key += name;
+        auto key = tagSet.Tags();
+        key.push_back({"name", name});
         return key;
     }
 
 private:
+    const NProfiling::TProfiler VolumeProfiler_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<TString, NProfiling::TCounter> Counters_;
-    THashMap<TString, NProfiling::TGauge> Gauges_;
-    THashMap<TString, NProfiling::TEventTimer> EventTimers_;
+    THashMap<TKey, NProfiling::TCounter> Counters_;
+    THashMap<TKey, NProfiling::TGauge> Gauges_;
+    THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
 };
 
 TVolumeProfilerCounters VolumeProfilerCounters;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVolumeCounters
-{
-public:
-    int Increment(const NProfiling::TTagSet& tagSet)
-    {
-        auto key = CreateKey(tagSet);
-
-        auto guard = Guard(Lock_);
-        return ++Counters_[key];
-    }
-
-    int Decrement(const NProfiling::TTagSet& tagSet)
-    {
-        auto key = CreateKey(tagSet);
-
-        auto guard = Guard(Lock_);
-        return --Counters_[key];
-    }
-
-    int Get(const NProfiling::TTagSet& tagSet)
-    {
-        auto key = CreateKey(tagSet);
-
-        auto guard = Guard(Lock_);
-        return Counters_[key];
-    }
-
-private:
-    static TString CreateKey(const NProfiling::TTagSet& tagSet)
-    {
-        TString key;
-        for (const auto& [_, value] : tagSet.Tags()) {
-            key += value;
-        }
-        return key;
-    }
-
-private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<TString, int> Counters_;
-};
-
-TVolumeCounters VolumeCounters;
+TTaggedCounters<int> VolumeCounters;
 
 } // namespace
 

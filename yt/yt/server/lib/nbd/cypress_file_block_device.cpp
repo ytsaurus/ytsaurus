@@ -1,7 +1,9 @@
 #include "cypress_file_block_device.h"
 #include "block_device.h"
+#include "profiler.h"
 
 #include <yt/yt/server/lib/nbd/private.h>
+#include <yt/yt/server/lib/misc/tagged_counters.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -49,6 +51,8 @@ static std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
 
 struct TCypressFileBlockDeviceTag { };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressFileBlockDevice
     : public IBlockDevice
 {
@@ -64,7 +68,11 @@ public:
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
-    {}
+        , TagSet_(TNbdProfilerCounters::MakeTagSet(Config_->Path))
+    {
+        NbdProfilerCounters.GetGauge(TagSet_, "/device/count").Update(FileBlockDeviceCount_.Increment(TagSet_));
+        NbdProfilerCounters.GetCounter(TagSet_, "/device/create").Increment(1);
+    }
 
     TCypressFileBlockDevice(
         const TString& exportId,
@@ -79,7 +87,17 @@ public:
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
-    {}
+        , TagSet_(TNbdProfilerCounters::MakeTagSet(Config_->Path))
+    {
+        NbdProfilerCounters.GetGauge(TagSet_, "/device/count").Update(FileBlockDeviceCount_.Increment(TagSet_));
+        NbdProfilerCounters.GetCounter(TagSet_, "/device/create").Increment(1);
+    }
+
+    ~TCypressFileBlockDevice()
+    {
+        NbdProfilerCounters.GetGauge(TagSet_, "/device/count").Update(FileBlockDeviceCount_.Decrement(TagSet_));
+        NbdProfilerCounters.GetCounter(TagSet_, "/device/remove").Increment(1);
+    }
 
     virtual i64 GetTotalSize() const override
     {
@@ -93,7 +111,12 @@ public:
 
     virtual TString DebugString() const override
     {
-        return Format("{Cypress Path, %v}", Config_->Path);
+        return Format("{Cypress Path, %v}", GetProfileSensorTag());
+    }
+
+    virtual TString GetProfileSensorTag() const override
+    {
+        return Config_->Path;
     }
 
     virtual TFuture<TSharedRef> Read(
@@ -101,6 +124,10 @@ public:
         i64 length) override
     {
         auto readId = TGuid::Create();
+
+        NbdProfilerCounters.GetCounter(TagSet_, "/device/read_count").Increment(1);
+        NbdProfilerCounters.GetCounter(TagSet_, "/device/read_bytes").Increment(length);
+        NProfiling::TEventTimerGuard readTimeGuard(NbdProfilerCounters.GetTimer(TagSet_, "/device/read_time"));
 
         if (Config_->TestSleepBeforeRead != TDuration::Zero()) {
             YT_LOG_DEBUG("Sleep for testing purposes prior to starting a read (Offset: %v, Length: %v, ReadId: %v, Duration: %v)",
@@ -126,7 +153,7 @@ public:
         }
 
         auto readFuture = ReadFromChunks(Chunks_, offset, length, readId);
-        return readFuture.Apply(BIND([=, Logger=Logger](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
+        return readFuture.Apply(BIND([=, Logger=Logger, readTimeGuard = std::move(readTimeGuard)](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
             YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)",
                 offset,
                 length,
@@ -404,6 +431,8 @@ private:
     }
 
 private:
+    static TTaggedCounters<int> FileBlockDeviceCount_;
+
     const TString ExportId_;
     const std::optional<::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
     const TCypressFileBlockDeviceConfigPtr Config_;
@@ -413,7 +442,12 @@ private:
     TChunkReaderHostPtr ChunkReaderHost_;
     std::vector<TChunk> Chunks_;
     i64 FileSize_ = 0;
+    const NProfiling::TTagSet TagSet_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTaggedCounters<int> TCypressFileBlockDevice::FileBlockDeviceCount_;
 
 ////////////////////////////////////////////////////////////////////////////////
 

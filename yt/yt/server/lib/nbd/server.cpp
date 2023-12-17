@@ -2,6 +2,7 @@
 
 #include "block_device.h"
 #include "config.h"
+#include "profiler.h"
 #include "protocol.h"
 
 #include <yt/yt/core/net/address.h>
@@ -40,7 +41,18 @@ public:
         , Connection_(std::move(connection))
         , Poller_(std::move(poller))
         , Invoker_(std::move(invoker))
-    { }
+    {
+        ++NbdServerCount_;
+        NbdProfilerCounters.GetGauge({}, "/server/count").Update(NbdServerCount_);
+        NbdProfilerCounters.GetCounter({}, "/server/create").Increment(1);
+    }
+
+    ~TNbdServer()
+    {
+        --NbdServerCount_;
+        NbdProfilerCounters.GetGauge({}, "/server/count").Update(NbdServerCount_);
+        NbdProfilerCounters.GetCounter({}, "/server/remove").Increment(1);
+    }
 
     void Start()
     {
@@ -99,6 +111,8 @@ public:
             THROW_ERROR_EXCEPTION("Device %Qv with %Qv is already registered", name, device->DebugString());
         }
 
+        NbdProfilerCounters.GetCounter(TNbdProfilerCounters::MakeTagSet(device->GetProfileSensorTag()), "/device/register").Increment(1);
+
         YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
     }
 
@@ -107,10 +121,15 @@ public:
         YT_LOG_INFO("Unregistering device (Name: %v)", name);
 
         auto guard = WriterGuard(NameToDeviceLock_);
-        if (NameToDevice_.erase(name) == 0) {
+        auto it = NameToDevice_.find(name);
+        if (it == NameToDevice_.end()) {
             YT_LOG_INFO("Can not unregister unknown device (Name: %v)", name);
             return false;
         }
+
+        NbdProfilerCounters.GetCounter(TNbdProfilerCounters::MakeTagSet(it->second->GetProfileSensorTag()), "/device/unregister").Increment(1);
+
+        NameToDevice_.erase(it);
 
         YT_LOG_INFO("Unregistered device (Name: %v)", name);
         return true;
@@ -143,6 +162,8 @@ public:
     }
 
 private:
+    static std::atomic<int> NbdServerCount_;
+
     const NLogging::TLogger Logger = NbdLogger
         .WithTag("ServerId: %v", TGuid::Create());
 
@@ -657,6 +678,10 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TNbdServer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::atomic<int> TNbdServer::NbdServerCount_;
 
 ////////////////////////////////////////////////////////////////////////////////
 

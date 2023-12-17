@@ -6,6 +6,7 @@ SRCS(
     config.cpp
     cypress_file_block_device.cpp
     memory_block_device.cpp
+    profiler.cpp
     server.cpp
 )
 
