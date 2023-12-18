@@ -371,11 +371,12 @@ private:
             node->GetDefaultAddress());
     }
 
-    void EraseFromDisposalQueueOrCrash(const TNodeId& nodeId)
+    void EraseFromDisposalQueueOrCrash(TNodeId nodeId)
     {
         EraseOrCrash(NodesBeingDisposed_, nodeId);
         if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
-            !NodesAwaitingForBeingDisposed_.empty()) {
+            !NodesAwaitingForBeingDisposed_.empty())
+        {
             InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
             NodesAwaitingForBeingDisposed_.pop_front();
         }
@@ -449,11 +450,11 @@ private:
     void HydraFinishNodeDisposal(TReqFinishNodeDisposal* request)
     {
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
-        Y_DEFER {
+        auto finalyGuard = Finally([&]() {
             if (NodesBeingDisposed_.contains(nodeId)) {
                 EraseFromDisposalQueueOrCrash(nodeId);
             }
-        };
+        });
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->FindNode(nodeId);
