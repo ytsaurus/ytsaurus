@@ -743,6 +743,7 @@ class YTEnvSetup(object):
                     "account": "sequoia",
                 },
                 driver=ground_driver)
+            yt_commands.set("{}/@enable_shared_write_locks".format(table.get_path()), True, driver=ground_driver)
             yt_commands.mount_table(table.get_path(), driver=ground_driver)
 
         for table in yt_sequoia_helpers.SEQUOIA_TABLES:
