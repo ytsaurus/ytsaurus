@@ -236,14 +236,14 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
 
     auto rawSelfCGroups = TFileInput("/proc/self/cgroup").ReadAll();
     for (auto line : SplitString(rawSelfCGroups, "\n")) {
-        auto tokens = SplitString(line, ":");
         // NB: CGroup name may contain ":".
+        std::vector<TString> tokens = StringSplitter(line).Split(':').Limit(3);
         if (tokens.size() < 3) {
             continue;
         }
 
         const auto& cgroupType = tokens[1];
-        auto cgroup = JoinStrings(tokens.begin() + 2, tokens.end(), ":");
+        const auto& cgroup = tokens[2];
 
         if (cgroupType == "memory") {
             if (NFS::Exists(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup))) {
