@@ -412,7 +412,7 @@ class YTEnvSetup(object):
 
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
-        modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index)
+        modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
         modify_dynamic_configs_func = functools.partial(cls.apply_dynamic_config_patches, cluster_index=index)
 
         yt.logger.info("Creating cluster instance")
@@ -820,7 +820,7 @@ class YTEnvSetup(object):
         return config
 
     @classmethod
-    def apply_config_patches(cls, configs, ytserver_version, cluster_index):
+    def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
             for peer_index, config in enumerate(configs["master"][tag]):
                 config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
@@ -880,6 +880,16 @@ class YTEnvSetup(object):
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
 
             config["ref_counted_tracker_dump_period"] = 5000
+
+            # TODO(khlebnikov) move "breakpoints" out of "tmp" which shouldn't be shared.
+            shared_dir = os.path.join(cluster_path, "tmp")
+            if not os.path.exists(shared_dir):
+                os.mkdir(shared_dir)
+            config["exec_node"].setdefault("root_fs_binds", []).append({
+                "internal_path": shared_dir,
+                "external_path": shared_dir,
+                "read_only": False,
+            })
 
             config = cls.update_timestamp_provider_config(cluster_index, config)
             configs["node"][index] = config
