@@ -70,6 +70,8 @@ struct TChunkMergerSession
 
     int JobCount = 0;
 
+    TInstant SessionCreationTime;
+
     bool IsReadyForFinalization() const;
 };
 
@@ -219,6 +221,8 @@ private:
         EMergeSessionResult Result;
         TChunkMergerTraversalInfo TraversalInfo;
         int JobCount = 0;
+        NSecurityServer::TAccountId AccountId;
+        TInstant SessionCreationTime;
     };
     std::queue<TMergeSessionResult> SessionsAwaitingFinalization_;
 
@@ -235,6 +239,9 @@ private:
 
     // COMPAT(aleksandra-zh)
     bool NeedRestorePersistentStatistics_ = false;
+
+    THashMap<NSecurityServer::TAccountId, std::vector<TDuration>> NodeMergeDurations_;
+    THashMap<NObjectClient::TObjectId, int> NodeToRescheduleCount_;
 
     void IncrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
     void DecrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
@@ -313,6 +320,8 @@ private:
         NCypressClient::TObjectId nodeId,
         const NChunkClient::NProto::TDataStatistics& oldStatistics,
         const NChunkClient::NProto::TDataStatistics& newStatistics);
+
+    void RemoveNodeFromRescheduleCounterMap(NCypressClient::TObjectId nodeId);
 
     void HydraCreateChunks(NProto::TReqCreateChunks* request);
     void HydraReplaceChunks(NProto::TReqReplaceChunks* request);

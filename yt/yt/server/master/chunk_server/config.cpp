@@ -158,6 +158,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(1'000'000)
         .DontSerializeDefault();
 
+    registrar.Parameter("max_allowed_reschedulings_per_table", &TThis::MaxAllowedReschedulingsPerSession)
+        .Default(20);
+
     registrar.Parameter("max_chunks_per_iteration", &TThis::MaxChunksPerIteration)
         .Default();
 
