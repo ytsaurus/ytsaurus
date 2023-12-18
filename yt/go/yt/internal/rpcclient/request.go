@@ -368,30 +368,30 @@ func (r *LinkNodeRequest) SetRetry(retry bool) {
 	*r.MutatingOptions.Retry = retry
 }
 
-type ConcatNodeRequest struct {
+type ConcatenateRequest struct {
 	*rpc_proxy.TReqConcatenateNodes
 }
 
-func NewConcatNodeRequest(r *rpc_proxy.TReqConcatenateNodes) *ConcatNodeRequest {
-	return &ConcatNodeRequest{TReqConcatenateNodes: r}
+func NewConcatenateRequest(r *rpc_proxy.TReqConcatenateNodes) *ConcatenateRequest {
+	return &ConcatenateRequest{TReqConcatenateNodes: r}
 }
 
-func (r *ConcatNodeRequest) Log() []log.Field {
+func (r *ConcatenateRequest) Log() []log.Field {
 	return []log.Field{
 		log.String("target", r.GetDstPath()),
 		log.Strings("source", r.GetSrcPaths()),
 	}
 }
 
-func (r *ConcatNodeRequest) Path() (string, bool) {
+func (r *ConcatenateRequest) Path() (string, bool) {
 	return r.GetDstPath(), true
 }
 
-func (r *ConcatNodeRequest) SetTxOptions(opts *TransactionOptions) {
+func (r *ConcatenateRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
 }
 
-func (r *ConcatNodeRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+func (r *ConcatenateRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
 }
 

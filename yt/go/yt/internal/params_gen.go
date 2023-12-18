@@ -310,11 +310,12 @@ func writeLinkNodeOptions(w *yson.Writer, o *yt.LinkNodeOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
-func writeConcatNodeOptions(w *yson.Writer, o *yt.ConcatNodeOptions) {
+func writeConcatenateOptions(w *yson.Writer, o *yt.ConcatenateOptions) {
 	if o == nil {
 		return
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
 }
 
 func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
@@ -1797,52 +1798,57 @@ func (p *LinkNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
 }
 
-type ConcatNodeParams struct {
+type ConcatenateParams struct {
 	verb    Verb
 	source  []ypath.YPath
 	target  ypath.YPath
-	options *yt.ConcatNodeOptions
+	options *yt.ConcatenateOptions
 }
 
-func NewConcatNodeParams(
+func NewConcatenateParams(
 	source []ypath.YPath,
 	target ypath.YPath,
-	options *yt.ConcatNodeOptions,
-) *ConcatNodeParams {
+	options *yt.ConcatenateOptions,
+) *ConcatenateParams {
 	if options == nil {
-		options = &yt.ConcatNodeOptions{}
+		options = &yt.ConcatenateOptions{}
 	}
-	return &ConcatNodeParams{
+	optionsCopy := *options
+	return &ConcatenateParams{
 		Verb("concatenate"),
 		source,
 		target,
-		options,
+		&optionsCopy,
 	}
 }
 
-func (p *ConcatNodeParams) HTTPVerb() Verb {
+func (p *ConcatenateParams) HTTPVerb() Verb {
 	return p.verb
 }
-func (p *ConcatNodeParams) YPath() (ypath.YPath, bool) {
+func (p *ConcatenateParams) YPath() (ypath.YPath, bool) {
 	return p.target, true
 }
-func (p *ConcatNodeParams) Log() []log.Field {
+func (p *ConcatenateParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("source", p.source),
 		log.Any("target", p.target),
 	}
 }
 
-func (p *ConcatNodeParams) MarshalHTTP(w *yson.Writer) {
+func (p *ConcatenateParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("source_paths")
 	w.Any(p.source)
 	w.MapKeyString("destination_path")
 	w.Any(p.target)
-	writeConcatNodeOptions(w, p.options)
+	writeConcatenateOptions(w, p.options)
 }
 
-func (p *ConcatNodeParams) TransactionOptions() **yt.TransactionOptions {
+func (p *ConcatenateParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
+}
+
+func (p *ConcatenateParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type StartTxParams struct {

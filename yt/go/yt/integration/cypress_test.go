@@ -214,7 +214,7 @@ func TestCypress(t *testing.T) {
 		})
 	})
 
-	t.Run("ConcatNode", func(t *testing.T) {
+	t.Run("Concatenate", func(t *testing.T) {
 		t.Parallel()
 		yc := env.YT
 		var err error

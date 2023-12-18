@@ -192,13 +192,13 @@ func (e *Encoder) LinkNode(
 	return
 }
 
-func (e *Encoder) ConcatNode(
+func (e *Encoder) Concatenate(
 	ctx context.Context,
 	src []ypath.YPath,
 	dst ypath.YPath,
-	options *yt.ConcatNodeOptions,
+	options *yt.ConcatenateOptions,
 ) (err error) {
-	call := e.newCall(NewConcatNodeParams(src, dst, options))
+	call := e.newCall(NewConcatenateParams(src, dst, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return nil
 	})

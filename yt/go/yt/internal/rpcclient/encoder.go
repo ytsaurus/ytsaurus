@@ -442,11 +442,11 @@ func (e *Encoder) LinkNode(
 	return
 }
 
-func (e *Encoder) ConcatNode(
+func (e *Encoder) Concatenate(
 	ctx context.Context,
 	src []ypath.YPath,
 	dst ypath.YPath,
-	options *yt.ConcatNodeOptions,
+	options *yt.ConcatenateOptions,
 ) (err error) {
 	srcs := make([]string, 0, len(src))
 	for _, s := range src {
@@ -459,7 +459,7 @@ func (e *Encoder) ConcatNode(
 		TransactionalOptions: convertTransactionOptions(options.TransactionOptions),
 		MutatingOptions:      convertMutatingOptions(options.MutatingOptions),
 	}
-	call := e.newCall(MethodConcatNode, NewConcatNodeRequest(req), nil)
+	call := e.newCall(MethodConcatenate, NewConcatenateRequest(req), nil)
 
 	var rsp rpc_proxy.TRspConcatenateNodes
 	err = e.Invoke(ctx, call, &rsp)

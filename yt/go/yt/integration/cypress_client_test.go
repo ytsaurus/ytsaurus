@@ -27,7 +27,7 @@ func TestCypressClient(t *testing.T) {
 		{Name: "CopyNode", Test: suite.TestCopyNode},
 		{Name: "MoveNode", Test: suite.TestMoveNode},
 		{Name: "LinkNode", Test: suite.TestLinkNode},
-		{Name: "ConcatNode", Test: suite.TestConcatNode},
+		{Name: "Concatenate", Test: suite.TestConcatenate},
 		{Name: "CreateObject", Test: suite.TestCreateObject},
 		{Name: "BinaryPath", Test: suite.TestBinaryPath},
 	})
@@ -263,7 +263,7 @@ func (s *Suite) TestLinkNode(t *testing.T, yc yt.Client) {
 	require.Equal(t, yt.NodeLink, typ)
 }
 
-func (s *Suite) TestConcatNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestConcatenate(t *testing.T, yc yt.Client) {
 	t.Parallel()
 	var err error
 
@@ -281,7 +281,7 @@ func (s *Suite) TestConcatNode(t *testing.T, yc yt.Client) {
 	_, err = yc.CreateNode(ctx, src2, yt.NodeTable, nil)
 	require.NoError(t, err)
 
-	err = yc.ConcatNode(ctx, []ypath.YPath{src1, src2}, dst, nil)
+	err = yc.Concatenate(ctx, []ypath.YPath{src1, src2}, dst, nil)
 	require.NoError(t, err)
 }
 
