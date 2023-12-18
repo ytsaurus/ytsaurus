@@ -6,15 +6,15 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(benchmarks)
-add_subdirectory(build)
-add_subdirectory(client)
-add_subdirectory(contrib)
-add_subdirectory(core)
-add_subdirectory(library)
-add_subdirectory(orm)
-add_subdirectory(python)
-add_subdirectory(server)
-add_subdirectory(tests)
-add_subdirectory(tools)
-add_subdirectory(ytlib)
+
+add_library(cpp-testing-gbenchmark)
+target_link_libraries(cpp-testing-gbenchmark PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  restricted-google-benchmark
+  cpp-testing-hook
+)
+target_sources(cpp-testing-gbenchmark PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/testing/gbenchmark/main.cpp
+)

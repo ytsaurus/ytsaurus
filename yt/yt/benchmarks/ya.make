@@ -1,0 +1,21 @@
+RECURSE(
+    action_queue
+    bus
+    context_switch
+    exceptions
+    fair_share_action_queue
+    formats
+    insert
+    io
+    io_engine
+    joining_reader
+    logging
+    mpsc_sharded_queue
+    proto
+    queues
+    rng
+    rpc
+    sendfile
+    skiff
+    versioned_block_format
+)

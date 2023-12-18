@@ -6,15 +6,4 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(benchmarks)
-add_subdirectory(build)
-add_subdirectory(client)
-add_subdirectory(contrib)
-add_subdirectory(core)
-add_subdirectory(library)
-add_subdirectory(orm)
-add_subdirectory(python)
-add_subdirectory(server)
-add_subdirectory(tests)
-add_subdirectory(tools)
-add_subdirectory(ytlib)
+add_subdirectory(benchmark)

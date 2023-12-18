@@ -1,0 +1,12 @@
+import "yt/yt/benchmarks/proto/test_base.proto";
+
+message TExtendPart
+{
+//    extend TBase
+//    {
+//        required TExtendPart part = 101;
+//    }
+
+    required int64 int_field = 1;
+    required bool bool_field = 3;
+}

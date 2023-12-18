@@ -1,0 +1,11 @@
+message TBase 
+{
+    extensions 100 to max;
+}
+
+message TSample
+{
+    //repeated bytes keys = 1;
+    repeated int64 keys = 1;
+    required int64 row_index = 2;
+}

@@ -1,0 +1,11 @@
+package NBenchmarkRpc;
+
+message TReqEcho
+{
+    required string s = 1;
+}
+
+message TRspEcho
+{
+    required string s = 1;
+}

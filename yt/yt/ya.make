@@ -1,5 +1,6 @@
 RECURSE(
     build
+    benchmarks
     client
     core
     library
