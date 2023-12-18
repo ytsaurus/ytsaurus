@@ -237,11 +237,15 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
     auto rawSelfCGroups = TFileInput("/proc/self/cgroup").ReadAll();
     for (auto line : SplitString(rawSelfCGroups, "\n")) {
         auto tokens = SplitString(line, ":");
-        if (tokens.size() != 3) {
+        // NB: CGroup name may contain ":".
+        if (tokens.size() < 3) {
             continue;
         }
-        if (tokens[1] == "memory") {
-            auto cgroup = tokens[2];
+
+        auto cgroupType = tokens[1];
+        auto cgroup = JoinStrings(tokens.begin() + 2, tokens.end(), ":");
+
+        if (cgroupType == "memory") {
             if (NFS::Exists(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup))) {
                 CGroup_ = cgroup;
             } else if (NFS::Exists("/sys/fs/cgroup/memory/memory.stat")) {
@@ -249,8 +253,7 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
             }
             IsV2_ = false;
             return;
-        } else if (tokens[1] == "") {
-            auto cgroup = tokens[2];
+        } else if (cgroupType == "") {
             if (NFS::Exists(Format("/sys/fs/cgroup/%v/memory.stat", cgroup))) {
                 CGroup_ = cgroup;
             } else if (NFS::Exists("/sys/fs/cgroup/memory.stat")) {
