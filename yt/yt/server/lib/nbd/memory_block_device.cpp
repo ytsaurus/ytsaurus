@@ -29,6 +29,11 @@ public:
         return Format("{Memory Size, %v}", GetTotalSize());
     }
 
+    TString GetProfileSensorTag() const override
+    {
+        return TString();
+    }
+
     TFuture<TSharedRef> Read(
         i64 offset,
         i64 length) override

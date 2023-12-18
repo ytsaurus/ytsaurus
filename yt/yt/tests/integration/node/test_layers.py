@@ -848,12 +848,13 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         # Check solomon counters.
         job = get_job(op.id, job_id)
         profiler = profiler_factory().at_node(job["address"])
+        tags = {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}
 
-        wait(lambda: profiler.get("volumes/create", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) > 0)
-        wait(lambda: profiler.get("volumes/create_time", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) >= 0)
+        wait(lambda: profiler.get("volumes/create", tags) is not None)
+        wait(lambda: profiler.get("volumes/create_time", tags) is not None)
 
-        wait(lambda: profiler.get("volumes/remove", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) > 0)
-        wait(lambda: profiler.get("volumes/remove_time", {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}) >= 0)
+        wait(lambda: profiler.get("volumes/remove", tags) is not None)
+        wait(lambda: profiler.get("volumes/remove_time", tags) is not None)
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
@@ -891,8 +892,9 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         job = get_job(op.id, job_ids[0])
         profiler = profiler_factory().at_node(job["address"])
-        wait(lambda: profiler.get("volumes/create", {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}) > 0)
-        wait(lambda: profiler.get("volumes/create_errors", {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}) > 0)
+        tags = {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}
+        wait(lambda: profiler.get("volumes/create", tags) is not None)
+        wait(lambda: profiler.get("volumes/create_errors", tags) is not None)
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
@@ -1008,6 +1010,33 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         assert len(job_ids) == 1
         for job_id in job_ids:
             assert b"squash_file" in op.read_stderr(job_id)
+
+        # Check solomon counters.
+        job = get_job(op.id, job_id)
+        profiler = profiler_factory().at_node(job["address"])
+        tags = {'file_path': '//tmp/squashfs.img'}
+
+        wait(lambda: profiler.get("nbd/server/count") is not None)
+        wait(lambda: profiler.get("nbd/server/create") is not None)
+        wait(lambda: profiler.get("nbd/device/count", tags) is not None)
+
+        wait(lambda: profiler.get("nbd/device/create", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/remove", tags) is not None)
+
+        wait(lambda: profiler.get("nbd/device/register", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/unregister", tags) is not None)
+
+        wait(lambda: profiler.get("nbd/device/read_count", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/read_bytes", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/read_time", tags) is not None)
+
+        tags = {'type': 'nbd', 'file_path': '//tmp/squashfs.img'}
+
+        wait(lambda: profiler.get("volumes/create", tags) is not None)
+        wait(lambda: profiler.get("volumes/create_time", tags) is not None)
+
+        wait(lambda: profiler.get("volumes/remove", tags) is not None)
+        wait(lambda: profiler.get("volumes/remove_time", tags) is not None)
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)

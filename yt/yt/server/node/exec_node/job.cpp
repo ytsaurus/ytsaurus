@@ -39,6 +39,8 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
+#include <yt/yt/server/lib/nbd/profiler.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -2214,6 +2216,10 @@ void TJob::CleanupNbdExports()
             }
 
             if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
+                NNbd::NbdProfilerCounters.GetCounter(
+                    NNbd::TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
+                    "/device/unregister_unexpected").Increment(1);
+
                 YT_LOG_ERROR("NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
                     artifactKey.nbd_export_id(),
                     artifactKey.data_source().path());
