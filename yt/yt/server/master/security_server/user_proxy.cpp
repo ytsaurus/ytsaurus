@@ -8,12 +8,18 @@
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+
+#include <yt/yt/server/master/security_server/config.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/security_client/proto/user_ypath.pb.h>
+
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -102,6 +108,10 @@ private:
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::PasswordRevision);
         descriptors->push_back(EInternedAttributeKey::LastSeenTime);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tags)
+            .SetWritable(true)
+            .SetRemovable(true)
+            .SetReplicated(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -242,6 +252,11 @@ private:
                     .Value(user->PasswordSalt());
                 return true;
 
+            case EInternedAttributeKey::Tags:
+                BuildYsonFluently(consumer)
+                    .Value(user->Tags().GetSourceTags());
+                return true;
+
             default:
                 break;
         }
@@ -380,6 +395,28 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Tags: {
+                const auto& securityManagerDynconfig = Bootstrap_
+                    ->GetConfigManager()
+                    ->GetConfig()
+                    ->SecurityManager;
+                auto newTags = ConvertTo<THashSet<TString>>(value);
+                if (std::ssize(newTags) > securityManagerDynconfig->MaxUserTagCount) {
+                    THROW_ERROR_EXCEPTION("Cannot set user tags as user tags count limit exceeded")
+                        << TErrorAttribute ("max_user_tag_count", securityManagerDynconfig->MaxUserTagCount);
+                }
+                for (const auto& tag: newTags) {
+                    if (std::ssize(tag) >= securityManagerDynconfig->MaxUserTagSize) {
+                        THROW_ERROR_EXCEPTION("Cannot set user tags as user tag size limit exceeded")
+                            << TErrorAttribute("max_user_tag_size", securityManagerDynconfig->MaxUserTagSize)
+                            << TErrorAttribute("tag", tag);
+                    }
+                    ValidateBooleanFormulaVariable(tag);
+                }
+                user->Tags() = TBooleanFormulaTags(std::move(newTags));
+                return true;
+            }
+
             default:
                 break;
         }
@@ -410,6 +447,11 @@ private:
 
             case EInternedAttributeKey::PasswordSalt: {
                 user->SetPasswordSalt(/*passwordSalt*/ std::nullopt);
+                return true;
+            }
+
+            case EInternedAttributeKey::Tags: {
+                user->Tags() = {};
                 return true;
             }
 

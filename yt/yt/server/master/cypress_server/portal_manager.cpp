@@ -171,7 +171,7 @@ public:
 
                 portalExitInfo->set_direct_acl(ConvertToYsonString(node->Acd().Acl()).ToString());
 
-                portalExitInfo->set_inherit_acl(node->Acd().GetInherit());
+                portalExitInfo->set_inherit_acl(node->Acd().Inherit());
 
                 portalExitInfo->set_owner(node->Acd().GetOwner()->GetName());
 
@@ -211,7 +211,7 @@ public:
         request.set_path(path);
         request.set_effective_acl(ConvertToYsonString(effectiveAcl).ToString());
         request.set_direct_acl(ConvertToYsonString(trunkNode->Acd().Acl()).ToString());
-        request.set_inherit_acl(trunkNode->Acd().GetInherit());
+        request.set_inherit_acl(trunkNode->Acd().Inherit());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
         ToProto(request.mutable_parent_id(), trunkNode->GetParent()->GetId());
@@ -376,7 +376,7 @@ private:
 
         destinationAcd->SetEntries(sourceAcd->Acl());
         destinationAcd->SetOwner(sourceAcd->GetOwner());
-        destinationAcd->SetInherit(sourceAcd->GetInherit());
+        destinationAcd->SetInherit(sourceAcd->Inherit());
         if (auto annotation = sourceNode->TryGetAnnotation()) {
             destinationNode->SetAnnotation(std::move(*annotation));
         } else {
@@ -407,11 +407,11 @@ private:
                 inheritableAttributes->MergeFrom(*attributesDict);
 
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
-                auto effectiveAcl = DeserializeAcl(
-                    TYsonString(portalExitInfo.effective_acl()),
+                auto effectiveAcl = DeserializeAclOrAlert(
+                    ConvertToNode(TYsonString(portalExitInfo.effective_acl())),
                     securityManager);
-                auto directAcl = DeserializeAcl(
-                    TYsonString(portalExitInfo.direct_acl()),
+                auto directAcl = DeserializeAclOrAlert(
+                    ConvertToNode(TYsonString(portalExitInfo.direct_acl())),
                     securityManager);
                 auto* owner = DeserializeOwner(portalExitInfo.owner());
 
@@ -483,12 +483,12 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountOrThrow(accountId);
 
-        auto effectiveAcl = DeserializeAcl(
-            TYsonString(request->effective_acl()),
+        auto effectiveAcl = DeserializeAclOrAlert(
+            ConvertToNode(TYsonString(request->effective_acl())),
             securityManager);
         auto directAcl = request->has_direct_acl()
-            ? std::optional(DeserializeAcl(
-                TYsonString(request->direct_acl()),
+            ? std::optional(DeserializeAclOrAlert(
+                ConvertToNode(TYsonString(request->direct_acl())),
                 securityManager))
             : std::nullopt;
 

@@ -148,12 +148,14 @@ private:
 
         auto aclNode = ConvertToNode(TYsonString(request->acl()));
         TAccessControlList acl;
-
-        std::vector<TString> missingSubjects;
-
-        Deserialize(acl, aclNode, securityManager, ignoreMissingSubjects ? &missingSubjects : nullptr);
-
-        ToProto(response->mutable_missing_subjects(), missingSubjects);
+        if (ignoreMissingSubjects) {
+            auto [deserializedAcl, missingSubjects] =
+                DeserializeAclGatherMissingSubjectsOrThrow(aclNode, securityManager);
+            ToProto(response->mutable_missing_subjects(), missingSubjects);
+            acl = std::move(deserializedAcl);
+        } else {
+            acl = DeserializeAclOrThrow(aclNode, securityManager);
+        }
 
         auto result = securityManager->CheckPermission(user, permission, acl);
 

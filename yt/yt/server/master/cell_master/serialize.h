@@ -190,6 +190,7 @@ DEFINE_ENUM(EMasterReign,
     ((DontValidatePermissionsOnNodeUnregistration)                  (2452))  // kvk1920
     ((LimitForChunkCountInMergePipeline)                            (2453))  // cherepashka
     ((SequoiaChunkPurgatory)                                        (2454))  // aleksandra-zh
+    ((AttributeBasedAccessControl)                                  (2455))  // shakurov
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch

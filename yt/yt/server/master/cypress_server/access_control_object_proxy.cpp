@@ -239,8 +239,9 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::PrincipalAcl: {
-                TAccessControlList newAcl;
-                Deserialize(newAcl, ConvertToNode(value), securityManager);
+                auto newAcl = DeserializeAclOrThrow(
+                    ConvertToNode(value),
+                    securityManager);
                 principalAcd.SetEntries(newAcl);
 
                 SetModified(EModificationType::Attributes);
