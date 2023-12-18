@@ -693,7 +693,7 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
                 auto delay = dynamicConfig->DisableJobsTimeout + RandomDuration(dynamicConfig->DisableJobsTimeout);
 
                 auto error = TError("Too many consecutive scheduler job abortions")
-                    << TErrorAttribute("max_consecutive_aborts", dynamicConfig->MaxConsecutiveJobAborts);
+                    << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveJobAborts);
                 YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
                 Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = error;
 
@@ -713,7 +713,7 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
                     auto delay = dynamicConfig->DisableJobsTimeout + RandomDuration(dynamicConfig->DisableJobsTimeout);
 
                     auto error = TError("Too many consecutive GPU job failures")
-                        << TErrorAttribute("max_consecutive_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures);
+                        << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures);
                     YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
                     Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = error;
 
