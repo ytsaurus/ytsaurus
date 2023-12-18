@@ -362,8 +362,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("custom_profiling_tag_filter", &TThis::CustomProfilingTagFilter)
         .Default();
 
-    registrar.Parameter("total_resource_limits_consider_delay", &TThis::TotalResourceLimitsConsiderDelay)
-        .Default(TDuration::Seconds(60));
+    registrar.Parameter("node_reconnection_timeout", &TThis::NodeReconnectionTimeout)
+        .Alias("total_resource_limits_consider_delay")
+        .Default(TDuration::Minutes(5));
 
     registrar.Parameter("preemptive_scheduling_backoff", &TThis::PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
@@ -383,7 +384,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("non_tentative_operation_types", &TThis::NonTentativeOperationTypes)
         .Default(std::nullopt);
 
-    registrar.Parameter("best_allocation_ratio_update_period", &TThis::BestAllocationRatioUpdatePeriod)
+    registrar.Parameter("best_allocation_share_update_period", &TThis::BestAllocationShareUpdatePeriod)
+        .Alias("best_allocation_ratio_update_period")
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("enable_by_user_profiling", &TThis::EnableByUserProfiling)
