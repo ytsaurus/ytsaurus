@@ -284,9 +284,6 @@ public:
                 YT_ABORT();
         }
 
-        UpdateProcessListSnapshot();
-        SaveState();
-
         YT_LOG_INFO("Query registered");
 
         if (QueryContexts_.size() == 1) {
@@ -315,9 +312,6 @@ public:
             default:
                 YT_ABORT();
         }
-
-        UpdateProcessListSnapshot();
-        SaveState();
 
         YT_LOG_INFO("Query unregistered");
 
@@ -370,11 +364,7 @@ public:
 
     void CollectSensors(NProfiling::ISensorWriter* writer) override
     {
-        TProcessListSnapshot snapshot;
-        {
-            auto guard = Guard(ProcessListSnapshotLock_);
-            snapshot = ProcessListSnapshot_;
-        }
+        auto snapshot = TProcessListSnapshot(getContext()->getProcessList());
 
         for (const auto& [user, processListForUserInfo] : snapshot.GetUserToProcessListForUserInfo()) {
             NProfiling::TWithTagGuard withTagGuard(writer, "user", user);
@@ -407,8 +397,8 @@ public:
 
     void UpdateProcessListSnapshot()
     {
-        auto guard = Guard(ProcessListSnapshotLock_);
         ProcessListSnapshot_ = TProcessListSnapshot(getContext()->getProcessList());
+        SaveState();
     }
 
 private:
@@ -425,7 +415,6 @@ private:
 
     TSignalSafeState SignalSafeState_;
 
-    TSpinLock ProcessListSnapshotLock_;
     TProcessListSnapshot ProcessListSnapshot_;
 
     TPeriodicExecutorPtr ProcessListSnapshotExecutor_;
