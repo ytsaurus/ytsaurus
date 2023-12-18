@@ -282,17 +282,21 @@ void TFairShareTreeProfileManager::ProfileElement(
 
     const auto& attributes = element->Attributes();
 
-    const auto& detailedFairShare = attributes.FairShare;
+    auto profileDominantFairShare = [&] (const TString& prefix, const NVectorHdrf::TDetailedFairShare& fairShare) {
+        writer->AddGauge(prefix + "/strong_guarantee", MaxComponent(fairShare.StrongGuarantee));
+        writer->AddGauge(prefix + "/integral_guarantee", MaxComponent(fairShare.IntegralGuarantee));
+        writer->AddGauge(prefix + "/weight_proportional", MaxComponent(fairShare.WeightProportional));
+        writer->AddGauge(prefix + "/total", MaxComponent(fairShare.Total));
+    };
+
     writer->AddGauge("/dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate());
     writer->AddGauge("/dominant_demand_share", MaxComponent(attributes.DemandShare));
     writer->AddGauge("/promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare));
     writer->AddGauge("/dominant_estimated_guarantee_share", MaxComponent(attributes.EstimatedGuaranteeShare));
     writer->AddGauge("/accumulated_volume_dominant_share", element->GetAccumulatedResourceRatioVolume());
     writer->AddGauge("/weight", element->GetWeight());
-    writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
-    writer->AddGauge("/dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
-    writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
-    writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
+    profileDominantFairShare("/dominant_fair_share", attributes.FairShare);
+    profileDominantFairShare("/dominant_promised_guarantee_fair_share", attributes.PromisedGuaranteeFairShare);
 
     if (element->PostUpdateAttributes().LocalSatisfactionRatio < InfiniteSatisfactionRatio) {
         writer->AddGauge("/local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio);
@@ -349,26 +353,31 @@ void TFairShareTreeProfileManager::ProfileElement(
             ? treeConfig->ProfiledOperationResources
             : treeConfig->ProfiledPoolResources;
 
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.StrongGuarantee,
-            "/fair_share/strong_guarantee");
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.IntegralGuarantee,
-            "/fair_share/integral_guarantee");
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.WeightProportional,
-            "/fair_share/weight_proportional");
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.Total,
-            "/fair_share/total");
+        auto profileVectorFairShare = [&] (const TString& prefix, const NVectorHdrf::TDetailedFairShare& fairShare) {
+            ProfileResourceVector(
+                writer,
+                profiledResources,
+                fairShare.StrongGuarantee,
+                prefix + "/strong_guarantee");
+            ProfileResourceVector(
+                writer,
+                profiledResources,
+                fairShare.IntegralGuarantee,
+                prefix + "/integral_guarantee");
+            ProfileResourceVector(
+                writer,
+                profiledResources,
+                fairShare.WeightProportional,
+                prefix + "/weight_proportional");
+            ProfileResourceVector(
+                writer,
+                profiledResources,
+                fairShare.Total,
+                prefix + "/total");
+        };
+
+        profileVectorFairShare("/fair_share", attributes.FairShare);
+        profileVectorFairShare("/promised_guarantee_fair_share", attributes.PromisedGuaranteeFairShare);
 
         ProfileResourceVector(
             writer,
@@ -412,6 +421,7 @@ void TFairShareTreeProfileManager::ProfileElement(
             attributes.EstimatedGuaranteeShare,
             "/estimated_guarantee_share");
 
+        // TODO(eshcherbin): Move to |ProfilePool|.
         if (!element->IsOperation()) {
             ProfileResourceVolume(
                 writer,
