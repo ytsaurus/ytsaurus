@@ -418,7 +418,6 @@ items:
   - name: Релизы
     href: admin-guide/releases.md
   - name: FAQ
-    when: audience == "public"
     href: faq/faq.md
   - name: Как сообщить о проблеме
     href: user-guide/problems/howtoreport.md
