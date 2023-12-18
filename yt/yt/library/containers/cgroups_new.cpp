@@ -242,7 +242,7 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
             continue;
         }
 
-        auto cgroupType = tokens[1];
+        const auto& cgroupType = tokens[1];
         auto cgroup = JoinStrings(tokens.begin() + 2, tokens.end(), ":");
 
         if (cgroupType == "memory") {
