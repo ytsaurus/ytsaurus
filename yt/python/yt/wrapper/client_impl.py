@@ -2430,7 +2430,7 @@ class YtClient(ClientState):
     def start_query(
             self,
             engine, query,
-            settings=None, files=None, stage=None, annotations=None):
+            settings=None, files=None, stage=None, annotations=None, access_control_object=None):
         """
         Start query.
 
@@ -2446,11 +2446,14 @@ class YtClient(ClientState):
         :type stage: str
         :param annotations: a dictionary of annotations
         :type stage: dict or None
+        :param access_control_object: access control object name
+        :type access_control_object: str or None
+
         """
         return client_api.start_query(
             engine, query,
             client=self,
-            settings=settings, files=files, stage=stage, annotations=annotations)
+            settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object)
 
     def start_spark_cluster(
             self,
