@@ -320,8 +320,8 @@ public:
     int MaxRunningOperationCount;
     int MaxOperationCount;
 
-    //! Delay before starting considering total resource limits after scheduler connection.
-    TDuration TotalResourceLimitsConsiderDelay;
+    //! Duration after scheduler restart, during which total resource limits might not be stable yet, because nodes are still reconnecting.
+    TDuration NodeReconnectionTimeout;
 
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
@@ -339,7 +339,7 @@ public:
     std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
 
     //! Period of best allocation ratio update for operations.
-    TDuration BestAllocationRatioUpdatePeriod;
+    TDuration BestAllocationShareUpdatePeriod;
 
     bool EnableByUserProfiling;
 

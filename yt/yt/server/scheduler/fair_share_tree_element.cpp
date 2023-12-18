@@ -507,6 +507,14 @@ TJobResources TSchedulerElement::ComputeResourceLimits() const
     return limits;
 }
 
+bool TSchedulerElement::AreTotalResourceLimitsStable() const
+{
+    auto connectionTime = InstantToCpuInstant(StrategyHost_->GetConnectionTime());
+    auto timeout = DurationToCpuDuration(TreeConfig_->NodeReconnectionTimeout);
+    auto now = GetCpuInstant();
+    return now >= connectionTime + timeout;
+}
+
 TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits() const
 {
     // Shortcut: if the scheduling tag filter is empty then we just use the resource limits for
@@ -515,14 +523,12 @@ TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits() cons
         return TotalResourceLimits_;
     }
 
-    auto connectionTime = InstantToCpuInstant(StrategyHost_->GetConnectionTime());
-    auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
-    if (GetCpuInstant() < connectionTime + delay) {
-        // Return infinity during the cluster startup.
+    if (!AreTotalResourceLimitsStable()) {
+        // Return infinity during some time after scheduler reconnection.
         return TJobResources::Infinite();
-    } else {
-        return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter());
     }
+
+    return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter());
 }
 
 TJobResources TSchedulerElement::GetSchedulingTagFilterResourceLimits() const
@@ -1790,13 +1796,15 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 
     // NB: It was moved from regular fair share update for performing split.
     // It can be performed in fair share thread as second step of preupdate.
-    if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
+    if (context->Now >= PersistentAttributes_.LastBestAllocationShareUpdateTime + TreeConfig_->BestAllocationShareUpdatePeriod &&
+        AreTotalResourceLimitsStable())
+    {
         auto allocationLimits = GetAdjustedResourceLimits(
             ResourceDemand_,
             TotalResourceLimits_,
             GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
         PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_);
-        PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
+        PersistentAttributes_.LastBestAllocationShareUpdateTime = context->Now;
 
         YT_LOG_DEBUG("Updated operation best allocation share (AdjustedResourceLimits: %v, TotalResourceLimits: %v, BestAllocationShare: %.6g)",
             FormatResources(allocationLimits),

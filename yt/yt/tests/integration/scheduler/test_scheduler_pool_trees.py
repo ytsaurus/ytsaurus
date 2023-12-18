@@ -12,7 +12,7 @@ from yt_commands import (
     map, map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
     sync_create_cells, update_controller_agent_config, update_op_parameters,
     create_test_tables,
-    extract_statistic_v2, update_pool_tree_config_option, raises_yt_error)
+    extract_statistic_v2, update_pool_tree_config, update_pool_tree_config_option, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
@@ -1254,13 +1254,18 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         for node, tag in zip(nodes, ["default_tag", "nirvana_tag", "cloud_tag", "empty_tag"]):
             set("//sys/cluster_nodes/{}/@user_tags".format(node), [tag])
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "default_tag")
-        set("//sys/pool_trees/default/@config/total_resource_limits_consider_delay", 1000)
+        update_pool_tree_config(
+            "default",
+            {
+                "nodes_filter": "default_tag",
+                "node_reconnection_timeout": 1000,
+            },
+        )
         for tree in ["default", "nirvana", "cloud", "empty"]:
             if tree != "default":
                 create_pool_tree(tree, config={
                     "nodes_filter": tree + "_tag",
-                    "total_resource_limits_consider_delay": 1000
+                    "node_reconnection_timeout": 1000
                 })
             if tree != "empty":
                 create_pool("research", pool_tree=tree, wait_for_orchid=False)

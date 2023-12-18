@@ -86,7 +86,7 @@ struct TPersistentAttributes
     THistoricUsageAggregator HistoricUsageAggregator;
 
     TResourceVector BestAllocationShare = TResourceVector::Ones();
-    TInstant LastBestAllocationRatioUpdateTime;
+    TInstant LastBestAllocationShareUpdateTime;
 
     TIntegralResourcesState IntegralResourcesState;
 
@@ -338,6 +338,8 @@ protected:
 
     //! Pre update methods.
     virtual void DisableNonAliveElements() = 0;
+
+    bool AreTotalResourceLimitsStable() const;
 
     TJobResources ComputeSchedulingTagFilterResourceLimits() const;
     TJobResources ComputeResourceLimits() const;

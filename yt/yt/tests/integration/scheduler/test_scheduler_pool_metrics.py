@@ -655,12 +655,12 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_operation_count_by_preemption_priority(self):
         # For operations with strange tag filters to have non-zero fair share and starve.
-        update_scheduler_config("total_resource_limits_consider_delay", 1000000000, wait_for_orchid=False)
         update_scheduler_config("operation_hangup_check_period", 1000000000)
         update_controller_agent_config("safe_scheduler_online_time", 1000000000)
         update_pool_tree_config(
             "default",
             {
+                "node_reconnection_timeout": 1000000000,
                 "preemption_satisfaction_threshold": 0.99,
                 "fair_share_starvation_timeout": 1000,
                 "fair_share_aggressive_starvation_timeout": 1000,
