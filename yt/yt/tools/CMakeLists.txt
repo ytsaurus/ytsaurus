@@ -6,12 +6,23 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(changelog_surgeon)
 add_subdirectory(cuda_core_dump_injection)
+add_subdirectory(cypress_nbd_server)
+add_subdirectory(data_node_rpc_request)
 add_subdirectory(dump_changelog)
 add_subdirectory(dump_chunk_meta)
+add_subdirectory(force_commit_tx)
+add_subdirectory(journal_reader)
+add_subdirectory(offline_controller)
+add_subdirectory(offline_read)
+add_subdirectory(offline_read_fmt_write)
+add_subdirectory(print_column_statistics)
+add_subdirectory(read_arrow)
 add_subdirectory(recode_table_chunk)
 add_subdirectory(run_codec)
 add_subdirectory(scheduler_simulator)
 add_subdirectory(unpack_local_changelog)
 add_subdirectory(unpack_local_snapshot)
+add_subdirectory(upload_chunk)
 add_subdirectory(yt_sudo_fixup)

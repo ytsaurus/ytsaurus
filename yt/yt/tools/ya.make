@@ -1,14 +1,26 @@
 RECURSE(
+    changelog_surgeon
     cuda_core_dump_injection
+    cypress_nbd_server
+    data_node_rpc_request
     dump_changelog
     dump_chunk_meta
     dynamic_tables
+    force_commit_tx
+    hunk_chunk_advisor
+    journal_reader
+    offline_controller
+    offline_read
+    offline_read_fmt_write
     prepare_scheduling_usage
-    record_codegen
+    print_column_statistics
+    read_arrow
     recode_table_chunk
+    record_codegen
     run_codec
     scheduler_simulator
     unpack_local_changelog
     unpack_local_snapshot
+    upload_chunk
     yt_sudo_fixup
 )
