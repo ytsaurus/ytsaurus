@@ -1653,21 +1653,16 @@ void TNodeShard::LogOngoingJobsOnHeartbeat(
 {
     for (auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& jobs = ongoingJobsByAllocationState[allocationState];
-        if (jobs.empty()) {
+        if (jobs.empty() || !strategyProxy->HasMatchingTree()) {
             continue;
         }
 
         TStringBuilder attributesBuilder;
         TDelimitedStringBuilderWrapper delimitedAttributesBuilder(&attributesBuilder);
-
         strategyProxy->BuildSchedulingAttributesStringForOngoingJobs(
             jobs,
             now,
             delimitedAttributesBuilder);
-
-        if (strategyProxy->HasMatchingTree()) {
-            continue;
-        }
 
         YT_LOG_DEBUG("Jobs are %lv (%v)",
             allocationState,
