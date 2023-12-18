@@ -490,8 +490,6 @@ public:
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
     std::optional<TString> DriverVersion;
 
-    THashMap<TString, TString> CudaToolkitMinDriverVersion;
-
     // TODO(arkady-e1ppa): Move this to dynamic config once
     // we can update splay in periodic executor
     TDuration DriverLayerFetchSplay;
@@ -521,7 +519,7 @@ public:
 
     TDuration DriverLayerFetchPeriod;
 
-    std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
+    THashMap<TString, TString> CudaToolkitMinDriverVersion;
 
     NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
 

@@ -263,8 +263,7 @@ TDuration TGpuManager::GetHealthCheckFailureBackoff() const
 
 THashMap<TString, TString> TGpuManager::GetCudaToolkitMinDriverVersion() const
 {
-    return DynamicConfig_.Acquire()
-        ->CudaToolkitMinDriverVersion.value_or(StaticConfig_->CudaToolkitMinDriverVersion);
+    return DynamicConfig_.Acquire()->CudaToolkitMinDriverVersion;
 }
 
 void TGpuManager::OnHealthCheck()

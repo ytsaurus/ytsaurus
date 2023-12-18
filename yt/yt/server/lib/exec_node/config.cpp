@@ -534,10 +534,6 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("driver_version", &TThis::DriverVersion)
         .Default();
 
-    registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
-        .Alias("toolkit_min_driver_version")
-        .Default();
-
     registrar.Parameter("driver_layer_fetch_splay", &TThis::DriverLayerFetchSplay)
         .Default(TDuration::Minutes(5));
 
@@ -566,7 +562,6 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
 
     registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
-        .Alias("toolkit_min_driver_version")
         .Default();
 
     registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
