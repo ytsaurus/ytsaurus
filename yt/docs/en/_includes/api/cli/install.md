@@ -41,6 +41,12 @@ pip install ytsaurus-yson
 
 The Deb and PyPI packages also come with a bash autocompletion script.
 
+In the case of a pip package, you can enable autocompletion using the `register-python-argcomplete` utility, which comes with the argcomplete package.
+
+```bash
+register-python-argcomplete yt | sudo tee /etc/bash_completion.d/yt >/dev/null
+```
+
 You can check whether it is operating correctly by entering this in the console:
 
 ```bash
