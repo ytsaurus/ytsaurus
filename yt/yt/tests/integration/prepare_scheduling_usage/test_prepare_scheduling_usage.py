@@ -108,7 +108,8 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         assert cumulative_used_cpu <= accumulated_resource_usage_cpu
 
     def _create_pools(self):
-        create_pool("parent_pool", pool_tree="default", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
+        parent_attributes = {"strong_guarantee_resources": {"cpu": 1.0}, "abc": {"id": 1, "slug": "abc_slug"}}
+        create_pool("parent_pool", pool_tree="default", attributes=parent_attributes)
         create_pool("test_pool", pool_tree="default", parent_name="parent_pool")
 
     def _prepare_test_environment(self):
@@ -209,8 +210,10 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             assert pool_info
             if row["pool_path"] == "/parent_pool":
                 assert pool_info["strong_guarantee_resources"]["cpu"] == 1.0
+                assert pool_info["abc"]["id"] == 1
             if row["pool_path"] == "/parent_pool/test_pool":
                 assert pool_info["parent"] == "parent_pool"
+                assert pool_info["abc"]["id"] == 1
 
         assert tags1 == tags2
         assert len(tags1) == 2
@@ -334,8 +337,10 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                     assert pool_info
                     if row["pool_path"] == "/parent_pool":
                         assert pool_info["strong_guarantee_resources"]["cpu"] == 1.0
+                        assert pool_info["abc"]["id"] == 1
                     if row["pool_path"] == "/parent_pool/test_pool":
                         assert pool_info["parent"] == "parent_pool"
+                        assert pool_info["abc"]["id"] == 1
             else:
                 assert get(link_target_path + "/@row_count") == 2
                 for row in read_table(link_target_path):

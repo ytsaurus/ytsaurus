@@ -173,7 +173,7 @@ class PoolsRow:
 
 class AggregateTags(TypedJob):
     def prepare_operation(self, context, preparer):
-        for index in range(NUM_TABLES_TO_GET_TAGS):
+        for index in range(context.get_input_count()):
             preparer.input(index, type=OperationInfo)
         preparer.output(0, type=TempTagsRow, infer_strict_schema=False)
 
@@ -200,11 +200,11 @@ class AggregateTags(TypedJob):
 
 
 def collect_tags_on_yt(input_directory, destination_table, client):
+    input_directory_content = client.list(input_directory, attributes=["type"], absolute=True)
+    input_directory_tables = [str(node) for node in input_directory_content if node.attributes["type"] == "table"]
+    input_table_paths = sorted(input_directory_tables)[-NUM_TABLES_TO_GET_TAGS:]
     spec = yt.ReduceSpecBuilder()\
-        .input_table_paths(
-            [str(node) for node in client.list(input_directory, attributes=["type"], absolute=True)
-             if node.attributes["type"] == "table"][-NUM_TABLES_TO_GET_TAGS:]
-        ) \
+        .input_table_paths(input_table_paths) \
         .output_table_paths([destination_table]) \
         .begin_reducer() \
             .command(AggregateTags()) \
@@ -277,6 +277,11 @@ def build_pool_mapping(pools_info):
                 build_pool_mapping_recursive(pools_info, parent_pool, mapping_output)
             mapping_output[pool] = copy.deepcopy(pools_info[pool])
             mapping_output[pool]["ancestor_pools"] = mapping_output[parent_pool]["ancestor_pools"] + [pool]
+            if (
+                "id" not in (mapping_output[pool].get("abc") or {}) and
+                mapping_output[parent_pool].get("abc") is not None
+            ):
+                mapping_output[pool]["abc"] = mapping_output[parent_pool]["abc"]
 
     mapping_output = {}
     for pool in pools_info:
@@ -510,13 +515,15 @@ def extract_pool_mapping(client, input_table):
 
     cluster_and_tree_to_pool_mapping = {}
     for row in client.read_table_structured(temp_table, PoolsMapping):
-        pool_mapping = {key: yson.loads(value) for key, value in row.pool_mapping.items()}
-        if (row.cluster, row.pool_tree) not in cluster_and_tree_to_pool_mapping:
-            cluster_and_tree_to_pool_mapping[(row.cluster, row.pool_tree)] = pool_mapping
+        key_tuple = (row.cluster, row.pool_tree)
+        if key_tuple not in cluster_and_tree_to_pool_mapping:
+            cluster_and_tree_to_pool_mapping[key_tuple] = {
+                key: yson.loads(value) for key, value in row.pool_mapping.items()
+            }
         else:
             for pool in row.pool_mapping:
-                if pool not in cluster_and_tree_to_pool_mapping[(row.cluster, row.pool_tree)]:
-                    cluster_and_tree_to_pool_mapping[(row.cluster, row.pool_tree)][pool] = pool_mapping[pool]
+                if pool not in cluster_and_tree_to_pool_mapping[key_tuple]:
+                    cluster_and_tree_to_pool_mapping[key_tuple][pool] = yson.loads(row.pool_mapping[pool])
     return cluster_and_tree_to_pool_mapping
 
 
