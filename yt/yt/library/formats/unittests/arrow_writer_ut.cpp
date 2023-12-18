@@ -132,24 +132,6 @@ ISchemalessFormatWriterPtr CreateArrowWriter(TNameTablePtr nameTable,
         0);
 }
 
-ISchemalessFormatWriterPtr CreateArrowWriterWithSystemColumns(TNameTablePtr nameTable,
-    IOutputStream* outputStream,
-    const std::vector<NTableClient::TTableSchemaPtr>& schemas)
-{
-    auto controlAttributes = NYT::New<TControlAttributesConfig>();
-    controlAttributes->EnableTableIndex = true;
-    controlAttributes->EnableRowIndex = true;
-    controlAttributes->EnableRangeIndex = true;
-    controlAttributes->EnableTabletIndex = true;
-    return CreateWriterForArrow(
-        nameTable,
-        schemas,
-        NConcurrency::CreateAsyncAdapter(static_cast<IOutputStream*>(outputStream)),
-        false,
-        controlAttributes,
-        0);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<arrow::RecordBatch> MakeBatch(const TStringStream& outputStream)
@@ -628,34 +610,6 @@ TEST(Simple, Float)
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
     EXPECT_EQ(ReadFloatArray(batch->column(0)), column);
-}
-
-TEST(Simple, WorkWithSystemColumns)
-{
-    std::vector<TTableSchemaPtr> tableSchemas;
-    std::vector<std::string> columnNames = {"integer"};
-
-    tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::Int64),
-    }));
-
-    TStringStream outputStream;
-
-    ColumnInteger column = {42, 179179};
-
-    auto rows = MakeUnversionedIntegerRows({column}, columnNames);
-
-    auto writer = CreateArrowWriterWithSystemColumns(rows.NameTable, &outputStream, tableSchemas);
-
-    EXPECT_TRUE(writer->Write(rows.Rows));
-
-    writer->Close()
-        .Get()
-        .ThrowOnError();
-
-    auto batch = MakeBatch(outputStream);
-    CheckColumnNames(batch, {"integer", "$row_index", "$range_index", "$table_index", "$tablet_index"});
-    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
 TEST(Simple, ColumnarBatch)

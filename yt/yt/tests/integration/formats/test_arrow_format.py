@@ -324,6 +324,81 @@ class TestArrowFormat(YTEnvSetup):
         assert read_table("//tmp/t_out") == []
 
 
+@authors("nadya02")
+class TestMapArrowFormat(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("nadya02")
+    def test_map_with_arrow(self):
+        schema = [
+            {"name": "int", "type_v3": "int64"},
+            {"name": "opt_string", "type_v3": optional_type("string")},
+            {"name": "uint", "type_v3": "uint64"},
+            {"name": "double", "type_v3": "double"},
+            {"name": "utf8", "type_v3": "utf8"},
+            {"name": "bool", "type_v3": "bool"},
+        ]
+
+        output_schema = [
+            {"name": "int", "type_v3": "int64"},
+            {"name": "uint", "type_v3": "uint64"},
+            {"name": "double", "type_v3": "double"},
+        ]
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": schema,
+            },
+            force=True,
+        )
+
+        write_table(
+            "//tmp/t_in",
+            [
+                {
+                    "int": 53,
+                    "opt_string": "foobar",
+                    "uint": 120,
+                    "double": 3.14,
+                    "utf8": HELLO_WORLD.decode("utf-8"),
+                    "bool": True,
+                },
+                {
+                    "int": -82,
+                    "opt_string": None,
+                    "uint": 42,
+                    "double": 1.5,
+                    "utf8": GOODBYE_WORLD.decode("utf-8"),
+                    "bool": False,
+                },
+            ],
+        )
+
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": output_schema,
+            },
+            force=True,
+        )
+
+        format = yson.YsonString(b"arrow")
+
+        map(
+            in_="//tmp/t_in{int,uint,double}",
+            out="//tmp/t_out",
+            command="cat",
+            spec={"mapper": {"format": format}},
+        )
+
+        assert read_table("//tmp/t_in{int,uint,double}") == read_table("//tmp/t_out")
+
+
 @authors("nadya73")
 class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
     NUM_MASTERS = 1
