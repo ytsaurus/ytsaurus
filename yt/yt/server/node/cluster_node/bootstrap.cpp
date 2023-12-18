@@ -1391,8 +1391,13 @@ private:
         // NB: Don't expect IsXXXExceeded helpers to be atomic.
         auto totalUsed = MemoryUsageTracker_->GetTotalUsed();
         auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
+
         if (totalUsed > totalLimit) {
             alerts->push_back(TError("Total memory limit exceeded")
+                << TErrorAttribute("used", totalUsed)
+                << TErrorAttribute("limit", totalLimit));
+        } else if (1.1 * totalUsed > totalLimit) {
+            alerts->push_back(TError("Memory usage is close to the limit")
                 << TErrorAttribute("used", totalUsed)
                 << TErrorAttribute("limit", totalLimit));
         }
@@ -1400,7 +1405,7 @@ private:
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
             auto used = MemoryUsageTracker_->GetUsed(category);
             auto limit = MemoryUsageTracker_->GetLimit(category);
-            if (used > limit) {
+            if (used > limit * 1.1) {
                 alerts->push_back(TError("Memory limit exceeded for category %Qlv",
                     category)
                     << TErrorAttribute("used", used)

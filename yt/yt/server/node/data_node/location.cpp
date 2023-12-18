@@ -501,12 +501,13 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
 void TChunkLocation::InitializeIds()
 {
     try {
-        HealthChecker_->Start();
         InitializeCellId();
         InitializeUuid();
     } catch (const std::exception& ex) {
         Crash(TError("Location initialize failed") << ex);
     }
+
+    HealthChecker_->Start();
 }
 
 void TChunkLocation::Start()

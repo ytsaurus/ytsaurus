@@ -189,7 +189,8 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
     YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
-    auto error = TError("Chunk location at %v is disabled", GetPath());
+    auto error = TError("Chunk location at %v is disabled", GetPath())
+        << TErrorAttribute("location_uuid", GetUuid());
     error = error << reason;
     LocationDisabledAlert_.Store(error);
 
