@@ -26,7 +26,7 @@ const std::vector<TString>& TDiskInfoProvider::GetConfigDiskIds() const
 TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
 {
     auto diskInfosFuture = DiskManagerProxy_->GetDisks();
-    auto ytDiskPathsFuture = DiskManagerProxy_->GetYtDiskMountPaths();
+    auto ytDiskPathsFuture = DiskManagerProxy_->GetYtDiskDevicePaths();
 
     // Merge two futures and filter disks placed in /yt.
     return diskInfosFuture.Apply(BIND([=] (const std::vector<TDiskInfo>& diskInfos) {
@@ -34,8 +34,8 @@ TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
             std::vector<TDiskInfo> disks;
 
             for (const auto& diskInfo : diskInfos) {
-                for (const auto& partitionFsLabel : diskInfo.PartitionFsLabels) {
-                    if (diskPaths.contains(partitionFsLabel)) {
+                for (const auto& path : diskPaths) {
+                    if (path.StartsWith(diskInfo.DevicePath)) {
                         disks.push_back(diskInfo);
                         break;
                     }
