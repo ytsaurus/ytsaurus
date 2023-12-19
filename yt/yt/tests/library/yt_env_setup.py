@@ -3,6 +3,11 @@ from __future__ import print_function
 import yt_commands
 import yt_scheduler_helpers
 
+try:
+    from yt_tests_settings import has_tvm_service_support
+except ImportError:
+    from yt_tests_opensource_settings import has_tvm_service_support
+
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
@@ -411,8 +416,7 @@ class YTEnvSetup(object):
         if hasattr(cls, "USE_NATIVE_AUTH"):
             use_native_auth = getattr(cls, "USE_NATIVE_AUTH")
         else:
-            # Use native auth by default in arcadia.
-            use_native_auth = arcadia_interop.yatest_common is not None
+            use_native_auth = has_tvm_service_support
 
         secondary_cell_count = 0 if cls._is_ground_cluster(index) else cls.get_param("NUM_SECONDARY_MASTER_CELLS", index)
         cypress_proxy_count = 0 if cls._is_ground_cluster(index) or not cls.get_param("USE_SEQUOIA", index) else cls.get_param("NUM_CYPRESS_PROXIES", index)
