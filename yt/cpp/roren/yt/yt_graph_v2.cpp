@@ -1032,7 +1032,8 @@ public:
         TRowVtable outputVtable,
         IRawYtSortedWrite* rawYtSortedWrite)
     {
-        auto operation = TMapOperationNode::MakeShared(originalFirstName, THashSet<TString>{originalFirstName});
+        auto mapFirstName = originalFirstName + "_Write";
+        auto operation = TMapOperationNode::MakeShared(mapFirstName, THashSet<TString>{mapFirstName});
         Operations.push_back(operation);
         LinkWithInputs(std::move(inputs), operation.get());
 
@@ -1044,8 +1045,8 @@ public:
         intermediateTable->OutputOf = {.Operation = operation.get(), .Connector = {}};
         operation->OutputTables[TMapperOutputConnector{}] = intermediateTable.get();
 
-        auto firstName = originalFirstName + "_Sort";
-        auto sortOperation = TSortOperationNode::MakeShared(firstName, THashSet<TString>{firstName});
+        auto sortFirstName = originalFirstName;
+        auto sortOperation = TSortOperationNode::MakeShared(sortFirstName, THashSet<TString>{sortFirstName});
         sortOperation->Write_ = rawYtSortedWrite;
 
         Operations.push_back(sortOperation);
@@ -2498,6 +2499,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
             auto rawYtSortedWrite = std::dynamic_pointer_cast<TSortOperationNode>(operation)->GetWrite();
             spec.SortBy(rawYtSortedWrite->GetColumnsToSort());
+            spec.Title(operation->GetFirstName());
 
             return client->Sort(spec, operationOptions);
         }
