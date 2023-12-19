@@ -1596,17 +1596,10 @@ class TestCypressAcls(CheckPermissionBase):
             create("table", "//tmp/t", attributes={"primary_medium": "prohibited"}, authenticated_user="u")
 
     def __test_set_attributes_request(self, path, key, value, user, force=False):
-        set(path + "/@" + key,
-            value,
-            authenticated_user=user,
-            force=force)
+        set(path + "/@" + key, value, authenticated_user=user, force=force)
 
     def __test_multiset_attributes_request(self, path, key, value, user, force=False):
-        multiset_attributes(
-            path + "/@",
-            {key: value},
-            authenticated_user=user,
-            force=force)
+        multiset_attributes(path + "/@", {key: value}, authenticated_user=user, force=force)
 
     @authors("vovamelnikov")
     @pytest.mark.parametrize("request_type", ["set", "multiset"])
@@ -1622,7 +1615,7 @@ class TestCypressAcls(CheckPermissionBase):
                 "acl": [
                     make_ace("allow", "u", ["administer", "read", "write"]),
                 ],
-            }
+            },
         )
         create(
             "map_node",
@@ -1640,19 +1633,9 @@ class TestCypressAcls(CheckPermissionBase):
         }[key]
 
         with pytest.raises(YtError, match="It will be impossible for this user to revert this modification"):
-            request_func(
-                path=path,
-                key=key,
-                value=value,
-                user='u',
-                force=False)
+            request_func(path=path, key=key, value=value, user='u', force=False)
 
-        request_func(
-            path=path,
-            key=key,
-            value=value,
-            user='u',
-            force=True)
+        request_func(path=path, key=key, value=value, user='u', force=True)
 
     @authors("vovamelnikov")
     @pytest.mark.parametrize("request_type", ["set", "multiset"])
@@ -1669,8 +1652,8 @@ class TestCypressAcls(CheckPermissionBase):
                     make_ace("allow", "everyone", ["administer", "write"]),
                     make_ace("deny", "owner", ["administer", "write"]),
                 ],
-                "owner": "u1"
-            }
+                "owner": "u1",
+            },
         )
 
         request_func = {
@@ -1679,19 +1662,94 @@ class TestCypressAcls(CheckPermissionBase):
         }[request_type]
 
         with pytest.raises(YtError, match="It will be impossible for this user to revert this modification"):
-            request_func(
-                path="//tmp/dir",
-                key="owner",
-                value="u2",
-                user="u2",
-                force=False)
+            request_func(path="//tmp/dir", key="owner", value="u2", user="u2", force=False)
 
-        request_func(
-            path="//tmp/dir",
-            key="owner",
-            value="u2",
-            user="u2",
-            force=True)
+        request_func(path="//tmp/dir", key="owner", value="u2", user="u2", force=True)
+
+    @authors("vovamelnikov")
+    def test_attribute_based_access_control(self):
+        create_user("u")
+        create_user("v")
+        set("//sys/users/u/@tags", ['foo', 'baz', 'foo'])
+
+        tags = get("//sys/users/u/@tags")
+        assert {i for i in tags} == {"foo", "baz"}
+        assert len(tags) == 2
+
+        create(
+            "map_node",
+            "//tmp/dir",
+            attributes={
+                "acl": [
+                    make_ace("allow", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="foo"),
+                    make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="!baz"),
+                ],
+            },
+        )
+        create(
+            "map_node",
+            "//tmp/dir/d",
+            attributes={
+                "acl": [
+                    make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="baz"),
+                ],
+            },
+            authenticated_user="u",
+        )
+
+        with pytest.raises(YtError, match="Access denied for user"):
+            create(
+                "map_node",
+                "//tmp/dir/d1",
+                attributes={
+                    "acl": [
+                        make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="baz"),
+                    ],
+                },
+                authenticated_user="v",
+            )
+        with pytest.raises(YtError, match="Access denied for user"):
+            create(
+                "map_node",
+                "//tmp/dir/d/d1",
+                attributes={
+                    "acl": [
+                        make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="baz"),
+                    ],
+                },
+                authenticated_user="u",
+            )
+
+    @authors("vovamelnikov")
+    def test_user_tags_limits(self):
+        create_user("u")
+
+        set("//sys/@config/security_manager/max_user_tag_size", 500)
+        set("//sys/@config/security_manager/max_user_tag_count", 4)
+
+        with pytest.raises(YtError, match="user tag size limit exceeded"):
+            set("//sys/users/u/@tags", ["tag_big" * 100])
+
+        with pytest.raises(YtError, match="user tags count limit exceeded"):
+            set("//sys/users/u/@tags", [f"tag_{i}" for i in range(10)])
+
+    @authors("vovamelnikov")
+    def test_subject_tag_filters_limits(self):
+        set("//sys/@config/security_manager/max_subject_tag_filter_size", 40)
+
+        create(
+            "map_node",
+            "//tmp/dir",
+            attributes={
+                "acl": [
+                    make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="baz"),
+                ],
+            },
+        )
+
+        with pytest.raises(YtError, match="tag filter size limit exceeded"):
+            set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
+
 
 ##################################################################
 

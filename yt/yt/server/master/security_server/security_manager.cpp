@@ -2056,7 +2056,7 @@ public:
                         result.Entries.push_back(entry);
                     }
                 }
-                if (!acd->GetInherit()) {
+                if (!acd->Inherit()) {
                     break;
                 }
             }
@@ -2124,36 +2124,67 @@ public:
             return checker.GetResponse();
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* owner = GetObjectOwner(object, options.FirstObjectAcdOverride.Owner());
 
-        TAceIterator aceIter(objectManager, object, std::move(options.LocalModification));
-        auto end = TAceIterator::End();
+        TTagFilteringAceIterator aceIter(
+            Bootstrap_->GetObjectManager().Get(),
+            object,
+            &user->Tags(),
+            std::move(options.FirstObjectAcdOverride));
+        auto aceEndIter = TTagFilteringAceIterator();
+
+        auto* currentObject = object;
+        int currentDepth = 0;
 
         // Slow lane: check ACLs through the object hierarchy.
-        for (; aceIter != end; ++aceIter) {
-            checker.ProcessAce(*aceIter, aceIter.GetOwner(), aceIter.GetObject(), aceIter.GetDepth());
+        for (; aceIter != aceEndIter; ++aceIter) {
+            auto value = *aceIter;
+            currentObject = value.Object;
+            currentDepth = value.ObjectsTraversed;
+            auto* currentAce = value.Ace;
+
+            checker.ProcessAce(*currentAce, owner, currentObject, currentDepth);
             if (!checker.ShouldProceed()) {
                 break;
             }
         }
 
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
         // XXX(shakurov): YT-3005, YT-10896: remove this workaround.
-        if (aceIter.GetStopCause() == EAceIteratorStopCause::HasNoParent &&
-            IsVersionedType(aceIter.GetObject()->GetType()) &&
-            !cypressManager->IsShardRoot(aceIter.GetObject()))
+        if (aceIter.GetStopCause() == EAceIteratorStopCause::NoParent &&
+            IsVersionedType(currentObject->GetType()) &&
+            !cypressManager->IsShardRoot(currentObject))
         {
             checker.ProcessAce(
                 TAccessControlEntry(
                     ESecurityAction::Allow,
                     GetEveryoneGroup(),
                     EPermissionSet(EPermission::Read)),
-                aceIter.GetOwner(),
-                aceIter.GetObject(),
-                aceIter.GetDepth());
+                owner,
+                currentObject,
+                currentDepth);
         }
 
         return checker.GetResponse();
+    }
+
+    TSubject* GetObjectOwner(
+        TObject* object,
+        const std::optional<TSubject*>& ownerOverride)
+    {
+        if (!object) {
+            return nullptr;
+        }
+
+        if (ownerOverride) {
+            return *ownerOverride;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& handler = objectManager->GetHandler(object);
+        auto* acd = handler->FindAcd(object);
+        return acd ? acd->GetOwner() : nullptr;
     }
 
     TPermissionCheckResponse CheckPermission(
@@ -2643,6 +2674,23 @@ public:
                 user->GetName(),
                 [&] { return New<TProfilerTag>("user", user->GetName()); })
             .first;
+    }
+
+    void ValidateAclSubjectTagFilters(TAccessControlList& acl) override
+    {
+        const auto& dynamicConfig = GetDynamicConfig();
+        const auto maxSubjectTagFilterSize = dynamicConfig->MaxSubjectTagFilterSize;
+
+        for (const auto& ace : acl.Entries) {
+            if (!ace.SubjectTagFilter) {
+                continue;
+            }
+            if (std::ssize(ace.SubjectTagFilter->GetFormula()) > maxSubjectTagFilterSize) {
+                THROW_ERROR_EXCEPTION("Cannot set tag filter as tag filter size limit exceeded")
+                    << TErrorAttribute("max_subject_tag_filter_size", maxSubjectTagFilterSize)
+                    << TErrorAttribute("ace", ConvertToYsonString(ace));
+            }
+        }
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(TUser*, const TUserWorkload&), UserCharged);
@@ -4318,7 +4366,7 @@ private:
         auto accountResourceUsageLeases = transaction->AccountResourceUsageLeases();
         for (auto* accountResourceUsageLease : accountResourceUsageLeases) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            // NB: Unref of account usage lease removes it from transacation that lease belongs to.
+            // NB: Unref of account usage lease removes it from transaction that lease belongs to.
             YT_VERIFY(objectManager->UnrefObject(accountResourceUsageLease) == 0);
         }
 

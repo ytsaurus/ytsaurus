@@ -54,13 +54,6 @@ void LogAcdUpdate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Deserializes ACL from string. Alerts if some mentioned subjects are missing.
-TAccessControlList DeserializeAcl(
-    const NYson::TYsonString& serializedAcl,
-    const ISecurityManagerPtr& securityManager);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Validates modification for those attributes which can be set only by superusers.
 void ValidateSuperuserOnAttributeModification(
     const ISecurityManagerPtr& securityManager,

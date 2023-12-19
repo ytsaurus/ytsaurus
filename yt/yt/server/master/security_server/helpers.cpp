@@ -21,10 +21,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SecurityServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateDiskSpace(i64 diskSpace)
 {
     if (diskSpace < 0) {
@@ -121,28 +117,6 @@ void LogAcdUpdate(const TString& attribute, const TYPath& path, const TYsonStrin
         .Item("attribute").Value(attribute)
         .Item("path").Value(path)
         .Item("value").Value(value);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAccessControlList DeserializeAcl(
-    const TYsonString& serializedAcl,
-    const ISecurityManagerPtr& securityManager)
-{
-    TAccessControlList acl;
-    std::vector<TString> missingSubjects;
-    Deserialize(
-        acl,
-        ConvertToNode(serializedAcl),
-        securityManager,
-        &missingSubjects);
-
-    if (!missingSubjects.empty()) {
-        YT_LOG_ALERT("Some subjects mentioned in ACL are missing (MissingSubjects: %v)",
-            missingSubjects);
-    }
-
-    return acl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

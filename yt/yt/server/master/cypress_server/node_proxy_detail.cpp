@@ -108,7 +108,7 @@ bool IsAccessLoggedMethod(const TString& method) {
 bool HasTrivialAcd(const TCypressNode* node)
 {
     const auto& acd = node->Acd();
-    return acd.GetInherit() && acd.Acl().Entries.empty();
+    return acd.Inherit() && acd.Acl().Entries.empty();
 }
 
 bool CheckItemReadPermissions(

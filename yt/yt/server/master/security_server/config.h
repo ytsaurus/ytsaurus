@@ -51,6 +51,15 @@ public:
 
     int MaxAccountSubtreeSize;
 
+    //! A bound for number of tags per user.
+    int MaxUserTagCount;
+
+    //! A bound for user tag size.
+    int MaxUserTagSize;
+
+    //! A bound for user tag filter size.
+    int MaxSubjectTagFilterSize;
+
     bool ForbidIrreversibleAclChanges;
 
     //! Period between user statistics commits.

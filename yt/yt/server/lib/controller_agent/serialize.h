@@ -34,6 +34,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AddAccessMethodAttribute)             (301302))
     ((VirtualTableSchema)                   (301303))
     ((UnwrapTimestamp)                      (301304))
+    ((AttributeBasedAccessControl)          (301305))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

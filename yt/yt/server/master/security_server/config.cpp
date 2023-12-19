@@ -47,6 +47,16 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_account_subtree_size", &TThis::MaxAccountSubtreeSize)
         .Default(1000);
 
+    registrar.Parameter("max_user_tag_count", &TThis::MaxUserTagCount)
+        .Default(128)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("max_user_tag_size", &TThis::MaxUserTagSize)
+        .Default(128)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("max_subject_tag_filter_size", &TThis::MaxSubjectTagFilterSize)
+        .Default(1024)
+        .GreaterThanOrEqual(0);
+
     registrar.Parameter("forbid_irreversible_changes", &TThis::ForbidIrreversibleAclChanges)
         .Default(false);
 

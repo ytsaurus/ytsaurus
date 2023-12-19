@@ -262,7 +262,7 @@ private:
 
         const auto& directAcd = trunkNode->Acd();
         request.set_direct_acl(ConvertToYsonString(directAcd.Acl()).ToString());
-        request.set_inherit_acl(directAcd.GetInherit());
+        request.set_inherit_acl(directAcd.Inherit());
 
         if (auto effectiveAnnotation = GetEffectiveAnnotation(rootstockNode)) {
             auto* annotationNode = FindClosestAncestorWithAnnotation(rootstockNode);
@@ -321,12 +321,12 @@ private:
         const auto& path = request->path();
         const auto& key = request->key();
 
-        auto effectiveAcl = DeserializeAcl(
-            TYsonString(request->effective_acl()),
+        auto effectiveAcl = DeserializeAclOrAlert(
+            ConvertToNode(TYsonString(request->effective_acl())),
             securityManager);
         auto directAcl = request->has_direct_acl()
-            ? std::optional(DeserializeAcl(
-                TYsonString(request->direct_acl()),
+            ? std::optional(DeserializeAclOrAlert(
+                ConvertToNode(TYsonString(request->direct_acl())),
                 securityManager))
             : std::nullopt;
         auto inheritAcl = request->inherit_acl();

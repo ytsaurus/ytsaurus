@@ -50,7 +50,7 @@ struct TPermissionCheckOptions
     //! of the consumer to be registered.
     std::optional<bool> Vital;
 
-    TAcdOverride LocalModification;
+    TAcdOverride FirstObjectAcdOverride;
 };
 
 //! Describes the result of a permission check for a single entity.
@@ -454,6 +454,8 @@ public:
 
     //! Returns CPU profiler tag for a specific user.
     virtual NYTProf::TProfilerTagPtr GetUserCpuProfilerTag(TUser* user) = 0;
+
+    virtual void ValidateAclSubjectTagFilters(TAccessControlList& acl) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

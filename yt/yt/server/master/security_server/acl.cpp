@@ -1,4 +1,5 @@
 #include "acl.h"
+#include "private.h"
 #include "security_manager.h"
 #include "subject.h"
 
@@ -15,11 +16,16 @@
 
 namespace NYT::NSecurityServer {
 
+using namespace NCellMaster;
+using namespace NLogging;
+using namespace NObjectServer;
+using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NYson;
-using namespace NSecurityClient;
-using namespace NObjectServer;
-using namespace NCellMaster;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = SecurityServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +52,12 @@ void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& contex
     Persist(context, Permissions);
     Persist(context, Action);
     Persist(context, InheritanceMode);
+    // COMPAT(vovamelnikov)
+    if (context.IsLoad() && context.GetVersion() < EMasterReign::AttributeBasedAccessControl) {
+        SubjectTagFilter = std::nullopt;
+    } else {
+        Persist(context, SubjectTagFilter);
+    }
     Persist(context, Columns);
     Persist(context, Vital);
 }
@@ -57,8 +69,42 @@ void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext&
     Persist(context, Permissions);
     Persist(context, Action);
     Persist(context, InheritanceMode);
+    Persist(context, SubjectTagFilter);
     Persist(context, Columns);
     Persist(context, Vital);
+}
+
+bool TAccessControlEntry::operator==(const TAccessControlEntry& rhs) const
+{
+    if (Action != rhs.Action) {
+        return false;
+    }
+
+    if (Permissions != rhs.Permissions) {
+        return false;
+    }
+
+    if (InheritanceMode != rhs.InheritanceMode) {
+        return false;
+    }
+
+    if (SubjectTagFilter != rhs.SubjectTagFilter) {
+        return false;
+    }
+
+    if (Columns != rhs.Columns) {
+        return false;
+    }
+
+    if (Vital != rhs.Vital) {
+        return false;
+    }
+
+    auto lhsSubjects = Subjects;
+    std::sort(lhsSubjects.begin(), lhsSubjects.end(), TObjectIdComparer());
+    auto rhsSubjects = rhs.Subjects;
+    std::sort(rhsSubjects.begin(), rhsSubjects.end(), TObjectIdComparer());
+    return lhsSubjects == rhsSubjects;
 }
 
 void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
@@ -71,6 +117,7 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
             })
             .Item("permissions").Value(FormatPermissions(ace.Permissions))
             .Item("inheritance_mode").Value(ace.InheritanceMode)
+            .OptionalItem("subject_tag_filter", ace.SubjectTagFilter)
             .OptionalItem("columns", ace.Columns)
             .OptionalItem("vital", ace.Vital)
         .EndMap();
@@ -96,13 +143,14 @@ void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
         .Value(acl.Entries);
 }
 
-void Deserialize(
+static void DoDeserializeAclOrThrow(
     TAccessControlList& acl,
     const INodePtr& node,
     const ISecurityManagerPtr& securityManager,
     std::vector<TString>* missingSubjects)
 {
     auto serializableAcl = ConvertTo<TSerializableAccessControlList>(node);
+    std::vector<TString> tmpMissingSubjects;
     for (const auto& serializableAce : serializableAcl.Entries) {
         TAccessControlEntry ace;
 
@@ -112,14 +160,11 @@ void Deserialize(
         // Subject
         for (const auto& name : serializableAce.Subjects) {
             auto* subject = securityManager->FindSubjectByNameOrAlias(name, true /*activeLifeStageOnly*/);
-            if (missingSubjects && !subject) {
-                missingSubjects->push_back(name);
+            if (!IsObjectAlive(subject)) {
+                tmpMissingSubjects.emplace_back(name);
                 continue;
             }
-            if (!IsObjectAlive(subject)) {
-                THROW_ERROR_EXCEPTION("No such subject %Qv",
-                    name);
-            }
+
             ace.Subjects.push_back(subject);
         }
 
@@ -129,6 +174,13 @@ void Deserialize(
         // Inheritance mode
         ace.InheritanceMode = serializableAce.InheritanceMode;
 
+        // SubjectTagFilter
+        if (serializableAce.SubjectTagFilter) {
+            ace.SubjectTagFilter = MakeBooleanFormula(serializableAce.SubjectTagFilter);
+        } else {
+            ace.SubjectTagFilter.reset();
+        }
+
         // Columns
         ace.Columns = std::move(serializableAce.Columns);
 
@@ -137,6 +189,53 @@ void Deserialize(
 
         acl.Entries.push_back(ace);
     }
+
+    if (!tmpMissingSubjects.empty()) {
+        if (missingSubjects) {
+            *missingSubjects = std::move(tmpMissingSubjects);
+        } else {
+            THROW_ERROR_EXCEPTION("Some subjects mentioned in ACL are missing")
+                << TErrorAttribute("missing_subjects", tmpMissingSubjects);
+        }
+    }
+
+    securityManager->ValidateAclSubjectTagFilters(acl);
+}
+
+TAccessControlList DeserializeAclOrThrow(
+    const INodePtr& node,
+    const ISecurityManagerPtr& securityManager)
+{
+    TAccessControlList result;
+    DoDeserializeAclOrThrow(result, node, securityManager, nullptr);
+    return result;
+}
+
+std::pair<TAccessControlList, std::vector<TString>>
+DeserializeAclGatherMissingSubjectsOrThrow(
+    const INodePtr& node,
+    const ISecurityManagerPtr& securityManager)
+{
+    std::pair<TAccessControlList, std::vector<TString>> result;
+    DoDeserializeAclOrThrow(result.first, node, securityManager, &result.second);
+    return result;
+}
+
+TAccessControlList DeserializeAclOrAlert(
+    const INodePtr& node,
+    const ISecurityManagerPtr& securityManager)
+{
+    TAccessControlList result;
+    // NB: It's not really feasible to invert things here and avoid exceptions
+    // being thrown: at the very least, ConvertTo may throw any number of them.
+    // This is how yson deserialization framework is designed.
+    try {
+        DoDeserializeAclOrThrow(result, node, securityManager, nullptr);
+    } catch (const std::exception& error) {
+        YT_LOG_ALERT(error, "Error deserializing ACL");
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,6 +243,11 @@ void Deserialize(
 TAccessControlDescriptor::TAccessControlDescriptor(TObject* object)
     : Object_(object)
 { }
+
+void TAccessControlDescriptor::SetInherit(bool inherit)
+{
+    Inherit_ = inherit;
+}
 
 void TAccessControlDescriptor::Clear()
 {

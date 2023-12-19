@@ -266,7 +266,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) &&
         trunkNode->GetType() != EObjectType::PortalExit)
     {
-        trunkNode->Acd().SetInherit(sourceAcd.GetInherit());
+        trunkNode->Acd().SetInherit(sourceAcd.Inherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
     }
 
@@ -478,7 +478,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
     // Copy ACD.
     if (mode == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) {
-        clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().GetInherit());
+        clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().Inherit());
         for (const auto& ace : sourceNode->Acd().Acl().Entries) {
             clonedTrunkNode->Acd().AddEntry(ace);
         }

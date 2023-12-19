@@ -589,7 +589,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(acd->GetInherit());
+                .Value(acd->Inherit());
             return true;
 
         case EInternedAttributeKey::Acl:
@@ -705,10 +705,10 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             auto inherit = ConvertTo<bool>(value);
 
             if (!force) {
-                ValidateModifiedPermission({.InheritAcl=inherit});
+                ValidateModifiedPermission(TAcdOverride(inherit));
             }
 
-            if (inherit != acd->GetInherit()) {
+            if (inherit != acd->Inherit()) {
                 acd->SetInherit(inherit);
 
                 LogAcdUpdate(key, value);
@@ -722,11 +722,9 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         case EInternedAttributeKey::Acl: {
             ValidateNoTransaction();
 
-            TAccessControlList newAcl;
-            Deserialize(newAcl, ConvertToNode(value), securityManager);
-
+            auto newAcl = DeserializeAclOrThrow(ConvertToNode(value), securityManager);
             if (!force) {
-                ValidateModifiedPermission({.Acl=newAcl.Entries});
+                ValidateModifiedPermission(TAcdOverride(newAcl));
             }
 
             acd->SetEntries(newAcl);
@@ -751,7 +749,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             }
 
             if (!force) {
-                ValidateModifiedPermission({.Owner=owner});
+                ValidateModifiedPermission(TAcdOverride(*owner));
             }
 
             acd->SetOwner(owner);
@@ -967,7 +965,7 @@ void TObjectProxyBase::ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& c
     }
 }
 
-void TObjectProxyBase::ValidateModifiedPermission(TAcdOverride&& modification)
+void TObjectProxyBase::ValidateModifiedPermission(TAcdOverride acdOverride)
 {
     auto forbidUnforcedIrreversibleAclChanges = Bootstrap_
         ->GetConfigManager()
@@ -983,7 +981,7 @@ void TObjectProxyBase::ValidateModifiedPermission(TAcdOverride&& modification)
         Object_,
         securityManager->GetAuthenticatedUser(),
         EPermission::Administer,
-        {.LocalModification = std::move(modification)});
+        {.FirstObjectAcdOverride = std::move(acdOverride)});
     YT_VERIFY(result.Action == ESecurityAction::Allow || result.Action == ESecurityAction::Deny);
     if (result.Action == ESecurityAction::Deny) {
         THROW_ERROR_EXCEPTION(

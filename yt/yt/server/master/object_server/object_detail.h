@@ -208,7 +208,7 @@ protected:
 
 private:
     void ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& context);
-    void ValidateModifiedPermission(NSecurityServer::TAcdOverride&& modification);
+    void ValidateModifiedPermission(NSecurityServer::TAcdOverride modification);
 
 public:
     template <class T>

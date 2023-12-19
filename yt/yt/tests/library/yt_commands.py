@@ -2420,6 +2420,7 @@ def make_ace(
     permissions,
     inheritance_mode="object_and_descendants",
     columns=None,
+    subject_tag_filter=None,
 ):
     def _to_list(x):
         if isinstance(x, str):
@@ -2435,6 +2436,10 @@ def make_ace(
     }
     if columns is not None:
         ace["columns"] = _to_list(columns)
+
+    if subject_tag_filter is not None:
+        ace["subject_tag_filter"] = subject_tag_filter
+
     return ace
 
 ##################################################################

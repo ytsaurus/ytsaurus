@@ -216,6 +216,8 @@ public:
     //! Revision of the password that increases every time
     //! password changes.
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, PasswordRevision);
+    //! User tags used for ACE filtration.
+    DEFINE_BYREF_RW_PROPERTY(TBooleanFormulaTags, Tags);
 
     //! Time of the last user's activity.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
