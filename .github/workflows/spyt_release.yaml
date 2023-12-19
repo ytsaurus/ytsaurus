@@ -104,7 +104,6 @@ jobs:
       - name: Set up python
         run: |
           ln -sf /usr/bin/python3.11 /usr/bin/python3
-          python3 -m pip install twine "setuptools<60.0.0"
           python3 -m pip install ytsaurus-client==0.13.5
 
       - name: Write credentials
@@ -198,7 +197,6 @@ jobs:
       - name: Set up python
         run: |
           ln -sf /usr/bin/python3.11 /usr/bin/python3
-          python3 -m pip install twine "setuptools<60.0.0"
           python3 -m pip install ytsaurus-client==0.13.5
 
       - name: Write credentials
