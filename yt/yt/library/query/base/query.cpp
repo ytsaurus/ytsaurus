@@ -266,19 +266,15 @@ TTableSchemaPtr TJoinClause::GetTableSchema(const TTableSchema& source) const
 {
     TSchemaColumns result;
 
-    auto selfColumnNames = SelfJoinedColumns;
-    std::sort(selfColumnNames.begin(), selfColumnNames.end());
     for (const auto& column : source.Columns()) {
-        if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name())) {
+        if (SelfJoinedColumns.contains(column.Name())) {
             result.push_back(column);
         }
     }
 
-    auto foreignColumnNames = ForeignJoinedColumns;
-    std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
     auto renamedSchema = Schema.GetRenamedSchema();
     for (const auto& column : renamedSchema->Columns()) {
-        if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
+        if (ForeignJoinedColumns.contains(column.Name())) {
             result.push_back(column);
         }
     }

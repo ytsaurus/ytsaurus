@@ -668,6 +668,7 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
     const TValueTypeLabels& valueTypeLabels)
 {
     std::vector<Constant*> labels;
+    labels.reserve(types.size());
     llvm::FoldingSetNodeID id;
     for (auto type : types) {
         switch (type) {
@@ -981,9 +982,9 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
         lhsValues = builder->CreateGEP(type, lhsValues, builder->getInt64(offset));
         rhsValues = builder->CreateGEP(type, rhsValues, builder->getInt64(offset));
 
-        std::vector<Constant*> isDescFlags;
-        for (size_t index = 0; index < types.size(); ++index) {
-            isDescFlags.push_back(builder->getInt8(index < isDesc.size() && isDesc[index]));
+        std::vector<Constant*> isDescFlags(std::ssize(types));
+        for (int index = 0; index < std::ssize(types); ++index) {
+            isDescFlags[index] = builder->getInt8(index < std::ssize(isDesc) && isDesc[index]);
         }
 
         llvm::ArrayType* isDescArrayType = llvm::ArrayType::get(
@@ -1987,10 +1988,10 @@ TCodegenExpression MakeCodegenInExpr(
 
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
-        std::vector<EValueType> keyTypes;
+        std::vector<EValueType> keyTypes(keySize);
         for (int index = 0; index < keySize; ++index) {
             auto value = CodegenFragment(builder, argIds[index]);
-            keyTypes.push_back(value.GetStaticType());
+            keyTypes[index] = value.GetStaticType();
             value.StoreToValues(builder, newValues, index);
         }
 
@@ -2028,10 +2029,8 @@ TCodegenExpression MakeCodegenBetweenExpr(
 
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
-        std::vector<EValueType> keyTypes;
         for (int index = 0; index < keySize; ++index) {
             auto value = CodegenFragment(builder, argIds[index]);
-            keyTypes.push_back(value.GetStaticType());
             value.StoreToValues(builder, newValues, index);
         }
 
@@ -2069,10 +2068,10 @@ TCodegenExpression MakeCodegenTransformExpr(
 
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
-        std::vector<EValueType> keyTypes;
+        std::vector<EValueType> keyTypes(keySize);
         for (int index = 0; index < keySize; ++index) {
             auto value = CodegenFragment(builder, argIds[index]);
-            keyTypes.push_back(value.GetStaticType());
+            keyTypes[index] = value.GetStaticType();
             value.StoreToValues(builder, newValues, index);
         }
 
@@ -2094,7 +2093,7 @@ TCodegenExpression MakeCodegenTransformExpr(
                 return TCGValue::LoadFromRowValues(
                     builder,
                     result,
-                    keyTypes.size(),
+                    keySize,
                     resultType);
             },
             [&] (TCGExprContext& builder) {
@@ -3593,6 +3592,7 @@ TCGAggregateImage CodegenAggregate(
         ) {
             auto state = TCGValue::LoadFromAggregate(builder, statePtr, stateType);
             std::vector<TCGValue> newValues;
+            newValues.reserve(argumentTypes.size());
             Type* type = TValueTypeBuilder::Get(builder->getContext());
             for (int index = 0; index < std::ssize(argumentTypes); ++index) {
                 Value* newIthValuePtr = builder->CreateGEP(type, newValuesPtr, builder->getInt64(index));

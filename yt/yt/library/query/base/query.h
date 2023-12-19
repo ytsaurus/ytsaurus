@@ -319,8 +319,8 @@ struct TJoinClause
     : public TRefCounted
 {
     TMappedSchema Schema;
-    std::vector<TString> SelfJoinedColumns;
-    std::vector<TString> ForeignJoinedColumns;
+    THashSet<TString> SelfJoinedColumns;
+    THashSet<TString> ForeignJoinedColumns;
 
     TConstExpressionPtr Predicate;
 

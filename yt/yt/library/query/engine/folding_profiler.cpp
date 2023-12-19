@@ -55,6 +55,7 @@ DEFINE_ENUM(EFoldingObjectType,
 std::vector<EValueType> GetTypesFromSchema(const TTableSchema& tableSchema)
 {
     std::vector<EValueType> result;
+    result.reserve(tableSchema.GetColumnCount());
 
     for (const auto& column : tableSchema.Columns()) {
         result.push_back(column.GetWireType());
@@ -571,17 +572,18 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<ui8>(functionExpr->GetWireType()));
     id.AddString(functionExpr->FunctionName.c_str());
 
-    std::vector<size_t> argIds;
-    std::vector<EValueType> argumentTypes;
-    auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
-    size_t index = 0;
-    id.AddInteger(functionExpr->Arguments.size());
-    for (const auto& argument : functionExpr->Arguments) {
+    int argumentCount = functionExpr->Arguments.size();
+    std::vector<size_t> argIds(argumentCount);
+    std::vector<EValueType> argumentTypes(argumentCount);
+    auto literalArgs = std::make_unique<bool[]>(argumentCount);
+    id.AddInteger(argumentCount);
+    for (int index = 0; index < argumentCount; ++index) {
+        const auto& argument = functionExpr->Arguments[index];
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
-        argIds.push_back(Profile(argument, schema, fragments, isolated));
-        id.AddInteger(argIds.back());
-        argumentTypes.push_back(argument->GetWireType());
-        literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
+        argIds[index] = Profile(argument, schema, fragments, isolated);
+        id.AddInteger(argIds[index]);
+        argumentTypes[index] = argument->GetWireType();
+        literalArgs[index] = argument->As<TLiteralExpression>() != nullptr;
     }
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
@@ -696,6 +698,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<ui8>(inExpr->GetWireType()));
 
     std::vector<size_t> argIds;
+    argIds.reserve(inExpr->Arguments.size());
     id.AddInteger(inExpr->Arguments.size());
     for (const auto& argument : inExpr->Arguments) {
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
@@ -721,7 +724,7 @@ size_t TExpressionProfiler::Profile(
     int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
     fragments->DebugInfos.emplace_back(inExpr, argIds);
     fragments->Items.emplace_back(
-        MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
+        MakeCodegenInExpr(std::move(argIds), index, hashtableIndex, ComparerManager_),
         inExpr->GetWireType(),
         false);
     return fragments->Items.size() - 1;
@@ -738,6 +741,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<ui8>(betweenExpr->GetWireType()));
 
     std::vector<size_t> argIds;
+    argIds.reserve(betweenExpr->Arguments.size());
     id.AddInteger(betweenExpr->Arguments.size());
     for (const auto& argument : betweenExpr->Arguments) {
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
@@ -763,7 +767,7 @@ size_t TExpressionProfiler::Profile(
     int index = Variables_->AddOpaque<TSharedRange<TPIRowRange>>(CopyAndConvertToPI(betweenExpr->Ranges, false));
     fragments->DebugInfos.emplace_back(betweenExpr, argIds);
     fragments->Items.emplace_back(
-        MakeCodegenBetweenExpr(argIds, index, ComparerManager_),
+        MakeCodegenBetweenExpr(std::move(argIds), index, ComparerManager_),
         betweenExpr->GetWireType(),
         false);
     return fragments->Items.size() - 1;
@@ -782,6 +786,7 @@ size_t TExpressionProfiler::Profile(
     const auto& defaultExpression = transformExpr->DefaultExpression;
 
     std::vector<size_t> argIds;
+    argIds.reserve(transformExpr->Arguments.size());
     id.AddInteger(transformExpr->Arguments.size() + static_cast<bool>(defaultExpression));
     for (const auto& argument : transformExpr->Arguments) {
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
@@ -827,7 +832,7 @@ size_t TExpressionProfiler::Profile(
 
     fragments->DebugInfos.emplace_back(transformExpr, argIds, defaultExprId);
     fragments->Items.emplace_back(
-        MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->GetWireType(), ComparerManager_),
+        MakeCodegenTransformExpr(std::move(argIds), defaultExprId, index, hashtableIndex, transformExpr->GetWireType(), ComparerManager_),
         transformExpr->GetWireType(),
         nullable);
     return fragments->Items.size() - 1;
@@ -1176,19 +1181,23 @@ void TQueryProfiler::Profile(
                 allAggregatesFirst = false;
             }
 
+            int argumentCount = aggregateItem.Arguments.size();
+
             if (!mergeMode) {
                 std::vector<size_t> aggregateArgIds;
+                aggregateArgIds.reserve(argumentCount);
                 for (auto& arg : aggregateItem.Arguments) {
                     aggregateArgIds.push_back(Profile(TNamedItem{arg, ""}, schema, &expressionFragments));
                 }
                 aggregateExprIdsByFunc.emplace_back(std::move(aggregateArgIds));
             }
             std::vector<EValueType> wireTypes;
+            wireTypes.reserve(argumentCount);
             for (const auto& arg : aggregateItem.Arguments) {
                 wireTypes.push_back(arg->GetWireType());
             }
             codegenAggregates.push_back(aggregate->Profile(
-                wireTypes,
+                std::move(wireTypes),
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
@@ -1376,15 +1385,17 @@ void TQueryProfiler::Profile(
     if (auto orderClause = query->OrderClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::OrderOp));
 
-        std::vector<size_t> orderExprIds;
-        std::vector<bool> isDesc;
-        std::vector<EValueType> orderColumnTypes;
+        int orderItemCount = orderClause->OrderItems.size();
+        std::vector<size_t> orderExprIds(orderItemCount);
+        std::vector<bool> isDesc(orderItemCount);
+        std::vector<EValueType> orderColumnTypes(orderItemCount);
         TExpressionFragments orderExprFragments;
-        for (const auto& item : orderClause->OrderItems) {
-            orderExprIds.push_back(TExpressionProfiler::Profile(item.Expression, schema, &orderExprFragments));
+        for (int index = 0; index < orderItemCount; ++index) {
+            const auto& item = orderClause->OrderItems[index];
+            orderExprIds[index] = TExpressionProfiler::Profile(item.Expression, schema, &orderExprFragments);
             Fold(item.Descending);
-            isDesc.push_back(item.Descending);
-            orderColumnTypes.push_back(item.Expression->GetWireType());
+            isDesc[index] = item.Descending;
+            orderColumnTypes[index] = item.Expression->GetWireType();
         }
 
         auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
@@ -1400,7 +1411,7 @@ void TQueryProfiler::Profile(
             slotCount,
             finalSlot,
             orderFragmentsInfos,
-            orderExprIds,
+            std::move(orderExprIds),
             std::move(orderColumnTypes),
             schemaTypes,
             std::move(isDesc),
@@ -1412,6 +1423,7 @@ void TQueryProfiler::Profile(
         Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
 
         std::vector<size_t> projectExprIds;
+        projectExprIds.reserve(projectClause->Projections.size());
         TExpressionFragments projectExprFragments;
         for (const auto& item : projectClause->Projections) {
             projectExprIds.push_back(Profile(item, schema, &projectExprFragments));
@@ -1422,7 +1434,7 @@ void TQueryProfiler::Profile(
 
         // FIXME(lukyan): Do not generate ProjectOp two times.
         finalSlot = MakeCodegenProjectOp(codegenSource, slotCount, finalSlot, projectFragmentsInfos, projectExprIds);
-        totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, projectFragmentsInfos, projectExprIds);
+        totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, projectFragmentsInfos, std::move(projectExprIds));
 
         MakeCodegenFragmentBodies(codegenSource, projectFragmentsInfos);
 
@@ -1546,6 +1558,7 @@ void TQueryProfiler::Profile(
         TExpressionFragments equationFragments;
 
         std::vector<TSingleJoinCGParameters> parameters;
+        parameters.reserve(joinGroupSize);
 
         size_t joinBatchSize = MaxJoinBatchSize;
 
@@ -1555,38 +1568,39 @@ void TQueryProfiler::Profile(
 
         TMultiJoinParameters joinParameters;
 
-        std::vector<TString> selfColumnNames;
-
         auto lastSchema = schema;
         for (; joinGroupSize > 0; ++joinIndex, --joinGroupSize) {
             const auto& joinClause = query->JoinClauses[joinIndex];
 
-            std::vector<std::pair<size_t, bool>> selfKeys;
-            std::vector<EValueType> lookupKeyTypes;
-            for (const auto& [expression, evaluated] : joinClause->SelfEquations) {
+            int equationCount = joinClause->SelfEquations.size();
 
+            std::vector<std::pair<size_t, bool>> selfKeys(equationCount);
+            std::vector<EValueType> lookupKeyTypes(equationCount);
+            for (int index = 0; index < equationCount; ++index) {
+                const auto& [expression, evaluated] = joinClause->SelfEquations[index];
                 const auto& expressionSchema = evaluated ? joinClause->Schema.Original : schema;
 
-                selfKeys.emplace_back(
+                selfKeys[index] = {
                     TExpressionProfiler::Profile(
                         expression,
                         expressionSchema,
                         &equationFragments,
                         evaluated),
-                    evaluated);
-                lookupKeyTypes.push_back(expression->GetWireType());
+                    evaluated,
+                };
+                lookupKeyTypes[index] = expression->GetWireType();
             }
 
             TSingleJoinCGParameters codegenParameters{
-                selfKeys,
+                std::move(selfKeys),
                 joinClause->CommonKeyPrefix,
                 joinClause->ForeignKeyPrefix,
-                lookupKeyTypes};
+                std::move(lookupKeyTypes)};
 
             Fold(joinClause->CommonKeyPrefix);
             Fold(joinClause->ForeignKeyPrefix);
 
-            parameters.push_back(codegenParameters);
+            parameters.push_back(std::move(codegenParameters));
 
             TSingleJoinParameters singeJoinParameters;
 
@@ -1609,20 +1623,11 @@ void TQueryProfiler::Profile(
                 subquery->ProjectClause = projectClause;
                 subquery->WhereClause = joinClause->Predicate;
 
-                selfColumnNames = joinClause->SelfJoinedColumns;
-
-                auto foreignColumnNames = joinClause->ForeignJoinedColumns;
-                std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
-
                 auto joinRenamedTableColumns = joinClause->GetRenamedSchema()->Columns();
 
                 std::vector<size_t> foreignColumns;
                 for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
-                    if (std::binary_search(
-                        foreignColumnNames.begin(),
-                        foreignColumnNames.end(),
-                        joinRenamedTableColumns[index].Name()))
-                    {
+                    if (joinClause->ForeignJoinedColumns.contains(joinRenamedTableColumns[index].Name())) {
                         foreignColumns.push_back(projectClause->Projections.size());
 
                         projectClause->AddProjection(
@@ -1633,28 +1638,22 @@ void TQueryProfiler::Profile(
                     }
                 };
 
-                singeJoinParameters.KeySize = joinClause->ForeignEquations.size();
+                singeJoinParameters.KeySize = foreignEquations.size();
                 singeJoinParameters.IsLeft = joinClause->IsLeft;
                 singeJoinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
-                singeJoinParameters.ForeignColumns = foreignColumns;
-                singeJoinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
+                singeJoinParameters.ForeignColumns = std::move(foreignColumns);
+                singeJoinParameters.ExecuteForeign = joinProfiler(std::move(subquery), joinClause);
             }
             joinParameters.Items.push_back(std::move(singeJoinParameters));
 
             lastSchema = joinClause->GetTableSchema(*lastSchema);
         }
 
-        std::sort(selfColumnNames.begin(), selfColumnNames.end());
-
         const auto& selfTableColumns = schema->Columns();
 
         std::vector<std::pair<size_t, EValueType>> primaryColumns;
         for (size_t index = 0; index < selfTableColumns.size(); ++index) {
-            if (std::binary_search(
-                selfColumnNames.begin(),
-                selfColumnNames.end(),
-                selfTableColumns[index].Name()))
-            {
+            if (query->JoinClauses[joinIndex - 1]->SelfJoinedColumns.contains(selfTableColumns[index].Name())) {
                 primaryColumns.emplace_back(index, selfTableColumns[index].GetWireType());
 
                 Fold(index);

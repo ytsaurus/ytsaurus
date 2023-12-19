@@ -297,6 +297,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
     auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     TUnversionedRowBuilder rowBuilder;
     std::vector<TRow> rows;
+    rows.reserve(literalTuples.size());
     for (const auto& tuple : literalTuples) {
         if (tuple.size() != argTypes.size()) {
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
@@ -881,6 +882,7 @@ std::vector<EValueType> RefineFunctionTypes(
     }
 
     std::vector<EValueType> effectiveTypes;
+    effectiveTypes.reserve(argumentCount);
     int argIndex = 0;
     auto formalArg = formalArguments.begin();
     for (;
@@ -1734,8 +1736,10 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
         auto subexpressionName = InferColumnName(*functionExpr);
 
         std::vector<TTypeSet> argTypes;
+        argTypes.reserve(functionExpr->Arguments.size());
         std::vector<TTypeSet> genericAssignments;
         std::vector<TExpressionGenerator> operandTypers;
+        operandTypers.reserve(functionExpr->Arguments.size());
         std::vector<int> formalArguments;
 
         YT_VERIFY(AfterGroupBy);
@@ -1841,6 +1845,8 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
     } else if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
         std::vector<TTypeSet> argTypes;
         std::vector<TExpressionGenerator> operandTypers;
+        argTypes.reserve(functionExpr->Arguments.size());
+        operandTypers.reserve(functionExpr->Arguments.size());
         for (const auto& argument : functionExpr->Arguments) {
             auto untypedArgument = OnExpression(argument);
             argTypes.push_back(untypedArgument.FeasibleTypes);
@@ -1870,11 +1876,12 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
                 source);
 
             std::vector<TConstExpressionPtr> typedOperands;
+            typedOperands.reserve(std::ssize(effectiveTypes));
             for (int index = 0; index < std::ssize(effectiveTypes); ++index) {
                 typedOperands.push_back(operandTypers[index](effectiveTypes[index]));
             }
 
-            return New<TFunctionExpression>(type, functionName, typedOperands);
+            return New<TFunctionExpression>(type, functionName, std::move(typedOperands));
         };
 
         return TUntypedExpression{resultTypes, std::move(generator), false};
@@ -2234,6 +2241,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
     auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     TUnversionedRowBuilder rowBuilder;
     std::vector<TRow> rows;
+    rows.reserve(std::ssize(transformExpr->From));
 
     for (int index = 0; index < std::ssize(transformExpr->From); ++index) {
         const auto& sourceTuple = transformExpr->From[index];
@@ -2942,6 +2950,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }));
 
     std::vector<TFuture<TDataSplit>> asyncDataSplits;
+    asyncDataSplits.reserve(ast.Joins.size() + 1);
     asyncDataSplits.push_back(callbacks->GetInitialSplit(table.Path));
     for (const auto& join : ast.Joins) {
         asyncDataSplits.push_back(callbacks->GetInitialSplit(join.Table.Path));
@@ -2991,7 +3000,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             &joinClause->Schema.Mapping};
 
         std::vector<TSelfEquation> selfEquations;
+        selfEquations.reserve(join.Fields.size() + join.Lhs.size());
         std::vector<TConstExpressionPtr> foreignEquations;
+        foreignEquations.reserve(join.Fields.size() + join.Rhs.size());
         // Merge columns.
         for (const auto& referenceExpr : join.Fields) {
             auto selfColumn = builder.GetColumnPtr(referenceExpr->Reference);
@@ -3208,11 +3219,11 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
         for (size_t index = entry.OriginTableIndex; index < entry.LastTableIndex; ++index) {
             YT_VERIFY(index < joinClauses.size());
-            joinClauses[index]->SelfJoinedColumns.push_back(formattedName);
+            joinClauses[index]->SelfJoinedColumns.insert(formattedName);
         }
 
         if (entry.OriginTableIndex > 0 && entry.LastTableIndex > 0) {
-            joinClauses[entry.OriginTableIndex - 1]->ForeignJoinedColumns.push_back(formattedName);
+            joinClauses[entry.OriginTableIndex - 1]->ForeignJoinedColumns.insert(formattedName);
         }
     }
 
