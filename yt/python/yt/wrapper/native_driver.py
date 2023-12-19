@@ -1,6 +1,6 @@
 from .config import get_config, get_option, set_option
 from .common import require, generate_int64, update, get_value
-from .constants import RPC_PACKAGE_INSTALLATION_TEXT
+from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
 from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
@@ -139,7 +139,7 @@ def configure_yp_service_discovery(yp_service_discovery_config, client):
     elif yp_service_discovery_config is not None:
         driver_bindings.configure_yp_service_discovery(yp_service_discovery_config)
     else:
-        driver_bindings.configure_yp_service_discovery({})
+        driver_bindings.configure_yp_service_discovery({"enable": ENABLE_YP_SERVICE_DISCOVERY})
 
     yp_service_discovery_configured = True
 
