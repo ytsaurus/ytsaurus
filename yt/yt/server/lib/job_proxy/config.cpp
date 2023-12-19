@@ -87,6 +87,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
 
+    registrar.Parameter("slot_path", &TThis::SlotPath);
+
     registrar.Parameter("tmpfs_manager", &TThis::TmpfsManager)
         .DefaultNew();
 

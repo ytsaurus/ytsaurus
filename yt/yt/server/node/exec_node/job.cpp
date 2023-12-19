@@ -2356,6 +2356,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyConfig->JobTestingOptions = JobTestingOptions_;
     proxyConfig->SlotIndex = GetUserSlot()->GetSlotIndex();
+    proxyConfig->SlotPath = GetUserSlot()->GetSlotPath();
 
     if (RootVolume_) {
         proxyConfig->RootPath = RootVolume_->GetPath();
