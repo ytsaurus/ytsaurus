@@ -19,7 +19,7 @@ void TControllerAgentConfig::UpdateOptions(TOptions* options, NYT::NYTree::INode
     }
 
     if (*options) {
-        *options = ConvertTo<TOptions>(PatchNode(patch, ConvertTo<INodePtr>(*options)));
+        *options = ConvertTo<TOptions>(PatchNode(ConvertTo<INodePtr>(*options), patch));
     } else {
         *options = ConvertTo<TOptions>(patch);
     }
