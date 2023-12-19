@@ -112,6 +112,16 @@ struct IClient
         const TSyncAlienCellOptions& options = {}) = 0;
 
     virtual bool DoesOperationsArchiveExist() = 0;
+
+    virtual TFuture<TIssueTokenResult> IssueTemporaryToken(
+        const TString& user,
+        const NYTree::IAttributeDictionaryPtr& attributes,
+        const TIssueTemporaryTokenOptions& options) = 0;
+
+    virtual TFuture<void> RefreshTemporaryToken(
+        const TString& user,
+        const TString& token,
+        const TRefreshTemporaryTokenOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

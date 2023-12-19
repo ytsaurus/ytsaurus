@@ -773,6 +773,18 @@ public:
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
 
+    IMPLEMENT_METHOD(TIssueTokenResult, IssueTemporaryToken, (
+        const TString& user,
+        const NYTree::IAttributeDictionaryPtr& attributes,
+        const TIssueTemporaryTokenOptions& options),
+        (user, attributes, options))
+
+    IMPLEMENT_METHOD(void, RefreshTemporaryToken, (
+        const TString& user,
+        const TString& token,
+        const TRefreshTemporaryTokenOptions& options),
+        (user, token, options))
+
     IMPLEMENT_METHOD(void, RevokeToken, (
         const TString& user,
         const TString& passwordSha256,
@@ -1828,6 +1840,21 @@ private:
         const TString& user,
         const TString& passwordSha256,
         const TIssueTokenOptions& options);
+
+    TIssueTokenResult DoIssueTemporaryToken(
+        const TString& user,
+        const NYTree::IAttributeDictionaryPtr& attributes,
+        const TIssueTemporaryTokenOptions& options);
+
+    TIssueTokenResult DoIssueTokenImpl(
+        const TString& user,
+        const NYTree::IAttributeDictionaryPtr& attributes,
+        const TIssueTokenOptions& options);
+
+    void DoRefreshTemporaryToken(
+        const TString& user,
+        const TString& token,
+        const TRefreshTemporaryTokenOptions& options);
 
     void DoRevokeToken(
         const TString& user,

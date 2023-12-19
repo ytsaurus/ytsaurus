@@ -74,7 +74,7 @@ public:
         , DiscoveryPath_(std::move(discoveryPath))
     { }
 
-    std::vector<TString> GetModuleValues(const TString& moduleName)
+    std::vector<TString> GetModuleValues(const TString& moduleName) const
     {
         auto modulePath = Format("%v/discovery/%v", DiscoveryPath_, ToYPathLiteral(moduleName));
         auto rawResult = WaitFor(QueryClient_->ListNode(modulePath))
@@ -82,7 +82,7 @@ public:
         return ConvertTo<std::vector<TString>>(rawResult);
     }
 
-    TString GetModuleValue(const TString& moduleName)
+    TString GetModuleValue(const TString& moduleName) const
     {
         auto listResult = GetModuleValues(moduleName);
         if (listResult.size() != 1) {
@@ -120,9 +120,10 @@ public:
         , Config_(config)
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
         , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
-        , QueryClient_(NativeConnection_->CreateClient(TClientOptions{.User = activeQuery.User}))
+        , QueryClient_(NativeConnection_->CreateNativeClient(TClientOptions{.User = activeQuery.User}))
         , HttpClient_(CreateClient(Config_->HttpClient, NBus::TTcpDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
+        , RefreshTokenExecutor_(New<TPeriodicExecutor>(GetCurrentInvoker(), BIND(&TSpytQueryHandler::RefreshToken, MakeWeak(this)), Config_->RefreshTokenPeriod))
     {
         if (Cluster_.Empty()) {
             THROW_ERROR_EXCEPTION("'cluster' setting is not specified");
@@ -139,6 +140,10 @@ public:
     void Start() override
     {
         YT_LOG_DEBUG("Starting SPYT query");
+        Token_ = IssueToken();
+        if (Token_) {
+            RefreshTokenExecutor_->Start();
+        }
         AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run();
@@ -169,20 +174,22 @@ private:
     const TSpytEngineConfigPtr Config_;
     const TString Cluster_;
     const NApi::NNative::IConnectionPtr NativeConnection_;
-    const NApi::IClientPtr QueryClient_;
+    const NApi::NNative::IClientPtr QueryClient_;
     const NHttp::IClientPtr HttpClient_;
     const NHttp::THeadersPtr Headers_;
+    const TPeriodicExecutorPtr RefreshTokenExecutor_;
     TSpytDiscoveryPtr Discovery_;
     TString ClusterVersion_;
     TFuture<TSharedRef> AsyncQueryResult_;
     TString SessionUrl_;
+    std::optional<TString> Token_;
 
-    TString GetLocation(const NHttp::IResponsePtr& response)
+    TString GetLocation(const NHttp::IResponsePtr& response) const
     {
         return response->GetHeaders()->GetOrThrow("Location");
     }
 
-    void ValidateStatusCode(const NHttp::IResponsePtr& response, const NHttp::EStatusCode& expected)
+    void ValidateStatusCode(const NHttp::IResponsePtr& response, const NHttp::EStatusCode& expected) const
     {
         if (response->GetStatusCode() != expected) {
             THROW_ERROR_EXCEPTION(
@@ -192,7 +199,7 @@ private:
         }
     }
 
-    INodePtr ParseJson(const TSharedRef& data)
+    INodePtr ParseJson(const TSharedRef& data) const
     {
         TMemoryInput stream(data.Begin(), data.Size());
         auto factory = NYTree::CreateEphemeralNodeFactory();
@@ -202,7 +209,7 @@ private:
         return builder->EndTree();
     }
 
-    INodePtr ExecuteGetQuery(const TString& url)
+    INodePtr ExecuteGetQuery(const TString& url) const
     {
         YT_LOG_DEBUG("Executing HTTP GET request (Url: %v)", url);
         auto rsp = WaitFor(HttpClient_->Get(url))
@@ -213,7 +220,7 @@ private:
         return jsonRoot;
     }
 
-    TString WaitStatusChange(const TString& url, const TString& defaultState)
+    TString WaitStatusChange(const TString& url, const TString& defaultState) const
     {
         auto state = defaultState;
         while (state == defaultState) {
@@ -224,12 +231,12 @@ private:
         return state;
     }
 
-    TString GetClientVersion()
+    TString GetClientVersion() const
     {
         return Settings_->ClientVersion.value_or(ClusterVersion_);
     }
 
-    TString GetReleaseMode()
+    TString GetReleaseMode() const
     {
         if (GetClientVersion().Contains("SNAPSHOT")) {
             return "snapshots";
@@ -238,12 +245,12 @@ private:
         }
     }
 
-    TString GetSpytFile(const TString& Filename)
+    TString GetSpytFile(const TString& Filename) const
     {
         return Format("yt:/%v/spyt/%v/%v/%v", Config_->SpytHome, GetReleaseMode(), GetClientVersion(), Filename);
     }
 
-    TString SerializeYsonToJson(const INodePtr& ysonNode)
+    TString SerializeYsonToJson(const INodePtr& ysonNode) const
     {
         TString result;
         TStringOutput resultOutput(result);
@@ -253,11 +260,14 @@ private:
         return result;
     }
 
-    THashMap<TString, TString> GetSparkConf()
+    THashMap<TString, TString> GetSparkConf() const
     {
         THashMap<TString, TString> sparkConf;
         if (Settings_->SparkConf) {
             sparkConf = ConvertTo<THashMap<TString, TString>>(TYsonString(Settings_->SparkConf.value()));
+            if (sparkConf.contains("spark.hadoop.yt.user") || sparkConf.contains("spark.hadoop.yt.token")) {
+                THROW_ERROR_EXCEPTION("Providing credentials is forbidden");
+            }
         }
         auto versionInsert = sparkConf.emplace("spark.yt.version", GetClientVersion()).second;
         if (!versionInsert) {
@@ -268,10 +278,16 @@ private:
         if (!jarsInsert || !pyFilesInsert) {
             THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.jars' and 'spark.yt.pyFiles' is forbidden");
         }
+        YT_LOG_DEBUG("Session spark conf prepared (Data: %v)", sparkConf);
+        // Token insertion after data logging.
+        if (Token_) {
+            sparkConf.emplace("spark.hadoop.yt.user", User_);
+            sparkConf.emplace("spark.hadoop.yt.token", *Token_);
+        }
         return sparkConf;
     }
 
-    TString MakeSessionStartQueryData()
+    TString MakeSessionStartQueryData() const
     {
         auto dataNode = BuildYsonNodeFluently()
             .BeginMap()
@@ -284,7 +300,6 @@ private:
     void StartSession(const TString& rootUrl)
     {
         auto data = MakeSessionStartQueryData();
-        YT_LOG_DEBUG("Session data prepared (Data: %v)", data);
         auto body = TSharedRef::FromString(data);
         auto rsp = WaitFor(HttpClient_->Post(rootUrl + "/sessions", body, Headers_))
             .ValueOrThrow();
@@ -294,7 +309,7 @@ private:
         YT_LOG_DEBUG("Session creation response parsed (Url: %v)", SessionUrl_);
     }
 
-    void WaitSessionReady()
+    void WaitSessionReady() const
     {
         auto state = WaitStatusChange(SessionUrl_, "starting");
         if (state != "idle") {
@@ -304,7 +319,7 @@ private:
         }
     }
 
-    void CloseSession()
+    void CloseSession() const
     {
         YT_LOG_DEBUG("Closing session");
         auto rsp = WaitFor(HttpClient_->Delete(SessionUrl_, Headers_))
@@ -312,7 +327,7 @@ private:
         YT_LOG_DEBUG("Session closing response received (Code: %v)", rsp->GetStatusCode());
     }
 
-    TString ConcatChunks(const std::vector<TString>& chunks)
+    TString ConcatChunks(const std::vector<TString>& chunks) const
     {
         size_t summarySize = 0;
         for (const auto& chunk : chunks) {
@@ -326,7 +341,7 @@ private:
         return result;
     }
 
-    TSharedRef ExtractTableBytes(const TString& queryResult)
+    TSharedRef ExtractTableBytes(const TString& queryResult) const
     {
         auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<TString>();
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
@@ -339,7 +354,7 @@ private:
         return TSharedRef::FromString(ConcatChunks(tableChunks));
     }
 
-    TString ParseQueryOutput(const IMapNodePtr& outputNode)
+    TString ParseQueryOutput(const IMapNodePtr& outputNode) const
     {
         auto status = outputNode->GetChildOrThrow("status")->AsString()->GetValue();
         if (status == "ok") {
@@ -355,7 +370,7 @@ private:
         }
     }
 
-    TString MakeStatementSubmitQueryData(const TString& sqlQuery)
+    TString MakeStatementSubmitQueryData(const TString& sqlQuery) const
     {
         auto code = Format(
             "import tech.ytsaurus.spyt.serializers.GenericRowSerializer;"
@@ -371,7 +386,7 @@ private:
         return SerializeYsonToJson(dataNode);
     }
 
-    TString SubmitStatement(const TString& rootUrl, const TString& sqlQuery)
+    TString SubmitStatement(const TString& rootUrl, const TString& sqlQuery) const
     {
         auto data = MakeStatementSubmitQueryData(sqlQuery);
         YT_LOG_DEBUG("Statement data prepared (Data: %v)", data);
@@ -385,7 +400,7 @@ private:
         return statementUrl;
     }
 
-    TString WaitStatementFinished(const TString& statementUrl)
+    TString WaitStatementFinished(const TString& statementUrl) const
     {
         auto state = WaitStatusChange(statementUrl, "running");
         if (state != "available") {
@@ -398,12 +413,41 @@ private:
         return ParseQueryOutput(outputNode);
     }
 
-    TString GetLivyServerUrl()
+    TString GetLivyServerUrl() const
     {
         YT_LOG_DEBUG("Listing livy discovery path");
         auto url = "http://" + Discovery_->GetModuleValue("livy");
         YT_LOG_DEBUG("Livy server url received (Url: %v)", url);
         return url;
+    }
+
+    std::optional<TString> IssueToken() const
+    {
+        auto options = TIssueTemporaryTokenOptions{ .ExpirationTimeout = Config_->TokenExpirationTimeout };
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("query_id", QueryId_);
+        attributes->Set("responsible", "query_tracker");
+        YT_LOG_DEBUG("Requesting token (User: %v)", User_);
+        auto rspOrError = WaitFor(QueryClient_->IssueTemporaryToken(User_, attributes, options));
+        if (!rspOrError.IsOK()) {
+            YT_LOG_DEBUG("Token request failed (User: %v)", User_);
+            return std::nullopt;
+        }
+        auto token = rspOrError.Value().Token;
+        YT_LOG_DEBUG("Token received (User: %v)", User_);
+        return token;
+    }
+
+    void RefreshToken() const
+    {
+        YT_VERIFY(Token_);
+        YT_LOG_DEBUG("Refreshing token (User: %v)", User_);
+        auto rspOrError = WaitFor(QueryClient_->RefreshTemporaryToken(User_, *Token_, {}));
+        if (!rspOrError.IsOK()) {
+            YT_LOG_WARNING("Token refreshing failed (User: %v)", User_);
+        } else {
+            YT_LOG_DEBUG("Token refreshed (User: %v)", User_);
+        }
     }
 
     TSharedRef Execute()

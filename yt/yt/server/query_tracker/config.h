@@ -94,6 +94,9 @@ public:
     NHttp::TClientConfigPtr HttpClient;
     TDuration StatusPollPeriod;
 
+    TDuration TokenExpirationTimeout;
+    TDuration RefreshTokenPeriod;
+
     REGISTER_YSON_STRUCT(TSpytEngineConfig);
 
     static void Register(TRegistrar registrar);

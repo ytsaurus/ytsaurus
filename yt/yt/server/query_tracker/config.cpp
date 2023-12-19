@@ -64,6 +64,10 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
         .Default(TDuration::Seconds(3));
+    registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
+        .Default(TDuration::Minutes(20));
+    registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

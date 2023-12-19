@@ -66,6 +66,30 @@ TIssueTokenResult TClient::DoIssueToken(
         passwordSha256,
         options);
 
+    YT_LOG_DEBUG("Issuing new token for user (User: %v)",
+        user);
+
+    return DoIssueTokenImpl(user, CreateEphemeralAttributes(), options);
+}
+
+TIssueTokenResult TClient::DoIssueTemporaryToken(
+    const TString& user,
+    const IAttributeDictionaryPtr& attributes,
+    const TIssueTemporaryTokenOptions& options)
+{
+    YT_LOG_DEBUG("Issuing new temporary token for user (User: %v)",
+        user);
+
+    auto attributesCopy = attributes->Clone();
+    attributesCopy->Set("expiration_timeout", options.ExpirationTimeout.MilliSeconds());
+    return DoIssueTokenImpl(user, attributesCopy, options);
+}
+
+TIssueTokenResult TClient::DoIssueTokenImpl(
+    const TString& user,
+    const IAttributeDictionaryPtr& attributes,
+    const TIssueTokenOptions& options)
+{
     constexpr int TokenLength = 16;
     auto tokenBytes = GenerateCryptoStrongRandomString(TokenLength);
     auto token = to_lower(HexEncode(tokenBytes.data(), tokenBytes.size()));
@@ -74,9 +98,9 @@ TIssueTokenResult TClient::DoIssueToken(
     TCreateNodeOptions createOptions;
     static_cast<TTimeoutOptions&>(createOptions) = options;
 
-    createOptions.Attributes = BuildAttributeDictionaryFluently()
-        .Item("user").Value(user)
-        .Finish();
+    attributes->Set("user", user);
+
+    createOptions.Attributes = attributes;
 
     YT_LOG_DEBUG("Issuing new token for user (User: %v, TokenHash: %v)",
         user,
@@ -105,6 +129,40 @@ TIssueTokenResult TClient::DoIssueToken(
     return TIssueTokenResult{
         .Token = token,
     };
+}
+
+void TClient::DoRefreshTemporaryToken(
+    const TString& user,
+    const TString& token,
+    const TRefreshTemporaryTokenOptions& options)
+{
+    auto tokenHash = GetSha256HexDigestLowerCase(token);
+
+    TGetNodeOptions getOptions;
+    static_cast<TTimeoutOptions&>(getOptions) = options;
+
+    YT_LOG_DEBUG("Refresh temporary token for user (User: %v, TokenHash: %v)",
+        user,
+        tokenHash);
+
+    auto rootClient = CreateRootClient();
+    auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenHash));
+    auto rspOrError = WaitFor(rootClient->GetNode(
+        path,
+        getOptions));
+
+    if (!rspOrError.IsOK()) {
+        YT_LOG_WARNING(rspOrError, "Failed to refresh token for user "
+            "(User: %v, TokenHash: %v)",
+            user,
+            tokenHash);
+        auto error = TError("Failed to refresh token for user") << rspOrError;
+        THROW_ERROR error;
+    }
+
+    YT_LOG_DEBUG("Successfully refreshed token for user (User: %v, TokenHash: %v)",
+        user,
+        tokenHash);
 }
 
 void TClient::DoRevokeToken(
