@@ -125,7 +125,7 @@ struct TOutputStreamDescriptorBase
     TString SlowMedium;
     NTableClient::TTableUploadOptions TableUploadOptions;
     NYson::TYsonString TableWriterConfig;
-    std::optional<NTransactionClient::TTimestamp> Timestamp;
+    NTransactionClient::TTimestamp Timestamp;
     // Cell tags to allocate chunk lists. For each job cell tag is chosen
     // randomly.
     NObjectClient::TCellTagList CellTags;

@@ -1559,8 +1559,8 @@ void TTask::AddOutputTableSpecs(
         outputSpec->set_table_schema(GetOrCacheSerializedSchema(outputTableSchema));
         ToProto(outputSpec->mutable_schema_id(), schemaId);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
-        if (streamDescriptor->Timestamp) {
-            outputSpec->set_timestamp(*streamDescriptor->Timestamp);
+        if (streamDescriptor->Timestamp != NullTimestamp) {
+            outputSpec->set_timestamp(streamDescriptor->Timestamp);
         }
         outputSpec->set_dynamic(streamDescriptor->IsOutputTableDynamic);
         for (const auto& streamSchema : streamDescriptor->StreamSchemas) {
