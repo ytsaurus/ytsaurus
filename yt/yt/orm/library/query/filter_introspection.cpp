@@ -107,7 +107,7 @@ public:
     bool Visit(TExpressionPtr expr)
     {
         if (auto* binaryExpr = expr->As<TBinaryOpExpression>()) {
-            switch(binaryExpr->Opcode) {
+            switch (binaryExpr->Opcode) {
                 case EBinaryOp::Or:
                     return Visit(binaryExpr->Lhs) && Visit(binaryExpr->Rhs);
                 case EBinaryOp::And:

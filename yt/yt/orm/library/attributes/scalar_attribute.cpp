@@ -1265,7 +1265,7 @@ private:
             const FieldDescriptor* field,
             int index) const
         {
-            switch(field->type()) {
+            switch (field->type()) {
                 case FieldDescriptor::TYPE_INT32:
                 case FieldDescriptor::TYPE_SINT32:
                 case FieldDescriptor::TYPE_SFIXED32:
