@@ -80,12 +80,12 @@ def extract_operation_methods(operation, context, with_skiff_schemas, skiff_inpu
     if hasattr(operation, "start") and inspect.ismethod(operation.start):
         start = convert_callable_to_generator(operation.start)
     else:
-        start = lambda: EMPTY_GENERATOR
+        start = lambda: EMPTY_GENERATOR  # noqa
 
     if hasattr(operation, "finish") and inspect.ismethod(operation.finish):
         finish = convert_callable_to_generator(operation.finish)
     else:
-        finish = lambda: EMPTY_GENERATOR
+        finish = lambda: EMPTY_GENERATOR  # noqa
 
     kwargs = {}
 
@@ -97,7 +97,7 @@ def extract_operation_methods(operation, context, with_skiff_schemas, skiff_inpu
         kwargs["skiff_output_schemas"] = skiff_output_schemas
 
     if kwargs:
-        operation_func = lambda *args: operation(*args, **kwargs)
+        operation_func = lambda *args: operation(*args, **kwargs)  # noqa
     else:
         operation_func = operation
     return start, convert_callable_to_generator(operation_func), finish
@@ -347,7 +347,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     rows = params.input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
 
     is_reducer = not params.attributes.get("is_aggregator", False) and not params.job_type == "mapper" and not raw
-    extract_key_by_group_by = lambda row: extract_key(row, params.group_by)
+    extract_key_by_group_by = lambda row: extract_key(row, params.group_by)  # noqa
     grouped_rows = None
 
     context = None

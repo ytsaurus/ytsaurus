@@ -232,11 +232,12 @@ def parse_version(vstring):
 def is_uring_supported():
     if platform.system() != "Linux":
         return False
-    supported = False
     try:
-        supported = parse_version(platform.release()) >= (5, 4, 0)
-    finally:
-        return supported
+        return parse_version(platform.release()) >= (5, 4, 0)
+    except Exception:
+        pass
+
+    return False
 
 
 def is_uring_disabled():

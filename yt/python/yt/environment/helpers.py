@@ -210,7 +210,7 @@ class OpenPortIteratorNonArcadia(Iterator):
             if self.port_locks_path is not None:
                 try:
                     _dump_netstat(os.path.join(self.port_locks_path, "netstat-" + generate_uuid()))
-                except:
+                except:  # noqa
                     logger.exception("Exception occurred while dumping netstat")
 
             raise RuntimeError("Failed to generate open port after {0} attempts"
@@ -224,7 +224,7 @@ def _is_port_free_for_inet(port, inet, verbose):
         sock.bind(("", port))
         sock.listen(1)
         return True
-    except:
+    except:  # noqa
         if verbose:
             logger.exception(
                 "Exception occurred while trying to check port freeness "
@@ -269,7 +269,7 @@ def _fix_yson_booleans(obj):
 def write_config(config, filename, format="yson"):
     with open(filename, "wb") as f:
         if format == "json":
-            writer = lambda stream: stream
+            writer = lambda stream: stream  # noqa
             if PY3:
                 writer = codecs.getwriter("utf-8")
             json.dump(_fix_yson_booleans(config), writer(f), indent=4)
@@ -287,7 +287,7 @@ def read_config(filename, format="yson"):
         if format == "yson":
             return yson.load(f)
         elif format == "json":
-            reader = lambda stream: stream
+            reader = lambda stream: stream  # noqa
             if PY3:
                 reader = codecs.getreader("utf-8")
             return json.load(reader(f))

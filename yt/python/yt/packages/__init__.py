@@ -1,6 +1,7 @@
 import os
 import sys
 
+
 def is_arcadia_python():
     try:
         import __res
@@ -10,6 +11,7 @@ def is_arcadia_python():
         pass
 
     return hasattr(sys, "extra_modules")
+
 
 if is_arcadia_python():
     class PackagesImporter(object):

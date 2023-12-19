@@ -18,5 +18,5 @@ except ImportError:
 try:
     from .version import VERSION, COMMIT  # noqa
     __version__ = VERSION
-except:
+except ImportError:
     __version__ = VERSION = COMMIT = "unknown"

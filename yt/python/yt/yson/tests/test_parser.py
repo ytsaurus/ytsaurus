@@ -441,7 +441,7 @@ class TestLazyDict(object):
             assert not result[i].attributes
 
         result = list(yt_yson_bindings.loads(b"{a=[];b=1};<testattr=abacaba>{a=2;b=3};",
-                                                lazy=True, yson_type="list_fragment"))
+                                             lazy=True, yson_type="list_fragment"))
         assert len(result) == 2
 
         assert result[0]["a"] == []

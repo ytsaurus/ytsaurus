@@ -83,7 +83,7 @@ def create_operations_archive_account(client):
         logging.info("Creating account: %s", OPERATIONS_ARCHIVE_ACCOUNT_NAME)
         client.create("account", attributes={
             "name": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
-            "resource_limits" : get_default_resource_limits(),
+            "resource_limits": get_default_resource_limits(),
         })
         while client.get("//sys/accounts/{0}/@life_stage".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)) != "creation_committed":
             time.sleep(0.1)
@@ -92,6 +92,7 @@ def create_operations_archive_account(client):
     limits[NODES_LIMIT_ATTRIBUTE] = 100
     logging.info("Setting account limits %s", limits)
     client.set("//sys/accounts/{0}/@{1}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE), limits)
+
 
 INITIAL_TABLE_INFOS = {
     "jobs": TableInfo(
@@ -139,7 +140,7 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "operation_ids" : TableInfo(
+    "operation_ids": TableInfo(
         [
             ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
             ("job_id_hi", "uint64"),
@@ -357,13 +358,15 @@ def prepare_migration(client, archive_path):
         create_operations_archive_account(client)
 
     # update all tablet_cell_bundles to existing ones
-    for table in INITIAL_TABLE_INFOS.values() :
+    for table in INITIAL_TABLE_INFOS.values():
         table.attributes["tablet_cell_bundle"] = update_tablet_cell_bundle(client, table.attributes["tablet_cell_bundle"])
 
     for transform in TRANSFORMS.values():
         for conversion in transform:
             if conversion.table_info and conversion.table_info.attributes.get("tablet_cell_bundle") is not None:
-                conversion.table_info.attributes["tablet_cell_bundle"] = update_tablet_cell_bundle(client, conversion.table_info.attributes["tablet_cell_bundle"])
+                conversion.table_info.attributes["tablet_cell_bundle"] = update_tablet_cell_bundle(
+                    client,
+                    conversion.table_info.attributes["tablet_cell_bundle"])
 
     migration = Migration(
         initial_table_infos=INITIAL_TABLE_INFOS,
@@ -391,7 +394,7 @@ def create_tables(client, target_version=None, override_tablet_cell_bundle="defa
     """ Creates operation archive tables of given version """
     migration = prepare_migration(client, archive_path)
 
-    if override_tablet_cell_bundle is not None :
+    if override_tablet_cell_bundle is not None:
         override_tablet_cell_bundle = update_tablet_cell_bundle(client, override_tablet_cell_bundle)
 
     if target_version is None:

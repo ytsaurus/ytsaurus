@@ -569,9 +569,8 @@ def _run_reduce_optimizer(spec, client=None):
 
                 sort_operation_list = _run_sort_optimizer(sort_spec, client)
 
-                finalize = lambda state: remove(temp_table, client=client)
                 spec["input_table_paths"] = [TablePath(temp_table, client=client)]
-                operations_list = sort_operation_list + [("reduce", spec, [finalize])]
+                operations_list = sort_operation_list + [("reduce", spec, [lambda state: remove(temp_table, client=client)])]
             else:
                 if "partition_count" not in spec and "job_count" in spec:
                     spec["partition_count"] = spec["job_count"]
@@ -632,7 +631,7 @@ def run_operation(spec_builder, sync=True, run_operation_mutation_id=None, enabl
                                              client=client)
 
         return result
-    except:
+    except:  # noqa
         for _, _, finalization_actions in operations_iterator:
             for finalize_function in finalization_actions:
                 finalize_function(None)

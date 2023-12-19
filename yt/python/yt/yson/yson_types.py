@@ -16,7 +16,7 @@ class YsonType(object):
     def has_attributes(self):
         try:
             return "attributes" in self.__dict__ and self.attributes is not None and self.attributes != {}
-        except:
+        except:  # noqa
             return False
 
     def __eq__(self, other):

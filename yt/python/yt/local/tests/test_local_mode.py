@@ -95,7 +95,7 @@ def local_yt(*args, **kwargs):
     try:
         environment = start(*args, enable_debug_logging=True, fqdn="localhost", **kwargs)
         yield environment
-    except:
+    except:  # noqa
         logger.exception("Failed to start local yt")
         raise
     finally:

@@ -192,8 +192,9 @@ def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new
     set_param(params, "new_offset", new_offset)
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
-    retry_config["enable"] = retry_config["enable"] and \
-                             get_command_param("transaction_id", client) == null_transaction_id
+    retry_config["enable"] = \
+        retry_config["enable"] and \
+        get_command_param("transaction_id", client) == null_transaction_id
 
     _check_transaction_type(client)
 

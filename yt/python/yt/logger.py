@@ -19,6 +19,7 @@ def set_log_level_from_config(logger):
             logger_config.LOG_LEVEL = "DEBUG"
         logger.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
 
+
 logging.getLogger("yt.packages.requests.packages.urllib3").setLevel(logging.WARNING)
 
 LOGGER = logging.getLogger("Yt")
@@ -42,6 +43,7 @@ def set_formatter(new_formatter):
     formatter = new_formatter
     for handler in LOGGER.handlers:
         handler.setFormatter(new_formatter)
+
 
 set_formatter(BASIC_FORMATTER)
 

@@ -1466,7 +1466,7 @@ class YTInstance(object):
             nodes = self._list_nodes(pick_chaos=True)
             return len(nodes) == self.yt_config.chaos_node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-        wait_function = lambda: self._wait_for(chaos_nodes_ready, "chaos_node", max_wait_time=max(self.yt_config.chaos_node_count * 6.0, 60))
+        wait_function = lambda: self._wait_for(chaos_nodes_ready, "chaos_node", max_wait_time=max(self.yt_config.chaos_node_count * 6.0, 60))  # noqa
         self._wait_or_skip(wait_function, sync)
 
     def _prepare_master_caches(self, master_cache_configs):
@@ -1604,8 +1604,8 @@ class YTInstance(object):
 
                 try:
                     master_cell_id = client.get("//sys/@cell_id")
-                    scheduler_cell_id = client.get(active_scheduler_orchid_path
-                                                   + "/config/cluster_connection/primary_master/cell_id")
+                    scheduler_cell_id = client.get(
+                        active_scheduler_orchid_path + "/config/cluster_connection/primary_master/cell_id")
                     if master_cell_id != scheduler_cell_id:
                         return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}"\
                                       .format(scheduler_cell_id, master_cell_id)

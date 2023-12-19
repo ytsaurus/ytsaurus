@@ -57,16 +57,16 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
         first_tablet_index = get_value(first_tablet_index, 0)
         last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
         is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient" and \
-            all(tablet["state"] == state for tablet in
+            all(tablet["state"] == state for tablet in  # noqa
                 get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
     else:
-        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) == state
+        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) == state  # noqa
 
     _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
 
 
 def _waiting_for_tablet_transition(path, client=None):
-    is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient"
+    is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient"  # noqa
     _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
 
 
