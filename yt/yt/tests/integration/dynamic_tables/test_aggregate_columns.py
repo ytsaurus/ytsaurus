@@ -12,6 +12,8 @@ from yt.common import YtError
 
 import pytest
 
+import yt.yson as yson
+
 from yt.yson import get_bytes
 
 from yt.xdelta_aggregate_column.bindings import State
@@ -458,6 +460,45 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         delete_rows("//tmp/t", [{"key": 1}])
         row = lookup_rows("//tmp/t", [{"key": 1}])
         assert_items_equal(row, [])
+
+    @authors("aleksandra-zh")
+    def test_aggregate_replica_set(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "aggregate": "_yt_replica_set"},
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
+            [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]],
+            []
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
+            [],
+            [['a-b-c-d', 1, 2]]
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == [['a-b-c-f', 3, 4]]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
+            [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]],
+            []
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
+            [],
+            [['a-b-c-d', 1, 2], ['a-b-c-f', 3, 4]]
+        ])}], aggregate=True)
+
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == []
 
 
 ##################################################################
