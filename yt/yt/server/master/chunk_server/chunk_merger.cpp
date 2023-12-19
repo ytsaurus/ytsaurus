@@ -722,7 +722,10 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
 
 bool TChunkMerger::IsNodeBeingMerged(TObjectId nodeId) const
 {
-    return NodesBeingMerged_.contains(nodeId);
+    YT_VERIFY(!HasMutationContext());
+
+    auto it = NodeToMergeStatus_.find(nodeId);
+    return it != NodeToMergeStatus_.end() && it->second == EChunkMergeStatus::InMergePipeline;
 }
 
 void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
@@ -985,6 +988,7 @@ void TChunkMerger::Clear()
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
+    NodeToMergeStatus_.clear();
     ConfigVersion_ = 0;
 
     OldNodesBeingMerged_.reset();
@@ -1003,6 +1007,7 @@ void TChunkMerger::ResetTransientState()
     SessionsAwaitingFinalization_ = {};
     QueuesUsage_ = {};
     AccountIdToNodeMergeDurations_ = {};
+    NodeToMergeStatus_ = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -1064,15 +1069,9 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
         chunkOwner->SetUpdatedSinceLastMerge(false);
     }
 
-    const auto& config = GetDynamicConfig();
-    if (config->EnableQueueSizeLimitChanges && ssize(NodesBeingMerged_) >= config->MaxNodesBeingMerged) {
-        YT_LOG_DEBUG("Skipping merge due to nodes being merged count exceeding the limit (NodeId: %v)",
-            chunkOwner->GetId());
-        return;
-    }
-
     auto accountId = chunkOwner->Account()->GetId();
     EmplaceOrCrash(NodesBeingMerged_, chunkOwner->GetId(), accountId);
+    EmplaceOrCrash(NodeToMergeStatus_, chunkOwner->GetId(), EChunkMergeStatus::AwaitingMerge);
     IncrementPersistentTracker(accountId);
 
     if (IsLeader()) {
@@ -1215,7 +1214,7 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
         .ParentChunkListId = parentChunkListId,
         .InputChunkIds = std::move(inputChunkIds),
         .MergeMode = mode,
-        .AccountId = accountId
+        .AccountId = accountId,
     });
 
     IncrementTracker(
@@ -1304,6 +1303,12 @@ void TChunkMerger::FinalizeSessions()
         ->CommitAndLog(Logger);
 }
 
+bool TChunkMerger::CanAdvanceNodeInMergePipeline()
+{
+    return ssize(JobsAwaitingChunkCreation_) + ssize(JobsUndergoingChunkCreation_)
+        + ssize(JobsAwaitingNodeHeartbeat_) + ssize(SessionsAwaitingFinalization_) < GetDynamicConfig()->MaxNodesBeingMerged;
+}
+
 void TChunkMerger::ProcessTouchedNodes()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1336,12 +1341,21 @@ void TChunkMerger::ProcessTouchedNodes()
             std::ssize(JobsAwaitingNodeHeartbeat_) < config->QueueSizeLimit)
         {
             auto nodeId = queue.front();
+            if (!CanAdvanceNodeInMergePipeline()) {
+                YT_LOG_DEBUG("Too many nodes are being merged, cannot advance node in merge pipeline (Account: %v, NodeId: %v)",
+                    account->GetName(),
+                    nodeId);
+                break;
+            }
             queue.pop();
 
             YT_VERIFY(RunningSessions_.contains(nodeId));
             auto* node = FindChunkOwner(nodeId);
 
             if (CanScheduleMerge(node)) {
+                YT_VERIFY(NodesBeingMerged_.contains(nodeId));
+                NodeToMergeStatus_[nodeId] = EChunkMergeStatus::InMergePipeline;
+
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
                     TEphemeralObjectPtr<TChunkOwnerBase>(node),
@@ -1975,6 +1989,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         auto toErase = GetIteratorOrCrash(NodesBeingMerged_, nodeId);
         auto accountId = toErase->second;
         NodesBeingMerged_.erase(toErase);
+        NodeToMergeStatus_.erase(nodeId);
         DecrementPersistentTracker(accountId);
 
         auto* chunkOwner = FindChunkOwner(nodeId);
@@ -2142,6 +2157,7 @@ void TChunkMerger::OnAfterSnapshotLoaded()
         }
     }
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TChunkMerger::IncrementTracker(
