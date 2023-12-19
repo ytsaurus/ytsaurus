@@ -9,6 +9,8 @@ PEERDIR(
     contrib/python/ipython
 )
 
+NO_LINT()
+
 PY_SRCS(
     NAMESPACE lib
 

@@ -1,5 +1,7 @@
 PY3_LIBRARY()
 
+NO_LINT()
+
 PY_SRCS(
     NAMESPACE yt.packages
 

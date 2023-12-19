@@ -1,5 +1,7 @@
 PY23_LIBRARY()
 
+NO_LINT()
+
 SRCDIR(yt/python/contrib/python-urllib3/src)
 
 PY_SRCS(

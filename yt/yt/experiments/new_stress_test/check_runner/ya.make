@@ -5,6 +5,8 @@ PEERDIR(
     yt/yt/python/yt_yson_bindings
 )
 
+NO_LINT()
+
 PY_SRCS(
     __init__.py
 )
