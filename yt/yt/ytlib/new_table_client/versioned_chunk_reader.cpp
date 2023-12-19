@@ -663,29 +663,32 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     for (int keyColumnIndex = 0; keyColumnIndex < std::ssize(keyTypes); ++keyColumnIndex) {
         const TBlockRef* blockRef = nullptr;
         if (keyColumnIndex < chunkMeta->GetChunkKeyColumnCount()) {
-            auto groupId = preparedChunkMeta->ColumnGroupInfos[keyColumnIndex].GroupId;
+            auto groupId = preparedChunkMeta->ColumnInfos[keyColumnIndex].GroupId;
             auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
+            YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
             blockRef = &groupBlockHolders[blockHolderIndex];
         }
 
-        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnGroupInfos[keyColumnIndex].IndexInGroup};
+        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnInfos[keyColumnIndex].IndexInGroup};
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        auto groupId = preparedChunkMeta->ColumnGroupInfos[chunkSchemaIndex].GroupId;
+        auto groupId = preparedChunkMeta->ColumnInfos[chunkSchemaIndex].GroupId;
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
+        YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
         const auto* blockRef = &groupBlockHolders[blockHolderIndex];
 
-        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnGroupInfos[chunkSchemaIndex].IndexInGroup};
+        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnInfos[chunkSchemaIndex].IndexInGroup};
     }
 
     {
         // Timestamp column info.
-        auto groupId = preparedChunkMeta->ColumnGroupInfos.back().GroupId;
+        auto groupId = preparedChunkMeta->ColumnInfos.back().GroupId;
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
+        YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
         const auto* blockRef = &groupBlockHolders[blockHolderIndex];
 
-        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnGroupInfos.back().IndexInGroup};
+        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnInfos.back().IndexInGroup};
     }
 
     readerStatistics->BuildColumnInfosTime = getDurationAndReset();

@@ -182,19 +182,14 @@ struct TKeyMeta
     void InitFromProto(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
-struct TColumnGroupInfo
-{
-    ui16 GroupId;
-    ui16 IndexInGroup;
-};
-
 struct TPreparedChunkMeta final
 {
-    struct TColumnGroup
+    // Do not want to use term ColumnGroup here because it can be сonfused with Column.
+    struct TGroupInfo
     {
-        TColumnGroup() = default;
-        TColumnGroup(const TColumnGroup&) = delete;
-        TColumnGroup(TColumnGroup&&) = default;
+        TGroupInfo() = default;
+        TGroupInfo(const TGroupInfo&) = delete;
+        TGroupInfo(TGroupInfo&&) = default;
 
         std::vector<ui32> BlockIds;
         std::vector<ui32> BlockChunkRowCounts;
@@ -207,8 +202,14 @@ struct TPreparedChunkMeta final
         std::vector<ui32> SegmentMetaOffsets;
     };
 
-    std::vector<TColumnGroup> ColumnGroups;
-    std::vector<TColumnGroupInfo> ColumnGroupInfos;
+    struct TColumnInfo
+    {
+        ui16 GroupId;
+        ui16 IndexInGroup;
+    };
+
+    std::vector<TGroupInfo> GroupInfos;
+    std::vector<TColumnInfo> ColumnInfos;
 
     size_t Size = 0;
     bool FullNewMeta = false;
