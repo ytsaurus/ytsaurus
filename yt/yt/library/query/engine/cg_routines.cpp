@@ -1925,7 +1925,7 @@ struct TChunkReplica
 {
     TChunkId Uuid;
     i64 Index;
-    i64 NodeId;
+    ui64 NodeId;
 
     auto operator<=>(const TChunkReplica& other) const
     {
@@ -1986,7 +1986,7 @@ TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
 
     replica.Uuid = TGuid::FromString(Consume(cursor, EYsonItemType::StringValue).UncheckedAsString());
     replica.Index = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
-    replica.NodeId = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
+    replica.NodeId = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
 
     Consume(cursor, EYsonItemType::EndList);
 
@@ -2052,7 +2052,7 @@ void DumpReplicas(TYsonWriter& writer, const TCompactVector<TChunkReplica, 3>& r
             writer.OnListItem();
                 writer.OnInt64Scalar(replica.Index);
             writer.OnListItem();
-                writer.OnInt64Scalar(replica.NodeId);
+                writer.OnUint64Scalar(replica.NodeId);
         writer.OnEndList();
     }
     writer.OnEndList();

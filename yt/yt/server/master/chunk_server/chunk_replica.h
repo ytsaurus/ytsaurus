@@ -1,6 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "private.h"
+
+#include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -262,6 +265,24 @@ void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaInfo value);
 
 NChunkClient::TChunkIdWithIndex ToChunkIdWithIndex(TChunkPtrWithReplicaIndex chunkWithIndex);
 NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSequoiaChunkReplica
+{
+    NChunkClient::TChunkId ChunkId;
+    int ReplicaIndex;
+    NNodeTrackerClient::TNodeId NodeId;
+    NChunkClient::TChunkLocationUuid LocationUuid;
+
+    bool operator==(TSequoiaChunkReplica other) const;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+};
+
+void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica);
+void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkReplica& replica);
 
 ////////////////////////////////////////////////////////////////////////////////
 

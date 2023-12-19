@@ -64,7 +64,8 @@ struct ISequoiaTransaction
         NTableClient::TUnversionedRow row) = 0;
 
     template <class TRecord>
-    void WriteRow(const TRecord& record);
+    void WriteRow(const TRecord& record,
+        NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
     virtual void DeleteRow(
         ESequoiaTable table,

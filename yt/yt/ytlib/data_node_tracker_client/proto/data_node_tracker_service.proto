@@ -30,6 +30,8 @@ message TReqModifyReplicas
     repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 3;
 
     repeated NYT.NProto.TGuid location_directory = 4; // TChunkLocationDirectory
+
+    repeated NYT.NProto.TGuid dead_chunk_ids = 5;
 }
 
 message TRspModifyReplicas

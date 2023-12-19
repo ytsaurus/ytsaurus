@@ -184,6 +184,18 @@ public:
             .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.removed_chunks()) {
+                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                }
+            }
+
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.added_chunks()) {
+                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                }
+            }
+
             WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
                 .ThrowOnError();
         }
@@ -288,6 +300,18 @@ public:
             .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.removed_chunks()) {
+                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                }
+            }
+
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.added_chunks()) {
+                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                }
+            }
+
             WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
                 .ThrowOnError();
         }

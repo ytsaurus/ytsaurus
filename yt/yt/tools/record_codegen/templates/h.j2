@@ -3,6 +3,7 @@
 #pragma once
 
 #include <yt/yt/client/table_client/record_codegen_h.h>
+#include <yt/yt/client/table_client/row_base.h>
 {% for include in includes %}
 #include <{{include}}>
 {% endfor %}
@@ -96,7 +97,8 @@ struct {{type.type_name}}
 
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-        const {{type.type_name}}IdMapping& idMapping) const;
+        const {{type.type_name}}IdMapping& idMapping,
+        NYT::NTableClient::EValueFlags flags = NYT::NTableClient::EValueFlags::None) const;
     static {{type.type_name}} FromUnversionedRow(
         NYT::NTableClient::TUnversionedRow row,
         const {{type.type_name}}IdMapping& idMapping);
@@ -118,7 +120,8 @@ struct {{type.type_name}}Partial
 
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-        const {{type.type_name}}IdMapping& idMapping) const;
+        const {{type.type_name}}IdMapping& idMapping,
+        NYT::NTableClient::EValueFlags flags = NYT::NTableClient::EValueFlags::None) const;
     static {{type.type_name}}Partial FromUnversionedRow(
         NYT::NTableClient::TUnversionedRow row,
         const {{type.type_name}}IdMapping& idMapping);

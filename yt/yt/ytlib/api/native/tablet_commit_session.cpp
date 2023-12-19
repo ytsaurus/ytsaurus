@@ -72,7 +72,6 @@ public:
         TLockMask lockMask) override
     {
         YT_VERIFY(!IsVersioned_);
-
         Batcher_->SubmitUnversionedRow(command, row, lockMask);
     }
 
