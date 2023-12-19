@@ -202,7 +202,7 @@ static TPrepareResult DoPrepare(TSegmentMetas metas, IBlockDataProvider* blockPr
     return {blockIds, segmentPivots, preparedMeta};
 }
 
-struct TColumnInfo
+struct TPreparedColumn
 {
     std::vector<ui32> SegmentPivots;
     TSharedRef Meta;
@@ -265,38 +265,38 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
 
     THashMap<int, int> firstBlockIdToGroup;
 
-    std::vector<TColumnInfo> preparedColumns;
+    std::vector<TPreparedColumn> preparedColumns;
     // Plus one timestamp column.
     preparedColumns.resize(chunkSchemaColumns.size() + 1);
 
-    std::vector<TColumnGroup> columnGroups;
-    std::vector<TColumnGroupInfo> columnGroupInfos;
-    columnGroupInfos.resize(chunkSchemaColumns.size() + 1);
+    std::vector<TGroupInfo> groupInfos;
+    std::vector<TColumnInfo> columnInfos;
+    columnInfos.resize(chunkSchemaColumns.size() + 1);
 
     std::vector<std::vector<ui16>> columnIdsPerGroup;
 
     auto determineColumnGroup = [&] (std::vector<ui32> blockIds, int columnIndex) {
         YT_VERIFY(!blockIds.empty());
 
-        auto [it, inserted] = firstBlockIdToGroup.emplace(blockIds.front(), columnGroups.size());
+        auto [it, inserted] = firstBlockIdToGroup.emplace(blockIds.front(), groupInfos.size());
         if (inserted) {
-            columnGroups.emplace_back();
+            groupInfos.emplace_back();
             columnIdsPerGroup.emplace_back();
         }
 
         auto groupId = it->second;
-        columnGroupInfos[columnIndex].GroupId = groupId;
+        columnInfos[columnIndex].GroupId = groupId;
 
-        auto& blockGroup = columnGroups[groupId];
+        auto& group = groupInfos[groupId];
 
-        // Fill BlockIds if blockGroup has been created. Otherwise check that BlockIds and blockIds are equal.
+        // Fill BlockIds if group has been created. Otherwise check that BlockIds and blockIds are equal.
         if (inserted) {
-            blockGroup.BlockIds = std::move(blockIds);
+            group.BlockIds = std::move(blockIds);
         } else {
-            YT_VERIFY(blockIds == blockGroup.BlockIds);
+            YT_VERIFY(blockIds == group.BlockIds);
         }
 
-        columnGroupInfos[columnIndex].IndexInGroup = columnIdsPerGroup[groupId].size();
+        columnInfos[columnIndex].IndexInGroup = columnIdsPerGroup[groupId].size();
         columnIdsPerGroup[groupId].push_back(columnIndex);
     };
 
@@ -324,18 +324,18 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
         determineColumnGroup(std::move(blockIds), timestampReaderIndex);
     }
 
-    for (auto& columnGroup : columnGroups) {
-        columnGroup.BlockChunkRowCounts.resize(std::ssize(columnGroup.BlockIds));
-        for (int index = 0; index < std::ssize(columnGroup.BlockIds); ++index) {
-            columnGroup.BlockChunkRowCounts[index] = blockMeta->data_blocks(columnGroup.BlockIds[index]).chunk_row_count();
+    for (auto& group : groupInfos) {
+        group.BlockChunkRowCounts.resize(std::ssize(group.BlockIds));
+        for (int index = 0; index < std::ssize(group.BlockIds); ++index) {
+            group.BlockChunkRowCounts[index] = blockMeta->data_blocks(group.BlockIds[index]).chunk_row_count();
         }
     }
 
     std::vector<TRef> blockSegmentMeta;
-    for (int groupId = 0; groupId < std::ssize(columnGroups); ++groupId) {
-        auto& blockGroup = columnGroups[groupId];
+    for (int groupId = 0; groupId < std::ssize(groupInfos); ++groupId) {
+        auto& group = groupInfos[groupId];
 
-        for (int index = 0; index < std::ssize(blockGroup.BlockIds); ++index) {
+        for (int index = 0; index < std::ssize(group.BlockIds); ++index) {
             for (auto columnId : columnIdsPerGroup[groupId]) {
                 auto& [segmentPivots, meta] = preparedColumns[columnId];
 
@@ -370,33 +370,33 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
                 metasData += metas.size();
             }
             *offsets++ = offset;
-            blockGroup.MergedMetas.push_back(mergedMeta);
+            group.MergedMetas.push_back(mergedMeta);
 
             blockSegmentMeta.clear();
         }
 
-        YT_VERIFY(blockGroup.MergedMetas.size() == blockGroup.BlockIds.size());
+        YT_VERIFY(group.MergedMetas.size() == group.BlockIds.size());
     }
 
-    size_t size = columnGroups.capacity() * sizeof(TColumnGroup);
-    for (const auto& blockGroup : columnGroups) {
-        size += blockGroup.BlockIds.capacity() * sizeof(ui32);
-        size += blockGroup.BlockChunkRowCounts.capacity() * sizeof(ui32);
-        size += blockGroup.MergedMetas.capacity() * sizeof(TSharedRef);
+    size_t size = groupInfos.capacity() * sizeof(TGroupInfo);
+    for (const auto& group : groupInfos) {
+        size += group.BlockIds.capacity() * sizeof(ui32);
+        size += group.BlockChunkRowCounts.capacity() * sizeof(ui32);
+        size += group.MergedMetas.capacity() * sizeof(TSharedRef);
 
-        for (const auto& perBlockMeta : blockGroup.MergedMetas) {
+        for (const auto& perBlockMeta : group.MergedMetas) {
             size += perBlockMeta.Size();
         }
     }
 
-    return New<TPreparedChunkMeta>(std::move(columnGroups), std::move(columnGroupInfos), size, static_cast<bool>(blockProvider));
+    return New<TPreparedChunkMeta>(std::move(groupInfos), std::move(columnInfos), size, static_cast<bool>(blockProvider));
 }
 
 TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromSegmentMetasStoredInBlocks(
     const NTableClient::TRefCountedColumnGroupInfosExtPtr& columnGroupInfosProto,
     const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta)
 {
-    std::vector<TColumnGroupInfo> columnGroupInfos(columnGroupInfosProto->column_to_group_size());
+    std::vector<TColumnInfo> columnInfos(columnGroupInfosProto->column_to_group_size());
 
     int maxGroupId = 0;
     for (int columnId = 0; columnId < columnGroupInfosProto->column_to_group_size(); ++columnId) {
@@ -407,28 +407,28 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromSegmentMetasStoredInBl
     std::vector<int> columnsInGroup(maxGroupId + 1);
     for (int columnId = 0; columnId < columnGroupInfosProto->column_to_group_size(); ++columnId) {
         auto groupId = columnGroupInfosProto->column_to_group(columnId);
-        columnGroupInfos[columnId] = {static_cast<ui16>(groupId), static_cast<ui16>(columnsInGroup[groupId]++)};
+        columnInfos[columnId] = {static_cast<ui16>(groupId), static_cast<ui16>(columnsInGroup[groupId]++)};
     }
 
-    std::vector<TColumnGroup> columnGroups(maxGroupId + 1);
+    std::vector<TGroupInfo> groupInfos(maxGroupId + 1);
     for (int blockId = 0; blockId < columnGroupInfosProto->block_group_indexes_size(); ++blockId) {
         auto groupId = columnGroupInfosProto->block_group_indexes(blockId);
 
-        auto& columnGroup = columnGroups[groupId];
+        auto& group = groupInfos[groupId];
 
-        columnGroup.BlockIds.push_back(blockId);
-        columnGroup.SegmentMetaOffsets.push_back(columnGroupInfosProto->segment_meta_offsets(blockId));
-        columnGroup.BlockChunkRowCounts.push_back(blockMeta->data_blocks(blockId).chunk_row_count());
+        group.BlockIds.push_back(blockId);
+        group.SegmentMetaOffsets.push_back(columnGroupInfosProto->segment_meta_offsets(blockId));
+        group.BlockChunkRowCounts.push_back(blockMeta->data_blocks(blockId).chunk_row_count());
     }
 
-    size_t size = columnGroups.capacity() * sizeof(TColumnGroup);
-    for (const auto& blockGroup : columnGroups) {
-        size += blockGroup.BlockIds.capacity() * sizeof(ui32);
-        size += blockGroup.BlockChunkRowCounts.capacity() * sizeof(ui32);
-        size += blockGroup.SegmentMetaOffsets.capacity() * sizeof(ui16);
+    size_t size = groupInfos.capacity() * sizeof(TGroupInfo);
+    for (const auto& group : groupInfos) {
+        size += group.BlockIds.capacity() * sizeof(ui32);
+        size += group.BlockChunkRowCounts.capacity() * sizeof(ui32);
+        size += group.SegmentMetaOffsets.capacity() * sizeof(ui16);
     }
 
-    return New<TPreparedChunkMeta>(std::move(columnGroups), std::move(columnGroupInfos), size, true);
+    return New<TPreparedChunkMeta>(std::move(groupInfos), std::move(columnInfos), size, true);
 }
 
 void TPreparedChunkMeta::VerifyEquality(
@@ -436,27 +436,27 @@ void TPreparedChunkMeta::VerifyEquality(
     const TPreparedChunkMeta& inBlocksMeta,
     const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta)
 {
-    YT_VERIFY(fromProtoMeta.ColumnGroupInfos.size() == inBlocksMeta.ColumnGroupInfos.size());
-    for (int index = 0; index < std::ssize(fromProtoMeta.ColumnGroupInfos); ++index) {
-        YT_VERIFY(fromProtoMeta.ColumnGroupInfos[index].GroupId == inBlocksMeta.ColumnGroupInfos[index].GroupId);
-        YT_VERIFY(fromProtoMeta.ColumnGroupInfos[index].IndexInGroup == inBlocksMeta.ColumnGroupInfos[index].IndexInGroup);
+    YT_VERIFY(fromProtoMeta.ColumnInfos.size() == inBlocksMeta.ColumnInfos.size());
+    for (int index = 0; index < std::ssize(fromProtoMeta.ColumnInfos); ++index) {
+        YT_VERIFY(fromProtoMeta.ColumnInfos[index].GroupId == inBlocksMeta.ColumnInfos[index].GroupId);
+        YT_VERIFY(fromProtoMeta.ColumnInfos[index].IndexInGroup == inBlocksMeta.ColumnInfos[index].IndexInGroup);
     }
 
-    YT_VERIFY(fromProtoMeta.ColumnGroups.size() == inBlocksMeta.ColumnGroups.size());
-    for (int index = 0; index < std::ssize(fromProtoMeta.ColumnGroups); ++index) {
-        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockIds.size() == fromProtoMeta.ColumnGroups[index].BlockChunkRowCounts.size());
-        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockIds.size() == fromProtoMeta.ColumnGroups[index].MergedMetas.size());
+    YT_VERIFY(fromProtoMeta.GroupInfos.size() == inBlocksMeta.GroupInfos.size());
+    for (int index = 0; index < std::ssize(fromProtoMeta.GroupInfos); ++index) {
+        YT_VERIFY(fromProtoMeta.GroupInfos[index].BlockIds.size() == fromProtoMeta.GroupInfos[index].BlockChunkRowCounts.size());
+        YT_VERIFY(fromProtoMeta.GroupInfos[index].BlockIds.size() == fromProtoMeta.GroupInfos[index].MergedMetas.size());
 
-        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockIds == inBlocksMeta.ColumnGroups[index].BlockIds);
-        YT_VERIFY(fromProtoMeta.ColumnGroups[index].BlockChunkRowCounts == inBlocksMeta.ColumnGroups[index].BlockChunkRowCounts);
-        YT_VERIFY(fromProtoMeta.ColumnGroups[index].MergedMetas.size() == inBlocksMeta.ColumnGroups[index].SegmentMetaOffsets.size());
+        YT_VERIFY(fromProtoMeta.GroupInfos[index].BlockIds == inBlocksMeta.GroupInfos[index].BlockIds);
+        YT_VERIFY(fromProtoMeta.GroupInfos[index].BlockChunkRowCounts == inBlocksMeta.GroupInfos[index].BlockChunkRowCounts);
+        YT_VERIFY(fromProtoMeta.GroupInfos[index].MergedMetas.size() == inBlocksMeta.GroupInfos[index].SegmentMetaOffsets.size());
     }
 
-    for (int groupId = 0; groupId < std::ssize(inBlocksMeta.ColumnGroups); ++groupId) {
-        for (int blockIdIndex = 0; blockIdIndex < std::ssize(inBlocksMeta.ColumnGroups[groupId].BlockIds); ++blockIdIndex) {
-            auto blockSize = blockMeta->data_blocks(inBlocksMeta.ColumnGroups[groupId].BlockIds[blockIdIndex]).uncompressed_size();
-            auto fromBlockMetaSize = blockSize - inBlocksMeta.ColumnGroups[groupId].SegmentMetaOffsets[blockIdIndex];
-            auto fromProtoMetaSize = std::ssize(fromProtoMeta.ColumnGroups[groupId].MergedMetas[blockIdIndex]);
+    for (int groupId = 0; groupId < std::ssize(inBlocksMeta.GroupInfos); ++groupId) {
+        for (int blockIdIndex = 0; blockIdIndex < std::ssize(inBlocksMeta.GroupInfos[groupId].BlockIds); ++blockIdIndex) {
+            auto blockSize = blockMeta->data_blocks(inBlocksMeta.GroupInfos[groupId].BlockIds[blockIdIndex]).uncompressed_size();
+            auto fromBlockMetaSize = blockSize - inBlocksMeta.GroupInfos[groupId].SegmentMetaOffsets[blockIdIndex];
+            auto fromProtoMetaSize = std::ssize(fromProtoMeta.GroupInfos[groupId].MergedMetas[blockIdIndex]);
             YT_VERIFY(fromBlockMetaSize == fromProtoMetaSize);
         }
     }

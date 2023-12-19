@@ -118,15 +118,15 @@ TCompactVector<ui16, 32> GetGroupsIds(
     auto* groupIdsData = groupIds.data();
 
     for (int index = 0; index < keyColumnCount; ++index) {
-        *groupIdsData++ = preparedChunkMeta.ColumnGroupInfos[index].GroupId;
+        *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        *groupIdsData++ = preparedChunkMeta.ColumnGroupInfos[chunkSchemaIndex].GroupId;
+        *groupIdsData++ = preparedChunkMeta.ColumnInfos[chunkSchemaIndex].GroupId;
     }
 
-    auto timestampColumnIndex = preparedChunkMeta.ColumnGroups.size() - 1;
-    *groupIdsData++ = preparedChunkMeta.ColumnGroupInfos[timestampColumnIndex].GroupId;
+    // Timestamp group id.
+    *groupIdsData++ = preparedChunkMeta.ColumnInfos.back().GroupId;
 
     std::sort(groupIds.begin(), groupIds.end());
     groupIds.erase(std::unique(groupIds.begin(), groupIds.end()), groupIds.end());
@@ -143,10 +143,10 @@ std::vector<TGroupBlockHolder> CreateGroupBlockHolders(
     groupHolders.reserve(std::ssize(groupIds));
     for (auto groupId : groupIds) {
         groupHolders.emplace_back(
-            preparedChunkMeta.ColumnGroups[groupId].BlockIds,
-            preparedChunkMeta.ColumnGroups[groupId].BlockChunkRowCounts,
-            preparedChunkMeta.ColumnGroups[groupId].MergedMetas,
-            preparedChunkMeta.ColumnGroups[groupId].SegmentMetaOffsets);
+            preparedChunkMeta.GroupInfos[groupId].BlockIds,
+            preparedChunkMeta.GroupInfos[groupId].BlockChunkRowCounts,
+            preparedChunkMeta.GroupInfos[groupId].MergedMetas,
+            preparedChunkMeta.GroupInfos[groupId].SegmentMetaOffsets);
     }
 
     return groupHolders;
