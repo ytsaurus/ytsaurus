@@ -1,0 +1,86 @@
+TAG(
+    ya:fat
+    ya:full_logs
+    ya:sys_info
+    ya:force_sandbox
+    ya:sandbox_coverage
+    ya:noretries
+    ya:yt
+    ya:relwithdebinfo
+)
+
+ENV(YT_DEBUG_TAKEN_PORT=1)
+
+SET(NO_STRIP yes)
+
+YT_SPEC(yt/yt/tests/integration/spec.yson)
+
+SIZE(LARGE)
+
+REQUIREMENTS(
+    sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
+)
+
+INCLUDE(${ARCADIA_ROOT}/yt/opensource_tests.inc)
+
+PEERDIR(
+    contrib/python/zstandard
+
+    yt/yt/tests/library
+    yt/yt/library/query/unittests/udf
+)
+
+IF (AUTOCHECK OR YT_TEAMCITY)
+    IF (DEFINED YT_SPLIT_FACTOR)
+        FORK_TESTS(MODULO)
+
+        SPLIT_FACTOR($YT_SPLIT_FACTOR)
+    ENDIF()
+
+    TIMEOUT(1800)
+ELSE()
+    DEPENDS(
+        # We intentionally want to have symlink on ytserver-all at this path in local runs.
+        yt/yt/server/all
+    )
+ENDIF()
+
+DEPENDS(
+    yt/yt/packages/tests_package
+    yt/yt/tools/yt_sudo_fixup
+)
+
+DATA(
+    sbr://5443303555 # Layers.
+    sbr://1703335903 # Rootfs.
+)
+
+PY_NAMESPACE(.)
+
+SRCDIR(yt/yt/tests/integration)
+
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(
+        cpu:12
+        ram:32
+    )
+ELSEIF (BUILD_TYPE == "DEBUG" OR BUILD_TYPE == "FASTDEBUG")
+    REQUIREMENTS(
+        cpu:12
+        ram:16
+    )
+ELSE()
+    REQUIREMENTS(
+        cpu:8
+        ram:16
+    )
+ENDIF()
+
+IF (CLANG_COVERAGE)
+    REQUIREMENTS(
+        ram_disk:16
+        ram:32
+    )
+ELSE()
+    REQUIREMENTS(ram_disk:4)
+ENDIF()

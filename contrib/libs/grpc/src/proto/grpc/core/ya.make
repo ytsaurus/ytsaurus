@@ -1,0 +1,16 @@
+PROTO_LIBRARY()
+
+WITHOUT_LICENSE_TEXTS()
+
+LICENSE(Apache-2.0)
+
+PROTO_NAMESPACE(
+    GLOBAL
+    contrib/libs/grpc
+)
+
+GRPC()
+
+EXCLUDE_TAGS(GO_PROTO)
+
+END()

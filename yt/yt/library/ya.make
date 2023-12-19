@@ -1,0 +1,45 @@
+RECURSE(
+    auth
+    auth_server
+    backtrace_introspector
+    clickhouse_discovery
+    codegen
+    column_converters
+    containers
+    coredumper
+    decimal
+    dns_over_rpc
+    dynamic_config
+    undumpable
+    erasure
+    error_skeleton
+    formats
+    heavy_schema_validation
+    monitoring
+    numeric
+    process
+    profiling
+    program
+    quantile_digest
+    query
+    random
+    re2
+    safe_assert
+    skiff_ext
+    sparse_coredump
+    syncmap
+    tracing
+    vector_hdrf
+    oom
+    xor_filter
+)
+
+IF (NOT OPENSOURCE)
+    RECURSE(
+        clickhouse_functions
+        di
+        named_value
+        ytprof
+        s3
+    )
+ENDIF()

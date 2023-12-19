@@ -1,0 +1,5 @@
+RECURSE(
+    cpuinfo
+    fuzz
+    snapref
+)

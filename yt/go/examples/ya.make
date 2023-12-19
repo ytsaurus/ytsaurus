@@ -1,0 +1,11 @@
+RECURSE(
+    compute-email-example
+    count-names-example
+    cypress-example
+    dynamic-table
+    ordered-dynamic-table
+    query-tracker
+    schema
+    table-usage
+    vanilla-example
+)

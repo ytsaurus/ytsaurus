@@ -1,0 +1,9 @@
+INCLUDE(YaMakeBoilerplateForTests.txt)
+
+COPY_FILE(
+    yt/yt/tests/conftest_lib/conftest.py conftest.py
+)
+
+TEST_SRCS(
+    conftest.py
+)

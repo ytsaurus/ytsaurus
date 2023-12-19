@@ -1,0 +1,43 @@
+INCLUDE(YaMakeBoilerplateForTests.txt)
+
+#controller, scheduler
+DEPENDS(
+    yt/yt/tools/cuda_core_dump_injection
+    yt/yt/tests/cuda_core_dump_simulator
+)
+
+#scheduler_simulator
+DEPENDS(
+    yt/yt/tools/scheduler_simulator/bin/converter
+    yt/yt/tools/scheduler_simulator/bin/simulator
+)
+
+#proxies
+DEPENDS(
+    yt/yt/tests/integration/fake_blackbox
+)
+
+IF (NOT OPENSOURCE)
+    DEPENDS(
+        passport/infra/daemons/tvmtool/cmd
+    )
+ENDIF()
+
+DEPENDS(
+    yt/yt/tools/prepare_scheduling_usage
+)
+
+PEERDIR(
+    yt/yt/tests/integration
+    yt/yt/tests/conftest_lib
+)
+
+# Conftest for queries includes conftest used for all other tests.
+COPY_FILE(
+    yt/yt/tests/conftest_lib/conftest_queries.py conftest.py
+)
+
+TEST_SRCS(
+    conftest.py
+)
+

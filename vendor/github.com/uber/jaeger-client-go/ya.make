@@ -1,0 +1,77 @@
+GO_LIBRARY()
+
+LICENSE(Apache-2.0)
+
+SRCS(
+    baggage_setter.go
+    constants.go
+    contrib_observer.go
+    doc.go
+    header.go
+    interop.go
+    jaeger_tag.go
+    jaeger_thrift_span.go
+    logger.go
+    metrics.go
+    observer.go
+    process.go
+    propagation.go
+    reference.go
+    reporter.go
+    reporter_options.go
+    sampler.go
+    sampler_remote.go
+    sampler_remote_options.go
+    sampler_v2.go
+    span.go
+    span_allocator.go
+    span_context.go
+    tracer.go
+    tracer_options.go
+    transport.go
+    transport_udp.go
+    zipkin.go
+    zipkin_thrift_span.go
+)
+
+GO_TEST_SRCS(
+    baggage_setter_test.go
+    constants_test.go
+    header_test.go
+    jaeger_thrift_span_test.go
+    logger_test.go
+    metrics_test.go
+    observer_test.go
+    propagation_test.go
+    reporter_test.go
+    sampler_remote_test.go
+    sampler_test.go
+    sampler_v2_test.go
+    span_allocator_test.go
+    span_context_test.go
+    span_test.go
+    tracer_bench_test.go
+    tracer_test.go
+    transport_udp_test.go
+    zipkin_test.go
+    zipkin_thrift_span_test.go
+)
+
+END()
+
+RECURSE(
+    config
+    # crossdock
+    gotest
+    internal
+    log
+    metrics
+    rpcmetrics
+    testutils
+    thrift
+    thrift-gen
+    transport
+    utils
+    x
+    zipkin
+)

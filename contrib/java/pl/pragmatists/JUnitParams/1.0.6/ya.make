@@ -1,0 +1,12 @@
+JAVA_CONTRIB()
+
+LICENSE(Apache-2.0)
+
+PEERDIR(
+    contrib/java/junit/junit/4.12
+)
+
+JAR_RESOURCE(212914830)
+SRC_RESOURCE(212914589)
+
+END()

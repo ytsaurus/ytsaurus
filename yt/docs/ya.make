@@ -1,11 +1,5 @@
 DOCS()
 
-OWNER(
-    andozer
-    arivkin
-    pewit
-)
-
 DOCS_VARS(
     version=0
     audience=public

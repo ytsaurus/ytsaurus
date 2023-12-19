@@ -1,0 +1,40 @@
+PY3_LIBRARY()
+
+TEST_SRCS(
+    test_access_logs.py
+    test_account_resource_usage_lease.py
+    test_accounts.py
+    test_chunk_cache.py
+    test_chunk_locations.py
+    test_chunk_merger.py
+    test_chunk_reincarnator.py
+    test_chunk_schemas.py
+    test_chunk_server.py
+    test_concatenate.py
+    test_data_centers.py
+    test_hosts.py
+    test_incumbents.py
+    test_maintenance_tracker.py
+    test_master_cache.py
+    test_master_cell_addition.py
+    test_master_cell_chunk_statistics_collector.py
+    test_master_cells_sync.py
+    test_master_hydra.py
+    test_master_snapshots.py
+    test_master_transactions.py
+    test_media.py
+    test_node_tracker.py
+    test_object_service_cache.py
+    test_racks.py
+    test_response_keeper.py
+    test_rff.py
+    test_structured_node_tracker_logs.py
+    test_structured_security_logs.py
+    test_users.py
+)
+
+END()
+
+RECURSE_FOR_TESTS(
+    bin
+)
