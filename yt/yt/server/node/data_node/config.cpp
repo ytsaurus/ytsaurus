@@ -40,9 +40,9 @@ void TP2PConfig::Register(TRegistrar registrar)
     registrar.Parameter("session_ttl", &TThis::SessionTTL)
         .Default(TDuration::Minutes(5));
 
-    registrar.Parameter("request_cache", &TThis::RequestCache)
+    registrar.Parameter("snooper_cache", &TThis::RequestCache)
         .DefaultNew();
-    registrar.Parameter("request_cache_override", &TThis::RequestCacheOverride)
+    registrar.Parameter("snooper_cache_override", &TThis::RequestCacheOverride)
         .DefaultNew();
 
     registrar.Parameter("chunk_cooldown_timeout", &TThis::ChunkCooldownTimeout)
