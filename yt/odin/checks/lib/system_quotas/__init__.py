@@ -75,10 +75,6 @@ def get_cluster_name(yt_client):
     return yt_client.config.get("proxy", {}).get("url", "").split('.')[0]
 
 
-def get_not_so_critical_quota_holders(cluster, holders_on_all_clusters, holders_by_cluster):
-    return holders_on_all_clusters | holders_by_cluster.get(cluster, set())
-
-
 def build_link_to_account(cluster, account):
     return f"https://yt.yandex-team.ru/{cluster}/accounts/general?account={account}"
 

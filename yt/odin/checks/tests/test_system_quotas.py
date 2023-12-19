@@ -5,7 +5,17 @@ from yt_odin.test_helpers import make_check_dir, configure_odin, run_checks, Che
 def test_system_quotas(yt_env):
     yt_client = yt_env.yt_client
     proxy_url = yt_client.config["proxy"]["url"]
-    checks_path = make_check_dir("system_quotas")
+    check_options = dict(
+        accounts={
+            "all_possible_names": ["sys"],
+            "enable_tablet_resource_validation": False,
+        },
+        bundles={
+            "all_possible_names": ["sys"],
+            "enable_tablet_resource_validation": True,
+        },
+    )
+    checks_path = make_check_dir("system_quotas", check_options)
 
     flat_resource = "//sys/accounts/sys/@{}/node_count"
     subkey_resource = "//sys/accounts/sys/@{}/disk_space_per_medium/default"

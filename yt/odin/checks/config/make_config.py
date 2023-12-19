@@ -293,6 +293,39 @@ def get_checks_config():
         }
     }
 
+    system_quotas_with_non_critical_yp_account = {
+        "system_quotas": {
+            "options": {
+                "accounts": {
+                    "per_cluster_not_so_critical_names": ["yp"],
+                }
+            }
+        }
+    }
+
+    system_quotas_only_per_account_tablet_resources = {
+        "system_quotas": {
+            "options": {
+                "accounts": {
+                    "enable_tablet_resource_validation": True,
+                },
+                "bundles": {
+                    "enable_tablet_resource_validation": False,
+                }
+            }
+        }
+    }
+
+    system_quotas_with_per_account_tablet_resources = {
+        "system_quotas": {
+            "options": {
+                "accounts": {
+                    "enable_tablet_resource_validation": True,
+                }
+            }
+        }
+    }
+
     YP_TRANSPORT_TO_PORT = {
         "grpc": 8090,
         "http": 8443,
@@ -671,6 +704,44 @@ def get_checks_config():
                             },
                         ],
                     },
+                },
+                "options": {
+                    "accounts": {
+                        "all_possible_names": [
+                            "sys", "tmp", "intermediate", "tmp_files", "tmp_jobs", "yt-skynet-m5r",
+                            "operations_archive", "cron_compression", "clickhouse-kolkhoz", "yp",
+                            "yt-integration-tests", "logfeller-yt",
+                        ],
+                        # These accounts should lead only to partially available (yellow) state on all clusters
+                        "not_so_critical_names": [
+                            # This account contains only logs, in worst-case scenario we
+                            # will just lose some night activity history.
+                            "clickhouse-kolkhoz"
+                        ],
+                        "per_cluster_not_so_critical_names": [],
+                        # For some accounts threshold may be overridden
+                        "custom_thresholds": {},
+                        # For some accounts threshold depends on the time
+                        "threshold_time_period_overrides": {
+                            "logfeller-yt": {
+                                "start_time": "00:00:00",
+                                "end_time": "10:00:00",
+                                "threshold": 95,
+                            },
+                            "yt-integration-tests": {
+                                "start_time": "00:00:00",
+                                "end_time": "10:00:00",
+                                "threshold": 95,
+                            },
+                        },
+                        "enable_tablet_resource_validation": False
+                    },
+                    "bundles": {
+                        "all_possible_names": [
+                            "sys", "sys_blobs", "sys_operations",
+                        ],
+                        "enable_tablet_resource_validation": True
+                    }
                 },
             },
             "master_alerts": {
@@ -1100,6 +1171,7 @@ def get_checks_config():
                 enable_remote_copy,
                 bundle_controller,
                 enable_query_tracker_alerts,
+                system_quotas_only_per_account_tablet_resources,
             ),
             "arnold": deep_merge(
                 skynet_manager,
@@ -1116,11 +1188,13 @@ def get_checks_config():
                 enable_nightly_compression_arnold,
                 bundle_controller,
                 dynamic_table_replication_stable,
+                system_quotas_with_non_critical_yp_account,
             ),
             "landau": deep_merge(
                 snapshot_validation,
                 clock_quorum_health,
                 bundle_controller,
+                system_quotas_with_per_account_tablet_resources,
             ),
             "bohr": deep_merge(
                 snapshot_validation,
@@ -1128,6 +1202,7 @@ def get_checks_config():
                 sort_result_nightly_wide_window,
                 map_result_nightly_wide_window,
                 bundle_controller,
+                system_quotas_with_per_account_tablet_resources,
             ),
             "socrates": deep_merge(
                 snapshot_validation,
@@ -1135,6 +1210,8 @@ def get_checks_config():
                 enable_discovery,
                 enable_remote_copy,
                 bundle_controller,
+                system_quotas_with_non_critical_yp_account,
+                system_quotas_only_per_account_tablet_resources,
             ),
             "hume": deep_merge(
                 dynamic_table_replication_prestable,
@@ -1179,6 +1256,7 @@ def get_checks_config():
                 snapshot_validation,
                 clock_quorum_health,
                 bundle_controller,
+                system_quotas_with_per_account_tablet_resources,
             ),
             "seneca-man": deep_merge(
                 snapshot_validation,
@@ -1202,12 +1280,14 @@ def get_checks_config():
             ),
             "nash": deep_merge(
                 snapshot_validation,
-                clock_quorum_health
+                clock_quorum_health,
+                system_quotas_only_per_account_tablet_resources,
             ),
             "navier": deep_merge(
                 snapshot_validation,
                 allow_unaware_nodes,
                 nochyt,
+                system_quotas_only_per_account_tablet_resources,
             ),
             "hahn": deep_merge(
                 sort_result_hourly,
@@ -1225,6 +1305,7 @@ def get_checks_config():
                 enable_discovery,
                 enable_nightly_compression_hahn,
                 dynamic_table_replication_stable,
+                system_quotas_with_non_critical_yp_account,
             ),
             "zeno": deep_merge(
                 allow_unaware_nodes,
@@ -1235,7 +1316,10 @@ def get_checks_config():
                 bundle_controller,
                 tablet_stress_test,
             ),
-            "locke": deep_merge(snapshot_validation),
+            "locke": deep_merge(
+                snapshot_validation,
+                system_quotas_only_per_account_tablet_resources,
+            ),
             "vanga": deep_merge(
                 snapshot_validation,
                 clock_quorum_health,
@@ -1274,12 +1358,14 @@ def get_checks_config():
                 clock_quorum_health,
                 allow_unaware_nodes,
                 nochyt,
+                system_quotas_only_per_account_tablet_resources,
             ),
             "poincare-beta": deep_merge(
                 snapshot_validation,
                 clock_quorum_health,
                 allow_unaware_nodes,
                 nochyt,
+                system_quotas_only_per_account_tablet_resources,
             ),
             "vapnik": deep_merge(
                 snapshot_validation,
@@ -1298,6 +1384,7 @@ def get_checks_config():
             get_yp_config(cluster[len("yp-"):]),
             allow_unaware_nodes,
             skynet_manager,
+            system_quotas_only_per_account_tablet_resources,
         )
 
     return config
