@@ -173,7 +173,7 @@ void PopulateAllocatingInstancies(
         orchidInfo->HulkRequestState = request->Status->State;
         instanceInfo->PodId = request->Status->PodId;
         instanceInfo->YPCluster = request->Spec->YPCluster;
-        *instanceInfo->Resource = *request->Spec->ResourceRequest;
+        ConvertToInstanceResources(*instanceInfo->Resource, *request->Spec->ResourceRequest);
     }
 }
 

@@ -2,11 +2,7 @@
 
 #include "private.h"
 
-#include <optional>
-#include <yt/yt/client/tablet_client/public.h>
-
-#include <yt/yt/core/ytree/yson_serializable.h>
-#include <yt/yt/core/ytree/yson_struct.h>
+#include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
 namespace NYT::NCellBalancer {
 
@@ -14,16 +10,13 @@ namespace NYT::NCellBalancer {
 
 DECLARE_REFCOUNTED_STRUCT(TSysConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
-DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
-DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimits)
 DECLARE_REFCOUNTED_STRUCT(TDefaultInstanceConfig)
 DECLARE_REFCOUNTED_STRUCT(TInstanceSize)
+DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
-DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
-DECLARE_REFCOUNTED_STRUCT(TMemoryLimits)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerState)
 DECLARE_REFCOUNTED_STRUCT(TZoneInfo)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequestSpec)
@@ -112,66 +105,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCpuLimits
-    : public NYTree::TYsonStruct
-{
-    int WriteThreadPoolSize;
-    int LookupThreadPoolSize;
-    int QueryThreadPoolSize;
-
-    REGISTER_YSON_STRUCT(TCpuLimits);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCpuLimits)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TMemoryLimits
-    : public NYTree::TYsonStruct
-{
-    std::optional<i64> TabletStatic;
-    std::optional<i64> TabletDynamic;
-    std::optional<i64> CompressedBlockCache;
-    std::optional<i64> UncompressedBlockCache;
-    std::optional<i64> KeyFilterBlockCache;
-    std::optional<i64> VersionedChunkMeta;
-    std::optional<i64> LookupRowCache;
-
-    REGISTER_YSON_STRUCT(TMemoryLimits);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TMemoryLimits)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TInstanceResources
-    : public NYTree::TYsonStruct
-{
-    int Vcpu;
-    i64 Memory;
-    std::optional<i64> Net;
-
-    TString Type;
-
-    TInstanceResources& operator=(const THulkInstanceResources& resources);
-
-    bool operator==(const TInstanceResources& resources) const;
-
-    void Clear();
-
-    REGISTER_YSON_STRUCT(TInstanceResources);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TInstanceResources)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TResourceQuota
     : public NYTree::TYsonStruct
 {
@@ -206,8 +139,8 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimits)
 struct TDefaultInstanceConfig
     : public NYTree::TYsonStruct
 {
-    TCpuLimitsPtr CpuLimits;
-    TMemoryLimitsPtr MemoryLimits;
+    NBundleControllerClient::TCpuLimitsPtr CpuLimits;
+    NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TDefaultInstanceConfig);
 
@@ -221,7 +154,7 @@ DEFINE_REFCOUNTED_TYPE(TDefaultInstanceConfig)
 struct TInstanceSize
     : public NYTree::TYsonStruct
 {
-    TInstanceResourcesPtr ResourceGuarantee;
+    NBundleControllerClient::TInstanceResourcesPtr ResourceGuarantee;
     TDefaultInstanceConfigPtr DefaultConfig;
 
     REGISTER_YSON_STRUCT(TInstanceSize);
@@ -233,15 +166,36 @@ DEFINE_REFCOUNTED_TYPE(TInstanceSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THulkInstanceResources
+    : public NYTree::TYsonStruct
+{
+    int Vcpu;
+    i64 MemoryMb;
+    std::optional<int> NetworkBandwidth;
+
+    THulkInstanceResources& operator=(const NBundleControllerClient::TInstanceResources& resources);
+
+    REGISTER_YSON_STRUCT(THulkInstanceResources);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THulkInstanceResources)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ConvertToInstanceResources(NBundleControllerClient::TInstanceResources& resources, const THulkInstanceResources& hulkResources);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBundleConfig
     : public NYTree::TYsonStruct
 {
     int TabletNodeCount;
     int RpcProxyCount;
-    TInstanceResourcesPtr TabletNodeResourceGuarantee;
-    TInstanceResourcesPtr RpcProxyResourceGuarantee;
-    TCpuLimitsPtr CpuLimits;
-    TMemoryLimitsPtr MemoryLimits;
+    NBundleControllerClient::TInstanceResourcesPtr TabletNodeResourceGuarantee;
+    NBundleControllerClient::TInstanceResourcesPtr RpcProxyResourceGuarantee;
+    NBundleControllerClient::TCpuLimitsPtr CpuLimits;
+    NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -381,23 +335,6 @@ struct TZoneInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TZoneInfo)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct THulkInstanceResources
-    : public NYTree::TYsonStruct
-{
-    int Vcpu;
-    i64 MemoryMb;
-    std::optional<int> NetworkBandwidth;
-
-    THulkInstanceResources& operator=(const TInstanceResources& resources);
-
-    REGISTER_YSON_STRUCT(THulkInstanceResources);
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(THulkInstanceResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -591,7 +528,7 @@ struct TInstanceAnnotations
     TString NannyService;
     TString AllocatedForBundle;
     bool Allocated;
-    TInstanceResourcesPtr Resource;
+    NBundleControllerClient::TInstanceResourcesPtr Resource;
 
     std::optional<TInstant> DeallocatedAt;
     TString DeallocationStrategy;
@@ -742,8 +679,8 @@ DEFINE_REFCOUNTED_TYPE(TRpcProxyInfo)
 struct TBundleDynamicConfig
     : public NYTree::TYsonStruct
 {
-    TCpuLimitsPtr CpuLimits;
-    TMemoryLimitsPtr MemoryLimits;
+    NBundleControllerClient::TCpuLimitsPtr CpuLimits;
+    NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

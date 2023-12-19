@@ -17,7 +17,7 @@ DECLARE_REFCOUNTED_STRUCT(TDataCenterRacksInfo)
 struct TInstanceInfo
     : public NYTree::TYsonStruct
 {
-    TInstanceResourcesPtr Resource;
+    NBundleControllerClient::TInstanceResourcesPtr Resource;
 
     TString PodId;
     TString YPCluster;
@@ -68,10 +68,10 @@ DEFINE_REFCOUNTED_TYPE(TAllocatingInstanceInfo)
 struct TBundleInfo
     : public NYTree::TYsonStruct
 {
-    TInstanceResourcesPtr ResourceQuota;
-    TInstanceResourcesPtr ResourceAllocated;
-    TInstanceResourcesPtr ResourceAlive;
-    TInstanceResourcesPtr ResourceTarget;
+    NBundleControllerClient::TInstanceResourcesPtr ResourceQuota;
+    NBundleControllerClient::TInstanceResourcesPtr ResourceAllocated;
+    NBundleControllerClient::TInstanceResourcesPtr ResourceAlive;
+    NBundleControllerClient::TInstanceResourcesPtr ResourceTarget;
 
     THashMap<TString, TInstanceInfoPtr> AllocatedTabletNodes;
     THashMap<TString, TInstanceInfoPtr> AllocatedRpcProxies;

@@ -45,6 +45,7 @@
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/client/api/internal_client.h>
+#include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
@@ -785,7 +786,7 @@ public:
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
 
-    IMPLEMENT_METHOD(TBundleConfigDescriptor, GetBundleConfig, (
+    IMPLEMENT_METHOD(TBundleConfigDescriptorPtr, GetBundleConfig, (
         const TString& bundleName,
         const TGetBundleConfigOptions& options),
         (bundleName, options))
@@ -1856,7 +1857,7 @@ private:
     // BundleController
     //
 
-    TBundleConfigDescriptor DoGetBundleConfig(
+    TBundleConfigDescriptorPtr DoGetBundleConfig(
         const TString& bundleName,
         const TGetBundleConfigOptions& options);
 };

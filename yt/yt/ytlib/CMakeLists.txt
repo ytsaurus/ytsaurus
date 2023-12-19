@@ -903,18 +903,6 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
@@ -963,7 +951,6 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/proto/bundle_controller_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto

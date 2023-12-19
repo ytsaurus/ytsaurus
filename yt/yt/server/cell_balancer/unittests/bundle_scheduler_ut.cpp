@@ -86,7 +86,7 @@ TBundleInfoPtr SetBundleInfo(
     bundleInfo->TargetConfig = config;
     config->TabletNodeCount = nodeCount;
     config->RpcProxyCount = proxyCount;
-    config->TabletNodeResourceGuarantee = New<TInstanceResources>();
+    config->TabletNodeResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
     config->TabletNodeResourceGuarantee->Vcpu = 9999;
     config->TabletNodeResourceGuarantee->Memory = 88_GB;
     config->TabletNodeResourceGuarantee->Net = 1_GB;

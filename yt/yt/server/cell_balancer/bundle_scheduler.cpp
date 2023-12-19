@@ -189,7 +189,7 @@ public:
 private:
     NLogging::TLogger Logger;
 
-    static bool IsResourceUsageExceeded(const TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
+    static bool IsResourceUsageExceeded(const NBundleControllerClient::TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
     {
         if (!quota) {
             return false;
@@ -1005,7 +1005,7 @@ THashMap<TString, TString> MapBundlesToShortNames(const TSchedulerInputState& in
     return bundleToShortName;
 }
 
-TString GetInstanceSize(const TInstanceResourcesPtr& resource)
+TString GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource)
 {
     auto cpuCores = resource->Vcpu / 1000;
     auto memoryGB = resource->Memory / 1_GB;
@@ -1015,14 +1015,14 @@ TString GetInstanceSize(const TInstanceResourcesPtr& resource)
 
 void CalculateResourceUsage(TSchedulerInputState& input)
 {
-    THashMap<TString, TInstanceResourcesPtr> aliveResources;
-    THashMap<TString, TInstanceResourcesPtr> allocatedResources;
-    THashMap<TString, TInstanceResourcesPtr> targetResources;
+    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> aliveResources;
+    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> allocatedResources;
+    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> targetResources;
 
     auto calculateResources = [] (
         const auto& aliveNames,
         const auto& instancesInfo,
-        TInstanceResourcesPtr& target,
+        NBundleControllerClient::TInstanceResourcesPtr& target,
         auto& countBySize)
     {
         for (const auto& instanceName : aliveNames) {
@@ -1045,7 +1045,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
         }
 
         {
-            auto aliveResourceUsage = New<TInstanceResources>();
+            auto aliveResourceUsage = New<NBundleControllerClient::TInstanceResources>();
             aliveResourceUsage->Clear();
 
             TBundleControllerStatePtr bundleState;
@@ -1070,7 +1070,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
         }
 
         {
-            auto allocated = New<TInstanceResources>();
+            auto allocated = New<NBundleControllerClient::TInstanceResources>();
             allocated->Clear();
             calculateResources(FlattenBundleInstancies(input.BundleNodes[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
             calculateResources(FlattenBundleInstancies(input.BundleProxies[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
@@ -1083,7 +1083,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             const auto& nodeGuarantee = targetConfig->TabletNodeResourceGuarantee;
             const auto& proxyGuarantee = targetConfig->RpcProxyResourceGuarantee;
 
-            auto targetResource = New<TInstanceResources>();
+            auto targetResource = New<NBundleControllerClient::TInstanceResources>();
             targetResource->Vcpu = nodeGuarantee->Vcpu * targetConfig->TabletNodeCount + proxyGuarantee->Vcpu * targetConfig->RpcProxyCount;
             targetResource->Memory = nodeGuarantee->Memory * targetConfig->TabletNodeCount + proxyGuarantee->Memory * targetConfig->RpcProxyCount;
 
@@ -1708,7 +1708,7 @@ TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
     result->DataCenter = dataCenterName;
     result->Allocated = true;
     result->DeallocationStrategy = DeallocationStrategyHulkRequest;
-    *result->Resource = *allocationInfo->Spec->ResourceRequest;
+    ConvertToInstanceResources(*result->Resource, *allocationInfo->Spec->ResourceRequest);
     return result;
 }
 
@@ -1875,7 +1875,7 @@ public:
         return YTRoleTypeTabNode;
     }
 
-    const TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
+    const NBundleControllerClient::TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
     {
         return bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
     }
@@ -2190,7 +2190,7 @@ public:
         return YTRoleTypeRpcProxy;
     }
 
-    const TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
+    const NBundleControllerClient::TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
     {
         return bundleInfo->TargetConfig->RpcProxyResourceGuarantee;
     }

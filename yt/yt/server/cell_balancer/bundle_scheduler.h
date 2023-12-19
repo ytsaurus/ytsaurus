@@ -108,9 +108,9 @@ struct TSchedulerInputState
 
     THashMap<TString, TSpareProxiesInfo> ZoneToSpareProxies;
 
-    THashMap<TString, TInstanceResourcesPtr> BundleResourceAlive;
-    THashMap<TString, TInstanceResourcesPtr> BundleResourceAllocated;
-    THashMap<TString, TInstanceResourcesPtr> BundleResourceTarget;
+    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAlive;
+    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAllocated;
+    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceTarget;
 
     using TInstanceCountBySize = THashMap<TString, int>;
     THashMap<TString, TInstanceCountBySize> AllocatedNodesBySize;
@@ -223,7 +223,7 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
 
 TString GetPodIdForInstance(const TString& name);
 
-TString GetInstanceSize(const TInstanceResourcesPtr& resource);
+TString GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 
 // TODO(capone212): remove after
 THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TString>>& instancies);

@@ -16,51 +16,6 @@ void TSysConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
-void TCpuLimits::Register(TRegistrar registrar)
-{
-    registrar.Parameter("write_thread_pool_size", &TThis::WriteThreadPoolSize)
-        .GreaterThan(0)
-        .Default(5);
-    registrar.Parameter("lookup_thread_pool_size", &TThis::LookupThreadPoolSize)
-        .GreaterThan(0)
-        .Default(4);
-    registrar.Parameter("query_thread_pool_size", &TThis::QueryThreadPoolSize)
-        .GreaterThan(0)
-        .Default(4);
-}
-
-void TMemoryLimits::Register(TRegistrar registrar)
-{
-    registrar.Parameter("tablet_static", &TThis::TabletStatic)
-        .Optional();
-    registrar.Parameter("tablet_dynamic", &TThis::TabletDynamic)
-        .Optional();
-    registrar.Parameter("compressed_block_cache", &TThis::CompressedBlockCache)
-        .Optional();
-    registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
-        .Optional();
-    registrar.Parameter("key_filter_block_cache", &TThis::KeyFilterBlockCache)
-        .Optional();
-    registrar.Parameter("versioned_chunk_meta", &TThis::VersionedChunkMeta)
-        .Optional();
-    registrar.Parameter("lookup_row_cache", &TThis::LookupRowCache)
-        .Optional();
-}
-
-void TInstanceResources::Register(TRegistrar registrar)
-{
-    registrar.Parameter("vcpu", &TThis::Vcpu)
-        .GreaterThanOrEqual(0)
-        .Default(18000);
-    registrar.Parameter("memory", &TThis::Memory)
-        .GreaterThanOrEqual(0)
-        .Default(120_GB);
-    registrar.Parameter("net", &TThis::Net)
-        .Optional();
-    registrar.Parameter("type", &TThis::Type)
-        .Default();
-}
-
 void TResourceQuota::Register(TRegistrar registrar)
 {
     registrar.Parameter("cpu", &TThis::Cpu)
@@ -95,12 +50,6 @@ void TInstanceSize::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
-void TInstanceResources::Clear()
-{
-    Vcpu = 0;
-    Memory = 0;
-}
-
 int TResourceQuota::Vcpu() const
 {
     const int VFactor = 1000;
@@ -117,7 +66,7 @@ void THulkInstanceResources::Register(TRegistrar registrar)
         .Optional();
 }
 
-THulkInstanceResources& THulkInstanceResources::operator=(const TInstanceResources& resources)
+THulkInstanceResources& THulkInstanceResources::operator=(const NBundleControllerClient::TInstanceResources& resources)
 {
     Vcpu = resources.Vcpu;
     MemoryMb = resources.Memory / 1_MB;
@@ -129,21 +78,13 @@ THulkInstanceResources& THulkInstanceResources::operator=(const TInstanceResourc
     return *this;
 }
 
-TInstanceResources& TInstanceResources::operator=(const THulkInstanceResources& resources)
-{
-    Vcpu = resources.Vcpu;
-    Memory = resources.MemoryMb * 1_MB;
+void ConvertToInstanceResources(NBundleControllerClient::TInstanceResources& resources, const THulkInstanceResources& hulkResources) {
+    resources.Vcpu = hulkResources.Vcpu;
+    resources.Memory = hulkResources.MemoryMb * 1_MB;
 
-    if (resources.NetworkBandwidth) {
-        Net = *resources.NetworkBandwidth * 8;
+    if (hulkResources.NetworkBandwidth) {
+        resources.Net = *hulkResources.NetworkBandwidth * 8;
     }
-
-    return *this;
-}
-
-bool TInstanceResources::operator==(const TInstanceResources& other) const
-{
-    return std::tie(Vcpu, Memory, Net) == std::tie(other.Vcpu, other.Memory, other.Net);
 }
 
 void TBundleConfig::Register(TRegistrar registrar)
