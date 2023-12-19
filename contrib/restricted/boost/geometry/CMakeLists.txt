@@ -48,5 +48,4 @@ target_link_libraries(restricted-boost-geometry INTERFACE
   restricted-boost-type_traits
   restricted-boost-utility
   restricted-boost-variant
-  restricted-boost-variant2
 )
