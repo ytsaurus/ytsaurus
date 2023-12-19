@@ -42,11 +42,11 @@ spec:
       instanceCount: 1
 
   dataNodes:
-    - instanceCount: 3
+    - instanceCount: 10
       resources:
         limits:
-          cpu: 3
-          memory: 32Gi
+          cpu: 2
+          memory: 8Gi
 
       volumeMounts:
         - name: node-data
@@ -61,16 +61,17 @@ spec:
             name: node-data
           spec:
             accessModes: [ "ReadWriteOnce" ]
+            storageClassName: "yc-network-ssd-nonreplicated"
             resources:
               requests:
-                storage: 50Gi
+                storage: 9985798963200
 
   execNodes:
-    - instanceCount: 3
+    - instanceCount: 10
       resources:
         limits:
-          cpu: 3
-          memory: 16Gi
+          cpu: 32
+          memory: 96Gi
 
       volumeMounts:
         - name: node-data

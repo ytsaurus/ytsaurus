@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: systest
 spec:
-  restartPolicy: OnFailure
+  restartPolicy: Never
   containers:
   - name: ytentry
     image: {{ .Values.SystestImagePath }}
