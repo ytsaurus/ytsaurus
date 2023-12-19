@@ -338,7 +338,7 @@ void TJobOperationPreparer::FinallyValidate() const
     error << "Output table schemas are missing: ";
     for (auto i : illegallyMissingSchemaIndices) {
         error << "no. " << i;
-        if (auto path = Context_.GetInputPath(i)) {
+        if (auto path = Context_.GetOutputPath(i)) {
             error << "(" << *path << ")";
         }
         error << "; ";
