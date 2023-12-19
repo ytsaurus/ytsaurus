@@ -20,22 +20,10 @@ import tempfile
 from collections import Counter
 
 
-class TestLayers(YTEnvSetup):
+class TestLayersBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
-            "slot_manager": {
-                "job_environment": {
-                    "type": "porto",
-                },
-            },
-        }
-    }
 
-    USE_PORTO = True
+    INVALID_EXTERNAL_IMAGE = "registry.invalid/image:tag"
 
     def setup_files(self):
         create("file", "//tmp/layer1")
@@ -60,6 +48,23 @@ class TestLayers(YTEnvSetup):
         write_file("//tmp/static_cat", open("layers/static_cat", "rb").read())
 
         set("//tmp/static_cat/@executable", True)
+
+
+class TestLayers(TestLayersBase):
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        }
+    }
 
     @authors("ilpauzner")
     def test_disabled_layer_locations(self):
@@ -478,6 +483,7 @@ class TestDockerImage(TestLayers):
     @staticmethod
     def run_map(docker_image, **kwargs):
         spec = {
+            "max_failed_job_count": 1,
             "mapper": {
                 "docker_image": docker_image,
             },
@@ -556,6 +562,59 @@ class TestDockerImage(TestLayers):
 
         with raises_yt_error(f'Tags document "{TestDockerImage.TAG_DOCUMENT_PATH}" is not a map'):
             self.run_map(f"{TestDockerImage.IMAGE}:tag")
+
+    @authors("khlebnikov")
+    @pytest.mark.timeout(180)
+    def test_invalid_external_image(self):
+        self.create_tables()
+
+        with raises_yt_error('External docker image is not supported in Porto job environment'):
+            self.run_map(self.INVALID_EXTERNAL_IMAGE)
+
+
+@authors("khlebnikov")
+class TestCriDockerImage(TestLayersBase):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+    INPUT_TABLE = "//tmp/input_table"
+    OUTPUT_TABLE = "//tmp/output_table"
+    MAP_COMMAND = "cat"
+
+    def create_tables(self):
+        create("table", self.INPUT_TABLE)
+        create("table", self.OUTPUT_TABLE)
+
+        write_table(self.INPUT_TABLE, [{"a": 1}])
+
+    def run_map(self, **kwargs):
+        return map(
+            in_=self.INPUT_TABLE,
+            out=self.OUTPUT_TABLE,
+            command=self.MAP_COMMAND,
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": kwargs,
+            },
+        )
+
+    @authors("khlebnikov")
+    @pytest.mark.timeout(180)
+    def test_invalid_external_image(self):
+        self.create_tables()
+
+        with raises_yt_error('Failed to pull docker image'):
+            self.run_map(docker_image=self.INVALID_EXTERNAL_IMAGE)
+
+    @authors("khlebnikov")
+    @pytest.mark.timeout(180)
+    def test_unsupported_layers(self):
+        self.create_tables()
+
+        create("file", "//tmp/empty_layer")
+        write_file("//tmp/empty_layer", b'\0'*1024)  # valid empty tar archive
+
+        with raises_yt_error('Porto layers are not supported in CRI job environment'):
+            self.run_map(layer_paths=["//tmp/empty_layer"])
 
 
 @authors("psushin")
