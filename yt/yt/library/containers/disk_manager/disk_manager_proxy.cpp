@@ -7,7 +7,7 @@ namespace NYT::NContainers {
 struct TDiskManagerProxyMock
     : public IDiskManagerProxy
 {
-    virtual TFuture<THashSet<TString>> GetYtDiskMountPaths()
+    virtual TFuture<THashSet<TString>> GetYtDiskDevicePaths()
     {
         THROW_ERROR_EXCEPTION("Disk manager library is not available under this build configuration");
     }

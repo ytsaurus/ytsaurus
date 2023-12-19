@@ -15,7 +15,7 @@ namespace NYT::NContainers {
 struct IDiskManagerProxy
     : public virtual TRefCounted
 {
-    virtual TFuture<THashSet<TString>> GetYtDiskMountPaths() = 0;
+    virtual TFuture<THashSet<TString>> GetYtDiskDevicePaths() = 0;
 
     virtual TFuture<std::vector<TDiskInfo>> GetDisks() = 0;
 
