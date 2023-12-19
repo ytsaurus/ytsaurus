@@ -61,6 +61,19 @@ const TCellPeerConfigPtr& TCellManager::GetSelfConfig() const
     return GetPeerConfig(GetSelfPeerId());
 }
 
+THashSet<TString> TCellManager::GetClusterPeersAddressesOrCrash() const
+{
+    THashSet<TString> clusterPeers;
+    clusterPeers.reserve(ssize(Config_->Peers));
+
+    for (const auto& peer : Config_->Peers) {
+        if (peer->Address) {
+            EmplaceOrCrash(clusterPeers, *peer->Address);
+        }
+    }
+    return clusterPeers;
+}
+
 int TCellManager::GetVotingPeerCount() const
 {
     return VotingPeerCount_;

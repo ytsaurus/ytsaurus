@@ -103,7 +103,8 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
             /*prevRandomSeed*/ 0,
             /*sequenceNumber*/ AppliedSequenceNumber_,
             /*stateHash*/ 0,
-            /*term*/ 0);
+            /*term*/ 0,
+            BIND(&MockHostSanitize));
 
         {
             TMutationContextGuard mutationContextGuard(&mutationContext);
@@ -176,7 +177,8 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     THydraContext hydraContext(
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
-        /*randomSeed*/ 0);
+        /*randomSeed*/ 0,
+        BIND(&MockHostSanitize));
     THydraContextGuard guard(&hydraContext);
 
     Automaton_->PrepareState();

@@ -36,6 +36,7 @@ target_sources(unittester-hydra PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/file_changelog_index_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/hydra_janitor_helpers_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/changelog_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/hostname_sanitization_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/unbuffered_file_changelog_ut.cpp
 )
 add_test(

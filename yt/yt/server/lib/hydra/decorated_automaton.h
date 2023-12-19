@@ -271,7 +271,6 @@ private:
 
     const TConfigWrapperPtr Config_;
     const TDistributedHydraManagerOptions Options_;
-    const NElection::TCellManagerPtr CellManager_;
     const IAutomatonPtr Automaton_;
     const IInvokerPtr AutomatonInvoker_;
     const IInvokerPtr DefaultGuardedUserInvoker_;
@@ -317,6 +316,8 @@ private:
 
     TForkCountersPtr ForkCounters_;
 
+    TString SanitizeLocalHostNameOrCrash(TStringBuf host) const;
+
     TMutationApplicationResult ApplyMutationDuringRecovery(const TSharedRef& recordData);
     TMutationApplicationResult ApplyMutation(const TPendingMutationPtr& mutation);
     void DoApplyMutation(
@@ -349,6 +350,13 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDecoratedAutomaton)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString SanitizeLocalHostName(
+    const NLogging::TLogger& Logger,
+    const THashSet<TString>& clusterPeersAddresses,
+    TStringBuf host);
 
 ////////////////////////////////////////////////////////////////////////////////
 

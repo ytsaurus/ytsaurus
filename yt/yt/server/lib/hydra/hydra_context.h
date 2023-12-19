@@ -17,13 +17,15 @@ public:
     THydraContext(
         TVersion version,
         TInstant timestamp,
-        ui64 randomSeed);
+        ui64 randomSeed,
+        TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer);
 
     THydraContext(
         TVersion version,
         TInstant timestamp,
         ui64 randomSeed,
-        TIntrusivePtr<TRandomGenerator> randomGenerator);
+        TIntrusivePtr<TRandomGenerator> randomGenerator,
+        TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer);
 
     TVersion GetVersion() const;
 

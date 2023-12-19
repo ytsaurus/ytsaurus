@@ -28,8 +28,6 @@
 
 #include <yt/yt/core/utilex/random.h>
 
-#include <yt/yt/library/process/pipe.h>
-
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -38,6 +36,8 @@
 #include <yt/yt/core/logging/logger_owner.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/library/process/pipe.h>
 
 #include <library/cpp/yt/logging/backends/stream/stream_log_manager.h>
 
@@ -834,7 +834,8 @@ void TDecoratedAutomaton::ResetState()
         THydraContext hydraContext(
             TVersion(),
             TInstant::Zero(),
-            /*randomSeed*/ 0);
+            /*randomSeed*/ 0,
+            BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -980,7 +981,8 @@ void TDecoratedAutomaton::LoadSnapshot(
         THydraContext hydraContext(
             hydraContextVersion,
             timestamp,
-            hydraContextRandomSeed);
+            hydraContextRandomSeed,
+            BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         Automaton_->PrepareState();
@@ -1063,7 +1065,8 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         header.prev_random_seed(),
         header.sequence_number(),
         StateHash_,
-        header.term());
+        header.term(),
+        BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
 
@@ -1195,6 +1198,14 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
     }
 }
 
+TString TDecoratedAutomaton::SanitizeLocalHostNameOrCrash(TStringBuf host) const
+{
+    if (Config_->Get()->EnableHostSanitizing) {
+        return SanitizeLocalHostName(Logger, GetEpochContext()->CellManager->GetClusterPeersAddressesOrCrash(), host);
+    }
+    return TString(host);
+}
+
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
     const TPendingMutationPtr& mutation)
 {
@@ -1209,7 +1220,8 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         mutation->PrevRandomSeed,
         mutation->SequenceNumber,
         StateHash_,
-        mutation->Term);
+        mutation->Term,
+        BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
 
     TMutationApplicationResult result;
 
@@ -1574,6 +1586,35 @@ TReign TDecoratedAutomaton::GetCurrentReign() const
 EFinalRecoveryAction TDecoratedAutomaton::GetFinalRecoveryAction() const
 {
     return Automaton_->GetFinalRecoveryAction();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString SanitizeLocalHostName(
+    const NLogging::TLogger& Logger,
+    const THashSet<TString>& clusterPeersAddresses,
+    TStringBuf host)
+{
+    if (clusterPeersAddresses.contains(host)) {
+        TString unifiedHost(host);
+        for (int i = 0; i < ssize(host); ++i) {
+            for (const auto& peerAddress : clusterPeersAddresses) {
+                if (host.size() != peerAddress.size()) {
+                    YT_LOG_ALERT("Hosts have different sizes, skip host sanitizing (Hosts: %v)",
+                        clusterPeersAddresses);
+                    return TString(host);
+                }
+                if (host[i] != peerAddress[i]) {
+                    unifiedHost[i] = '*';
+                    break;
+                }
+            }
+        }
+
+        return unifiedHost;
+    }
+
+    return TString(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

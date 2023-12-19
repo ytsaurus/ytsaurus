@@ -46,6 +46,10 @@ struct TMutationResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString MockHostSanitize(TStringBuf);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMutationContext
     : public THydraContext
 {
@@ -62,7 +66,8 @@ public:
         ui64 prevRandomSeed,
         i64 sequenceNumber,
         ui64 stateHash,
-        int term);
+        int term,
+        TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer);
 
     explicit TMutationContext(TTestingTag);
 
@@ -90,6 +95,7 @@ public:
 private:
     TMutationContext* const Parent_;
     const TMutationRequest* const Request_;
+    const TErrorSanitizerGuard::THostNameSanitizer HostNameSanitizer_;
 
     TSharedRefArray ResponseData_;
     ui64 PrevRandomSeed_;

@@ -1,8 +1,12 @@
 #include "hydra_context.h"
 
+#include <yt/yt/core/actions/bind.h>
+
 #include <yt/yt/core/concurrency/fls.h>
 
 #include <yt/yt/core/misc/error.h>
+
+#include <regex>
 
 namespace NYT::NHydra {
 
@@ -11,24 +15,26 @@ namespace NYT::NHydra {
 THydraContext::THydraContext(
     TVersion version,
     TInstant timestamp,
-    ui64 randomSeed)
+    ui64 randomSeed,
+    TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(New<TRandomGenerator>(randomSeed))
-    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp)
+    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp, hostNameSanitizer)
 { }
 
 THydraContext::THydraContext(
     TVersion version,
     TInstant timestamp,
     ui64 randomSeed,
-    TIntrusivePtr<TRandomGenerator> randomGenerator)
+    TIntrusivePtr<TRandomGenerator> randomGenerator,
+    TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(std::move(randomGenerator))
-    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp)
+    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp, hostNameSanitizer)
 { }
 
 TVersion THydraContext::GetVersion() const

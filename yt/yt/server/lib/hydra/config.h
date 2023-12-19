@@ -453,6 +453,9 @@ public:
     //! number to consider follower active.
     int MaxCatchUpSequenceNumberGap;
 
+    //! Enables sanitizing of local host name in errors.
+    bool EnableHostSanitizing;
+
     TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig);
 

@@ -1,5 +1,7 @@
 #include "mutation_context.h"
 
+#include <yt/yt/core/actions/bind.h>
+
 #include <yt/yt/core/concurrency/fls.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -14,6 +16,13 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString MockHostSanitize(TStringBuf)
+{
+    return "";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMutationContext::TMutationContext(
     TMutationContext* parent,
     const TMutationRequest* request)
@@ -21,9 +30,11 @@ TMutationContext::TMutationContext(
         parent->GetVersion(),
         parent->GetTimestamp(),
         parent->GetRandomSeed(),
-        parent->RandomGenerator())
+        parent->RandomGenerator(),
+        parent->HostNameSanitizer_)
     , Parent_(parent)
     , Request_(request)
+    , HostNameSanitizer_(parent->HostNameSanitizer_)
     , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
     , SequenceNumber_(Parent_->GetSequenceNumber())
     , StateHash_(Parent_->GetStateHash())
@@ -38,13 +49,16 @@ TMutationContext::TMutationContext(
     ui64 prevRandomSeed,
     i64 sequenceNumber,
     ui64 stateHash,
-    int term)
+    int term,
+    TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer)
     : THydraContext(
         version,
         timestamp,
-        randomSeed)
+        randomSeed,
+        hostNameSanitizer)
     , Parent_(nullptr)
     , Request_(request)
+    , HostNameSanitizer_(hostNameSanitizer)
     , PrevRandomSeed_(prevRandomSeed)
     , SequenceNumber_(sequenceNumber)
     , StateHash_(stateHash)
@@ -55,9 +69,11 @@ TMutationContext::TMutationContext(TTestingTag)
     : THydraContext(
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
-        /*randomSeed*/ 0)
+        /*randomSeed*/ 0,
+        BIND(&MockHostSanitize))
     , Parent_(nullptr)
     , Request_(nullptr)
+    , HostNameSanitizer_({})
     , PrevRandomSeed_(0)
     , SequenceNumber_(0)
     , StateHash_(0)
