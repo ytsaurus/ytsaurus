@@ -156,6 +156,8 @@ public:
     // Job-specific parameters.
     int SlotIndex = -1;
 
+    TString SlotPath;
+
     TTmpfsManagerConfigPtr TmpfsManager;
 
     TMemoryTrackerConfigPtr MemoryTracker;

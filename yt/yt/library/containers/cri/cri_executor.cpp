@@ -134,14 +134,6 @@ private:
         ContainerSpec_->Arguments = std::vector<TString>(Args_.begin() + 1, Args_.end());
         ContainerSpec_->WorkingDirectory = WorkingDirectory_;
 
-        ContainerSpec_->BindMounts.emplace_back(
-            NCri::TCriBindMount {
-                .ContainerPath = WorkingDirectory_,
-                .HostPath = WorkingDirectory_,
-                .ReadOnly = false,
-            }
-        );
-
         for (const auto& keyVal : Env_) {
             TStringBuf key, val;
             if (TStringBuf(keyVal).TrySplit('=', key, val)) {
