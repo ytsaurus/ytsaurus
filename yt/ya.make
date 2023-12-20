@@ -34,6 +34,7 @@ IF (NOT OPENSOURCE)
         jaeger
         meta_scheduler
         microservices
+        nirvana
         opensource
         packages
         recipe
