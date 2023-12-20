@@ -135,7 +135,7 @@ Login: admin
 Password: password
 ```
 
-По второй ссылке можно подключиться к кластеру из командной строки и python client:
+По второй ссылке можно подключиться к кластеру из [командной строки](../../api/cli/install.md) и [python client](../../api/python/start.md):
 ```bash
 export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
 export YT_TOKEN=password
