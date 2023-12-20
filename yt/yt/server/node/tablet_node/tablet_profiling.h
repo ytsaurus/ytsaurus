@@ -25,6 +25,17 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TKeyFilterCounters
+{
+    TKeyFilterCounters() = default;
+
+    explicit TKeyFilterCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter InputKeyCount;
+    NProfiling::TCounter FilteredOutKeyCount;
+    NProfiling::TCounter FalsePositiveKeyCount;
+};
+
 struct TLookupCounters
 {
     TLookupCounters() = default;
@@ -55,35 +66,41 @@ struct TLookupCounters
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 
     NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
+
+    TKeyFilterCounters KeyFilterCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSelectCpuCounters
+struct TRangeFilterCounters
 {
-    TSelectCpuCounters() = default;
+    TRangeFilterCounters() = default;
 
-    TSelectCpuCounters(
-        const NProfiling::TProfiler& profiler,
-        const NTableClient::TTableSchemaPtr& schema);
+    explicit TRangeFilterCounters(const NProfiling::TProfiler& profiler);
 
-    NProfiling::TTimeCounter CpuTime;
-    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
-    NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
+    NProfiling::TCounter InputRangeCount;
+    NProfiling::TCounter FilteredOutRangeCount;
+    NProfiling::TCounter FalsePositiveRangeCount;
 };
 
-struct TSelectReadCounters
+struct TSelectRowsCounters
 {
-    TSelectReadCounters() = default;
+    TSelectRowsCounters() = default;
 
-    explicit TSelectReadCounters(const NProfiling::TProfiler& profiler);
+    TSelectRowsCounters(
+        const NProfiling::TProfiler& profiler,
+        const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
     NProfiling::TCounter UnmergedRowCount;
     NProfiling::TCounter UnmergedDataWeight;
+    NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;
     NYT::NProfiling::TEventTimer SelectDuration;
+    TRangeFilterCounters RangeFilterCounters;
+    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+    NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -416,8 +433,7 @@ public:
     TLookupCounters* GetLookupCounters(const std::optional<TString>& userTag);
     TWriteCounters* GetWriteCounters(const std::optional<TString>& userTag);
     TCommitCounters* GetCommitCounters(const std::optional<TString>& userTag);
-    TSelectCpuCounters* GetSelectCpuCounters(const std::optional<TString>& userTag);
-    TSelectReadCounters* GetSelectReadCounters(const std::optional<TString>& userTag);
+    TSelectRowsCounters* GetSelectRowsCounters(const std::optional<TString>& userTag);
     TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag);
     TPullRowsCounters* GetPullRowsCounters(const std::optional<TString>& userTag);
 
@@ -459,8 +475,7 @@ private:
     TUserTaggedCounter<TLookupCounters> LookupCounters_;
     TUserTaggedCounter<TWriteCounters> WriteCounters_;
     TUserTaggedCounter<TCommitCounters> CommitCounters_;
-    TUserTaggedCounter<TSelectCpuCounters> SelectCpuCounters_;
-    TUserTaggedCounter<TSelectReadCounters> SelectReadCounters_;
+    TUserTaggedCounter<TSelectRowsCounters> SelectRowsCounters_;
     TUserTaggedCounter<TRemoteDynamicStoreReadCounters> DynamicStoreReadCounters_;
     TUserTaggedCounter<TPullRowsCounters> PullRowsCounters_;
 

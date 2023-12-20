@@ -26,6 +26,7 @@ struct TClientChunkReadOptions
     bool TrackMemoryAfterSessionCompletion = false;
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    NTableClient::TKeyFilterStatisticsPtr KeyFilterStatistics;
 
     // NB: If |HunkChunkReaderStatistics| is null and hunk chunk reading is
     // performed, relevant statistics will be updated within

@@ -287,9 +287,11 @@ public:
         std::unique_ptr<IBlockManager> blockManager,
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
-        TReaderStatisticsPtr readerStatistics)
+        TReaderStatisticsPtr readerStatistics,
+        NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics)
         : BlockManager_(std::move(blockManager))
         , ReaderStatistics_(std::move(readerStatistics))
+        , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , RowsetBuilder_(std::move(rowsetBuilder))
         , WindowsList_(std::move(windowsList))
     {
@@ -338,6 +340,7 @@ public:
 protected:
     const std::unique_ptr<IBlockManager> BlockManager_;
     const TReaderStatisticsPtr ReaderStatistics_;
+    const NTableClient::TKeyFilterStatisticsPtr KeyFilterStatistics_;
 
 private:
     std::unique_ptr<IRowsetBuilder> RowsetBuilder_;
@@ -361,7 +364,7 @@ private:
             YT_VERIFY(RowsetBuilder_->IsReadListEmpty());
 
             // Update read list.
-            RowsetBuilder_->BuildReadListForWindow(WindowsList_.back());
+            RowsetBuilder_->BuildReadListForWindow(WindowsList_.back(), KeyFilterStatistics_);
             WindowsList_.pop_back();
         }
 
@@ -431,12 +434,14 @@ public:
         std::vector<TSpanMatching>&& windowsList,
         bool lookup,
         TReaderStatisticsPtr readerStatistics,
+        NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
         int lookupKeyCount)
         : TVersionedChunkReader(
             std::move(blockManager),
             std::move(rowsetBuilder),
             std::move(windowsList),
-            std::move(readerStatistics))
+            std::move(readerStatistics),
+            std::move(keyFilterStatistics))
         , PreparedMeta_(std::move(preparedMeta))
         , ChunkMeta_(std::move(chunkMeta))
         , ColumnHunkFlags_(std::move(columnHunkFlags))
@@ -611,7 +616,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics)
+    TReaderStatisticsPtr readerStatistics,
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics)
 {
     if (!readerStatistics) {
         readerStatistics = New<TReaderStatistics>();
@@ -724,6 +730,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(windowsList),
         IsKeys(readItems),
         readerStatistics,
+        std::move(keyFilterStatistics),
         readItemCount);
 }
 
@@ -737,7 +744,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TRowRange>>(
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics);
+    TReaderStatisticsPtr readerStatistics,
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
@@ -749,7 +757,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics);
+    TReaderStatisticsPtr readerStatistics,
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
@@ -761,7 +770,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics);
+    TReaderStatisticsPtr readerStatistics,
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

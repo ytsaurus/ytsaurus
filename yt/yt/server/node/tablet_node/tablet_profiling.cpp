@@ -46,6 +46,12 @@ TString HideDigits(const TString& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TKeyFilterCounters::TKeyFilterCounters(const TProfiler& profiler)
+    : InputKeyCount(profiler.Counter("/input_key_count"))
+    , FilteredOutKeyCount(profiler.Counter("/filtered_out_key_count"))
+    , FalsePositiveKeyCount(profiler.Counter("/false_positive_key_count"))
+{ }
+
 TLookupCounters::TLookupCounters(
     const TProfiler& profiler,
     const TTableSchemaPtr& schema)
@@ -69,28 +75,31 @@ TLookupCounters::TLookupCounters(
     , RetryCount(profiler.Counter("/lookup/retry_count"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/lookup/chunk_reader_statistics"))
     , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"), schema)
+    , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSelectCpuCounters::TSelectCpuCounters(
-    const TProfiler& profiler,
-    const TTableSchemaPtr& schema)
-    : CpuTime(profiler.TimeCounter("/select/cpu_time"))
-    , ChunkReaderStatisticsCounters(profiler.WithPrefix("/select/chunk_reader_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
+TRangeFilterCounters::TRangeFilterCounters(const TProfiler& profiler)
+    : InputRangeCount(profiler.Counter("/input_range_count"))
+    , FilteredOutRangeCount(profiler.Counter("/filtered_out_range_count"))
+    , FalsePositiveRangeCount(profiler.Counter("/false_positive_range_count"))
 { }
 
-TSelectReadCounters::TSelectReadCounters(const TProfiler& profiler)
+TSelectRowsCounters::TSelectRowsCounters(const TProfiler& profiler, const NTableClient::TTableSchemaPtr& schema)
     : RowCount(profiler.Counter("/select/row_count"))
     , DataWeight(profiler.Counter("/select/data_weight"))
     , UnmergedRowCount(profiler.Counter("/select/unmerged_row_count"))
     , UnmergedDataWeight(profiler.Counter("/select/unmerged_data_weight"))
+    , CpuTime(profiler.TimeCounter("/select/cpu_time"))
     , DecompressionCpuTime(profiler.TimeCounter("/select/decompression_cpu_time"))
     , SelectDuration(profiler.TimeHistogram(
         "/select/duration",
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))
+    , RangeFilterCounters(profiler.WithPrefix("/select/range_filter"))
+    , ChunkReaderStatisticsCounters(profiler.WithPrefix("/select/chunk_reader_statistics"))
+    , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -710,14 +719,9 @@ TCommitCounters* TTableProfiler::GetCommitCounters(const std::optional<TString>&
     return CommitCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TSelectCpuCounters* TTableProfiler::GetSelectCpuCounters(const std::optional<TString>& userTag)
+TSelectRowsCounters* TTableProfiler::GetSelectRowsCounters(const std::optional<TString>& userTag)
 {
-    return SelectCpuCounters_.Get(Disabled_, userTag, Profiler_, Schema_);
-}
-
-TSelectReadCounters* TTableProfiler::GetSelectReadCounters(const std::optional<TString>& userTag)
-{
-    return SelectReadCounters_.Get(Disabled_, userTag, Profiler_);
+    return SelectRowsCounters_.Get(Disabled_, userTag, Profiler_, Schema_);
 }
 
 TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag)

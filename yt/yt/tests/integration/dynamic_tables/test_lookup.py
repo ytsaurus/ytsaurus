@@ -740,7 +740,24 @@ class TestLookup(TestSortedDynamicTablesBase):
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
-    @authors("ifsmirnov", "akozhikhov")
+    def _get_key_filter_lookup_checker(self, table, user=None):
+        self_ = self
+
+        class Checker:
+            def __init__(self):
+                self.profiling = self_._get_key_filter_profiling_wrapper("lookup", table, user)
+
+            def check(self, expected, lookup_keys):
+                def _check_counters():
+                    input, filtered_out, false_positive = self.profiling.get_counters_delta()
+                    return input == len(lookup_keys) and 0 <= filtered_out + false_positive <= input
+
+                assert expected == lookup_rows("//tmp/t", lookup_keys, verbose=False)
+                wait(lambda: _check_counters())
+
+        return Checker()
+
+    @authors("ifsmirnov", "akozhikhov", "dave11ar")
     def test_key_filter(self):
         chunk_writer_config = {
             "key_filter" : {
@@ -769,15 +786,17 @@ class TestLookup(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        assert lookup_rows("//tmp/t", [{"key": 0}], verbose=False) == []
-        assert lookup_rows("//tmp/t", [{"key": 1}], verbose=False) == [{"key": 1, "value": "1"}]
-        assert lookup_rows("//tmp/t", [{"key": 5000}], verbose=False) == []
-        assert lookup_rows("//tmp/t", [{"key": 9997}], verbose=False) == [{"key": 9997, "value": "9997"}]
-        assert lookup_rows("//tmp/t", [{"key": 9998}], verbose=False) == []
+        key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
 
-        assert lookup_rows("//tmp/t", keys, verbose=False) == rows
+        key_filter_checker.check([], [{"key": 2}, {"key": 42}])
+        key_filter_checker.check([{"key": 1, "value": "1"}], [{"key": 0}, {"key": 1}])
+        key_filter_checker.check([], [{"key": 5000}])
+        key_filter_checker.check([{"key": 9997, "value": "9997"}], [{"key": 42}, {"key": 322}, {"key": 9997}])
+        key_filter_checker.check([], [{"key": 9998}])
 
-    @authors("akozhikhov")
+        key_filter_checker.check(rows, keys)
+
+    @authors("akozhikhov", "dave11ar")
     def test_key_filter_with_schema_alter(self):
         schema1 = [
             {"name": "key1", "type": "int64", "sort_order": "ascending"},
@@ -810,14 +829,18 @@ class TestLookup(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key1": 0, "value": "0"}])
         sync_flush_table("//tmp/t")
 
-        assert lookup_rows("//tmp/t", [{"key1": 0}]) == [{"key1": 0, "value": "0"}]
+        key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
+
+        key_filter_checker.check([{"key1": 0, "value": "0"}], [{"key1": 0}])
 
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=schema2)
         sync_mount_table("//tmp/t")
 
-        assert lookup_rows("//tmp/t", [{"key1": 0, "key2": yson.YsonEntity()}]) == \
-            [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}]
+        key_filter_checker.check(
+            [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}],
+            [{"key1": 0, "key2": yson.YsonEntity()}],
+        )
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for, chunk_format", [

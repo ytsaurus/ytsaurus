@@ -189,9 +189,11 @@ class TKeyFilteringReader
 public:
     TKeyFilteringReader(
         IVersionedReaderPtr underlyingReader,
-        std::vector<ui8> missingKeyMask)
+        std::vector<ui8> missingKeyMask,
+        TKeyFilterStatisticsPtr keyFilterStatistics)
         : UnderlyingReader_(std::move(underlyingReader))
         , MissingKeyMask_(std::move(missingKeyMask))
+        , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , ReadRowCount_(0)
     { }
 
@@ -251,6 +253,7 @@ public:
         int underlyingRowIndex = 0;
         std::vector<TVersionedRow> result;
 
+        i64 falsePositiveCount = 0;
         while (ReadRowCount_ < batchEndIndex) {
             if (MissingKeyMask_[ReadRowCount_]) {
                 result.emplace_back();
@@ -258,9 +261,14 @@ public:
             } else if (underlyingRows && underlyingRowIndex < std::ssize(underlyingRows)) {
                 result.push_back(underlyingRows[underlyingRowIndex++]);
                 ++ReadRowCount_;
+                falsePositiveCount += !static_cast<bool>(result.back());
             } else {
                 break;
             }
+        }
+
+        if (KeyFilterStatistics_) {
+            KeyFilterStatistics_->FalsePositiveEntryCount.fetch_add(falsePositiveCount, std::memory_order::relaxed);
         }
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(result)));
@@ -269,6 +277,7 @@ public:
 private:
     const IVersionedReaderPtr UnderlyingReader_;
     const std::vector<ui8> MissingKeyMask_;
+    const TKeyFilterStatisticsPtr KeyFilterStatistics_;
 
     i64 ReadRowCount_ = 0;
 };
@@ -478,12 +487,16 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     ValidateBlockSize(tabletSnapshot, chunkState->ChunkMeta, chunkReadOptions.WorkloadDescriptor);
 
+    bool keyFilterUsed = false;
     ranges = MaybePerformXorRangeFiltering(
         tabletSnapshot,
         chunkReader,
         chunkReadOptions,
         chunkState,
-        std::move(ranges));
+        std::move(ranges),
+        &keyFilterUsed);
+
+    auto keyFilterStatistics = keyFilterUsed ? chunkReadOptions.KeyFilterStatistics : nullptr;
 
     if (enableNewScanReader && chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         // Chunk view support.
@@ -512,7 +525,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     columnFilter,
                     chunkState->ChunkColumnMapping,
                     blockManagerFactory,
-                    produceAllVersions)));
+                    produceAllVersions,
+                    /*readerStatistics*/ nullptr,
+                    std::move(keyFilterStatistics))));
     }
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
@@ -530,7 +545,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             produceAllVersions,
             ReadRange_,
             nullptr,
-            GetCurrentInvoker()));
+            GetCurrentInvoker(),
+            std::move(keyFilterStatistics)));
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
@@ -568,7 +584,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             blockManagerFactory,
-            produceAllVersions);
+            produceAllVersions,
+            /*readerStatistics*/ nullptr,
+            chunkReadOptions.KeyFilterStatistics);
     }
 
     return CreateCacheBasedVersionedChunkReader(
@@ -699,7 +717,8 @@ private:
                     produceAllVersions,
                     columnFilter,
                     chunkReadOptions,
-                    enableNewScanReader));
+                    enableNewScanReader),
+                chunkReadOptions);
             return VoidFuture;
         }
 
@@ -738,7 +757,8 @@ private:
                 CreateVersionedOffloadingLookupReader(
                     std::move(backendReaders.OffloadingReader),
                     std::move(options),
-                    std::move(keys)));
+                    std::move(keys)),
+                chunkReadOptions);
             return VoidFuture;
         }
 
@@ -864,9 +884,14 @@ private:
         TBackendReaders backendReaders,
         TCachedVersionedChunkMetaPtr chunkMeta)
     {
-        if (!MissingKeyMask_.empty() &&
-            std::count(MissingKeyMask_.begin(), MissingKeyMask_.end(), 0) == 0)
-        {
+        i64 filteredOutKeyCount = std::count(MissingKeyMask_.begin(), MissingKeyMask_.end(), 1);
+
+        if (const auto& keyFilterStatistics = chunkReadOptions.KeyFilterStatistics) {
+            keyFilterStatistics->InputEntryCount.fetch_add(ssize(MissingKeyMask_), std::memory_order::relaxed);
+            keyFilterStatistics->FilteredOutEntryCount.fetch_add(filteredOutKeyCount, std::memory_order::relaxed);
+        }
+
+        if (!MissingKeyMask_.empty() && filteredOutKeyCount == ssize(MissingKeyMask_)) {
             int initialKeyCount = SkippedBefore_ + SkippedAfter_ + std::ssize(MissingKeyMask_);
             UnderlyingReader_ = CreateEmptyVersionedReader(initialKeyCount);
             UnderlyingReaderInitialized_.store(true);
@@ -897,7 +922,8 @@ private:
                     std::move(chunkReadOptions),
                     std::move(controller),
                     std::move(backendReaders.ChunkReader),
-                    tabletSnapshot->ChunkFragmentReader));
+                    tabletSnapshot->ChunkFragmentReader),
+                chunkReadOptions);
             return;
         }
 
@@ -923,7 +949,10 @@ private:
                     std::move(columnFilter),
                     chunkState->ChunkColumnMapping,
                     std::move(blockManagerFactory),
-                    produceAllVersions));
+                    produceAllVersions,
+                    /*readerStatistics*/ nullptr,
+                    MissingKeyMask_.empty() ? nullptr : chunkReadOptions.KeyFilterStatistics),
+                chunkReadOptions);
             return;
         }
 
@@ -939,6 +968,7 @@ private:
                 columnFilter,
                 timestamp,
                 produceAllVersions),
+            chunkReadOptions,
             /*needSetTimestamp*/ false);
         return;
     }
@@ -946,6 +976,7 @@ private:
     void MaybeWrapUnderlyingReader(
         TSortedChunkStore* const chunk,
         IVersionedReaderPtr underlyingReader,
+        const TClientChunkReadOptions& chunkReaderOptions,
         bool needSetTimestamp = true)
     {
         // TODO(akozhikhov): Avoid extra wrappers TKeyFilteringReader and TFilteringReader,
@@ -953,7 +984,8 @@ private:
         if (!MissingKeyMask_.empty()) {
             underlyingReader = New<TKeyFilteringReader>(
                 std::move(underlyingReader),
-                MissingKeyMask_);
+                MissingKeyMask_,
+                chunkReaderOptions.KeyFilterStatistics);
         }
 
         if (SkippedBefore_ > 0 || SkippedAfter_ > 0) {
@@ -1411,7 +1443,8 @@ TSharedRange<TRowRange> TSortedChunkStore::MaybePerformXorRangeFiltering(
     const NChunkClient::IChunkReaderPtr& chunkReader,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TChunkStatePtr& chunkState,
-    TSharedRange<TRowRange> ranges) const
+    TSharedRange<TRowRange> ranges,
+    bool* keyFilterUsed) const
 {
     if (!tabletSnapshot->Settings.MountConfig->EnableKeyFilterForLookup) {
         return ranges;
@@ -1446,6 +1479,8 @@ TSharedRange<TRowRange> TSortedChunkStore::MaybePerformXorRangeFiltering(
     }
 
     if (!keyPrefixLengthToInfo.empty()) {
+        *keyFilterUsed = true;
+
         std::vector<int> futureIndexToKeyPrefixLength;
         std::vector<TFuture<TSortedChunkStore::TKeyFilteringResult>> filteringFutures;
         futureIndexToKeyPrefixLength.reserve(keyPrefixLengthToInfo.size());
@@ -1495,6 +1530,11 @@ TSharedRange<TRowRange> TSortedChunkStore::MaybePerformXorRangeFiltering(
             filteredRanges.size(),
             ChunkId_,
             chunkReadOptions.ReadSessionId);
+
+        if (const auto& keyFilterStatistics = chunkReadOptions.KeyFilterStatistics) {
+            keyFilterStatistics->InputEntryCount.fetch_add(ssize(ranges), std::memory_order::relaxed);
+            keyFilterStatistics->FilteredOutEntryCount.fetch_add(ssize(ranges) - ssize(filteredRanges), std::memory_order::relaxed);
+        }
 
         ranges = MakeSharedRange(std::move(filteredRanges), std::move(ranges.ReleaseHolder()));
     }

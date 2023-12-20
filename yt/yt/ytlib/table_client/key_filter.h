@@ -20,6 +20,18 @@ bool Contains(const TXorFilter& filter, TLegacyKey key, int keyPrefixLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TKeyFilterStatistics
+    : public TRefCounted
+{
+    std::atomic<i64> InputEntryCount = 0;
+    std::atomic<i64> FilteredOutEntryCount = 0;
+    std::atomic<i64> FalsePositiveEntryCount = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TKeyFilterStatistics)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class IKeyFilterBuilder
     : public TRefCounted
 {

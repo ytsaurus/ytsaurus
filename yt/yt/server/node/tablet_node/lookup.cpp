@@ -23,6 +23,7 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
+#include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -1087,6 +1088,10 @@ void TLookupSession::AddTabletRequest(
                 mountConfig->EnableHunkColumnarProfiling,
                 tabletSnapshot->PhysicalSchema);
 
+            ChunkReadOptions_.KeyFilterStatistics = mountConfig->EnableKeyFilterForLookup
+                ? New<TKeyFilterStatistics>()
+                : nullptr;
+
             if (InMemoryMode_ == EInMemoryMode::None) {
                 if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
                     ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
@@ -1315,6 +1320,15 @@ TLookupSession::~TLookupSession()
 
     if (FinishedSuccessfully_ && tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling) {
         counters->LookupDuration.Record(WallTimer_.GetElapsedTime());
+    }
+
+    if (const auto& keyFilterStatistics = ChunkReadOptions_.KeyFilterStatistics) {
+        counters->KeyFilterCounters.InputKeyCount.Increment(
+            keyFilterStatistics->InputEntryCount.load(std::memory_order::relaxed));
+        counters->KeyFilterCounters.FilteredOutKeyCount.Increment(
+            keyFilterStatistics->FilteredOutEntryCount.load(std::memory_order::relaxed));
+        counters->KeyFilterCounters.FalsePositiveKeyCount.Increment(
+            keyFilterStatistics->FalsePositiveEntryCount.load(std::memory_order::relaxed));
     }
 }
 

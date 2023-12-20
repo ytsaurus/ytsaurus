@@ -137,6 +137,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkIndexBuilder)
 DECLARE_REFCOUNTED_CLASS(IKeyFilter)
 DECLARE_REFCOUNTED_CLASS(IKeyFilterBuilder)
 
+DECLARE_REFCOUNTED_STRUCT(TKeyFilterStatistics)
+
 constexpr int VersionedBlockValueSize = 16;
 
 constexpr int IndexedRowTypicalGroupCount = 1;
