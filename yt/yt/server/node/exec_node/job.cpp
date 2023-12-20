@@ -541,6 +541,14 @@ void TJob::Terminate(EJobState finalState, TError error)
             StopJobProxy();
             break;
 
+        case EJobPhase::FinalizingJobProxy:
+            YT_LOG_INFO(
+                "Cannot terminate job (JobState: %v, JobPhase: %v, JobError: %v)",
+                JobState_,
+                JobPhase_,
+                Error_);
+            break;
+
         default:
             YT_LOG_INFO(
                 "Cannot terminate job (JobState: %v, JobPhase: %v)",
