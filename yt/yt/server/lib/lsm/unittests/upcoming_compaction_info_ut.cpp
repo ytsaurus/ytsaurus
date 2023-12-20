@@ -78,13 +78,13 @@ double FloorWithPrecision(double value, i64 precision)
     return std::floor(value * x) / x;
 }
 
-struct UpcomingCompactionInfoTest
+struct TUpcomingCompactionInfoTest
     : ::testing::TestWithParam<TUpcomingCompactionInfoParams>
 { };
 
 INSTANTIATE_TEST_SUITE_P(
     Lsm,
-    UpcomingCompactionInfoTest,
+    TUpcomingCompactionInfoTest,
     testing::Values(
         // TtlCleanupExpected with MinDataVersions = 1
         TUpcomingCompactionInfoParams{
@@ -150,9 +150,9 @@ INSTANTIATE_TEST_SUITE_P(
         }
     ));
 
-TEST_P(UpcomingCompactionInfoTest, GetUpcomingCompactionInfo)
+TEST_P(TUpcomingCompactionInfoTest, GetUpcomingCompactionInfo)
 {
-    auto params = UpcomingCompactionInfoTest::GetParam();
+    auto params = TUpcomingCompactionInfoTest::GetParam();
 
     auto mountConfig = New<TTableMountConfig>();
     mountConfig->MinDataTtl = params.MinDataTtl;

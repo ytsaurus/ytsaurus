@@ -56,7 +56,6 @@ void TCompactionHintFetcher::AddToQueue(const IStorePtr& store)
         SetRequestStatus(store, ECompactionHintRequestStatus::InQueue);
         StoresQueue_.Push(MakeWeak(store));
     }
-
 }
 
 void TCompactionHintFetcher::ClearQueue()
