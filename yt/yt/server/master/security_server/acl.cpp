@@ -12,7 +12,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/permission.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+
+#include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
 

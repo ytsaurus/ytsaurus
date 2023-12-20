@@ -11,7 +11,9 @@
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
 

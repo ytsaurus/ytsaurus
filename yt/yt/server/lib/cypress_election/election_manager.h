@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 namespace NYT::NCypressElection {
 
 ////////////////////////////////////////////////////////////////////////////////

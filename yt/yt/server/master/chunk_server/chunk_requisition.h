@@ -18,7 +18,8 @@
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+
+#include <library/cpp/yt/yson/public.h>
 
 #include <array>
 

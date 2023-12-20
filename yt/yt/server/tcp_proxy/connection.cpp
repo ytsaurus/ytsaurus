@@ -7,6 +7,8 @@
 #include <yt/yt/core/net/connection.h>
 #include <yt/yt/core/net/dialer.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 namespace NYT::NTcpProxy {
 
 using namespace NConcurrency;

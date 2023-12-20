@@ -14,7 +14,6 @@
 #include <yt/yt/client/hydra/public.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NObjectClient {
 

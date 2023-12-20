@@ -1,11 +1,12 @@
 #include <optional>
-#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/cell_balancer/bundle_scheduler.h>
 #include <yt/yt/server/cell_balancer/config.h>
 #include <yt/yt/server/cell_balancer/orchid_bindings.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <library/cpp/yt/memory/new.h>
 

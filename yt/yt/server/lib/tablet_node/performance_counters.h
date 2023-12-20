@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/ema_counter.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NTabletNode {
 

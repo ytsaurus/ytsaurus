@@ -11,9 +11,7 @@
 
 #include <yt/yt/server/master/tablet_server/tablet_resources.h>
 
-#include <yt/yt/core/yson/public.h>
-
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
 

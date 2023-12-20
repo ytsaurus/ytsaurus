@@ -16,7 +16,6 @@
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <library/cpp/testing/common/network.h>
 

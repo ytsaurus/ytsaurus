@@ -7,7 +7,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/ytree/public.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+
+#include <library/cpp/yt/yson_string/string.h>
 
 namespace NYT::NTabletBalancer {
 

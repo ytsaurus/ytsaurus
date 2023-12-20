@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NJournalClient {

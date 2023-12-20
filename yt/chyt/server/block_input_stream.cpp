@@ -21,7 +21,7 @@
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>

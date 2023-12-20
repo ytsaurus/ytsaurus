@@ -8,9 +8,9 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NJobAgent {
 

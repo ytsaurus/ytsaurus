@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/misc/variant.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,11 +9,9 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/core/yson/public.h>
-
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <yt/yt/client/cell_master_client/public.h>
+
+#include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
 

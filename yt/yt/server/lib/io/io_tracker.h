@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <yt/yt/core/actions/signal.h>
+
 namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////

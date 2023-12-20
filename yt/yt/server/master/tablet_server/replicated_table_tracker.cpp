@@ -1295,11 +1295,11 @@ private:
 
         GeneralCheckTimeout_.store(dynamicConfig->GeneralCheckTimeout);
 
-        if (ReconfigureYsonSerializable(BundleHealthCacheConfig_, dynamicConfig->BundleHealthCache)) {
+        if (ReconfigureYsonStruct(BundleHealthCacheConfig_, dynamicConfig->BundleHealthCache)) {
             BundleHealthCache_.Store(New<TBundleHealthCache>(BundleHealthCacheConfig_));
         }
 
-        if (ReconfigureYsonSerializable(ClusterStateCacheConfig_, dynamicConfig->ClusterStateCache)) {
+        if (ReconfigureYsonStruct(ClusterStateCacheConfig_, dynamicConfig->ClusterStateCache)) {
             ClusterStateCache_.Store(New<TClusterStateCache>(ClusterStateCacheConfig_));
         }
 
@@ -1307,7 +1307,7 @@ private:
 
         MaxIterationsWithoutAcceptableBundleHealth_ = dynamicConfig->MaxIterationsWithoutAcceptableBundleHealth;
 
-        if (IsLeader() && (ReconfigureYsonSerializable(ClusterDirectorySynchronizerConfig_, dynamicConfig->ClusterDirectorySynchronizer) || !ClusterDirectorySynchronizer_)) {
+        if (IsLeader() && (ReconfigureYsonStruct(ClusterDirectorySynchronizerConfig_, dynamicConfig->ClusterDirectorySynchronizer) || !ClusterDirectorySynchronizer_)) {
             if (ClusterDirectorySynchronizer_) {
                 ClusterDirectorySynchronizer_->Stop();
             }

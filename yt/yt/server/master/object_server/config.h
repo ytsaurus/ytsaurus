@@ -7,7 +7,7 @@
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/ytree/request_complexity_limits.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
 

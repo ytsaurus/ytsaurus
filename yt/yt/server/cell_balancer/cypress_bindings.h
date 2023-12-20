@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////

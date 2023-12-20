@@ -2270,7 +2270,7 @@ private:
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");
             if (chunkWriterConfig) {
-                ReconfigureYsonSerializable(writerConfig, chunkWriterConfig);
+                ReconfigureYsonStruct(writerConfig, chunkWriterConfig);
             }
 
             YT_LOG_DEBUG("Extended attributes received "

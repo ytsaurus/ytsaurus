@@ -12,12 +12,11 @@
 
 #include <yt/yt/core/misc/property.h>
 
-#include <yt/yt/core/yson/public.h>
-
 #include <yt/yt/core/ytree/permission.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
 

@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <yt/yt/core/misc/sync_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>

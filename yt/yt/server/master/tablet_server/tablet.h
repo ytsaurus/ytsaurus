@@ -35,8 +35,6 @@
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/ema_counter.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <library/cpp/yt/misc/enum.h>
 
 #include <optional>

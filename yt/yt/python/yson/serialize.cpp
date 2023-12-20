@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/ytree/attributes.h>
+
 #include <util/system/sanitizers.h>
 #include <util/generic/typetraits.h>
 

@@ -4,6 +4,8 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/ytree/attributes.h>
+
 namespace Py {
 
 using namespace NYT;
