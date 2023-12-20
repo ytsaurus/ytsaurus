@@ -221,8 +221,8 @@ public:
         TCriExecutorConfigPtr config,
         IChannelFactoryPtr channelFactory)
         : Config_(std::move(config))
-        , RuntimeApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->RuntimeEndpoint)))
-        , ImageApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->ImageEndpoint)))
+        , RuntimeApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->RuntimeEndpoint), GetRetryChecker()))
+        , ImageApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->ImageEndpoint), GetRetryChecker()))
         , Attempt_(RandomNumber<ui32>())
     { }
 
@@ -720,6 +720,16 @@ private:
         if (!authConfig.RegistryToken.empty()) {
             auth->set_registry_token(authConfig.RegistryToken);
         }
+    }
+
+    static TRetryChecker GetRetryChecker()
+    {
+        static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
+            return IsRetriableError(error) ||
+                   (error.GetCode() == NYT::EErrorCode::Generic &&
+                    error.GetMessage() == "server is not initialized yet");
+        });
+        return Result;
     }
 };
 
