@@ -1024,6 +1024,22 @@ public:
         return DB::Pipe::unitePipes(std::move(pipes));
     }
 
+    // Same as IStorage::read(QueryPlan &, ...), but does not resize the output pipe.
+    // Resize does not guarantee any order, so it breaks memory efficient sorted aggregation.
+    void read(
+        DB::QueryPlan & queryPlan,
+        const DB::Names & columnNames,
+        const DB::StorageSnapshotPtr & storageSnapshot,
+        DB::SelectQueryInfo & queryInfo,
+        DB::ContextPtr context,
+        DB::QueryProcessingStage::Enum processedStage,
+        size_t maxBlockSize,
+        size_t numStreams) override
+    {
+        auto pipe = read(columnNames, storageSnapshot, queryInfo, context, processedStage, maxBlockSize, numStreams);
+        readFromPipe(queryPlan, std::move(pipe), columnNames, storageSnapshot, queryInfo, context, getName());
+    }
+
     bool supportsSampling() const override
     {
         return true;
