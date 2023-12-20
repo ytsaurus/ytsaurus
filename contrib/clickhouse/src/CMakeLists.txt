@@ -761,9 +761,13 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLFunctionFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLFunctionVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsBackup.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsDiskStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsLoaderFromDisk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsLoaderFromZooKeeper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsStorageBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsZooKeeperStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/createUserDefinedSQLObjectsLoader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/createUserDefinedSQLObjectsStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide/divide.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateQuotaQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateRoleQuery.cpp
