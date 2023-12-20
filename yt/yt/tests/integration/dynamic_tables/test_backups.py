@@ -1332,3 +1332,9 @@ class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
         "10": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["transaction_coordinator"]},
     }
+
+
+@authors("dave11ar")
+class TestBackupsRpcProxy(TestBackups):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

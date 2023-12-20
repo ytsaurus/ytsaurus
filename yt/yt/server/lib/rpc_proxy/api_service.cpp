@@ -667,6 +667,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableBackup));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -2568,6 +2570,53 @@ private:
                 ToProto(response->mutable_tablet_actions(), tabletActions);
                 context->SetResponseInfo("TabletActionIds: %v",
                     tabletActions);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateTableBackup)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto manifest = New<TBackupManifest>();
+        FromProto(manifest.Get(), request->manifest());
+
+        TCreateTableBackupOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        options.CheckpointTimestampDelay = FromProto<TDuration>(request->checkpoint_timestamp_delay());
+        options.CheckpointCheckPeriod = FromProto<TDuration>(request->checkpoint_check_period());
+        options.CheckpointCheckTimeout = FromProto<TDuration>(request->checkpoint_check_timeout());
+        options.Force = request->force();
+
+        // TODO(dave11ar): Add request info.
+        context->SuppressMissingRequestInfoCheck();
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->CreateTableBackup(manifest, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RestoreTableBackup)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto manifest = New<TBackupManifest>();
+        FromProto(manifest.Get(), request->manifest());
+
+        TRestoreTableBackupOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        options.Force = request->force();
+        options.Mount = request->mount();
+        options.EnableReplicas = request->enable_replicas();
+
+        // TODO(dave11ar): Add request info.
+        context->SuppressMissingRequestInfoCheck();
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->RestoreTableBackup(manifest, options);
             });
     }
 
