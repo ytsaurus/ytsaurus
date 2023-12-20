@@ -3,11 +3,13 @@
 #include <yt/chyt/server/computed_columns.h>
 #include <yt/chyt/server/config.h>
 
+#include <Interpreters/Context.h>
 #include <Parsers/parseQuery.h>
 #include <Parsers/ExpressionListParsers.h>
 #include <Parsers/formatAST.h>
 
-#include <Interpreters/Context.h>
+#include <Poco/Util/AbstractConfiguration.h>
+#include <Poco/Util/XMLConfiguration.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -17,6 +19,8 @@ using namespace NLogging;
 ////////////////////////////////////////////////////////////////////////////////
 
 static TLogger Logger("Test");
+
+using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
 
 // NOTE(dakovalkov): SharedContextPart is a singletone. Creating it multiple times leads to std::terminate().
 // Storing and initializing SharedContextHolder as a global variable is also a bad idea:
@@ -28,6 +32,8 @@ DB::ContextPtr InitGlobalContext()
 {
     static DB::SharedContextHolder sharedContextHolder = DB::Context::createShared();
     DB::ContextMutablePtr globalContext = DB::Context::createGlobal(sharedContextHolder.get());
+    ConfigurationPtr config(new Poco::Util::XMLConfiguration());
+    globalContext->setConfig(config);
     globalContext->makeGlobalContext();
     return globalContext;
 }
