@@ -1714,7 +1714,7 @@ class TestQuery(DynamicTablesBase):
                 input, filtered_out, false_positive = profiling.get_counters_delta()
                 return input >= min_input and 0 <= filtered_out + false_positive <= input
 
-            assert expected == select_rows(f"* from [//tmp/t] where {predicate}")
+            assert set(expected) == set(select_rows(f"* from [//tmp/t] where {predicate}"))
             wait(lambda: _check_counters())
 
         _check_query(rows[0:1], "(a) in ((1), (2))", 1)

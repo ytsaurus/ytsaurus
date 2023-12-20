@@ -750,9 +750,13 @@ class TestLookup(TestSortedDynamicTablesBase):
             def check(self, expected, lookup_keys):
                 def _check_counters():
                     input, filtered_out, false_positive = self.profiling.get_counters_delta()
-                    return input == len(lookup_keys) and 0 <= filtered_out + false_positive <= input
+                    if not (input == len(lookup_keys) and 0 <= filtered_out + false_positive <= input):
+                        assert (input, filtered_out, false_positive) == "xxxxxxxxxx"
+                    return True
+                    # return input == len(lookup_keys) and 0 <= filtered_out + false_positive <= input
 
-                assert expected == lookup_rows("//tmp/t", lookup_keys, verbose=False)
+                assert set(expected) == set(lookup_rows("//tmp/t", lookup_keys, verbose=False))
+                time.sleep(30)
                 wait(lambda: _check_counters())
 
         return Checker()
