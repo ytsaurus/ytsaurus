@@ -281,6 +281,10 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
         Host->GetQueryRegistry()->AccountPhaseDuration(oldPhase, duration);
     }
 
+    QueryPhase_ = nextPhase;
+
+    readerGuard.Release();
+
     // It is effectively useless to count queries in state "Finish" in query registry,
     // and also we do not want exceptions to throw in query context destructor.
     if (nextPhase != EQueryPhase::Finish) {
@@ -294,8 +298,6 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
             .Run())
             .ThrowOnError();
     }
-
-    QueryPhase_ = nextPhase;
 }
 
 EQueryPhase TQueryContext::GetQueryPhase() const
