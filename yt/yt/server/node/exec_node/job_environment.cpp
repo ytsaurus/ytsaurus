@@ -1114,6 +1114,16 @@ private:
             spec->Environment["LOGNAME"] = username;
         }
 
+        if (!config->GpuIndexes.empty()) {
+            auto nvidiaDriverCapabilities = Bootstrap_
+                ->GetDynamicConfig()
+                ->ExecNode
+                ->GpuManager
+                ->DefaultNvidiaDriverCapabilities;
+            spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = nvidiaDriverCapabilities;
+            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = JoinSeq(",", config->GpuIndexes);
+        }
+
         spec->BindMounts.push_back(NCri::TCriBindMount{
             .ContainerPath = config->SlotPath,
             .HostPath = config->SlotPath,

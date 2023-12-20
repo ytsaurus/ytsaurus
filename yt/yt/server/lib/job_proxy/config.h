@@ -167,7 +167,7 @@ public:
     //! Includes "root_fs_binds" and artifacts if they are passed as bind mounts.
     std::vector<TBindConfigPtr> Binds;
 
-    std::vector<TString> GpuDevices;
+    std::vector<int> GpuIndexes;
 
     //! Path for container root, if root volume is already prepared.
     std::optional<TString> RootPath;
