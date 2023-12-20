@@ -82,16 +82,27 @@ public:
         return ConvertTo<std::vector<TString>>(rawResult);
     }
 
-    TString GetModuleValue(const TString& moduleName) const
+    std::optional<TString> GetModuleValue(const TString& moduleName) const
     {
         auto listResult = GetModuleValues(moduleName);
-        if (listResult.size() != 1) {
+        if (listResult.size() > 1) {
             THROW_ERROR_EXCEPTION(
-                "Invalid discovery directory for %v: 1 value expected, found %v",
+                "Invalid discovery directory for %v: at most 1 value expected, found %v",
                 moduleName,
                 listResult.size());
         }
-        return listResult[0];
+        return listResult.size() == 1 ? std::make_optional(listResult[0]) : std::nullopt;
+    }
+
+    TString GetModuleValueOrThrow(const TString& moduleName) const
+    {
+        auto listResult = GetModuleValue(moduleName);
+        if (!listResult) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid discovery directory for %v: 1 value expected, found 0",
+                moduleName);
+        }
+        return *listResult;
     }
 
 private:
@@ -134,7 +145,7 @@ public:
         }
         Headers_->Add("Content-Type", "application/json");
         Discovery_ = New<TSpytDiscovery>(QueryClient_, discoveryPath);
-        ClusterVersion_ = Discovery_->GetModuleValue("version");
+        ClusterVersion_ = Discovery_->GetModuleValueOrThrow("version");
     }
 
     void Start() override
@@ -183,6 +194,19 @@ private:
     TFuture<TSharedRef> AsyncQueryResult_;
     TString SessionUrl_;
     std::optional<TString> Token_;
+    // Not exists for YT scheduled jobs
+    std::optional<TString> MasterWebUI_;
+
+    void SetProgress(double progress_value)
+    {
+        YT_LOG_DEBUG("Reporting progress (Progress: %v)", progress_value);
+        auto progress = BuildYsonStringFluently()
+            .BeginMap()
+                .OptionalItem("webui", MasterWebUI_)
+                .Item("spyt_progress").Value(progress_value)
+            .EndMap();
+        OnProgress(std::move(progress));
+    }
 
     TString GetLocation(const NHttp::IResponsePtr& response) const
     {
@@ -220,13 +244,17 @@ private:
         return jsonRoot;
     }
 
-    TString WaitStatusChange(const TString& url, const TString& defaultState) const
+    TString WaitStatusChange(const TString& url, const TString& defaultState, const bool& reportProgress)
     {
         auto state = defaultState;
         while (state == defaultState) {
             TDelayedExecutor::WaitForDuration(Config_->StatusPollPeriod);
             auto jsonRoot = ExecuteGetQuery(url)->AsMap();
             state = jsonRoot->GetChildOrThrow("state")->AsString()->GetValue();
+            auto rawProgress = jsonRoot->FindChildValue<double>("progress");
+            if (reportProgress && rawProgress.has_value()) {
+                SetProgress(rawProgress.value());
+            }
         }
         return state;
     }
@@ -309,9 +337,9 @@ private:
         YT_LOG_DEBUG("Session creation response parsed (Url: %v)", SessionUrl_);
     }
 
-    void WaitSessionReady() const
+    void WaitSessionReady()
     {
-        auto state = WaitStatusChange(SessionUrl_, "starting");
+        auto state = WaitStatusChange(SessionUrl_, "starting", /* reportProgress */ false);
         if (state != "idle") {
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy session state: expected \"idle\", found %Qv",
@@ -400,9 +428,9 @@ private:
         return statementUrl;
     }
 
-    TString WaitStatementFinished(const TString& statementUrl) const
+    TString WaitStatementFinished(const TString& statementUrl)
     {
-        auto state = WaitStatusChange(statementUrl, "running");
+        auto state = WaitStatusChange(statementUrl, "running", /* reportProgress */ true);
         if (state != "available") {
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy result state: expected \"available\", found %Qv",
@@ -416,7 +444,7 @@ private:
     TString GetLivyServerUrl() const
     {
         YT_LOG_DEBUG("Listing livy discovery path");
-        auto url = "http://" + Discovery_->GetModuleValue("livy");
+        auto url = "http://" + Discovery_->GetModuleValueOrThrow("livy");
         YT_LOG_DEBUG("Livy server url received (Url: %v)", url);
         return url;
     }
@@ -450,8 +478,20 @@ private:
         }
     }
 
+    void UpdateMasterWebUIUrl()
+    {
+        YT_LOG_DEBUG("Listing webui discovery path");
+        auto url = Discovery_->GetModuleValue("webui");
+        YT_LOG_DEBUG("Master webui url received (Url: %v)", url);
+        if (url) {
+            MasterWebUI_ = "http://" + *url;
+        }
+    }
+
     TSharedRef Execute()
     {
+        SetProgress(0.0);
+        UpdateMasterWebUIUrl();
         auto rootUrl = GetLivyServerUrl();
         YT_LOG_DEBUG("Starting session");
         StartSession(rootUrl);  // Session URL stores to the class field
@@ -475,6 +515,7 @@ private:
         if (queryResultOrError.FindMatching(NYT::EErrorCode::Canceled)) {
             return;
         }
+        SetProgress(1.0);
         if (!queryResultOrError.IsOK()) {
             OnQueryFailed(queryResultOrError);
             return;
