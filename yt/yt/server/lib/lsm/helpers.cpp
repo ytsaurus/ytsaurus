@@ -32,8 +32,8 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
     const auto& lastDigest = digest.LastTimestampDigest;
     const auto& earliestNthTimestamp = digest.EarliestNthTimestamp;
 
-    TDuration minDataTtl = mountConfig->MinDataTtl;
-    TDuration maxDataTtl = mountConfig->MaxDataTtl;
+    auto minDataTtl = mountConfig->MinDataTtl;
+    auto maxDataTtl = mountConfig->MaxDataTtl;
     int minDataVersions = mountConfig->MinDataVersions;
     int maxDataVersions = mountConfig->MaxDataVersions;
     int maxTimestampsPerValue = mountConfig->RowDigestCompaction->MaxTimestampsPerValue;
@@ -64,19 +64,19 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
             }
         }
     } else if (totalCount > 0) {
-        TDuration lastTtl = maxDataVersions == 0
+        auto lastTtl = maxDataVersions == 0
             ? minDataTtl
             : maxDataTtl;
 
-        TInstant left = TInstant::Seconds(std::min(
+        auto left = TInstant::Seconds(std::min(
             allButLastDigest->GetQuantile(0),
             lastDigest->GetQuantile(0)));
-        TInstant right = TInstant::Seconds(std::max(
+        auto right = TInstant::Seconds(std::max(
             allButLastDigest->GetQuantile(maxObsoleteTimestampRatio),
             lastDigest->GetQuantile(maxObsoleteTimestampRatio))) + lastTtl;
 
         while (right - left > CompactionTimestampAccuracy) {
-            TInstant mid = left + (right - left) / 2;
+            auto mid = left + (right - left) / 2;
 
             double currentRatio =
                 (allButLastDigest->GetRank((mid - minDataTtl).Seconds()) * allButLastDigest->GetCount() +
@@ -104,7 +104,7 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
     if (int index = 32 - std::countl_zero(std::max<ui32>(maxTimestampsPerValue - 1, 1));
         index < ssize(earliestNthTimestamp))
     {
-        TInstant compactionTimestamp = TInstant::Seconds(earliestNthTimestamp[index]) + minDataTtl;
+        auto compactionTimestamp = TInstant::Seconds(earliestNthTimestamp[index]) + minDataTtl;
         YT_LOG_DEBUG("Found upcoming compaction timestamp "
             "(StoreId: %v, TimestampIndex: %v, EarliestNthTimestamp: %v, Timestamp: %v, Reason: %v)",
             storeId,
