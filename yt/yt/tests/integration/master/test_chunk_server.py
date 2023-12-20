@@ -15,7 +15,6 @@ from yt.common import YtError, WaitFailed
 import yt.yson as yson
 
 import pytest
-from flaky import flaky
 
 import json
 import os
