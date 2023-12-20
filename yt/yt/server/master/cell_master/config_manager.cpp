@@ -98,6 +98,12 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    void Clear() override
+    {
+        Config_->SetDefaults();
+        UnrecognizedOptionsAlert_ = {};
+    }
+
     void DoSetConfig(TDynamicClusterConfigPtr newConfig)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
