@@ -36,9 +36,10 @@ class YtTableFileSystem extends YtFileSystemBase {
           case TableType.Static => lockStaticTable(path, attributes)
           case TableType.Dynamic =>
             if (!isDriver) {
-              throw new IllegalStateException(
-                "Listing dynamic tables is supported only on driver, " +
-                  "probably your table count exceeded `spark.sql.sources.parallelPartitionDiscovery.threshold`"
+              log.warn(
+                "Listing dynamic tables on executors is experimental. " +
+                  "Maximum table count which are discovered on driver is controlled " +
+                  "by `spark.sql.sources.parallelPartitionDiscovery.threshold`."
               )
             }
             lockDynamicTable(path, attributes)
@@ -88,6 +89,11 @@ class YtTableFileSystem extends YtFileSystemBase {
             listDynamicTableAsFiles(p, YtWrapper.attributes(p.toYPath), useYtPartitioning)
         }
       case p@(_: YtSimplePath | _: YtObjectPath | _: YtRootPath) =>
+        if (!isDriver) {
+          log.warn(
+            "Generating timestamps of dynamic tables on executors causes reading files with different timestamps"
+          )
+        }
         val ts = YtWrapper.maxAvailableTimestamp(p.toYPath)
         Array(getFileStatus(p.withTimestamp(ts)))
       case p: YtTransactionPath =>
@@ -96,7 +102,6 @@ class YtTableFileSystem extends YtFileSystemBase {
         lockDynamicTable(p.parent, attributes, useYtPartitioning = true)
     }
   }
-
 
   private def listStaticTableAsFiles(f: YPathEnriched, attributes: Map[String, YTreeNode],
                                      useYtPartitioning: Boolean = false)
@@ -144,7 +149,8 @@ class YtTableFileSystem extends YtFileSystemBase {
       val result = new Array[FileStatus](1)
       val approximateChunkSize = tableSize
 
-      val chunkPath = YtDynamicPath(f, YtWrapper.emptyPivotKey, YtWrapper.emptyPivotKey, 0.toString, keyColumns)
+      val chunkPath = YtDynamicPath(f,
+        YtDynamicPathAttributes(YtWrapper.emptyPivotKey, YtWrapper.emptyPivotKey, keyColumns))
       result(0) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
       result
     } else {
@@ -154,7 +160,7 @@ class YtTableFileSystem extends YtFileSystemBase {
 
       pivotKeys.sliding(2).zipWithIndex.foreach {
         case (Seq(startKey, endKey), i) =>
-          val chunkPath = YtDynamicPath(f, startKey, endKey, i.toString, keyColumns)
+          val chunkPath = YtDynamicPath(f, YtDynamicPathAttributes(startKey, endKey, keyColumns))
           result(i) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
       }
       result

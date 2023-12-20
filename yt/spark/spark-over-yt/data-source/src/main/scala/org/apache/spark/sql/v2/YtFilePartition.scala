@@ -65,7 +65,7 @@ object YtFilePartition {
                          partitionValues: InternalRow): PartitionedFile = {
     YtPath.fromPath(file.getPath) match {
       case yp: YtDynamicPath =>
-        YtPartitionedFile.dynamic(yp.toStringPath, yp.ypath.toYPath, yp.beginKey, yp.endKey, file.getLen,
+        YtPartitionedFile.dynamic(yp.toStringPath, yp.ypath.toYPath, yp.attrs.beginKey, yp.attrs.endKey, file.getLen,
           file.getModificationTime, partitionValues)
       case p =>
         PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)

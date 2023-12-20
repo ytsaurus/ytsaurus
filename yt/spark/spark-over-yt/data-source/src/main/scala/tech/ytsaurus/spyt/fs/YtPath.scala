@@ -9,6 +9,7 @@ import tech.ytsaurus.spyt.serializers.PivotKeysConverter
 import tech.ytsaurus.spyt.wrapper.YtWrapper.PivotKey
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
+import java.util.Base64
 import scala.util.Try
 
 sealed abstract class YtPath(val ypath: YPathEnriched, name: String) extends Path(ypath.toPath, name) {
@@ -22,7 +23,7 @@ sealed abstract class YtPath(val ypath: YPathEnriched, name: String) extends Pat
 }
 
 case class YtStaticPath(override val ypath: YPathEnriched,
-                        attrs: YtStaticPathAttributes) extends YtPath(ypath, toFileName(attrs)) {
+                        attrs: YtStaticPathAttributes) extends YtPath(ypath, YtStaticPath.toFileName(attrs)) {
   def optimizedForScan: Boolean = attrs.optimizeMode == OptimizeMode.Scan
 
   override def rowCount: Long = attrs.rowCount
@@ -57,20 +58,40 @@ object YtStaticPath {
 }
 
 case class YtDynamicPath(override val ypath: YPathEnriched,
-                         beginKey: PivotKey,
-                         endKey: PivotKey,
-                         id: String,
-                         keyColumns: Seq[String]) extends YtPath(ypath, id) {
+                         attrs: YtDynamicPathAttributes) extends YtPath(ypath, YtDynamicPath.toFileName(attrs)) {
   override def rowCount: Long = 1
 
   def isDynamic: Boolean = true
 
   def toYPath: YPath = {
     val res = ypath.toYPath.withRange(
-      PivotKeysConverter.toRangeLimit(beginKey),
-      PivotKeysConverter.toRangeLimit(endKey)
+      PivotKeysConverter.toRangeLimit(attrs.beginKey),
+      PivotKeysConverter.toRangeLimit(attrs.endKey)
     )
     res
+  }
+}
+
+case class YtDynamicPathAttributes(beginKey: PivotKey,
+                                   endKey: PivotKey,
+                                   keyColumns: Seq[String])
+
+object YtDynamicPath {
+  private def encodeKey: Array[Byte] => String = Base64.getEncoder.encodeToString
+
+  private def decodeKey: String => Array[Byte] = Base64.getDecoder.decode
+
+  def toFileName(attrs: YtDynamicPathAttributes): String = {
+    import attrs._
+    f"${encodeKey(beginKey)}_${encodeKey(endKey)}_${keyColumns.mkString(",")}"
+  }
+
+  def fromPath(path: Path): Option[YtDynamicPath] = {
+    Try {
+      val beginKey :: endKey :: keyColumns :: Nil = path.getName.trim.split("_", 3).toList
+      YtDynamicPath(ypath(path.getParent),
+        YtDynamicPathAttributes(decodeKey(beginKey), decodeKey(endKey), keyColumns.split(",")))
+    }.toOption
   }
 }
 
@@ -80,10 +101,7 @@ object YtPath {
       case yp: YtDynamicPath => yp
       case yp: YtStaticPath => yp
       case p =>
-        YtStaticPath.fromPath(p) match {
-          case Some(yp) => yp
-          case None => p
-        }
+        YtStaticPath.fromPath(p).orElse { YtDynamicPath.fromPath(p) } .getOrElse(p)
     }
   }
 }
