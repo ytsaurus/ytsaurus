@@ -125,7 +125,7 @@ Login: admin
 Password: password
 ```
 
-The second link allows you to connect to the cluster from the command line and python client:
+The second link allows you to connect to the cluster from the [command line](../../api/cli/install.md) and [python client](../../api/python/start.md):
 ```bash
 export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}' 
 export YT_TOKEN=password
