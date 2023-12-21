@@ -3191,6 +3191,7 @@ private:
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_guarantee_share", attributes.EstimatedGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_estimated_guarantee_share", MaxComponent(attributes.EstimatedGuaranteeShare))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_guarantee_resources", element->GetTotalResourceLimits() * attributes.EstimatedGuaranteeShare)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "proposed_integral_share", attributes.ProposedIntegralShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "best_allocation_share", persistentAttributes.BestAllocationShare)
