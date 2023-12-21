@@ -271,6 +271,13 @@ class TestDriverLogging(object):
         assert len(driver_log_default) < len(driver_log_info)
         assert len(driver_log_warning) == 0
 
+    @authors("denvr")
+    def test_yp_discovery_enabled(self, yt_env_with_rpc):
+        if yt.config["backend"] != "rpc":
+            pytest.skip()
+        assert yt.native_driver.yp_service_discovery_configured
+        assert yt.config["yp_service_discovery_config"] is None and yt.native_driver.ENABLE_YP_SERVICE_DISCOVERY
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestMutations(object):
