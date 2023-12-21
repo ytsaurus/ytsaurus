@@ -34,6 +34,7 @@ NoSuchOperation = 1915
 NoSuchJob = 1916
 UncertainOperationControllerState = 1917
 NoSuchAttribute = 1920
+LocationMediumIsMisconfigured = 753
 FormatDisabled = 1925
 DataSliceLimitExceeded = 2000
 UnrecognizedConfigOption = 2500

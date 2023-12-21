@@ -966,15 +966,18 @@ private:
                 continue;
             }
 
+            auto mediumIndex = location->GetMediumDescriptor().Index;
+
+            if (mediumIndex == GenericMediumIndex) {
+                continue;
+            }
+
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
             totalUsedSpace += location->GetUsedSpace();
             totalStoredChunkCount += location->GetChunkCount();
 
             full &= location->IsFull();
-
-            auto mediumIndex = location->GetMediumDescriptor().Index;
-            YT_VERIFY(mediumIndex != GenericMediumIndex);
 
             auto* locationStatistics = statistics->add_chunk_locations();
             locationStatistics->set_medium_index(mediumIndex);

@@ -38,7 +38,9 @@ TMediumUpdater::TMediumUpdater(
     TMediumDirectoryManagerPtr mediumDirectoryManager)
     : Bootstrap_(bootstrap)
     , MediumDirectoryManager_(std::move(mediumDirectoryManager))
-{ }
+{
+    Bootstrap_->SubscribePopulateAlerts(BIND(&TMediumUpdater::PopulateAlerts, MakeWeak(this)));
+}
 
 void TMediumUpdater::UpdateLocationMedia(
     const NDataNodeTrackerClient::NProto::TMediumOverrides& protoMediumOverrides,
@@ -84,6 +86,23 @@ void TMediumUpdater::UpdateLocationMedia(
 
         location->UpdateMediumDescriptor(*descriptor, onInitialize);
     }
+
+    std::vector<TError> alerts;
+    for (const auto& location : chunkStore->Locations()) {
+        if (location->CanPublish() &&
+            (location->IsEnabled() || chunkStore->ShouldPublishDisabledLocations()) &&
+            location->GetMediumDescriptor().Index == GenericMediumIndex)
+        {
+            alerts.push_back(TError(
+                NChunkClient::EErrorCode::LocationMediumIsMisconfigured,
+                "Location medium is misconfigured")
+                << TErrorAttribute("medium_index", location->GetMediumDescriptor().Index)
+                << TErrorAttribute("medium_name", location->GetMediumName())
+                << TErrorAttribute("location_uuid", ToString(location->GetUuid())));
+        }
+    }
+
+    MediumMisconfigurationAlerts_.Store(alerts);
 }
 
 TMediumDirectoryPtr TMediumUpdater::GetMediumDirectoryOrCrash(bool onInitialize)
@@ -96,6 +115,15 @@ TMediumDirectoryPtr TMediumUpdater::GetMediumDirectoryOrCrash(bool onInitialize)
         }
 
         YT_LOG_FATAL(ex, "Cannot get medium directory after initialization");
+    }
+}
+
+void TMediumUpdater::PopulateAlerts(std::vector<TError>* alerts)
+{
+    for (auto alert : MediumMisconfigurationAlerts_.Load()) {
+        if (!alert.IsOK()) {
+            alerts->push_back(std::move(alert));
+        }
     }
 }
 
