@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 import yt.yson as yson
 import yt.packages.requests as requests
-from yt_commands import authors, ls, exists
+from yt_commands import authors, ls, exists, set
 
 
 ##################################################################
@@ -39,12 +39,45 @@ class TestBundleController(YTEnvSetup):
 
         return yson.loads(rsp.content)
 
+    def _set_default_bundle(self):
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config", {})
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/cpu_limits", {
+            "lookup_thread_pool_size": 16,
+            "query_thread_pool_size": 4,
+            "write_thread_pool_size": 10})
+
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/memory_limits", {
+            "compressed_block_cache": 17179869184,
+            "key_filter_block_cache": 1024,
+            "lookup_row_cache": 1024,
+            "tablet_dynamic": 10737418240,
+            "tablet_static": 10737418240,
+            "uncompressed_block_cache": 17179869184,
+            "versioned_chunk_meta": 10737418240})
+
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_count", 6)
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_count", 1)
+
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee", {
+            "memory": 21474836480,
+            "net": 1090519040,
+            "type": "medium",
+            "vcpu": 10000})
+
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_resource_guarantee", {
+            "memory": 107374182400,
+            "net": 5368709120,
+            "type": "cpu_intensive",
+            "vcpu": 28000})
+
     @authors("capone212")
     def test_bundle_controller_api(self):
         assert len(ls("//sys/cell_balancers/instances")) == self.NUM_CELL_BALANCERS
         assert exists("//sys/bundle_controller")
-        config = self._get_bundle_config("test-bundle")
-        assert config["bundle_name"] == "test-bundle"
+        self._set_default_bundle()
+
+        config = self._get_bundle_config("default")
+        assert config["bundle_name"] == "default"
         assert config["rpc_proxy_count"] == 6
         assert config["tablet_node_count"] == 1
 
