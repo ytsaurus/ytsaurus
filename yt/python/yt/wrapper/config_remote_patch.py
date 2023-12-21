@@ -119,10 +119,10 @@ class RemotePatchableValueBase(object):
                     # cache bad config
                     cluster_data = {}
                     logger.error("Can not get config patch from cluster. Wrong format - %s %s", client.config["config_remote_patch_path"], type(cluster_data))
-            except YtResolveError as ex:
+            except YtResolveError:
                 # cache bad path
                 cluster_data = {}
-                logger.debug("Can not get config patch from cluster. Path is absent - %s", ex)
+                logger.debug("Skip remote config patch (cluster does not support this)")
             except Exception as ex:
                 # do not cache error
                 cluster_data = None
