@@ -1756,7 +1756,7 @@ class MapReduceSpecBuilder(SpecBuilder):
                 })
 
             # NB: spec["mapper"]["output_streams"] must be empty here due to validation above.
-            assert "output_streams" not in spec["mapper"], "output streams must be empty for typed job"
+            assert "output_streams" not in spec["mapper"], "output streams must be empty for a typed job"
             spec["mapper"]["output_streams"] = intermediate_streams
         else:
             intermediate_streams = spec["mapper"].get("output_streams", [])
