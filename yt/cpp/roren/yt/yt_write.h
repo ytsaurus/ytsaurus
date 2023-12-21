@@ -15,6 +15,10 @@ TYtWriteTransform YtSortedWrite(
     const NYT::TTableSchema& schema,
     const NYT::TSortColumns& columnsToSort);
 
+TYtWriteTransform YtSortedWrite(
+    const NYT::TRichYPath& path,
+    const NYT::TTableSchema& sortedSchema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren
