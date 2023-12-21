@@ -9,7 +9,7 @@ import "yt_proto/yt/core/ytree/proto/attributes.proto";
 message TUserActivityStatisticsUpdate
 {
     required NYT.NProto.TGuid user_id = 1;
-    required int64 last_seen = 2;
+    required int64 last_seen_time = 2;
 }
 
 message TReqUpdateUserActivityStatistics

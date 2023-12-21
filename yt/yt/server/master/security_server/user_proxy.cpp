@@ -5,7 +5,6 @@
 #include "subject_proxy_detail.h"
 #include "user.h"
 #include "helpers.h"
-#include "yt/yt/experiments/journal_reader/private.h"
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
@@ -275,7 +274,7 @@ private:
                     const auto& multicellManager = Bootstrap_->GetMulticellManager();
                     auto portalCellTags = multicellManager->GetRoleMasterCells(NCellMaster::EMasterCellRole::CypressNodeHost);
 
-                    for (const auto& portalCellTag : portalCellTags) {
+                    for (auto portalCellTag : portalCellTags) {
                         if (portalCellTag == multicellManager->GetCellTag()) {
                             continue;
                         }
@@ -289,7 +288,7 @@ private:
                 }
 
                 return AllSucceeded(asyncResults).Apply(
-                    BIND([initialLastSeenTime = user->GetLastSeenTime()](const std::vector<TYPathProxy::TRspGetPtr>& results) {
+                    BIND([initialLastSeenTime = user->GetLastSeenTime()] (const std::vector<TYPathProxy::TRspGetPtr>& results) {
                         auto lastSeenTime = initialLastSeenTime;
                         for (const auto& result : results) {
                             lastSeenTime = std::max(lastSeenTime, ConvertTo<TInstant>(TYsonString(result->value())));
