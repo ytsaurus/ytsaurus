@@ -867,6 +867,7 @@ private:
         BusServer_ = CreateBusServer(Config_->BusServer);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
+        RpcServer_->Configure(Config_->RpcServer);
 
         auto createProxyingChunkService = [&] (const auto& config) {
             RpcServer_->RegisterService(CreateProxyingChunkService(
@@ -991,8 +992,6 @@ private:
         }
 
         RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
-
-        RpcServer_->Configure(Config_->RpcServer);
 
     #ifdef __linux__
         if (GetJobEnvironmentType() == EJobEnvironmentType::Porto) {
@@ -1353,6 +1352,8 @@ private:
             ? newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
             : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
         RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler);
+
+        RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& service : CachingObjectServices_) {

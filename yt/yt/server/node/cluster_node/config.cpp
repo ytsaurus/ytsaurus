@@ -452,6 +452,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_memory_reference_tracker", &TThis::EnableMemoryReferenceTracker)
         .Alias("enable_block_tracker")
         .Default(true);
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
     registrar.Parameter("throttler_free_bandwidth_ratio", &TThis::ThrottlerFreeBandwidthRatio)
         .InRange(0.0, 1.0)
         .Optional();
