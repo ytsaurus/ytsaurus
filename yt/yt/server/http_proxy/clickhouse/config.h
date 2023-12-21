@@ -75,7 +75,7 @@ class TDynamicClickHouseConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Path to folder in cypress which contains general information about all cliques.
+    //! Path to folder in Cypress which contains general information about all cliques.
     TString DiscoveryPath;
 
     NHttp::TClientConfigPtr HttpClient;

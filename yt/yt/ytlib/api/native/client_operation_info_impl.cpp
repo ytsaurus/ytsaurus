@@ -598,7 +598,7 @@ TOperation TClient::DoGetOperationImpl(
                 options.Attributes);
         }
 
-        // Archive request timeouted but the cypress result is outdated.
+        // Archive request timeouted but the Cypress result is outdated.
         // We need to repeat the archive request without timeout.
         if (archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
             try {
@@ -640,7 +640,7 @@ TOperation TClient::DoGetOperationImpl(
         //
         // ---------------------------------------------------> time
         //         |               |             |
-        //    archive rsp.   archivation   cypress rsp.
+        //    archive rsp.   archivation   Cypress rsp.
         if (!isCompleteArchiveResult(*archiveResult)) {
             YT_LOG_DEBUG("Operation missing in Cypress and incomplete in archive, "
                 "retrying due to possible race (OperationId: %v)",
@@ -774,7 +774,7 @@ void TClient::DoListOperationsFromCypress(
 
     const THashSet<TString> IgnoredAttributes = {};
 
-    YT_LOG_DEBUG("Fetching operations from cypress");
+    YT_LOG_DEBUG("Fetching operations from Cypress");
 
     auto requestedAttributes = DeduceActualAttributes(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
@@ -827,7 +827,7 @@ void TClient::DoListOperationsFromCypress(
         }
     }
 
-    YT_LOG_DEBUG("Operations fetched from cypress");
+    YT_LOG_DEBUG("Operations fetched from Cypress");
 
     auto filter = New<TListOperationsFilter>(
         options,

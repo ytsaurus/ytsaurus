@@ -901,7 +901,7 @@ public:
             // Operation marked as completed, but unregistration in controller agent has not processed yet.
             return;
         } else if (operation->IsFinishedState()) {
-            // Operation marked as completed, but it may be not persisted to cypress.
+            // Operation marked as completed, but it may be not persisted to Cypress.
             // We should perform operation revival in this case.
         }
 

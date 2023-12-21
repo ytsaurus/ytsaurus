@@ -44,7 +44,7 @@ TErrorOr<EQueueFamily> DeduceQueueFamily(
 
     if (row.ObjectType == EObjectType::Table || IsReplicatedTableObjectType(row.ObjectType)) {
         // NB: Dynamic and Sorted are optionals.
-        // TODO(achulkov2): Support checking chaos_replicated_table sortedness via cypress synchronizer.
+        // TODO(achulkov2): Support checking chaos_replicated_table sortedness via Cypress synchronizer.
         // We can either add @sorted, or fetch schema and check for all queues.
         if (row.Dynamic == true && (row.Sorted == false || row.ObjectType == EObjectType::ChaosReplicatedTable)) {
             return EQueueFamily::OrderedDynamicTable;

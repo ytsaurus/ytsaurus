@@ -801,7 +801,7 @@ i64 TListOperationsFilter::GetCount() const
 
 void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsResponses)
 {
-    YT_LOG_DEBUG("Parsing cypress responses (ResponseCount: %v)", operationsResponses.size());
+    YT_LOG_DEBUG("Parsing Cypress responses (ResponseCount: %v)", operationsResponses.size());
 
     std::vector<TFuture<TParseResult>> asyncResults;
 

@@ -996,7 +996,7 @@ private:
 
         TIndexedEntries<TEntryInfo> result;
         for (const auto& [name, entry] : entryMap->GetChildren()) {
-            // Merging cypress node attributes with node value.
+            // Merging Cypress node attributes with node value.
             auto entryInfo = ConvertTo<TIntrusivePtr<TEntryInfo>>(&entry->Attributes());
             result[name] = UpdateYsonStruct(entryInfo, entry);
         }

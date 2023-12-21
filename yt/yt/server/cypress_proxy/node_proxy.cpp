@@ -79,7 +79,7 @@ public:
         const TYPath& path,
         const IYPathServiceContextPtr& /*context*/) override
     {
-        // NB: In most cases resolve should be performed by sequoia service.
+        // NB: In most cases resolve should be performed by Sequoia service.
 
         return TResolveResultHere{path};
     }
@@ -297,7 +297,7 @@ protected:
         tokenizer.Advance();
         tokenizer.Expect(ETokenType::Literal);
 
-        // There is no composite node type other than sequoia map node. If we
+        // There is no composite node type other than Sequoia map node. If we
         // have unresolved suffix it can be either attribute or non-existent child.
         ThrowNoSuchChild(Path_, tokenizer.GetToken());
     }
@@ -411,7 +411,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
     }
 
     if (force) {
-        // TODO(kvk1920): Current cypress behaviour is just to ignore some errors.
+        // TODO(kvk1920): Current Cypress behaviour is just to ignore some errors.
         THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
     }
 

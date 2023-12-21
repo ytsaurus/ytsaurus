@@ -253,7 +253,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TDynamicConfig is part of proxy configuration stored in cypress.
+// TDynamicConfig is part of proxy configuration stored in Cypress.
 //
 // NOTE: config might me unavalable. Users must handle such cases
 // gracefully.

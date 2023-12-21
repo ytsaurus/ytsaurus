@@ -147,7 +147,7 @@ public:
         jobSpecExt->set_body_chunk_first_overlayed_row_index(BodySealInfo_.first_overlayed_row_index());
         jobSpecExt->set_body_chunk_replica_lag_limit(bodyChunk->GetReplicaLagLimit());
 
-        // This chunk better not have sequoia replicas.
+        // This chunk better not have Sequoia replicas.
         const auto& bodyChunkReplicas = bodyChunk->StoredReplicas();
         ToProto(jobSpecExt->mutable_body_chunk_replicas(), bodyChunkReplicas);
         builder.Add(bodyChunkReplicas);

@@ -106,7 +106,7 @@ public:
 
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
-        // This one should not have sequoia replicas.
+        // This one should not have Sequoia replicas.
         const auto& replicas = Chunk_->StoredReplicas();
         builder.Add(replicas);
         for (auto replica : replicas) {
@@ -385,7 +385,7 @@ private:
 
     bool HasEnoughReplicas(TChunk* chunk)
     {
-        // This one should not have sequoia replicas.
+        // This one should not have Sequoia replicas.
         return std::ssize(chunk->StoredReplicas()) >= chunk->GetReadQuorum();
     }
 
@@ -692,7 +692,7 @@ private:
 
         // NB: Seal jobs can be started even if chunk refresh is scheduled.
 
-        // This one should not have sequoia replicas.
+        // This one should not have Sequoia replicas.
         if (std::ssize(chunk->StoredReplicas()) < chunk->GetReadQuorum()) {
             return true;
         }

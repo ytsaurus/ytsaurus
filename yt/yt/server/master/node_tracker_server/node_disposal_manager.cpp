@@ -279,7 +279,7 @@ private:
         auto errorOrSequoiaReplicas = WaitFor(sequoiaReplicasFuture);
         if (!errorOrSequoiaReplicas.IsOK()) {
             location->SetBeingDisposed(false);
-            YT_LOG_ERROR(errorOrSequoiaReplicas, "Error getting sequoia location replicas");
+            YT_LOG_ERROR(errorOrSequoiaReplicas, "Error getting Sequoia location replicas");
             return;
         }
         const auto& sequoiaReplicas = errorOrSequoiaReplicas.Value();

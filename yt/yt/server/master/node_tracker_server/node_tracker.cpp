@@ -1956,7 +1956,7 @@ private:
         if (node->GetLocalState() == ENodeState::Unregistered ||
             node->GetLocalState() == ENodeState::BeingDisposed)
         {
-            // This does not remove sequoia replicas.
+            // This does not remove Sequoia replicas.
             NodeDisposalManager_->DisposeNodeCompletely(node);
         }
     }

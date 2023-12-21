@@ -54,7 +54,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Starting cypress election manager");
+        YT_LOG_DEBUG("Starting Cypress election manager");
 
         IsActive_ = true;
 
@@ -68,7 +68,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Stopping cypress election manager");
+        YT_LOG_DEBUG("Stopping Cypress election manager");
 
         return BIND(&TCypressElectionManager::DoStop, MakeWeak(this))
             .AsyncVia(Invoker_)

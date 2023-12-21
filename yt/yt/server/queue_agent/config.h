@@ -47,7 +47,7 @@ public:
     //! Cypress poll period.
     TDuration PassPeriod;
 
-    //! Flag for disabling cypress synchronizer entirely; used primarily for tests.
+    //! Flag for disabling Cypress synchronizer entirely; used primarily for tests.
     bool Enable;
 
     //! Policy used for following updates to queues/consumers.
@@ -174,7 +174,7 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    //! User for native clients in queue agent and cypress synchronizer.
+    //! User for native clients in queue agent and Cypress synchronizer.
     TString User;
 
     //! Paths to queue agent state.

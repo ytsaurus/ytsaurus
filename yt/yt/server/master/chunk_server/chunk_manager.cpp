@@ -1276,7 +1276,7 @@ public:
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
         for (auto storedReplica : chunk->StoredReplicas()) {
-            // TODO(aleksandra-zh): skip sequoia replicas here.
+            // TODO(aleksandra-zh): skip Sequoia replicas here.
             auto* location = storedReplica.GetPtr();
             auto replicaIndex = storedReplica.GetReplicaIndex();
             TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
@@ -1286,7 +1286,7 @@ public:
 
             auto isImaginary = location->IsImaginary();
 
-            // No sequoia replicas for imaginary locations.
+            // No Sequoia replicas for imaginary locations.
             if (canHaveSequoiaReplicas && !isImaginary) {
                 TSequoiaChunkReplica replica;
                 replica.ChunkId = chunk->GetId();
@@ -2734,7 +2734,7 @@ private:
                     auto locationUuid = replica.LocationUuid;
                     auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
                     if (!IsObjectAlive(location)) {
-                        YT_LOG_ALERT("Found sequoia chunk replica with a nonexistent location (ChunkId: %v, LocationUuid: %v)",
+                        YT_LOG_ALERT("Found Sequoia chunk replica with a nonexistent location (ChunkId: %v, LocationUuid: %v)",
                             chunkId,
                             locationUuid);
                         continue;
@@ -3007,7 +3007,7 @@ private:
             if (!isImaginary) {
                 auto* realLocation = location->AsReal();
                 if (IsSequoiaChunkReplica(chunkId, realLocation)) {
-                    YT_LOG_ALERT("Removing sequoia replica in a nonsequoia way (ChunkId: %v, LocationUuid: %v)",
+                    YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
                         chunkId,
                         realLocation->GetUuid());
                 }
@@ -3024,7 +3024,7 @@ private:
                 if (!isImaginary) {
                     auto* realLocation = location->AsReal();
                     if (IsSequoiaChunkReplica(chunkId, realLocation)) {
-                        YT_LOG_INFO("Removing destroyed sequoia replica in a nonsequoia way (ChunkId: %v, LocationUuid: %v)",
+                        YT_LOG_INFO("Removing destroyed Sequoia replica in a nonsequoia way (ChunkId: %v, LocationUuid: %v)",
                             chunkId,
                             realLocation->GetUuid());
                     }
@@ -5469,7 +5469,7 @@ private:
 
         auto replicasOrError = WaitFor(DoGetSequoiaChunkReplicas(chunkIds));
         if (!replicasOrError.IsOK()) {
-            YT_LOG_ERROR(replicasOrError, "Error getting sequoia chunk replicas");
+            YT_LOG_ERROR(replicasOrError, "Error getting Sequoia chunk replicas");
             return;
         }
 
@@ -5566,7 +5566,7 @@ private:
                     TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
                     // Weird but OK.
                     if (location->RemoveReplica(replica)) {
-                        YT_LOG_ALERT("Location had a destroyed sequoia chunk replica (LocationUuid: %v, ChunkId: %v)",
+                        YT_LOG_ALERT("Location had a destroyed Sequoia chunk replica (LocationUuid: %v, ChunkId: %v)",
                             locationUuid,
                             chunkId);
                     }
@@ -5812,7 +5812,7 @@ private:
                 counters->AddedDestroyedReplicas.Increment();
             }
 
-            // If this is a sequoia replica, the other part of 2PC will still insert
+            // If this is a Sequoia replica, the other part of 2PC will still insert
             // this replica into in relevant tables. But this seems fine, as this replica will be removed
             // from tables when node reports replica removal.
             auto isUnknown = location->AddDestroyedReplica(chunkIdWithIndexes);

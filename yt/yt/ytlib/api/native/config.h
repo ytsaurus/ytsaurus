@@ -110,7 +110,7 @@ class TCypressProxyConnectionConfig
     , public NRpc::TRetryingChannelConfig
 {
 public:
-    //! Timeout for RPC requests to cypress proxies.
+    //! Timeout for RPC requests to Cypress proxies.
     TDuration RpcTimeout;
 
     REGISTER_YSON_STRUCT(TCypressProxyConnectionConfig);
@@ -127,7 +127,7 @@ class TSequoiaConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    //! If |nullopt|, sequoia tables are handled on the local cluster.
+    //! If |nullopt|, Sequoia tables are handled on the local cluster.
     std::optional<TString> GroundClusterName;
 
     NYTree::TYPath SequoiaRootPath;

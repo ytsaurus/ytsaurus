@@ -414,7 +414,7 @@ private:
         }
     }
 
-    //! Infers which objects for a given cluster were modified and which should be deleted in this cypress synchronizer pass.
+    //! Infers which objects for a given cluster were modified and which should be deleted in this Cypress synchronizer pass.
     //! Modified:
     //!    1) Objects present in watchlist and in current dynamic state, for which we detect a revision increase.
     //!    2) Objects present in watchlist and not in the current dynamic state.
@@ -816,7 +816,7 @@ public:
             PassError_ = TError(ex);
             auto alert = TError(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
-                "Error performing cypress synchronizer pass")
+                "Error performing Cypress synchronizer pass")
                 << TError(ex);
             Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
         }

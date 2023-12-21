@@ -94,7 +94,7 @@ struct IObjectTypeHandler
     //! Raised when GC finally destroys the object.
     virtual void DestroyObject(TObject* object) noexcept = 0;
 
-    //! Raised to destroy sequoia object.
+    //! Raised to destroy Sequoia object.
     virtual void DestroySequoiaObject(TObject* object, const NSequoiaClient::ISequoiaTransactionPtr& transaction) noexcept = 0;
 
     //! Invokes #object's dtor and then immediately recreates the object in-place as ghost.

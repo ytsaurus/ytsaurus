@@ -1691,7 +1691,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
 
-        // COMPAT(h0pless): This should always be false when clients will switch to cypress tx service from tx service.
+        // COMPAT(h0pless): This should always be false when clients will switch to Cypress tx service from tx service.
         auto isCypressTransaction = request->is_cypress_transaction();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

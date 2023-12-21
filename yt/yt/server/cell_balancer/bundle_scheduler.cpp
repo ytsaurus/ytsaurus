@@ -35,7 +35,7 @@ bool IsAllocationCompleted(const auto& requestInfo)
 
 TString GetPodIdForInstance(const TString& name)
 {
-    // TODO(capone212): Get pod_id from node cypress annotations.
+    // TODO(capone212): Get pod_id from node Cypress annotations.
 
     // For now we get PodId in a bit hacky way:
     // we expect PodId to be prefix of fqdn before the first dot.
@@ -2399,7 +2399,7 @@ THashSet<TString> ScanForObsoleteCypressNodes(const TSchedulerInputState& input,
         }
 
         if (IsOnline(instanceInfo)) {
-            YT_LOG_WARNING("Skipping obsolete cypress node  in online state (InstanceName: %v)", instanceName);
+            YT_LOG_WARNING("Skipping obsolete Cypress node in online state (InstanceName: %v)", instanceName);
             continue;
         }
 

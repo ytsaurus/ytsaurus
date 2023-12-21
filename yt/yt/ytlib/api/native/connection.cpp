@@ -1048,7 +1048,7 @@ private:
             }));
     }
 
-    //! Returns a pair consisting of the client for the Query Tracker cluster and the path to the Query Tracker root in cypress.
+    //! Returns a pair consisting of the client for the Query Tracker cluster and the path to the Query Tracker root in Cypress.
     std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) override
     {
         auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TString> {

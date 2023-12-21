@@ -56,7 +56,7 @@ private:
             title = *maybeTitle;
         }
 
-        YT_LOG_DEBUG("Staring sequoia transaction "
+        YT_LOG_DEBUG("Staring Sequoia transaction "
             "(TransactionId: %v, Timeout: %v, Title: %v)",
             transactionId,
             timeout,

@@ -2642,7 +2642,7 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
     auto sequoiaReplicasFuture = chunkManager->GetSequoiaNodeReplicas(nodeId);
     auto sequoiaReplicasOrError = WaitFor(sequoiaReplicasFuture);
     if (!sequoiaReplicasOrError.IsOK()) {
-        YT_LOG_ERROR(sequoiaReplicasOrError, "Error getting sequoia node replicas");
+        YT_LOG_ERROR(sequoiaReplicasOrError, "Error getting Sequoia node replicas");
         return;
     }
 

@@ -954,7 +954,7 @@ using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(kvk1920): Try to make some common base for cypress and sequoia map nodes.
+// TODO(kvk1920): Try to make some common base for Cypress and Sequoia map nodes.
 // (E.g. branching is similar in both cases).
 template <class TImpl = TSequoiaMapNode>
 class TSequoiaMapNodeTypeHandlerImpl

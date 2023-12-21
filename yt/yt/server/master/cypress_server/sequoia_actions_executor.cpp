@@ -89,7 +89,7 @@ private:
     // NB: Sequoia node has to be created in prepare phase since we cannot
     // guarantee that object id will not be used between prepare and commit.
     // It's ok because this node cannot be reached from any other node until
-    // sequoia tx is committed: AttachChild for created subtree's root is
+    // Sequoia tx is committed: AttachChild for created subtree's root is
     // executed via "late prepare" after prepares on all participants are
     // succeeded.
     void HydraPrepareCreateNode(
@@ -230,13 +230,17 @@ private:
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto* parent = cypressManager->GetNode(TVersionedNodeId(parentId));
 
+        auto& children = parent->As<TSequoiaMapNode>()->MutableChildren();
+        auto childIt = children.KeyToChild().find(request->key());
         // This is temporary logic.
         // TODO(cherepashka): In future DetachChild should remove child from parent node proxy.
-        auto& children = parent->As<TSequoiaMapNode>()->MutableChildren();
-        if (!children.Contains(request->key())) {
-            YT_LOG_FATAL("Missing sequoia map node has no such child (Key: %v)", request->key());
+        if (childIt == children.KeyToChild().end()) {
+            YT_LOG_FATAL("Sequoia map node has no such child (ParentId: %v, Key: %v)",
+                parentId,
+                request->key());
+            return;
         }
-        auto childIt = children.KeyToChild().find(request->key());
+
         children.Remove(request->key(), childIt->second);
     }
 
@@ -266,7 +270,7 @@ private:
 
         if (!IsObjectAlive(node)) {
             YT_LOG_ALERT(
-                "Attempted to remove unexisting sequoia node; ignored "
+                "Attempted to remove unexisting Sequoia node; ignored "
                 "(NodeId: %v)",
                 nodeId);
             return;
@@ -321,7 +325,7 @@ private:
 
         if (!IsObjectAlive(node)) {
             YT_LOG_ALERT(
-                "Attempted to set unexisting sequoia node; ignored "
+                "Attempted to set unexisting Sequoia node; ignored "
                 "(NodeId: %v)",
                 nodeId);
             return;

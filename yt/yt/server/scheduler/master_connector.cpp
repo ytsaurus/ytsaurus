@@ -522,7 +522,7 @@ public:
         GetCumulativeError(WaitFor(batchReq->Invoke()))
             .ThrowOnError();
 
-        YT_LOG_INFO("Last metering log time written to cypress (LastMeteringLogTime: %v)", time);
+        YT_LOG_INFO("Last metering log time written to Cypress (LastMeteringLogTime: %v)", time);
     }
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time)
@@ -1432,7 +1432,7 @@ private:
                 }
             } else {
                 Result_.LastMeteringLogTime = ConvertTo<TInstant>(TYsonString(rspOrError.ValueOrThrow()->value()));
-                YT_LOG_INFO("Last metering log time read from cypress (LastMeteringLogTime: %v)",
+                YT_LOG_INFO("Last metering log time read from Cypress (LastMeteringLogTime: %v)",
                     Result_.LastMeteringLogTime);
             }
         }

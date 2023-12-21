@@ -3609,7 +3609,7 @@ private:
         processChunkTrees(chunkManager->ChunkViews());
         processChunkTrees(chunkManager->DynamicStores());
 
-        // Accounts are referenced by cypress shards.
+        // Accounts are referenced by Cypress shards.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [shardId, shard] : cypressManager->Shards()) {
             for (const auto& [account, statistics] : shard->AccountStatistics()) {
@@ -3626,7 +3626,7 @@ private:
             }
         }
 
-        // Accounts are referenced by cypress nodes.
+        // Accounts are referenced by Cypress nodes.
         for (auto [nodeId, node] : cypressManager->Nodes()) {
             if (const auto& account = node->Account()) {
                 ++accountToRefCounter[account.Get()];

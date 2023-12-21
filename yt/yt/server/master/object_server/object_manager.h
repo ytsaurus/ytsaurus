@@ -175,7 +175,7 @@ struct IObjectManager
     virtual std::unique_ptr<NHydra::TMutation> CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request) = 0;
 
-    //! Handles object destruction of both normal and sequoia objects.
+    //! Handles object destruction of both normal and Sequoia objects.
     /*!
      *  Thread affinity: Automaton
      */
