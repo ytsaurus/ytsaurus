@@ -261,7 +261,7 @@ private:
                 ->GetClient()
                 ->GetNativeConnection()
                 ->GetCellDirectory()
-                ->GetDescriptorOrThrow(TabletSnapshot_->CellId),
+                ->GetDescriptorByCellIdOrThrow(TabletSnapshot_->CellId),
             TabletSnapshot_->Settings.MountConfig->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 

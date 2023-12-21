@@ -511,7 +511,7 @@ std::vector<std::vector<TCellDescriptorPtr>> GroupCellDescriptorsByPeer(
     THashMap<TString, int> channelIndexByAddress;
 
     for (auto cellId : cellIds) {
-        auto descriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+        auto descriptor = cellDirectory->GetDescriptorByCellIdOrThrow(cellId);
 
         // Cells with multiple peers, as well as with zero peers, are not frequent.
         // We do not coalesce them and allow each cell to pick its channel (possibly hedging)

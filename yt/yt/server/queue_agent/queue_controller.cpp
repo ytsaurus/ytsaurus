@@ -169,7 +169,7 @@ private:
                 tabletIndexes.push_back(index);
                 const auto& cellId = tabletInfo->CellId;
                 std::optional<TString> host;
-                if (auto cellDescriptor = cellDirectory->FindDescriptor(cellId)) {
+                if (auto cellDescriptor = cellDirectory->FindDescriptorByCellId(cellId)) {
                     for (const auto& peer : cellDescriptor->Peers) {
                         if (peer.GetVoting()) {
                             host = peer.GetDefaultAddress();

@@ -125,10 +125,10 @@ struct ICellDirectory
 
 
     //! Returns the descriptor for a given cell id (null if the cell is not known).
-    virtual TCellDescriptorPtr FindDescriptor(TCellId cellId) = 0;
+    virtual TCellDescriptorPtr FindDescriptorByCellId(TCellId cellId) = 0;
 
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
-    virtual TCellDescriptorPtr GetDescriptorOrThrow(TCellId cellId) = 0;
+    virtual TCellDescriptorPtr GetDescriptorByCellIdOrThrow(TCellId cellId) = 0;
 
     //! Similar to #FindDescriptor but relies on cell tag rather than full cell id.
     virtual TCellDescriptorPtr FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) = 0;

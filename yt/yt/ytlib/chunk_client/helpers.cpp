@@ -449,7 +449,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         subrequest.set_fetch_samples(true);
         subrequest.set_data_size_between_samples(5 *  1024 * 1024);
 
-        auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
+        auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);
         const auto& primaryPeerDescriptor = NApi::NNative::GetPrimaryTabletPeerDescriptor(
             *cellDescriptor,
             NHydra::EPeerKind::Leader);

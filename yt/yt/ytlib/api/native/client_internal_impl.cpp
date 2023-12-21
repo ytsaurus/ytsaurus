@@ -306,7 +306,7 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
         subrequest.set_mount_revision(tabletInfo->MountRevision);
         subrequest.set_timestamp(request.Timestamp);
 
-        auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
+        auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);
         auto cellAddress = primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks());
 

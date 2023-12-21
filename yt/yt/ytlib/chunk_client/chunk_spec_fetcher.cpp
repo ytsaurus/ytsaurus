@@ -404,7 +404,7 @@ void TTabletChunkSpecFetcher::AddSorted(
                 tablet->TabletId,
                 tablet->CellId);
             auto cellId = tablet->CellId;
-            auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+            auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(cellId);
             const auto& primaryPeerDescriptor = NApi::NNative::GetPrimaryTabletPeerDescriptor(
                 *cellDescriptor,
                 NHydra::EPeerKind::Leader);

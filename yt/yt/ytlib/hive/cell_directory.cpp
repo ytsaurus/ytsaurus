@@ -355,7 +355,7 @@ public:
         return CellIdToEntry_.find(cellId) != CellIdToEntry_.end();
     }
 
-    TCellDescriptorPtr FindDescriptor(TCellId cellId) override
+    TCellDescriptorPtr FindDescriptorByCellId(TCellId cellId) override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellIdToEntry_.find(cellId);
@@ -369,9 +369,9 @@ public:
         return it == CellTagToEntry_.end() ? nullptr : it->second->Descriptor;
     }
 
-    TCellDescriptorPtr GetDescriptorOrThrow(TCellId cellId) override
+    TCellDescriptorPtr GetDescriptorByCellIdOrThrow(TCellId cellId) override
     {
-        auto result = FindDescriptor(cellId);
+        auto result = FindDescriptorByCellId(cellId);
         if (!result) {
             THROW_ERROR_EXCEPTION("Unknown cell %v",
                 cellId);

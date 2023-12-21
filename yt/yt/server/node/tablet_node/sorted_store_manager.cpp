@@ -667,7 +667,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             TabletContext_->GetControlInvoker(),
             TabletContext_->GetLocalDescriptor(),
             TabletContext_->GetLocalRpcServer(),
-            Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
+            Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId),
             inMemoryMode,
             InMemoryManager_->GetConfig());
 

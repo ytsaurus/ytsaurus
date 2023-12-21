@@ -508,7 +508,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
         auto& descriptor = insertResult.first->second;
 
         if (insertResult.second) {
-            descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
+            descriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);
         }
 
         // TODO(babenko): pass proper read options

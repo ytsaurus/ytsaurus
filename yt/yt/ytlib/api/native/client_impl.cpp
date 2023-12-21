@@ -478,7 +478,7 @@ NRpc::IChannelPtr TClient::GetReadCellChannelOrThrow(const NHiveClient::TCellDes
 IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+    auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(cellId);
     return GetReadCellChannelOrThrow(cellDescriptor);
 }
 
@@ -532,14 +532,14 @@ IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
 TCellDescriptorPtr TClient::GetCellDescriptorOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    if (auto cellDescriptor = cellDirectory->FindDescriptor(cellId)) {
+    if (auto cellDescriptor = cellDirectory->FindDescriptorByCellId(cellId)) {
         return cellDescriptor;
     }
 
     WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
         .ThrowOnError();
 
-    return cellDirectory->GetDescriptorOrThrow(cellId);
+    return cellDirectory->GetDescriptorByCellIdOrThrow(cellId);
 }
 
 std::vector<TString> TClient::GetCellAddressesOrThrow(NObjectClient::TCellId cellId)

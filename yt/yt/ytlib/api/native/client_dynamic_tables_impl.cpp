@@ -2850,7 +2850,7 @@ private:
         const auto& networks = connection->GetNetworks();
         auto channel = CreateTabletReadChannel(
             Client_->GetChannelFactory(),
-            *cellDirectory->GetDescriptorOrThrow(TabletInfo_->CellId),
+            *cellDirectory->GetDescriptorByCellIdOrThrow(TabletInfo_->CellId),
             Options_,
             networks);
 
