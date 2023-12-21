@@ -307,7 +307,7 @@ def save_sandbox(sandbox_path, output_subpath):
         return
 
     output_path_dir = os.path.dirname(output_path)
-    os.makedirs(output_path_dir)
+    os.makedirs(output_path_dir, exist_ok=True)
     try:
         os.rename(sandbox_path, output_path)
         return
