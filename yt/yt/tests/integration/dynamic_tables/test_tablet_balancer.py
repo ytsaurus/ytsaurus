@@ -1,5 +1,5 @@
 from yt_dynamic_tables_base import DynamicTablesBase
-from .test_tablet_actions import TabletBalancerBase, TabletActionsBase
+from .test_tablet_actions import TabletActionsBase, TabletBalancerBase
 
 from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
@@ -261,6 +261,10 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
             "max_actions_per_group": 100
         })
 
+        self._apply_dynamic_config_patch({
+            "max_actions_per_group": 100
+        })
+
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     @classmethod
@@ -276,7 +280,15 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         set(
             "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
             {
-                "default": {"metric": metric}
+                "default": {"parameterized": {"metric": metric}}
+            }
+        )
+
+    def _enable_parameterized_reshard(self, group):
+        set(
+            f"//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/{group}/parameterized",
+            {
+                "enable_reshard": True,
             }
         )
 
@@ -355,7 +367,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         ],
     )
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
-    def test_parameterized_balancing(self, parameterized_balancing_metric, in_memory_mode):
+    def test_parameterized_move_balancing(self, parameterized_balancing_metric, in_memory_mode):
         cells = sync_create_cells(2)
 
         self._create_sorted_table(
@@ -395,7 +407,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
     @authors("alexelexa")
     @pytest.mark.parametrize("trigger_by", ["node", "cell"])
-    def test_parameterized_balancing_trigger(self, trigger_by):
+    def test_parameterized_move_balancing_trigger(self, trigger_by):
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
 
         cells = sync_create_cells(2)
@@ -443,6 +455,83 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         })
 
         wait(lambda: sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 10)
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize(
+        "parameterized_balancing_metric",
+        [
+            "double([/performance_counters/dynamic_row_write_count])",
+            "double([/statistics/uncompressed_data_size])"
+        ],
+    )
+    def test_parameterized_reshard_balancing_split(self, parameterized_balancing_metric):
+        sync_create_cells(2)
+
+        self._apply_dynamic_config_patch({
+            "pick_reshard_pivot_keys": True,
+        })
+
+        self._create_sorted_table("//tmp/t")
+        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
+        self._enable_parameterized_reshard("default")
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
+
+        config = {
+            "enable_auto_reshard": True,
+            "enable_auto_tablet_move": False,
+            "desired_tablet_count": 2,
+            "enable_parameterized": True
+        }
+        set("//tmp/t/@tablet_balancer_config", config)
+
+        sync_mount_table("//tmp/t")
+
+        sleep(5)
+        assert get("//tmp/t/@tablet_count") == 1
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(400)])
+        sync_flush_table("//tmp/t")
+
+        wait(lambda: get("//tmp/t/@tablet_count") == 2)
+        remove("//sys/tablet_balancer/config/pick_reshard_pivot_keys")
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize(
+        "parameterized_balancing_metric",
+        [
+            "double([/performance_counters/dynamic_row_write_count])",
+            "double([/statistics/uncompressed_data_size])"
+        ],
+    )
+    def test_parameterized_reshard_balancing_merge(self, parameterized_balancing_metric):
+        sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
+        self._enable_parameterized_reshard("default")
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
+
+        config = {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": False,
+            "desired_tablet_count": 2,
+            "enable_parameterized": True
+        }
+        set("//tmp/t/@tablet_balancer_config", config)
+
+        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in range(1, 3)])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i * 100, "value": str(i)} for i in range(3)])
+        insert_rows("//tmp/t", [{"key": 201, "value": "201"}])
+        sync_flush_table("//tmp/t")
+
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
+
+        wait(lambda: get("//tmp/t/@tablet_count") == 2)
+        assert [[], [200]] == get("//tmp/t/@pivot_keys")
 
 
 ##################################################################

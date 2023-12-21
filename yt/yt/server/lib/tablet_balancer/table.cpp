@@ -45,7 +45,7 @@ std::optional<TGroupName> TTable::GetBalancingGroup() const
         : LegacyInMemoryGroupName;
 }
 
-bool TTable::IsParameterizedBalancingEnabled() const
+bool TTable::IsParameterizedMoveBalancingEnabled() const
 {
     if (!TableConfig->EnableAutoTabletMove) {
         return false;
@@ -60,6 +60,40 @@ bool TTable::IsParameterizedBalancingEnabled() const
     const auto& bundleConfig = Bundle->Config;
     const auto& groupConfig = GetOrCrash(bundleConfig->Groups, *groupName);
     if (groupConfig->Type != EBalancingType::Parameterized || !groupConfig->EnableMove) {
+        return false;
+    }
+
+    if (groupName == DefaultGroupName) {
+        return TableConfig->EnableParameterized.value_or(bundleConfig->EnableParameterizedByDefault);
+    }
+
+    return TableConfig->EnableParameterized.value_or(true);
+}
+
+bool TTable::IsParameterizedReshardBalancingEnabled(bool enableParameterizedByDefault) const
+{
+    if (!TableConfig->EnableAutoReshard) {
+        return false;
+    }
+
+    const auto& groupName = GetBalancingGroup();
+
+    if (!groupName) {
+        return false;
+    }
+
+    const auto& bundleConfig = Bundle->Config;
+    const auto& groupConfig = GetOrCrash(bundleConfig->Groups, *groupName);
+    if (groupConfig->Type != EBalancingType::Parameterized || !groupConfig->EnableReshard) {
+        return false;
+    }
+
+    if (!groupConfig->Parameterized->EnableReshard.value_or(enableParameterizedByDefault)) {
+        return false;
+    }
+
+    // So far, balancing via reshard only works if the desired tablet count is known.
+    if (!TableConfig->DesiredTabletCount) {
         return false;
     }
 

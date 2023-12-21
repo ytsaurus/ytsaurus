@@ -36,7 +36,8 @@ struct TTable final
 
     bool IsLegacyMoveBalancingEnabled() const;
 
-    bool IsParameterizedBalancingEnabled() const;
+    bool IsParameterizedMoveBalancingEnabled() const;
+    bool IsParameterizedReshardBalancingEnabled(bool enableParameterizedByDefault) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTable)

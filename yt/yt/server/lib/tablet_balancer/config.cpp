@@ -10,6 +10,8 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_swaps", &TThis::EnableSwaps)
         .Default();
+    registrar.Parameter("enable_reshard", &TThis::EnableReshard)
+        .Default();
     registrar.Parameter("metric", &TThis::Metric)
         .Default();
     registrar.Parameter("max_action_count", &TThis::MaxActionCount)

@@ -76,6 +76,43 @@ void ApplyMoveDescriptors(
     }
 }
 
+std::vector<TReshardDescriptor> ReshardBundleParameterized(
+    const TTabletCellBundlePtr& bundle,
+    const TString& parameterizedConfig,
+    const TString& group)
+{
+    auto commonParameterizedConfig = ConvertTo<TParameterizedBalancingConfigPtr>(TYsonString(parameterizedConfig));
+    auto groupConfig = GetOrCrash(bundle->Config->Groups, group)->Parameterized;
+
+    auto enable = groupConfig->EnableReshard.value_or(false);
+    if (!enable) {
+        YT_LOG_DEBUG("Balancing tablets via parameterized reshard is disabled (BundleName: %v, Group: %v)",
+            bundle->Name,
+            group);
+        return {};
+    }
+
+    auto config = TParameterizedResharderConfig()
+        .MergeWith(commonParameterizedConfig)
+        .MergeWith(groupConfig);
+    auto resharder = CreateParameterizedResharder(
+        bundle,
+        DefaultPerformanceCountersKeys,
+        /*performanceCountersTableSchema*/ nullptr,
+        config,
+        group,
+        Logger);
+
+    std::vector<TReshardDescriptor> descriptors;
+    for (const auto& [id, table] : bundle->Tables) {
+        YT_LOG_DEBUG("Performing table parameterized reshard (TableId: %v)", id);
+        auto tableDescriptors = resharder->BuildTableActionDescriptors(table);
+        descriptors.insert(descriptors.end(), tableDescriptors.begin(), tableDescriptors.end());
+    }
+
+    return descriptors;
+}
+
 std::vector<TReshardDescriptor> ReshardBundle(const TTabletCellBundlePtr& bundle)
 {
     std::vector<TTablePtr> tables;
@@ -185,6 +222,10 @@ TTabletActionBatch Balance(
 
         case EBalancingMode::Reshard: {
             return TTabletActionBatch{.ReshardDescriptors = ReshardBundle(bundle)};
+        }
+
+        case EBalancingMode::ReshardParameterized: {
+            return TTabletActionBatch{.ReshardDescriptors = ReshardBundleParameterized(bundle, parameterizedConfig, group)};
         }
 
         case EBalancingMode::OrdinaryMove: {

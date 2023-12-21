@@ -33,6 +33,16 @@ DEFINE_REFCOUNTED_TYPE(IParameterizedReassignSolver)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IParameterizedResharder
+    : public TRefCounted
+{
+    virtual std::vector<TReshardDescriptor> BuildTableActionDescriptors(const TTablePtr& table) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IParameterizedResharder)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTableParameterizedMetricTracker
     : public TRefCounted
 {
@@ -41,6 +51,10 @@ struct TTableParameterizedMetricTracker
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableParameterizedMetricTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsTableMovable(TTableId tableId);
 
 struct TParameterizedReassignSolverConfig
 {
@@ -54,7 +68,15 @@ struct TParameterizedReassignSolverConfig
     TParameterizedReassignSolverConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
 };
 
-bool IsTableMovable(TTableId tableId);
+struct TParameterizedResharderConfig
+{
+    bool EnableReshardByDefault = false;
+    TString Metric;
+
+    TParameterizedResharderConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
@@ -63,6 +85,14 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TParameterizedReassignSolverConfig config,
     TString groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
+    const NLogging::TLogger& logger);
+
+IParameterizedResharderPtr CreateParameterizedResharder(
+    TTabletCellBundlePtr bundle,
+    std::vector<TString> performanceCountersKeys,
+    NTableClient::TTableSchemaPtr performanceCountersTableSchema,
+    TParameterizedResharderConfig config,
+    TString groupName,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

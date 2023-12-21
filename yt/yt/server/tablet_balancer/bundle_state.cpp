@@ -673,6 +673,9 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
                 continue;
             }
 
+            auto parameterizedBalancingEnabled = table->IsParameterizedMoveBalancingEnabled() ||
+                table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true);
+
             std::vector<TTabletStatisticsResponse> tablets;
             for (const auto& tablet : response.tablets()) {
                 tablets.push_back(TTabletStatisticsResponse{
@@ -682,7 +685,7 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
                     .Statistics = BuildTabletStatistics(
                         tablet.statistics(),
                         statisticsFieldNames,
-                        /*saveOriginalNode*/ table->IsParameterizedBalancingEnabled()),
+                        /*saveOriginalNode*/ parameterizedBalancingEnabled),
                 });
 
                 if (fetchPerformanceCounters) {
@@ -714,7 +717,9 @@ void TBundleState::FetchPerformanceCountersFromTable(
     THashSet<TTableId> tableIdsToFetch;
     for (const auto& [tableId, tablets] : *tableIdToStatistics) {
         const auto& table = GetOrCrash(Bundle_->Tables, tableId);
-        if (table->IsParameterizedBalancingEnabled()) {
+        if (table->IsParameterizedMoveBalancingEnabled() ||
+            table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true))
+        {
             tableIdsToFetch.insert(tableId);
         }
     }
@@ -822,6 +827,10 @@ TTableProfilingCounters TBundleState::InitializeProfilingCounters(
     profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
     profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
     profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
+    profilingCounters.ParameterizedReshardMerges = profiler.Counter(
+        "/tablet_balancer/parameterized_reshard_merges");
+    profilingCounters.ParameterizedReshardSplits = profiler.Counter(
+        "/tablet_balancer/parameterized_reshard_splits");
 
     return profilingCounters;
 }

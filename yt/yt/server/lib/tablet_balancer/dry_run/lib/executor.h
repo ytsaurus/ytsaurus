@@ -15,9 +15,10 @@ namespace NYT::NTabletBalancer::NDryRun {
 
 DEFINE_ENUM(EBalancingMode,
     (Parameterized)
-    (Reshard)
     (InMemoryMove)
     (OrdinaryMove)
+    (Reshard)
+    (ReshardParameterized)
 );
 
 struct TTabletActionBatch
