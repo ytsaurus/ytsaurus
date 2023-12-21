@@ -43,6 +43,7 @@
 #include <util/generic/guid.h>
 
 #include <util/system/execpath.h>
+#include <util/system/user.h>
 
 namespace NYT::NExecNode {
 
@@ -1052,6 +1053,17 @@ private:
             // FIXME(khlebnikov): Use own group or "nogroup"
         }
         spec->Credentials.Gid = ::getgid();
+
+        if (!spec->Environment.contains("USER")) {
+            TString username;
+            if (config->DoNotSetUserId) {
+                username = ::GetUsername();
+            } else {
+                username = Format("%v%v", SlotPodPrefix, slotIndex);
+            }
+            spec->Environment["USER"] = username;
+            spec->Environment["LOGNAME"] = username;
+        }
 
         spec->BindMounts.push_back(NCri::TCriBindMount{
             .ContainerPath = config->SlotPath,
