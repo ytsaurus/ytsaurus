@@ -43,7 +43,9 @@
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
 
+#include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NTransactionSupervisor {
 
@@ -57,6 +59,7 @@ using namespace NRpc;
 using namespace NSecurityServer;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NYson;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -155,6 +158,8 @@ public:
             ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
             BIND(&TTransactionSupervisor::SaveValues, Unretained(this)));
+
+        OrchidService_ = CreateOrchidService();
     }
 
     std::vector<IServicePtr> GetRpcServices() override
@@ -217,6 +222,11 @@ public:
         return Decommissioned_ && PersistentCommitMap_.empty();
     }
 
+    NYTree::IYPathServicePtr GetOrchidService() override
+    {
+        return OrchidService_;
+    }
+
 private:
     const TTransactionSupervisorConfigPtr Config_;
     const IInvokerPtr TrackerInvoker_;
@@ -231,6 +241,8 @@ private:
     const NLogging::TLogger Logger;
 
     const IAuthenticatorPtr Authenticator_;
+
+    IYPathServicePtr OrchidService_;
 
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
@@ -417,6 +429,15 @@ private:
             Up_ = false;
 
             YT_LOG_DEBUG(error, "Participant cell is down");
+        }
+
+        void BuildOrchidYson(IYsonConsumer* consumer)
+        {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("state").Value(GetState())
+                    .Item("up").Value(IsUp())
+                .EndMap();
         }
 
     private:
@@ -1008,6 +1029,137 @@ private:
 
     const TIntrusivePtr<TTransactionParticipantService> TransactionParticipantService_;
 
+    class TCommitOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        using TCommitMapField = TEntityMap<TCommit> TTransactionSupervisor::*;
+
+        TCommitOrchidService(
+            TWeakPtr<TTransactionSupervisor> owner,
+            TCommitMapField commitMapField)
+            : Owner_(std::move(owner))
+            , CommitMapField_(commitMapField)
+        { }
+
+        std::vector<TString> GetKeys(i64 limit) const override
+        {
+            std::vector<TString> keys;
+
+            if (auto owner = Owner_.Lock()) {
+                const auto& commitMap = (owner.Get())->*CommitMapField_;
+                keys.reserve(std::min(limit, std::ssize(commitMap)));
+                for (const auto& [id, commit] : commitMap) {
+                    if (std::ssize(keys) >= limit) {
+                        break;
+                    }
+                    keys.push_back(ToString(id));
+                }
+            }
+
+            return keys;
+        }
+
+        i64 GetSize() const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                const auto& commitMap = (owner.Get())->*CommitMapField_;
+                return commitMap.size();
+            }
+            return 0;
+        }
+
+        IYPathServicePtr FindItemService(TStringBuf key) const override
+        {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return nullptr;
+            }
+
+            const auto& commitMap = (owner.Get())->*CommitMapField_;
+            const auto* commit = commitMap.Find(TTransactionId::FromString(key));
+            if (!commit) {
+                return nullptr;
+            }
+
+            return ConvertToNode(BIND(&TCommit::BuildOrchidYson, commit));
+        }
+
+    private:
+        const TWeakPtr<TTransactionSupervisor> Owner_;
+        const TCommitMapField CommitMapField_;
+    };
+
+
+    class TParticipantOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TParticipantOrchidService(TWeakPtr<TTransactionSupervisor> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        std::vector<TString> GetKeys(i64 limit) const override
+        {
+            std::vector<TString> keys;
+
+            if (auto owner = Owner_.Lock()) {
+                keys.reserve(std::min(limit, std::ssize(owner->ParticipantMap_)));
+                for (const auto& [id, participant] : owner->ParticipantMap_) {
+                    if (std::ssize(keys) >= limit) {
+                        break;
+                    }
+                    keys.push_back(ToString(id));
+                }
+            }
+
+            return keys;
+        }
+
+        i64 GetSize() const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                return owner->ParticipantMap_.size();
+            }
+            return 0;
+        }
+
+        IYPathServicePtr FindItemService(TStringBuf key) const override
+        {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return nullptr;
+            }
+
+            const auto& map = owner->ParticipantMap_;
+
+            auto it = map.find(TCellId::FromString(key));
+            if (it != map.end()) {
+                return ConvertToNode(BIND(&TWrappedParticipant::BuildOrchidYson, it->second));
+            }
+
+            return nullptr;
+        }
+
+    private:
+        TWeakPtr<TTransactionSupervisor> Owner_;
+    };
+
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        auto invoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
+        return New<TCompositeMapService>()
+            ->AddChild("transient_commits", New<TCommitOrchidService>(
+                MakeWeak(this),
+                &TTransactionSupervisor::TransientCommitMap_))
+            ->AddChild("persistent_commits", New<TCommitOrchidService>(
+                MakeWeak(this),
+                &TTransactionSupervisor::PersistentCommitMap_))
+            ->AddChild("participants", New<TParticipantOrchidService>(
+                MakeWeak(this)))
+            ->Via(invoker);
+    }
 
     // Coordinator implementation.
 

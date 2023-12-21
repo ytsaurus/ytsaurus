@@ -34,6 +34,8 @@ struct ITransactionSupervisor
     //! and there are no more alive transactions in it, so it can
     //! be safely removed.
     virtual bool IsDecommissioned() const = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

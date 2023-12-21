@@ -784,6 +784,7 @@ private:
                 &TCellarOccupant::GetOptions,
                 MakeWeak(this)))
             ->AddChild("hive", HiveManager_->GetOrchidService())
+            ->AddChild("transaction_supervisor", TransactionSupervisor_->GetOrchidService())
             ->AddChild("lease_manager", IYPathService::FromMethod(
                 &ILeaseManager::BuildOrchid,
                 MakeWeak(LeaseManager_)));

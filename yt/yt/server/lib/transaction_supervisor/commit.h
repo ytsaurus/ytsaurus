@@ -86,6 +86,8 @@ public:
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);
 
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
+
 private:
     TPromise<TSharedRefArray> ResponseMessagePromise_ = NewPromise<TSharedRefArray>();
 };

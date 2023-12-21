@@ -1133,6 +1133,10 @@ void TBootstrap::DoRun()
         CreateVirtualNode(HiveManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/transaction_supervisor",
+        CreateVirtualNode(TransactionSupervisor_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/discovery_server",
         CreateVirtualNode(DiscoveryServer_->GetYPathService()));
     SetNodeByYPath(
