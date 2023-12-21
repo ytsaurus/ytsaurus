@@ -12,6 +12,8 @@
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>
 
+#include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
+
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 #include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
@@ -40,16 +42,70 @@ namespace NYT::NSequoiaClient {
 using namespace NApi;
 using namespace NApi::NNative;
 using namespace NConcurrency;
+using namespace NCypressServer::NProto;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NQueryClient;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
-using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define FOR_EACH_TRANSACTION_ACTION_TYPE() \
+    XX(TReqCloneNode, 100) \
+    XX(TReqDetachChild, 200) \
+    XX(TReqRemoveNode, 300) \
+    XX(TReqCreateNode, 400) \
+    XX(TReqAttachChild, 500) \
+    XX(TReqSetNode, 600)
+
+#define XX(type, priority) \
+    {type::GetDescriptor()->full_name(), priority},
+
+static const THashMap<TString, int> MasterActionTypeToExecutionPriority{
+    FOR_EACH_TRANSACTION_ACTION_TYPE()
+};
+
+#undef XX
+
+struct TDatalessLockRowRequest
+{
+    TCellTag MasterCellTag;
+    TLegacyKey Key;
+    ELockType LockType;
+};
+
+struct TLockRowRequest
+{
+    TLegacyKey Key;
+    ELockType LockType;
+};
+
+struct TWriteRowRequest
+{
+    TUnversionedRow Row;
+    ELockType LockType;
+};
+
+struct TDeleteRowRequest
+{
+    TLegacyKey Key;
+};
+
+#define FOR_EACH_REQUEST_TYPE() \
+    XX(TDatalessLockRowRequest, 100) \
+    XX(TLockRowRequest, 200) \
+    XX(TDeleteRowRequest, 300) \
+    XX(TWriteRowRequest, 400)
+
+#define XX(type, priority) \
+    REGISTER_TABLE_REQUEST_TYPE(type, priority)
+
+FOR_EACH_REQUEST_TYPE()
+#undef XX
 
 class TSequoiaTransaction
     : public ISequoiaTransaction
@@ -89,6 +145,8 @@ public:
     TFuture<void> Commit(const NApi::TTransactionCommitOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        SortRequests();
 
         return
             BIND(&TSequoiaTransaction::ResolveRequests, MakeStrong(this))
@@ -280,30 +338,7 @@ private:
 
     THashMap<TCellTag, TMasterCellCommitSessionPtr> MasterCellCommitSessions_;
 
-    struct TDatalessLockRowRequest
-    {
-        TCellTag MasterCellTag;
-        TLegacyKey Key;
-        ELockType LockType;
-    };
-
-    struct TLockRowRequest
-    {
-        TLegacyKey Key;
-        ELockType LockType;
-    };
-
-    struct TWriteRowRequest
-    {
-        TUnversionedRow Row;
-        ELockType LockType;
-    };
-
-    struct TDeleteRowRequest
-    {
-        TLegacyKey Key;
-    };
-
+    // TODO(h0pless): Add TRequestGeneration to a macro above.
     using TRequest = std::variant<
         TDatalessLockRowRequest,
         TLockRowRequest,
@@ -313,7 +348,7 @@ private:
 
     struct TTableCommitSession final
     {
-        NYTree::TYPath Path;
+        TYPath Path;
 
         ESequoiaTable Table;
 
@@ -369,7 +404,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
-        auto key = std::make_pair(tabletId, dataless);
+        auto key = std::pair(tabletId, dataless);
         auto sessionIt = TabletCommitSessions_.find(key);
         if (sessionIt != TabletCommitSessions_.end()) {
             return sessionIt->second;
@@ -417,13 +452,35 @@ private:
                 .AsyncVia(SerializedInvoker_));
     }
 
+    void SortRequests()
+    {
+        auto getActionPriority = [&typeToPriority = MasterActionTypeToExecutionPriority] (const TTransactionActionData& data) {
+            return GetOrCrash(typeToPriority, data.Type);
+        };
+        for (auto& [_, masterCellCommitSession] : MasterCellCommitSessions_) {
+            auto& actions = masterCellCommitSession->TransactionActions;
+            SortBy(actions, getActionPriority);
+        }
+
+        auto getRequestPriority = [] (const TRequest& request) {
+            return Visit(request,
+                [&] <class T> (const T&) {
+                    return TRequestTypeTraits<T>::Priority;
+                });
+        };
+        for (auto& [_, session] : TableCommitSessions_) {
+            auto& requests = session->Requests;
+            SortBy(requests, getRequestPriority);
+        }
+    }
+
     TFuture<void> ResolveRequests()
     {
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
         std::vector<TFuture<void>> futures;
         futures.reserve(TableCommitSessions_.size());
-        for (const auto& [table, session] : TableCommitSessions_) {
+        for (const auto& [_, session] : TableCommitSessions_) {
             futures.push_back(ResolveSessionRequests(session));
         }
 

@@ -1368,13 +1368,13 @@ void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoMerge(
 
 template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoClone(
-    TImpl* /*sourceNode*/,
-    TImpl* /*clonedTrunkNode*/,
-    ICypressNodeFactory* /*factory*/,
-    ENodeCloneMode /*mode*/,
-    TAccount* /*account*/)
+    TImpl* sourceNode,
+    TImpl* clonedTrunkNode,
+    ICypressNodeFactory* factory,
+    ENodeCloneMode mode,
+    TAccount* account)
 {
-    ThrowSequoiaNodeCloningNotImplemented();
+    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 }
 
 template <class TImpl>

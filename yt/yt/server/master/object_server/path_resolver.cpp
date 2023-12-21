@@ -163,7 +163,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             };
         };
 
-        if (currentNode->GetType() == EObjectType::Rootstock && Method_ == "Remove") {
+        if (currentNode->GetType() == EObjectType::Rootstock && !ampersandSkipped) {
             return redirectToSequoia();
         }
 

@@ -1,3 +1,7 @@
+#pragma once
+
+#include <yt/yt/ytlib/cypress_client/public.h>
+
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NCypressProxy {

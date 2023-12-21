@@ -13,6 +13,29 @@ message TReqCreateNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqCloneNode
+{
+    message TCloneOptions
+    {
+        required int32 mode = 4; // ENodeCloneMode
+        optional bool preserve_acl = 5 [default = false];
+        optional bool preserve_account = 6 [default = false];
+        optional bool preserve_owner = 7 [default = false];
+        optional bool preserve_creation_time = 8 [default = false];
+        optional bool preserve_modification_time = 9 [default = false];
+        optional bool preserve_expiration_time = 10 [default = false];
+        optional bool preserve_expiration_timeout = 11 [default = false];
+        optional bool pessimistic_quota_check = 12 [default = true];
+    }
+
+    required NYT.NProto.TGuid src_id = 1;
+    required NYT.NProto.TGuid dst_id = 2;
+    required string dst_path = 3;
+    required TCloneOptions options = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAttachChild
 {
     required NYT.NProto.TGuid parent_id = 1;

@@ -2,10 +2,13 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
-    exists, set
+    exists, set, copy, move,
 )
 
-from yt_sequoia_helpers import resolve_sequoia_id, resolve_sequoia_path
+from yt_sequoia_helpers import (
+    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
+    PATH_TO_NODE_ID_TABLE,
+)
 
 from yt.common import YtError
 import pytest
@@ -44,6 +47,7 @@ class TestSequoiaEnvSetup(YTEnvSetup):
 class TestSequoiaInternals(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
+    VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
     NUM_CYPRESS_PROXIES = 1
 
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -83,6 +87,133 @@ class TestSequoiaInternals(YTEnvSetup):
         assert ls("//tmp/m2") == ["m3"]
         assert ls("//tmp") == ["m1", "m2"]
         assert ls("//tmp/m1") == ["i"]
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("result_type", ["map_node", "int64_node"])
+    def test_create_force(self, result_type):
+        create("map_node", "//tmp/node/and/other/nodes/to/remove", recursive=True)
+        create(result_type, "//tmp/node", force=True)
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("copy_mode", ["copy", "move"])
+    def test_copy_simple(self, copy_mode):
+        create("string_node", "//tmp/strings/s1", recursive=True)
+        create("string_node", "//tmp/strings/s2")
+
+        COMMON_ROWS = [
+            {'path': '//tmp/'},
+            {'path': '//tmp/other/'},
+            {'path': '//tmp/other/s1/'},
+            {'path': '//tmp/other/s2/'},
+        ]
+
+        if copy_mode == "copy":
+            copy("//tmp/strings", "//tmp/other")
+            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS + [
+                {'path': '//tmp/strings/'},
+                {'path': '//tmp/strings/s1/'},
+                {'path': '//tmp/strings/s2/'},
+            ]
+        else:
+            move("//tmp/strings", "//tmp/other")
+            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("copy_mode", ["copy", "move"])
+    def test_copy_recursive(self, copy_mode):
+        create("map_node", "//tmp/src/a/b", recursive=True)
+        create("map_node", "//tmp/src/a/c")
+        create("map_node", "//tmp/src/d")
+
+        COMMON_ROWS = [
+            {'path': '//tmp/'},
+            {'path': '//tmp/d/'},
+            {'path': '//tmp/d/s/'},
+            {'path': '//tmp/d/s/t/'},
+            {'path': '//tmp/d/s/t/a/'},
+            {'path': '//tmp/d/s/t/a/b/'},
+            {'path': '//tmp/d/s/t/a/c/'},
+            {'path': '//tmp/d/s/t/d/'},
+        ]
+
+        if copy_mode == "copy":
+            copy("//tmp/src", "//tmp/d/s/t", recursive=True)
+            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS + [
+                {'path': '//tmp/src/'},
+                {'path': '//tmp/src/a/'},
+                {'path': '//tmp/src/a/b/'},
+                {'path': '//tmp/src/a/c/'},
+                {'path': '//tmp/src/d/'},
+            ]
+        else:
+            move("//tmp/src", "//tmp/d/s/t", recursive=True)
+            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("copy_mode", ["copy", "move"])
+    @pytest.mark.parametrize("is_excessive", [True, False])
+    def test_copy_force(self, copy_mode, is_excessive):
+        create("map_node", "//tmp/src/a/b", recursive=True)
+        create("map_node", "//tmp/src/a/c")
+        create("map_node", "//tmp/src/d")
+
+        COMMON_ROWS = [
+            {'path': '//tmp/'},
+            {'path': '//tmp/dst/'},
+            {'path': '//tmp/dst/a/'},
+            {'path': '//tmp/dst/a/b/'},
+            {'path': '//tmp/dst/a/c/'},
+            {'path': '//tmp/dst/d/'},
+        ]
+
+        if not is_excessive:
+            create("map_node", "//tmp/dst/some/unimportant/stuff/to/overwrite", recursive=True)
+
+        if copy_mode == "copy":
+            copy("//tmp/src", "//tmp/dst", force=True)
+            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS + [
+                {'path': '//tmp/src/'},
+                {'path': '//tmp/src/a/'},
+                {'path': '//tmp/src/a/b/'},
+                {'path': '//tmp/src/a/c/'},
+                {'path': '//tmp/src/d/'},
+            ]
+        else:
+            move("//tmp/src", "//tmp/dst", force=True)
+            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("copy_mode", ["copy", "move"])
+    def test_copy_force_overlapping(self, copy_mode):
+        create("map_node", "//tmp/dst/src/a/b", recursive=True)
+        create("map_node", "//tmp/dst/src/a/c")
+        create("map_node", "//tmp/dst/src/d")
+
+        if copy_mode == "copy":
+            copy("//tmp/dst/src", "//tmp/dst", force=True)
+        else:
+            move("//tmp/dst/src", "//tmp/dst", force=True)
+
+        assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == [
+            {'path': '//tmp/'},
+            {'path': '//tmp/dst/'},
+            {'path': '//tmp/dst/a/'},
+            {'path': '//tmp/dst/a/b/'},
+            {'path': '//tmp/dst/a/c/'},
+            {'path': '//tmp/dst/d/'},
+        ]
+
+    @authors("h0pless")
+    def test_copy_ignore_existing(self):
+        create("map_node", "//tmp/src/a/b", recursive=True)
+        create("map_node", "//tmp/src/a/c")
+        create("map_node", "//tmp/src/d")
+        create("map_node", "//tmp/dst")
+
+        original_select_result = select_rows_from_ground(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]")
+
+        copy("//tmp/src", "//tmp/dst", ignore_existing=True)
+        assert original_select_result == select_rows_from_ground(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]")
 
     @authors("danilalexeev")
     def test_create_recursive_fail(self):

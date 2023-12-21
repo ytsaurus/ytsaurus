@@ -12,6 +12,19 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class TReq>
+struct TRequestTypeTraits;
+
+#define REGISTER_TABLE_REQUEST_TYPE(type, priority) \
+    template<> \
+    struct TRequestTypeTraits<type> \
+    { \
+        static constexpr const char* Name = #type; \
+        static const int Priority = priority; \
+    };
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TRecordKey>
 TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> ISequoiaTransaction::LookupRows(
     const std::vector<TRecordKey>& keys,

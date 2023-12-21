@@ -586,10 +586,11 @@ public:
 
     TCypressNode* CloneNode(
         TCypressNode* sourceNode,
-        ENodeCloneMode mode) override
+        ENodeCloneMode mode,
+        TNodeId hintId = NullObjectId) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
+        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode, hintId);
         auto* clonedNode = cypressManager->LockNode(
             clonedTrunkNode,
             Transaction_,
@@ -1470,7 +1471,8 @@ public:
     TCypressNode* CloneNode(
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override
+        ENodeCloneMode mode,
+        TNodeId hintId = NullObjectId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(sourceNode);
@@ -1488,7 +1490,7 @@ public:
         return DoCloneNode(
             sourceNode,
             factory,
-            NullObjectId,
+            hintId,
             mode);
     }
 
@@ -1681,7 +1683,6 @@ public:
         auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
         return GetNodeProxy(trunkNode, transaction);
     }
-
 
     TCypressNode* FindNode(
         TCypressNode* trunkNode,
@@ -4298,7 +4299,7 @@ private:
         auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
         auto clonedNodeId = FromProto<TNodeId>(request->cloned_node_id());
         auto clonedTransactionId = FromProto<TTransactionId>(request->cloned_transaction_id());
-        auto mode = ENodeCloneMode(request->mode());
+        auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
         auto accountId = FromProto<TAccountId>(request->account_id());
         auto nativeContentRevision = request->native_content_revision();
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id_hint());

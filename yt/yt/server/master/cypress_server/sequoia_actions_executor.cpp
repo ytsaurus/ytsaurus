@@ -68,6 +68,10 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitSetNode, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqSetNode, const TTransactionAbortOptions&>()));
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCloneNode, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCloneNode, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCloneNode, Unretained(this))));
     }
 
 private:
@@ -106,7 +110,7 @@ private:
 
         auto type = CheckedEnumCast<EObjectType>(request->type());
         if (type != EObjectType::SequoiaMapNode && !IsScalarType(type)) {
-            THROW_ERROR_EXCEPTION("Type %Qv is not supported in Sequoia", type);
+            THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -150,9 +154,8 @@ private:
 
         VerifySequoiaNode(node);
 
-        auto& beingCreated = node->SequoiaProperties()->BeingCreated;
+        auto beingCreated = std::exchange(node->SequoiaProperties()->BeingCreated, false);
         YT_VERIFY(beingCreated);
-        beingCreated = false;
     }
 
     void HydraAbortCreateNode(
@@ -163,13 +166,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        // TODO(h0pless): Add cypress transaction id here.
+        auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        const auto& nodes = Bootstrap_->GetCypressManager()->Nodes();
-
-        // TODO(kvk1920): Don't execute tx abort if prepare has not happen.
-        if (auto* node = nodes.Find(TVersionedNodeId(nodeId))) {
-            Bootstrap_->GetObjectManager()->UnrefObject(node);
-        }
+        auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId);
+        Bootstrap_->GetObjectManager()->UnrefObject(node);
     }
 
     void HydraPrepareAttachChild(
@@ -197,12 +198,22 @@ private:
         NProto::TReqAttachChild* request,
         const TTransactionCommitOptions& /*options*/)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto childId = FromProto<TNodeId>(request->child_id());
         auto key = request->key();
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* parent = cypressManager->GetNode(TVersionedNodeId(parentId));
+
+        if (!IsObjectAlive(parent)) {
+            YT_LOG_ALERT("An attempt to attach a child to a zombie Sequoia node was made "
+                "(ParentId: %v, ChildId: %v, ChildKey: %v)",
+                parentId,
+                childId,
+                key);
+        }
 
         VerifySequoiaNode(parent);
         AttachChildToSequoiaNodeOrThrow(parent, key, childId);
@@ -323,6 +334,98 @@ private:
             cypressManager->GetNodeProxy(node),
             ConvertToProducer(TYsonString(request->value())),
             /*builder*/ nullptr);
+    }
+
+    // NB: See PrepareCreateNode.
+    void HydraPrepareCloneNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqCloneNode* request,
+        const TTransactionPrepareOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(options.Persistent);
+
+        auto sourceNodeId = FromProto<TNodeId>(request->src_id());
+        auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
+
+        // TODO(h0pless): Think about trowing an error if this cell is not sequoia_node_host anymore.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* sourceNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(sourceNodeId));
+
+        // Maybe this is excessive.
+        auto type = sourceNode->GetType();
+        if (type != EObjectType::SequoiaMapNode && !IsScalarType(type)) {
+            THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
+        }
+
+        auto requestOptions = request->mutable_options();
+        auto mode = CheckedEnumCast<ENodeCloneMode>(requestOptions->mode());
+        TNodeFactoryOptions factoryOptions{
+            .PreserveAccount = requestOptions->preserve_account(),
+            .PreserveCreationTime = requestOptions->preserve_creation_time(),
+            .PreserveModificationTime = requestOptions->preserve_modification_time(),
+            .PreserveExpirationTime = requestOptions->preserve_expiration_time(),
+            .PreserveExpirationTimeout = requestOptions->preserve_expiration_timeout(),
+            .PreserveOwner = requestOptions->preserve_owner(),
+            .PreserveAcl = requestOptions->preserve_acl(),
+            .PessimisticQuotaCheck = requestOptions->pessimistic_quota_check(),
+        };
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto nodeFactory = cypressManager->CreateNodeFactory(
+            cypressManager->GetRootCypressShard(),
+            /*transaction*/ nullptr,
+            securityManager->GetSysAccount(),
+            factoryOptions);
+
+        auto* clonedNode = nodeFactory->CloneNode(sourceNode, mode, destinationNodeId);
+        clonedNode->SequoiaProperties() = std::make_unique<TCypressNode::TSequoiaProperties>();
+        *clonedNode->SequoiaProperties() = {
+            .Key = NYPath::DirNameAndBaseName(request->dst_path()).second,
+            .Path = request->dst_path(),
+            .BeingCreated = true,
+        };
+
+        clonedNode->VerifySequoia();
+        clonedNode->RefObject();
+        nodeFactory->Commit();
+    }
+
+    void HydraCommitCloneNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqCloneNode* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto nodeId = FromProto<TNodeId>(request->src_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->GetNode(TVersionedNodeId(nodeId));
+
+        if (!IsObjectAlive(node)) {
+            YT_LOG_ALERT("An attempt to clone a zombie sequoia node was made (NodeId: %v)",
+                nodeId);
+        }
+
+        VerifySequoiaNode(node);
+
+        auto beingCreated = std::exchange(node->SequoiaProperties()->BeingCreated, false);
+        YT_VERIFY(beingCreated);
+    }
+
+    void HydraAbortCloneNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqCloneNode* request,
+        const TTransactionAbortOptions& /*options*/)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto nodeId = FromProto<TNodeId>(request->dst_id());
+        // TODO(h0pless): Add cypress transaction id here.
+        auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
+
+        auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId);
+        Bootstrap_->GetObjectManager()->UnrefObject(node);
     }
 };
 

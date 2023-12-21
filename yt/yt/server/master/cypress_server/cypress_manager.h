@@ -39,14 +39,14 @@ namespace NYT::NCypressServer {
 
 struct TNodeFactoryOptions
 {
-    bool PreserveAccount = false;
-    bool PreserveCreationTime = false;
-    bool PreserveModificationTime = false;
-    bool PreserveExpirationTime = false;
-    bool PreserveExpirationTimeout = false;
-    bool PreserveOwner = false;
-    bool PreserveAcl = false;
-    bool PessimisticQuotaCheck = true;
+    bool PreserveAccount : 1 = false;
+    bool PreserveCreationTime : 1 = false;
+    bool PreserveModificationTime : 1 = false;
+    bool PreserveExpirationTime : 1 = false;
+    bool PreserveExpirationTimeout : 1 = false;
+    bool PreserveOwner : 1 = false;
+    bool PreserveAcl : 1 = false;
+    bool PessimisticQuotaCheck : 1 = true;
 };
 
 DEFINE_ENUM(EPathRootType,
@@ -107,7 +107,8 @@ public:
     virtual TCypressNode* CloneNode(
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) = 0;
+        ENodeCloneMode mode,
+        TNodeId hintId = NCypressClient::NullObjectId) = 0;
 
     //! Deserializes a node from a tree snapshot and registers its clone.
     virtual TCypressNode* EndCopyNode(

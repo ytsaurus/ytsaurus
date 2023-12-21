@@ -32,6 +32,7 @@ from yt.environment.helpers import (  # noqa
 from yt_sequoia_helpers import (
     PATH_TO_NODE_ID_TABLE,
     NODE_ID_TO_PATH_TABLE,
+    CHILD_NODE_TABLE,
 )
 
 from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
@@ -294,6 +295,7 @@ class YTEnvSetup(object):
     USE_PRIMARY_CLOCKS = True
 
     USE_SEQUOIA = False
+    VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
     GROUND_INDEX_OFFSET = 1
 
     ENABLE_TMP_ROOTSTOCK = False
@@ -598,6 +600,9 @@ class YTEnvSetup(object):
 
         if cls.GROUND_INDEX_OFFSET < cls.NUM_REMOTE_CLUSTERS + 1:
             cls.GROUND_INDEX_OFFSET = cls.NUM_REMOTE_CLUSTERS + 1
+
+        if cls.USE_SEQUOIA != cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY:
+            cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
         try:
             cls.start_envs()
@@ -1142,9 +1147,13 @@ class YTEnvSetup(object):
         yt_commands.reset_events_on_fs()
 
     def teardown_cluster(self, method, cluster_index):
-        driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
+        cluster_name = self.get_cluster_name(cluster_index)
+        driver = yt_commands.get_driver(cluster=cluster_name)
         if driver is None:
             return
+
+        if self.VALIDATE_SEQUOIA_TREE_CONSISTENCY and not self._is_ground_cluster(cluster_index):
+            yt_sequoia_helpers.validate_sequoia_tree_consistency(cluster_name)
 
         self._reset_nodes(driver=driver)
 
@@ -1163,6 +1172,7 @@ class YTEnvSetup(object):
             if self._is_ground_cluster(cluster_index):
                 wait(lambda: yt_commands.select_rows(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{NODE_ID_TO_PATH_TABLE.get_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{CHILD_NODE_TABLE.get_path()}]", driver=driver) == [])
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.
