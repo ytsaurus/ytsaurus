@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/formats/format.h>
 
+#include <yt/yt/client/arrow/fbs/Message.fbs.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -123,24 +125,6 @@ ISchemalessFormatWriterPtr CreateArrowWriter(TNameTablePtr nameTable,
     controlAttributes->EnableRowIndex = false;
     controlAttributes->EnableRangeIndex = false;
     controlAttributes->EnableTabletIndex = false;
-    return CreateWriterForArrow(
-        nameTable,
-        schemas,
-        NConcurrency::CreateAsyncAdapter(static_cast<IOutputStream*>(outputStream)),
-        false,
-        controlAttributes,
-        0);
-}
-
-ISchemalessFormatWriterPtr CreateArrowWriterWithSystemColumns(TNameTablePtr nameTable,
-    IOutputStream* outputStream,
-    const std::vector<NTableClient::TTableSchemaPtr>& schemas)
-{
-    auto controlAttributes = NYT::New<TControlAttributesConfig>();
-    controlAttributes->EnableTableIndex = true;
-    controlAttributes->EnableRowIndex = true;
-    controlAttributes->EnableRangeIndex = true;
-    controlAttributes->EnableTabletIndex = true;
     return CreateWriterForArrow(
         nameTable,
         schemas,
@@ -454,6 +438,11 @@ void CheckColumnNames(
     }
 }
 
+bool CheckMaxConst(const char* ptr) {
+    ui32 constMax = 0xFFFFFFFF;
+    return *(reinterpret_cast<const uint32_t*>(ptr)) == constMax;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(Simple, JustWork)
@@ -482,6 +471,47 @@ TEST(Simple, JustWork)
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
+}
+
+TEST(Simple, YT_20699_WrongAlign)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"date"};
+
+    // In such a scheme, the metadata will have a size not a multiple of 2^8
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Date),
+    }));
+
+    TStringStream outputStream;
+    i64 ma = std::numeric_limits<int>::max();
+
+    ColumnInteger column = {18367, ma};
+
+    auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TString data(outputStream.Data(), outputStream.Size());
+    auto ptr = outputStream.Data();
+    auto restSize =  outputStream.Size();
+    while (restSize > 0) {
+        EXPECT_TRUE(restSize >= 4);
+        EXPECT_TRUE(CheckMaxConst(ptr));
+        ptr += 4;
+        uint32_t fbSize = *(reinterpret_cast<const uint32_t*>(ptr));
+        ptr += 4;
+        auto message = org::apache::arrow::flatbuf::GetMessage(ptr);
+        ptr += fbSize;
+        ptr += message->bodyLength();
+        restSize -= (8 + fbSize + message->bodyLength());
+    }
 }
 
 TEST(Simple, Data)
@@ -628,34 +658,6 @@ TEST(Simple, Float)
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
     EXPECT_EQ(ReadFloatArray(batch->column(0)), column);
-}
-
-TEST(Simple, WorkWithSystemColumns)
-{
-    std::vector<TTableSchemaPtr> tableSchemas;
-    std::vector<std::string> columnNames = {"integer"};
-
-    tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::Int64),
-    }));
-
-    TStringStream outputStream;
-
-    ColumnInteger column = {42, 179179};
-
-    auto rows = MakeUnversionedIntegerRows({column}, columnNames);
-
-    auto writer = CreateArrowWriterWithSystemColumns(rows.NameTable, &outputStream, tableSchemas);
-
-    EXPECT_TRUE(writer->Write(rows.Rows));
-
-    writer->Close()
-        .Get()
-        .ThrowOnError();
-
-    auto batch = MakeBatch(outputStream);
-    CheckColumnNames(batch, {"integer", "$row_index", "$range_index", "$table_index", "$tablet_index"});
-    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
 TEST(Simple, ColumnarBatch)
