@@ -19,13 +19,6 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunQuery(
-    const NScheduler::NProto::TQuerySpec& querySpec,
-    const NTableClient::TSchemalessReaderFactory& readerFactory,
-    const NTableClient::TSchemalessWriterFactory& writerFactory);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Base class for all jobs inside job proxy.
 class TJob
     : public IJob
