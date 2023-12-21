@@ -706,6 +706,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
@@ -3967,6 +3968,47 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AdvanceConsumer)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+
+        TAdvanceConsumerOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto oldOffset = YT_PROTO_OPTIONAL(*request, old_offset);
+        context->SetRequestInfo(
+            "ConsumerPath: %v, QueuePath: %v, PartitionIndex: %v, "
+            "OldOffset: %v, NewOffset: %v, TransactionId: %v",
+            consumerPath,
+            queuePath,
+            request->partition_index(),
+            oldOffset,
+            request->new_offset(),
+            transactionId);
+
+        auto transaction = GetTransactionOrThrow(
+            context,
+            request,
+            transactionId,
+            /*options*/ std::nullopt,
+            /*searchInPool*/ true);
+
+        ExecuteCall(
+            context,
+            [=, consumerPath = std::move(consumerPath), queuePath = std::move(queuePath)] {
+                return transaction->AdvanceConsumer(
+                    consumerPath,
+                    queuePath,
+                    request->partition_index(),
+                    oldOffset,
+                    request->new_offset(),
+                    options);
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PullQueue)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -3981,7 +4023,7 @@ private:
         context->SetRequestInfo(
             "QueuePath: %v, Offset: %v, PartitionIndex: %v, "
             "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
-            request->queue_path(),
+            queuePath,
             request->offset(),
             request->partition_index(),
             rowBatchReadOptions.MaxRowCount,
@@ -4253,8 +4295,8 @@ private:
             context,
             request,
             transactionId,
-            std::nullopt,
-            /* searchInPool */ true);
+            /*options*/ std::nullopt,
+            /*searchInPool*/ true);
 
         DoModifyRows(*request, request->Attachments(), transaction);
 
@@ -4292,8 +4334,8 @@ private:
             context,
             request,
             FromProto<TTransactionId>(request->transaction_id()),
-            std::nullopt,
-            true /* searchInPool */);
+            /*options*/ std::nullopt,
+            /*searchInPool*/ true);
 
         int attachmentIndex = 0;
         for (int partCount: request->part_counts()) {

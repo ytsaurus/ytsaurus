@@ -48,6 +48,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 
+#include <yt/yt/client/queue_client/consumer_client.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/compression/codec.h>
@@ -70,6 +72,7 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NChunkClient;
+using namespace NQueueClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -332,6 +335,28 @@ public:
         const TTransactionStartOptions& options) override
     {
         return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
+    }
+
+    TFuture<void> AdvanceConsumer(
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        int partitionIndex,
+        std::optional<i64> oldOffset,
+        i64 newOffset,
+        const TAdvanceConsumerOptions& /*options*/) override
+    {
+        auto tableMountCache = GetClient()->GetTableMountCache();
+        auto queuePhysicalPath = queuePath;
+        auto queueTableInfoOrError = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()));
+        if (!queueTableInfoOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to resolve queue path")
+                << queueTableInfoOrError;
+        }
+        queuePhysicalPath = NYPath::TRichYPath(queueTableInfoOrError.Value()->PhysicalPath, queuePath.Attributes());
+
+        auto subConsumerClient = CreateSubConsumerClient(GetClient(), consumerPath.GetPath(), queuePhysicalPath);
+        subConsumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
+        return VoidFuture;
     }
 
     void ModifyRows(

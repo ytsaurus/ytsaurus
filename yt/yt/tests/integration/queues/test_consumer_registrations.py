@@ -1097,6 +1097,14 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
 
         assert get_offset("//tmp/q1") is None
 
+        with raises_yt_error("Failed to resolve queue path"):
+            advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=3)
+
+        self._create_queue("//tmp/q1")
+        self._create_queue("//tmp/q2")
+        self._create_queue("//tmp/q3")
+        self._create_queue("//tmp/q4")
+
         advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=3)
         assert get_offset("//tmp/q1") == 3
 

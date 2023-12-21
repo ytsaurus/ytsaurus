@@ -27,6 +27,8 @@ PEERDIR(
     contrib/libs/apache/arrow
 )
 
+ENV(USE_YT_RECIPE_BUILT_FROM_SOURCE=yes)
+
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/recipe/recipe.inc)
 
 TAG(ya:yt ya:fat ya:huge_logs)
