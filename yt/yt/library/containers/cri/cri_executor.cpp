@@ -144,7 +144,9 @@ private:
         ContainerDescriptor_ = WaitFor(Executor_->CreateContainer(ContainerSpec_, PodDescriptor_, PodSpec_))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Spawning process (Command: %v, Container: %v)", ContainerSpec_->Command[0], ContainerDescriptor_);
+        YT_LOG_DEBUG("Spawning process (Command: %v, Container: %v)",
+            ContainerSpec_->Command[0],
+            ContainerDescriptor_);
         WaitFor(Executor_->StartContainer(ContainerDescriptor_))
             .ThrowOnError();
 
@@ -538,12 +540,12 @@ public:
                 }));
         }
 
-        auto pullComplete = NewPromise<void>();
+        auto pullPromise = NewPromise<void>();
         {
             auto guard = Guard(SpinLock_);
             if (auto* pullFuture = InflightImagePulls_.FindPtr(image.Image)) {
                 YT_LOG_DEBUG("Waiting for in-flight docker image pull (Image: %v)", image);
-                return pullFuture->Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError&) {
+                return pullFuture->Apply(BIND([=, this, this_ = MakeStrong(this)] {
                     // Ignore errors and retry pull after end of previous concurrent attempt.
                     return PullImage(image, /*always*/ false, authConfig, podSpec);
                 }));
@@ -551,7 +553,7 @@ public:
 
             // Future for in-flight pull should not be canceled by waiters,
             // but could become canceled when original pull is canceled.
-            auto pullFuture = pullComplete.ToFuture().ToUncancelable();
+            auto pullFuture = pullPromise.ToFuture().ToUncancelable();
             EmplaceOrCrash(InflightImagePulls_, image.Image, pullFuture);
             pullFuture.Subscribe(BIND([=, this, weakThis = MakeWeak(this)] (const TError&) {
                 if (auto this_ = weakThis.Lock()) {
@@ -570,15 +572,20 @@ public:
             FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);
         }
 
-        YT_LOG_DEBUG("Docker image pull started (Image: %v, Authenticated: %v)", image, (bool)authConfig);
+        YT_LOG_DEBUG("Docker image pull started (Image: %v, Authenticated: %v)",
+            image,
+            authConfig.operator bool());
         auto pullFuture = req->Invoke();
-        pullComplete.SetFrom(pullFuture);
+        pullPromise.SetFrom(pullFuture);
 
-        return pullFuture.Apply(BIND([=] (const TErrorOr<TCriImageApi::TRspPullImagePtr>& rspOrError) -> TCriImageDescriptor {
-            YT_LOG_DEBUG_UNLESS(rspOrError.IsOK(), rspOrError, "Docker image pull failed (Image: %v)", image);
+        return pullFuture.Apply(BIND([=] (const TErrorOr<TCriImageApi::TRspPullImagePtr>& rspOrError) {
+            YT_LOG_DEBUG_UNLESS(rspOrError.IsOK(), rspOrError, "Docker image pull failed (Image: %v)",
+                image);
             const auto& rsp = rspOrError.ValueOrThrow();
             const auto& imageId = rsp->image_ref();
-            YT_LOG_DEBUG("Docker image pull finished (Image: %v, ImageId: %v)", image, imageId);
+            YT_LOG_DEBUG("Docker image pull finished (Image: %v, ImageId: %v)",
+                image,
+                imageId);
             return TCriImageDescriptor{.Image = imageId};
         }));
     }
