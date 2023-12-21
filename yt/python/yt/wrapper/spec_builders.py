@@ -1713,7 +1713,8 @@ class MapReduceSpecBuilder(SpecBuilder):
         if isinstance(command, TypedJob) and command.get_intermediate_stream_count() is not None:
             intermediate_stream_count = command.get_intermediate_stream_count()
             if output_streams is not None:
-                raise YtError("You can't explicitly specify output_streams for a TypedJob, use get_intermediate_stream_count and prepare_operation methods instead")
+                raise YtError("Output streams cannot be specified explicitly for a typed map job, use get_intermediate_stream_count and prepare_operation methods instead")
+
         elif output_streams is not None:
             intermediate_stream_count = len(output_streams)
 
@@ -1754,10 +1755,11 @@ class MapReduceSpecBuilder(SpecBuilder):
                     "schema": schema,
                 })
 
-            # NB: spec["mapper"]["output_streams"] is empty here due to validation above.
+            # NB: spec["mapper"]["output_streams"] must be empty here due to validation above.
+            assert "output_streams" not in spec["mapper"], "output streams must be empty for typed job"
             spec["mapper"]["output_streams"] = intermediate_streams
         else:
-            intermediate_streams  = spec["mapper"].get("output_streams", [])
+            intermediate_streams = spec["mapper"].get("output_streams", [])
 
         if intermediate_streams:
             intermediate_stream_schemas = [stream["schema"] for stream in intermediate_streams]
