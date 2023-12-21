@@ -42,6 +42,7 @@ target_proto_messages(server-lib-tablet_node PRIVATE
 )
 target_sources(server-lib-tablet_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/performance_counters.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/table_settings.cpp
 )
 target_proto_addincls(server-lib-tablet_node

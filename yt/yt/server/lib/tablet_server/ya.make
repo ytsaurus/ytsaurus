@@ -9,7 +9,6 @@ SRCS(
     proto/tablet_manager.proto
 
     config.cpp
-    performance_counters.cpp
     replicated_table_tracker.cpp
 )
 

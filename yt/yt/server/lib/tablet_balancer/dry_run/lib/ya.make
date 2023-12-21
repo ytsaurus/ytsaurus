@@ -11,7 +11,7 @@ SRCS(
 PEERDIR(
     yt/yt/client
     yt/yt/server/lib/tablet_balancer
-    yt/yt/server/lib/tablet_server
+    yt/yt/server/lib/tablet_node
     yt/yt/ytlib
 )
 

@@ -23,9 +23,8 @@ using namespace NCypressClient;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NRpc;
-using namespace NTableClient;
+using namespace NTabletNode;
 using namespace NTabletClient;
-using namespace NTabletClient::NProto;
 using namespace NYson;
 
 using NYT::FromProto;
@@ -41,7 +40,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TMasterTabletServiceProxy::GetDescriptor(),
-            EAutomatonThreadQueue::TabletService,
+            NCellMaster::EAutomatonThreadQueue::TabletService,
             TabletServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableBalancingAttributes)
@@ -156,7 +155,7 @@ private:
         }
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        auto tableIds = FromProto<std::vector<TTableId>>(request->table_ids());
+        auto tableIds = FromProto<std::vector<NTableClient::TTableId>>(request->table_ids());
         for (auto tableId : tableIds) {
             auto* protoTable = response->add_tables();
 

@@ -345,7 +345,12 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (auto result = WaitFor(bundle->FetchStatistics(nodeList)); !result.IsOK()) {
+        if (auto result = WaitFor(bundle->FetchStatistics(
+                nodeList,
+                dynamicConfig->UseStatisticsReporter,
+                dynamicConfig->StatisticsTablePath));
+            !result.IsOK())
+        {
             YT_LOG_ERROR(result, "Fetch statistics failed (BundleName: %v)", bundleName);
 
             SaveRetryableBundleError(bundleName, TError(
@@ -790,6 +795,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             ReassignTabletsParameterized,
             bundleState->GetBundle(),
             bundleState->DefaultPerformanceCountersKeys,
+            bundleState->GetPerformanceCountersTableSchema(),
             TParameterizedReassignSolverConfig{
                 .EnableSwaps = dynamicConfig->EnableSwaps,
                 .MaxMoveActionCount = dynamicConfig->MaxParameterizedMoveActionCount,

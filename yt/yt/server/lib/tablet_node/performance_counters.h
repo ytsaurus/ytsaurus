@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,4 +37,4 @@ void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer*
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
+} // namespace NYT::NTabletNode

@@ -53,7 +53,6 @@ target_proto_messages(server-lib-tablet_server PRIVATE
 )
 target_sources(server-lib-tablet_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/performance_counters.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/replicated_table_tracker.cpp
 )
 target_proto_addincls(server-lib-tablet_server

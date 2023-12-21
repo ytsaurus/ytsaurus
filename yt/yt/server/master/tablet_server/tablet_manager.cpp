@@ -5610,7 +5610,7 @@ private:
         auto tabletStatistics = tablet->GetTabletStatistics();
         tablet->GetOwner()->DiscountTabletStatistics(tabletStatistics);
         tablet->NodeStatistics().Clear();
-        tablet->PerformanceCounters() = TTabletPerformanceCounters();
+        tablet->PerformanceCounters() = NTabletNode::TTabletPerformanceCounters();
         tablet->SetTabletErrorCount(0);
         tablet->SetReplicationErrorCount(0);
 

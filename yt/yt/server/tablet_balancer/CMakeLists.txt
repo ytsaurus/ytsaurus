@@ -25,7 +25,7 @@ target_link_libraries(yt-server-tablet_balancer PUBLIC
   server-lib-cypress_registrar
   server-lib-misc
   server-lib-tablet_balancer
-  server-lib-tablet_server
+  server-lib-tablet_node
 )
 target_sources(yt-server-tablet_balancer PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/tablet_balancer/action_manager.cpp

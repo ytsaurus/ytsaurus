@@ -7,8 +7,7 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-
-#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+#include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>

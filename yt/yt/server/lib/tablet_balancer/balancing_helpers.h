@@ -3,6 +3,8 @@
 #include "public.h"
 #include "tablet.h"
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/range.h>
@@ -55,6 +57,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
     const std::vector<TString>& performanceCountersKeys,
+    const NTableClient::TTableSchemaPtr& performanceCountersTableSchema,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,

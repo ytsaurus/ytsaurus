@@ -8,6 +8,7 @@ namespace NYT::NTabletBalancer {
 
 const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
 const TString DefaultParameterizedMetricFormula = "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])";
+const TString StatisticsTableDefaultPath = "//sys/tablet_balancer/performance_counters";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +60,11 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("bundle_errors_ttl", &TThis::BundleErrorsTtl)
         .Default(TDuration::Days(1));
+    registrar.Parameter("statistics_table_path", &TThis::StatisticsTablePath)
+        .Default(StatisticsTableDefaultPath)
+        .NonEmpty();
+    registrar.Parameter("use_statistics_reporter", &TThis::UseStatisticsReporter)
+        .Default(false);
 
     registrar.Parameter("fetch_tablet_cells_from_secondary_masters", &TThis::FetchTabletCellsFromSecondaryMasters)
         .Default(false);

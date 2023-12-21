@@ -17,7 +17,7 @@ target_link_libraries(tablet_balancer-dry_run-lib PUBLIC
   yutil
   yt-yt-client
   server-lib-tablet_balancer
-  server-lib-tablet_server
+  server-lib-tablet_node
   yt-yt-ytlib
 )
 target_sources(tablet_balancer-dry_run-lib PRIVATE

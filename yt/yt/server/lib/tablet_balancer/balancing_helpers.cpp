@@ -11,6 +11,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
@@ -864,6 +865,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
     const std::vector<TString>& performanceCountersKeys,
+    const TTableSchemaPtr& performanceCountersTableSchema,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,
@@ -872,6 +874,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     auto solver = CreateParameterizedReassignSolver(
         bundle,
         performanceCountersKeys,
+        performanceCountersTableSchema,
         config,
         groupName,
         metricTracker,

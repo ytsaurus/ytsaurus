@@ -17,8 +17,7 @@
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-
-#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+#include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
 #include <yt/yt/ytlib/table_client/performance_counters.h>
 

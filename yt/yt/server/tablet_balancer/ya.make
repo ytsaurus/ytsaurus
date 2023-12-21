@@ -30,7 +30,7 @@ PEERDIR(
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
     yt/yt/server/lib/tablet_balancer
-    yt/yt/server/lib/tablet_server
+    yt/yt/server/lib/tablet_node
 )
 
 END()

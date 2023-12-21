@@ -7,9 +7,11 @@
 #include <yt/yt/server/lib/tablet_balancer/tablet.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
-#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+#include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -52,9 +54,10 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(TTabletMap, Tablets);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::ETabletCellHealth, Health);
-    DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle, nullptr);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle);
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
+    DEFINE_BYVAL_RO_PROPERTY(NQueryClient::TTableSchemaPtr, PerformanceCountersTableSchema);
 
     static const std::vector<TString> DefaultPerformanceCountersKeys;
 
@@ -71,7 +74,10 @@ public:
     bool IsParameterizedBalancingEnabled() const;
 
     TFuture<void> UpdateState(bool fetchTabletCellsFromSecondaryMasters);
-    TFuture<void> FetchStatistics(const NYTree::IListNodePtr& nodeStatistics);
+    TFuture<void> FetchStatistics(
+        const NYTree::IListNodePtr& nodeStatistics,
+        bool useStatisticsReporter,
+        const NYPath::TYPath& statisticsTablePath);
 
     const TTableProfilingCounters& GetProfilingCounters(
         const TTable* table,
@@ -98,7 +104,9 @@ private:
 
         ETabletState State;
         TTabletStatistics Statistics;
-        TTablet::TPerformanceCountersProtoList PerformanceCounters;
+        std::variant<
+            TTablet::TPerformanceCountersProtoList,
+            NTableClient::TUnversionedOwningRow> PerformanceCounters;
         TTabletCellId CellId;
         TInstant MountTime = TInstant::Zero();
     };
@@ -128,11 +136,18 @@ private:
         TTabletCellId cellId,
         const NYTree::IAttributeDictionaryPtr& attributes) const;
 
-    void DoFetchStatistics(const NYTree::IListNodePtr& nodeStatistics);
+    void DoFetchStatistics(
+        const NYTree::IListNodePtr& nodeStatistics,
+        bool useStatisticsReporter,
+        const NYPath::TYPath& statisticsTablePath);
 
     THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
     THashMap<TTableId, std::vector<TTabletStatisticsResponse>> FetchTableStatistics(
-        const THashSet<TTableId>& tableIds) const;
+        const THashSet<TTableId>& tableIds,
+        bool fetchPerformanceCounters) const;
+    void FetchPerformanceCountersFromTable(
+        THashMap<TTableId, std::vector<TTabletStatisticsResponse>>* tableIdToStatistics,
+        const NYPath::TYPath& statisticsTablePath);
 
     bool IsTableBalancingAllowed(const TTableSettings& table) const;
 
