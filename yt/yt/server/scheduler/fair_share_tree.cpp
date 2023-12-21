@@ -1894,7 +1894,7 @@ private:
         const TSchedulerElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        TreeScheduler_->BuildElementLoggingStringAttributes(treeSnapshot,element, delimitedBuilder);
+        TreeScheduler_->BuildElementLoggingStringAttributes(treeSnapshot, element, delimitedBuilder);
     }
 
     void OnOperationRemovedFromPool(

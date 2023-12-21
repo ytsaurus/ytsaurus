@@ -1602,7 +1602,7 @@ void TQueryProfiler::Profile(
 
             parameters.push_back(std::move(codegenParameters));
 
-            TSingleJoinParameters singeJoinParameters;
+            TSingleJoinParameters singleJoinParameters;
 
             {
                 const auto& foreignEquations = joinClause->ForeignEquations;
@@ -1638,13 +1638,13 @@ void TQueryProfiler::Profile(
                     }
                 };
 
-                singeJoinParameters.KeySize = foreignEquations.size();
-                singeJoinParameters.IsLeft = joinClause->IsLeft;
-                singeJoinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
-                singeJoinParameters.ForeignColumns = std::move(foreignColumns);
-                singeJoinParameters.ExecuteForeign = joinProfiler(std::move(subquery), joinClause);
+                singleJoinParameters.KeySize = foreignEquations.size();
+                singleJoinParameters.IsLeft = joinClause->IsLeft;
+                singleJoinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
+                singleJoinParameters.ForeignColumns = std::move(foreignColumns);
+                singleJoinParameters.ExecuteForeign = joinProfiler(std::move(subquery), joinClause);
             }
-            joinParameters.Items.push_back(std::move(singeJoinParameters));
+            joinParameters.Items.push_back(std::move(singleJoinParameters));
 
             lastSchema = joinClause->GetTableSchema(*lastSchema);
         }

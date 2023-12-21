@@ -409,7 +409,7 @@ TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
         .ThrowOnError();
     WaitFor(Client_->RegisterQueueConsumer(firstQueue->GetPath(), secondConsumer->GetRichPath(), /*vital*/ true))
         .ThrowOnError();
-    WaitFor(Client_->RegisterQueueConsumer(secondQueue->GetPath(), secondConsumer->GetRichPath(), /*vital*/ false,TRegisterQueueConsumerOptions{.Partitions = std::vector{1, 5, 4, 3}}))
+    WaitFor(Client_->RegisterQueueConsumer(secondQueue->GetPath(), secondConsumer->GetRichPath(), /*vital*/ false, TRegisterQueueConsumerOptions{.Partitions = std::vector{1, 5, 4, 3}}))
         .ThrowOnError();
 
     auto registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), /*consumerPath*/ {}))

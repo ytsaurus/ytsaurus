@@ -102,7 +102,7 @@ TString ConvertHexToTextYson(
 
 #define CHECK_BIDIRECTIONAL_CONVERSION(logicalType, skiffSchema, ysonString, skiffString, ...) \
     do { \
-        std::tuple<TYsonToSkiffConverterConfig,TSkiffToYsonConverterConfig> cfg = {__VA_ARGS__}; \
+        std::tuple<TYsonToSkiffConverterConfig, TSkiffToYsonConverterConfig> cfg = {__VA_ARGS__}; \
         auto actualSkiffString = ConvertYsonHex(logicalType, skiffSchema, ysonString, std::get<0>(cfg)); \
         EXPECT_EQ(actualSkiffString, skiffString) << "Yson -> Skiff conversion error"; \
         auto actualYsonString = ConvertHexToTextYson(logicalType, skiffSchema, skiffString, std::get<1>(cfg)); \

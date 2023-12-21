@@ -118,7 +118,7 @@ Value* CodegenForEachRow(
 
     builder->SetInsertPoint(endLoopBB);
 
-    return MakePhi(builder, loopBB, condBB, builder->getTrue(), builder->getFalse(),"finishedPhi");
+    return MakePhi(builder, loopBB, condBB, builder->getTrue(), builder->getFalse(), "finishedPhi");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

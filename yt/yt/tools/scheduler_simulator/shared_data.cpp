@@ -329,7 +329,7 @@ INodeHeartbeatStrategyProxyPtr TSharedSchedulerStrategy::CreateNodeHeartbeatStra
     const TBooleanFormulaTags& tags,
     TMatchingTreeCookie cookie) const
 {
-    return SchedulerStrategy_->CreateNodeHeartbeatStrategyProxy(nodeId, address ,tags, cookie);
+    return SchedulerStrategy_->CreateNodeHeartbeatStrategyProxy(nodeId, address, tags, cookie);
 }
 
 void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job)

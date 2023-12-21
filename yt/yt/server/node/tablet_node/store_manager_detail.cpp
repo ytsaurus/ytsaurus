@@ -184,7 +184,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount, bool onFlush)
             auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
             if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
-                YT_LOG_INFO("Scheduled preload of in-memory store (StoreId: %v)",store->GetId());
+                YT_LOG_INFO("Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
             }
         }
     }

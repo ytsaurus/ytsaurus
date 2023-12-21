@@ -830,7 +830,7 @@ public:
                     rowRange = RowRangeFromPrefix(buffer, MakeRange(boundRow.Begin(), prefixSize));
                 }
 
-                YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]",rowRange.first, rowRange.second);
+                YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]", rowRange.first, rowRange.second);
 
                 resultRanges.push_back(rowRange);
             } while (rowModuloGenerator.Next());

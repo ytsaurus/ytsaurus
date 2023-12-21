@@ -2025,7 +2025,7 @@ protected:
 
         i64 cellValue = std::rand() % 100;
         auto rowString = Format("key=1;a=%v;b=%v;c=%v;d=%v;e=%v;f=%v;g=%v;",
-            cellValue,cellValue, cellValue, cellValue, cellValue, cellValue, cellValue);
+            cellValue, cellValue, cellValue, cellValue, cellValue, cellValue, cellValue);
 
         TLockMask lockMask;
         auto row1 = WriteRow(tx1.get(), BuildRow(rowString, false), false, lockMask);
