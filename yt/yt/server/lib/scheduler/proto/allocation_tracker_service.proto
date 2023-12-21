@@ -23,7 +23,7 @@ message TSpecFetchFailedAllocationInfo
 // Informs Allocation Tracker about node status and requests orders.
 message TReqHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
     required NNodeTrackerClient.NProto.TNodeResources resource_usage = 3;
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;

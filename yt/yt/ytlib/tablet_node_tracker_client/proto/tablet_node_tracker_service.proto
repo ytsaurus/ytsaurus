@@ -6,7 +6,7 @@ import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 
 message TReqHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     repeated NTabletClient.NProto.TTabletInfo tablets = 2;
 }
 

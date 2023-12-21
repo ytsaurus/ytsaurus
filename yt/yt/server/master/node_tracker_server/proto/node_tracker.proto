@@ -8,25 +8,25 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 message TReqUnregisterNode
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqDisposeLocation
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     required int32 location_index = 2;
 }
 
 message TReqStartNodeDisposal
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 }
 
 message TReqFinishNodeDisposal
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +60,7 @@ message TReqSetCellNodeDescriptors
 
     message TEntry
     {
-        required int32 node_id = 1;
+        required uint32 node_id = 1;
         required TNodeDescriptor node_descriptor = 2;
     }
 
@@ -72,7 +72,7 @@ message TReqSetNodeStatistics
 {
     message TEntry
     {
-        required int32 node_id = 1;
+        required uint32 node_id = 1;
         required TNodeStatistics statistics = 2;
     }
 
@@ -85,7 +85,7 @@ message TReqSetNodeStates
 {
     message TEntry
     {
-        required int32 node_id = 1;
+        required uint32 node_id = 1;
         required int32 state = 2; // ENodeState
     }
 
@@ -95,7 +95,7 @@ message TReqSetNodeStates
 
 message TReqSetNodeState
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     required int32 state = 2; // ENodeState
     required int32 cell_tag = 3;
 }
@@ -104,7 +104,7 @@ message TReqSetNodeState
 
 message TReqUpdateNodeResources
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     required NYT.NNodeTrackerClient.NProto.TNodeResources resource_usage = 2;
     required NYT.NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
 }
@@ -114,7 +114,7 @@ message TReqUpdateNodeResources
 message TReqUpdateNodesForRole
 {
     required int32 node_role = 1; // ENodeRole
-    repeated int32 node_ids = 2;
+    repeated uint32 node_ids = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +140,7 @@ message TReqRemoveClusterNodeMaintenance
 
 message TReqResetNodePendingRestartMaintenance
 {
-    repeated int32 node_ids = 1;
+    repeated uint32 node_ids = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

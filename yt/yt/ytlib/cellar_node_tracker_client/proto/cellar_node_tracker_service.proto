@@ -26,7 +26,7 @@ message TRspCellarHeartbeat
 
 message TReqHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     repeated TReqCellarHeartbeat cellars = 2;
 }
 

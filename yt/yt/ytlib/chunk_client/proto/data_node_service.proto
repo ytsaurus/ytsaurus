@@ -35,7 +35,7 @@ message TP2PBarrier
 message TPeerDescriptor
 {
     required int32 block_index = 1;
-    repeated int32 node_ids = 3;
+    repeated uint32 node_ids = 3;
 
     reserved 2;
 

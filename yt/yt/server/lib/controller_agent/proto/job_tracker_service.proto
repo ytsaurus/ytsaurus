@@ -17,7 +17,7 @@ message TAllocationInfo
 // Sends job statistics to controller agent.
 message TReqHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
     required NYT.NProto.TGuid controller_agent_incarnation_id = 3;
 
@@ -71,7 +71,7 @@ message TRspHeartbeat
 
 message TReqSettleJob
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
 
     required NYT.NProto.TGuid controller_agent_incarnation_id = 3;

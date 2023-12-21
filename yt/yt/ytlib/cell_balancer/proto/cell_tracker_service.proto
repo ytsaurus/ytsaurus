@@ -69,7 +69,7 @@ message TCellar
 
 message TCellarNode
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 
     required NYT.NNodeTrackerClient.NProto.TNodeAddressMap node_addresses = 2;
 
@@ -112,7 +112,7 @@ message TArea
 
     required string name = 2;
 
-    repeated int32 node_ids = 3;
+    repeated uint32 node_ids = 3;
 
     repeated TCell cells = 4;
 }

@@ -24,7 +24,7 @@ message TMediumOverrides
 
 message TReqModifyReplicas
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 
     repeated NChunkClient.NProto.TChunkAddInfo added_chunks = 2;
     repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 3;
@@ -64,7 +64,7 @@ message TLocationChunkStatistics
 
 message TReqFullHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 
     required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
     repeated NNodeTrackerClient.NProto.TMediumChunkStatistics per_medium_chunk_counts = 3;
@@ -96,7 +96,7 @@ message TRspFullHeartbeat
 
 message TReqIncrementalHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 
     required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
 

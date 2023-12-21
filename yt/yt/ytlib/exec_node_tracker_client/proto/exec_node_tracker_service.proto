@@ -6,7 +6,7 @@ import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 message TReqHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 
     required NNodeTrackerClient.NProto.TExecNodeStatistics statistics = 2;
 

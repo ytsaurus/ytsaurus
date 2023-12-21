@@ -12,7 +12,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 message TReqHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
     required NNodeTrackerClient.NProto.TNodeResources resource_usage = 3;
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;

@@ -18,7 +18,7 @@ message TReqRegisterNode
     required TNodeAddressMap node_addresses = 1;
 
     optional NYT.NProto.TGuid lease_transaction_id = 3;
-    optional int32 node_id = 4;
+    optional uint32 node_id = 4;
     repeated string tags = 5;
     optional bytes cypress_annotations = 6; // YSON
     optional string build_version = 7;
@@ -44,7 +44,7 @@ message TReqRegisterNode
 
 message TRspRegisterNode
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
     repeated string tags = 3;
 
     extensions 100 to max;
@@ -72,7 +72,7 @@ message TDataNodeInfoExt
 
 message TReqHeartbeat
 {
-    required int32 node_id = 1;
+    required uint32 node_id = 1;
 
     required TClusterNodeStatistics statistics = 2;
 
