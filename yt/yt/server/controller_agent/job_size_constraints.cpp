@@ -674,10 +674,13 @@ public:
             uncompressedBlockSize = std::max(i64(1), uncompressedBlockSize);
 
             // Product may not fit into i64.
-            double partitionJobDataWeight = sqrt(InputDataWeight_) * sqrt(uncompressedBlockSize);
-            partitionJobDataWeight = std::min(partitionJobDataWeight, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
+            auto partitionJobDataWeight = [&] {
+                double partitionJobDataWeight = sqrt(InputDataWeight_) * sqrt(uncompressedBlockSize);
+                partitionJobDataWeight = std::min(partitionJobDataWeight, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
+                return static_cast<i64>(partitionJobDataWeight);
+            }();
 
-            JobCount_ = DivCeil(InputDataWeight_, static_cast<i64>(partitionJobDataWeight));
+            JobCount_ = DivCeil(InputDataWeight_, std::max<i64>(partitionJobDataWeight, 1));
         }
 
         YT_VERIFY(JobCount_ >= 0);
