@@ -98,7 +98,7 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
         .Default();
 
-    registrar.Parameter("sequoia_path", &TThis::SequoiaPath)
+    registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
 
     registrar.Parameter("account", &TThis::Account)

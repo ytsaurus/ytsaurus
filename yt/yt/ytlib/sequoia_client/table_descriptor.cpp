@@ -76,8 +76,8 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 
 TYPath GetSequoiaTablePath(const NApi::NNative::IClientPtr& client, const ITableDescriptor* tableDescriptor)
 {
-    const auto& sequoiaPath = client->GetNativeConnection()->GetConfig()->SequoiaConnection->SequoiaPath;
-    return sequoiaPath + "/" + ToYPathLiteral(tableDescriptor->GetTableName());
+    const auto& rootPath = client->GetNativeConnection()->GetConfig()->SequoiaConnection->SequoiaRootPath;
+    return rootPath + "/" + ToYPathLiteral(tableDescriptor->GetTableName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

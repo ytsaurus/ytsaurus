@@ -130,7 +130,7 @@ public:
     //! If |nullopt|, sequoia tables are handled on the local cluster.
     std::optional<TString> GroundClusterName;
 
-    NYTree::TYPath SequoiaPath;
+    NYTree::TYPath SequoiaRootPath;
 
     TDuration SequoiaTransactionTimeout;
 
