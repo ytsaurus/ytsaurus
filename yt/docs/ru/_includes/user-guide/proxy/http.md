@@ -2,7 +2,7 @@
 
 В данном разделе содержится демонстрация работы с {{product-name}} через HTTP-прокси, на примере запуска задачи [Word Count](https://en.wikipedia.org/wiki/Word_count).
 
-Полное описание всех команд {{product-name}} можно найти в разделе [Команды](../../../api/commands.md). 
+Полное описание всех команд {{product-name}} можно найти в разделе [Команды](../../../api/commands.md).
 
 {% note info "Примечание" %}
 
@@ -13,11 +13,11 @@
 
 ## Подготовка { #prepare }
 
-Пример Word Count — это типичная задача, которую считают в любой системе [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md). Общая схема следующая: 
+Пример Word Count — это типичная задача, которую считают в любой системе [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md). Общая схема следующая:
 
-1. По исходному тексту выполняется [Map](../../../user-guide/data-processing/operations/map.md) операция, выдающая по каждому слову пару (слово, 1);
-2. Результат сортируется по первой координате;
-3. По первой координате выполняется [Reduce](../../../user-guide/data-processing/operations/reduce.md) операция, суммирующая вторую координату. На выходе получается набор пар (слово, количество упоминаний слов).
+1. По исходному тексту выполняется [Map](../../../user-guide/data-processing/operations/map.md) операция, выдающая по каждому слову пару `(слово, 1)`.
+2. Результат сортируется по первой координате.
+3. По первой координате выполняется [Reduce](../../../user-guide/data-processing/operations/reduce.md) операция, суммирующая вторую координату. На выходе получается набор пар `(слово, количество упоминаний слов)`.
 
 Далее в тексте примера используется утилита [curl](https://en.wikipedia.org/wiki/CURL) для работы через HTTP. Для удобства записи были выставлены переменные окружения, представленные ниже.{% if audience == "internal" %} Подробнее о получение токена можно прочитать в разделе [Начало работы](../../overview/try-yt.md).{% endif %}
 
@@ -57,7 +57,7 @@ $ curl -v -X POST "http://$YT_PROXY/api/v3/create?path=$YT_HOME/input&type=table
 
  В результате выполнения команд в ответ возвращаются идентификаторы (GUID) созданных объектов в Кипарисе: `0-3c35f-12f-8c397340` и `0-6a7-191-8075d1f7`.
 
-Теперь в таблицу необходимо загрузить данные, для этого используется команда [write_table](../../../api/commands.md#write_table). В качестве формата данных используется tab-separated формат: 
+Теперь в таблицу необходимо загрузить данные, для этого используется команда [write_table](../../../api/commands.md#write_table). В качестве формата данных используется tab-separated формат:
 
 - строки таблицы отделяются друг от друга переводом строки ( `\n` );
 - колонки отделяются друг от друга табуляцией ( `\t` );
@@ -153,7 +153,7 @@ $ curl -v -X GET "http://$YT_PROXY/api/v3/get?path=$YT_HOME/input/@" \
 Загрузка данных в формате JSON:
 
 ```bash
-$ cat test.json 
+$ cat test.json
 { "color": "красный", "value": "#f00" }
 { "color": "red", "value": "#f00" }
 
@@ -161,12 +161,12 @@ $ curl -X POST "http://$YT_PROXY/api/v3/create?path=//tmp/test-json&type=table" 
        -H "Accept: application/json" \
        -H "Authorization: OAuth $YT_TOKEN"
 
-$ curl -L -X PUT "http://$HEAVY_YT_PROXY/api/v3/write_table?path=//tmp/test-json&encode_utf8=false" 
-          -H "Accept: application/json" -H "Authorization: OAuth $YT_TOKEN" 
-          -H "Content-Type: application/json" 
-          -H "Transfer-Encoding: chunked" 
-          -H "X-YT-Header-Format: <format=text>yson" 
-          -H "X-YT-Input-Format: <encode_utf8=%false>json" 
+$ curl -L -X PUT "http://$HEAVY_YT_PROXY/api/v3/write_table?path=//tmp/test-json&encode_utf8=false"
+          -H "Accept: application/json" -H "Authorization: OAuth $YT_TOKEN"
+          -H "Content-Type: application/json"
+          -H "Transfer-Encoding: chunked"
+          -H "X-YT-Header-Format: <format=text>yson"
+          -H "X-YT-Input-Format: <encode_utf8=%false>json"
           -T test.json
 ```
 
@@ -285,13 +285,13 @@ END
 
 {% note info "Примечание" %}
 
-В отличие от операций `set` и `write_file`, возвращаемый GUID операции необходим для отслеживания состояния операции. Успешный ответ HTTP-интерфейса о запуске операции говорит только о том, что операция была запущена, но не о том что она отработала корректно.
+В отличие от операций `set` и `write_file`, возвращаемый GUID операции необходим для отслеживания состояния операции. Успешный ответ HTTP-интерфейса о запуске операции говорит только о том, что операция была запущена, но не о том, что она отработала корректно.
 
 {% endnote %}
 
 Посмотреть статус операции можно через веб-интерфейс или с помощью вызова `get_operation`.
 
-Просмотр статус операции
+Просмотр статус операции:
 
 ```bash
 $ curl -v -X GET "http://$YT_PROXY/api/v3/get_operation?operation_id=381eb9-8eee9ec2-70a8370d-ea39f666" \
@@ -312,7 +312,7 @@ $ curl -v -X GET "http://$YT_PROXY/api/v3/get_operation?operation_id=381eb9-8eee
 
 Чтобы убедиться, что операция отработала корректно, можно прочитать результат ее работы.
 
-Чтение данных
+Чтение данных:
 
 ```bash
 $ curl -v -L -X GET "http://$YT_HEAVY_PROXY/api/v3/read_table?path=$YT_HOME/output_map" \

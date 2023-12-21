@@ -4,18 +4,14 @@
 
 ## С++ { #c_plus_plus }
 
-Пример на [Github](https://github.com/ytsaurus/ytsaurus/blob/main/yt/examples/rpc_proxy_sample/main.cpp)
+Пример на [Github]({{source-root}}/yt/examples/rpc_proxy_sample/main.cpp)
 
-<!--[Интерфейс клиента](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/client/api/client.h)
-[Создание подключения](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/client/api/rpc_proxy/connection.h)
-[Пример](https://a.yandex-team.ru/arc/trunk/arcadia/yt/examples/rpc_proxy_sample/main.cpp)-->
-
-В примере реализована программа, через которую можно работать с динамическими таблицами в интерактивном режиме. 
+В примере реализована программа, через которую можно работать с динамическими таблицами в интерактивном режиме.
 
 Формат вызова:
 
 ```bash
-./rpc_proxy_sample --config config.yson --user <user> --token $(cat ~/.yt/token) 2> /dev/null
+$ ./rpc_proxy_sample --config config.yson --user <user> --token $(cat ~/.yt/token) 2> /dev/null
 ```
 
 Работа с Кипарисом:
@@ -71,7 +67,7 @@ if (ValidateSignature("delete", {"path", "columns", "..."}, tokens)) {
 
 ## Java { #java }
 
-Исходные коды представленных примеров находятся в [GitHub](https://github.com/ytsaurus/ytsaurus/tree/main/yt/java/ytsaurus-client/src/test/java/tech/ytsaurus/client).
+Исходные коды представленных примеров находятся в [GitHub]({{source-root}}/yt/java/ytsaurus-client/src/test/java/tech/ytsaurus/client).
 
 Создание клиента:
 
@@ -442,10 +438,10 @@ def main():
     print list(client.select_rows("* from [{}]".format(table)))
 
 if __name__ == "__main__":
-    main() 
+    main()
 ```
 
-Для того, чтобы клиент ходил к проксям определённой роли (например, `my_role`), нужно указать в конфиге опцию `proxy_role`:
+Для того чтобы клиент ходил к проксям определённой роли (например, `my_role`), нужно указать в конфиге опцию `proxy_role`:
 
 ```python
 client = yt.YtClient("cluster-name", config={"backend": "rpc", "driver_config": {"proxy_role": "my_role"}})

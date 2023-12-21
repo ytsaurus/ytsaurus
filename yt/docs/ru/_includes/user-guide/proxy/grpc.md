@@ -159,7 +159,8 @@ Attachment-Length → {length of Attachment} # encoded as 4 byte unsigned intege
 Attachment → *{binary octet} 
 ```
 
-Сначала идет часть `SerializedProtoMessage`, которая представляет собой сериализованное proto сообщение. Далее следует количество (возможно, нулевое) attachments. Каждый attachment - это длина (`Attachment-Length`, кодируется четырьмя байтами) + произвольная байтовая последовательность длины `Attachment-Length`.
+Сначала идёт часть `SerializedProtoMessage`, которая представляет собой сериализованное proto сообщение. Далее следует количество (возможно, нулевое) attachments. Каждый attachment — это длина (`Attachment-Length`, кодируется четырьмя байтами) + произвольная байтовая последовательность длины `Attachment-Length`.
+
 Отметим, что если attachments нет, то протокол полностью идентичен стоковому gRPC протоколу.
 
 Система не может отличить, где заканчивается `SerializedProtoMessage`. Для этого вводится специальный ключ в метаданных в заголовке: `yt-message-body-size`.
