@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NCellMasterClient {
