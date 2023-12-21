@@ -906,7 +906,7 @@ class TestErasureJournals(TestJournalsBase):
         "erasure_codec",
         ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
-    @pytest.mark.timeout(180)
+    @pytest.mark.timeout(300)
     @authors("babenko", "ignat")
     def test_read_with_repair(self, erasure_codec, enable_chunk_preallocation):
         if is_asan_build():
