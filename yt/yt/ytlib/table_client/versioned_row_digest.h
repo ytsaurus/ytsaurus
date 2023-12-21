@@ -4,8 +4,6 @@
 
 #include <yt/yt/library/quantile_digest/public.h>
 
-class TDigest;
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
