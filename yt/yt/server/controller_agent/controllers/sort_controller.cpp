@@ -2543,6 +2543,7 @@ protected:
         TChunkWriterConfigPtr config) const
     {
         i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight * Spec->MapSelectivityFactor);
+        partitionJobCount = std::max<i64>(partitionJobCount, 1);
         i64 bufferSize = std::min(config->MaxBufferSize, DivCeil<i64>(dataWeightAfterPartition, partitionJobCount));
         i64 partitionBufferSize = bufferSize / partitionCount;
         if (partitionBufferSize < Options->MinUncompressedBlockSize) {
@@ -2576,8 +2577,11 @@ protected:
     {
         if (SimpleSort) {
             UpdateTask(SimpleSortTask);
-        } else {
+        }
+        if (IntermediateSortTask) {
             UpdateTask(IntermediateSortTask);
+        }
+        if (FinalSortTask) {
             UpdateTask(FinalSortTask);
         }
     }
@@ -3311,6 +3315,13 @@ private:
                 TotalEstimatedInputDataWeight,
                 TotalEstimatedInputRowCount,
                 InputCompressionRatio);
+
+            // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
+            // but according to job size constraints there is nothing to do.
+            if (partitionJobSizeConstraints->GetJobCount() == 0) {
+                PartitionCount = 0;
+                return;
+            }
 
             if (!EnableNewPartitionsHeuristic()) {
                 // Finally adjust partition count wrt block size constraints.
@@ -4226,8 +4237,9 @@ private:
     {
         TSortControllerBase::CustomMaterialize();
 
-        if (TotalEstimatedInputDataWeight == 0)
+        if (TotalEstimatedInputDataWeight == 0) {
             return;
+        }
 
         MapperFiles = UserJobFiles_[Spec->Mapper];
         ReduceCombinerFiles = UserJobFiles_[Spec->ReduceCombiner];
@@ -4263,6 +4275,13 @@ private:
             TotalEstimatedInputDataWeight,
             TotalEstimatedInputRowCount,
             InputCompressionRatio);
+
+        // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
+        // but according to job size constraints there is nothing to do.
+        if (RootPartitionPoolJobSizeConstraints->GetJobCount() == 0) {
+            PartitionCount = 0;
+            return;
+        }
 
         legacyPartitionCount = AdjustPartitionCountToWriterBufferSize(
             legacyPartitionCount,

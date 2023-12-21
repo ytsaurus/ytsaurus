@@ -3314,6 +3314,27 @@ done
 
         assert 8 * get("//tmp/t_in/@row_count") == get("//tmp/t_out/@row_count")
 
+    @authors("gritukan")
+    def test_empty_input_due_to_sampling(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y": 2}])
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command="cat",
+            spec={"sampling": {"sampling_rate": 0.0000001}},
+        )
+
+        assert read_table("//tmp/t_out") == []
+
 
 ##################################################################
 
