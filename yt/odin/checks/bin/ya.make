@@ -34,6 +34,7 @@ RECURSE(
     sort_result
     stuck_missing_part_chunks
     suspicious_jobs
+    system_quotas
     tablet_cells
     tablet_cell_gossip
     tablet_cell_snapshots
