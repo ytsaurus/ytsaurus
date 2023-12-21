@@ -25,7 +25,6 @@ import pytest
 
 from copy import deepcopy
 from random import randint, choice, sample
-from functools import partial
 import random
 import time
 
@@ -748,15 +747,12 @@ class TestLookup(TestSortedDynamicTablesBase):
             def __init__(self):
                 self.profiling = self_._get_key_filter_profiling_wrapper("lookup", table, user)
 
-            def check(self, expected, lookup_keys, key):
+            def check(self, lookup_keys, expected):
                 def _check_counters():
                     input, filtered_out, false_positive = self.profiling.get_counters_delta()
-                    if not (input == len(lookup_keys) and 0 <= filtered_out + false_positive <= input):
-                        assert (input, filtered_out, false_positive) == "xxxxxxxxxx"
-                    return True
+                    return input == len(lookup_keys) and 0 <= filtered_out + false_positive <= input
 
-                assert sorted(expected, key=key) == sorted(lookup_rows("//tmp/t", lookup_keys, verbose=False), key=key)
-                time.sleep(30)
+                assert_items_equal(lookup_rows("//tmp/t", lookup_keys, verbose=False), expected)
                 wait(lambda: _check_counters())
 
         return Checker()
@@ -791,15 +787,14 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
 
         key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
-        check = partial(key_filter_checker.check, key=lambda d: d["key"])
 
-        check([], [{"key": 2}, {"key": 42}])
-        check([{"key": 1, "value": "1"}], [{"key": 0}, {"key": 1}])
-        check([], [{"key": 5000}])
-        check([{"key": 9997, "value": "9997"}], [{"key": 42}, {"key": 322}, {"key": 9997}])
-        check([], [{"key": 9998}])
+        key_filter_checker.check([{"key": 2}, {"key": 42}], [])
+        key_filter_checker.check([{"key": 0}, {"key": 1}], [{"key": 1, "value": "1"}],)
+        key_filter_checker.check([{"key": 5000}], [])
+        key_filter_checker.check([{"key": 42}, {"key": 322}, {"key": 9997}], [{"key": 9997, "value": "9997"}])
+        key_filter_checker.check([{"key": 9998}], [])
 
-        check(rows, keys)
+        key_filter_checker.check(keys, rows)
 
     @authors("akozhikhov", "dave11ar")
     def test_key_filter_with_schema_alter(self):
@@ -836,16 +831,15 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
 
-        key_filter_checker.check([{"key1": 0, "value": "0"}], [{"key1": 0}], lambda d: d["key1"])
+        key_filter_checker.check([{"key1": 0}], [{"key1": 0, "value": "0"}])
 
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=schema2)
         sync_mount_table("//tmp/t")
 
         key_filter_checker.check(
-            [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}],
             [{"key1": 0, "key2": yson.YsonEntity()}],
-            lambda d: [d["key1"], d["key2"]],
+            [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}],
         )
 
     @authors("akozhikhov")

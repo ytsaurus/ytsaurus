@@ -1710,14 +1710,11 @@ class TestQuery(DynamicTablesBase):
         sync_flush_table("//tmp/t")
 
         def _check_query(expected, predicate, min_input):
-            def key(d):
-                return [d["a"], d["b"], d["c"]]
-
             def _check_counters():
                 input, filtered_out, false_positive = profiling.get_counters_delta()
                 return input >= min_input and 0 <= filtered_out + false_positive <= input
 
-            assert sorted(expected, key=key) == sorted(select_rows(f"* from [//tmp/t] where {predicate}"), key=key)
+            assert_items_equal(select_rows(f"* from [//tmp/t] where {predicate}"), expected)
             wait(lambda: _check_counters())
 
         _check_query(rows[0:1], "(a) in ((1), (2))", 1)
