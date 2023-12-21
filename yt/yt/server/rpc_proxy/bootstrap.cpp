@@ -162,6 +162,8 @@ void TBootstrap::DoRun()
         ProxyCoordinator_,
         Connection_,
         GetControlInvoker());
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
     AccessChecker_ = CreateAccessChecker(
         Config_->AccessChecker,
         ProxyCoordinator_,
@@ -176,13 +178,9 @@ void TBootstrap::DoRun()
     }
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
-    RpcServer_->Configure(Config_->RpcServer);
-
     if (TvmOnlyBusServer_) {
         TvmOnlyRpcServer_ = NRpc::NBus::CreateBusServer(TvmOnlyBusServer_);
     }
-
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
@@ -298,6 +296,7 @@ void TBootstrap::DoRun()
     HttpServer_->Start();
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 
     if (TvmOnlyRpcServer_) {
@@ -339,8 +338,6 @@ void TBootstrap::OnDynamicConfigChanged(
     Connection_->Reconfigure(newConfig->ClusterConnection);
 
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
-
-    RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 }
 
 const IInvokerPtr& TBootstrap::GetWorkerInvoker() const

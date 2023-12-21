@@ -149,9 +149,6 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("access_checker", &TThis::AccessChecker)
         .DefaultNew();
 
-    registrar.Parameter("rpc_server", &TThis::RpcServer)
-        .DefaultNew();
-
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
         .DefaultNew();
 

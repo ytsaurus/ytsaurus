@@ -154,8 +154,6 @@ public:
 
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
-    NRpc::TServerDynamicConfigPtr RpcServer;
-
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);
