@@ -10,6 +10,7 @@ TEST_SRCS(
     test_job_proxy.py
     test_jobs.py
     test_hot_swap.py
+    test_locations.py
     test_layers.py
     test_node_discovery_manager.py
     test_node_dynamic_config.py
