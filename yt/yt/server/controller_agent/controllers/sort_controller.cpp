@@ -4839,7 +4839,7 @@ private:
             GetFinalStreamDescriptors(),
             // To be filled later.
             std::vector<TInputStreamDescriptorPtr>{},
-            /* enableKeyGuarantee */ true);
+            /*enableKeyGuarantee*/ true);
     }
 
     TSortColumns GetSortedMergeSortColumns() const override

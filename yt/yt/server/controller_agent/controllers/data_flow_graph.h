@@ -97,7 +97,7 @@ struct TInputStreamDescriptor
     , public TStreamDescriptorBase
 {
     static TInputStreamDescriptorPtr FromOutputStreamDescriptor(
-        TOutputStreamDescriptorPtr outputStreamDescriptor);
+        const TOutputStreamDescriptorPtr& outputStreamDescriptor);
 
     TInputStreamDescriptor(TStreamDescriptorBase base);
     TInputStreamDescriptor() = default;
@@ -149,7 +149,7 @@ struct TOutputStreamDescriptor
     : public TRefCounted
     , public TOutputStreamDescriptorBase
 {
-    TOutputStreamDescriptor(TOutputStreamDescriptorBase base);
+    explicit TOutputStreamDescriptor(TOutputStreamDescriptorBase base);
     TOutputStreamDescriptor() = default;
 
     TOutputStreamDescriptorPtr Clone() const;

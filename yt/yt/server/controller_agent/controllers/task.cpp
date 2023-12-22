@@ -1567,7 +1567,9 @@ void TTask::AddOutputTableSpecs(
         }
     }
 
-    YT_LOG_DEBUG("Adding input stream schemas for %v: count %v", joblet->Task->GetTitle(), joblet->InputStreamDescriptors.size());
+    YT_LOG_DEBUG("Adding input stream schemas (Task: %v, Count: %v)",
+        joblet->Task->GetTitle(),
+        joblet->InputStreamDescriptors.size());
     const auto& inputStreamDescriptors = joblet->InputStreamDescriptors;
     for (int index = 0; index < std::ssize(inputStreamDescriptors); ++index) {
         const auto& streamDescriptor = inputStreamDescriptors[index];

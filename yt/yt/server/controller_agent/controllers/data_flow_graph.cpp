@@ -55,7 +55,7 @@ void TStreamDescriptorBase::Persist(const TPersistenceContext &context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputStreamDescriptorPtr TInputStreamDescriptor::FromOutputStreamDescriptor(
-    TOutputStreamDescriptorPtr outputStreamDescriptor)
+    const TOutputStreamDescriptorPtr& outputStreamDescriptor)
 {
     auto inputStreamDescriptor = New<TInputStreamDescriptor>();
     inputStreamDescriptor->StreamSchemas = outputStreamDescriptor->StreamSchemas;

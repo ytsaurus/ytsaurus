@@ -147,7 +147,6 @@ std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStre
     return inputStreamDescriptors;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TControllerFeatures::AddSingular(TStringBuf name, double value)
