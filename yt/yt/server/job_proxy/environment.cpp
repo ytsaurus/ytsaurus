@@ -820,7 +820,8 @@ class TCriUserJobEnvironment
     : public IUserJobEnvironment
 {
 public:
-    TCriUserJobEnvironment() {
+    TCriUserJobEnvironment()
+    {
         TString username = ::GetUsername();
         Environment_.push_back("USER=" + username);
         Environment_.push_back("LOGNAME=" + username);
