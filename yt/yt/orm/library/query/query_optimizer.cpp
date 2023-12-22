@@ -75,7 +75,7 @@ protected:
         } else if (auto* typedExpr = expr->As<TLikeExpression>()) {
             return Optimize(*typedExpr);
         } else {
-            THROW_ERROR_EXCEPTION("Unsupported expression in user query: %Qv",
+            THROW_ERROR_EXCEPTION("Unsupported expression %Qv in user query",
                 FormatExpression(*expr));
         }
     }
@@ -189,75 +189,75 @@ protected:
         return std::move(collector).OptimizedAnything();
     }
 
-    virtual bool OptimizationAllowed(const TExpressionPtr& expr) const
+    virtual bool IsOptimizationAllowed(const TExpressionPtr& expr) const
     {
         if (expr->As<TLiteralExpression>()) {
             return true;
         } else if (auto* typedExpr = expr->As<TReferenceExpression>()) {
-            return OptimizationAllowed(*typedExpr);
+            return IsOptimizationAllowed(*typedExpr);
         } else if (auto* typedExpr = expr->As<TAliasExpression>()) {
-            return OptimizationAllowed(typedExpr->Expression);
+            return IsOptimizationAllowed(typedExpr->Expression);
         } else if (auto* typedExpr = expr->As<TFunctionExpression>()) {
-            return OptimizationAllowed(*typedExpr);
+            return IsOptimizationAllowed(*typedExpr);
         } else if (auto* typedExpr = expr->As<TUnaryOpExpression>()) {
-            return OptimizationAllowed(typedExpr->Operand);
+            return IsOptimizationAllowed(typedExpr->Operand);
         } else if (auto* typedExpr = expr->As<TBinaryOpExpression>()) {
-            return OptimizationAllowed(typedExpr->Lhs) && OptimizationAllowed(typedExpr->Rhs);
+            return IsOptimizationAllowed(typedExpr->Lhs) && IsOptimizationAllowed(typedExpr->Rhs);
         } else if (auto* typedExpr = expr->As<TInExpression>()) {
-            return OptimizationAllowed(typedExpr->Expr);
+            return IsOptimizationAllowed(typedExpr->Expr);
         } else if (auto* typedExpr = expr->As<TBetweenExpression>()) {
-            return OptimizationAllowed(typedExpr->Expr);
+            return IsOptimizationAllowed(typedExpr->Expr);
         } else if (auto* typedExpr = expr->As<TTransformExpression>()) {
-            return OptimizationAllowed(typedExpr->Expr) && OptimizationAllowed(typedExpr->DefaultExpr);
+            return IsOptimizationAllowed(typedExpr->Expr) && IsOptimizationAllowed(typedExpr->DefaultExpr);
         } else if (auto* typedExpr = expr->As<TCaseExpression>()) {
-            return OptimizationAllowed(*typedExpr);
+            return IsOptimizationAllowed(*typedExpr);
         } else if (auto* typedExpr = expr->As<TLikeExpression>()) {
-            return OptimizationAllowed(*typedExpr);
+            return IsOptimizationAllowed(*typedExpr);
         } else {
-            THROW_ERROR_EXCEPTION("Unsupported expression in user query: %Qv",
+            THROW_ERROR_EXCEPTION("Unsupported expression %Qv in user query",
                 FormatExpression(*expr));
         }
     }
 
-    virtual bool OptimizationAllowed(const TNullableExpressionList& list) const
+    virtual bool IsOptimizationAllowed(const TNullableExpressionList& list) const
     {
-        return list ? OptimizationAllowed(*list) : true;
+        return list ? IsOptimizationAllowed(*list) : true;
     }
 
-    virtual bool OptimizationAllowed(const TExpressionList& list) const
+    virtual bool IsOptimizationAllowed(const TExpressionList& list) const
     {
         for (const auto& expr : list) {
-            if (!OptimizationAllowed(expr)) {
+            if (!IsOptimizationAllowed(expr)) {
                 return false;
             }
         }
         return true;
     }
 
-    virtual bool OptimizationAllowed(const TOrderExpressionList& list) const
+    virtual bool IsOptimizationAllowed(const TOrderExpressionList& list) const
     {
         for (const auto& expr : list) {
-            if (!OptimizationAllowed(expr.first)) {
+            if (!IsOptimizationAllowed(expr.first)) {
                 return false;
             }
         }
         return true;
     }
 
-    virtual bool OptimizationAllowed(const TReferenceExpression& /*expression*/) const
+    virtual bool IsOptimizationAllowed(const TReferenceExpression& /*expression*/) const
     {
         return true;
     }
 
-    virtual bool OptimizationAllowed(const TFunctionExpression& expression) const
+    virtual bool IsOptimizationAllowed(const TFunctionExpression& expression) const
     {
-        return OptimizationAllowed(expression.Arguments);
+        return IsOptimizationAllowed(expression.Arguments);
     }
 
-    virtual bool OptimizationAllowed(const TWhenThenExpressionList& list) const
+    virtual bool IsOptimizationAllowed(const TWhenThenExpressionList& list) const
     {
         for (auto& expr : list) {
-            if (!OptimizationAllowed(expr.first) || !OptimizationAllowed(expr.second)) {
+            if (!IsOptimizationAllowed(expr.first) || !IsOptimizationAllowed(expr.second)) {
                 return false;
             }
         }
@@ -265,18 +265,18 @@ protected:
         return true;
     }
 
-    virtual bool OptimizationAllowed(const TCaseExpression& expression) const
+    virtual bool IsOptimizationAllowed(const TCaseExpression& expression) const
     {
-        return OptimizationAllowed(expression.DefaultExpression) &&
-            OptimizationAllowed(expression.WhenThenExpressions) &&
-            OptimizationAllowed(expression.OptionalOperand);
+        return IsOptimizationAllowed(expression.DefaultExpression) &&
+            IsOptimizationAllowed(expression.WhenThenExpressions) &&
+            IsOptimizationAllowed(expression.OptionalOperand);
     }
 
-    virtual bool OptimizationAllowed(const TLikeExpression& expression) const
+    virtual bool IsOptimizationAllowed(const TLikeExpression& expression) const
     {
-        return OptimizationAllowed(expression.EscapeCharacter) &&
-            OptimizationAllowed(expression.Pattern) &&
-            OptimizationAllowed(expression.Text);
+        return IsOptimizationAllowed(expression.EscapeCharacter) &&
+            IsOptimizationAllowed(expression.Pattern) &&
+            IsOptimizationAllowed(expression.Text);
     }
 };
 
@@ -305,7 +305,7 @@ private:
     TQuery* const Query_;
     THashMap<TReference, TReference> ColumnsMapping_;
 
-    using TBaseOptimizer::OptimizationAllowed;
+    using TBaseOptimizer::IsOptimizationAllowed;
     using TBaseOptimizer::Optimize;
 
     bool CanOptimize()
@@ -333,13 +333,13 @@ private:
             }
         }
         if (Query_->GroupExprs) {
-            if (!OptimizationAllowed(Query_->GroupExprs->first)) {
+            if (!IsOptimizationAllowed(Query_->GroupExprs->first)) {
                 return false;
             }
         }
         if (Query_->SelectExprs) {
             for (const auto& expr : *Query_->SelectExprs) {
-                if (!OptimizationAllowed(Query_->SelectExprs)) {
+                if (!IsOptimizationAllowed(Query_->SelectExprs)) {
                     return false;
                 }
                 if (const auto* typeExpr = expr->As<TAliasExpression>()) {
@@ -352,12 +352,12 @@ private:
                 }
             }
         }
-        return OptimizationAllowed(Query_->WherePredicate)
-            && OptimizationAllowed(Query_->HavingPredicate)
-            && OptimizationAllowed(Query_->OrderExpressions);
+        return IsOptimizationAllowed(Query_->WherePredicate)
+            && IsOptimizationAllowed(Query_->HavingPredicate)
+            && IsOptimizationAllowed(Query_->OrderExpressions);
     }
 
-    bool OptimizationAllowed(const TReferenceExpression& expression) const override
+    bool IsOptimizationAllowed(const TReferenceExpression& expression) const override
     {
         return expression.Reference.TableName == Query_->Table.Alias || ColumnsMapping_.contains(expression.Reference);
     }

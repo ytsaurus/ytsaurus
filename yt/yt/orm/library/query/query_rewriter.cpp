@@ -65,7 +65,7 @@ void TQueryRewriter::Visit(TExpressionPtr* expr)
         Visit(typedExpr->Pattern);
         Visit(typedExpr->EscapeCharacter);
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported expression in user query: %Qv",
+        THROW_ERROR_EXCEPTION("Unsupported expression %Qv in user query",
             FormatExpression(**expr));
     }
 }
