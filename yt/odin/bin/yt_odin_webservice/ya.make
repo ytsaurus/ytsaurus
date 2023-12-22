@@ -5,7 +5,6 @@ PEERDIR(
     yt/odin/lib/yt_odin/logserver
     yt/odin/lib/yt_odin/storage
 
-    yt/python/yt/flask_helpers
     yt/python/yt/wrapper
 
     contrib/python/python-dateutil

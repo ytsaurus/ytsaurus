@@ -9,8 +9,6 @@ from yt_odin.logserver import (
     TERMINATED_STATE
 )
 
-from yt.flask_helpers import process_gzip
-
 from yt.common import update
 
 from cheroot import wsgi as wsgiserver
@@ -23,6 +21,7 @@ import time
 import argparse
 import logging
 from copy import deepcopy
+import gzip
 import uuid
 import calendar
 import datetime
@@ -158,7 +157,6 @@ def exists(cluster):
 
 
 @app.route("/availability/<string:cluster>")
-@process_gzip
 def availability(cluster):
     start_timestamp = iso_time_to_timestamp(request.args.get("start_time"))
     end_timestamp = iso_time_to_timestamp(request.args.get("end_time"))
@@ -178,7 +176,14 @@ def availability(cluster):
     statuses_and_messages["metric"] = metric
 
     json_dump = json.dumps(statuses_and_messages, sort_keys=True)
-    return build_response(json_dump, 202)
+
+    content = gzip.compress(json_dump.encode("utf8"))
+
+    response = build_response(content, 202)
+    response.headers["Content-length"] = len(content)
+    response.headers["Content-Encoding"] = "gzip"
+
+    return response
 
 
 @app.route("/service_list")
