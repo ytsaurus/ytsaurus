@@ -9,12 +9,14 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/rpc/public.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
-namespace NYT::NClusterNode {
+namespace NYT::NAdmin {
 
 using namespace NRpc;
 using namespace NConcurrency;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,31 +24,31 @@ class TRestartService
     : public TServiceBase
 {
 public:
-    explicit TRestartService(IBootstrap* bootstrap)
+    explicit TRestartService(
+        TRestartManagerPtr restartManager,
+        IInvokerPtr invoker,
+        TLogger logger,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            invoker,
             NAdmin::TRestartServiceProxy::GetDescriptor(),
-            ClusterNodeLogger,
+            logger,
             NullRealmId,
-            bootstrap->GetNativeAuthenticator())
-        , Bootstrap_(bootstrap)
+            authenticator)
+        , RestartManager_(restartManager)
     {
-        YT_VERIFY(Bootstrap_);
-
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestRestart));
     }
 
 private:
-    IBootstrap* const Bootstrap_;
+    const TRestartManagerPtr RestartManager_;
 
     // Endpoint is necessary for manual configuration regeneration, disk partitioning and node restart.
     // Important part of Hot Swap mechanic.
-    DECLARE_RPC_SERVICE_METHOD(NAdmin::NProto, RequestRestart)
+    DECLARE_RPC_SERVICE_METHOD(NProto, RequestRestart)
     {
-        auto manager = Bootstrap_->GetRestartManager();
-
-        if (manager) {
-            manager->RequestRestart();
+        if (RestartManager_) {
+            RestartManager_->RequestRestart();
         }
 
         context->Reply();
@@ -55,9 +57,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateRestartService(IBootstrap* bootstrap)
+IServicePtr CreateRestartService(
+    TRestartManagerPtr restartManager,
+    IInvokerPtr invoker,
+    TLogger logger,
+    IAuthenticatorPtr authenticator)
 {
-    return New<TRestartService>(bootstrap);
+    return New<TRestartService>(
+        restartManager,
+        invoker,
+        logger,
+        authenticator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

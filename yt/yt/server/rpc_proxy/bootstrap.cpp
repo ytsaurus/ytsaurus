@@ -12,8 +12,10 @@
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/admin/restart_service.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/misc/restart_manager.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -292,6 +294,13 @@ void TBootstrap::DoRun()
         TvmOnlyRpcServer_->RegisterService(adminService);
     }
 
+    auto restartManager = New<TRestartManager>(GetControlInvoker());
+    RpcServer_->RegisterService(CreateRestartService(
+        restartManager,
+        GetControlInvoker(),
+        RpcProxyLogger,
+        NativeAuthenticator_));
+
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
 
@@ -321,6 +330,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/rpc_proxy",
         CreateVirtualNode(ApiService_->CreateOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/restart_manager",
+        CreateVirtualNode(restartManager->GetOrchidService()));
 
     RpcProxyHeapUsageProfiler_ = New<TRpcProxyHeapUsageProfiler>(
         GetControlInvoker(),
