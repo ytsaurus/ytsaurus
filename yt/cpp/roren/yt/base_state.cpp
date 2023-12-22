@@ -1,7 +1,6 @@
 #include "base_state.h"
 
-namespace NRoren::NPrivate
-{
+namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,23 +22,3 @@ void InitializeYtPState(TRawPStateNodePtr rawPState, TString inStatePath, TStrin
 ////////////////////////////////////////////////////////////////////////////////
 
 }  // namespace NRoren::NPrivate
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSerializer<NRoren::NPrivate::TYtStateVtable>::Save(IOutputStream* output, const TYtStateVtable& stateVtable)
-{
-    ::Save(output, stateVtable.StateTKVvtable);
-    ::Save(output, reinterpret_cast<ui64>(stateVtable.LoadState));
-    ::Save(output, reinterpret_cast<ui64>(stateVtable.SaveState));
-    ::Save(output, reinterpret_cast<ui64>(stateVtable.StateFromKey));
-    ::Save(output, reinterpret_cast<ui64>(stateVtable.StateFromTKV));
-}
-
-void TSerializer<NRoren::NPrivate::TYtStateVtable>::Load(IInputStream* input, TYtStateVtable& stateVtable)
-{
-    ::Load(input, stateVtable.StateTKVvtable);
-    ::Load(input, reinterpret_cast<ui64&>(stateVtable.LoadState));
-    ::Load(input, reinterpret_cast<ui64&>(stateVtable.SaveState));
-    ::Load(input, reinterpret_cast<ui64&>(stateVtable.StateFromKey));
-    ::Load(input, reinterpret_cast<ui64&>(stateVtable.StateFromTKV));
-}

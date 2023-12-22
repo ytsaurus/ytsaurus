@@ -5,6 +5,7 @@
 #include "raw_data_flow.h"
 #include "raw_transform.h"
 #include "row_vtable.h"
+#include "save_loadable_pointer_wrapper.h"
 
 #include <type_traits>
 #include <util/ysaveload.h>
@@ -222,8 +223,6 @@ public:
     void Finish() override;
 
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override;
-    void Save(IOutputStream* output) const override;
-    void Load(IInputStream* input) override;
 
     [[nodiscard]] std::vector<TDynamicTypeTag> GetInputTags() const override;
     [[nodiscard]] std::vector<TDynamicTypeTag> GetOutputTags() const override;
@@ -291,6 +290,16 @@ private:
     void* UnderlyingFunction_ = nullptr;
     TDynamicTypeTag InputTag_;
     std::vector<TDynamicTypeTag> OutputTags_;
+    TFnAttributes FnAttributes_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(
+        SaveLoadablePointer(WrapperFunction_),
+        WrapperType_,
+        SaveLoadablePointer(UnderlyingFunction_),
+        InputTag_,
+        OutputTags_,
+        FnAttributes_
+    );
 
     // Initialization of fields depends on the WrapperType_:
     // * MultiOutput_ is initialized for MultiOutputWrapper;
@@ -299,7 +308,6 @@ private:
     std::optional<TMultiOutput> MultiOutput_;
     IRawOutputPtr SingleOutput_;
     TRawRowHolder RowHolder_;
-    TFnAttributes FnAttributes_;
 };
 
 template <typename TDoFn>

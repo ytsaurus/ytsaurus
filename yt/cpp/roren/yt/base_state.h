@@ -1,18 +1,18 @@
 #pragma once
 
-#include <util/generic/fwd.h>
-#include <util/ysaveload.h>
-#include <concepts>
-#include <optional>
-
 #include <yt/cpp/roren/interface/type_tag.h>
 #include <yt/cpp/roren/interface/private/raw_pipeline.h>
+#include <yt/cpp/roren/interface/private/save_loadable_pointer_wrapper.h>
+
+#include <util/generic/fwd.h>
+#include <util/ysaveload.h>
 
 template <typename T>
 concept IsOptional = std::same_as<T, std::optional<typename T::value_type>>;
 
-namespace NRoren::NPrivate
-{
+namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TYtStateVtable
 {
@@ -29,7 +29,15 @@ struct TYtStateVtable
 
     static NYT::TNode SerializableToNode(const TYtStateVtable& stateVtable);
     static TYtStateVtable SerializableFromNode(const NYT::TNode& node);
-}; // struct YtStateVtable
+
+    Y_SAVELOAD_DEFINE(
+        StateTKVvtable,
+        SaveLoadablePointer(LoadState),
+        SaveLoadablePointer(SaveState),
+        SaveLoadablePointer(StateFromKey),
+        SaveLoadablePointer(StateFromTKV)
+    );
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,16 +58,6 @@ TPState<TKey, TState> MakeYtPState(const TPipeline& YtPipeline, TString inStateP
     return pState;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoren::NPrivate
-
-template <>
-class TSerializer<NRoren::NPrivate::TYtStateVtable>
-{
-public:
-    using TYtStateVtable = NRoren::NPrivate::TYtStateVtable;
-
-public:
-    static void Save(IOutputStream* output, const TYtStateVtable& stateVtable);
-    static void Load(IInputStream* input, TYtStateVtable& stateVtable);
-};
-

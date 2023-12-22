@@ -1,5 +1,6 @@
 #include "raw_par_do.h"
 
+
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,29 +53,6 @@ TLambda1RawParDo::TDefaultFactoryFunc TLambda1RawParDo::GetDefaultFactory() cons
     return [] () -> IRawParDoPtr {
         return ::MakeIntrusive<TLambda1RawParDo>();
     };
-}
-
-void TLambda1RawParDo::Load(IInputStream* input)
-{
-    ui64 functionWrapper, underlyingFunction;
-    ::Load(input, functionWrapper);
-    ::Load(input, FnAttributes_);
-    ::Load(input, WrapperType_);
-    ::Load(input, underlyingFunction);
-    ::Load(input, InputTag_);
-    ::Load(input, OutputTags_);
-    WrapperFunction_ = reinterpret_cast<TWrapperFunctionPtr>(functionWrapper);
-    UnderlyingFunction_ = reinterpret_cast<void*>(underlyingFunction);
-}
-
-void TLambda1RawParDo::Save(IOutputStream* output) const
-{
-    ::Save(output, reinterpret_cast<ui64>(WrapperFunction_));
-    ::Save(output, FnAttributes_);
-    ::Save(output, WrapperType_);
-    ::Save(output, reinterpret_cast<ui64>(UnderlyingFunction_));
-    ::Save(output, InputTag_);
-    ::Save(output, OutputTags_);
 }
 
 std::vector<TDynamicTypeTag> TLambda1RawParDo::GetInputTags() const

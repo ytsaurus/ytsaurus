@@ -1,6 +1,7 @@
 #pragma once
 
 #include "raw_transform.h"
+#include "save_loadable_pointer_wrapper.h"
 
 #include "../output.h"
 
@@ -10,39 +11,6 @@
 #include <yt/cpp/roren/interface/private/row_vtable.h>
 
 namespace NRoren::NPrivate {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename TValue>
-struct TSaveLoadablePointerWrapper
-{
-    void Save(IOutputStream* output) const
-    {
-        ui64 intValue = reinterpret_cast<ui64>(Value);
-        ::Save(output, intValue);
-    }
-
-    void Load(IInputStream* input)
-    {
-        ui64 intValue;
-        ::Load(input, intValue);
-        Value = reinterpret_cast<TValue*>(intValue);
-    }
-
-    TValue* Value;
-};
-
-template <typename TValue>
-TSaveLoadablePointerWrapper<TValue>& SaveLoadablePointer(TValue*& value)
-{
-    return *reinterpret_cast<TSaveLoadablePointerWrapper<TValue>*>(&value);
-}
-
-template <typename TValue>
-const TSaveLoadablePointerWrapper<TValue>& SaveLoadablePointer(TValue* const & value)
-{
-    return *reinterpret_cast<const TSaveLoadablePointerWrapper<TValue>*>(&value);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
