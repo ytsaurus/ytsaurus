@@ -165,6 +165,11 @@ public:
             }
             // Merge refs into single ref.
             return MergeRefsToRef<TCypressFileBlockDeviceTag>(refs);
+        })).Apply(BIND([tagSet = TagSet_](const TErrorOr<TSharedRef>& result) {
+            if (!result.IsOK()) {
+                NbdProfilerCounters.GetCounter(tagSet, "/device/read_errors").Increment(1);
+            }
+            return result.ValueOrThrow();
         }));
     }
 
