@@ -334,6 +334,7 @@ private:
 
             EChunkSessionState State = EChunkSessionState::Allocating;
             bool SwitchScheduled = false;
+            bool SealScheduled = false;
 
             //! Row is called completed iff it is written to all the replicas.
             i64 ReplicationFactorFlushedRowCount = 0;
@@ -1219,6 +1220,7 @@ private:
             if (CurrentChunkSession_) {
                 ScheduleChunkSessionSeal(CurrentChunkSession_);
             }
+
             if (AllocatedChunkSessionPromise_) {
                 AllocatedChunkSessionPromise_.ToFuture()
                     .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TChunkSessionPtr>& sessionOrError) {
@@ -1490,7 +1492,7 @@ private:
             auto traceGuard = QueueTrace_.CreateTraceGuard("JournalWriter:FlushBlocks", node->FirstPendingRowIndex, {});
 
             req->Invoke().Subscribe(
-                BIND_NO_PROPAGATE(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount, flushDataSize)
+                BIND_NO_PROPAGATE(&TImpl::OnBlocksWritten, MakeStrong(this), CurrentChunkSession_, node, flushRowCount, flushDataSize)
                     .Via(Invoker_));
         }
 
@@ -1797,7 +1799,7 @@ private:
         }
 
 
-        void ScheduleChunkSessionSeal(TChunkSessionPtr session)
+        void ScheduleChunkSessionSeal(const TChunkSessionPtr& session)
         {
             if (Config_->DontSeal) {
                 YT_LOG_WARNING("Client-side chunk seal is disabled, skipping chunk session seal (SessionId: %v)",
@@ -1805,14 +1807,20 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Scheduling chunk seal (SessionId: %v, SessionIndex: %v, FirstRowIndex: %v, RowCount: %v, DataSize: %v)",
+            if (std::exchange(session->SealScheduled, true)) {
+                YT_LOG_DEBUG("Chunk seal is already scheduled (SessionId: %v)",
+                    session->Id);
+                return;
+            }
+
+            EmplaceOrCrash(IndexToChunkSessionToSeal_, session->Index, session);
+
+            YT_LOG_DEBUG("Chunk seal scheduled (SessionId: %v, SessionIndex: %v, FirstRowIndex: %v, RowCount: %v, DataSize: %v)",
                 session->Id,
                 session->Index,
                 session->FirstRowIndex,
                 session->QuorumFlushedRowCount,
                 session->QuorumFlushedDataSize);
-
-            YT_VERIFY(IndexToChunkSessionToSeal_.emplace(session->Index, std::move(session)).second);
 
             MaybeSealChunks();
         }
@@ -1855,7 +1863,7 @@ private:
                 sessionIds);
 
             batchReq->Invoke().Subscribe(
-                BIND(&TImpl::OnChunksSealed, MakeWeak(this))
+                BIND(&TImpl::OnChunksSealed, MakeStrong(this))
                     .Via(Invoker_));
         }
 
