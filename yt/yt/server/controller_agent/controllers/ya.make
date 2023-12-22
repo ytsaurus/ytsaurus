@@ -18,6 +18,7 @@ SRCS(
     job_memory.cpp
     job_splitter.cpp
     helpers.cpp
+    live_preview.cpp
     operation_controller_detail.cpp
     ordered_controller.cpp
     probing_job_manager.cpp

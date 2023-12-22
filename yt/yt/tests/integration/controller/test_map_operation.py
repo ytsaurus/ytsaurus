@@ -773,16 +773,21 @@ print row + table_index
         wait(lambda: op.get_job_count("completed") == 2)
         wait(lambda: exists(operation_path + "/controller_orchid"))
 
-        live_preview_data1 = read_table(
-            operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0"
-        )
-        live_preview_data2 = read_table(
-            operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/1"
-        )
-        live_preview_data1 = [d["a"] for d in live_preview_data1]
-        live_preview_data2 = [d["b"] for d in live_preview_data2]
-        assert sorted(live_preview_data1) == sorted(live_preview_data2)
-        assert len(live_preview_data1) == 2
+        live_preview_paths = ["data_flow_graph/vertices/map/live_previews/"]
+        if self.Env.get_component_version("ytserver-controller-agent").abi >= (23, 3):
+            live_preview_paths.append("live_previews/output_")
+
+        for live_preview_path in live_preview_paths:
+            live_preview_data1 = read_table(
+                f"{operation_path}/controller_orchid/{live_preview_path}0"
+            )
+            live_preview_data2 = read_table(
+                f"{operation_path}/controller_orchid/{live_preview_path}1"
+            )
+            live_preview_data1 = [d["a"] for d in live_preview_data1]
+            live_preview_data2 = [d["b"] for d in live_preview_data2]
+            assert sorted(live_preview_data1) == sorted(live_preview_data2)
+            assert len(live_preview_data1) == 2
 
         release_breakpoint()
         op.track()

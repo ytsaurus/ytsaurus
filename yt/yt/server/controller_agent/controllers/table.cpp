@@ -21,6 +21,9 @@ void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, LivePreviewTableId);
+    if (context.GetVersion() >= ESnapshotVersion::NewLivePreview) {
+        Persist(context, LivePreviewTableName);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

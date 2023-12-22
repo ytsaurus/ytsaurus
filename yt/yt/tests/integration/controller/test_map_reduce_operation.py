@@ -662,14 +662,19 @@ print "x={0}\ty={1}".format(x, y)
 
             operation_path = op.get_path()
             get(operation_path + "/controller_orchid/data_flow_graph/vertices")
-            intermediate_live_data = read_table(
-                operation_path
-                + "/controller_orchid/data_flow_graph/vertices/{}/live_previews/0".format(partition_map_vertex)
-            )
+
+            live_preview_paths = [f"data_flow_graph/vertices/{partition_map_vertex}/live_previews/0"]
+            if self.Env.get_component_version("ytserver-controller-agent").abi >= (23, 3):
+                live_preview_paths.append("live_previews/intermediate")
+
+            for live_preview_path in live_preview_paths:
+                intermediate_live_data = read_table(
+                    f"{operation_path}/controller_orchid/{live_preview_path}"
+                )
+                assert intermediate_live_data == [{"foo": "bar"}]
 
             release_breakpoint()
             op.track()
-            assert intermediate_live_data == [{"foo": "bar"}]
             assert read_table("//tmp/t2") == [{"foo": "bar"}]
         finally:
             remove("//sys/operations&/@acl/-1")

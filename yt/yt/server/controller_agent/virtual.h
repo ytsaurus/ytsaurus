@@ -1,3 +1,5 @@
+#pragma once
+
 #include "private.h"
 
 #include <yt/yt/ytlib/table_client/public.h>

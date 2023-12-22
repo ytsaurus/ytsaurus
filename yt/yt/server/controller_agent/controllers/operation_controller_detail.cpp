@@ -267,6 +267,7 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
     , JobSpecBuildInvoker_(Host->GetJobSpecBuildPoolInvoker())
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
+    , LivePreviews_(std::make_shared<TLivePreviewMap>())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
     , Options(std::move(options))
@@ -922,6 +923,9 @@ void TOperationControllerBase::InitializeOrchid()
 {
     YT_LOG_DEBUG("Initializing orchid");
 
+    using TLivePreviewMapService = NYTree::TCollectionBoundMapService<TLivePreviewMap>;
+    LivePreviewService_ = New<TLivePreviewMapService>(std::weak_ptr<TLivePreviewMap>(LivePreviews_));
+
     auto createService = [&] (auto fluentMethod, const TString& key) {
         return IYPathService::FromProducer(BIND(
             [
@@ -994,6 +998,10 @@ void TOperationControllerBase::InitializeOrchid()
         ->AddChild(
             "data_flow_graph",
             DataFlowGraph_->GetService()
+                ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))))
+        ->AddChild(
+            "live_previews",
+            LivePreviewService_
                 ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))))
         ->AddChild(
             "testing",
@@ -5675,10 +5683,17 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
     }
 
+    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
+        RegisterLivePreviewTable("output_" + ToString(index), OutputTables_[index]);
+    }
+
     if (StderrTable_) {
         YT_LOG_INFO("Creating live preview for stderr table");
 
-        auto path = GetOperationPath(OperationId) + "/stderr";
+        auto name = "stderr";
+        auto path = GetOperationPath(OperationId) + "/" + name;
+
+        RegisterLivePreviewTable(name, StderrTable_);
 
         addRequest(
             path,
@@ -5689,6 +5704,18 @@ void TOperationControllerBase::CreateLivePreviewTables()
             "create_stderr",
             StderrTable_->EffectiveAcl,
             StderrTable_->TableUploadOptions.TableSchema.Get());
+    }
+
+    if (GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
+        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled)
+    {
+        auto name = "intermediate";
+        IntermediateTable->LivePreviewTableName = name;
+        (*LivePreviews_)[name] = New<TLivePreview>(New<TTableSchema>(), InputNodeDirectory_);
+    }
+
+    if (CoreTable_) {
+        RegisterLivePreviewTable("core", CoreTable_);
     }
 
     if (IsIntermediateLivePreviewSupported()) {
@@ -8275,11 +8302,24 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
     return false;
 }
 
-void TOperationControllerBase::AttachToIntermediateLivePreview(TChunkId chunkId)
+void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOutputTablePtr& table)
+{
+    // COMPAT(galtsev)
+    if (name.Empty()) {
+        return;
+    }
+
+    auto schema = table->TableUploadOptions.TableSchema.Get();
+    LivePreviews_->emplace(name, New<TLivePreview>(std::move(schema), InputNodeDirectory_));
+    table->LivePreviewTableName = std::move(name);
+}
+
+void TOperationControllerBase::AttachToIntermediateLivePreview(TInputChunkPtr chunk)
 {
     if (IsIntermediateLivePreviewSupported()) {
-        AttachToLivePreview(chunkId, IntermediateTable->LivePreviewTableId);
+        AttachToLivePreview(chunk->GetChunkId(), IntermediateTable->LivePreviewTableId);
     }
+    AttachToLivePreview(IntermediateTable->LivePreviewTableName, chunk);
 }
 
 void TOperationControllerBase::AttachToLivePreview(
@@ -8290,6 +8330,29 @@ void TOperationControllerBase::AttachToLivePreview(
         AsyncTransaction->GetId(),
         tableId,
         {chunkTreeId}));
+}
+
+void TOperationControllerBase::AttachToLivePreview(
+    TStringBuf tableName,
+    TInputChunkPtr chunk)
+{
+    // COMPAT(galtsev)
+    if (tableName.Empty()) {
+        return;
+    }
+
+    YT_VERIFY((*LivePreviews_)[tableName]->Chunks().insert(std::move(chunk)).second);
+}
+
+void TOperationControllerBase::AttachToLivePreview(
+    TStringBuf tableName,
+    const TChunkStripePtr& stripe)
+{
+    for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            AttachToLivePreview(tableName, chunkSlice->GetInputChunk());
+        }
+    }
 }
 
 void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJobSummary& jobSummary)
@@ -8323,15 +8386,17 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
         RegisterOutputChunkReplicas(jobSummary, chunkSpec);
 
         auto chunk = New<TInputChunk>(chunkSpec);
+        AttachToLivePreview(StderrTable_->LivePreviewTableName, chunk);
         RegisterLivePreviewChunk(TDataFlowGraph::StderrDescriptor, /*index*/ 0, std::move(chunk));
     }
 
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 
-    YT_LOG_DEBUG("Stderr chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
+    YT_LOG_DEBUG("Stderr chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v, ChunkCount: %v)",
         joblet->JobId,
         joblet->NodeDescriptor.Address,
-        chunkListId);
+        chunkListId,
+        stderrResult.chunk_specs().size());
 }
 
 void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJobSummary& jobSummary)
@@ -8377,13 +8442,15 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         RegisterOutputChunkReplicas(jobSummary, chunkSpec);
 
         auto chunk = New<TInputChunk>(chunkSpec);
+        AttachToLivePreview(CoreTable_->LivePreviewTableName, chunk);
         RegisterLivePreviewChunk(TDataFlowGraph::CoreDescriptor, /*index*/ 0, std::move(chunk));
     }
 
-    YT_LOG_DEBUG("Core chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
+    YT_LOG_DEBUG("Core chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v, ChunkCount: %v)",
         joblet->JobId,
         joblet->NodeDescriptor.Address,
-        chunkListId);
+        chunkListId,
+        coreResult.chunk_specs().size());
 }
 
 const ITransactionPtr TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
@@ -8435,6 +8502,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
     if (IsOutputLivePreviewSupported()) {
         AttachToLivePreview(chunk->GetChunkId(), table->LivePreviewTableId);
     }
+    AttachToLivePreview(table->LivePreviewTableName, chunk);
 
     RegisterOutputRows(chunk->GetRowCount(), tableIndex);
 
@@ -10286,6 +10354,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeTask_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, DataFlowGraph_);
+    // COMPAT(galtsev)
+    if (context.GetVersion() >= ESnapshotVersion::NewLivePreview) {
+        Persist(context, *LivePreviews_);
+    }
     Persist(context, AvailableExecNodesObserved_);
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
@@ -11062,6 +11134,9 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::AddWithKey(TChunkStrip
     if (Controller_->IsOutputLivePreviewSupported()) {
         Controller_->AttachToLivePreview(chunkListId, table->LivePreviewTableId);
     }
+
+    Controller_->AttachToLivePreview(table->LivePreviewTableName, stripe);
+
     table->OutputChunkTreeIds.emplace_back(key, chunkListId);
     table->ChunkCount += stripe->GetStatistics().ChunkCount;
 

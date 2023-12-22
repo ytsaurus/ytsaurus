@@ -6,6 +6,7 @@
 #include "auto_merge_director.h"
 #include "job_memory.h"
 #include "job_splitter.h"
+#include "live_preview.h"
 #include "task_host.h"
 #include "task.h"
 #include "helpers.h"
@@ -602,6 +603,10 @@ protected:
 
     TDataFlowGraphPtr DataFlowGraph_ = New<TDataFlowGraph>();
 
+    using TLivePreviewMap = THashMap<TString, TLivePreviewPtr>;
+    std::shared_ptr<TLivePreviewMap> LivePreviews_;
+    NYTree::IYPathServicePtr LivePreviewService_;
+
     NYTree::IMapNodePtr UnrecognizedSpec_;
 
     TAtomicIntrusivePtr<NYTree::IYPathService> Orchid_;
@@ -940,11 +945,21 @@ protected:
 
     const NApi::ITransactionPtr GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
-    void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
+    void RegisterLivePreviewTable(TString name, const TOutputTablePtr& table);
+
+    void AttachToIntermediateLivePreview(NChunkClient::TInputChunkPtr chunk) override;
 
     void AttachToLivePreview(
         NChunkClient::TChunkTreeId chunkTreeId,
         NCypressClient::TNodeId tableId);
+
+    void AttachToLivePreview(
+        TStringBuf tableName,
+        NChunkClient::TInputChunkPtr chunk);
+
+    void AttachToLivePreview(
+        TStringBuf tableName,
+        const NChunkPools::TChunkStripePtr& stripe);
 
     void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunk,

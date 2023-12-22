@@ -537,11 +537,15 @@ class TestStderrTable(YTEnvSetup):
         jobs = wait_breakpoint(job_count=3)
         release_breakpoint(job_id=jobs[0])
 
-        live_preview_path = op.get_path() + "/controller_orchid/data_flow_graph/vertices/stderr/live_previews/0"
+        operation_path = op.get_path()
+        live_preview_paths = ["/data_flow_graph/vertices/stderr/live_previews/0"]
+        if self.Env.get_component_version("ytserver-controller-agent").abi >= (23, 3):
+            live_preview_paths.append("/live_previews/stderr")
 
         def check():
             try:
-                expect_to_find_in_stderr_table(live_preview_path, ["GG\n"])
+                for live_preview_path in live_preview_paths:
+                    expect_to_find_in_stderr_table(f"{operation_path}/controller_orchid/{live_preview_path}", ["GG\n"])
                 return True
             except YtError:
                 return False

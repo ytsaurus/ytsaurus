@@ -35,6 +35,7 @@ struct TLivePreviewTableBase
 {
     // Live preview table ids.
     NCypressClient::TNodeId LivePreviewTableId;
+    TString LivePreviewTableName;
 
     void Persist(const TPersistenceContext& context);
 };
