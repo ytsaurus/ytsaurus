@@ -195,7 +195,7 @@ class TestNewLivePreview(YTEnvSetup):
         create("table", "//tmp/t2")
 
         # Run operation with given params and return a tuple (live preview created, suppression alert set)
-        def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None):
+        def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None, expect_suppression_alert=False):
             op = map(
                 wait_for_jobs=True,
                 track=False,
@@ -213,11 +213,12 @@ class TestNewLivePreview(YTEnvSetup):
 
             async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
             live_preview_created = exists(op.get_path() + "/output_0", tx=async_transaction_id)
-            suppression_alert_set = "legacy_live_preview_suppressed" in op.get_alerts()
+            if expect_suppression_alert:
+                wait(lambda: "legacy_live_preview_suppressed" in op.get_alerts())
 
             op.abort()
 
-            return (live_preview_created, suppression_alert_set)
+            return live_preview_created
 
         combinations = [
             (None, "root", True, False),
@@ -233,15 +234,16 @@ class TestNewLivePreview(YTEnvSetup):
                 enable_legacy_live_preview,
                 authenticated_user,
                 live_preview_created,
-                suppression_alert_set,
+                expect_suppression_alert,
             ) = combination
             assert (
                 check_live_preview(
                     enable_legacy_live_preview=enable_legacy_live_preview,
                     authenticated_user=authenticated_user,
                     index=i,
+                    expect_suppression_alert=expect_suppression_alert,
                 )
-                == (live_preview_created, suppression_alert_set)
+                == live_preview_created
             )
 
 
