@@ -19,6 +19,7 @@ DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TResourceLimitsOverrides)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)

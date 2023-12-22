@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, print_debug, update_nodes_dynamic_config, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls, get, set, move, remove, exists, create_user, create_pool, create_pool_tree,
     make_ace, check_permission,
     read_table, write_table,
@@ -3981,14 +3981,18 @@ class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
         })
 
     @authors("eshcherbin")
-    def test_race_between_operation_unregistration_and_fair_share_update(self):
+    @pytest.mark.parametrize("use_dynamic_config_resource_limits_overrides", [False, True])
+    def test_race_between_operation_unregistration_and_fair_share_update(self, use_dynamic_config_resource_limits_overrides):
         # See YT-17137.
         op = run_sleeping_vanilla()
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 1.0)
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/starvation_status") == "non_starving")
 
         node = ls("//sys/cluster_nodes")[0]
-        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {"cpu": 0.5})
+        if use_dynamic_config_resource_limits_overrides:
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 0.5}}})
+        else:
+            set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {"cpu": 0.5})
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu") == 0.0)
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_status") == "below_fair_share")

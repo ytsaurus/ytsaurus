@@ -196,7 +196,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TJobResources result;
-        auto resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
+        auto resourceLimitsOverrides = ComputeEffectiveResourceLimitsOverrides();
 
         #define XX(name, Name) \
             result.Name = (resourceLimitsOverrides.has_##name() \
@@ -536,6 +536,23 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         ResourceLimitsOverrides_.Store(resourceLimits);
+    }
+
+    TNodeResourceLimitsOverrides ComputeEffectiveResourceLimitsOverrides() const
+    {
+        TNodeResourceLimitsOverrides resourceLimits;
+        const auto& resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
+        const auto& dynamicConfigOverrides = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits->Overrides;
+
+        #define XX(name, Name) \
+            if (resourceLimitsOverrides.has_##name()) { \
+                resourceLimits.set_##name(resourceLimitsOverrides.name()); \
+            } else if (dynamicConfigOverrides->Name) { \
+                resourceLimits.set_##name(*dynamicConfigOverrides->Name); \
+            }
+        ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)
+        #undef XX
+        return resourceLimits;
     }
 
     double GetCpuToVCpuFactor() const override

@@ -193,6 +193,8 @@ private:
     void UpdateMemoryFootprint();
     void UpdateJobsCpuLimit();
 
+    NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides ComputeEffectiveResourceLimitsOverrides() const;
+
     TJobResources GetJobResourceUsage() const;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;

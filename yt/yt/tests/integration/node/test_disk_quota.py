@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    authors, wait, events_on_fs, create, ls, get, set, exists,
+    authors, update_nodes_dynamic_config, wait, events_on_fs, create, ls, get, set, exists,
     create_domestic_medium, create_account, read_table,
     write_table, map,
     start_transaction, abort_transaction,
@@ -433,7 +433,8 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
             )
 
     @authors("ignat")
-    def test_multiple_feasible_disk_requests(self):
+    @pytest.mark.parametrize("use_dynamic_config_resource_limits_overrides", [False, True])
+    def test_multiple_feasible_disk_requests(self, use_dynamic_config_resource_limits_overrides):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
 
@@ -442,7 +443,10 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
         node = nodes[0]
         node_path = "//sys/cluster_nodes/{}".format(node)
-        set("{}/@resource_limits_overrides/cpu".format(node_path), 0)
+        if use_dynamic_config_resource_limits_overrides:
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 0}}})
+        else:
+            set(f"{node_path}/@resource_limits_overrides/cpu", 0)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/resource_limits/cpu".format(node)) == 0.0)
 
         def start_op(index):
@@ -472,13 +476,17 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
             for type in ("running", "aborted", "failed"):
                 assert op.get_job_count(type) == 0
 
-        set("{}/@resource_limits_overrides/cpu".format(node_path), 3.0)
+        if use_dynamic_config_resource_limits_overrides:
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 3.0}}})
+        else:
+            set(f"{node_path}/@resource_limits_overrides/cpu", 3.0)
 
         op1.track()
         op2.track()
 
     @authors("ignat")
-    def test_multiple_unfeasible_disk_requests(self):
+    @pytest.mark.parametrize("use_dynamic_config_resource_limits_overrides", [False, True])
+    def test_multiple_unfeasible_disk_requests(self, use_dynamic_config_resource_limits_overrides):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
 
@@ -486,8 +494,11 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
         assert len(nodes) == 1
 
         node = nodes[0]
-        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 0)
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/resource_limits/cpu".format(node)) == 0.0)
+        if use_dynamic_config_resource_limits_overrides:
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 0}}})
+        else:
+            set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/cpu", 0)
+        wait(lambda: get(f"//sys/scheduler/orchid/scheduler/nodes/{node}/resource_limits/cpu") == 0.0)
 
         def start_op(index, medium_type, disk_space_gb):
             output_table = "//tmp/out" + str(index)
@@ -521,7 +532,10 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
             for type in ("running", "aborted", "failed"):
                 assert op.get_job_count(type) == 0
 
-        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 3.0)
+        if use_dynamic_config_resource_limits_overrides:
+            update_nodes_dynamic_config({"resource_limits": {"overrides" : {"cpu": 3.0}}})
+        else:
+            set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/cpu", 3.0)
 
         op1.track()
         op2.track()

@@ -117,6 +117,24 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TResourceLimitsOverrides
+    : public NYTree::TYsonStruct
+{
+public:
+    #define XX(name, Name) \
+        std::optional<decltype(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides::default_instance().name())> Name;
+    ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)
+    #undef XX
+
+    REGISTER_YSON_STRUCT(TResourceLimitsOverrides);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsOverrides)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TResourceLimitsDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -137,6 +155,8 @@ public:
     double TotalCpu;
 
     bool UseInstanceLimitsTracker;
+
+    TResourceLimitsOverridesPtr Overrides;
 
     REGISTER_YSON_STRUCT(TResourceLimitsDynamicConfig);
 

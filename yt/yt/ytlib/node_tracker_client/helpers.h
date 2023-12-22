@@ -54,6 +54,23 @@ namespace NYT::NNodeTrackerClient {
     XX(autotomy_slots,        AutotomySlots) \
     XX(reincarnation_slots,   ReincarnationSlots)
 
+// NB(cherepashka): Removed system_memory from iterating construction described above due to the difficulties of integrating this attribute in the dynamic config.
+#define ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX) \
+    XX(cpu,                   Cpu) \
+    XX(gpu,                   Gpu) \
+    XX(network,               Network) \
+    XX(replication_slots,     ReplicationSlots) \
+    XX(replication_data_size, ReplicationDataSize) \
+    XX(merge_data_size,       MergeDataSize) \
+    XX(removal_slots,         RemovalSlots) \
+    XX(repair_slots,          RepairSlots) \
+    XX(repair_data_size,      RepairDataSize) \
+    XX(seal_slots,            SealSlots) \
+    XX(user_memory,           UserMemory) \
+    XX(merge_slots,           MergeSlots) \
+    XX(autotomy_slots,        AutotomySlots) \
+    XX(reincarnation_slots,   ReincarnationSlots)
+
 // NB: Types must be numbered from 0 to N - 1.
 DEFINE_ENUM(EResourceType,
     (UserSlots)

@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, build_snapshot,
+    authors, print_debug, wait, execute_command, get_driver, build_snapshot,
     exists, ls, get, set, create, remove,
     write_table, update_nodes_dynamic_config,
     create_rack, create_data_center, vanilla,
@@ -97,6 +97,49 @@ class TestNodeTracker(YTEnvSetup):
         node = ls("//sys/cluster_nodes")[0]
         with pytest.raises(YtError):
             remove("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node))
+
+    @authors("cherepashka")
+    def test_resource_limits_overrides_via_dynconfig(self):
+        expected_resource_limits = {
+            "cpu": 10,
+            "network": 4,
+            "user_memory": 123,
+            "system_memory": 234,
+            "replication_slots": 9,
+            "replication_data_size": 25,
+            "merge_data_size": 12,
+            "removal_slots": 2,
+            "repair_slots": 3,
+            "repair_data_size": 13,
+            "seal_slots": 4,
+            "merge_slots": 5,
+            "autotomy_slots": 6,
+            "reincarnation_slots": 7,
+        }
+
+        node = ls("//sys/cluster_nodes")[0]
+        update_nodes_dynamic_config({"resource_limits": {"overrides" : expected_resource_limits}})
+        del expected_resource_limits["system_memory"]
+
+        def validate_resource_limits():
+            resource_limits = get(f"//sys/cluster_nodes/{node}/@resource_limits")
+            differed_resource_limits = dict()
+            for key in expected_resource_limits.keys():
+                if key not in resource_limits.keys():
+                    return False
+                if int(resource_limits[key]) != expected_resource_limits[key]:
+                    differed_resource_limits[key] = f"actual: {resource_limits[key]}; expected: {expected_resource_limits[key]}"
+
+            if len(differed_resource_limits.keys()) > 0:
+                print_debug(f"Diff of resource limits: {differed_resource_limits}")
+                return False
+            return True
+
+        wait(validate_resource_limits)
+
+        # SystemMemory is forbidden to change via resource limits in dynamic config.
+        resource_limits = get(f"//sys/cluster_nodes/{node}/@resource_limits")
+        assert int(resource_limits["system_memory"]) != 234
 
     @authors("babenko")
     def test_user_tags_validation(self):

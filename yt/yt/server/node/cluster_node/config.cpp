@@ -163,6 +163,9 @@ void TResourceLimitsDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_instance_limits_tracker", &TThis::UseInstanceLimitsTracker)
         .Default(true);
 
+    registrar.Parameter("overrides", &TThis::Overrides)
+        .DefaultNew();
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->UserJobs) {
             config->MemoryLimits[EMemoryCategory::UserJobs] = config->UserJobs;
@@ -174,6 +177,17 @@ void TResourceLimitsDynamicConfig::Register(TRegistrar registrar)
             config->MemoryLimits[EMemoryCategory::TabletDynamic] = config->TabletDynamic;
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TResourceLimitsOverrides::Register(TRegistrar registrar)
+{
+    #define XX(name, Name) \
+        registrar.Parameter(#name, &TThis::Name) \
+            .Default();
+    ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)
+    #undef XX
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -514,6 +514,22 @@ void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOv
     ResourceLimitsOverride_ = resourceLimitsOverride;
 }
 
+TNodeResourceLimitsOverrides TNodeResourceManager::ComputeEffectiveResourceLimitsOverrides() const
+{
+    TNodeResourceLimitsOverrides resourceLimits;
+    const auto& dynamicConfigOverrides = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits->Overrides;
+
+    #define XX(name, Name) \
+        if (ResourceLimitsOverride_.has_##name()) { \
+            resourceLimits.set_##name(ResourceLimitsOverride_.name()); \
+        } else if (dynamicConfigOverrides->Name) { \
+            resourceLimits.set_##name(*dynamicConfigOverrides->Name); \
+        }
+    ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)
+    #undef XX
+    return resourceLimits;
+}
+
 void TNodeResourceManager::UpdateLimits()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -620,9 +636,11 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
 
     double newJobsCpuLimit = 0;
 
+    const auto& effectiveResourceLimits = ComputeEffectiveResourceLimitsOverrides();
+
     // COPMAT(gritukan)
-    if (ResourceLimitsOverride_.has_cpu()) {
-        newJobsCpuLimit = ResourceLimitsOverride_.cpu();
+    if (effectiveResourceLimits.has_cpu()) {
+        newJobsCpuLimit = effectiveResourceLimits.cpu();
     } else {
         if (auto cpu = Limits_.Load().Cpu) {
             newJobsCpuLimit = cpu - GetNodeDedicatedCpu();
@@ -750,11 +768,13 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
         }
     }
 
-    if (ResourceLimitsOverride_.has_system_memory()) {
-        limits[EMemoryCategory::SystemJobs]->Value = ResourceLimitsOverride_.system_memory();
+    const auto& effectiveResourceLimits = ComputeEffectiveResourceLimitsOverrides();
+
+    if (effectiveResourceLimits.has_system_memory()) {
+        limits[EMemoryCategory::SystemJobs]->Value = effectiveResourceLimits.system_memory();
     }
-    if (ResourceLimitsOverride_.has_user_memory()) {
-        limits[EMemoryCategory::UserJobs]->Value = ResourceLimitsOverride_.user_memory();
+    if (effectiveResourceLimits.has_user_memory()) {
+        limits[EMemoryCategory::UserJobs]->Value = effectiveResourceLimits.user_memory();
     }
 
     return limits;

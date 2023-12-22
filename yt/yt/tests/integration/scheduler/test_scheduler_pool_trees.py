@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, print_debug, update_nodes_dynamic_config, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
     get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, create_network_project, write_table, write_file,
     map, map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
@@ -102,15 +102,19 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     @authors("ignat")
-    def test_abort_many_orphaned_operations_with_abort(self):
+    @pytest.mark.parametrize("use_dynamic_config_resource_limits_overrides", [False, True])
+    def test_abort_many_orphaned_operations_with_abort(self, use_dynamic_config_resource_limits_overrides):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
 
         node = ls("//sys/cluster_nodes")[0]
-        set(
-            "//sys/cluster_nodes/{}/@resource_limits_overrides".format(node),
-            {"cpu": 10, "user_slots": 10},
-        )
+        if use_dynamic_config_resource_limits_overrides:
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 10, "user_slots": 10}}})
+        else:
+            set(
+                f"//sys/cluster_nodes/{node}/@resource_limits_overrides",
+                {"cpu": 10, "user_slots": 10},
+            )
 
         ops = []
         for i in range(10):
@@ -140,15 +144,19 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     @authors("ignat")
-    def test_abort_many_orphaned_operations_with_update_runtime_parameters(self):
+    @pytest.mark.parametrize("use_dynamic_config_resource_limits_overrides", [False, True])
+    def test_abort_many_orphaned_operations_with_update_runtime_parameters(self, use_dynamic_config_resource_limits_overrides):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
 
         node = ls("//sys/cluster_nodes")[0]
-        set(
-            "//sys/cluster_nodes/{}/@resource_limits_overrides".format(node),
-            {"cpu": 10, "user_slots": 10},
-        )
+        if use_dynamic_config_resource_limits_overrides:
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 10, "user_slots": 10}}})
+        else:
+            set(
+                f"//sys/cluster_nodes/{node}/@resource_limits_overrides",
+                {"cpu": 10, "user_slots": 10},
+            )
 
         ops = []
         for i in range(10):
@@ -184,7 +192,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     @authors("ignat")
-    def test_abort_many_orphaned_operations_with_multiple_trees(self):
+    @pytest.mark.parametrize("use_dynamic_config_resource_limits_overrides", [False, True])
+    def test_abort_many_orphaned_operations_with_multiple_trees(self, use_dynamic_config_resource_limits_overrides):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
 
@@ -193,12 +202,15 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         for index, node in enumerate(nodes):
             tag = "other" + str(index + 1)
-            set(
-                "//sys/cluster_nodes/{}/@resource_limits_overrides".format(node),
-                {"cpu": 10, "user_slots": 10},
-            )
-            set("//sys/cluster_nodes/{}/@user_tags".format(node), [tag])
-            wait(lambda: tag in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
+            if use_dynamic_config_resource_limits_overrides:
+                update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 10, "user_slots": 10}}})
+            else:
+                set(
+                    f"//sys/cluster_nodes/{node}/@resource_limits_overrides",
+                    {"cpu": 10, "user_slots": 10},
+                )
+            set(f"//sys/cluster_nodes/{node}/@user_tags", [tag])
+            wait(lambda: tag in get(f"//sys/scheduler/orchid/scheduler/nodes/{node}/tags"))
 
             create_pool_tree(tag, config={"nodes_filter": tag})
             wait(lambda: tag in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
