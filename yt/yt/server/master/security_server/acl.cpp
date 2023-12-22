@@ -192,11 +192,17 @@ static void DoDeserializeAclOrThrow(
     }
 
     if (!tmpMissingSubjects.empty()) {
+        SortUnique(tmpMissingSubjects);
+
         if (missingSubjects) {
             *missingSubjects = std::move(tmpMissingSubjects);
         } else {
-            THROW_ERROR_EXCEPTION("Some subjects mentioned in ACL are missing")
-                << TErrorAttribute("missing_subjects", tmpMissingSubjects);
+            // NB: Missing subjects should be listed inside the error message
+            // (not attributes) lest the scheduler conflates distinct errors.
+            // See TError::GetSkeleton.
+            THROW_ERROR_EXCEPTION("Some subjects mentioned in ACL are missing "
+                "(MissingSubjects: %v)",
+                tmpMissingSubjects);
         }
     }
 
