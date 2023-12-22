@@ -29,13 +29,14 @@ ENDIF()
 
 TAG(
     ya:yt
+    ya:fat
 )
 
 ENV(ASAN_OPTIONS="detect_leaks=0")
 
 YT_SPEC(yt/yt/tests/integration/spec.yson)
 
-SIZE(MEDIUM)
+SIZE(LARGE)
 
 DATA(arcadia/yt/yt/server/node/data_node/unittests/testdata)
 

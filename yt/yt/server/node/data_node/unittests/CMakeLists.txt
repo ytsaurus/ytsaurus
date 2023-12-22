@@ -48,7 +48,7 @@ set_property(
   unittester-data-node
   PROPERTY
   LABELS
-  MEDIUM
+  LARGE
 )
 set_property(
   TEST

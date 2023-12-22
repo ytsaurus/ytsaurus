@@ -26,13 +26,15 @@ IF (OPENSOURCE)
 ENDIF()
 
 IF (YT_TEAMCITY)
-    TAG(ya:yt)
+    TAG(ya:yt ya:fat)
 
     YT_SPEC(yt/yt/tests/integration/spec.yson)
+
+    SIZE(LARGE)
+ELSE()
+    SIZE(MEDIUM)
 ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/recipe/recipe.inc)
-
-SIZE(MEDIUM)
 
 END()
