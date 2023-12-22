@@ -1120,6 +1120,9 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         wait(lambda: profiler.get("nbd/device/read_bytes", tags) is not None)
         wait(lambda: profiler.get("nbd/device/read_time", tags) is not None)
 
+        wait(lambda: profiler.get("nbd/device/read_block_bytes_from_cache", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/read_block_bytes_from_disk", tags) is not None)
+
         tags = {'type': 'nbd', 'file_path': '//tmp/squashfs.img'}
 
         wait(lambda: profiler.get("volumes/create", tags) is not None)

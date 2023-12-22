@@ -153,11 +153,24 @@ public:
         }
 
         auto readFuture = ReadFromChunks(Chunks_, offset, length, readId);
-        return readFuture.Apply(BIND([=, Logger=Logger, readTimeGuard = std::move(readTimeGuard)](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
+        return readFuture.Apply(BIND([=, tagSet = TagSet_, Logger=Logger, &chunks = Chunks_, readTimeGuard = std::move(readTimeGuard)](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
             YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)",
                 offset,
                 length,
                 readId);
+
+            ui64 dataBytesReadFromCache = 0;
+            ui64 dataBytesReadFromDisk = 0;
+            for (const auto& chunk : chunks) {
+                dataBytesReadFromCache += chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromCache.exchange(0);
+                dataBytesReadFromDisk += chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromDisk.exchange(0);
+            }
+
+            // Update read block counters.
+            NbdProfilerCounters.GetCounter(tagSet, "/device/read_block_bytes_from_cache")
+                .Increment(dataBytesReadFromCache);
+            NbdProfilerCounters.GetCounter(tagSet, "/device/read_block_bytes_from_disk")
+                .Increment(dataBytesReadFromDisk);
 
             std::vector<TSharedRef> refs;
             for (const auto& blockReadResults : chunkReadResults) {
@@ -207,6 +220,7 @@ private:
         i64 Offset = 0;
         std::vector<TBlock> Blocks;
         IChunkReaderPtr Reader;
+        std::shared_ptr<IChunkReader::TReadBlocksOptions> ReadBlocksOptions;
         NChunkClient::NProto::TChunkSpec Spec;
         TRefCountedChunkMetaPtr Meta;
     };
@@ -315,12 +329,7 @@ private:
             blockIndexes.push_back(blockIndex);
         }
 
-        IChunkReader::TReadBlocksOptions readBlocksOptions;
-        readBlocksOptions.EstimatedSize = length;
-        readBlocksOptions.ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
-        readBlocksOptions.ClientOptions.ReadSessionId = readId;
-
-        auto readFuture = chunk.Reader->ReadBlocks(std::move(readBlocksOptions), blockIndexes);
+        auto readFuture = chunk.Reader->ReadBlocks(*chunk.ReadBlocksOptions, blockIndexes);
         return readFuture.Apply(BIND([=, Logger=Logger](const std::vector<NChunkClient::TBlock>& blocks) mutable {
             YT_VERIFY(blocks.size() == blockIndexes.size());
 
@@ -402,6 +411,9 @@ private:
                 ChunkReaderHost_,
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
                 {} /* seedReplicas */);
+
+            chunk.ReadBlocksOptions = std::make_shared<IChunkReader::TReadBlocksOptions>();
+            chunk.ReadBlocksOptions->ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
 
             YT_LOG_INFO("Created chunk reader (File: %v, Chunk: %v)",
                 userObject.GetPath(),
