@@ -193,12 +193,6 @@ private:
             }
         }
 
-        if (format.GetType() == EFormatType::Arrow) {
-            // Temporary workaround to fix a segfault in the TArrowWriter.
-            // TODO(nadya02, apollo1321): Remove after YT-20697.
-            WaitFor(Reader_->GetReadyEvent()).ThrowOnError();
-        }
-
         auto writer = CreateStaticTableWriterForFormat(
             format,
             Reader_->GetNameTable(),
