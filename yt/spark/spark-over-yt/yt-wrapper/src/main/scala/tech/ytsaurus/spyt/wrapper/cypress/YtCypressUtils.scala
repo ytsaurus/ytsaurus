@@ -270,10 +270,6 @@ trait YtCypressUtils {
     createDocument(path, doc, transaction)
   }
 
-  /**
-   * @deprecated Do not use before YT 21.1 release
-   */
-  @Deprecated
   def concatenate(from: Array[String], to: String, transaction: Option[String] = None)
                  (implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._

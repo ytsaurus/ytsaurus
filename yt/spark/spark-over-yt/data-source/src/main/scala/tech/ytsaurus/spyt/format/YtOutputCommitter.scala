@@ -147,21 +147,11 @@ class YtOutputCommitter(jobId: String,
     }
   }
 
-  /**
-   * @deprecated Do not use before YT 21.1 release
-   */
-  @Deprecated
-  private def concatenateSortedTable(conf: Configuration, transaction: String): Unit = {
+  private def concatenateSortedTables(conf: Configuration, transaction: String): Unit = {
     implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
-    YtWrapper.concatenate(Array(tmpPath), path, Some(transaction))
+    val tmpTables = YtWrapper.listDir(tmpPath, Some(transaction)).map(name => s"$tmpPath/$name")
+    YtWrapper.concatenate(path +: tmpTables, path, Some(transaction))
     YtWrapper.remove(tmpPath, Some(transaction))
-  }
-
-  private def mergeSortedTables(conf: Configuration, transaction: String): Unit = {
-    implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
-    val mergeSpec = conf.getYtSpecConf("merge")
-    YtWrapper.mergeTables(tmpPath, path, sorted = true, Some(transaction), mergeSpec)
-    YtWrapper.removeDir(tmpPath, recursive = true, Some(transaction))
   }
 
   override def commitJob(jobContext: JobContext, taskCommits: Seq[FileCommitProtocol.TaskCommitMessage]): Unit = {
@@ -170,7 +160,7 @@ class YtOutputCommitter(jobId: String,
     if (!isDynamicTable(conf)) {
       withTransaction(YtOutputCommitter.getGlobalWriteTransaction(conf)) { transaction =>
         if (isTableSorted(conf)) {
-          mergeSortedTables(conf, transaction)
+          concatenateSortedTables(conf, transaction)
         }
         removeGlobalTransactions()
         commitTransaction(conf, GlobalTransaction)
