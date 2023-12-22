@@ -1480,7 +1480,7 @@ func (e *Encoder) RequestRestart(
 	ctx context.Context,
 	nodeAddress string,
 	opts *yt.RequestRestartOptions,
-) (response *yt.RequestRestartResponse, err error) {
+) (err error) {
 	req := &rpc_proxy.TReqRequestRestart{
 		NodeAddress: &nodeAddress,
 	}
@@ -1489,14 +1489,6 @@ func (e *Encoder) RequestRestart(
 
 	var rsp rpc_proxy.TRspRequestRestart
 	err = e.Invoke(ctx, call, &rsp)
-	if err != nil {
-		return
-	}
-
-	response, err = makeRequestRestartResponse(&rsp)
-	if err != nil {
-		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
-	}
 
 	return
 }

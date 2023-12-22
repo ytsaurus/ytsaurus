@@ -739,12 +739,8 @@ func (e *Encoder) RequestRestart(
 	ctx context.Context,
 	nodeAddress string,
 	options *yt.RequestRestartOptions,
-) (response *yt.RequestRestartResponse, err error) {
-	call := e.newCall(NewRequestRestartParams(nodeAddress, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
-	return
+) (err error) {
+	return e.do(ctx, e.newCall(NewRequestRestartParams(nodeAddress, options)), func(res *CallResult) error { return nil })
 }
 
 func (e *Encoder) MountTable(

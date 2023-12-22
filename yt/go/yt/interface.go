@@ -887,9 +887,6 @@ type ResurrectChunkLocationsResponse struct {
 	LocationUUIDs []guid.GUID
 }
 
-type RequestRestartResponse struct {
-}
-
 type AdminClient interface {
 	// http:verb:"add_member"
 	// http:params:"group","member"
@@ -1005,7 +1002,7 @@ type AdminClient interface {
 		ctx context.Context,
 		nodeAddress string,
 		options *RequestRestartOptions,
-	) (result *RequestRestartResponse, err error)
+	) error
 }
 
 type LockNodeOptions struct {
