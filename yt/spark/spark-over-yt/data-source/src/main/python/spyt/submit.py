@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import signal
@@ -11,6 +12,9 @@ from py4j.protocol import Py4JJavaError
 from enum import Enum
 from datetime import timedelta
 from .utils import scala_buffer_to_list, get_spark_home, get_spyt_home
+
+
+logger = logging.getLogger(__name__)
 
 
 def launch_gateway(memory="512m",
@@ -51,6 +55,7 @@ def launch_gateway(memory="512m",
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         popen_kwargs['preexec_fn'] = preexec_func
+        logger.debug(f"Starting JVM process. Path to bin: {java}")
         proc = Popen(command, **popen_kwargs)
 
         # Wait for the file to appear, or for the process to exit, whichever happens first.
@@ -60,6 +65,7 @@ def launch_gateway(memory="512m",
         if not os.path.isfile(conn_info_file):
             raise Exception("Java gateway process exited before sending its port number")
 
+        logger.debug("Process started. Reading gateway data")
         with open(conn_info_file, "rb") as info:
             gateway_port = read_int(info)
             gateway_secret = UTF8Deserializer().loads(info)
@@ -68,11 +74,13 @@ def launch_gateway(memory="512m",
 
     # Connect to the gateway (or client server to pin the thread between JVM and Python)
     address = '::1' if prefer_ipv6 else '127.0.0.1'
+    logger.debug(f"Connecting to created gateway on {address}:{gateway_port}")
     gateway = JavaGateway(
         gateway_parameters=GatewayParameters(address=address, port=gateway_port,
                                              auth_token=gateway_secret,
                                              auto_convert=True))
 
+    logger.debug("Gateway connection established")
     # Store a reference to the Popen object for use by the caller (e.g., in reading stdout/stderr)
     gateway.proc = proc
     return gateway
@@ -92,10 +100,12 @@ def _submit_classpath(spark_home=None):
 def shutdown_gateway(gateway):
     gateway.shutdown()
     gateway.proc.stdin.close()
+    logger.debug("Gateway stopped")
 
 
 @contextmanager
 def java_gateway(*args, **kwargs):
+    logger.debug("Launching java gateway")
     gateway = launch_gateway(*args, **kwargs)
     try:
         yield gateway
@@ -140,6 +150,7 @@ class SparkSubmissionClient(object):
     def submit(self, launcher, retry_config=None):
         if retry_config is None:
             retry_config = RetryConfig()
+        logger.debug("Job submit")
         jresult = self._jclient.submit(launcher._jlauncher, retry_config._to_java(self.gateway))
         if jresult.isFailure():
             raise RuntimeError(jresult.failed().get().getMessage())
@@ -164,9 +175,11 @@ class SparkSubmissionClient(object):
         return ApplicationStatus.from_string(self._jclient.getStringApplicationStatus(driver_id))
 
     def wait_final(self, app_id, ping_period=5):
+        logger.debug(f"Waiting app {app_id} finishing")
         status = self.get_status(app_id)
         while not SubmissionStatus.is_final(status):
             status = self.get_status(app_id)
+            logger.debug(f"Current app {app_id} status: {status}")
             time.sleep(ping_period)
         return status
 
