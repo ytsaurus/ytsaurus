@@ -188,7 +188,7 @@ TString TJobProxy::GetPreparationPath() const
 
 TString TJobProxy::GetSlotPath() const
 {
-    if (!Config_->RootPath || Config_->TestRootFS) {
+    if ((!Config_->RootPath && !Config_->DockerImage) || Config_->TestRootFS) {
         return NFs::CurrentWorkingDirectory();
     }
 
