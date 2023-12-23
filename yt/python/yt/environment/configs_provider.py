@@ -1792,8 +1792,8 @@ def _get_node_resource_limits_config(yt_config):
 
 
 def _get_node_job_environment_config(yt_config, index, logs_dir):
-    if yt_config.jobs_environment_type == "cri":
-        return {
+    return {
+        "cri": {
             "type": "cri",
             "cri_executor": {
                 "runtime_endpoint": yt_config.cri_endpoint,
@@ -1811,8 +1811,12 @@ def _get_node_job_environment_config(yt_config, index, logs_dir):
                     "read_only": False,
                 },
             ],
-        }
-
-    return {
-        "type": yt_config.jobs_environment_type,
-    }
+        },
+        "porto": {
+            "type": "porto",
+            "use_short_container_names": True,
+        },
+        "simple": {
+            "type": "simple",
+        },
+    }[yt_config.jobs_environment_type]

@@ -278,6 +278,7 @@ class YTEnvSetup(object):
     DELTA_CYPRESS_PROXY_CONFIG = {}
 
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
+    USE_SLOT_USER_ID = None  # If set explicitly, overrides USE_PORTO.
     JOB_ENVIRONMENT_TYPE = None  # "porto", "cri"
     USE_CUSTOM_ROOTFS = False
     USE_DYNAMIC_TABLES = False
@@ -431,10 +432,15 @@ class YTEnvSetup(object):
         elif index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", index):
             clock_count = cls.get_param("NUM_CLOCKS", index)
 
+        if cls.USE_SLOT_USER_ID is None:
+            use_slot_user_id = cls.USE_PORTO
+        else:
+            use_slot_user_id = cls.USE_SLOT_USER_ID
+
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
-            use_slot_user_id=cls.USE_PORTO,
+            use_slot_user_id=use_slot_user_id,
             use_native_client=True,
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
