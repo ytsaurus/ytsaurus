@@ -68,8 +68,8 @@ using namespace NYPath;
 static const THashMap<TString, int> MasterActionTypeToExecutionPriority{
     FOR_EACH_TRANSACTION_ACTION_TYPE()
 };
-
 #undef XX
+#undef FOR_EACH_TRANSACTION_ACTION_TYPE
 
 struct TDatalessLockRowRequest
 {
@@ -106,6 +106,7 @@ struct TDeleteRowRequest
 
 FOR_EACH_REQUEST_TYPE()
 #undef XX
+#undef FOR_EACH_REQUEST_TYPE
 
 class TSequoiaTransaction
     : public ISequoiaTransaction
@@ -454,8 +455,8 @@ private:
 
     void SortRequests()
     {
-        auto getActionPriority = [&typeToPriority = MasterActionTypeToExecutionPriority] (const TTransactionActionData& data) {
-            return GetOrCrash(typeToPriority, data.Type);
+        auto getActionPriority = [] (const TTransactionActionData& data) {
+            return GetOrCrash(MasterActionTypeToExecutionPriority, data.Type);
         };
         for (auto& [_, masterCellCommitSession] : MasterCellCommitSessions_) {
             auto& actions = masterCellCommitSession->TransactionActions;
