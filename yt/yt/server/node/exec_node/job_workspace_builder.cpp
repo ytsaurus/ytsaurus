@@ -442,8 +442,8 @@ private:
 
         if (Context_.DockerImage) {
             return MakeFuture(TError(
-                EErrorCode::RootVolumePreparationFailed,
-                "Docker image is not supported in Porto job environment"));
+                EErrorCode::DockerImagePullingFailed,
+                "External docker image is not supported in Porto job environment"));
         }
 
         const auto& slot = Context_.Slot;
@@ -642,8 +642,9 @@ private:
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         if (!Context_.LayerArtifactKeys.empty()) {
-            return MakeFuture(TError(EErrorCode::RootVolumePreparationFailed,
-                "Proto layers are not supported in CRI job environment"));
+            return MakeFuture(TError(
+                EErrorCode::LayerUnpackingFailed,
+                "Porto layers are not supported in CRI job environment"));
         }
 
         if (const auto& dockerImage = Context_.DockerImage) {
