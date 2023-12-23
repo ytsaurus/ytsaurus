@@ -120,6 +120,11 @@ void TVirtualStaticTable::ListSystemAttributes(std::vector<TAttributeDescriptor>
     descriptors->push_back(EInternedAttributeKey::KeyColumns);
     descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
     descriptors->push_back(EInternedAttributeKey::ChunkCount);
+    descriptors->push_back(EInternedAttributeKey::DataWeight);
+    descriptors->push_back(EInternedAttributeKey::ChunkRowCount);
+    descriptors->push_back(EInternedAttributeKey::RowCount);
+    descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
+    descriptors->push_back(EInternedAttributeKey::UncompressedDataSize);
     descriptors->push_back(EInternedAttributeKey::Dynamic);
     descriptors->push_back(EInternedAttributeKey::Type);
 }
@@ -131,6 +136,17 @@ const THashSet<TInternedAttributeKey>& TVirtualStaticTable::GetBuiltinAttributeK
 
 bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
+    i64 rowCount = 0;
+    i64 dataWeight = 0;
+    i64 uncompressedDataSize = 0;
+    i64 compressedDataSize = 0;
+    for (const auto& chunk : Chunks_) {
+        rowCount += chunk->GetRowCount();
+        dataWeight += chunk->GetDataWeight();
+        uncompressedDataSize += chunk->GetUncompressedDataSize();
+        compressedDataSize += chunk->GetCompressedDataSize();
+    }
+
     switch (key) {
         case EInternedAttributeKey::Schema:
             BuildYsonFluently(consumer)
@@ -162,6 +178,26 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         case EInternedAttributeKey::ChunkCount:
             BuildYsonFluently(consumer)
                 .Value(Chunks_.size());
+            return true;
+        case EInternedAttributeKey::DataWeight:
+            BuildYsonFluently(consumer)
+                .Value(dataWeight);
+            return true;
+        case EInternedAttributeKey::ChunkRowCount:
+            BuildYsonFluently(consumer)
+                .Value(rowCount);
+            return true;
+        case EInternedAttributeKey::RowCount:
+            BuildYsonFluently(consumer)
+                .Value(rowCount);
+            return true;
+        case EInternedAttributeKey::UncompressedDataSize:
+            BuildYsonFluently(consumer)
+                .Value(uncompressedDataSize);
+            return true;
+        case EInternedAttributeKey::CompressedDataSize:
+            BuildYsonFluently(consumer)
+                .Value(compressedDataSize);
             return true;
         case EInternedAttributeKey::Dynamic:
             BuildYsonFluently(consumer)
