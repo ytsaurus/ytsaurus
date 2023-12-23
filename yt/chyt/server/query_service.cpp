@@ -14,10 +14,10 @@
 
 #include <yt/yt/core/actions/current_invoker.h>
 
-#include <yt/yt/core/misc/intrusive_ptr.h>
-
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 #include <Core/Types.h>
 #include <Common/ThreadPool.h>

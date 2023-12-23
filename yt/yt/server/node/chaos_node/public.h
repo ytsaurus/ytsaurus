@@ -10,11 +10,11 @@
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 
-#include <yt/yt/core/misc/intrusive_ptr.h>
-
 #include <yt/yt/core/misc/serialize.h>
 
 #include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 namespace NYT::NChaosNode {
 

@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/intrusive_ptr.h>
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 #include <Core/Types.h>
 #include <Interpreters/ClientInfo.h>

@@ -2,10 +2,10 @@
 
 #include <yt/yt/server/scheduler/allocation.h>
 
-#include <yt/yt/core/misc/intrusive_ptr.h>
-
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>
+
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 namespace NYT::NSchedulerSimulator {
 

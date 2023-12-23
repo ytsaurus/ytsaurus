@@ -1,7 +1,8 @@
 #pragma once
 
 #include <yt/yt/core/misc/error_code.h>
-#include <yt/yt/core/misc/intrusive_ptr.h>
+
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 namespace NYT::NDynamicConfig {
 
