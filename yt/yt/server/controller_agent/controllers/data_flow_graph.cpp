@@ -1,4 +1,5 @@
 #include "data_flow_graph.h"
+#include "live_preview.h"
 
 #include <yt/yt/server/controller_agent/virtual.h>
 
@@ -41,7 +42,6 @@ const TString TDataFlowGraph::StderrDescriptor("stderr");
 
 DECLARE_REFCOUNTED_CLASS(TVertex)
 DECLARE_REFCOUNTED_CLASS(TEdge)
-DECLARE_REFCOUNTED_CLASS(TLivePreview)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,54 +122,6 @@ void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, TargetDescriptor);
     Persist(context, PartitionTag);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLivePreview
-    : public TRefCounted
-{
-public:
-    DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkClient::TInputChunkPtr>, Chunks);
-    DEFINE_BYREF_RW_PROPERTY(TTableSchemaPtr, Schema, New<TTableSchema>());
-
-public:
-    TLivePreview() = default;
-
-    TLivePreview(TTableSchemaPtr schema, TNodeDirectoryPtr nodeDirectory)
-        : Schema_(std::move(schema))
-        , NodeDirectory_(std::move(nodeDirectory))
-    {
-        Initialize();
-    }
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-
-        Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, Chunks_);
-        Persist(context, NodeDirectory_);
-
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= ESnapshotVersion::VirtualTableSchema) {
-            Persist(context, *Schema_);
-        }
-
-        if (context.IsLoad()) {
-            Initialize();
-        }
-    }
-
-private:
-    TNodeDirectoryPtr NodeDirectory_;
-
-    void Initialize()
-    {
-        Service_ = New<TVirtualStaticTable>(Chunks_, Schema_, NodeDirectory_);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TLivePreview)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,6 +35,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((VirtualTableSchema)                   (301303))
     ((UnwrapTimestamp)                      (301304))
     ((AttributeBasedAccessControl)          (301305))
+    ((NewLivePreview)                       (301306))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

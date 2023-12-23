@@ -186,7 +186,7 @@ public:
         YT_VERIFY(!stripe->DataSlices.empty());
         for (const auto& dataSlice : stripe->DataSlices) {
             auto chunk = dataSlice->GetSingleUnversionedChunk();
-            TaskHost_->AttachToIntermediateLivePreview(chunk->GetChunkId());
+            TaskHost_->AttachToIntermediateLivePreview(chunk);
         }
         return TChunkPoolInputAdapterBase::AddWithKey(std::move(stripe), key);
     }
