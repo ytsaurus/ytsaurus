@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <util/system/fs.h>
+#include <util/system/user.h>
 
 #ifdef _linux_
 #include <yt/yt/library/containers/cgroup.h>
@@ -820,6 +821,13 @@ class TCriUserJobEnvironment
     : public IUserJobEnvironment
 {
 public:
+    TCriUserJobEnvironment()
+    {
+        TString username = ::GetUsername();
+        Environment_.push_back("USER=" + username);
+        Environment_.push_back("LOGNAME=" + username);
+    }
+
     TDuration GetBlockIOWatchdogPeriod() const override
     {
         // No IO watchdog for simple job environment.
@@ -914,8 +922,7 @@ public:
     //! Returns the list of environment-specific environment variables in key=value format.
     const std::vector<TString>& GetEnvironmentVariables() const override
     {
-        static std::vector<TString> emptyEnvironment;
-        return emptyEnvironment;
+        return Environment_;
     }
 
     i64 GetMajorPageFaultCount() const override
@@ -925,6 +932,7 @@ public:
 
 private:
     TAtomicIntrusivePtr<TProcessBase> Process_;
+    std::vector<TString> Environment_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriUserJobEnvironment)
