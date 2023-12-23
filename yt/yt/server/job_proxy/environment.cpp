@@ -822,7 +822,7 @@ class TCriUserJobEnvironment
 public:
     TCriUserJobEnvironment()
     {
-        TString username = ::GetUsername();
+        auto username = ::GetUsername();
         Environment_.push_back("USER=" + username);
         Environment_.push_back("LOGNAME=" + username);
     }
