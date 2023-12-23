@@ -109,7 +109,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         }
 
     def _create_table(self, path, *, attributes=None):
-        print_debug("create table with erasure codec:", self.ERASURE_CODEC)
+        print_debug(f"Create table with erasure codec: {self.ERASURE_CODEC}")
         attributes = attributes or {}
         if self.ERASURE_CODEC and "erasure_codec" not in attributes:
             attributes["erasure_codec"] = self.ERASURE_CODEC
@@ -120,7 +120,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
              < datetime.utcnow() - timedelta(seconds=1))
 
     def _set_min_allowed_creation_time(self, min_allowed_creation_time):
-        print_debug("setting min_allowed_creation_time:", min_allowed_creation_time)
+        print_debug(f"Setting min_allowed_creation_time: {min_allowed_creation_time}")
         set("//sys/@config/chunk_manager/chunk_reincarnator/min_allowed_creation_time",
             str(min_allowed_creation_time))
 
@@ -149,8 +149,8 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         def chunks_reincarnated():
             new_chunk_ids = get(f"{table}/@chunk_ids")
             if not whole_table_reincarnation:
-                print_debug(f"old_chunks: {chunk_ids}")
-                print_debug(f"new_chunks: {new_chunk_ids}")
+                print_debug(f"Old chunks: {chunk_ids}")
+                print_debug(f"New chunks: {new_chunk_ids}")
                 return (builtins.set(chunk_ids) & builtins.set(new_chunk_ids)) != builtins.set(chunk_ids)
 
             if builtins.set(new_chunk_ids) & builtins.set(chunk_ids):

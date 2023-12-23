@@ -37,7 +37,7 @@ class TestTracing(ClickHouseTestBase):
             )
             assert abs(result.json()["data"][0]["avg(a)"] - 4.5) < 1e-6
             query_id = result.headers["X-ClickHouse-Query-Id"]
-            print_debug("Query id =", query_id)
+            print_debug(f"Query id: {query_id}")
 
             if trace_method == "traceparent":
                 assert query_id.startswith("33333333-44444444")

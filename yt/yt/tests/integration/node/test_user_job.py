@@ -871,7 +871,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                     sum += value["max_size"]["sum"]
                 return sum
             except KeyError:
-                print_debug("JOB_INFO", job_info)
+                print_debug(f"Job info: {job_info}")
                 return 0
 
         wait(lambda: get_tmpfs_size() >= 4 * 1024 ** 3)
@@ -3416,7 +3416,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
             for job_id in job_ids:
                 phase = op.get_job_phase(job_id)
 
-                print_debug("job_phase", phase)
+                print_debug(f"Job phase: {phase}")
                 if phase != "running_setup_commands" and phase != "running_gpu_check_command":
                     return False
 
@@ -3440,7 +3440,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
             for job_id in job_ids:
                 phase = op.get_job_phase(job_id)
 
-                print_debug("job_phase", phase)
+                print_debug(f"Job phase: {phase}")
                 if phase != "spawning_job_proxy":
                     return False
 
@@ -3471,7 +3471,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
                 for job_id in job_ids:
                     phase = op.get_job_phase(job_id)
 
-                    print_debug("job_phase", phase)
+                    print_debug(f"Job phase: {phase}")
                     if phase != "cleanup":
                         return False
 

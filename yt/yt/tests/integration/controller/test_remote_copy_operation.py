@@ -1474,7 +1474,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyCommandsBase):
             }
         )
 
-        print_debug("job_count: {}".format(op.get_job_count("completed")))
+        print_debug(f"Job count: {op.get_job_count('completed')}")
 
         assert read_table("//tmp/t2") == rows
 

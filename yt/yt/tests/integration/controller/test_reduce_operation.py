@@ -3100,7 +3100,7 @@ for line in sys.stdin:
         }, verbose=False)
         chunk_ids = get("//tmp/in/@chunk_ids")
         assert len(chunk_ids) == 1
-        print_debug("max block size = {}".format(get("#" + chunk_ids[0] + "/@max_block_size")))
+        print_debug(f"Max block size: {get('#' + chunk_ids[0] + '/@max_block_size')}")
 
         create("table", "//tmp/out", attributes={"schema": schema})
 
@@ -3113,7 +3113,7 @@ for line in sys.stdin:
                 spec={"job_count": job_count, "job_io": {"table_writer": {"max_key_weight": 10**5 + 100}},
                       "enable_key_guarantee": False})
             actual_job_count = op.get_job_count("completed", from_orchid=False)
-            print_debug("requested job count = {}, actual_job_count = {}".format(job_count, actual_job_count))
+            print_debug(f"Requested job count: {job_count}, actual job count: {actual_job_count}")
             correct = read_table("//tmp/in", verbose=False) == read_table("//tmp/out", verbose=False)
             assert correct
 

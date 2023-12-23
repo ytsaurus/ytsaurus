@@ -116,7 +116,7 @@ class DynamicTablesBase(YTEnvSetup):
                         try:
                             config_versions = [get("{0}/config_version".format(orchid), driver=driver) for orchid in peers_orchids]
                             if any(version != expected_config_version for version in config_versions):
-                                print_debug("cell {0} is not ready: expected config version: {1}, versions got: {2}".format(
+                                print_debug("Cell {0} is not ready: expected config version: {1}, versions got: {2}".format(
                                     cell_id,
                                     expected_config_version,
                                     config_versions
@@ -125,12 +125,12 @@ class DynamicTablesBase(YTEnvSetup):
 
                             peers_active = [get("{0}/hydra/active".format(orchid), driver=driver) for orchid in peers_orchids]
                             if not all(peers_active):
-                                print_debug("cell {0} is not ready: some peers are not active: {1}".format(cell_id, peers_active))
+                                print_debug("Cell {0} is not ready: some peers are not active: {1}".format(cell_id, peers_active))
                                 return False
 
                             peers_healths = [get("#{0}/@health".format(cell_id), driver=other_driver) for other_driver in get_cluster_drivers(driver)]
                             if not all(health == "good" for health in peers_healths):
-                                print_debug("cell {0} is not ready: some peers are not healthy: {1}".format(cell_id, peers_healths))
+                                print_debug("Cell {0} is not ready: some peers are not healthy: {1}".format(cell_id, peers_healths))
                                 return False
                         except YtError:
                             return False

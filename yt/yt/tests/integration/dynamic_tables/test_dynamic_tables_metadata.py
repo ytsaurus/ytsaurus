@@ -60,12 +60,12 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
     def _sync_mount_table(self, path, **kwargs):
         self._mount_table(path, **kwargs)
-        print_debug("Waiting for tablets to become mounted...")
+        print_debug("Waiting for tablets to become mounted")
         wait_for_tablet_state(path, "mounted", **kwargs)
 
     def _sync_unmount_table(self, path, **kwargs):
         self._unmount_table(path, **kwargs)
-        print_debug("Waiting for tablets to become unmounted...")
+        print_debug("Waiting for tablets to become unmounted")
         wait_for_tablet_state(path, "unmounted", **kwargs)
 
     @authors("savrus")

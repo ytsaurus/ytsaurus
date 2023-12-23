@@ -150,7 +150,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                 op.track()  # this should raise an exception
             current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count", verbose=False)
             peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            print_debug("Peak chunk count = {}, current chunk count = {}".format(peak_chunk_count, current_chunk_count))
+            print_debug(f"Peak chunk count: {peak_chunk_count}, current chunk count: {current_chunk_count}")
             sleep(2)
             if with_revive:
                 i += 1
@@ -158,7 +158,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     with Restarter(self.Env, SCHEDULERS_SERVICE):
                         pass
                     i = 0
-        print_debug("Peak chunk count = {}".format(peak_chunk_count))
+        print_debug(f"Peak chunk count: {peak_chunk_count}")
 
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
     # This is why we use the pytest timeout decorator.
@@ -656,12 +656,12 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                             table_reader={"unavailable_chunk_strategy": "skip"},
                         )
                         if len(data) > 0 and not live_preview_appeared[vertex][i]:
-                            print_debug("Live preview of type {0} and index {1} appeared".format(vertex, i))
+                            print_debug(f"Live preview of type {vertex} and index {i} appeared")
                         live_preview_appeared[vertex][i] = True
                     except YtError:
                         pass
             sleep(0.5)
-            print_debug("{0} jobs completed".format(op.get_job_count("completed")))
+            print_debug(f"{op.get_job_count('completed')} jobs completed")
 
             if all(live_preview_appeared["map"]) and all(live_preview_appeared["auto_merge"]):
                 break
@@ -768,8 +768,8 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             tx = get(op.get_path() + "/@output_transaction_id")
             transaction_chunk_count = get("#" + tx + "/@resource_usage/acc/chunk_count")
             chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
-            print_debug("chunk count =", chunk_count)
-            print_debug("transaction_chunk_count =", transaction_chunk_count)
+            print_debug(f"Chunk count: {chunk_count}")
+            print_debug(f"Transaction chunk count: {transaction_chunk_count}")
             assert abs(transaction_chunk_count - chunk_count) <= 10
             assert transaction_chunk_count <= 40
             assert chunk_count <= 40

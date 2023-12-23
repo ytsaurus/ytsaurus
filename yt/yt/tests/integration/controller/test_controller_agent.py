@@ -304,7 +304,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
             address_to_operations[address].append(op.id)
             operation_to_address[op.id] = address
             operation_to_memory_usage[op.id] = memory_usage
-            print_debug("Operation id", op.id, "ControllerAgent address", address, "memory usage", memory_usage)
+            print_debug(f"Operation id: {op.id}, controller agent address: {address}, memory usage: {memory_usage}")
 
         address_to_memory_usage = {
             address: sum(operation_to_memory_usage[op_id] for op_id in op_ids)
@@ -313,7 +313,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
         balance_ratio = min(address_to_memory_usage.values()) / sum(address_to_memory_usage.values())
 
-        print_debug("BALANCE_RATIO", balance_ratio)
+        print_debug(f"Balance ratio: {balance_ratio}")
         for op in ops:
             print_debug(
                 op.id,

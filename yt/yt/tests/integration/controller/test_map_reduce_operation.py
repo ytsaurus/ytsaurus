@@ -3239,7 +3239,7 @@ done
                 try:
                     os.remove(chunk_path)
                     os.remove(chunk_path + ".meta")
-                    print_debug(f"removed chunk {chunk_id} from node {node} at {chunk_path}")
+                    print_debug(f"Removed chunk {chunk_id} from node {node} at {chunk_path}")
                     removed = True
                 except FileNotFoundError:
                     pass

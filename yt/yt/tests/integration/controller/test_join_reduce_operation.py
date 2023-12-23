@@ -1472,7 +1472,7 @@ echo {v = 2} >&7
 
         result = read_table("//tmp/output", verbose=False)
         for row in result:
-            print_debug("key:", row["key"], "value:", row["value"])
+            print_debug(f"Key: {row['key']}, value: {row['value']}")
         assert len(result) == 11
         row_index = 0
         job_indexes = []

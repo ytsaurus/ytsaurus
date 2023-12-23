@@ -117,7 +117,7 @@ class TestCypressRequestLimits(YTEnvSetup):
         tmp = sorted(tmp)
         assert sorted(ls("//tmp", authenticated_user="u")) == tmp
         size = len(str(ls("//tmp")))
-        print_debug(f"raw_size = {size}")
+        print_debug(f"Raw size: {size}")
         # explicit limit, user's default limit, global default limit, ok
         cases = [
             (None, size // 2, size * 2, False),

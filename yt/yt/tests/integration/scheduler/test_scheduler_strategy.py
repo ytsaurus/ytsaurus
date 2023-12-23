@@ -2379,7 +2379,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         running_jobs = None
         for i in range(200):
             running_jobs = op.get_running_jobs()
-            print_debug("running_jobs:", len(running_jobs))
+            print_debug("Running jobs:", len(running_jobs))
             if not running_jobs:
                 time.sleep(0.1)
             else:

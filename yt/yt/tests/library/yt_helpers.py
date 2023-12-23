@@ -78,7 +78,7 @@ def get_job_count_profiling(tree="default"):
     duration = (datetime.now() - start_time).total_seconds()
 
     # Enable it for debugging.
-    print_debug("job_counters (took {} seconds to calculate): {}".format(duration, job_count))
+    print_debug("Job counters (took {} seconds to calculate): {}".format(duration, job_count))
 
     return job_count
 

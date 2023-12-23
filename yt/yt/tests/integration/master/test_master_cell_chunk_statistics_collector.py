@@ -80,9 +80,9 @@ class TestMasterCellChunkStatisticsCollector(YTEnvSetup):
             verbose_true_histogram[bin_index].append(str(chunk))
 
         if histogram != true_histogram:
-            print_debug(f"actual:   {histogram}")
-            print_debug(f"expected: {true_histogram}")
-            print_debug(f"verbose:  {verbose_true_histogram}")
+            print_debug(f"Actual:   {histogram}")
+            print_debug(f"Expected: {true_histogram}")
+            print_debug(f"Verbose:  {verbose_true_histogram}")
 
         return histogram == true_histogram
 

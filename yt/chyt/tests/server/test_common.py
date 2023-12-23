@@ -372,7 +372,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
-        print_debug("ZZZ", Clique.path_to_run)
         with Clique(instance_count) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
             for i in range(5):

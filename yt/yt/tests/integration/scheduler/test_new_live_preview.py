@@ -173,9 +173,9 @@ class TestNewLivePreview(YTEnvSetup):
         position = 0
         for i, range_ in enumerate(expected_all_ranges_data):
             if all_ranges_data[position:position + len(range_)] != range_:
-                print_debug("position =", position, ", range =", all_ranges[i])
-                print_debug("expected:", range_)
-                print_debug("actual:", all_ranges_data[position:position + len(range_)])
+                print_debug(f"Position: {position}, range: {all_ranges[i]}")
+                print_debug(f"Expected: {range_}")
+                print_debug(f"Actual: {all_ranges_data[position:position + len(range_)]}")
                 assert all_ranges_data[position:position + len(range_)] == range_
             position += len(range_)
 

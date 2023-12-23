@@ -103,7 +103,7 @@ class TestJobExperiment(YTEnvSetup):
             assert op.get_job_count("failed") == 0
 
             counter = Counter([row["network_project"] for row in read_table(self.OUTPUT_TABLE)])
-            print_debug(f"try = {try_count}, counter = {counter}")
+            print_debug(f"Try: {try_count}, counter: {counter}")
 
             if counter["control"] >= 1 and counter["treatment"] >= 2:
                 break
@@ -135,7 +135,7 @@ class TestJobExperiment(YTEnvSetup):
             assert op.get_job_count("failed") == 0
 
             counter = Counter([row["network_project"] for row in read_table(self.OUTPUT_TABLE)])
-            print_debug(f"try = {try_count}, counter = {counter}")
+            print_debug(f"Try: {try_count}, counter: {counter}")
 
             assert counter["control"] == job_count
             assert counter["treatment"] == 0
@@ -180,7 +180,7 @@ class TestJobExperiment(YTEnvSetup):
         assert op.get_job_count("failed") == 0
 
         counter = Counter([row["network_project"] for row in read_table(self.OUTPUT_TABLE)])
-        print_debug(f"counter = {counter}")
+        print_debug(f"Counter: {counter}")
 
         assert counter["control"] == job_count
         assert counter["treatment"] == 0
@@ -272,7 +272,7 @@ class TestJobExperiment(YTEnvSetup):
                 op = self.run_map(command, job_count, user_slots=5, max_failed_job_count=1000)
 
                 counter = Counter([row["network_project"] for row in read_table(self.OUTPUT_TABLE)])
-                print_debug(f"control_failure_rate = {control_failure_rate}, treatment_failure_rate = {treatment_failure_rate}, counter = {counter}")
+                print_debug(f"Control failure rate: {control_failure_rate}, treatment failure rate: {treatment_failure_rate}, counter: {counter}")
 
                 if "mtn_experiment_failed" in op.get_alerts():
                     attributes = op.get_alerts()["mtn_experiment_failed"]["attributes"]
