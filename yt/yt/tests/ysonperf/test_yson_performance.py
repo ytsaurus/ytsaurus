@@ -37,6 +37,10 @@ def _benchmark_dumps(benchmark, dataset_path):
     min_rounds=5,
     warmup=3,
 )
+@pytest.mark.skipif(
+    is_debug() or is_asan_build() or is_msan_build() or yson.TYPE != "BINARY",
+    reason="Performance tests require a genuine release build and binary YSON"
+)
 class TestYsonPerformance(object):
     ACCEPTABLE_TIME_GROW_RATIO = 0.20
     DATASETS_PATH = "testdata"
@@ -51,9 +55,6 @@ class TestYsonPerformance(object):
         ],
     )
     def test_yson_performance(self, benchmark, benchmark_function, dataset, expected_time):
-        if is_debug() or is_asan_build() or is_msan_build() or yson.TYPE != "BINARY":
-            pytest.skip()
-
         dataset_path = os.path.join(self.DATASETS_PATH, dataset)
         benchmark_function(benchmark, dataset_path)
         print_debug(benchmark_function, dataset, benchmark.stats["mean"])

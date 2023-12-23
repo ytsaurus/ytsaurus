@@ -166,7 +166,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
     @pytest.mark.skipif(True, reason="Currently too slow; max42@ is investigating")
-    # @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_auto_merge_does_not_stuck(self, op_type):
         create(
             "table",

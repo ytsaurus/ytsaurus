@@ -51,7 +51,10 @@ def get_first_job_node(op):
 
 ##################################################################
 
-
+@pytest.mark.skipif(
+    is_asan_build() or is_debug_build(),
+    reason="This test suite requires a genuine release build to fit into timeout"
+)
 class TestSchedulingSegments(YTEnvSetup):
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
@@ -115,14 +118,6 @@ class TestSchedulingSegments(YTEnvSetup):
     def _get_nodes_for_segment_in_tree(self, segment, tree="default"):
         node_states = get(self._get_persistent_node_segment_states_path(tree), default={})
         return [node_state["address"] for _, node_state in node_states.items() if node_state["segment"] == segment]
-
-    @classmethod
-    def setup_class(cls):
-        if is_asan_build():
-            pytest.skip("test suite has too high memory consumption for ASAN build")
-        if is_debug_build():
-            pytest.skip("test suite uses 10 nodes that is too much for debug build")
-        super(TestSchedulingSegments, cls).setup_class()
 
     def setup_method(self, method):
         super(TestSchedulingSegments, self).setup_method(method)
@@ -911,6 +906,10 @@ class TestSchedulingSegments(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.skipif(
+    is_asan_build() or is_debug_build(),
+    reason="This test suite requires a genuine release build to fit into timeout"
+)
 class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 10
@@ -1027,14 +1026,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             wait(is_infiniband_cluster)
             ibc = get(scheduler_orchid_node_path(node) + "/infiniband_cluster")
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
-
-    @classmethod
-    def setup_class(cls):
-        if is_asan_build():
-            pytest.skip("test suite has too high memory consumption for ASAN build")
-        if is_debug_build():
-            pytest.skip("test suite uses 10 nodes that is too much for debug build")
-        super(BaseTestSchedulingSegmentsMultiModule, cls).setup_class()
 
     def _get_persistent_node_segment_states_path(self, tree="default"):
         return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)

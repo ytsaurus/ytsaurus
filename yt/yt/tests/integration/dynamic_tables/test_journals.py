@@ -907,11 +907,9 @@ class TestErasureJournals(TestJournalsBase):
         ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @pytest.mark.timeout(300)
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     @authors("babenko", "ignat")
     def test_read_with_repair(self, erasure_codec, enable_chunk_preallocation):
-        if is_asan_build():
-            pytest.skip()
-
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         self._write_and_wait_until_sealed("//tmp/j", PAYLOAD, enable_chunk_preallocation=enable_chunk_preallocation)
 
