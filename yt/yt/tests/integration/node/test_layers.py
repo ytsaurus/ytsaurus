@@ -54,9 +54,7 @@ class TestLayers(TestLayersBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
+            "test_root_fs": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -856,9 +854,6 @@ class TestLocalSquashFSLayers(YTEnvSetup):
                     "type": "porto",
                 },
             },
-            "job_proxy": {
-                "test_root_fs": True,
-            },
         }
     }
 
@@ -995,9 +990,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
+            "test_root_fs": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1158,9 +1151,7 @@ class TestInvalidAttributeValues(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
+            "test_root_fs": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
