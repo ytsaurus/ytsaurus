@@ -23,11 +23,12 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <yt/yt/core/yson/public.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <optional>
 

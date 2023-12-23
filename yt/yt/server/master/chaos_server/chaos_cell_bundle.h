@@ -11,10 +11,11 @@
 
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
 
-#include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/profiling/public.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NChaosServer {
 

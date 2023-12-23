@@ -7,13 +7,14 @@
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/tracing/public.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NHiveServer {
 

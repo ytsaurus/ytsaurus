@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/master/tablet_server/public.h>
 
-#include <yt/yt/core/misc/ref_tracked.h>
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NChunkServer {
 

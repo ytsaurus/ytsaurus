@@ -12,7 +12,8 @@
 #include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NSecurityServer {
 

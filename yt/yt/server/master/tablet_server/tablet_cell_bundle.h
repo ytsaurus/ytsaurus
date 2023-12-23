@@ -18,10 +18,11 @@
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/profiling/public.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NTabletServer {
 

@@ -10,9 +10,10 @@
 #include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/indexed_vector.h>
 #include <yt/yt/core/misc/range.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NChunkServer {
 

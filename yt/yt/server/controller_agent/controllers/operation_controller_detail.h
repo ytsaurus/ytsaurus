@@ -73,13 +73,13 @@
 #include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/histogram.h>
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
 
 #include <yt/yt/core/yson/string.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <optional>
 

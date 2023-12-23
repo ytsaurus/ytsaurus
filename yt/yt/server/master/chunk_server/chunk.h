@@ -20,12 +20,13 @@
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <optional>
 

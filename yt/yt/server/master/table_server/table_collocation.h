@@ -8,7 +8,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/misc/ref_tracked.h>
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NTableServer {
 

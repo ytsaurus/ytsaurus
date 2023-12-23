@@ -7,9 +7,10 @@
 #include <yt/yt/server/master/security_server/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <yt/yt/core/yson/public.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NCypressServer {
 

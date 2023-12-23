@@ -20,11 +20,12 @@
 #include <yt/yt/ytlib/cypress_client/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/library/erasure/public.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <queue>
 #include <variant>

@@ -13,11 +13,12 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/tracing/public.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NTransactionSupervisor {
 

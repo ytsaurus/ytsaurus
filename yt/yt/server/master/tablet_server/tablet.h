@@ -32,10 +32,11 @@
 
 #include <yt/yt/core/misc/aggregate_property.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/ema_counter.h>
 
 #include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <optional>
 

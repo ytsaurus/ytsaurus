@@ -38,7 +38,6 @@
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/concurrency/async_barrier.h>
@@ -50,6 +49,7 @@
 #include <library/cpp/yt/small_containers/compact_set.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <atomic>
 

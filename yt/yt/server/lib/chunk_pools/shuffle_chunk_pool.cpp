@@ -8,7 +8,8 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
-#include <yt/yt/core/misc/ref_tracked.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NChunkPools {
 

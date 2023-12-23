@@ -18,8 +18,9 @@
 
 #include <yt/yt/core/misc/persistent_queue.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NTabletNode {
 
