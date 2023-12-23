@@ -68,3 +68,8 @@ class TestJobs(YTEnvSetup):
         release_breakpoint()
 
         op.track()
+
+
+@authors("khlebnikov")
+class TestJobsCri(TestJobs):
+    JOB_ENVIRONMENT_TYPE = "cri"
