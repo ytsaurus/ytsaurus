@@ -1283,7 +1283,9 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
 
 void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
 {
-    YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
+    YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v, ResourceLimits: %v, ResourceUsage: %v)",
+        FormatResources(SchedulingContext_->ResourceLimits()),
+        FormatResources(SchedulingContext_->ResourceUsage()),
         SchedulingContext_->GetNodeDescriptor()->Id,
         SchedulingContext_->GetNodeDescriptor()->Address);
 
@@ -1293,7 +1295,12 @@ void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
     TJobResources currentResources;
     for (const auto& jobInfo : jobInfos) {
         if (!Dominates(SchedulingContext_->ResourceLimits(), currentResources + jobInfo.Job->ResourceUsage())) {
-            YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v, NodeAddress: %v)",
+            YT_LOG_DEBUG(
+                "Interrupt job since node resources are overcommitted "
+                "(ResourceLimits: %v, CurrentResourceUsage: %v, JobResourceUsage: %v, JobId: %v, OperationId: %v, NodeAddress: %v)",
+                FormatResources(SchedulingContext_->ResourceLimits()),
+                FormatResources(currentResources),
+                FormatResources(jobInfo.Job->ResourceUsage()),
                 jobInfo.Job->GetId(),
                 jobInfo.OperationElement->GetId(),
                 SchedulingContext_->GetNodeDescriptor()->Address);
