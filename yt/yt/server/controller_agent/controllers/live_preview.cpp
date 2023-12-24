@@ -13,9 +13,17 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLivePreview::TLivePreview(TTableSchemaPtr schema, TNodeDirectoryPtr nodeDirectory)
+TLivePreview::TLivePreview(
+    TTableSchemaPtr schema,
+    TNodeDirectoryPtr nodeDirectory,
+    TOperationId operationId,
+    TString name,
+    TString path)
     : Schema_(std::move(schema))
     , NodeDirectory_(std::move(nodeDirectory))
+    , OperationId_(operationId)
+    , Name_(std::move(name))
+    , Path_(std::move(path))
 {
     Initialize();
 }
@@ -32,6 +40,13 @@ void TLivePreview::Persist(const TPersistenceContext& context)
         Persist(context, *Schema_);
     }
 
+    // COMPAT(galtsev)
+    if (context.GetVersion() >= ESnapshotVersion::LivePreviewAnnotation) {
+        Persist(context, OperationId_);
+        Persist(context, Name_);
+        Persist(context, Path_);
+    }
+
     if (context.IsLoad()) {
         Initialize();
     }
@@ -39,7 +54,7 @@ void TLivePreview::Persist(const TPersistenceContext& context)
 
 void TLivePreview::Initialize()
 {
-    Service_ = New<TVirtualStaticTable>(Chunks_, Schema_, NodeDirectory_);
+    Service_ = New<TVirtualStaticTable>(Chunks_, Schema_, NodeDirectory_, OperationId_, Name_, Path_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

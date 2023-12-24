@@ -36,6 +36,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((UnwrapTimestamp)                      (301304))
     ((AttributeBasedAccessControl)          (301305))
     ((NewLivePreview)                       (301306))
+    ((LivePreviewAnnotation)                (301307))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

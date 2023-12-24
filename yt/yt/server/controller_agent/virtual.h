@@ -26,7 +26,10 @@ public:
     TVirtualStaticTable(
         const THashSet<NChunkClient::TInputChunkPtr>& chunks,
         NTableClient::TTableSchemaPtr schema,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        TOperationId operationId,
+        TString name,
+        TString path);
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
@@ -56,6 +59,10 @@ private:
     NTableClient::TTableSchemaPtr Schema_;
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+
+    TOperationId OperationId_;
+    TString Name_;
+    TString Path_;
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);

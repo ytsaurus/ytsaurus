@@ -5711,7 +5711,11 @@ void TOperationControllerBase::CreateLivePreviewTables()
     {
         auto name = "intermediate";
         IntermediateTable->LivePreviewTableName = name;
-        (*LivePreviews_)[name] = New<TLivePreview>(New<TTableSchema>(), InputNodeDirectory_);
+        (*LivePreviews_)[name] = New<TLivePreview>(
+            New<TTableSchema>(),
+            InputNodeDirectory_,
+            OperationId,
+            name);
     }
 
     if (CoreTable_) {
@@ -8310,7 +8314,9 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
     }
 
     auto schema = table->TableUploadOptions.TableSchema.Get();
-    LivePreviews_->emplace(name, New<TLivePreview>(std::move(schema), InputNodeDirectory_));
+    LivePreviews_->emplace(
+        name,
+        New<TLivePreview>(std::move(schema), InputNodeDirectory_, OperationId, name, table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
