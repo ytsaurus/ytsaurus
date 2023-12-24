@@ -27,7 +27,6 @@
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
-#include <yt/yt/server/lib/misc/tagged_counters.h>
 
 #include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
@@ -42,6 +41,8 @@
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/library/program/program.h>
+
+#include <yt/yt/library/profiling/tagged_counters.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -2204,7 +2205,7 @@ public:
 
         VolumeProfilerCounters.GetGauge(TagSet_, "/count").Update(VolumeCounters.Decrement(TagSet_));
 
-        VolumeProfilerCounters.GetCounter(TagSet_, "/remove").Increment(1);
+        VolumeProfilerCounters.GetCounter(TagSet_, "/removed").Increment(1);
         TEventTimerGuard volumeRemoveTimeGuard(VolumeProfilerCounters.GetTimer(TagSet_, "/remove_time"));
 
         const auto& volumeId = GetId();
@@ -2284,7 +2285,7 @@ public:
 
         VolumeProfilerCounters.GetGauge(TagSet_, "/count").Update(VolumeCounters.Decrement(TagSet_));
 
-        VolumeProfilerCounters.GetCounter(TagSet_, "/remove").Increment(1);
+        VolumeProfilerCounters.GetCounter(TagSet_, "/removed").Increment(1);
         TEventTimerGuard volumeRemoveTimeGuard(VolumeProfilerCounters.GetTimer(TagSet_, "/remove_time"));
 
         const auto& volumeId = GetId();
@@ -2372,7 +2373,7 @@ public:
 
         VolumeProfilerCounters.GetGauge(TagSet_, "/count").Update(VolumeCounters.Decrement(TagSet_));
 
-        VolumeProfilerCounters.GetCounter(TagSet_, "/remove").Increment(1);
+        VolumeProfilerCounters.GetCounter(TagSet_, "/removed").Increment(1);
         TEventTimerGuard volumeRemoveTimeGuard(VolumeProfilerCounters.GetTimer(TagSet_, "/remove_time"));
 
         const auto& volumeId = GetId();
@@ -2626,7 +2627,7 @@ public:
             .ToImmediatelyCancelable()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
                 auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "overlay", /* volumeFilePath */ "n/a");
-                VolumeProfilerCounters.GetCounter(tagSet, "/create").Increment(1);
+                VolumeProfilerCounters.GetCounter(tagSet, "/created").Increment(1);
                 TEventTimerGuard volumeCreateTimeGuard(VolumeProfilerCounters.GetTimer(tagSet, "/create_time"));
                 return this_->CreateOverlayVolume(tag, std::move(tagSet), std::move(volumeCreateTimeGuard), options, overlayDataArray);
             }).AsyncVia(GetCurrentInvoker()))
@@ -2774,7 +2775,7 @@ private:
             YT_VERIFY(artifactKey.has_nbd_export_id());
 
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "nbd", /* volumeFilePath */ artifactKey.data_source().path());
-            VolumeProfilerCounters.GetCounter(tagSet, "/create").Increment(1);
+            VolumeProfilerCounters.GetCounter(tagSet, "/created").Increment(1);
             TEventTimerGuard volumeCreateTimeGuard(VolumeProfilerCounters.GetTimer(tagSet, "/create_time"));
 
             // There could be a CreateNbdVolume() failure after a successful PrepareNbdExport().
@@ -2818,7 +2819,7 @@ private:
             auto volumeFuture = downloadFuture.Apply(
                 BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
                     auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "squashfs", /* volumeFilePath */ artifactKey.data_source().path());
-                    VolumeProfilerCounters.GetCounter(tagSet, "/create").Increment(1);
+                    VolumeProfilerCounters.GetCounter(tagSet, "/created").Increment(1);
                     TEventTimerGuard volumeCreateTimeGuard(VolumeProfilerCounters.GetTimer(tagSet, "/create_time"));
 
                     // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
