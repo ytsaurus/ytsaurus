@@ -153,24 +153,11 @@ public:
         }
 
         auto readFuture = ReadFromChunks(Chunks_, offset, length, readId);
-        return readFuture.Apply(BIND([=, tagSet = TagSet_, Logger=Logger, &chunks = Chunks_, readTimeGuard = std::move(readTimeGuard)](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
+        return readFuture.Apply(BIND([=, Logger=Logger, readTimeGuard = std::move(readTimeGuard)](const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
             YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)",
                 offset,
                 length,
                 readId);
-
-            ui64 dataBytesReadFromCache = 0;
-            ui64 dataBytesReadFromDisk = 0;
-            for (const auto& chunk : chunks) {
-                dataBytesReadFromCache += chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromCache.exchange(0);
-                dataBytesReadFromDisk += chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromDisk.exchange(0);
-            }
-
-            // Update read block counters.
-            NbdProfilerCounters.GetCounter(tagSet, "/device/read_block_bytes_from_cache")
-                .Increment(dataBytesReadFromCache);
-            NbdProfilerCounters.GetCounter(tagSet, "/device/read_block_bytes_from_disk")
-                .Increment(dataBytesReadFromDisk);
 
             std::vector<TSharedRef> refs;
             for (const auto& blockReadResults : chunkReadResults) {
@@ -330,8 +317,16 @@ private:
         }
 
         auto readFuture = chunk.Reader->ReadBlocks(*chunk.ReadBlocksOptions, blockIndexes);
-        return readFuture.Apply(BIND([=, Logger=Logger](const std::vector<NChunkClient::TBlock>& blocks) mutable {
+        return readFuture.Apply(BIND([=, tagSet = TagSet_, Logger = Logger](const std::vector<NChunkClient::TBlock>& blocks) mutable {
             YT_VERIFY(blocks.size() == blockIndexes.size());
+
+            // Update read block counters.
+            NbdProfilerCounters.GetCounter(tagSet, "/device/read_block_bytes_from_cache")
+                .Increment(chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromCache.exchange(0));
+            NbdProfilerCounters.GetCounter(tagSet, "/device/read_block_bytes_from_disk")
+                .Increment(chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromDisk.exchange(0));
+            NbdProfilerCounters.GetCounter(tagSet, "/device/read_block_meta_bytes_from_disk")
+                .Increment(chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->MetaBytesReadFromDisk.exchange(0));
 
             std::vector<TSharedRef> refs;
             for (auto i = 0u; i < blockIndexes.size(); ++i) {
