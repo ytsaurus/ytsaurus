@@ -7,7 +7,8 @@ import pytest
 import platform
 import os.path
 
-from yt_commands import (authors, wait, read_table, get, ls, create, write_table, set, update_nodes_dynamic_config)
+from yt_commands import (authors, wait, read_table, get, ls, create, write_table, set, update_nodes_dynamic_config, get_applied_node_dynamic_config)
+from yt.common import YtError
 
 
 @authors("capone212")
@@ -123,6 +124,44 @@ class TestIoEngine(YTEnvSetup):
         read_table("//tmp/test")
 
         wait(lambda: any(self.get_pending_read_memory(node) > 1024 for node in nodes))
+
+    @authors("don-dron")
+    def test_rpc_server_queue_limit(self):
+        REPLICATION_FACTOR = 1
+
+        update_nodes_dynamic_config({
+            "rpc_server": {
+                "services": {
+                    "DataNodeService": {
+                        "methods": {
+                            "PutBlocks": {
+                                "max_queue_size": -1
+                            }
+                        }
+                    }
+                }
+            }
+        })
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        ys = [{"key": "x"}]
+
+        with pytest.raises(YtError, match="Request queue size limit exceeded"):
+            write_table("//tmp/test", ys)
+
+        set("//sys/cluster_nodes/@config", {})
+
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get_applied_node_dynamic_config(node) == {})
+
+        ys = [{"key": "x"}]
+        write_table("//tmp/test", ys)
 
     @authors("don-dron")
     @pytest.mark.skip(reason="The tcmalloc's patch 'user_data.patch' does NOT process user_data in StackTrace's hash")

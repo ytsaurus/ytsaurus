@@ -426,6 +426,8 @@ public:
 
     bool EnableMemoryReferenceTracker;
 
+    NRpc::TServerDynamicConfigPtr RpcServer;
+
     //! Network throttler limit is this smaller than NetworkBandwidth.
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
