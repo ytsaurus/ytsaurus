@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/misc/ref_counted.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 #include <yt/yt/core/rpc/public.h>
 

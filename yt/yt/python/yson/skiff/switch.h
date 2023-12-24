@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/ref_counted.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 #include <CXX/Extensions.hxx> // pycxx
 #include <CXX/Objects.hxx> // pycxx

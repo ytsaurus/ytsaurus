@@ -5,7 +5,7 @@
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/client/table_client/public.h>
 
-#include <yt/yt/core/misc/ref_counted.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 #include <library/cpp/yt/memory/ref.h>
 
