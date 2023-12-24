@@ -253,7 +253,12 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
     }
 
     if (context.Statistics && updateStatistics) {
-        YT_VERIFY(*context.Statistics == *updateStatistics);
+        YT_LOG_ALERT_IF(*context.Statistics != *updateStatistics,
+            "Statistics mismatch detected while ending upload "
+            "(ChunkOwnerNodeId: %v, ContextStatistics: %v, UpdateStatistics: %v)",
+            GetVersionedId(),
+            *context.Statistics,
+            *updateStatistics);
     }
 
     switch (UpdateMode_) {
