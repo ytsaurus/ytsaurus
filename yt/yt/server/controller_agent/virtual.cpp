@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
@@ -23,6 +25,7 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NScheduler;
 
 using NYT::FromProto;
 
@@ -31,10 +34,16 @@ using NYT::FromProto;
 TVirtualStaticTable::TVirtualStaticTable(
     const THashSet<NChunkClient::TInputChunkPtr>& chunks,
     TTableSchemaPtr schema,
-    TNodeDirectoryPtr nodeDirectory)
+    TNodeDirectoryPtr nodeDirectory,
+    TOperationId operationId,
+    TString name,
+    TString path)
     : Chunks_(chunks)
     , Schema_(std::move(schema))
     , NodeDirectory_(std::move(nodeDirectory))
+    , OperationId_(operationId)
+    , Name_(std::move(name))
+    , Path_(std::move(path))
 { }
 
 bool TVirtualStaticTable::DoInvoke(const IYPathServiceContextPtr& context)
@@ -123,8 +132,11 @@ void TVirtualStaticTable::ListSystemAttributes(std::vector<TAttributeDescriptor>
     descriptors->push_back(EInternedAttributeKey::DataWeight);
     descriptors->push_back(EInternedAttributeKey::ChunkRowCount);
     descriptors->push_back(EInternedAttributeKey::RowCount);
-    descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
     descriptors->push_back(EInternedAttributeKey::UncompressedDataSize);
+    descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
+    if (OperationId_ && !Name_.Empty()) {
+        descriptors->push_back(EInternedAttributeKey::Annotation);
+    }
     descriptors->push_back(EInternedAttributeKey::Dynamic);
     descriptors->push_back(EInternedAttributeKey::Type);
 }
@@ -145,6 +157,20 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         dataWeight += chunk->GetDataWeight();
         uncompressedDataSize += chunk->GetUncompressedDataSize();
         compressedDataSize += chunk->GetCompressedDataSize();
+    }
+
+    TString annotation;
+    if (OperationId_ && !Name_.Empty()) {
+        annotation = Format(
+            "### Live preview for `%v` table of the operation `%v`.\n\n"
+            "Use the following command to copy it:\n"
+            "```\n"
+            "yt concatenate --src %v/controller_orchid/live_previews/%v --dst //path/to/the/table\n"
+            "```\n",
+            Path_.Empty() ? Name_ : Path_,
+            OperationId_,
+            GetOperationPath(OperationId_),
+            Name_);
     }
 
     switch (key) {
@@ -199,6 +225,13 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
             BuildYsonFluently(consumer)
                 .Value(compressedDataSize);
             return true;
+        case EInternedAttributeKey::Annotation:
+            if (OperationId_ && !Name_.Empty()) {
+                BuildYsonFluently(consumer)
+                    .Value(annotation);
+                return true;
+            }
+            return false;
         case EInternedAttributeKey::Dynamic:
             BuildYsonFluently(consumer)
                 .Value(false);
