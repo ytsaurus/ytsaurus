@@ -2366,7 +2366,7 @@ private:
     void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         THashSet<TJobId>* jobsToPostpone,
-        std::vector<TJobId>* jobsToAbort) override
+        THashMap<TJobId, EAbortReason>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2377,7 +2377,7 @@ private:
         for (const auto& jobUpdate : jobUpdates) {
             switch (jobUpdate.Status) {
                 case EJobUpdateStatus::Running: {
-                    bool shouldAbortJob = false;
+                    std::optional<EAbortReason> maybeAbortReason;
                     ProcessUpdatedJob(
                         treeSnapshot,
                         jobUpdate.OperationId,
@@ -2385,10 +2385,10 @@ private:
                         jobUpdate.JobResources,
                         jobUpdate.JobDataCenter,
                         jobUpdate.JobInfinibandCluster,
-                        &shouldAbortJob);
+                        &maybeAbortReason);
 
-                    if (shouldAbortJob) {
-                        jobsToAbort->push_back(jobUpdate.JobId);
+                    if (maybeAbortReason) {
+                        EmplaceOrCrash(*jobsToAbort, jobUpdate.JobId, *maybeAbortReason);
                         // NB(eshcherbin): We want the node shard to send us a job finished update,
                         // this is why we have to postpone the job here. This is very ad-hoc, but I hope it'll
                         // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
@@ -2420,11 +2420,8 @@ private:
         const TJobResources& jobResources,
         const std::optional<TString>& jobDataCenter,
         const std::optional<TString>& jobInfinibandCluster,
-        bool* shouldAbortJob)
+        std::optional<EAbortReason>* maybeAbortReason)
     {
-
-        *shouldAbortJob = false;
-
         // NB: Should be filtered out on large clusters.
         YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
 
@@ -2436,7 +2433,7 @@ private:
                 jobResources,
                 jobDataCenter,
                 jobInfinibandCluster,
-                shouldAbortJob);
+                maybeAbortReason);
         }
     }
 

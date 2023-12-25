@@ -185,7 +185,7 @@ struct ISchedulerStrategy
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         THashSet<TJobId>* jobsToPostpone,
-        std::vector<TJobId>* jobsToAbort) = 0;
+        THashMap<TJobId, EAbortReason>* jobsToAbort) = 0;
 
     //! Save some strategy-specific attributes from handshake result.
     virtual void OnMasterHandshake(const TMasterHandshakeResult& result) = 0;

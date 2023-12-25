@@ -76,7 +76,7 @@ struct IFairShareTree
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         THashSet<TJobId>* jobsToPostpone,
-        std::vector<TJobId>* jobsToAbort) = 0;
+        THashMap<TJobId, EAbortReason>* jobsToAbort) = 0;
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 

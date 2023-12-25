@@ -600,7 +600,7 @@ public:
         const TJobResources& jobResources,
         const std::optional<TString>& jobDataCenter,
         const std::optional<TString>& jobInfinibandCluster,
-        bool* shouldAbortJob) const;
+        std::optional<EAbortReason>* maybeAbortReason) const;
     void ProcessFinishedJob(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TSchedulerOperationElement* element,

@@ -217,7 +217,7 @@ public:
     void ProcessJobUpdates(
         const std::vector<NScheduler::TJobUpdate>& jobUpdates,
         THashSet<NScheduler::TJobId>* jobsToPostpone,
-        std::vector<NScheduler::TJobId>* jobsToAbort);
+        THashMap<NScheduler::TJobId, NScheduler::EAbortReason>* jobsToAbort);
 
     void UnregisterOperation(NScheduler::IOperationStrategyHost* operation);
 

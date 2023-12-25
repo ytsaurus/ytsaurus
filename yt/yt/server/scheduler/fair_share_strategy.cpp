@@ -1009,7 +1009,7 @@ public:
     void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         THashSet<TJobId>* jobsToPostpone,
-        std::vector<TJobId>* jobsToAbort) override
+        THashMap<TJobId, EAbortReason>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(jobsToPostpone->empty());
@@ -1037,7 +1037,7 @@ public:
                     switch (jobUpdate.Status) {
                         case EJobUpdateStatus::Running:
                             // Job is orphaned (does not belong to any tree), aborting it.
-                            jobsToAbort->push_back(jobUpdate.JobId);
+                            EmplaceOrCrash(*jobsToAbort, jobUpdate.JobId, EAbortReason::NonexistentPoolTree);
                             break;
                         case EJobUpdateStatus::Finished:
                             // Job is finished but tree does not exist, nothing to do.
