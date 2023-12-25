@@ -518,6 +518,7 @@ class TestStderrTable(YTEnvSetup):
         assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]
 
     @authors("gritukan")
+    @pytest.mark.xfail(reason="Sending of chunk specs in heartbeats from nodes to controller agents are disabled")
     def test_new_live_preview(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
