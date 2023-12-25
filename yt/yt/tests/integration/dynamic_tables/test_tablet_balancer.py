@@ -276,7 +276,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             },
         })
 
-    def _set_parameterized_balancing_default_metric(self, metric):
+    def _set_default_metric(self, metric):
         set(
             "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
             {
@@ -292,14 +292,14 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             }
         )
 
-    def _set_parameterized_balancing_group_config(self, group, config):
+    def _set_group_config(self, group, config):
         set(
             f"//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/{group}",
             config
         )
 
     @authors("alexelexa")
-    def test_parameterized_balancing_auto_move(self):
+    def test_auto_move(self):
         cells = sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
@@ -309,7 +309,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         }
         set("//tmp/t/@tablet_balancer_config", config)
 
-        self._set_parameterized_balancing_default_metric("double([/statistics/uncompressed_data_size])")
+        self._set_default_metric("double([/statistics/uncompressed_data_size])")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
 
         sync_reshard_table("//tmp/t", [[], [10]])
@@ -329,15 +329,15 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
     @authors("alexelexa")
-    def test_parameterized_balancing_config(self):
+    def test_config(self):
         cells = sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
 
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
-        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
-        self._set_parameterized_balancing_group_config("party", {"parameterized": {"metric": parameterized_balancing_metric}, "type": "parameterized"})
+        self._set_default_metric(parameterized_balancing_metric)
+        self._set_group_config("party", {"parameterized": {"metric": parameterized_balancing_metric}, "type": "parameterized"})
 
         sync_reshard_table("//tmp/t", [[], [5]])
         sync_mount_table("//tmp/t", cell_id=cells[0])
@@ -367,13 +367,13 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         ],
     )
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
-    def test_parameterized_move_balancing(self, parameterized_balancing_metric, in_memory_mode):
+    def test_move_distribution(self, parameterized_balancing_metric, in_memory_mode):
         cells = sync_create_cells(2)
 
         self._create_sorted_table(
             "//tmp/t",
             in_memory_mode=in_memory_mode)
-        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
+        self._set_default_metric(parameterized_balancing_metric)
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
@@ -407,13 +407,13 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
     @authors("alexelexa")
     @pytest.mark.parametrize("trigger_by", ["node", "cell"])
-    def test_parameterized_move_balancing_trigger(self, trigger_by):
+    def test_move_trigger(self, trigger_by):
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
 
         cells = sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
-        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
+        self._set_default_metric(parameterized_balancing_metric)
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
@@ -464,7 +464,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "double([/statistics/uncompressed_data_size])"
         ],
     )
-    def test_parameterized_reshard_balancing_split(self, parameterized_balancing_metric):
+    def test_split(self, parameterized_balancing_metric):
         sync_create_cells(2)
 
         self._apply_dynamic_config_patch({
@@ -472,7 +472,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         })
 
         self._create_sorted_table("//tmp/t")
-        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
+        self._set_default_metric(parameterized_balancing_metric)
         self._enable_parameterized_reshard("default")
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
@@ -504,11 +504,11 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "double([/statistics/uncompressed_data_size])"
         ],
     )
-    def test_parameterized_reshard_balancing_merge(self, parameterized_balancing_metric):
+    def test_merge(self, parameterized_balancing_metric):
         sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
-        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
+        self._set_default_metric(parameterized_balancing_metric)
         self._enable_parameterized_reshard("default")
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
