@@ -860,10 +860,11 @@ void TCompositeElement::TruncateFairShareInFifoPools(EFairShareType fairShareTyp
                 childOperation->Attributes().SetDetailedFairShare(TResourceVector::Zero(), fairShareType);
                 truncatedChildren.insert(childOperation);
 
-                YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, FairShareType: %v, TruncatedFairShare: %v)",
+                YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, FairShareType: %v, TruncatedFairShare: %v, DemandShare: %v)",
                     childOperation->GetId(),
                     fairShareType,
-                    childFairShare);
+                    childFairShare,
+                    childAttributes.DemandShare);
             }
         }
     }
