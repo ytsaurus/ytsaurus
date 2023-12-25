@@ -2494,11 +2494,13 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
     }
 
     const auto& treeConfig = treeSnapshot->TreeConfig();
-    bool shouldUpdateRunningJobStatistics = !nodeState->LastRunningJobStatisticsUpdateTime ||
+    bool shouldUpdateRunningJobStatistics = nodeState->ForceRunningJobStatisticsUpdate ||
+        !nodeState->LastRunningJobStatisticsUpdateTime ||
         schedulingContext->GetNow() > *nodeState->LastRunningJobStatisticsUpdateTime + DurationToCpuDuration(treeConfig->RunningJobStatisticsUpdatePeriod);
     if (shouldUpdateRunningJobStatistics) {
-        nodeState->RunningJobStatistics = ComputeRunningJobStatistics(schedulingContext, treeSnapshot);
+        nodeState->RunningJobStatistics = ComputeRunningJobStatistics(nodeState, schedulingContext, treeSnapshot);
         nodeState->LastRunningJobStatisticsUpdateTime = schedulingContext->GetNow();
+        nodeState->ForceRunningJobStatisticsUpdate = false;
     }
 
     nodeState->Descriptor = schedulingContext->GetNodeDescriptor();
@@ -2773,7 +2775,7 @@ void TFairShareTreeJobScheduler::BuildSchedulingAttributesStringForOngoingJobs(
     TInstant now,
     TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
-    auto cachedJobPreemptionStatuses = treeSnapshot
+    const auto& cachedJobPreemptionStatuses = treeSnapshot
         ? treeSnapshot->SchedulingSnapshot()->CachedJobPreemptionStatuses()
         : TCachedJobPreemptionStatuses{.UpdateTime = now};
 
@@ -3127,10 +3129,11 @@ void TFairShareTreeJobScheduler::InitSchedulingProfilingCounters()
 }
 
 TRunningJobStatistics TFairShareTreeJobScheduler::ComputeRunningJobStatistics(
+    const TFairShareTreeJobSchedulerNodeState* nodeState,
     const ISchedulingContextPtr& schedulingContext,
     const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
-    auto cachedJobPreemptionStatuses = treeSnapshot->SchedulingSnapshot()->CachedJobPreemptionStatuses();
+    const auto& cachedJobPreemptionStatuses = treeSnapshot->SchedulingSnapshot()->CachedJobPreemptionStatuses();
     auto now = CpuInstantToInstant(schedulingContext->GetNow());
 
     TRunningJobStatistics runningJobStatistics;
@@ -3143,9 +3146,23 @@ TRunningJobStatistics TFairShareTreeJobScheduler::ComputeRunningJobStatistics(
         runningJobStatistics.TotalCpuTime += jobCpuTime;
         runningJobStatistics.TotalGpuTime += jobGpuTime;
 
-        // TODO(eshcherbin): Do we really still need to use cached preemption statuses?
-        // Now that this code has been moved to job scheduler, we can use operation shared state directly.
-        if (GetCachedJobPreemptionStatus(job, cachedJobPreemptionStatuses) == EJobPreemptionStatus::Preemptible) {
+        bool preemptible = [&] {
+            const auto* operation = treeSnapshot->FindEnabledOperationElement(job->GetOperationId());
+            if (!operation) {
+                return true;
+            }
+
+            const auto& operationState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(operation);
+            if (operationState->SchedulingSegment != nodeState->SchedulingSegment) {
+                return true;
+            }
+
+            // TODO(eshcherbin): Do we really still need to use cached preemption statuses?
+            // Now that this code has been moved to job scheduler, we can use operation shared state directly.
+            return GetCachedJobPreemptionStatus(job, cachedJobPreemptionStatuses) == EJobPreemptionStatus::Preemptible;
+        }();
+
+        if (preemptible) {
             runningJobStatistics.PreemptibleCpuTime += jobCpuTime;
             runningJobStatistics.PreemptibleGpuTime += jobGpuTime;
         }
@@ -3904,6 +3921,7 @@ void TFairShareTreeJobScheduler::ApplyNodeSchedulingSegmentsChanges(const TSetNo
                         newSegment);
 
                     node.SchedulingSegment = newSegment;
+                    node.ForceRunningJobStatisticsUpdate = true;
                 }
 
                 YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),

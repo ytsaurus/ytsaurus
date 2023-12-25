@@ -730,7 +730,10 @@ private:
     void InitSchedulingProfilingCounters();
 
     //! Process node heartbeat, including job scheduling.
-    TRunningJobStatistics ComputeRunningJobStatistics(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot);
+    TRunningJobStatistics ComputeRunningJobStatistics(
+        const TFairShareTreeJobSchedulerNodeState* nodeState,
+        const ISchedulingContextPtr& schedulingContext,
+        const TFairShareTreeSnapshotPtr& treeSnapshot);
 
     void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
     void ScheduleJobs(TScheduleJobsContext* context);

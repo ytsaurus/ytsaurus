@@ -40,6 +40,7 @@ struct TFairShareTreeJobSchedulerNodeState
 
     TRunningJobStatistics RunningJobStatistics;
     std::optional<NProfiling::TCpuInstant> LastRunningJobStatisticsUpdateTime;
+    bool ForceRunningJobStatisticsUpdate = false;
 };
 
 using TFairShareTreeJobSchedulerNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TFairShareTreeJobSchedulerNodeState>;

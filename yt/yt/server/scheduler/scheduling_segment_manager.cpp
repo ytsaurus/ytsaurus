@@ -964,6 +964,7 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
         std::move(movableNodesAtModule.begin(), movableNodesAtModule.end(), std::back_inserter(movableNodes));
     }
     SortByPenalty(movableNodes);
+    std::reverse(movableNodes.begin(), movableNodes.end());
 
     // Second, we try to satisfy all other segments using the remaining movable nodes.
     // Note that some segments might have become unsatisfied during the first phase
@@ -1099,14 +1100,15 @@ void TSchedulingSegmentManager::GetMovableNodes(
         };
 
         // For better node log order.
-        using TNodeLogOrderKey = std::tuple<ESchedulingSegment, TSchedulingSegmentModule, int, int>;
+        using TNodeLogOrderKey = std::tuple<ESchedulingSegment, TSchedulingSegmentModule, TNodeMovePenalty, int, int>;
         auto getNodeLogOrderKey = [&] (TNodeId nodeId) {
             const auto& node = GetOrCrash(context->NodeStates, nodeId);
             return TNodeLogOrderKey{
                 node.SchedulingSegment,
                 GetNodeModule(node),
-                getNodeAggressivelyMovableIndex(nodeId),
+                GetMovePenaltyForNode(node, Config_->Mode),
                 getNodeMovableIndex(nodeId),
+                getNodeAggressivelyMovableIndex(nodeId),
             };
         };
 
