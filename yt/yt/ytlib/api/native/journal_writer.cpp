@@ -1132,7 +1132,7 @@ private:
             if (IsChunkPreallocationEnabled()) {
                 ScheduleChunkSessionSeal(session);
             } else {
-                if (Config_->DontSeal) {
+                if (Config_->DontSeal && Config_->DontPreallocate) {
                     YT_LOG_WARNING("Client-side chunk seal is disabled, skipping chunk session seal (SessionId: %v)",
                         session->Id);
                     return;
