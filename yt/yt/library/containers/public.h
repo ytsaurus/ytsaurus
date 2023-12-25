@@ -49,6 +49,11 @@ DEFINE_ENUM(EPortoErrorCode,
     ((Taint)                         ((PortoErrorCodeBase + Porto::EError::Taint)))
     ((Queued)                        ((PortoErrorCodeBase + Porto::EError::Queued)))
     ((InvalidFilesystem)             ((PortoErrorCodeBase + Porto::EError::InvalidFilesystem)))
+    ((NbdSocketTimeout)              ((PortoErrorCodeBase + Porto::EError::NbdSocketTimeout)))
+    ((NbdSocketUnavaliable)          ((PortoErrorCodeBase + Porto::EError::NbdSocketUnavaliable)))
+    ((NbdSocketError)                ((PortoErrorCodeBase + Porto::EError::NbdSocketError)))
+    ((NbdUnkownExport)               ((PortoErrorCodeBase + Porto::EError::NbdUnkownExport)))
+    ((NbdProtoError)                 ((PortoErrorCodeBase + Porto::EError::NbdProtoError)))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

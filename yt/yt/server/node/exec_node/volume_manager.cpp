@@ -1124,8 +1124,6 @@ private:
 
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
-        bool isInvalidImage = false;
-
         try {
             YT_LOG_DEBUG("Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
@@ -1134,14 +1132,8 @@ private:
 
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            auto errorOrValue = WaitFor(VolumeExecutor_->CreateVolume(mountPath, volumeProperties));
-            if (!errorOrValue.IsOK()) {
-                if (errorOrValue.GetCode() == EPortoErrorCode::InvalidFilesystem) {
-                    isInvalidImage = true;
-                }
-            }
-
-            auto volumePath = errorOrValue.ValueOrThrow();
+            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, volumeProperties))
+                .ValueOrThrow();
 
             YT_VERIFY(volumePath == mountPath);
 
@@ -1193,7 +1185,7 @@ private:
                 .Update(VolumeCounters().Increment(tagSet));
 
             return volumeMeta;
-        } catch (const std::exception& ex) {
+        } catch (const TErrorException& ex) {
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             YT_LOG_ERROR(ex, "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
@@ -1205,12 +1197,23 @@ private:
                 FromProto<EVolumeType>(volumeMeta.type()),
                 volumeId) << ex;
 
-            if (isInvalidImage) {
-                error.SetCode(EErrorCode::InvalidImage);
-                THROW_ERROR(error);
+            // Don't disable location in case of InvalidImage or NBD errors.
+            switch (static_cast<EPortoErrorCode>((int)ex.Error().GetCode())) {
+                case EPortoErrorCode::InvalidFilesystem:
+                    THROW_ERROR_EXCEPTION(
+                        EErrorCode::InvalidImage,
+                        "Failed to create %Qv volume", FromProto<EVolumeType>(volumeMeta.type()))
+                        << ex;
+                case EPortoErrorCode::NbdProtoError:
+                case EPortoErrorCode::NbdSocketError:
+                case EPortoErrorCode::NbdSocketTimeout:
+                case EPortoErrorCode::NbdSocketUnavaliable:
+                case EPortoErrorCode::NbdUnkownExport:
+                    break;
+                default:
+                    Disable(error);
+                    break;
             }
-
-            Disable(error);
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithVolumeFailed) {
                 YT_ABORT();
