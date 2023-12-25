@@ -1,4 +1,5 @@
 #include "profiler.h"
+#include "private.h"
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -8,10 +9,6 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNbdProfilerCounters::TNbdProfilerCounters()
-    : NbdProfiler_("/nbd")
-{ }
-
 NProfiling::TCounter TNbdProfilerCounters::GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
 {
     auto key = CreateKey(tagSet, name);
@@ -19,7 +16,7 @@ NProfiling::TCounter TNbdProfilerCounters::GetCounter(const NProfiling::TTagSet&
     auto guard = Guard(Lock_);
     auto [it, inserted] = Counters_.emplace(key, NProfiling::TCounter());
     if (inserted) {
-        it->second = NbdProfiler_.WithTags(tagSet).Counter(name);
+        it->second = NbdProfiler.WithTags(tagSet).Counter(name);
     }
 
     return it->second;
@@ -32,7 +29,7 @@ NProfiling::TGauge TNbdProfilerCounters::GetGauge(const NProfiling::TTagSet& tag
     auto guard = Guard(Lock_);
     auto [it, inserted] = Gauges_.emplace(key, NProfiling::TGauge());
     if (inserted) {
-        it->second = NbdProfiler_.WithTags(tagSet).Gauge(name);
+        it->second = NbdProfiler.WithTags(tagSet).Gauge(name);
     }
 
     return it->second;
@@ -52,7 +49,7 @@ NProfiling::TEventTimer TNbdProfilerCounters::GetTimeHistogram(const NProfiling:
             TDuration::Seconds(1),
             TDuration::Seconds(5),
             TDuration::Seconds(10)};
-        it->second = NbdProfiler_.WithTags(tagSet).TimeHistogram(name, std::move(bounds));
+        it->second = NbdProfiler.WithTags(tagSet).TimeHistogram(name, std::move(bounds));
     }
 
     return it->second;
@@ -65,7 +62,7 @@ NProfiling::TEventTimer TNbdProfilerCounters::GetTimer(const NProfiling::TTagSet
     auto guard = Guard(Lock_);
     auto [it, inserted] = EventTimers_.emplace(key, NProfiling::TEventTimer());
     if (inserted) {
-        it->second = NbdProfiler_.WithTags(tagSet).Timer(name);
+        it->second = NbdProfiler.WithTags(tagSet).Timer(name);
     }
 
     return it->second;
@@ -74,6 +71,11 @@ NProfiling::TEventTimer TNbdProfilerCounters::GetTimer(const NProfiling::TTagSet
 NProfiling::TTagSet TNbdProfilerCounters::MakeTagSet(const TString& filePath)
 {
     return NProfiling::TTagSet({{"file_path", filePath}});
+}
+
+TNbdProfilerCounters* TNbdProfilerCounters::Get()
+{
+    return Singleton<TNbdProfilerCounters>();
 }
 
 TNbdProfilerCounters::TKey TNbdProfilerCounters::CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
@@ -85,9 +87,4 @@ TNbdProfilerCounters::TKey TNbdProfilerCounters::CreateKey(const NProfiling::TTa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNbdProfilerCounters NbdProfilerCounters;
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NNbd
-

@@ -904,10 +904,10 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         profiler = profiler_factory().at_node(job["address"])
         tags = {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}
 
-        wait(lambda: profiler.get("volumes/create", tags) is not None)
+        wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_time", tags) is not None)
 
-        wait(lambda: profiler.get("volumes/remove", tags) is not None)
+        wait(lambda: profiler.get("volumes/removed", tags) is not None)
         wait(lambda: profiler.get("volumes/remove_time", tags) is not None)
 
     @authors("yuryalekseev")
@@ -947,7 +947,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         job = get_job(op.id, job_ids[0])
         profiler = profiler_factory().at_node(job["address"])
         tags = {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}
-        wait(lambda: profiler.get("volumes/create", tags) is not None)
+        wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_errors", tags) is not None)
 
     @authors("yuryalekseev")
@@ -1069,25 +1069,28 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         tags = {'file_path': '//tmp/squashfs.img'}
 
         wait(lambda: profiler.get("nbd/server/count") is not None)
-        wait(lambda: profiler.get("nbd/server/create") is not None)
+        wait(lambda: profiler.get("nbd/server/created") is not None)
         wait(lambda: profiler.get("nbd/device/count", tags) is not None)
 
-        wait(lambda: profiler.get("nbd/device/create", tags) is not None)
-        wait(lambda: profiler.get("nbd/device/remove", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/created", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/removed", tags) is not None)
 
-        wait(lambda: profiler.get("nbd/device/register", tags) is not None)
-        wait(lambda: profiler.get("nbd/device/unregister", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/registered", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/unregistered", tags) is not None)
 
         wait(lambda: profiler.get("nbd/device/read_count", tags) is not None)
         wait(lambda: profiler.get("nbd/device/read_bytes", tags) is not None)
         wait(lambda: profiler.get("nbd/device/read_time", tags) is not None)
 
+        wait(lambda: profiler.get("nbd/device/read_block_bytes_from_cache", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/read_block_bytes_from_disk", tags) is not None)
+
         tags = {'type': 'nbd', 'file_path': '//tmp/squashfs.img'}
 
-        wait(lambda: profiler.get("volumes/create", tags) is not None)
+        wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_time", tags) is not None)
 
-        wait(lambda: profiler.get("volumes/remove", tags) is not None)
+        wait(lambda: profiler.get("volumes/removed", tags) is not None)
         wait(lambda: profiler.get("volumes/remove_time", tags) is not None)
 
     @authors("yuryalekseev")
@@ -1100,22 +1103,39 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_in",
-                out="//tmp/t_out",
-                command="ls $YT_ROOT_FS 1>&2",
-                spec={
-                    "max_failed_job_count": 1,
-                    "mapper": {
-                        "layer_paths": ["//tmp/corrupted_squashfs.img"],
-                    },
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="ls $YT_ROOT_FS 1>&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/corrupted_squashfs.img"],
                 },
-            )
+            },
+        )
+
+        with pytest.raises(YtError):
+            op.track()
 
         # YT-14186: Corrupted user layer should not disable jobs on node.
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+        # Check solomon counters.
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+
+        job = get_job(op.id, job_ids[0])
+        profiler = profiler_factory().at_node(job["address"])
+        tags = {'type': 'nbd', 'file_path': '//tmp/corrupted_squashfs.img'}
+        wait(lambda: profiler.get("volumes/created", tags) is not None)
+        wait(lambda: profiler.get("volumes/create_errors", tags) is not None)
+
+        tags = {'file_path': '//tmp/corrupted_squashfs.img'}
+        wait(lambda: profiler.get("nbd/device/created", tags) is not None)
+        wait(lambda: profiler.get("nbd/device/removed", tags) is not None)
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)

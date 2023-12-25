@@ -43,15 +43,15 @@ public:
         , Invoker_(std::move(invoker))
     {
         ++NbdServerCount_;
-        NbdProfilerCounters.GetGauge({}, "/server/count").Update(NbdServerCount_);
-        NbdProfilerCounters.GetCounter({}, "/server/create").Increment(1);
+        TNbdProfilerCounters::Get()->GetGauge({}, "/server/count").Update(NbdServerCount_);
+        TNbdProfilerCounters::Get()->GetCounter({}, "/server/created").Increment(1);
     }
 
     ~TNbdServer()
     {
         --NbdServerCount_;
-        NbdProfilerCounters.GetGauge({}, "/server/count").Update(NbdServerCount_);
-        NbdProfilerCounters.GetCounter({}, "/server/remove").Increment(1);
+        TNbdProfilerCounters::Get()->GetGauge({}, "/server/count").Update(NbdServerCount_);
+        TNbdProfilerCounters::Get()->GetCounter({}, "/server/removed").Increment(1);
     }
 
     void Start()
@@ -111,7 +111,7 @@ public:
             THROW_ERROR_EXCEPTION("Device %Qv with %Qv is already registered", name, device->DebugString());
         }
 
-        NbdProfilerCounters.GetCounter(TNbdProfilerCounters::MakeTagSet(device->GetProfileSensorTag()), "/device/register").Increment(1);
+        TNbdProfilerCounters::Get()->GetCounter(TNbdProfilerCounters::MakeTagSet(device->GetProfileSensorTag()), "/device/registered").Increment(1);
 
         YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
     }
@@ -127,7 +127,7 @@ public:
             return false;
         }
 
-        NbdProfilerCounters.GetCounter(TNbdProfilerCounters::MakeTagSet(it->second->GetProfileSensorTag()), "/device/unregister").Increment(1);
+        TNbdProfilerCounters::Get()->GetCounter(TNbdProfilerCounters::MakeTagSet(it->second->GetProfileSensorTag()), "/device/unregistered").Increment(1);
 
         NameToDevice_.erase(it);
 

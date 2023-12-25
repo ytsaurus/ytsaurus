@@ -2224,9 +2224,9 @@ void TJob::CleanupNbdExports()
             }
 
             if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
-                NNbd::NbdProfilerCounters.GetCounter(
+                NNbd::TNbdProfilerCounters::Get()->GetCounter(
                     NNbd::TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
-                    "/device/unregister_unexpected").Increment(1);
+                    "/device/unregistered_unexpected").Increment(1);
 
                 YT_LOG_ERROR("NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
                     artifactKey.nbd_export_id(),

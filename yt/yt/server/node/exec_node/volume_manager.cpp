@@ -27,7 +27,6 @@
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
-#include <yt/yt/server/lib/misc/tagged_counters.h>
 
 #include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
@@ -42,6 +41,8 @@
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/library/program/program.h>
+
+#include <yt/yt/library/profiling/tagged_counters.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -190,7 +191,8 @@ public:
                 TDuration::MilliSeconds(500),
                 TDuration::Seconds(1),
                 TDuration::Seconds(5),
-                TDuration::Seconds(10)};
+                TDuration::Seconds(10),
+            };
             it->second = VolumeProfiler_.WithTags(tagSet).TimeHistogram(name, std::move(bounds));
         }
 
@@ -215,6 +217,11 @@ public:
         return NProfiling::TTagSet({{"type", volumeType}, {"file_path", volumeFilePath}});
     }
 
+    static TVolumeProfilerCounters* Get()
+    {
+        return Singleton<TVolumeProfilerCounters>();
+    }
+
 private:
     using TKey = NProfiling::TTagList;
 
@@ -234,11 +241,11 @@ private:
     THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
 };
 
-TVolumeProfilerCounters VolumeProfilerCounters;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTaggedCounters<int> VolumeCounters;
+TTaggedCounters<int>& VolumeCounters()
+{
+    static TTaggedCounters<int> result;
+    return result;
+}
 
 } // namespace
 
@@ -1179,11 +1186,12 @@ private:
                 }
             }
 
-            VolumeProfilerCounters.GetGauge(tagSet, "/count").Update(VolumeCounters.Increment(tagSet));
+            TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+                .Update(VolumeCounters().Increment(tagSet));
 
             return volumeMeta;
         } catch (const std::exception& ex) {
-            VolumeProfilerCounters.GetCounter(tagSet, "/create_errors").Increment(1);
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             YT_LOG_ERROR(ex, "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
@@ -1387,7 +1395,7 @@ private:
                 }
             }
         } catch (const std::exception& ex) {
-            VolumeProfilerCounters.GetCounter(tagSet, "/remove_errors").Increment(1);
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
 
             auto error = TError("Failed to remove volume %v", volumeId)
                 << ex;
@@ -2199,10 +2207,11 @@ public:
             return RemoveFuture_;
         }
 
-        VolumeProfilerCounters.GetGauge(TagSet_, "/count").Update(VolumeCounters.Decrement(TagSet_));
+        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
+            .Update(VolumeCounters().Decrement(TagSet_));
 
-        VolumeProfilerCounters.GetCounter(TagSet_, "/remove").Increment(1);
-        TEventTimerGuard volumeRemoveTimeGuard(VolumeProfilerCounters.GetTimer(TagSet_, "/remove_time"));
+        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
         const auto& volumeId = GetId();
         YT_LOG_DEBUG("Removing NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
@@ -2279,10 +2288,11 @@ public:
             return RemoveFuture_;
         }
 
-        VolumeProfilerCounters.GetGauge(TagSet_, "/count").Update(VolumeCounters.Decrement(TagSet_));
+        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
+            .Update(VolumeCounters().Decrement(TagSet_));
 
-        VolumeProfilerCounters.GetCounter(TagSet_, "/remove").Increment(1);
-        TEventTimerGuard volumeRemoveTimeGuard(VolumeProfilerCounters.GetTimer(TagSet_, "/remove_time"));
+        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
         const auto& volumeId = GetId();
         YT_LOG_DEBUG("Removing Overlay volume (VolumeId: %v)", volumeId);
@@ -2367,10 +2377,11 @@ public:
             return RemoveFuture_;
         }
 
-        VolumeProfilerCounters.GetGauge(TagSet_, "/count").Update(VolumeCounters.Decrement(TagSet_));
+        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
+            .Update(VolumeCounters().Decrement(TagSet_));
 
-        VolumeProfilerCounters.GetCounter(TagSet_, "/remove").Increment(1);
-        TEventTimerGuard volumeRemoveTimeGuard(VolumeProfilerCounters.GetTimer(TagSet_, "/remove_time"));
+        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
         const auto& volumeId = GetId();
         const auto& volumePath = GetPath();
@@ -2623,8 +2634,8 @@ public:
             .ToImmediatelyCancelable()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
                 auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "overlay", /* volumeFilePath */ "n/a");
-                VolumeProfilerCounters.GetCounter(tagSet, "/create").Increment(1);
-                TEventTimerGuard volumeCreateTimeGuard(VolumeProfilerCounters.GetTimer(tagSet, "/create_time"));
+                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
                 return this_->CreateOverlayVolume(tag, std::move(tagSet), std::move(volumeCreateTimeGuard), options, overlayDataArray);
             }).AsyncVia(GetCurrentInvoker()))
             .ToImmediatelyCancelable()
@@ -2692,7 +2703,7 @@ private:
 
             auto nbdServer = Bootstrap_->GetNbdServer();
             if (!nbdServer) {
-                VolumeProfilerCounters.GetCounter(tagSet, "/create_errors").Increment(1);
+                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
                 auto error = TError("NBD server is not present")
                     << TErrorAttribute("export_id", layer.nbd_export_id())
@@ -2715,7 +2726,7 @@ private:
             future = device->Initialize();
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
         } catch (const std::exception& ex) {
-            VolumeProfilerCounters.GetCounter(tagSet, "/create_errors").Increment(1);
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             auto error = TError(ex);
             YT_LOG_ERROR(error, "Failed to create and register NBD export");
@@ -2770,8 +2781,8 @@ private:
             YT_VERIFY(artifactKey.has_nbd_export_id());
 
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "nbd", /* volumeFilePath */ artifactKey.data_source().path());
-            VolumeProfilerCounters.GetCounter(tagSet, "/create").Increment(1);
-            TEventTimerGuard volumeCreateTimeGuard(VolumeProfilerCounters.GetTimer(tagSet, "/create_time"));
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+            TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
             // There could be a CreateNbdVolume() failure after a successful PrepareNbdExport().
             // In such cases NBD exports are unregistered by TJob::Cleanup().
@@ -2814,8 +2825,8 @@ private:
             auto volumeFuture = downloadFuture.Apply(
                 BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
                     auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "squashfs", /* volumeFilePath */ artifactKey.data_source().path());
-                    VolumeProfilerCounters.GetCounter(tagSet, "/create").Increment(1);
-                    TEventTimerGuard volumeCreateTimeGuard(VolumeProfilerCounters.GetTimer(tagSet, "/create_time"));
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                    TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
                     // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
                     return this_->CreateSquashFSVolume(
@@ -2848,7 +2859,7 @@ private:
         auto nbdServer = Bootstrap_->GetNbdServer();
 
         if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {
-            VolumeProfilerCounters.GetCounter(tagSet, "/create_errors").Increment(1);
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             auto error = TError("NBD is not configured")
                 << TErrorAttribute("export_id", artifactKey.nbd_export_id())

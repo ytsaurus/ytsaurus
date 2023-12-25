@@ -3,7 +3,6 @@
 #include "profiler.h"
 
 #include <yt/yt/server/lib/nbd/private.h>
-#include <yt/yt/server/lib/misc/tagged_counters.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -21,6 +20,8 @@
 
 #include <yt/yt/ytlib/file_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/yt/library/profiling/tagged_counters.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -70,8 +71,10 @@ public:
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
         , TagSet_(TNbdProfilerCounters::MakeTagSet(Config_->Path))
     {
-        NbdProfilerCounters.GetGauge(TagSet_, "/device/count").Update(FileBlockDeviceCount_.Increment(TagSet_));
-        NbdProfilerCounters.GetCounter(TagSet_, "/device/create").Increment(1);
+        TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
+            .Update(FileBlockDeviceCount().Increment(TagSet_));
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/created")
+            .Increment(1);
     }
 
     TCypressFileBlockDevice(
@@ -89,14 +92,18 @@ public:
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
         , TagSet_(TNbdProfilerCounters::MakeTagSet(Config_->Path))
     {
-        NbdProfilerCounters.GetGauge(TagSet_, "/device/count").Update(FileBlockDeviceCount_.Increment(TagSet_));
-        NbdProfilerCounters.GetCounter(TagSet_, "/device/create").Increment(1);
+        TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
+            .Update(FileBlockDeviceCount().Increment(TagSet_));
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/created")
+            .Increment(1);
     }
 
     ~TCypressFileBlockDevice()
     {
-        NbdProfilerCounters.GetGauge(TagSet_, "/device/count").Update(FileBlockDeviceCount_.Decrement(TagSet_));
-        NbdProfilerCounters.GetCounter(TagSet_, "/device/remove").Increment(1);
+        TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
+            .Update(FileBlockDeviceCount().Decrement(TagSet_));
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/removed")
+            .Increment(1);
     }
 
     virtual i64 GetTotalSize() const override
@@ -125,9 +132,9 @@ public:
     {
         auto readId = TGuid::Create();
 
-        NbdProfilerCounters.GetCounter(TagSet_, "/device/read_count").Increment(1);
-        NbdProfilerCounters.GetCounter(TagSet_, "/device/read_bytes").Increment(length);
-        NProfiling::TEventTimerGuard readTimeGuard(NbdProfilerCounters.GetTimer(TagSet_, "/device/read_time"));
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
+        NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
 
         YT_LOG_DEBUG("Start read (Offset: %v, Length: %v, ReadId: %v)",
             offset,
@@ -155,6 +162,11 @@ public:
             }
             // Merge refs into single ref.
             return MergeRefsToRef<TCypressFileBlockDeviceTag>(refs);
+        })).Apply(BIND([tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
+            if (!result.IsOK()) {
+                TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_errors").Increment(1);
+            }
+            return result.ValueOrThrow();
         }));
     }
 
@@ -192,6 +204,7 @@ private:
         i64 Offset = 0;
         std::vector<TBlock> Blocks;
         IChunkReaderPtr Reader;
+        std::shared_ptr<IChunkReader::TReadBlocksOptions> ReadBlocksOptions;
         NChunkClient::NProto::TChunkSpec Spec;
         TRefCountedChunkMetaPtr Meta;
     };
@@ -300,14 +313,17 @@ private:
             blockIndexes.push_back(blockIndex);
         }
 
-        IChunkReader::TReadBlocksOptions readBlocksOptions;
-        readBlocksOptions.EstimatedSize = length;
-        readBlocksOptions.ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
-        readBlocksOptions.ClientOptions.ReadSessionId = readId;
-
-        auto readFuture = chunk.Reader->ReadBlocks(std::move(readBlocksOptions), blockIndexes);
-        return readFuture.Apply(BIND([=, Logger=Logger](const std::vector<NChunkClient::TBlock>& blocks) mutable {
+        auto readFuture = chunk.Reader->ReadBlocks(*chunk.ReadBlocksOptions, blockIndexes);
+        return readFuture.Apply(BIND([=, tagSet = TagSet_, Logger = Logger](const std::vector<NChunkClient::TBlock>& blocks) mutable {
             YT_VERIFY(blocks.size() == blockIndexes.size());
+
+            // Update read block counters.
+            TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_bytes_from_cache")
+                .Increment(chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromCache.exchange(0));
+            TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_bytes_from_disk")
+                .Increment(chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->DataBytesReadFromDisk.exchange(0));
+            TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_meta_bytes_from_disk")
+                .Increment(chunk.ReadBlocksOptions->ClientOptions.ChunkReaderStatistics->MetaBytesReadFromDisk.exchange(0));
 
             std::vector<TSharedRef> refs;
             for (auto i = 0u; i < blockIndexes.size(); ++i) {
@@ -388,6 +404,9 @@ private:
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
                 {} /* seedReplicas */);
 
+            chunk.ReadBlocksOptions = std::make_shared<IChunkReader::TReadBlocksOptions>();
+            chunk.ReadBlocksOptions->ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
+
             YT_LOG_INFO("Created chunk reader (File: %v, Chunk: %v)",
                 userObject.GetPath(),
                 chunk.Index);
@@ -421,7 +440,11 @@ private:
     }
 
 private:
-    static TTaggedCounters<int> FileBlockDeviceCount_;
+    static TTaggedCounters<int>& FileBlockDeviceCount()
+    {
+        static TTaggedCounters<int> result;
+        return result;
+    }
 
     const TString ExportId_;
     const std::optional<::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
@@ -434,10 +457,6 @@ private:
     i64 FileSize_ = 0;
     const NProfiling::TTagSet TagSet_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTaggedCounters<int> TCypressFileBlockDevice::FileBlockDeviceCount_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
