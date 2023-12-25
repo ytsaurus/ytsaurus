@@ -224,8 +224,6 @@ TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr&
     auto backBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
     result.set_max(backBoundaryKeys.max());
 
-    ToProto(result.mutable_chunk_specs(), chunks);
-
     return result;
 }
 
