@@ -393,6 +393,7 @@ public:
     std::optional<TJobMonitoringDescriptor> RegisterNewMonitoringDescriptor();
 
     int GetMonitoredUserJobCount() const override;
+    int GetRegisteredMonitoringDescriptorCount() const;
 
     const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
@@ -620,6 +621,7 @@ protected:
     std::atomic<i64> TotalBuildingJobSpecSliceCount_ = {0};
 
     // These values are intentionally transient.
+    int RegisteredMonitoringDescriptorCount_ = 0;
     std::atomic<int> MonitoredUserJobCount_ = 0;
     int MonitoredUserJobAttemptCount_ = 0;
     THashSet<int> MonitoringDescriptorIndexPool_;
