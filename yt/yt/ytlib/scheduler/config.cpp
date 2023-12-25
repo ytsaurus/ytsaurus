@@ -1168,6 +1168,7 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
     registrar.Parameter("job_io", &TThis::JobIO)
         .DefaultNew();
     registrar.Parameter("output_table_paths", &TThis::OutputTablePaths)
+        .Alias("output_paths")
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);
@@ -1255,6 +1256,7 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
 void TOperationWithInputSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
+        .Alias("input_paths")
         .NonEmpty();
 }
 
@@ -1274,6 +1276,7 @@ void TMapOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("mapper", &TThis::Mapper)
         .DefaultNew();
     registrar.Parameter("output_table_paths", &TThis::OutputTablePaths)
+        .Alias("output_paths")
         .Default();
     registrar.Parameter("ordered", &TThis::Ordered)
         .Default(false);
@@ -1292,7 +1295,8 @@ void TMapOperationSpec::Register(TRegistrar registrar)
 
 void TMergeOperationSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("output_table_path", &TThis::OutputTablePath);
+    registrar.Parameter("output_table_path", &TThis::OutputTablePath)
+        .Alias("output_path");
     registrar.Parameter("mode", &TThis::Mode)
         .Default(EMergeMode::Unordered);
     registrar.Parameter("combine_chunks", &TThis::CombineChunks)
@@ -1331,8 +1335,10 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("reducer", &TThis::Reducer)
         .DefaultNew();
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
+        .Alias("input_paths")
         .NonEmpty();
     registrar.Parameter("output_table_paths", &TThis::OutputTablePaths)
+        .Alias("output_paths")
         .Default();
 
     registrar.Parameter("reduce_by", &TThis::ReduceBy)
@@ -1390,6 +1396,7 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
 void TSortOperationSpecBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
+        .Alias("input_paths")
         .NonEmpty();
     registrar.Parameter("partition_count", &TThis::PartitionCount)
         .Default()
@@ -1488,7 +1495,8 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
 
 void TSortOperationSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("output_table_path", &TThis::OutputTablePath);
+    registrar.Parameter("output_table_path", &TThis::OutputTablePath)
+        .Alias("output_path");
     registrar.Parameter("samples_per_partition", &TThis::SamplesPerPartition)
         .Default(1000)
         .GreaterThan(1);
@@ -1559,6 +1567,7 @@ void TSortOperationSpec::Register(TRegistrar registrar)
 void TMapReduceOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("output_table_paths", &TThis::OutputTablePaths)
+        .Alias("output_paths")
         .NonEmpty();
     registrar.Parameter("reduce_by", &TThis::ReduceBy)
         .Default();
@@ -1790,8 +1799,10 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .NonEmpty()
         .Default();
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
+        .Alias("input_paths")
         .NonEmpty();
-    registrar.Parameter("output_table_path", &TThis::OutputTablePath);
+    registrar.Parameter("output_table_path", &TThis::OutputTablePath)
+        .Alias("output_path");
     registrar.Parameter("network_name", &TThis::NetworkName)
         .NonEmpty()
         .Default();
