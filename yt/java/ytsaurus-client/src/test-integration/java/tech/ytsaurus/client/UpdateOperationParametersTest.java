@@ -29,7 +29,11 @@ public class UpdateOperationParametersTest {
                     new UpdateOperationParameters.SchedulingOptions().setResourceLimits(
                             new UpdateOperationParameters.ResourceLimits(16L, null, null, null)
                     )
-            ).build();
+            )
+            .setAnnotations(
+                    YTree.mapBuilder().key("description").value("New description").buildMap()
+            )
+            .build();
 
     @Test
     public void testToYTreeNode() {
@@ -63,6 +67,9 @@ public class UpdateOperationParametersTest {
                                                 .buildMap()
                                 )
                                 .buildMap()
+                )
+                .key("annotations").value(
+                        YTree.mapBuilder().key("description").value("New description").buildMap()
                 )
                 .buildMap();
         assertEquals(expected, updateOperationParameters.toTreeParametersOnly());

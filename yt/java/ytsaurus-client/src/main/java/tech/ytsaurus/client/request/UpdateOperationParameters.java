@@ -30,6 +30,8 @@ public class UpdateOperationParameters
     private final Map<String, SchedulingOptions> schedulingOptionsPerPoolTree;
     @Nullable
     private final Double weight;
+    @Nullable
+    private final YTreeNode annotations;
 
     public UpdateOperationParameters(BuilderBase<?> builder) {
         super(builder);
@@ -45,6 +47,7 @@ public class UpdateOperationParameters
             this.schedulingOptionsPerPoolTree = null;
         }
         this.weight = builder.weight;
+        this.annotations = builder.annotations;
     }
 
     public UpdateOperationParameters(GUID guid) {
@@ -101,6 +104,9 @@ public class UpdateOperationParameters
         if (weight != null) {
             builder.key("weight").value(weight);
         }
+        if (annotations != null) {
+            builder.key("annotations").value(annotations);
+        }
         return builder;
     }
 
@@ -150,7 +156,9 @@ public class UpdateOperationParameters
         if (pool != null) {
             builder.setPool(pool);
         }
-
+        if (annotations != null) {
+            builder.setAnnotations(annotations);
+        }
         return builder;
     }
 
@@ -283,6 +291,8 @@ public class UpdateOperationParameters
         private Map<String, SchedulingOptions> schedulingOptionsPerPoolTree;
         @Nullable
         private Double weight;
+        @Nullable
+        private YTreeNode annotations;
 
         public TBuilder setOwners(List<String> owners) {
             this.owners = owners;
@@ -320,6 +330,11 @@ public class UpdateOperationParameters
             return self();
         }
 
+        public TBuilder setAnnotations(YTreeNode annotations) {
+            this.annotations = annotations;
+            return self();
+        }
+
         public YTreeBuilder toTree(YTreeBuilder builder) {
             builder = super.toTree(builder);
             builder = toTreeParametersOnly(builder.key("parameters").beginMap()).endMap();
@@ -346,6 +361,9 @@ public class UpdateOperationParameters
             }
             if (weight != null) {
                 builder.key("weight").value(weight);
+            }
+            if (annotations != null) {
+                builder.key("annotations").value(annotations);
             }
             return builder;
         }
