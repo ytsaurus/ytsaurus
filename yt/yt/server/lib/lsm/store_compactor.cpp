@@ -364,11 +364,15 @@ private:
                 continue;
             }
 
-            auto& candidate = candidates.emplace_back(TStoreWithReason{.Store = store.get()});
+            candidates.push_back({.Store = store.get()});
+            auto& candidate = candidates.back();
 
             auto compactionReason = GetStoreCompactionReason(candidate.Store);
             if (compactionReason == EStoreCompactionReason::None) {
-                compactionReason = GetStoreCompactionReasonFromDigest(candidate.Store);
+                auto digestReason = GetStoreCompactionReasonFromDigest(candidate.Store);
+                if (!(partition->IsEden() && digestReason == EStoreCompactionReason::TooManyTimestamps)) {
+                    compactionReason = digestReason;
+                }
             }
 
             if (compactionReason != EStoreCompactionReason::None) {
@@ -547,7 +551,7 @@ private:
             return false;
         }
 
-        return CurrentTime_ > store->GetLastCompactionTimestamp() +
+        return Now() > store->GetLastCompactionTimestamp() +
             Config_->TabletManager->CompactionBackoffTime;
     }
 
@@ -600,10 +604,68 @@ private:
 
     EStoreCompactionReason GetStoreCompactionReasonFromDigest(const TStore* store) const
     {
-        const auto& rowDigest = store->CompactionHints().RowDigest;
-        return rowDigest.Reason != EStoreCompactionReason::None && CurrentTime_ >= rowDigest.Timestamp
-            ? rowDigest.Reason
-            : EStoreCompactionReason::None;
+        if (!store->RowDigest()) {
+            return EStoreCompactionReason::None;
+        }
+
+        const auto& digest = *store->RowDigest();
+
+        auto mountConfig = store->GetTablet()->GetMountConfig();
+        i64 maxRetentionTime = (CurrentTime_ - mountConfig->MaxDataTtl).Seconds();
+        i64 minRetentionTime = (CurrentTime_ - mountConfig->MinDataTtl).Seconds();
+
+        // Check if a certain ratio of timestamps will be compacted out.
+        {
+            const auto& lastDigest = digest.LastTimestampDigest;
+            const auto& allButLastDigest = digest.AllButLastTimestampDigest;
+
+            // All but last timestamps before min_data_ttl are dropped.
+            i64 prunedTimestampCount = allButLastDigest->GetRank(minRetentionTime) * allButLastDigest->GetCount();
+
+            // Last timestamps are dropped only if min_data_versions is zero;
+            if (mountConfig->MinDataVersions == 0) {
+                // they are dropped after min_data_ttl if max_data_versions is zero
+                // and after max_data_ttl otherwise.
+                auto retentionTime = mountConfig->MaxDataVersions == 0
+                    ? minRetentionTime
+                    : maxRetentionTime;
+                prunedTimestampCount += lastDigest->GetRank(retentionTime) * lastDigest->GetCount();
+            }
+
+            i64 totalTimestampCount = std::max<i64>(lastDigest->GetCount() + allButLastDigest->GetCount(), 1);
+            double ratio = 1.0 * prunedTimestampCount / totalTimestampCount;
+
+            YT_LOG_DEBUG("Checking store for pruned timestamps (StoreId: %v, PrunedTimestampCount: %v, "
+                "TotalTimestampCount: %v, Ratio: %v)",
+                store->GetId(),
+                prunedTimestampCount,
+                totalTimestampCount,
+                ratio);
+
+            if (ratio > mountConfig->RowDigestCompaction->MaxObsoleteTimestampRatio) {
+                return EStoreCompactionReason::TtlCleanupExpected;
+            }
+        }
+
+        // Check if there is a value with many old timestamps.
+        {
+            int index = 32 - __builtin_clz(
+                std::max(1, mountConfig->RowDigestCompaction->MaxTimestampsPerValue - 1));
+            YT_LOG_DEBUG("Checking store for timestamps per value (StoreId: %v, Index: %v, "
+                "EarliestNthTimestamp: %v, MinRetentionTime: %v)",
+                store->GetId(),
+                index,
+                index < ssize(digest.EarliestNthTimestamp) ? digest.EarliestNthTimestamp[index] : 0,
+                minRetentionTime);
+
+            if (index < ssize(digest.EarliestNthTimestamp) &&
+                digest.EarliestNthTimestamp[index] < minRetentionTime)
+            {
+                return EStoreCompactionReason::TooManyTimestamps;
+            }
+        }
+
+        return EStoreCompactionReason::None;
     }
 
     EStoreCompactionReason GetStoreCompactionReason(const TStore* store) const
@@ -620,7 +682,7 @@ private:
             return EStoreCompactionReason::StoreOutOfTabletRange;
         }
 
-        if (store->CompactionHints().IsChunkViewTooNarrow) {
+        if (store->GetIsChunkViewTooNarrow()) {
             return EStoreCompactionReason::NarrowChunkView;
         }
 

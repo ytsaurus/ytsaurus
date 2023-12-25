@@ -823,6 +823,7 @@ private:
     void ReconfigureRowCache(const ITabletSlotPtr& slot);
     void InvalidateChunkReaders();
     void ReconfigureHedgingManagerRegistry();
+    void ResetRowDigestRequestTime();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,8 +2,6 @@
 #include "sorted_chunk_store.h"
 #include "tablet.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -18,8 +16,6 @@
 #include <yt/yt/ytlib/table_client/chunk_slice.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 
-#include <yt/yt/core/concurrency/throughput_throttler.h>
-
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
@@ -32,8 +28,6 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
-using namespace NClusterNode;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,95 +36,98 @@ static const auto& Logger = TabletNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkViewSizeFetcher
-    : public TCompactionHintFetcher
+    : public IChunkViewSizeFetcher
 {
 public:
     TChunkViewSizeFetcher(
         TTabletCellId cellId,
-        TClusterNodeDynamicConfigPtr config,
         TNodeDirectoryPtr nodeDirectory,
-        IInvokerPtr invoker,
+        IInvokerPtr guardedAutomatonInvoker,
         IInvokerPtr heavyInvoker,
         NNative::IClientPtr client,
         IChunkReplicaCachePtr chunkReplicaCache)
-        : TCompactionHintFetcher(
-            std::move(invoker),
-            TabletNodeProfiler
-                .WithPrefix("/chunk_view_size_fetcher")
-                .WithTag("cell_id", ToString(cellId)))
+        : Profiler_(TabletNodeProfiler
+            .WithPrefix("/chunk_view_size_fetcher")
+            .WithTag("cell_id", ToString(cellId)))
+        , RequestedCounter_(Profiler_.Counter("/request_count"))
+        , FailedCounter_(Profiler_.Counter("/failed_request_count"))
         , NodeDirectory_(std::move(nodeDirectory))
+        , GuardedAutomatonInvoker_(std::move(guardedAutomatonInvoker))
         , HeavyInvoker_(std::move(heavyInvoker))
         , Client_(std::move(client))
         , ChunkReplicaCache_(std::move(chunkReplicaCache))
-    {
-        Invoker_->Invoke(BIND(
-            &TCompactionHintFetcher::Reconfigure,
-            MakeWeak(this),
-            /*oldConfig*/ nullptr,
-            std::move(config)));
-    }
+    { }
 
-    void Reconfigure(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-        const TClusterNodeDynamicConfigPtr& newConfig) override
+    void FetchChunkViewSizes(
+        TTablet* tablet,
+        std::optional<TRange<IStorePtr>> stores) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        if (!tablet->GetSettings().MountConfig->EnableNarrowChunkViewCompaction) {
+            return;
+        }
 
-        const auto& config = newConfig->TabletNode->StoreCompactor;
-        RequestThrottler_->Reconfigure(config->ChunkViewSizeRequestThrottler);
-        ThrottlerTryAcquireBackoff_ = config->ChunkViewSizeThrottlerTryAcquireBackoff;
+        if (!tablet->IsPhysicallySorted()) {
+            return;
+        }
+
+        std::vector<TSortedChunkStorePtr> storesAwaitingChinkViewSize;
+        auto onStore = [&] (auto store) {
+            if (store->IsChunk() && TypeFromId(store->GetId()) == EObjectType::ChunkView) {
+                YT_VERIFY(store->IsSorted());
+
+                auto sortedChunkStore = store->AsSortedChunk();
+                if (sortedChunkStore->GetChunkViewSizeFetchStatus() == EChunkViewSizeFetchStatus::None) {
+                    storesAwaitingChinkViewSize.push_back(std::move(sortedChunkStore));
+                }
+            }
+        };
+
+        if (stores) {
+            for (const auto& store : *stores) {
+                onStore(store);
+            }
+        } else {
+            for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+                onStore(store);
+            }
+        }
+
+        DoFetchRequests(
+            tablet->GetSettings().MountConfig->MaxChunkViewSizeRatio,
+            storesAwaitingChinkViewSize);
     }
 
 private:
+    const TProfiler Profiler_;
+    const NProfiling::TCounter RequestedCounter_;
+    const NProfiling::TCounter FailedCounter_;
+
     const TNodeDirectoryPtr NodeDirectory_;
+    const IInvokerPtr GuardedAutomatonInvoker_;
     const IInvokerPtr HeavyInvoker_;
     const NNative::IClientPtr Client_;
     const IChunkReplicaCachePtr ChunkReplicaCache_;
 
-    static TCompactionHintRequestWithResult<EChunkViewSizeStatus>& GetChunkViewCompactionHints(
-        const IStorePtr& store)
+    struct TChunkViewMetaRequest
     {
-        return store->AsSortedChunk()->CompactionHints().ChunkViewSize;
-    }
+        TSortedChunkStorePtr Store;
+        TFuture<TRefCountedChunkMetaPtr> AsyncMeta;
+    };
 
-    bool HasRequestStatus(const IStorePtr& store) const override
+    void DoFetchRequests(
+        double maxChunkViewSizeRatio,
+        const std::vector<TSortedChunkStorePtr>& storesAwaitingChinkViewSize)
     {
-        return GetChunkViewCompactionHints(store).IsRequestStatus();
-    }
-
-    ECompactionHintRequestStatus GetRequestStatus(const IStorePtr& store) const override
-    {
-        return GetChunkViewCompactionHints(store).AsRequestStatus();
-    }
-
-    void SetRequestStatus(const IStorePtr& store, ECompactionHintRequestStatus status) const override
-    {
-        GetChunkViewCompactionHints(store).SetRequestStatus(status);
-    }
-
-    bool IsFetchingRequiredForStore(const IStorePtr& store) const override
-    {
-        return store->IsChunk() && TypeFromId(store->GetId()) == EObjectType::ChunkView;
-    }
-
-    bool IsFetchingRequiredForTablet(const TTablet& tablet) const override
-    {
-        return tablet.GetSettings().MountConfig->EnableNarrowChunkViewCompaction && tablet.IsPhysicallySorted();
-    }
-
-    void TryMakeRequest() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto stores = GetStoresForRequest();
-        if (stores.empty()) {
+        if (storesAwaitingChinkViewSize.empty()) {
             return;
         }
 
+        RequestedCounter_.Increment(std::ssize(storesAwaitingChinkViewSize));
+
         std::vector<TChunkId> chunkIds;
-        for (const auto& store : stores) {
-            SetRequestStatus(store, ECompactionHintRequestStatus::Requested);
-            chunkIds.push_back(store->AsSortedChunk()->GetChunkId());
+        for (const auto& store : storesAwaitingChinkViewSize) {
+            chunkIds.push_back(store->GetChunkId());
+            store->SetChunkViewSizeFetchStatus(EChunkViewSizeFetchStatus::Requested);
         }
 
         auto replicasFutures = ChunkReplicaCache_->GetReplicas(chunkIds);
@@ -138,16 +135,16 @@ private:
             .SubscribeUnique(BIND(
                 &TChunkViewSizeFetcher::OnChunkReplicasReceived,
                 MakeStrong(this),
-                std::move(stores))
-                .Via(Invoker_));
+                std::move(storesAwaitingChinkViewSize),
+                maxChunkViewSizeRatio)
+                .Via(GuardedAutomatonInvoker_));
     }
 
     void OnChunkReplicasReceived(
-        std::vector<IStorePtr> stores,
+        std::vector<TSortedChunkStorePtr> stores,
+        double maxChunkViewSizeRatio,
         TErrorOr<std::vector<TErrorOr<NChunkClient::TAllyReplicasInfo>>> allSetResult)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
         YT_VERIFY(allSetResult.IsOK());
         const auto& errorOrRsps = allSetResult.Value();
 
@@ -156,20 +153,19 @@ private:
         std::vector<TInputChunkPtr> inputChunks;
         std::vector<TSortedChunkStorePtr> locatedStores;
         for (const auto& [store, errorOrRsp] : Zip(stores, errorOrRsps)) {
-            auto sortedChunkStore = store->AsSortedChunk();
-
             if (!errorOrRsp.IsOK()) {
-                OnRequestFailed(sortedChunkStore);
+                FailedCounter_.Increment();
+                store->SetChunkViewSizeFetchStatus(EChunkViewSizeFetchStatus::None);
 
                 YT_LOG_WARNING(errorOrRsp, "Failed to locate chunk under chunk view "
                     "(StoreId: %v, ChunkId: %v)",
-                    sortedChunkStore->GetId(),
-                    sortedChunkStore->GetChunkId());
+                    store->GetId(),
+                    store->GetChunkId());
                 continue;
             }
 
-            inputChunks.push_back(ChunkViewToInputChunk(sortedChunkStore, errorOrRsp.Value()));
-            locatedStores.push_back(std::move(sortedChunkStore));
+            inputChunks.push_back(ChunkViewToInputChunk(store, errorOrRsp.Value()));
+            locatedStores.push_back(std::move(store));
         }
 
         if (inputChunks.empty()) {
@@ -194,39 +190,40 @@ private:
                 &TChunkViewSizeFetcher::OnChunkViewSizesReceived,
                 MakeStrong(this),
                 sizeFetcher,
-                std::move(locatedStores))
-                .Via(Invoker_));
+                std::move(locatedStores),
+                maxChunkViewSizeRatio)
+                .Via(GuardedAutomatonInvoker_));
     }
 
     void OnChunkViewSizesReceived(
         const TChunkSliceSizeFetcherPtr& sizeFetcher,
         std::vector<TSortedChunkStorePtr> stores,
+        double maxChunkViewSizeRatio,
         TError error)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Failed to fetch chunk view sizes");
+            FailedCounter_.Increment(std::ssize(stores));
+
             for (const auto& store : stores) {
-                OnRequestFailed(store);
+                store->SetChunkViewSizeFetchStatus(EChunkViewSizeFetchStatus::None);
             }
-        } else {
-            for (const auto& [store, weightedChunk] : Zip(stores, sizeFetcher->WeightedChunks())) {
-                YT_VERIFY(weightedChunk->GetInputChunk()->GetChunkId() == store->GetChunkId());
 
-                auto miscExt = GetProtoExtension<TMiscExt>(store->GetChunkMeta().extensions());
-                i64 chunkDataWeight = miscExt.data_weight();
-                auto chunkViewDataWeight = weightedChunk->GetDataWeight();
-
-                double share = static_cast<double>(chunkViewDataWeight) / chunkDataWeight;
-                double maxChunkViewSizeRatio = store->GetTablet()->GetSettings().MountConfig->MaxChunkViewSizeRatio;
-                GetChunkViewCompactionHints(store).SetResult(share <= maxChunkViewSizeRatio
-                    ? EChunkViewSizeStatus::CompactionRequired
-                    : EChunkViewSizeStatus::CompactionNotRequired);
-            }
+            return;
         }
 
-        TryMakeRequest();
+        for (const auto& [store, weightedChunk] : Zip(stores, sizeFetcher->WeightedChunks())) {
+            YT_VERIFY(weightedChunk->GetInputChunk()->GetChunkId() == store->GetChunkId());
+
+            auto miscExt = GetProtoExtension<TMiscExt>(store->GetChunkMeta().extensions());
+            i64 chunkDataWeight = miscExt.data_weight();
+            auto chunkViewDataWeight = weightedChunk->GetDataWeight();
+
+            double share = static_cast<double>(chunkViewDataWeight) / chunkDataWeight;
+            store->SetChunkViewSizeFetchStatus(share <= maxChunkViewSizeRatio
+                ? EChunkViewSizeFetchStatus::CompactionRequired
+                : EChunkViewSizeFetchStatus::CompactionNotRequired);
+        }
     }
 
     TInputChunkPtr ChunkViewToInputChunk(
@@ -252,22 +249,22 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TChunkViewSizeFetcher)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetcherPtr CreateChunkViewSizeFetcher(
+IChunkViewSizeFetcherPtr CreateChunkViewSizeFetcher(
     TTabletCellId cellId,
-    TClusterNodeDynamicConfigPtr config,
     TNodeDirectoryPtr nodeDirectory,
-    IInvokerPtr invoker,
+    IInvokerPtr guardedAutomatonInvoker,
     IInvokerPtr heavyInvoker,
     NNative::IClientPtr client,
     IChunkReplicaCachePtr chunkReplicaCache)
 {
     return New<TChunkViewSizeFetcher>(
         cellId,
-        std::move(config),
         std::move(nodeDirectory),
-        std::move(invoker),
+        std::move(guardedAutomatonInvoker),
         std::move(heavyInvoker),
         std::move(client),
         std::move(chunkReplicaCache));

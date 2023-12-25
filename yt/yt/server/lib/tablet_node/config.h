@@ -89,6 +89,8 @@ public:
     double MaxObsoleteTimestampRatio;
     int MaxTimestampsPerValue;
 
+    std::optional<TDuration> CheckPeriod;
+
     REGISTER_YSON_STRUCT(TRowDigestCompactionConfig);
 
     static void Register(TRegistrar registrar);
@@ -512,9 +514,7 @@ public:
     std::optional<int> MaxConcurrentPartitionings;
 
     NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
-    NConcurrency::TThroughputThrottlerConfigPtr ChunkViewSizeRequestThrottler;
-    TDuration RowDigestThrottlerTryAcquireBackoff;
-    TDuration ChunkViewSizeThrottlerTryAcquireBackoff;
+    i64 RowDigestCacheSize;
     bool UseRowDigests;
 
     int MaxCompactionStructuredLogEvents;

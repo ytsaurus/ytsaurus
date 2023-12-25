@@ -193,7 +193,6 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/cached_row.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/chaos_agent.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_view_size_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/compaction_hint_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/distributed_throttler_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/dynamic_store_bits.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hedging_manager_registry.cpp
@@ -225,7 +224,6 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/replicated_store_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/replication_log.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_digest_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/security_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/slot_provider.cpp

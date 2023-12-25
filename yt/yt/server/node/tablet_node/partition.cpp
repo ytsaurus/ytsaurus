@@ -203,6 +203,14 @@ bool TPartition::IsImmediateSplitRequested() const
     return !PivotKeysForImmediateSplit_.empty();
 }
 
+void TPartition::ResetRowDigestRequestTime()
+{
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (auto period = mountConfig->RowDigestCompaction->CheckPeriod) {
+        RowDigestRequestTime_ = TInstant::Now() - RandomDuration(*period);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TPartitionIdFormatter::operator()(TStringBuilderBase* builder, const std::unique_ptr<TPartition>& partition) const

@@ -28,7 +28,6 @@
 #include "table_puller.h"
 #include "backup_manager.h"
 #include "hunk_lock_manager.h"
-#include "row_digest_fetcher.h"
 #include "chunk_view_size_fetcher.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -192,15 +191,10 @@ public:
         , BackupManager_(CreateBackupManager(
             Slot_,
             Bootstrap_))
-        , RowDigestFetcher_(CreateRowDigestFetcher(
-            slot->GetCellId(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig(),
-            Slot_->GetAutomatonInvoker()))
         , ChunkViewSizeFetcher_(CreateChunkViewSizeFetcher(
             slot->GetCellId(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig(),
             Bootstrap_->GetNodeDirectory(),
-            Slot_->GetAutomatonInvoker(),
+            Slot_->GetGuardedAutomatonInvoker(),
             Bootstrap_->GetStorageHeavyInvoker(),
             Bootstrap_->GetClient(),
             Bootstrap_->GetConnection()->GetChunkReplicaCache()))
@@ -288,9 +282,6 @@ public:
 
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
         tableConfigManager->SubscribeConfigChanged(TableDynamicConfigChangedCallback_);
-
-        const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
     }
 
     void Finalize()
@@ -368,7 +359,7 @@ public:
                     }
                 }
             } else if (tablet->IsPhysicallyOrdered()) {
-                for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+                for (const auto& [_, store] : tablet->StoreIdMap()) {
                     CountStoreMemoryStatistics(&statistics, store);
                 }
             }
@@ -894,14 +885,10 @@ private:
 
     IBackupManagerPtr BackupManager_;
 
-    const TCompactionHintFetcherPtr RowDigestFetcher_;
-    const TCompactionHintFetcherPtr ChunkViewSizeFetcher_;
+    IChunkViewSizeFetcherPtr ChunkViewSizeFetcher_;
 
     const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
         BIND(&TImpl::OnTableDynamicConfigChanged, MakeWeak(this));
-
-    const TCallback<void(TClusterNodeDynamicConfigPtr, TClusterNodeDynamicConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this));
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1046,8 +1033,7 @@ private:
             CheckIfTabletFullyUnlocked(tablet);
             CheckIfTabletFullyFlushed(tablet);
 
-            RowDigestFetcher_->FetchStoreInfos(tablet);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet);
+            ChunkViewSizeFetcher_->FetchChunkViewSizes(tablet);
         }
 
         DecommissionCheckExecutor_->Start();
@@ -1216,8 +1202,7 @@ private:
             mountHint);
 
         if (IsLeader()) {
-            RowDigestFetcher_->FetchStoreInfos(tablet);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet);
+            ChunkViewSizeFetcher_->FetchChunkViewSizes(tablet);
         }
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
@@ -1364,9 +1349,6 @@ private:
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
-
-            RowDigestFetcher_->FetchStoreInfos(tablet);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet);
         }
     }
 
@@ -1620,8 +1602,7 @@ private:
         storeManager->BulkAddStores(MakeRange(storesToAdd), /*onMount*/ false);
 
         if (IsLeader()) {
-            RowDigestFetcher_->FetchStoreInfos(tablet, storesToAdd);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet, storesToAdd);
+            ChunkViewSizeFetcher_->FetchChunkViewSizes(tablet, storesToAdd);
         }
 
         const auto& lockManager = tablet->GetLockManager();
@@ -2446,12 +2427,6 @@ private:
                         hunkChunk->GetStoreRefCount());
                 }
             }
-        }
-
-        if (IsLeader()) {
-            std::optional<TRange<IStorePtr>> storesRange({addedStores.begin(), addedStores.end()});
-            RowDigestFetcher_->FetchStoreInfos(tablet, storesRange);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet, storesRange);
         }
 
         auto retainedTimestamp = std::max(
@@ -3780,17 +3755,12 @@ private:
     void StopTabletEpoch(TTablet* tablet)
     {
         for (const auto& [storeId, store] : tablet->StoreIdMap()) {
-            if (store->GetType() == EStoreType::SortedChunk) {
-                auto& compactionHints = store->AsSortedChunk()->CompactionHints();
+            if (store->IsChunk() && TypeFromId(store->GetId()) == EObjectType::ChunkView) {
+                YT_VERIFY(store->IsSorted());
 
-                if (compactionHints.RowDigest.IsCertainRequestStatus(ECompactionHintRequestStatus::Requested)) {
-                    compactionHints.RowDigest.SetRequestStatus(ECompactionHintRequestStatus::None);
-                }
-
-                if (TypeFromId(store->GetId()) == EObjectType::ChunkView) {
-                    if (compactionHints.ChunkViewSize.IsCertainRequestStatus(ECompactionHintRequestStatus::Requested)) {
-                        compactionHints.ChunkViewSize.SetRequestStatus(ECompactionHintRequestStatus::None);
-                    }
+                auto sortedChunkStore = store->AsSortedChunk();
+                if (sortedChunkStore->GetChunkViewSizeFetchStatus() == EChunkViewSizeFetchStatus::Requested) {
+                    sortedChunkStore->SetChunkViewSizeFetchStatus(EChunkViewSizeFetchStatus::None);
                 }
             }
         }
@@ -4066,6 +4036,7 @@ private:
             .Item("compaction_time").Value(partition->GetCompactionTime())
             .Item("allowed_split_time").Value(partition->GetAllowedSplitTime())
             .Item("allowed_merge_time").Value(partition->GetAllowedMergeTime())
+            .Item("row_digest_request_time").Value(partition->GetRowDigestRequestTime())
             .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
             .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
             .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
@@ -4716,17 +4687,6 @@ private:
             .Run();
     }
 
-    void OnDynamicConfigChanged(
-        TClusterNodeDynamicConfigPtr oldConfig,
-        TClusterNodeDynamicConfigPtr newConfig)
-    {
-        Slot_->GetAutomatonInvoker()->Invoke(BIND(
-            &TImpl::DoDynamicConfigChanged,
-            MakeWeak(this),
-            std::move(oldConfig),
-            std::move(newConfig)));
-    }
-
     void DoTableDynamicConfigChanged(TClusterTableConfigPatchSetPtr patch)
     {
         if (!IsLeader()) {
@@ -4748,24 +4708,6 @@ private:
 
         for (const auto& [id, tablet] : Tablets()) {
             ScheduleTabletConfigUpdate(tablet, patch, globalPatchYson, experimentsYson);
-        }
-    }
-
-    void DoDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& oldConfig,
-        const TClusterNodeDynamicConfigPtr& newConfig)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        RowDigestFetcher_->Reconfigure(oldConfig, newConfig);
-        ChunkViewSizeFetcher_->Reconfigure(oldConfig, newConfig);
-        if (IsLeader() &&
-            newConfig->TabletNode->StoreCompactor->UseRowDigests &&
-            !oldConfig->TabletNode->StoreCompactor->UseRowDigests)
-        {
-            for (auto& [tabletId, tablet] : Tablets()) {
-                RowDigestFetcher_->FetchStoreInfos(tablet);
-            }
         }
     }
 
