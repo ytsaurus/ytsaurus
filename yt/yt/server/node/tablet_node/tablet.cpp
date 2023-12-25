@@ -1598,7 +1598,6 @@ void TTablet::Reconfigure(const ITabletSlotPtr& slot)
     ReconfigureRowCache(slot);
     InvalidateChunkReaders();
     ReconfigureHedgingManagerRegistry();
-    ResetRowDigestRequestTime();
 }
 
 void TTablet::StartEpoch(const ITabletSlotPtr& slot)
@@ -1619,7 +1618,6 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
     }
 
     ReconfigureRowCache(slot);
-    ResetRowDigestRequestTime();
 
     HunkLockManager_->StartEpoch();
     TabletWriteManager_->StartEpoch();
@@ -1973,18 +1971,6 @@ void TTablet::ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot)
     }
 
     ChunkFragmentReader_ = slot->CreateChunkFragmentReader(this);
-}
-
-void TTablet::ResetRowDigestRequestTime()
-{
-    if (!IsPhysicallySorted()) {
-        return;
-    }
-
-    for (const auto& partition : PartitionList_) {
-        partition->ResetRowDigestRequestTime();
-    }
-    Eden_->ResetRowDigestRequestTime();
 }
 
 const TString& TTablet::GetLoggingTag() const

@@ -1021,6 +1021,7 @@
   "yt/yt/server/lib/logging/CMakeLists.txt":"",
   "yt/yt/server/lib/logging/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/lsm/CMakeLists.txt":"",
+  "yt/yt/server/lib/lsm/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/misc/CMakeLists.txt":"",
   "yt/yt/server/lib/misc/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/nbd/CMakeLists.txt":"",

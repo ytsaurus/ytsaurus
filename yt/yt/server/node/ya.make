@@ -99,6 +99,7 @@ SRCS(
     tablet_node/cached_row.cpp
     tablet_node/chaos_agent.cpp
     tablet_node/chunk_view_size_fetcher.cpp
+    tablet_node/compaction_hint_fetcher.cpp
     tablet_node/distributed_throttler_manager.cpp
     tablet_node/dynamic_store_bits.cpp
     tablet_node/hedging_manager_registry.cpp
@@ -131,6 +132,7 @@ SRCS(
     tablet_node/replicated_store_manager.cpp
     tablet_node/replication_log.cpp
     tablet_node/row_cache.cpp
+    tablet_node/row_digest_fetcher.cpp
     tablet_node/security_manager.cpp
     tablet_node/serialize.cpp
     tablet_node/slot_provider.cpp

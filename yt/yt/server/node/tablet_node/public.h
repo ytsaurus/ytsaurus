@@ -61,9 +61,14 @@ DEFINE_ENUM(ETabletLockType,
     ((PersistentTransaction)         (2))
 );
 
-DEFINE_ENUM(EChunkViewSizeFetchStatus,
-    (None)
-    (Requested)
+
+DEFINE_ENUM(ECompactionHintRequestStatus,
+    ((None)         (0))
+    ((InQueue)      (1))
+    ((Requested)    (2))
+);
+
+DEFINE_ENUM(EChunkViewSizeStatus,
     (CompactionRequired)
     (CompactionNotRequired)
 );
@@ -195,8 +200,7 @@ DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
 DECLARE_REFCOUNTED_CLASS(TOverloadController)
 DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
 DECLARE_REFCOUNTED_CLASS(TCongestionController)
-
-DECLARE_REFCOUNTED_STRUCT(IChunkViewSizeFetcher)
+DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;

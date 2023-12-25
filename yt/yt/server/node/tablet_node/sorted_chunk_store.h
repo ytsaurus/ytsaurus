@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "store_detail.h"
+#include "compaction_hint_fetcher.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -23,7 +24,7 @@ class TSortedChunkStore
     , public TSortedStoreBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(EChunkViewSizeFetchStatus, ChunkViewSizeFetchStatus, EChunkViewSizeFetchStatus::None);
+    DEFINE_BYREF_RW_PROPERTY(TSortedChunkStoreCompactionHints, CompactionHints);
 
 public:
     TSortedChunkStore(
