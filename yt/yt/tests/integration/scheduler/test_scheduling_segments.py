@@ -13,7 +13,7 @@ from yt_commands import (
     ls, get, set, remove, exists, create_pool, create_pool_tree,
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
-    vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config,
+    vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config, abort_job,
     update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option)
 
 from yt_scheduler_helpers import (
@@ -131,6 +131,7 @@ class TestSchedulingSegments(YTEnvSetup):
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestSchedulingSegments.DATA_CENTER],
+            "enable_detailed_logs": True,
         })
         set("//sys/pool_trees/default/@config/main_resource", "gpu")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
@@ -306,7 +307,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalancing_heuristic_choose_node_with_preemptible_job(self):
-        set("//sys/pool_trees/default/@config/cached_job_preemption_statuses_update_period", 1000)
+        set("//sys/pool_trees/default/@config/cached_job_preemption_statuses_update_period", 500)
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 72})
         set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 8})
         create_pool(
@@ -368,6 +369,74 @@ class TestSchedulingSegments(YTEnvSetup):
         actual_node = get_first_job_node(new_op)
         assert actual_node == expected_node
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "default")
+
+    @authors("eshcherbin")
+    def test_rebalancing_heuristic_choose_node_with_job_from_other_segment(self):
+        update_pool_tree_config_option("default", "cached_job_preemption_statuses_update_period", 500)
+        set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 44})
+        set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 36})
+
+        blocking_large_op = run_sleeping_vanilla(
+            job_count=5,
+            spec={"pool": "large_gpu", "scheduling_segment": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_large_op.id), 0.5))
+
+        blocking_small_op = run_sleeping_vanilla(
+            job_count=4,
+            spec={"pool": "small_gpu", "scheduling_segment": "default"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_small_op.id), 0.4))
+
+        sharing_small_op = run_sleeping_vanilla(
+            spec={"pool": "small_gpu", "scheduling_segment": "default"},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(sharing_small_op.id), 0.05))
+
+        sharing_large_op = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "scheduling_segment": "large_gpu"},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(sharing_large_op.id), 0.05))
+
+        time.sleep(2.0)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(sharing_small_op.id), 0.05))
+
+        def get_first_job_node(op):
+            wait(lambda: len(op.get_running_jobs()) >= 1)
+            jobs = op.get_running_jobs()
+            job = jobs[list(jobs)[0]]
+            return job["address"]
+
+        # Two jobs from different segments share a node from large GPU segment.
+        wait(lambda: get_first_job_node(sharing_large_op) == get_first_job_node(sharing_small_op))
+        shared_node = get_first_job_node(sharing_large_op)
+        wait(lambda: get(scheduler_orchid_node_path(shared_node) + "/scheduling_segment", default=None) == "large_gpu")
+
+        # But the job from default segment is considered preemptible just for running in the wrong segment.
+        wait(lambda: get(scheduler_orchid_node_path(shared_node) + "/running_job_statistics/preemptible_gpu_time") > 0)
+
+        blocking_jobs = blocking_large_op.get_running_jobs()
+        assert len(blocking_jobs) == 5
+        for job in blocking_jobs.keys():
+            abort_job(job)
+
+        time.sleep(1.0)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_large_op.id), 0.5))
+
+        update_pool_tree_config_option("default", "scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
+        sharing_large_op.abort()
+
+        def check():
+            stats = get(scheduler_orchid_node_path(shared_node) + "/running_job_statistics")
+            return are_almost_equal(stats["total_gpu_time"], stats["preemptible_gpu_time"])
+        wait(lambda: check)
+
+        update_pool_tree_config_option("default", "scheduling_segments/unsatisfied_segments_rebalancing_timeout", 100)
+        wait(lambda: get(scheduler_orchid_node_path(shared_node) + "/scheduling_segment") == "default")
 
     @authors("eshcherbin")
     def test_mixed_operation(self):
@@ -1047,6 +1116,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "data_centers": BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS,
             "infiniband_clusters": BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS,
             "module_type": self._get_module_type(),
+            "enable_detailed_logs": True,
         })
         set("//sys/pool_trees/default/@config/main_resource", "gpu")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
@@ -1751,6 +1821,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "infiniband_clusters": TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS,
             "module_type": "infiniband_cluster",
+            "enable_detailed_logs": True,
         })
         set("//sys/pool_trees/default/@config/main_resource", "gpu")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
@@ -1890,6 +1961,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestRunningJobStatistics.DATA_CENTER],
+            "enable_detailed_logs": True,
         })
         set("//sys/pool_trees/default/@config/main_resource", "gpu")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
