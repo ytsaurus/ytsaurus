@@ -2705,7 +2705,7 @@ void TFairShareTreeJobScheduler::ProcessUpdatedJob(
     const TJobResources& jobResources,
     const std::optional<TString>& jobDataCenter,
     const std::optional<TString>& jobInfinibandCluster,
-    bool* shouldAbortJob) const
+    std::optional<EAbortReason>* maybeAbortReason) const
 {
     const auto& operationState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(element);
     const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
@@ -2723,7 +2723,7 @@ void TFairShareTreeJobScheduler::ProcessUpdatedJob(
             element->TreeConfig()->SchedulingSegments->ModuleType);
         bool jobIsRunningInTheRightModule = operationModule && (operationModule == jobModule);
         if (!jobIsRunningInTheRightModule) {
-            *shouldAbortJob = true;
+            *maybeAbortReason = EAbortReason::WrongSchedulingSegmentModule;
 
             YT_LOG_DEBUG(
                 "Requested to abort job because it is running in a wrong module "

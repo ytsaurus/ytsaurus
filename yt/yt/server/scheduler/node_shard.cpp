@@ -1190,9 +1190,10 @@ void TNodeShard::AbortJob(TJobId jobId, const TError& error, EAbortReason abortR
         return;
     }
 
-    YT_LOG_DEBUG(error, "Aborting job by internal request (JobId: %v, OperationId: %v)",
+    YT_LOG_DEBUG(error, "Aborting job by internal request (JobId: %v, OperationId: %v, AbortReason: %v)",
         jobId,
-        job->GetOperationId());
+        job->GetOperationId(),
+        abortReason);
 
     OnJobAborted(job, error, abortReason);
 }
@@ -2300,15 +2301,17 @@ void TNodeShard::SubmitJobsToStrategy()
     YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
         if (!JobsToSubmitToStrategy_.empty()) {
             THashSet<TJobId> jobsToPostpone;
-            std::vector<TJobId> jobsToAbort;
+            THashMap<TJobId, EAbortReason> jobsToAbort;
             auto jobUpdates = GetValues(JobsToSubmitToStrategy_);
             ManagerHost_->GetStrategy()->ProcessJobUpdates(
                 jobUpdates,
                 &jobsToPostpone,
                 &jobsToAbort);
 
-            for (auto jobId : jobsToAbort) {
-                AbortJob(jobId, TError("Aborting job by strategy request"), EAbortReason::SchedulingOther);
+            for (const auto& [jobId, abortReason] : jobsToAbort) {
+                auto error = TError("Aborting job by strategy request")
+                    << TErrorAttribute("abort_reason", abortReason);
+                AbortJob(jobId, error, abortReason);
             }
 
             std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;

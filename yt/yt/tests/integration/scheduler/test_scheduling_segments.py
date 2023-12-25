@@ -1684,6 +1684,44 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 3.0 / 7.0))
 
+    @authors("eshcherbin")
+    def test_module_reset_with_fail_on_job_restart(self):
+        update_scheduler_config("operation_hangup_check_period", 1000000000)
+
+        create_pool("large_gpu_other", attributes={"allow_normal_preemption": False})
+        set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 70})
+
+        blocking_op = run_sleeping_vanilla(
+            job_count=5,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+
+        other_op = run_sleeping_vanilla(
+            job_count=4,
+            spec={"pool": "large_gpu_other"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(other_op.id), 0.4))
+
+        op = run_sleeping_vanilla(
+            job_count=2,
+            spec={
+                "pool": "large_gpu",
+                "fail_on_job_restart": True,
+            },
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+        update_pool_tree_config_option("default", "scheduling_segments/module_reconsideration_timeout", 3000)
+        blocking_op.abort()
+
+        wait(lambda: op.get_job_count("aborted", from_orchid=False, verbose=True) > 0)
+        op.wait_for_state("failed")
+
 
 class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):
     NUM_TEST_PARTITIONS = 2

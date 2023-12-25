@@ -340,7 +340,7 @@ void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job)
 void TSharedSchedulerStrategy::ProcessJobUpdates(
     const std::vector<TJobUpdate>& jobUpdates,
     THashSet<TJobId>* jobsToPostpone,
-    std::vector<TJobId>* jobsToAbort)
+    THashMap<TJobId, EAbortReason>* jobsToAbort)
 {
     SchedulerStrategy_->ProcessJobUpdates(jobUpdates, jobsToPostpone, jobsToAbort);
 }

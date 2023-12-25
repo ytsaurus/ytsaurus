@@ -257,7 +257,7 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeEvent& event)
 
     {
         THashSet<TJobId> jobsToPostpone;
-        std::vector<TJobId> jobsToAbort;
+        THashMap<TJobId, EAbortReason> jobsToAbort;
         SchedulingStrategy_->ProcessJobUpdates(
             jobUpdates,
             &jobsToPostpone,
