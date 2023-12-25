@@ -1,9 +1,11 @@
 {
-    cluster=hahn;
+    cluster=arnold;
     pool="yt-integration-tests";
+    pool_trees=[
+        "yt_tests";
+    ];
     cypress_root="//home/yt-integration-tests";
     operation_spec={
-        scheduling_tag_filter="!cpu_vendor_amd";
     };
     task_spec={
         use_porto_memory_tracking=%true;
