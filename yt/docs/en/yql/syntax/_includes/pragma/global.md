@@ -154,6 +154,24 @@ The standard requires that such window behaves as `(ORDER BY key RANGE BETWEEN U
 The difference is in `CURRENT ROW` interpretation. In `ROWS` mode, `CURRENT ROW` is interpreted literally: the current string in the partition.
 And in `RANGE` mode, the end of the `CURRENT ROW` frame means "the last row in the partition with the sorting key equal to the current row".
 
+### DisableAnsiOptionalAs
+
+| Value type | By default |
+| --- | --- |
+| Flag | false |
+
+With this pragma, syntax error will be raised for queries wherein the fields are not separated by commas.
+The following query:
+```
+SELECT
+    field1 -- no "," here
+    field2
+FROM (
+    select 1 AS field1
+);
+```
+will raise "Expecting mandatory AS here. Did you miss comma?" error.
+
 ### OrderedColumns {#orderedcolumns}
 `OrderedColumns` / `DisableOrderedColumns`
 
