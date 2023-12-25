@@ -341,6 +341,7 @@ public:
     MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
@@ -699,6 +700,7 @@ protected:
         jobResources.SetUserSlots(1);
         jobResources.SetCpu(1);
         jobResources.SetMemory(10_MB);
+        jobResources.DiskQuota() = TDiskQuota{.DiskSpacePerMedium = {{0, 10_MB}}};
 
         auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
         auto operationElement = CreateTestOperationElement(strategyHost, treeScheduler, operationHost.Get(), parent);
@@ -760,7 +762,7 @@ protected:
         TOperationId operationId,
         const TExecNodePtr& execNode,
         TInstant startTime,
-        TJobResources jobResources)
+        TJobResourcesWithQuota jobResources)
     {
         return New<TJob>(
             jobId,
@@ -769,8 +771,8 @@ protected:
             /*controllerEpoch*/ TControllerEpoch(0),
             execNode,
             startTime,
-            jobResources,
-            TDiskQuota(),
+            jobResources.ToJobResources(),
+            jobResources.DiskQuota(),
             /*preemptionMode*/ EPreemptionMode::Normal,
             /*treeId*/ "",
             /*schedulingIndex*/ UndefinedSchedulingIndex);
@@ -992,9 +994,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
     std::atomic<int> heartbeatsInScheduling(0);
     EXPECT_CALL(
         operationControllerStrategyHost,
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleJobResultPtr>(
@@ -1083,10 +1085,13 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
 
 TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
 {
+    SchedulerConfig_->ConsiderDiskQuotaInPreemptiveSchedulingDiscount = true;
+
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(30);
     nodeResources.SetCpu(30);
     nodeResources.SetMemory(300_MB);
+    nodeResources.DiskQuota().DiskSpacePerMedium = {{0, 300_MB}};
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto strategyHost = CreateTestStrategyHost({execNode});
@@ -1100,10 +1105,11 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     blockingPool->AttachParent(rootElement.Get());
     guaranteedPool->AttachParent(rootElement.Get());
 
-    TJobResources jobResources;
+    TJobResourcesWithQuota jobResources;
     jobResources.SetUserSlots(15);
     jobResources.SetCpu(15);
     jobResources.SetMemory(150_MB);
+    jobResources.DiskQuota() = TDiskQuota{.DiskSpacePerMedium = {{0, 150_MB}}};
 
     auto blockingOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto blockingOperationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, blockingOperation.Get(), blockingPool.Get());
@@ -1112,6 +1118,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     jobResources.SetUserSlots(1);
     jobResources.SetCpu(1);
     jobResources.SetMemory(10_MB);
+    jobResources.DiskQuota() = TDiskQuota{.DiskSpacePerMedium = {{0, 10_MB}}};
 
     auto donorOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResources));
     auto donorOperationSpec = New<TStrategyOperationSpec>();
@@ -1130,7 +1137,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     for (int i = 0; i < 15; ++i) {
         auto job = CreateTestJob(TJobId(TGuid::Create()), donorOperation->GetId(), execNode, now, jobResources);
         donorJobs.push_back(job);
-        treeScheduler->OnJobStartedInTest(donorOperationElement.Get(), job->GetId(), job->ResourceLimits());
+        treeScheduler->OnJobStartedInTest(donorOperationElement.Get(), job->GetId(), TJobResourcesWithQuota(job->ResourceLimits(), job->DiskQuota()));
     }
 
     auto [starvingOperationElement, starvingOperation] = CreateOperationWithJobs(10, strategyHost.Get(), treeScheduler, guaranteedPool.Get());
@@ -1183,6 +1190,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
     auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
+    EXPECT_EQ(0, context->SchedulingContext()->DiskResources().default_medium_index());
+
     context->StartStage(EJobSchedulingStage::PreemptiveNormal, &PreemptiveSchedulingProfilingCounters_);
     context->PrepareForScheduling();
 
@@ -1230,11 +1239,17 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     expectedDiscount.SetMemory(50_MB);
 
     const auto& schedulingContext = scheduleJobsContextWithDependencies.SchedulingContext;
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetMaxConditionalUsageDiscount());
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(starvingOperation->GetId()));
+    EXPECT_EQ(expectedDiscount, schedulingContext->GetMaxConditionalDiscount().ToJobResources());
+    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(starvingOperation->GetId()).ToJobResources());
     // It's a bit weird that a preemptible job's usage is added to the discount of its operation, but this is how we do it.
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(donorOperation->GetId()));
-    EXPECT_EQ(TJobResources(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
+    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(donorOperation->GetId()).ToJobResources());
+
+    TDiskQuota expectedDiskQuotaDiscount{.DiskSpacePerMedium = {{0, 50_MB}}};
+
+    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(starvingOperation->GetId()).DiskQuota().DiskSpacePerMedium);
+    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(donorOperation->GetId()).DiskQuota().DiskSpacePerMedium);
+
+    EXPECT_EQ(TJobResourcesWithQuota(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
 }
 
 TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
@@ -1443,9 +1458,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
         auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
                 result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
@@ -1651,9 +1666,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutBatchSchedu
         auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
                 result->StartDescriptor.emplace(TJobId(TGuid::Create()), operationJobResources);
                 return MakeFuture<TControllerScheduleJobResultPtr>(

@@ -1118,6 +1118,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("send_preemption_reason_in_node_heartbeat", &TThis::SendPreemptionReasonInNodeHeartbeat)
         .Default(true);
 
+    registrar.Parameter("consider_disk_quota_in_preemptive_scheduling_discount", &TThis::ConsiderDiskQuotaInPreemptiveSchedulingDiscount)
+        .Default(false);
+
     registrar.Parameter("update_last_metering_log_time", &TThis::UpdateLastMeteringLogTime)
         .Default(true);
 

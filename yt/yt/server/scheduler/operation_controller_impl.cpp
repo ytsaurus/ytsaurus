@@ -626,6 +626,7 @@ TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResources& jobLimits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
     const TString& treeId,
     const TString& poolPath,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
@@ -666,7 +667,7 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     request->PoolPath = poolPath;
     request->NodeId = nodeId;
     request->NodeResourceLimits = context->ResourceLimits();
-    request->NodeDiskResources = context->DiskResources();
+    request->NodeDiskResources = diskResourceLimits;
     request->Spec.WaitingJobTimeout = treeConfig->WaitingJobTimeout;
 
     TIncarnationId incarnationId;

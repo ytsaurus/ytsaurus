@@ -1539,8 +1539,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
 
 ##################################################################
 
-
-class TestSsdPriorityPreemption(YTEnvSetup):
+class BaseTestDiskPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
@@ -1564,6 +1563,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
         },
         "scheduler": {
             "fair_share_update_period": 100,
+            "consider_disk_quota_in_preemptive_scheduling_discount": True,
         },
     }
 
@@ -1599,64 +1599,26 @@ class TestSsdPriorityPreemption(YTEnvSetup):
     SSD_MEDIUM = "ssd_slots"
     SSD_NODE_TAG = "ssd_tag"
 
-    @classmethod
-    def _get_default_location_path(cls, node_index):
-        return "{}/node-{}".format(cls.fake_default_disk_path, node_index)
-
-    @classmethod
-    def _get_ssd_location_path(cls, node_index):
-        return "{}/node-{}".format(cls.fake_ssd_disk_path, node_index)
-
-    @classmethod
-    def _setup_media(cls):
-        with Restarter(cls.Env, NODES_SERVICE):
-            for i, node_config in enumerate(cls.Env.configs["node"]):
-                should_add_ssd = i < TestSsdPriorityPreemption.SSD_NODE_COUNT
-
-                config = deepcopy(node_config)
-
-                slot_locations = [{
-                    "path": cls._get_default_location_path(i),
-                    "disk_quota": 1 * 1024 * 1024,
-                    "disk_usage_watermark": 0,
-                }]
-                if should_add_ssd:
-                    slot_locations.append({
-                        "path": cls._get_ssd_location_path(i),
-                        "disk_quota": 4 * 1024 * 1024,
-                        "disk_usage_watermark": 0,
-                        "medium_name": TestSsdPriorityPreemption.SSD_MEDIUM,
-                    })
-                config["exec_node"]["slot_manager"]["locations"] = slot_locations
-
-                if should_add_ssd:
-                    tags = config.pop("tags", list())
-                    tags.append(TestSsdPriorityPreemption.SSD_NODE_TAG)
-                    config["tags"] = tags
-
-                config_path = cls.Env.config_paths["node"][i]
-                with open(config_path, "wb") as fout:
-                    yson.dump(config, fout)
-
-        actual_ssd_node_count = 0
-        for node in ls("//sys/cluster_nodes"):
-            has_ssd_tag = TestSsdPriorityPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(node))
-            has_ssd_medium = any(medium["medium_name"] == TestSsdPriorityPreemption.SSD_MEDIUM
-                                 for medium in get("//sys/cluster_nodes/{}/@statistics/slot_locations".format(node)))
-
-            assert has_ssd_medium == has_ssd_tag
-            if has_ssd_medium:
-                actual_ssd_node_count += 1
-
-        assert TestSsdPriorityPreemption.SSD_NODE_COUNT == actual_ssd_node_count
-
-    @classmethod
-    def on_masters_started(cls):
-        create_domestic_medium(TestSsdPriorityPreemption.SSD_MEDIUM)
+    DEFAULT_POOL_TREE_CONFIG = {
+        "aggressive_preemption_satisfaction_threshold": 0.2,
+        "preemption_satisfaction_threshold": 1.0,
+        "fair_share_starvation_tolerance": 0.9,
+        "max_unpreemptible_running_job_count": 0,
+        "fair_share_starvation_timeout": 100,
+        "fair_share_aggressive_starvation_timeout": 200,
+        "preemptive_scheduling_backoff": 0,
+        "max_ephemeral_pools_per_user": 5,
+        "node_reconnection_timeout": 100,
+        "ssd_priority_preemption": {
+            "enable": False,
+            "node_tag_filter": SSD_NODE_TAG,
+            "medium_names": [SSD_MEDIUM],
+        },
+    }
 
     @classmethod
     def setup_class(cls):
-        super(TestSsdPriorityPreemption, cls).setup_class()
+        super(BaseTestDiskPreemption, cls).setup_class()
         for i in range(cls.NUM_NODES):
             for path in (cls._get_default_location_path(i), cls._get_ssd_location_path(i)):
                 if os.path.exists(path):
@@ -1666,23 +1628,93 @@ class TestSsdPriorityPreemption(YTEnvSetup):
         cls._setup_media()
 
     def setup_method(self, method):
-        super(TestSsdPriorityPreemption, self).setup_method(method)
-        update_pool_tree_config("default", {
-            "aggressive_preemption_satisfaction_threshold": 0.2,
-            "preemption_satisfaction_threshold": 1.0,
-            "fair_share_starvation_tolerance": 0.9,
-            "max_unpreemptible_running_job_count": 0,
-            "fair_share_starvation_timeout": 100,
-            "fair_share_aggressive_starvation_timeout": 200,
-            "preemptive_scheduling_backoff": 0,
-            "max_ephemeral_pools_per_user": 5,
-            "node_reconnection_timeout": 100,
-            "ssd_priority_preemption": {
-                "enable": False,
-                "node_tag_filter": TestSsdPriorityPreemption.SSD_NODE_TAG,
-                "medium_names": [TestSsdPriorityPreemption.SSD_MEDIUM],
-            },
-        })
+        super(BaseTestDiskPreemption, self).setup_method(method)
+        update_pool_tree_config("default", BaseTestDiskPreemption.DEFAULT_POOL_TREE_CONFIG)
+
+    @classmethod
+    def _setup_media(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _setup_media_impl(cls, ssd_location_disk_quota, non_ssd_location_disk_quota=None, default_medium_name=None):
+        with Restarter(cls.Env, NODES_SERVICE):
+            for i, node_config in enumerate(cls.Env.configs["node"]):
+                should_add_ssd = i < BaseTestDiskPreemption.SSD_NODE_COUNT
+
+                config = deepcopy(node_config)
+
+                slot_locations = []
+                if non_ssd_location_disk_quota is not None:
+                    slot_locations.append({
+                        "path": cls._get_default_location_path(i),
+                        "disk_quota": non_ssd_location_disk_quota,
+                        "disk_usage_watermark": 0,
+                    })
+                if should_add_ssd and ssd_location_disk_quota is not None:
+                    slot_locations.append({
+                        "path": cls._get_ssd_location_path(i),
+                        "disk_quota": ssd_location_disk_quota,
+                        "disk_usage_watermark": 0,
+                        "medium_name": BaseTestDiskPreemption.SSD_MEDIUM,
+                    })
+
+                config["exec_node"]["slot_manager"]["locations"] = slot_locations
+
+                if default_medium_name is not None:
+                    config["exec_node"]["slot_manager"]["default_medium_name"] = default_medium_name
+
+                if should_add_ssd:
+                    tags = config.pop("tags", list())
+                    tags.append(BaseTestDiskPreemption.SSD_NODE_TAG)
+                    config["tags"] = tags
+
+                config_path = cls.Env.config_paths["node"][i]
+                with open(config_path, "wb") as fout:
+                    yson.dump(config, fout)
+
+        actual_ssd_node_count = 0
+        for node in ls("//sys/cluster_nodes"):
+            has_ssd_tag = BaseTestDiskPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(node))
+            has_ssd_medium = any(medium["medium_name"] == BaseTestDiskPreemption.SSD_MEDIUM
+                                 for medium in get("//sys/cluster_nodes/{}/@statistics/slot_locations".format(node)))
+
+            assert has_ssd_medium == has_ssd_tag
+            if has_ssd_medium:
+                actual_ssd_node_count += 1
+
+        assert BaseTestDiskPreemption.SSD_NODE_COUNT == actual_ssd_node_count
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium(BaseTestDiskPreemption.SSD_MEDIUM)
+
+    def _run_sleeping_vanilla_with_ssd(self, disk_space=1, medium_name=SSD_MEDIUM, **kwargs):
+        task_patch = kwargs.pop("task_patch", dict())
+        task_patch["disk_request"] = {
+            "disk_space": disk_space * 1024 * 1024,
+        }
+        if medium_name is not None:
+            task_patch["disk_request"]["medium_name"] = medium_name
+
+        kwargs["task_patch"] = task_patch
+        return run_sleeping_vanilla(**kwargs)
+
+    def _get_op_cpu_usage(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None)
+
+    @classmethod
+    def _get_default_location_path(cls, node_index):
+        return "{}/node-{}".format(cls.fake_default_disk_path, node_index)
+
+    @classmethod
+    def _get_ssd_location_path(cls, node_index):
+        return "{}/node-{}".format(cls.fake_ssd_disk_path, node_index)
+
+
+class TestSsdPriorityPreemption(BaseTestDiskPreemption):
+    @classmethod
+    def _setup_media(cls):
+        cls._setup_media_impl(ssd_location_disk_quota=4 * 1024 * 1024, non_ssd_location_disk_quota=1 * 1024 * 1024)
 
     def _run_sleeping_vanilla_with_unpreemptible_jobs_at_ssd_nodes(self):
         # NB: Needed to disable sanity checks.
@@ -1705,21 +1737,8 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
         return op
 
-    def _run_sleeping_vanilla_with_ssd(self, **kwargs):
-        task_patch = kwargs.pop("task_patch", dict())
-        task_patch["disk_request"] = {
-            "disk_space": 1 * 1024 * 1024,
-            "medium_name": TestSsdPriorityPreemption.SSD_MEDIUM,
-        }
-        kwargs["task_patch"] = task_patch
-
-        return run_sleeping_vanilla(**kwargs)
-
     def _get_op_starvation_status(self, op):
         return get(scheduler_orchid_operation_path(op.id) + "/starvation_status", default=None)
-
-    def _get_op_cpu_usage(self, op):
-        return get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None)
 
     def _get_op_fair_share(self, op):
         return get(scheduler_orchid_operation_path(op.id) + "/detailed_dominant_fair_share/total", default=None)
@@ -1911,3 +1930,34 @@ class TestSsdPriorityPreemption(YTEnvSetup):
         ssd_op = self._run_sleeping_vanilla_with_ssd(job_count=1, spec={"pool": "research"})
         wait(lambda: get(scheduler_orchid_operation_path(ssd_op.id) + "/resource_usage/cpu", default=0.0) == 1.0)
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op.id) + "/satisfaction_ratio"), 4.5 / 7.0))
+
+
+class TestDiskQuotaInRegularPreemption(BaseTestDiskPreemption):
+    @classmethod
+    def _setup_media(cls):
+        cls._setup_media_impl(ssd_location_disk_quota=5 * 1024 * 1024, default_medium_name=cls.SSD_MEDIUM)
+
+    @authors("omgronny")
+    @pytest.mark.parametrize("use_default_medium_in_blocking_op", [False, True])
+    @pytest.mark.parametrize("use_default_medium_in_starving_op", [False, True])
+    def test_consider_disk_quota_discount_in_regular_preemption(self, use_default_medium_in_blocking_op, use_default_medium_in_starving_op):
+        create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
+        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 6.0}})
+
+        medium_name = TestDiskQuotaInRegularPreemption.SSD_MEDIUM
+        if use_default_medium_in_blocking_op:
+            medium_name = None
+
+        blocking_op = self._run_sleeping_vanilla_with_ssd(disk_space=2, medium_name=medium_name, job_count=4, spec={"pool": "first"})
+        wait(lambda: self._get_op_cpu_usage(blocking_op) == 4.0)
+
+        medium_name = TestDiskQuotaInRegularPreemption.SSD_MEDIUM
+        if use_default_medium_in_starving_op:
+            medium_name = None
+
+        starving_op = self._run_sleeping_vanilla_with_ssd(disk_space=2, medium_name=medium_name, job_count=8, spec={"pool": "second"})
+
+        @wait_no_assert
+        def wait_for_preemption():
+            assert self._get_op_cpu_usage(starving_op) == 2.0
+            assert self._get_op_cpu_usage(blocking_op) == 2.0

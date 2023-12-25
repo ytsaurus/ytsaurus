@@ -40,21 +40,18 @@ TSchedulingContextBase::TSchedulingContextBase(
     , ResourceLimits_(Node_->GetResourceLimits())
     , DiskResources_(Node_->GetDiskResources())
     , RunningJobs_(runningJobs)
-{ }
+{
+    if (const auto& diskLocationResources = DiskResources_.disk_location_resources();
+        diskLocationResources.size() == 1 &&
+        Config_->ConsiderDiskQuotaInPreemptiveSchedulingDiscount)
+    {
+        DiscountMediumIndex_ = diskLocationResources.begin()->medium_index();
+    }
+}
 
 int TSchedulingContextBase::GetNodeShardId() const
 {
     return NodeShardId_;
-}
-
-TJobResources& TSchedulingContextBase::UnconditionalResourceUsageDiscount()
-{
-    return UnconditionalResourceUsageDiscount_;
-}
-
-TJobResources TSchedulingContextBase::GetMaxConditionalUsageDiscount() const
-{
-    return MaxConditionalUsageDiscount_;
 }
 
 TJobResources& TSchedulingContextBase::ResourceUsage()
@@ -72,6 +69,32 @@ const TJobResources& TSchedulingContextBase::ResourceLimits() const
     return ResourceLimits_;
 }
 
+const TJobResourcesWithQuota& TSchedulingContextBase::UnconditionalDiscount() const
+{
+    return UnconditionalDiscount_;
+}
+
+TJobResourcesWithQuota TSchedulingContextBase::GetConditionalDiscountForOperation(TOperationId operationId) const
+{
+    return GetOrDefault(ConditionalDiscountMap_, operationId);
+}
+
+TJobResourcesWithQuota TSchedulingContextBase::GetMaxConditionalDiscount() const
+{
+    return MaxConditionalDiscount_;
+}
+
+void TSchedulingContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& jobResources)
+{
+    UnconditionalDiscount_.SetJobResources(UnconditionalDiscount_.ToJobResources() + jobResources.ToJobResources());
+
+    if (DiscountMediumIndex_) {
+        auto compactedDiskQuota = GetDiskQuotaWithCompactedDefaultMedium(jobResources.DiskQuota());
+        UnconditionalDiscount_.DiskQuota().DiskSpacePerMedium[*DiscountMediumIndex_] +=
+            GetOrDefault(compactedDiskQuota.DiskSpacePerMedium, *DiscountMediumIndex_);
+    }
+}
+
 const NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResources() const
 {
     return DiskResources_;
@@ -80,6 +103,11 @@ const NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskRe
 NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResources()
 {
     return DiskResources_;
+}
+
+const std::vector<TDiskQuota>& TSchedulingContextBase::DiskRequests() const
+{
+    return DiskRequests_;
 }
 
 const TExecNodeDescriptorPtr& TSchedulingContextBase::GetNodeDescriptor() const
@@ -93,7 +121,7 @@ bool TSchedulingContextBase::CanSatisfyResourceRequest(
 {
     return Dominates(
         ResourceLimits_,
-        ResourceUsage_ + jobResources - (UnconditionalResourceUsageDiscount_ + conditionalDiscount));
+        ResourceUsage_ + jobResources - (UnconditionalDiscount_.ToJobResources() + conditionalDiscount));
 }
 
 bool TSchedulingContextBase::CanStartJobForOperation(
@@ -101,18 +129,22 @@ bool TSchedulingContextBase::CanStartJobForOperation(
     TOperationId operationId) const
 {
     std::vector<NScheduler::TDiskQuota> diskRequests(DiskRequests_);
-    diskRequests.push_back(jobResourcesWithQuota.DiskQuota());
+    auto diskRequest = Max(TDiskQuota{},
+        GetDiskQuotaWithCompactedDefaultMedium(jobResourcesWithQuota.DiskQuota()) - (UnconditionalDiscount_.DiskQuota() + GetConditionalDiscountForOperation(operationId).DiskQuota()));
+    diskRequests.push_back(std::move(diskRequest));
+
     return
         CanSatisfyResourceRequest(
             jobResourcesWithQuota.ToJobResources(),
-            GetConditionalDiscountForOperation(operationId)) &&
+            GetConditionalDiscountForOperation(operationId).ToJobResources()) &&
         CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
 }
 
-bool TSchedulingContextBase::CanStartMoreJobs(const std::optional<TJobResources>& customMinSpareJobResources) const
+bool TSchedulingContextBase::CanStartMoreJobs(
+    const std::optional<TJobResources>& customMinSpareJobResources) const
 {
     auto minSpareJobResources = customMinSpareJobResources.value_or(DefaultMinSpareJobResources_);
-    if (!CanSatisfyResourceRequest(minSpareJobResources, MaxConditionalUsageDiscount_)) {
+    if (!CanSatisfyResourceRequest(minSpareJobResources, MaxConditionalDiscount_.ToJobResources())) {
         return false;
     }
 
@@ -185,6 +217,12 @@ void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration preemption
 {
     YT_VERIFY(job->GetNode() == Node_);
     PreemptedJobs_.push_back({job, preemptionTimeout, preemptionReason});
+
+    if (auto it = DiskRequestIndexPerJobId_.find(job->GetId());
+        it != DiskRequestIndexPerJobId_.end() && DiscountMediumIndex_)
+    {
+        DiskRequests_[it->second] = TDiskQuota{};
+    }
 }
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount() const
@@ -194,12 +232,25 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount() cons
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount() const
 {
-    return ResourceLimits_ - ResourceUsage_ + UnconditionalResourceUsageDiscount_;
+    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.ToJobResources();
 }
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const
 {
-    return ResourceLimits_ - ResourceUsage_ + UnconditionalResourceUsageDiscount_ + GetConditionalDiscountForOperation(operationId);
+    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.ToJobResources() + GetConditionalDiscountForOperation(operationId).ToJobResources();
+}
+
+NNodeTrackerClient::NProto::TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const
+{
+    auto diskResources = DiskResources_;
+    if (DiscountMediumIndex_) {
+        auto discountForOperation = GetOrDefault(UnconditionalDiscount_.DiskQuota().DiskSpacePerMedium, *DiscountMediumIndex_) +
+            GetOrDefault(GetConditionalDiscountForOperation(operationId).DiskQuota().DiskSpacePerMedium, *DiscountMediumIndex_);
+
+        auto& diskLocation = *diskResources.mutable_disk_location_resources()->begin();
+        diskLocation.set_usage(std::max(0l, diskLocation.usage() - discountForOperation));
+    }
+    return diskResources;
 }
 
 TScheduleJobsStatistics TSchedulingContextBase::GetSchedulingStatistics() const
@@ -226,24 +277,35 @@ TDuration TSchedulingContextBase::ExtractScheduleJobExecDurationEstimate()
     return *std::exchange(ScheduleJobExecDurationEstimate_, {});
 }
 
-void TSchedulingContextBase::ResetUsageDiscounts()
+void TSchedulingContextBase::ResetDiscounts()
 {
-    UnconditionalResourceUsageDiscount_ = {};
-    ConditionalUsageDiscountMap_.clear();
-    MaxConditionalUsageDiscount_ = {};
+    UnconditionalDiscount_ = {};
+    ConditionalDiscountMap_.clear();
+    MaxConditionalDiscount_ = {};
 }
 
-void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount)
+void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discountForOperation)
 {
-    YT_VERIFY(ConditionalUsageDiscountMap_.emplace(operationId, discount).second);
+    TJobResourcesWithQuota conditionalDiscount(discountForOperation.ToJobResources());
 
-    MaxConditionalUsageDiscount_ = Max(MaxConditionalUsageDiscount_, discount);
+    if (DiscountMediumIndex_) {
+        auto compactedDiscount = GetDiskQuotaWithCompactedDefaultMedium(discountForOperation.DiskQuota());
+        conditionalDiscount.DiskQuota().DiskSpacePerMedium[*DiscountMediumIndex_] =
+            GetOrDefault(compactedDiscount.DiskSpacePerMedium, *DiscountMediumIndex_);
+    }
+
+    EmplaceOrCrash(ConditionalDiscountMap_, operationId, conditionalDiscount);
+    MaxConditionalDiscount_ = Max(MaxConditionalDiscount_, conditionalDiscount);
 }
 
-TJobResources TSchedulingContextBase::GetConditionalDiscountForOperation(TOperationId operationId) const
+TDiskQuota TSchedulingContextBase::GetDiskQuotaWithCompactedDefaultMedium(TDiskQuota diskQuota) const
 {
-    auto it = ConditionalUsageDiscountMap_.find(operationId);
-    return it != ConditionalUsageDiscountMap_.end() ? it->second : TJobResources{};
+    if (diskQuota.DiskSpaceWithoutMedium) {
+        diskQuota.DiskSpacePerMedium[DiskResources_.default_medium_index()] += *diskQuota.DiskSpaceWithoutMedium;
+        diskQuota.DiskSpaceWithoutMedium = {};
+    }
+
+    return diskQuota;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

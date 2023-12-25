@@ -203,12 +203,13 @@ void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason 
 TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResources& availableResources,
+    const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
     TDuration timeLimit,
     const TString& treeId,
     const TString& poolPath,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
-    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, availableResources, treeId, poolPath, treeConfig);
+    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, availableResources, availableDiskResources, treeId, poolPath, treeConfig);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .ToUncancelable()

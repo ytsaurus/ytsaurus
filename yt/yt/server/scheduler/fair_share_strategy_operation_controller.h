@@ -39,6 +39,7 @@ public:
     TControllerScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& availableResources,
+        const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
         TDuration timeLimit,
         const TString& treeId,
         const TString& poolPath,

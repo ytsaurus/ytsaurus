@@ -278,6 +278,7 @@ public:
     MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));

@@ -2104,11 +2104,12 @@ bool TSchedulerOperationElement::IsSaturatedInTentativeTree(
 TControllerScheduleJobResultPtr TSchedulerOperationElement::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResources& availableResources,
+    const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
     TDuration timeLimit,
     const TString& treeId,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
-    return Controller_->ScheduleJob(context, availableResources, timeLimit, treeId, GetParent()->GetFullPath(/*explicitOnly*/ false), treeConfig);
+    return Controller_->ScheduleJob(context, availableResources, availableDiskResources, timeLimit, treeId, GetParent()->GetFullPath(/*explicitOnly*/ false), treeConfig);
 }
 
 void TSchedulerOperationElement::OnScheduleJobFailed(

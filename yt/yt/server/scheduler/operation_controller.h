@@ -38,6 +38,7 @@ struct IOperationControllerStrategyHost
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResources& availableResources,
+        const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
         const TString& treeId,
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig) = 0;

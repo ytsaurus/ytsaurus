@@ -357,7 +357,7 @@ public:
     struct TPrepareConditionalUsageDiscountsContext
     {
         const EOperationPreemptionPriority TargetOperationPreemptionPriority;
-        TJobResources CurrentConditionalDiscount;
+        TJobResourcesWithQuota CurrentConditionalDiscount;
     };
     void PrepareConditionalUsageDiscounts(const TSchedulerElement* element, TPrepareConditionalUsageDiscountsContext* context);
     const TJobWithPreemptionInfoSet& GetConditionallyPreemptibleJobsInPool(const TSchedulerCompositeElement* element) const;
@@ -454,10 +454,12 @@ private:
     std::optional<EDeactivationReason> TryStartScheduleJob(
         TSchedulerOperationElement* element,
         TJobResources* precommittedResourcesOutput,
-        TJobResources* availableResourcesOutput);
+        TJobResources* availableResourcesOutput,
+        NNodeTrackerClient::NProto::TDiskResources* availableDiskResourcesOutput);
     TControllerScheduleJobResultPtr DoScheduleJob(
         TSchedulerOperationElement* element,
         const TJobResources& availableResources,
+        const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
         TJobResources* precommittedResources);
     void FinishScheduleJob(TSchedulerOperationElement* element);
 
