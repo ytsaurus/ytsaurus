@@ -75,6 +75,7 @@ std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
         input,
         std::move(backgroundThreadPool));
     TCompositeAutomaton::SetupLoadContext(context.get());
+    context->SetLeaseManager(Bootstrap_->GetLeaseManager());
     return context;
 }
 

@@ -63,12 +63,15 @@ public:
     static constexpr TCellId CellId = {0, 42};
     static constexpr auto CellTag = TCellTag(42);
 
-    TSimpleTabletSlot(TTabletOptions options)
+    explicit TSimpleTabletSlot(TTabletOptions options)
     {
         AutomatonQueue_ = New<TActionQueue>("Automaton");
         AutomatonInvoker_ = AutomatonQueue_->GetInvoker();
-        Automaton_ = New<TTabletAutomaton>(/*asyncSnapshotInvoker*/ AutomatonInvoker_, CellId);
 
+        Automaton_ = New<TTabletAutomaton>(
+            CellId,
+            /*asyncSnapshotInvoker*/ AutomatonInvoker_,
+            /*leaseManager*/ nullptr);
         Automaton_->RegisterWaitTimeObserver([&] (TDuration mutationWaitTime) {
             TotalMutationWaitTime_ += mutationWaitTime.MicroSeconds() + 1;
         });
@@ -119,7 +122,7 @@ public:
         return dummyMutationForwarder;
     }
 
-    TTabletManagerPtr GetTabletManager() override
+    ITabletManagerPtr GetTabletManager() override
     {
         return nullptr;
     }

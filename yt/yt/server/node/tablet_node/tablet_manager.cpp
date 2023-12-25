@@ -9,9 +9,7 @@
 #include "ordered_dynamic_store.h"
 #include "hunk_chunk.h"
 #include "replicated_store_manager.h"
-#include "in_memory_manager.h"
 #include "partition.h"
-#include "security_manager.h"
 #include "slot_manager.h"
 #include "sorted_store_manager.h"
 #include "ordered_store_manager.h"
@@ -154,18 +152,19 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManager::TImpl
+class TTabletManager
     : public TTabletAutomatonPart
     , public virtual ITabletCellWriteManagerHost
     , public virtual ITabletWriteManagerHost
+    , public ITabletManager
 {
 public:
-    DEFINE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
-    DEFINE_SIGNAL(void(), EpochStarted);
-    DEFINE_SIGNAL(void(), EpochStopped);
+    DEFINE_SIGNAL_OVERRIDE(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
+    DEFINE_SIGNAL_OVERRIDE(void(), EpochStarted);
+    DEFINE_SIGNAL_OVERRIDE(void(), EpochStopped);
 
 public:
-    explicit TImpl(
+    TTabletManager(
         TTabletManagerConfigPtr config,
         ITabletSlotPtr slot,
         IBootstrap* bootstrap)
@@ -182,11 +181,11 @@ public:
         , TabletMap_(TTabletMapTraits(this))
         , DecommissionCheckExecutor_(New<TPeriodicExecutor>(
             Slot_->GetAutomatonInvoker(),
-            BIND(&TImpl::OnCheckTabletCellDecommission, MakeWeak(this)),
+            BIND(&TTabletManager::OnCheckTabletCellDecommission, MakeWeak(this)),
             Config_->TabletCellDecommissionCheckPeriod))
         , SuspensionCheckExecutor_(New<TPeriodicExecutor>(
             Slot_->GetAutomatonInvoker(),
-            BIND(&TImpl::OnCheckTabletCellSuspension, MakeWeak(this)),
+            BIND(&TTabletManager::OnCheckTabletCellSuspension, MakeWeak(this)),
             Config_->TabletCellSuspensionCheckPeriod))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
         , BackupManager_(CreateBackupManager(
@@ -209,80 +208,80 @@ public:
 
         RegisterLoader(
             "TabletManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TTabletManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TabletManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TTabletManager::LoadValues, Unretained(this)));
         RegisterLoader(
             "TabletManager.Async",
-            BIND(&TImpl::LoadAsync, Unretained(this)));
+            BIND(&TTabletManager::LoadAsync, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TTabletManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TabletManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TTabletManager::SaveValues, Unretained(this)));
         RegisterSaver(
             EAsyncSerializationPriority::Default,
             "TabletManager.Async",
-            BIND(&TImpl::SaveAsync, Unretained(this)));
+            BIND(&TTabletManager::SaveAsync, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TImpl::HydraRemountTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTabletSettings, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraFreezeTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnfreezeTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraTrimRows, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraLockTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraReportTabletLocked, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnlockTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSplitPartition, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraMergePartitions, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdatePartitionSampleKeys, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraAddTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCell, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSuspendTabletCell, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraResumeTabletCell, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissioned, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletCellSuspended, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnDynamicStoreAllocated, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraMountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraUnmountTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraRemountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraFreezeTablet, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraSetTabletState, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraTrimRows, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraLockTablet, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraReportTabletLocked, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraUnlockTablet, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraRotateStore, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraSplitPartition, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraMergePartitions, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraUpdatePartitionSampleKeys, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraAddTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraRemoveTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraAlterTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraDecommissionTabletCell, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraSuspendTabletCell, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraResumeTabletCell, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraOnTabletCellDecommissioned, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraOnTabletCellSuspended, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReplicateRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReplicateRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReplicateRows, Unretained(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareReplicateRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitReplicateRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortReplicateRows, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareWritePulledRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitWritePulledRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortWritePulledRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeWritePulledRows, Unretained(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareWritePulledRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitWritePulledRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortWritePulledRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraSerializeWritePulledRows, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareAdvanceReplicationProgress, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareAdvanceReplicationProgress, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortAdvanceReplicationProgress, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeAdvanceReplicationProgress, Unretained(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortAdvanceReplicationProgress, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraSerializeAdvanceReplicationProgress, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, Unretained(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareUpdateTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitUpdateTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortUpdateTabletStores, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareBoggleHunkTabletStoreLock, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitBoggleHunkTabletStoreLock, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortBoggleHunkTabletStoreLock, Unretained(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareBoggleHunkTabletStoreLock, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitBoggleHunkTabletStoreLock, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortBoggleHunkTabletStoreLock, Unretained(this))));
 
         BackupManager_->Initialize();
 
@@ -293,7 +292,7 @@ public:
         configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
     }
 
-    void Finalize()
+    void Finalize() override
     {
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
         tableConfigManager->UnsubscribeConfigChanged(TableDynamicConfigChangedCallback_);
@@ -307,7 +306,7 @@ public:
         }
     }
 
-    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
+    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt) override
     {
         if (!IsRecovery()) {
             const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
@@ -315,7 +314,7 @@ public:
         }
     }
 
-    bool AllocateDynamicStoreIfNeeded(TTablet* tablet)
+    bool AllocateDynamicStoreIfNeeded(TTablet* tablet) override
     {
         if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead &&
             tablet->DynamicStoreIdPool().empty() &&
@@ -343,7 +342,12 @@ public:
         return tablet;
     }
 
-    std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const
+    ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost() override
+    {
+        return this;
+    }
+
+    std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -388,7 +392,7 @@ public:
     }
 
     // COMPAT(aleksandra-zh)
-    void ValidateHunkLocks()
+    void ValidateHunkLocks() override
     {
         YT_LOG_INFO("Validating hunk locks");
         for (auto [tabletId, tablet] : TabletMap_) {
@@ -409,7 +413,7 @@ public:
     // COMPAT(aleksandra-zh)
     void RestoreHunkLocks(
         TTransaction* transaction,
-        TReqUpdateTabletStores* request)
+        TReqUpdateTabletStores* request) override
     {
         try {
             DoRestoreHunkLocks(transaction, request);
@@ -424,115 +428,9 @@ public:
         }
     }
 
-    void DoRestoreHunkLocks(
-        TTransaction* transaction,
-        TReqUpdateTabletStores* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = GetTabletOrThrow(tabletId);
-
-        YT_LOG_INFO("Restoring hunk locks (TabletId: %v)", tabletId);
-
-        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            auto hunkChunk = tablet->FindHunkChunk(chunkId);
-            if (!hunkChunk) {
-                YT_LOG_ALERT("Trying to remove unexisting hunk chunk (TabletId: %v, HunkChunkId: %v)",
-                    tabletId,
-                    chunkId);
-                continue;
-            }
-            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
-        }
-
-        THashSet<TChunkId> hunkChunkIdsToAdd;
-        for (const auto& descriptor : request->hunk_chunks_to_add()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
-        }
-
-        if (request->create_hunk_chunks_during_prepare()) {
-            for (auto chunkId : hunkChunkIdsToAdd) {
-                auto hunkChunk = tablet->FindHunkChunk(chunkId);
-                if (!hunkChunk) {
-                    continue;
-                }
-
-                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-            }
-        }
-
-        THashSet<TChunkId> existingReferencedHunks;
-        for (const auto& descriptor : request->stores_to_add()) {
-            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
-                descriptor.chunk_meta().extensions()))
-            {
-                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
-                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
-                    if (!hunkChunkIdsToAdd.contains(chunkId) && !existingReferencedHunks.contains(chunkId)) {
-                        auto hunkChunk = tablet->GetHunkChunk(chunkId);
-                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-                        existingReferencedHunks.insert(chunkId);
-                    }
-                }
-            }
-        }
-    }
-
-    void CountStoreMemoryStatistics(TMemoryStatistics* statistics, const IStorePtr& store) const
-    {
-        if (store->IsDynamic()) {
-            auto usage = store->GetDynamicMemoryUsage();
-            if (store->GetStoreState() == EStoreState::ActiveDynamic) {
-                statistics->DynamicActive += usage;
-            } else if (store->GetStoreState() == EStoreState::PassiveDynamic) {
-                statistics->DynamicPassive += usage;
-            }
-        } else if (store->IsChunk()) {
-            auto chunk = store->AsChunk();
-
-            if (auto backing = chunk->GetBackingStore()) {
-                statistics->DynamicBacking += backing->GetDynamicMemoryUsage();
-            }
-
-            auto countChunkStoreMemory = [&] (i64 bytes) {
-                statistics->PreloadStoreCount += 1;
-                switch (chunk->GetPreloadState()) {
-                    case EStorePreloadState::Scheduled:
-                    case EStorePreloadState::Running:
-                        if (chunk->IsPreloadAllowed()) {
-                            statistics->PreloadPendingStoreCount += 1;
-                        } else {
-                            statistics->PreloadFailedStoreCount += 1;
-                        }
-                        statistics->PreloadPendingBytes += bytes;
-                        break;
-
-                    case EStorePreloadState::Complete:
-                        statistics->Static.Usage += bytes;
-                        break;
-
-                    case EStorePreloadState::Failed:
-                        statistics->PreloadFailedStoreCount += 1;
-                        break;
-
-                    case EStorePreloadState::None:
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
-            };
-
-            if (chunk->GetInMemoryMode() != EInMemoryMode::None) {
-                countChunkStoreMemory(chunk->GetMemoryUsage());
-            }
-        }
-    }
-
     TFuture<void> Trim(
         const TTabletSnapshotPtr& tabletSnapshot,
-        i64 trimmedRowCount)
+        i64 trimmedRowCount) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -571,20 +469,7 @@ public:
         }
     }
 
-    void ValidateTrimmedRowCountPrecedeReplication(TTablet* tablet, i64 trimmedRowCount)
-    {
-        auto replicationTimestamp = tablet->GetOrderedChaosReplicationMinTimestamp();
-
-        auto it = tablet->StoreRowIndexMap().lower_bound(trimmedRowCount);
-        if (it == tablet->StoreRowIndexMap().end() || replicationTimestamp < it->second->GetMinTimestamp()) {
-            THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                << TErrorAttribute("replication_timestamp", replicationTimestamp);
-        }
-    }
-
-    void ScheduleStoreRotation(TTablet* tablet, EStoreRotationReason reason)
+    void ScheduleStoreRotation(TTablet* tablet, EStoreRotationReason reason) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -606,7 +491,7 @@ public:
         Slot_->CommitTabletMutation(request);
     }
 
-    void ReleaseBackingStore(const IChunkStorePtr& store)
+    void ReleaseBackingStore(const IChunkStorePtr& store) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -622,7 +507,7 @@ public:
 
     TFuture<void> CommitTabletStoresUpdateTransaction(
         TTablet* tablet,
-        const ITransactionPtr& transaction)
+        const ITransactionPtr& transaction) override
     {
         YT_LOG_DEBUG("Acquiring tablet stores commit semaphore (%v, TransactionId: %v)",
             tablet->GetLoggingTag(),
@@ -634,7 +519,7 @@ public:
             ->GetStoresUpdateCommitSemaphore()
             ->AsyncAcquire(
                 BIND(
-                    &TImpl::OnStoresUpdateCommitSemaphoreAcquired,
+                    &TTabletManager::OnStoresUpdateCommitSemaphoreAcquired,
                     MakeWeak(this),
                     tablet,
                     transaction,
@@ -643,12 +528,12 @@ public:
         return future;
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
     }
 
-    ETabletCellLifeStage GetTabletCellLifeStage() const
+    ETabletCellLifeStage GetTabletCellLifeStage() const override
     {
         return CellLifeStage_;
     }
@@ -683,7 +568,7 @@ private:
         : public TVirtualMapBase
     {
     public:
-        static IYPathServicePtr Create(TWeakPtr<TImpl> impl, IInvokerPtr invoker)
+        static IYPathServicePtr Create(TWeakPtr<TTabletManager> impl, IInvokerPtr invoker)
         {
             return New<TOrchidService>(std::move(impl))
                 ->Via(invoker);
@@ -715,7 +600,7 @@ private:
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
-                    auto producer = BIND(&TImpl::BuildTabletOrchidYson, owner, tablet);
+                    auto producer = BIND(&TTabletManager::BuildTabletOrchidYson, owner, tablet);
                     return ConvertToNode(producer);
                 }
             }
@@ -723,9 +608,9 @@ private:
         }
 
     private:
-        const TWeakPtr<TImpl> Owner_;
+        const TWeakPtr<TTabletManager> Owner_;
 
-        explicit TOrchidService(TWeakPtr<TImpl> impl)
+        explicit TOrchidService(TWeakPtr<TTabletManager> impl)
             : Owner_(std::move(impl))
         { }
 
@@ -738,7 +623,7 @@ private:
         : public ITabletContext
     {
     public:
-        explicit TTabletContext(TImpl* owner)
+        explicit TTabletContext(TTabletManager* owner)
             : Owner_(owner)
         { }
 
@@ -855,13 +740,13 @@ private:
         }
 
     private:
-        TImpl* const Owner_;
+        TTabletManager* const Owner_;
     };
 
     class TTabletMapTraits
     {
     public:
-        explicit TTabletMapTraits(TImpl* owner)
+        explicit TTabletMapTraits(TTabletManager* owner)
             : Owner_(owner)
         { }
 
@@ -871,7 +756,7 @@ private:
         }
 
     private:
-        TImpl* const Owner_;
+        TTabletManager* const Owner_;
     };
 
     TTabletContext TabletContext_;
@@ -898,10 +783,10 @@ private:
     const TCompactionHintFetcherPtr ChunkViewSizeFetcher_;
 
     const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
-        BIND(&TImpl::OnTableDynamicConfigChanged, MakeWeak(this));
+        BIND(&TTabletManager::OnTableDynamicConfigChanged, MakeWeak(this));
 
     const TCallback<void(TClusterNodeDynamicConfigPtr, TClusterNodeDynamicConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this));
+        BIND(&TTabletManager::OnDynamicConfigChanged, MakeWeak(this));
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3520,11 +3405,16 @@ private:
         return false;
     }
 
+    const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const override
+    {
+        return Slot_->GetLeaseManager();
+    }
+
     TFuture<void> IssueLeases(const std::vector<TLeaseId>& leaseIds) override
     {
         THashMap<TCellTag, std::vector<TLeaseId>> cellTagToLeaseIds;
 
-        auto leaseManager = GetLeaseManager();
+        const auto& leaseManager = Slot_->GetLeaseManager();
         for (auto leaseId : leaseIds) {
             if (!leaseManager->FindLease(leaseId)) {
                 auto cellTag = CellTagFromId(leaseId);
@@ -3904,7 +3794,7 @@ private:
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since
             // we need the store to be released even if the epoch ends.
-            BIND(&TTabletManager::TImpl::ReleaseBackingStoreWeak, MakeWeak(this), MakeWeak(store))
+            BIND(&TTabletManager::ReleaseBackingStoreWeak, MakeWeak(this), MakeWeak(store))
                 .Via(Slot_->GetAutomatonInvoker()),
             tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
     }
@@ -3973,12 +3863,12 @@ private:
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
                         .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
-                        .Item("eden").DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
+                        .Item("eden").DoMap(BIND(&TTabletManager::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
                         .Item("partitions").DoListFor(
                             tablet->PartitionList(), [&] (auto fluent, const std::unique_ptr<TPartition>& partition) {
                                 fluent
                                     .Item()
-                                    .DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                                    .DoMap(BIND(&TTabletManager::BuildPartitionOrchidYson, Unretained(this), partition.get()));
                             });
                 })
                 .DoIf(tablet->IsPhysicallyOrdered(), [&] (auto fluent) {
@@ -3989,7 +3879,7 @@ private:
                                 const auto& [storeId, store] = pair;
                                 fluent
                                     .Item(ToString(storeId))
-                                    .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+                                    .Do(BIND(&TTabletManager::BuildStoreOrchidYson, Unretained(this), store));
                             })
                         .Item("total_row_count").Value(tablet->GetTotalRowCount())
                         .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount());
@@ -3998,7 +3888,7 @@ private:
                     const auto& [chunkId, hunkChunk] = pair;
                     fluent
                         .Item(ToString(chunkId))
-                        .Do(BIND(&TImpl::BuildHunkChunkOrchidYson, Unretained(this), hunkChunk));
+                        .Do(BIND(&TTabletManager::BuildHunkChunkOrchidYson, Unretained(this), hunkChunk));
                 })
                 .Item("hunk_lock_manager").Do(BIND(&IHunkLockManager::BuildOrchid, tablet->GetHunkLockManager()))
                 .DoIf(tablet->IsReplicated(), [&] (auto fluent) {
@@ -4009,7 +3899,7 @@ private:
                                 const auto& [replicaId, replica] = pair;
                                 fluent
                                     .Item(ToString(replicaId))
-                                    .Do(BIND(&TImpl::BuildReplicaOrchidYson, Unretained(this), replica));
+                                    .Do(BIND(&TTabletManager::BuildReplicaOrchidYson, Unretained(this), replica));
                             });
                 })
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
@@ -4072,7 +3962,7 @@ private:
             .Item("stores").DoMapFor(partition->Stores(), [&] (auto fluent, const IStorePtr& store) {
                 fluent
                     .Item(ToString(store->GetId()))
-                    .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+                    .Do(BIND(&TTabletManager::BuildStoreOrchidYson, Unretained(this), store));
             })
             .DoIf(partition->IsImmediateSplitRequested(), [&] (auto fluent) {
                 fluent
@@ -4287,8 +4177,6 @@ private:
             return New<TTabletHunkWriterOptions>();
         }
     }
-
-
 
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
@@ -4711,7 +4599,7 @@ private:
         TClusterTableConfigPatchSetPtr /*oldConfig*/,
         TClusterTableConfigPatchSetPtr newConfig)
     {
-        BIND(&TImpl::DoTableDynamicConfigChanged, MakeWeak(this), Passed(std::move(newConfig)))
+        BIND(&TTabletManager::DoTableDynamicConfigChanged, MakeWeak(this), Passed(std::move(newConfig)))
             .AsyncVia(Slot_->GetEpochAutomatonInvoker())
             .Run();
     }
@@ -4721,7 +4609,7 @@ private:
         TClusterNodeDynamicConfigPtr newConfig)
     {
         Slot_->GetAutomatonInvoker()->Invoke(BIND(
-            &TImpl::DoDynamicConfigChanged,
+            &TTabletManager::DoDynamicConfigChanged,
             MakeWeak(this),
             std::move(oldConfig),
             std::move(newConfig)));
@@ -4883,112 +4771,142 @@ private:
             << configErrors;
         tablet->RuntimeData()->Errors.ConfigError.Store(error);
     }
+
+
+    void DoRestoreHunkLocks(
+        TTransaction* transaction,
+        TReqUpdateTabletStores* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = GetTabletOrThrow(tabletId);
+
+        YT_LOG_INFO("Restoring hunk locks (TabletId: %v)", tabletId);
+
+        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            auto hunkChunk = tablet->FindHunkChunk(chunkId);
+            if (!hunkChunk) {
+                YT_LOG_ALERT("Trying to remove unexisting hunk chunk (TabletId: %v, HunkChunkId: %v)",
+                    tabletId,
+                    chunkId);
+                continue;
+            }
+            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+        }
+
+        THashSet<TChunkId> hunkChunkIdsToAdd;
+        for (const auto& descriptor : request->hunk_chunks_to_add()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
+        }
+
+        if (request->create_hunk_chunks_during_prepare()) {
+            for (auto chunkId : hunkChunkIdsToAdd) {
+                auto hunkChunk = tablet->FindHunkChunk(chunkId);
+                if (!hunkChunk) {
+                    continue;
+                }
+
+                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+            }
+        }
+
+        THashSet<TChunkId> existingReferencedHunks;
+        for (const auto& descriptor : request->stores_to_add()) {
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+                descriptor.chunk_meta().extensions()))
+            {
+                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
+                    if (!hunkChunkIdsToAdd.contains(chunkId) && !existingReferencedHunks.contains(chunkId)) {
+                        auto hunkChunk = tablet->GetHunkChunk(chunkId);
+                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                        existingReferencedHunks.insert(chunkId);
+                    }
+                }
+            }
+        }
+    }
+
+    void CountStoreMemoryStatistics(TMemoryStatistics* statistics, const IStorePtr& store) const
+    {
+        if (store->IsDynamic()) {
+            auto usage = store->GetDynamicMemoryUsage();
+            if (store->GetStoreState() == EStoreState::ActiveDynamic) {
+                statistics->DynamicActive += usage;
+            } else if (store->GetStoreState() == EStoreState::PassiveDynamic) {
+                statistics->DynamicPassive += usage;
+            }
+        } else if (store->IsChunk()) {
+            auto chunk = store->AsChunk();
+
+            if (auto backing = chunk->GetBackingStore()) {
+                statistics->DynamicBacking += backing->GetDynamicMemoryUsage();
+            }
+
+            auto countChunkStoreMemory = [&] (i64 bytes) {
+                statistics->PreloadStoreCount += 1;
+                switch (chunk->GetPreloadState()) {
+                    case EStorePreloadState::Scheduled:
+                    case EStorePreloadState::Running:
+                        if (chunk->IsPreloadAllowed()) {
+                            statistics->PreloadPendingStoreCount += 1;
+                        } else {
+                            statistics->PreloadFailedStoreCount += 1;
+                        }
+                        statistics->PreloadPendingBytes += bytes;
+                        break;
+
+                    case EStorePreloadState::Complete:
+                        statistics->Static.Usage += bytes;
+                        break;
+
+                    case EStorePreloadState::Failed:
+                        statistics->PreloadFailedStoreCount += 1;
+                        break;
+
+                    case EStorePreloadState::None:
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
+            };
+
+            if (chunk->GetInMemoryMode() != EInMemoryMode::None) {
+                countChunkStoreMemory(chunk->GetMemoryUsage());
+            }
+        }
+    }
+
+    void ValidateTrimmedRowCountPrecedeReplication(TTablet* tablet, i64 trimmedRowCount)
+    {
+        auto replicationTimestamp = tablet->GetOrderedChaosReplicationMinTimestamp();
+
+        auto it = tablet->StoreRowIndexMap().lower_bound(trimmedRowCount);
+        if (it == tablet->StoreRowIndexMap().end() || replicationTimestamp < it->second->GetMinTimestamp()) {
+            THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                << TErrorAttribute("replication_timestamp", replicationTimestamp);
+        }
+    }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TabletMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletManager::TTabletManager(
+ITabletManagerPtr CreateTabletManager(
     TTabletManagerConfigPtr config,
     ITabletSlotPtr slot,
     IBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
+{
+    return New<TTabletManager>(
         std::move(config),
         std::move(slot),
-        bootstrap))
-{ }
-
-TTabletManager::~TTabletManager() = default;
-
-void TTabletManager::Initialize()
-{
-    Impl_->Initialize();
+        bootstrap);
 }
-
-void TTabletManager::Finalize()
-{
-    Impl_->Finalize();
-}
-
-TTablet* TTabletManager::GetTabletOrThrow(TTabletId id)
-{
-    return Impl_->GetTabletOrThrow(id);
-}
-
-TFuture<void> TTabletManager::Trim(
-    TTabletSnapshotPtr tabletSnapshot,
-    i64 trimmedRowCount)
-{
-    return Impl_->Trim(
-        std::move(tabletSnapshot),
-        trimmedRowCount);
-}
-
-void TTabletManager::ScheduleStoreRotation(TTablet* tablet, EStoreRotationReason reason)
-{
-    Impl_->ScheduleStoreRotation(tablet, reason);
-}
-
-TFuture<void> TTabletManager::CommitTabletStoresUpdateTransaction(
-    TTablet* tablet,
-    const ITransactionPtr& transaction)
-{
-    return Impl_->CommitTabletStoresUpdateTransaction(tablet, transaction);
-}
-
-void TTabletManager::ReleaseBackingStore(const IChunkStorePtr& store)
-{
-    Impl_->ReleaseBackingStore(store);
-}
-
-IYPathServicePtr TTabletManager::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
-}
-
-ETabletCellLifeStage TTabletManager::GetTabletCellLifeStage() const
-{
-    return Impl_->GetTabletCellLifeStage();
-}
-
-ITabletCellWriteManagerHostPtr TTabletManager::GetTabletCellWriteManagerHost()
-{
-    return Impl_;
-}
-
-void TTabletManager::RestoreHunkLocks(
-    TTransaction* transaction,
-    TReqUpdateTabletStores* request)
-{
-    return Impl_->RestoreHunkLocks(transaction, request);
-}
-
-void TTabletManager::ValidateHunkLocks()
-{
-    return Impl_->ValidateHunkLocks();
-}
-
-std::vector<TTabletMemoryStatistics> TTabletManager::GetMemoryStatistics() const
-{
-    return Impl_->GetMemoryStatistics();
-}
-
-void TTabletManager::UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch)
-{
-    Impl_->UpdateTabletSnapshot(tablet, epoch);
-}
-
-bool TTabletManager::AllocateDynamicStoreIfNeeded(TTablet* tablet)
-{
-    return Impl_->AllocateDynamicStoreIfNeeded(tablet);
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_);
-
-DELEGATE_SIGNAL(TTabletManager, void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(), EpochStarted, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(), EpochStopped, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

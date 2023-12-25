@@ -32,64 +32,61 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManager
-    : public TRefCounted
+struct ITabletManager
+    : public virtual TRefCounted
 {
-public:
     //! Raised when replication transaction is finished (committed or aborted).
-    DECLARE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
-    DECLARE_SIGNAL(void(), EpochStarted);
-    DECLARE_SIGNAL(void(), EpochStopped);
+    DECLARE_INTERFACE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
+    DECLARE_INTERFACE_SIGNAL(void(), EpochStarted);
+    DECLARE_INTERFACE_SIGNAL(void(), EpochStopped);
 
-public:
-    TTabletManager(
-        TTabletManagerConfigPtr config,
-        ITabletSlotPtr slot,
-        IBootstrap* bootstrap);
-    ~TTabletManager();
+    virtual void Initialize() = 0;
+    virtual void Finalize() = 0;
 
-    void Initialize();
-    void Finalize();
+    virtual TFuture<void> Trim(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        i64 trimmedRowCount) = 0;
 
-    TFuture<void> Trim(
-        TTabletSnapshotPtr tabletSnapshot,
-        i64 trimmedRowCount);
+    virtual void ScheduleStoreRotation(TTablet* tablet, NLsm::EStoreRotationReason reason) = 0;
 
-    void ScheduleStoreRotation(TTablet* tablet, NLsm::EStoreRotationReason reason);
-
-    TFuture<void> CommitTabletStoresUpdateTransaction(
+    virtual TFuture<void> CommitTabletStoresUpdateTransaction(
         TTablet* tablet,
-        const NApi::ITransactionPtr& transaction);
+        const NApi::ITransactionPtr& transaction) = 0;
 
-    void ReleaseBackingStore(const IChunkStorePtr& store);
+    virtual void ReleaseBackingStore(const IChunkStorePtr& store) = 0;
 
-    NYTree::IYPathServicePtr GetOrchidService();
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    NTabletClient::ETabletCellLifeStage GetTabletCellLifeStage() const;
+    virtual NTabletClient::ETabletCellLifeStage GetTabletCellLifeStage() const = 0;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
-    TTablet* GetTabletOrThrow(TTabletId id);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
+    virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
 
-    ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost();
+    virtual ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost() = 0;
 
-    std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const;
+    virtual std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const = 0;
 
-    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt);
+    virtual void UpdateTabletSnapshot(
+        TTablet* tablet,
+        std::optional<TLockManagerEpoch> epoch = std::nullopt) = 0;
 
-    bool AllocateDynamicStoreIfNeeded(TTablet* tablet);
+    virtual bool AllocateDynamicStoreIfNeeded(TTablet* tablet) = 0;
 
     // COMPAT(aleksandra-zh)
-    void RestoreHunkLocks(
+    virtual void RestoreHunkLocks(
         TTransaction* transaction,
-        NTabletServer::NProto::TReqUpdateTabletStores* request);
-    void ValidateHunkLocks();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+        NTabletServer::NProto::TReqUpdateTabletStores* request) = 0;
+    virtual void ValidateHunkLocks() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletManager)
+DEFINE_REFCOUNTED_TYPE(ITabletManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITabletManagerPtr CreateTabletManager(
+    TTabletManagerConfigPtr config,
+    ITabletSlotPtr slot,
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

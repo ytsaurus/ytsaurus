@@ -20,7 +20,7 @@ class TMutationForwarder
 {
 public:
     TMutationForwarder(
-        TWeakPtr<TTabletManager> tabletManager,
+        TWeakPtr<ITabletManager> tabletManager,
         IHiveManagerPtr hiveManager)
         : TabletManager_(std::move(tabletManager))
         , HiveManager_(std::move(hiveManager))
@@ -57,14 +57,14 @@ public:
     }
 
 private:
-    const TWeakPtr<TTabletManager> TabletManager_;
+    const TWeakPtr<ITabletManager> TabletManager_;
     const IHiveManagerPtr HiveManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IMutationForwarderPtr CreateMutationForwarder(
-    TWeakPtr<TTabletManager> tabletManager,
+    TWeakPtr<ITabletManager> tabletManager,
     IHiveManagerPtr hiveManager)
 {
     return New<TMutationForwarder>(
@@ -74,10 +74,13 @@ IMutationForwarderPtr CreateMutationForwarder(
 
 IMutationForwarderPtr CreateDummyMutationForwarder()
 {
-    struct TDummyMutationForwarder
+    class TDummyMutationForwarder
         : public IMutationForwarder
     {
-        void MaybeForwardMutationToSiblingServant(TTabletId, const ::google::protobuf::Message&) override
+    public:
+        void MaybeForwardMutationToSiblingServant(
+            TTabletId /*tabletId*/,
+            const ::google::protobuf::Message& /*message*/) override
         { }
     };
 

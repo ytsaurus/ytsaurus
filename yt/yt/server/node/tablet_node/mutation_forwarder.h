@@ -11,7 +11,7 @@ namespace NYT::NTabletNode {
 //! Redirects mutations to the target servant of a tablet that participates
 //! in smooth movement.
 struct IMutationForwarder
-    : public NYT::TRefCounted
+    : public TRefCounted
 {
     virtual void MaybeForwardMutationToSiblingServant(
         TTabletId tabletId,
@@ -23,7 +23,7 @@ DEFINE_REFCOUNTED_TYPE(IMutationForwarder)
 ////////////////////////////////////////////////////////////////////////////////
 
 IMutationForwarderPtr CreateMutationForwarder(
-    TWeakPtr<TTabletManager> tabletManager,
+    TWeakPtr<ITabletManager> tabletManager,
     NHiveServer::IHiveManagerPtr hiveManager);
 
 IMutationForwarderPtr CreateDummyMutationForwarder();

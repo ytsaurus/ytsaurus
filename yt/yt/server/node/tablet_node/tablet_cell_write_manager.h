@@ -26,6 +26,7 @@ struct ITabletCellWriteManagerHost
 
     virtual TCellId GetCellId() const = 0;
 
+    virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const = 0;
     virtual TFuture<void> IssueLeases(const std::vector<NLeaseServer::TLeaseId>& leaseIds) = 0;
 
     //! This method is called whenever a (sorted) tablet row is being unlocked.

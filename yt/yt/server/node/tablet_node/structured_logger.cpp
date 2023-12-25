@@ -67,7 +67,7 @@ public:
 
     IPerTabletStructuredLoggerPtr CreateLogger(TTablet* tablet) override;
 
-    void OnHeartbeatRequest(const TTabletManagerPtr& tabletManager, bool initial) override
+    void OnHeartbeatRequest(const ITabletManagerPtr& tabletManager, bool initial) override
     {
         if (!Enabled_) {
             return;

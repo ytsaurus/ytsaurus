@@ -19,11 +19,13 @@ using namespace NClusterNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChaosAutomaton::TChaosAutomaton(
-    IChaosSlotPtr slot,
-    IInvokerPtr snapshotInvoker)
+    TCellId cellId,
+    IInvokerPtr asyncSnapshotInvoker,
+    NLeaseServer::ILeaseManagerPtr leaseManager)
     : TCompositeAutomaton(
-        snapshotInvoker,
-        slot->GetCellId())
+        std::move(asyncSnapshotInvoker),
+        cellId)
+    , LeaseManager_(std::move(leaseManager))
 { }
 
 std::unique_ptr<NHydra::TSaveContext> TChaosAutomaton::CreateSaveContext(
@@ -38,6 +40,7 @@ std::unique_ptr<NHydra::TLoadContext> TChaosAutomaton::CreateLoadContext(
 {
     auto context = std::make_unique<TLoadContext>(input);
     TCompositeAutomaton::SetupLoadContext(context.get());
+    context->SetLeaseManager(LeaseManager_);
     return context;
 }
 

@@ -15,6 +15,16 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTabletAutomaton::TTabletAutomaton(
+    TCellId cellId,
+    IInvokerPtr asyncSnapshotInvoker,
+    NLeaseServer::ILeaseManagerPtr leaseManager)
+    : NHydra::TCompositeAutomaton(
+        std::move(asyncSnapshotInvoker),
+        cellId)
+    , LeaseManager_(std::move(leaseManager))
+{ }
+
 std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output,
     NLogging::TLogger logger)
@@ -27,6 +37,7 @@ std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
 {
     auto context = std::make_unique<TLoadContext>(input);
     TCompositeAutomaton::SetupLoadContext(context.get());
+    context->SetLeaseManager(LeaseManager_);
     return context;
 }
 

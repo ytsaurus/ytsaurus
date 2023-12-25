@@ -515,12 +515,6 @@ public:
                 CreateHydraManagerUpstreamSynchronizer(hydraManager),
                 Bootstrap_->GetNativeAuthenticator());
 
-            BIND(SetLeaseManager, LeaseManager_)
-                .AsyncVia(occupier->GetOccupierAutomatonInvoker())
-                .Run()
-                .Get()
-                .ThrowOnError();
-
             auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
                 ? Options_->ClockClusterTag
                 : connection->GetClusterTag();
@@ -886,7 +880,6 @@ private:
             rpcServer->UnregisterService(LeaseManager_->GetRpcService());
         }
         LeaseManager_.Reset();
-        SetLeaseManager(/*leaseManager*/ nullptr);
     }
 
     void OnRecoveryComplete()

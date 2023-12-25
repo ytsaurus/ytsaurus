@@ -49,7 +49,7 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
     NLogging::TLogger logger)
-    : NHydra::TSaveContext(
+    : NYT::NLeaseServer::TSaveContext(
         output,
         std::move(logger),
         GetCurrentReign())
@@ -61,10 +61,6 @@ EChaosReign TSaveContext::GetVersion() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TLoadContext::TLoadContext(ICheckpointableInputStream* input)
-    : NHydra::TLoadContext(input)
-{ }
 
 EChaosReign TLoadContext::GetVersion() const
 {

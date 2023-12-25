@@ -325,7 +325,7 @@ public:
         return Occupant_->GetLeaseManager();
     }
 
-    TTabletManagerPtr GetTabletManager() override
+    ITabletManagerPtr GetTabletManager() override
     {
         return TabletManager_;
     }
@@ -355,8 +355,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto automation = New<TTabletAutomaton>(
+            GetCellId(),
             SnapshotQueue_->GetInvoker(),
-            GetCellId());
+            GetLeaseManager());
 
         if (auto controller = Bootstrap_->GetOverloadController()) {
             automation->RegisterWaitTimeObserver(controller->CreateGenericTracker(
@@ -431,7 +432,7 @@ public:
 
         // NB: Tablet Manager must register before Transaction Manager since the latter
         // will be writing and deleting rows during snapshot loading.
-        TabletManager_ = New<TTabletManager>(
+        TabletManager_ = CreateTabletManager(
             Config_->TabletManager,
             this,
             Bootstrap_);
@@ -533,7 +534,7 @@ public:
 
         return orchid
             ->AddChild("life_stage", IYPathService::FromMethod(
-                &TTabletManager::GetTabletCellLifeStage,
+                &ITabletManager::GetTabletCellLifeStage,
                 MakeWeak(TabletManager_))
                 ->Via(GetAutomatonInvoker()))
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
@@ -608,7 +609,7 @@ private:
 
     IMutationForwarderPtr MutationForwarder_;
 
-    TTabletManagerPtr TabletManager_;
+    ITabletManagerPtr TabletManager_;
 
     IHunkTabletManagerPtr HunkTabletManager_;
 

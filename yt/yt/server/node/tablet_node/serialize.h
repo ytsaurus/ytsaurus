@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/server/lib/lease_server/serialize.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +56,7 @@ DEFINE_ENUM(ETabletReign,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
-    : public NHydra::TSaveContext
+    : public NLeaseServer::TSaveContext
 {
 public:
     TSaveContext(
@@ -67,10 +69,10 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
-    : public NHydra::TLoadContext
+    : public NLeaseServer::TLoadContext
 {
 public:
-    explicit TLoadContext(NHydra::ICheckpointableInputStream* input);
+    using NLeaseServer::TLoadContext::TLoadContext;
 
     ETabletReign GetVersion() const;
 };

@@ -85,7 +85,7 @@ struct ITabletSlot
 
     virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() = 0;
 
-    virtual TTabletManagerPtr GetTabletManager() = 0;
+    virtual ITabletManagerPtr GetTabletManager() = 0;
     virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;
 
     virtual const IHunkTabletManagerPtr& GetHunkTabletManager() = 0;

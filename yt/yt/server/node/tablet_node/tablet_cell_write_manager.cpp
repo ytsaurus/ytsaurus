@@ -212,7 +212,7 @@ public:
                 ValidateTransactionActive(transaction);
 
                 try {
-                    auto leaseManager = GetLeaseManager();
+                    const auto& leaseManager = Host_->GetLeaseManager();
                     for (auto transactionId : params.PrerequisiteTransactionIds) {
                         auto* lease = leaseManager->GetLeaseOrThrow(transactionId);
                         transaction->TransientLeaseGuards().push_back(lease->GetTransientLeaseGuard());
@@ -247,7 +247,7 @@ public:
             } else {
                 YT_VERIFY(atomicity == EAtomicity::None);
 
-                auto leaseManager = GetLeaseManager();
+                const auto& leaseManager = Host_->GetLeaseManager();
                 for (auto transactionId : params.PrerequisiteTransactionIds) {
                     auto* lease = leaseManager->GetLeaseOrThrow(transactionId);
                     Y_UNUSED(lease->GetTransientLeaseGuard());
@@ -1196,7 +1196,7 @@ private:
         TTransaction* transaction,
         const std::vector<TTransactionId>& prerequisiteTransactionIds)
     {
-        auto leaseManager = GetLeaseManager();
+        const auto& leaseManager = Host_->GetLeaseManager();
         for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
             auto* lease = leaseManager->GetLease(prerequisiteTransactionId);
             transaction->PersistentLeaseGuards().push_back(lease->GetPersistentLeaseGuard(/*force*/ true));

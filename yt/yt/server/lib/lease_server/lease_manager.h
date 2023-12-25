@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
-#include <yt/yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -26,12 +26,6 @@ struct ILeaseGuard
 DEFINE_REFCOUNTED_TYPE(ILeaseGuard)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TLeaseGuardSerializer
-{
-    static void Save(NHydra::TSaveContext& context, const ILeaseGuardPtr& guard);
-    static void Load(NHydra::TLoadContext& context, ILeaseGuardPtr& guard);
-};
 
 struct TLeaseGuardComparer
 {
@@ -85,12 +79,6 @@ DEFINE_REFCOUNTED_TYPE(ILeaseManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TLS helpers for lease manager.
-void SetLeaseManager(ILeaseManagerPtr leaseManager);
-ILeaseManagerPtr GetLeaseManager();
-
-////////////////////////////////////////////////////////////////////////////////
-
 ILeaseManagerPtr CreateLeaseManager(
     TLeaseManagerConfigPtr config,
     NHydra::IHydraManagerPtr hydraManager,
@@ -100,20 +88,6 @@ ILeaseManagerPtr CreateLeaseManager(
     NElection::TCellId selfCellId,
     NHydra::IUpstreamSynchronizerPtr upstreamSynchronizer,
     NRpc::IAuthenticatorPtr authenticator);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NLeaseServer
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class C>
-struct TSerializerTraits<NLeaseServer::ILeaseGuardPtr, C, void>
-{
-    using TSerializer = NLeaseServer::TLeaseGuardSerializer;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

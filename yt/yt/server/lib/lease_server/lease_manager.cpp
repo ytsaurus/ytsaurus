@@ -1,6 +1,7 @@
 #include "lease_manager.h"
 
 #include "config.h"
+#include "serialize.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/lease_server/proto/lease_manager.pb.h>
@@ -213,23 +214,6 @@ private:
 DECLARE_ENTITY_TYPE(TLease, TLeaseId, NObjectClient::TDirectObjectIdHash);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void TLeaseGuardSerializer::Save(NHydra::TSaveContext& context, const ILeaseGuardPtr& guard)
-{
-    using NYT::Save;
-
-    YT_VERIFY(guard->IsPersistent());
-    Save(context, guard->GetLeaseId());
-}
-
-void TLeaseGuardSerializer::Load(NHydra::TLoadContext& context, ILeaseGuardPtr& guard)
-{
-    using NYT::Load;
-
-    auto leaseId = Load<TLeaseId>(context);
-    auto* lease = GetLeaseManager()->GetLease(leaseId);
-    guard = lease->GetPersistentLeaseGuardOnLoad();
-}
 
 bool TLeaseGuardComparer::operator()(const ILeaseGuardPtr& lhs, const ILeaseGuardPtr& rhs) const
 {
@@ -940,20 +924,6 @@ ILeaseGuardPtr TLease::GetTransientLeaseGuard(bool force)
         std::move(owner),
         force,
         leaderAutomatonTerm);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-YT_THREAD_LOCAL(ILeaseManagerPtr) LeaseManager;
-
-ILeaseManagerPtr GetLeaseManager()
-{
-    return GetTlsRef(LeaseManager);
-}
-
-void SetLeaseManager(ILeaseManagerPtr leaseManager)
-{
-    GetTlsRef(LeaseManager) = std::move(leaseManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

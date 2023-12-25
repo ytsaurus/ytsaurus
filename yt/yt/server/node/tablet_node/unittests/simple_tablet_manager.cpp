@@ -207,13 +207,19 @@ void TSimpleTabletManager::AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/,
 
 const IBackupManagerPtr& TSimpleTabletManager::GetBackupManager() const
 {
-    const static IBackupManagerPtr NullBackupManager = nullptr;
-    return NullBackupManager;
+    const static IBackupManagerPtr Result;
+    return Result;
 }
 
 TCellId TSimpleTabletManager::GetCellId() const
 {
     return NullCellId;
+}
+
+const ILeaseManagerPtr& TSimpleTabletManager::GetLeaseManager() const
+{
+    const static ILeaseManagerPtr Result;
+    return Result;
 }
 
 TFuture<void> TSimpleTabletManager::IssueLeases(const std::vector<TLeaseId>& /*leaseIds*/)

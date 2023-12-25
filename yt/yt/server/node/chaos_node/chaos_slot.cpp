@@ -211,8 +211,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return New<TChaosAutomaton>(
-            this,
-            SnapshotQueue_->GetInvoker());
+            GetCellId(),
+            SnapshotQueue_->GetInvoker(),
+            Occupant_->GetLeaseManager());
     }
 
     void Configure(IDistributedHydraManagerPtr hydraManager) override

@@ -46,7 +46,7 @@ public:
     //! Trigger all tablet heartbeats. If |initial|, splay is added
     //! to Last[Full|Incremental]HeartbeatTime.
     //! Thread affinity: corresponding automaton.
-    virtual void OnHeartbeatRequest(const TTabletManagerPtr& tabletManager, bool initial) = 0;
+    virtual void OnHeartbeatRequest(const ITabletManagerPtr& tabletManager, bool initial) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStructuredLogger)

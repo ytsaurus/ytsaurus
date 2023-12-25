@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/core/misc/public.h>
@@ -21,9 +23,14 @@ class TTabletAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    using TCompositeAutomaton::TCompositeAutomaton;
+    TTabletAutomaton(
+        TCellId cellId,
+        IInvokerPtr asyncSnapshotInvoker,
+        NLeaseServer::ILeaseManagerPtr leaseManager);
 
 private:
+    const NLeaseServer::ILeaseManagerPtr LeaseManager_;
+
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
         NHydra::ICheckpointableOutputStream* output,
         NLogging::TLogger logger) override;

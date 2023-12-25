@@ -7,6 +7,7 @@ PROTO_NAMESPACE(yt)
 SRCS(
     config.cpp
     lease_manager.cpp
+    serialize.cpp
 
     proto/lease_manager.proto
 )

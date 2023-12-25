@@ -21,10 +21,13 @@ class TChaosAutomaton
 {
 public:
     TChaosAutomaton(
-        IChaosSlotPtr slot,
-        IInvokerPtr snapshotInvoker);
+        NHydra::TCellId cellId,
+        IInvokerPtr asyncSnapshotInvoker,
+        NLeaseServer::ILeaseManagerPtr leaseManager);
 
 private:
+    const NLeaseServer::ILeaseManagerPtr LeaseManager_;
+
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
         NHydra::ICheckpointableOutputStream* output,
         NLogging::TLogger logger) override;
