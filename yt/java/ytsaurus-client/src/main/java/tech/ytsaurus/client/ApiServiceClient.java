@@ -16,6 +16,7 @@ import tech.ytsaurus.client.request.AlterTableReplica;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CommitTransaction;
+import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
@@ -326,6 +327,8 @@ public interface ApiServiceClient extends TransactionalClient {
      * </a>
      */
     CompletableFuture<Void> abortOperation(AbortOperation req);
+
+    CompletableFuture<Void> completeOperation(CompleteOperation req);
 
     CompletableFuture<Void> suspendOperation(SuspendOperation req);
 

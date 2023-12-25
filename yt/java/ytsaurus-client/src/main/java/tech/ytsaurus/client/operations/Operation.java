@@ -22,4 +22,6 @@ public interface Operation {
     CompletableFuture<Void> watchAndThrowIfNotSuccess();
 
     CompletableFuture<Void> abort();
+
+    CompletableFuture<Void> complete();
 }

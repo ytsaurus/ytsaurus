@@ -40,6 +40,7 @@ import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.CommitTransaction;
+import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
@@ -941,6 +942,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<Void> abortOperation(AbortOperation req) {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ABORT_OPERATION.createRequestBuilder(rpcOptions)),
+                response -> null
+        );
+    }
+
+    @Override
+    public CompletableFuture<Void> completeOperation(CompleteOperation req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.COMPLETE_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> null
         );
     }

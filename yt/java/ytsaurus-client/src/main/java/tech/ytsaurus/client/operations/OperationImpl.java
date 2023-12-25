@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.ApiServiceClient;
 import tech.ytsaurus.client.request.AbortOperation;
+import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetOperation;
 import tech.ytsaurus.client.request.JobResult;
@@ -106,6 +107,11 @@ public class OperationImpl implements Operation {
     @Override
     public CompletableFuture<Void> abort() {
         return client.abortOperation(new AbortOperation(id));
+    }
+
+    @Override
+    public CompletableFuture<Void> complete() {
+        return client.completeOperation(new CompleteOperation(id));
     }
 
     private CompletableFuture<YTreeNode> getOperation(String attribute) {

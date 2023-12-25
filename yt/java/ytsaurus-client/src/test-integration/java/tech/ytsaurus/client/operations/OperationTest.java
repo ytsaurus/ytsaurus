@@ -37,6 +37,26 @@ public class OperationTest extends YTsaurusClientTestBase {
         }
     }
 
+    public static class FreezeMapperEntity implements Mapper<InputType, OutputType> {
+        @Override
+        public void map(InputType entry, Yield<OutputType> yield, Statistics statistics,
+                        OperationContext context) {
+            String name = entry.name;
+            Integer count = entry.count;
+
+            OutputType outputType = new OutputType();
+            outputType.name = name;
+            outputType.newCount = 0;
+            for (int i = 0; i < count; i++) {
+                for (int j = 0; j < count; j++) {
+                    outputType.newCount += (i + 1) / count;
+                }
+            }
+
+            yield.yield(outputType);
+        }
+    }
+
     @Test
     public void testWatchAndThrowIfNotSuccess() {
         var ytFixture = createYtFixture();
@@ -88,6 +108,37 @@ public class OperationTest extends YTsaurusClientTestBase {
                 YTsaurusError.class,
                 getRootCause(exception).getClass()
         );
+    }
+
+    @Test(timeout = 40000)
+    public void testCompleteOperation() throws InterruptedException {
+        var ytFixture = createYtFixture();
+        var yt = ytFixture.getYt();
+        var inputTable = ytFixture.getTestDirectory().child("input-table");
+        var outputTable = ytFixture.getTestDirectory().child("output-table");
+
+        var tableSchema = createTableSchema();
+        var row = YTree.builder().beginMap()
+                .key("name").value("a")
+                .key("count").value(Integer.MAX_VALUE)
+                .buildMap();
+        writeTable(yt, inputTable, tableSchema, List.of(row));
+
+        Operation firstOperation = yt.startMap(MapOperation.builder()
+                .setSpec(MapSpec.builder()
+                        .setMapperSpec(new MapperSpec(new FreezeMapperEntity()))
+                        .setInputTables(inputTable)
+                        .setOutputTables(outputTable)
+                        .build())
+                .build()).join();
+
+        while (firstOperation.getStatus().join() != OperationStatus.RUNNING) {
+            Thread.sleep(100);
+        }
+
+        firstOperation.complete().join();
+
+        Assert.assertEquals(OperationStatus.COMPLETED, firstOperation.getStatus().join());
     }
 
     private TableSchema createTableSchema() {

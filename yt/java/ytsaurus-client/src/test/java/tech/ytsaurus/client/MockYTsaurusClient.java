@@ -22,6 +22,7 @@ import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.CommitTransaction;
+import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
@@ -384,6 +385,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
 
     @Override
     public CompletableFuture<Void> abortOperation(AbortOperation req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> completeOperation(CompleteOperation req) {
         return null;
     }
 

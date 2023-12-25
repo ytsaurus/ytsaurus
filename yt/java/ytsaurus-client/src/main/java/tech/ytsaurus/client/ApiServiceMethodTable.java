@@ -17,6 +17,7 @@ import tech.ytsaurus.rpcproxy.TReqBuildSnapshot;
 import tech.ytsaurus.rpcproxy.TReqCheckClusterLiveness;
 import tech.ytsaurus.rpcproxy.TReqCheckPermission;
 import tech.ytsaurus.rpcproxy.TReqCommitTransaction;
+import tech.ytsaurus.rpcproxy.TReqCompleteOperation;
 import tech.ytsaurus.rpcproxy.TReqConcatenateNodes;
 import tech.ytsaurus.rpcproxy.TReqCopyNode;
 import tech.ytsaurus.rpcproxy.TReqCreateNode;
@@ -71,6 +72,7 @@ import tech.ytsaurus.rpcproxy.TRspBuildSnapshot;
 import tech.ytsaurus.rpcproxy.TRspCheckClusterLiveness;
 import tech.ytsaurus.rpcproxy.TRspCheckPermission;
 import tech.ytsaurus.rpcproxy.TRspCommitTransaction;
+import tech.ytsaurus.rpcproxy.TRspCompleteOperation;
 import tech.ytsaurus.rpcproxy.TRspConcatenateNodes;
 import tech.ytsaurus.rpcproxy.TRspCopyNode;
 import tech.ytsaurus.rpcproxy.TRspCreateNode;
@@ -240,6 +242,9 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqAbortOperation.Builder, TRspAbortOperation> ABORT_OPERATION =
             apiServiceMethod("AbortOperation", TReqAbortOperation::newBuilder, TRspAbortOperation.parser());
+
+    public static final RpcMethodDescriptor<TReqCompleteOperation.Builder, TRspCompleteOperation> COMPLETE_OPERATION =
+            apiServiceMethod("CompleteOperation", TReqCompleteOperation::newBuilder, TRspCompleteOperation.parser());
 
     public static final RpcMethodDescriptor<TReqSuspendOperation.Builder, TRspSuspendOperation> SUSPEND_OPERATION =
             apiServiceMethod("SuspendOperation", TReqSuspendOperation::newBuilder, TRspSuspendOperation.parser());
