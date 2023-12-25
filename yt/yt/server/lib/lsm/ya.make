@@ -3,7 +3,6 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    helpers.cpp
     lsm_backend.cpp
     partition_balancer.cpp
     partition.cpp
@@ -19,7 +18,3 @@ PEERDIR(
 )
 
 END()
-
-RECURSE_FOR_TESTS(
-    unittests
-)

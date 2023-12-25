@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
 
 add_library(server-lib-lsm)
 target_compile_options(server-lib-lsm PRIVATE
@@ -20,7 +19,6 @@ target_link_libraries(server-lib-lsm PUBLIC
   server-lib-tablet_node
 )
 target_sources(server-lib-lsm PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/lsm_backend.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/partition_balancer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/partition.cpp

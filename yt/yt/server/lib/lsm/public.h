@@ -38,7 +38,6 @@ DECLARE_REFCOUNTED_CLASS(TTablet)
 
 class TPartition;
 class TStore;
-struct TRowDigestUpcomingCompactionInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 

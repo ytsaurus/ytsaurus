@@ -65,6 +65,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedSplitTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedMergeTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, RowDigestRequestTime);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TLegacyOwningKey>, PivotKeysForImmediateSplit);
 
@@ -97,6 +98,8 @@ public:
 
     void RequestImmediateSplit(std::vector<TLegacyOwningKey> pivotKeys);
     bool IsImmediateSplitRequested() const;
+
+    void ResetRowDigestRequestTime();
 
 private:
     EPartitionState State_ = EPartitionState::Normal;
