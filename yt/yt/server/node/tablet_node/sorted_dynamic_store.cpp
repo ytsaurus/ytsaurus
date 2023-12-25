@@ -919,7 +919,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
         AllCommittedTimestamp,
         /*produceAllVersions*/ true,
         /*snapshotMode*/ true,
-        FlushRevision_ == InvalidRevision ? GetLatestRevision() : FlushRevision_,
+        GetLatestRevision(),
         TColumnFilter());
 }
 
