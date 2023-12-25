@@ -1,7 +1,8 @@
 #include "query_preparer.h"
-#include "private.h"
+
 #include "callbacks.h"
 #include "functions.h"
+#include "helpers.h"
 #include "lexer.h"
 #include "parser.h"
 #include "query_helpers.h"
@@ -29,12 +30,6 @@ using namespace NYson;
 
 static constexpr size_t MaxExpressionDepth = 50;
 
-#ifdef _asan_enabled_
-static const int MinimumStackFreeSpace = 128_KB;
-#else
-static const int MinimumStackFreeSpace = 16_KB;
-#endif
-
 struct TQueryPreparerBufferTag
 { };
 
@@ -43,15 +38,6 @@ constexpr ssize_t MaxQueryLimit = 10000000;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-void CheckStackDepth()
-{
-    if (!CheckFreeStackSpace(MinimumStackFreeSpace)) {
-        THROW_ERROR_EXCEPTION(
-            NTabletClient::EErrorCode::QueryExpressionDepthLimitExceeded,
-            "Expression depth causes stack overflow");
-    }
-}
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,

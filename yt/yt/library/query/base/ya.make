@@ -9,6 +9,7 @@ SRCS(
     constraints.cpp
     coordination_helpers.cpp
     functions.cpp
+    helpers.cpp
     builtin_function_registry.cpp
     builtin_function_types.cpp
     functions_common.cpp
