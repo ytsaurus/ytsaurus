@@ -1715,7 +1715,8 @@ class TestQuery(DynamicTablesBase):
                 return input >= min_input and 0 <= filtered_out + false_positive <= input
 
             assert_items_equal(select_rows(f"* from [//tmp/t] where {predicate}"), expected)
-            wait(lambda: _check_counters())
+            wait(_check_counters)
+            profiling.commit()
 
         _check_query(rows[0:1], "(a) in ((1), (2))", 1)
         _check_query(rows[0:1], "(a, b) in ((1, 1), (1, 2), (2, 1))", 3)

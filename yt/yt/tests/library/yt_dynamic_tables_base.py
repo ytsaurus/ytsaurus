@@ -290,6 +290,9 @@ class DynamicTablesBase(YTEnvSetup):
                 self.input = 0
                 self.filtered_out = 0
                 self.false_positive = 0
+                self.input_delta = 0
+                self.filtered_out_delta = 0
+                self.false_positive_delta = 0
                 self.method = method
                 self.entry = "range" if self.method == "select" else "key"
                 self.tablet_profiling = self_._get_table_profiling(table, user)
@@ -300,14 +303,19 @@ class DynamicTablesBase(YTEnvSetup):
                 )
 
             def get_counters_delta(self):
-                input = self._get_counter("input") - self.input
-                filtered_out = self._get_counter("filtered_out") - self.filtered_out
-                false_positive = self._get_counter("false_positive") - self.false_positive
+                self.input_delta = self._get_counter("input") - self.input
+                self.filtered_out_delta = self._get_counter("filtered_out") - self.filtered_out
+                self.false_positive_delta = self._get_counter("false_positive") - self.false_positive
 
-                self.input += input
-                self.filtered_out += filtered_out
-                self.false_positive += false_positive
+                return self.input_delta, self.filtered_out_delta, self.false_positive_delta
 
-                return input, filtered_out, false_positive
+            def commit(self):
+                self.input += self.input_delta
+                self.filtered_out += self.filtered_out_delta
+                self.false_positive += self.false_positive_delta
+
+                self.input_delta = 0
+                self.filtered_out_delta = 0
+                self.false_positive_delta = 0
 
         return Wrapper()

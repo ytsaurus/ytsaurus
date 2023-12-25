@@ -740,20 +740,23 @@ class TestLookup(TestSortedDynamicTablesBase):
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
-    def _get_key_filter_lookup_checker(self, table, user=None):
+    def _get_key_filter_lookup_checker(self, table):
         self_ = self
 
         class Checker:
             def __init__(self):
-                self.profiling = self_._get_key_filter_profiling_wrapper("lookup", table, user)
+                self.profiling = self_._get_key_filter_profiling_wrapper("lookup", table)
 
-            def check(self, lookup_keys, expected):
+            def check(self, lookup_keys, expected, key=lambda d: d["key"]):
+                missing_key_count = len(lookup_keys) - len(expected)
+
                 def _check_counters():
                     input, filtered_out, false_positive = self.profiling.get_counters_delta()
-                    return input == len(lookup_keys) and 0 <= filtered_out + false_positive <= input
+                    return input == len(lookup_keys) and filtered_out + false_positive == missing_key_count
 
-                assert_items_equal(lookup_rows("//tmp/t", lookup_keys, verbose=False), expected)
-                wait(lambda: _check_counters())
+                sorted(lookup_rows(table, lookup_keys, verbose=False), key=key) == sorted(expected, key=key)
+                wait(_check_counters)
+                self.profiling.commit()
 
         return Checker()
 
@@ -831,7 +834,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
 
-        key_filter_checker.check([{"key1": 0}], [{"key1": 0, "value": "0"}])
+        key_filter_checker.check([{"key1": 0}], [{"key1": 0, "value": "0"}], lambda d: d["key1"])
 
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=schema2)
@@ -840,6 +843,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         key_filter_checker.check(
             [{"key1": 0, "key2": yson.YsonEntity()}],
             [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}],
+            lambda d: (d["key1"], d["key2"]),
         )
 
     @authors("akozhikhov")
