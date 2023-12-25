@@ -665,7 +665,7 @@ private:
                 TEventTimerGuard timingGuard(Counters_.CreateChunkTimer);
 
                 auto batchReq = CreateExecuteBatchRequest();
-                if (UseOverlayedChunks()) {
+                if (AreOverlayedChunksEnabled()) {
                     batchReq->RequireServerFeature(EMasterFeature::OverlayedJournals);
                 }
 
@@ -683,7 +683,7 @@ private:
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);
                 req->set_vital(true);
-                req->set_overlayed(UseOverlayedChunks());
+                req->set_overlayed(AreOverlayedChunksEnabled());
                 req->set_replica_lag_limit(Options_.ReplicaLagLimit);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -937,7 +937,7 @@ private:
                 auto session = WaitFor(future)
                     .ValueOrThrow();
 
-                if (EnableChunkPreallocation()) {
+                if (IsChunkPreallocationEnabled()) {
                     ScheduleChunkSessionAllocation();
                 }
 
@@ -1129,9 +1129,15 @@ private:
                 }
             }
 
-            if (EnableChunkPreallocation()) {
+            if (IsChunkPreallocationEnabled()) {
                 ScheduleChunkSessionSeal(session);
             } else {
+                if (Config_->DontSeal) {
+                    YT_LOG_WARNING("Client-side chunk seal is disabled, skipping chunk session seal (SessionId: %v)",
+                        session->Id);
+                    return;
+                }
+
                 TEventTimerGuard timingGuard(Counters_.SealChunkTimer);
 
                 YT_LOG_DEBUG("Sealing chunk (SessionId: %v, RowCount: %v)",
@@ -1428,7 +1434,7 @@ private:
             ToProto(req->mutable_session_id(), GetSessionIdForNode(CurrentChunkSession_, node));
             req->set_flush_blocks(true);
 
-            if (UseOverlayedChunks()) {
+            if (AreOverlayedChunksEnabled()) {
                 if (node->FirstPendingBlockIndex == 0) {
                     req->set_first_block_index(0);
                     req->Attachments().push_back(CurrentChunkSession_->HeaderRow);
@@ -1674,7 +1680,7 @@ private:
 
         bool IsSafeToSwitchSessionOnDemand()
         {
-            if (EnableChunkPreallocation()) {
+            if (IsChunkPreallocationEnabled()) {
                 return true;
             }
 
@@ -1724,7 +1730,7 @@ private:
 
         void ScheduleChunkSessionSwitch(const TChunkSessionPtr& session)
         {
-            if (!EnableChunkPreallocation() && session->State != EChunkSessionState::Current) {
+            if (!IsChunkPreallocationEnabled() && session->State != EChunkSessionState::Current) {
                 YT_LOG_DEBUG("Non-current chunk session cannot be switched (SessionId: %v)",
                     session->Id);
                 return;
@@ -1753,7 +1759,7 @@ private:
                         YT_LOG_DEBUG("Resetting chunk session promise");
                         AllocatedChunkSessionIndex_ = -1;
                         AllocatedChunkSessionPromise_.Reset();
-                        if (EnableChunkPreallocation()) {
+                        if (IsChunkPreallocationEnabled()) {
                             ScheduleChunkSessionAllocation();
                         }
                     }
@@ -1889,12 +1895,13 @@ private:
             return Closing_ && QuorumUnflushedBatchCount_ == 0;
         }
 
-        bool UseOverlayedChunks() const
+        // COMPAT(babenko): make this always true
+        bool AreOverlayedChunksEnabled() const
         {
             return Options_.EnableChunkPreallocation;
         }
 
-        bool EnableChunkPreallocation() const
+        bool IsChunkPreallocationEnabled() const
         {
             return Options_.EnableChunkPreallocation && !Config_->DontPreallocate;
         }

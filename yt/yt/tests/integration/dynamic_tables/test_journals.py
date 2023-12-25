@@ -1048,6 +1048,7 @@ class TestChunkAutotomizer(TestJournalsBase):
             journal_writer={
                 "dont_close": False,
                 "dont_seal": True,
+                "dont_preallocate": True,
                 "node_ban_timeout": 0,
                 "max_batch_row_count": 1,
                 "max_flush_row_count": 1,
