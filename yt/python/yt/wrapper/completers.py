@@ -55,6 +55,8 @@ def complete_attributes(path):
 
 
 def complete_ypath(prefix, parsed_args, **kwargs):
+    if parsed_args.proxy:
+        yt.config["proxy"]["url"] = parsed_args.proxy
     if prefix in ["", "/"]:
         return ["//"]
     try:
