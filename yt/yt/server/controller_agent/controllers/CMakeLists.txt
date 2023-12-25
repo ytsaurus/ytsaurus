@@ -41,9 +41,10 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/operation_controller_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/ordered_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/probing_job_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/speculative_job_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sink.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sort_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sorted_controller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/speculative_job_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/table.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/task.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/unordered_controller.cpp

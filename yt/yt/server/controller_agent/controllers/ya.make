@@ -22,9 +22,10 @@ SRCS(
     operation_controller_detail.cpp
     ordered_controller.cpp
     probing_job_manager.cpp
-    speculative_job_manager.cpp
+    sink.cpp
     sort_controller.cpp
     sorted_controller.cpp
+    speculative_job_manager.cpp
     table.cpp
     task.cpp
     unordered_controller.cpp
@@ -40,4 +41,3 @@ PEERDIR(
 )
 
 END()
-
