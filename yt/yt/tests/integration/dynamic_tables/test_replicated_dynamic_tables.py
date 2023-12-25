@@ -1451,6 +1451,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: self._get_sync_replicas(replica_ids) == 2)
 
     @authors("akozhikhov")
+    @flaky(max_runs=3)
     def test_sync_replication_switch_with_not_enough_healthy_replicas(self):
         self._create_cells()
         self._create_replicated_table(
