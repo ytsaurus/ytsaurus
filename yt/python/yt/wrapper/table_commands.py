@@ -1055,6 +1055,31 @@ def get_table_columnar_statistics(paths, client=None):
     return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
 
 
+def partition_tables(paths, partition_mode=None, data_weight_per_partition=None, max_partition_count=None,
+                     enable_key_guarantee=None, adjust_data_weight_per_partition=None, client=None):
+    """Splits tables into a few partitions
+    :param paths: paths to tables
+    :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
+    :param partition_mode: table partitioning mode, one of the ["sorted", "ordered", "unordered"]
+    :param data_weight_per_partition: approximate data weight of each output partition
+    :param max_partition_count: maximum output partition count
+    :param enable_key_guarantee: a key will be placed to a single chunk exactly
+    :param adjust_data_weight_per_partition: allow the data weight per partition to exceed data_weight_per_partition when max_partition_count is set
+    """
+    params = {}
+    set_param(params, "paths", list(imap(lambda path: TablePath(path, client=client), flatten(paths))))
+    set_param(params, "partition_mode", partition_mode)
+    set_param(params, "data_weight_per_partition", data_weight_per_partition)
+    set_param(params, "max_partition_count", max_partition_count)
+    set_param(params, "enable_key_guarantee", enable_key_guarantee)
+    set_param(params, "adjust_data_weight_per_partition", adjust_data_weight_per_partition)
+    response = make_formatted_request("partition_tables", params, client=client, format=None)
+    partitions = apply_function_to_result(
+        lambda response: response["partitions"],
+        response)
+    return partitions
+
+
 def dump_parquet(table, output_file, client=None):
     """Dump parquet
 

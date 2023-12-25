@@ -1507,6 +1507,28 @@ class YtClient(ClientState):
             preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time,
             pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying)
 
+    def partition_tables(
+            self,
+            paths,
+            partition_mode=None, data_weight_per_partition=None, max_partition_count=None, enable_key_guarantee=None,
+            adjust_data_weight_per_partition=None):
+        """
+        Splits tables into a few partitions
+        :param paths: paths to tables
+        :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
+        :param partition_mode: table partitioning mode, one of the ["sorted", "ordered", "unordered"]
+        :param data_weight_per_partition: approximate data weight of each output partition
+        :param max_partition_count: maximum output partition count
+        :param enable_key_guarantee: a key will be placed to a single chunk exactly
+        :param adjust_data_weight_per_partition: allow the data weight per partition to exceed data_weight_per_partition when max_partition_count is set
+
+        """
+        return client_api.partition_tables(
+            paths,
+            client=self,
+            partition_mode=partition_mode, data_weight_per_partition=data_weight_per_partition, max_partition_count=max_partition_count,
+            enable_key_guarantee=enable_key_guarantee, adjust_data_weight_per_partition=adjust_data_weight_per_partition)
+
     def ping_transaction(
             self,
             transaction,

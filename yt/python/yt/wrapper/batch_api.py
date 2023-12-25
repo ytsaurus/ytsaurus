@@ -4,7 +4,8 @@ from .cypress_commands import (  # noqa
 from .acl_commands import check_permission, add_member, remove_member  # noqa
 from .lock_commands import lock, unlock  # noqa
 from .file_commands import LocalFile, put_file_to_cache, get_file_from_cache  # noqa
-from .table_commands import create_table, row_count, is_sorted, is_empty, alter_table, get_table_columnar_statistics  # noqa
+from .table_commands import (  # noqa
+    create_table, row_count, is_sorted, is_empty, alter_table, get_table_columnar_statistics, partition_tables)
 from .dynamic_table_commands import (  # noqa
     mount_table, unmount_table, remount_table,
     freeze_table, unfreeze_table, reshard_table, reshard_table_automatic, balance_tablet_cells,
