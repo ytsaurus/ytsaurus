@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(ujson)
 
-VERSION(5.8.0)
+VERSION(5.9.0)
 
 LICENSE(BSD-3-Clause)
 
