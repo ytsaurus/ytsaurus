@@ -14,7 +14,7 @@
 Поэтому предпочтительнее записывать бинарные данные в одну таблицу: 
 
 1. Данные разбиваются на части и сохраняются в отдельные строки таблицы. У этой таблицы должен быть набор ключевых колонок, которые однозначно определяют файл: имя и путь. Кроме того, должна быть колонка, отвечающая за номер [BLOB](https://ru.wikipedia.org/wiki/BLOB) с данными и колонка, отвечающая за сами данные. Таблица должна быть отсортирована по набору ключевых колонок и по колонке с номером BLOB, чтобы были возможны точечные чтения по ключу, задающему имя файла.
-2. Для файла все BLOB, кроме последнего, должны иметь одинаковый размер, например, 4МБ. Колонки с данными и номером BLOB должны иметь имена `data` и `part_index` соответственно.
+2. Для файла все BLOB, кроме последнего, должны иметь одинаковый размер. Рекомендуемый размер — 4 МБ, его по умолчанию ожидают некоторые команды, например `read_blob_table`. Колонки с данными и номером BLOB должны иметь имена `data` и `part_index` соответственно.
 
 Таблицы, удовлетворяющие описанным условиям, — BLOB-таблицы.
 
@@ -30,23 +30,27 @@
 
 Команда имеет параметры `part_index_column_name` и `data_column_name`, позволяющие задать имена колонок с номером BLOB и данными соответственно. По умолчанию эти имена равны `part_index` и `data`.
 
-Запуск операции и чтение stderr джоба из таблицы с BLOB:
+Пример запуска операции и чтения stderr джоба из таблицы с BLOB:
 
-{% list tabs %}
+```bash
+# Запускаем Map операцию
+$ yt --proxy <cluster-name> map --src '//tmp/table_in' --dst '//tmp/table_mapped' --format yson 'cat; echo something >&2' --spec='{stderr_table_path="//tmp/stderr_table";}'
 
-- Python
+2023-12-07 16:25:19,463	INFO	Operation started: http://<cluster-name>/?page=operation&mode=detail&id=11788844-52f37dd2-3ff03e8-ff3bf1e4&tab=details
+2023-12-07 16:25:19,561	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4 initializing
+2023-12-07 16:25:22,961	INFO	( 0 min) Unrecognized spec: {'mapper': {'title': 'cat;'}}
+2023-12-07 16:25:24,230	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4: running=0     completed=0     pending=1     failed=0     aborted=0     lost=0     total=1     blocked=0    
+2023-12-07 16:25:25,353	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4 completing
+2023-12-07 16:25:27,527	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4 completed
 
-    ```bash
-    yt.run_map("....; echo 'something' >&2;", "//tmp/input", "//tmp/output", stderr_table="//tmp/stderr_table")
-    ```
+# Узнаём job id
+$ yt --proxy <cluster-name> list-jobs 11788844-52f37dd2-3ff03e8-ff3bf1e4 --format json | jq '.jobs[] | select(.type=="map").id'
 
-- CLI
+"4c3fc84d-884fbde5-3ff0384-94b1"
 
-    ```
-    yt read-blob-table '<exact={key=["cc26aa85-a694bf6b-3fe0384-963"]}>//tmp/stderr_table'
-    ```
-
-{% endlist %}
-
+# Читам «ошибки» только этого джоба
+$ yt --proxy <cluster-name> read-blob-table '<exact={key=["4c3fc84d-884fbde5-3ff0384-94b1"]}>//tmp/stderr_table'
+something
+```
 
 
