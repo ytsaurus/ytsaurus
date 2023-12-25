@@ -20,4 +20,5 @@ target_link_libraries(server-lib-admin PUBLIC
 )
 target_sources(server-lib-admin PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/admin/admin_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/admin/restart_service.cpp
 )

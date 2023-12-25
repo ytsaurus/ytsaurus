@@ -10,7 +10,6 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     cluster_node/proxying_chunk_service.cpp
-    cluster_node/restart_service.cpp
     cluster_node/dynamic_config_manager.cpp
     cluster_node/node_resource_manager.cpp
     cluster_node/master_connector.cpp

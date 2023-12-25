@@ -4,7 +4,6 @@
 #include "proxying_chunk_service.h"
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
-#include "restart_service.h"
 #include "master_connector.h"
 #include "private.h"
 
@@ -79,6 +78,7 @@
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/admin/restart_service.h>
 
 #include <yt/yt/server/lib/io/config.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
@@ -937,7 +937,11 @@ private:
             CreateTimestampProviderChannel(timestampProviderConfig, Connection_->GetChannelFactory()));
         RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider, /*authenticator*/ nullptr));
 
-        RpcServer_->RegisterService(CreateRestartService(this));
+        RpcServer_->RegisterService(CreateRestartService(
+            RestartManager_,
+            GetControlInvoker(),
+            ClusterNodeLogger,
+            NativeAuthenticator_));
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
             Config_->CachingObjectService,

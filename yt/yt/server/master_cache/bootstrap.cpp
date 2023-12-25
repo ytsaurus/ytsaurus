@@ -7,6 +7,7 @@
 #include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/admin/restart_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -16,6 +17,7 @@
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/misc/restart_manager.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -210,6 +212,13 @@ private:
             CoreDumper_,
             NativeAuthenticator_));
 
+        auto restartManager = New<TRestartManager>(GetControlInvoker());
+        RpcServer_->RegisterService(CreateRestartService(
+            restartManager,
+            GetControlInvoker(),
+            MasterCacheLogger,
+            NativeAuthenticator_));
+
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
@@ -218,6 +227,10 @@ private:
             OrchidRoot_,
             "/dynamic_config_manager",
             CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/restart_manager",
+            CreateVirtualNode(restartManager->GetOrchidService()));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
