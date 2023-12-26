@@ -1229,6 +1229,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
     @authors("gritukan")
+    @pytest.mark.xfail(reason="Sending of chunk specs in heartbeats from nodes to controller agents are disabled")
     @skip_if_porto
     def test_new_live_preview(self):
         op, job_ids = self._start_operation(2)
