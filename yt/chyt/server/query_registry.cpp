@@ -513,11 +513,6 @@ void TQueryRegistry::WriteStateToStderr() const
     Impl_->WriteStateToStderr();
 }
 
-void TQueryRegistry::SaveState()
-{
-    Impl_->SaveState();
-}
-
 void TQueryRegistry::Start()
 {
     Impl_->Start();

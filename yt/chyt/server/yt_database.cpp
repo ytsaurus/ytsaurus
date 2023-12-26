@@ -260,12 +260,6 @@ private:
 
         auto* queryContext = GetQueryContext(context);
 
-        // Here goes the dirty-ass hack. When query context is created, query AST is not parsed yet,
-        // so it is not present in client info for query. That's why if we crash somewhere during coordination
-        // phase, dumped query registry in crash handler will lack crashing query itself. As a workaround,
-        // we forcefully rebuild query registry state when creating TStorageDistributor.
-        queryContext->Host->SaveQueryRegistryState();
-
         try {
             auto tables = FetchTables(
                 queryContext,

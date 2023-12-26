@@ -105,8 +105,6 @@ public:
     //! Return future which is set when no query is executing.
     TFuture<void> GetIdleFuture() const;
 
-    void SaveQueryRegistryState();
-
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
     std::shared_ptr<DB::IDatabase> CreateYtDatabase() const;
     void SetContext(DB::ContextMutablePtr context);

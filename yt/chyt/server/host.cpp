@@ -544,15 +544,6 @@ public:
         return QueryRegistry_;
     }
 
-    void SaveQueryRegistryState()
-    {
-        WaitFor(
-            BIND(&TQueryRegistry::SaveState, QueryRegistry_)
-                .AsyncVia(ControlInvoker_)
-                .Run())
-            .ThrowOnError();
-    }
-
     TYtConfigPtr GetConfig() const
     {
         return Config_;
@@ -1014,11 +1005,6 @@ TFuture<void> THost::GetIdleFuture() const
 TQueryRegistryPtr THost::GetQueryRegistry() const
 {
     return Impl_->GetQueryRegistry();
-}
-
-void THost::SaveQueryRegistryState()
-{
-    Impl_->SaveQueryRegistryState();
 }
 
 TYtConfigPtr THost::GetConfig() const
