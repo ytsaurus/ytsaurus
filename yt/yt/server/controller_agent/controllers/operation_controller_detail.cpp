@@ -8806,6 +8806,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobFor
             descriptor);
 
         EmplaceOrCrash(JobIdToMonitoringDescriptor_, jobId, *descriptor);
+        ++MonitoredUserJobCount_;
     } else {
         YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", jobId);
     }
@@ -8841,7 +8842,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
                 << TErrorAttribute("limit_per_controller_agent", Config->UserJobMonitoring->MaxMonitoredUserJobsPerAgent));
         return {};
     }
-    ++MonitoredUserJobCount_;
+    ++RegisteredMonitoringDescriptorCount_;
     return descriptor;
 }
 
@@ -8866,6 +8867,11 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
 int TOperationControllerBase::GetMonitoredUserJobCount() const
 {
     return MonitoredUserJobCount_;
+}
+
+int TOperationControllerBase::GetRegisteredMonitoringDescriptorCount() const
+{
+    return RegisteredMonitoringDescriptorCount_;
 }
 
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
@@ -9049,7 +9055,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
                 SerializeBriefVersion(GetTotalJobCounter(), fluent.GetConsumer());
             }))
             .Item("build_time").Value(TInstant::Now())
-            .Item("monitored_user_job_count").Value(GetMonitoredUserJobCount())
+            .Item("registered_monitoring_descriptor_count").Value(GetRegisteredMonitoringDescriptorCount())
             .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
             .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
     }

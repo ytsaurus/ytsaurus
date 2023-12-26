@@ -2146,7 +2146,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         assert len(jobs_with_descriptor) == len(list_jobs(op.id)["jobs"])
         assert any(job["monitoring_descriptor"] == expected_job_descriptor for job in jobs_with_descriptor)
 
-        assert get_operation(op.id)["brief_progress"]["monitored_user_job_count"] == len(jobs_with_descriptor)
+        assert get_operation(op.id)["brief_progress"]["registered_monitoring_descriptor_count"] == len(jobs_with_descriptor)
 
         for _ in range(10):
             time.sleep(0.5)
