@@ -153,7 +153,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, LimitedResourceDemand);
 
     // Used for profiling in snapshotted version.
     DEFINE_BYREF_RW_PROPERTY(int, SchedulableElementCount, 0);
@@ -163,6 +162,9 @@ public:
     // Assigned in preupdate, used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(bool, Tentative, false);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TJobResources>, MaybeSpecifiedResourceLimits);
+
+    // These fields are set in post update.
+    DEFINE_BYREF_RO_PROPERTY(TResourceVector, LimitedDemandShare);
 
     // These fields are set in post update and used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(int, TreeIndex, UnassignedTreeIndex);
@@ -345,7 +347,7 @@ protected:
     TJobResources ComputeResourceLimits() const;
 
     //! Post update methods.
-    virtual void UpdateEffectiveRecursiveAttributes();
+    virtual void UpdateRecursiveAttributes();
 
     virtual void SetStarvationStatus(EStarvationStatus starvationStatus);
     virtual void CheckForStarvation(TInstant now) = 0;
@@ -521,7 +523,7 @@ protected:
     void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
     //! Post fair share update methods.
-    void UpdateEffectiveRecursiveAttributes() override;
+    void UpdateRecursiveAttributes() override;
 
     void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
@@ -886,7 +888,7 @@ protected:
     void SetStarvationStatus(EStarvationStatus starvationStatus) override;
     void CheckForStarvation(TInstant now) override;
 
-    void UpdateEffectiveRecursiveAttributes() override;
+    void UpdateRecursiveAttributes() override;
 
     void OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context);
     void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;

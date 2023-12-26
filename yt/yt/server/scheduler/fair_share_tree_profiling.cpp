@@ -297,6 +297,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     writer->AddGauge("/weight", element->GetWeight());
     profileDominantFairShare("/dominant_fair_share", attributes.FairShare);
     profileDominantFairShare("/dominant_promised_guarantee_fair_share", attributes.PromisedGuaranteeFairShare);
+    writer->AddGauge("/dominant_limited_demand_share", MaxComponent(element->LimitedDemandShare()));
 
     if (element->PostUpdateAttributes().LocalSatisfactionRatio < InfiniteSatisfactionRatio) {
         writer->AddGauge("/local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio);
@@ -305,7 +306,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     ProfileResources(writer, element->GetResourceUsageAtUpdate(), "/resource_usage");
     ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");
     ProfileResources(writer, element->GetResourceDemand(), "/resource_demand");
-    ProfileResources(writer, element->LimitedResourceDemand(), "/limited_resource_demand");
+    ProfileResources(writer, element->GetTotalResourceLimits() * element->LimitedDemandShare(), "/limited_resource_demand");
     ProfileResourcesConfig(writer, element->GetSpecifiedResourceLimitsConfig(), "/specified_resource_limits");
 
     auto jobMetricsIt = JobMetricsMap_.find(element->GetId());
@@ -396,6 +397,12 @@ void TFairShareTreeProfileManager::ProfileElement(
             profiledResources,
             attributes.LimitsShare,
             "/limits_share");
+
+        ProfileResourceVector(
+            writer,
+            profiledResources,
+            element->LimitedDemandShare(),
+            "/limited_demand_share");
 
         ProfileResourceVector(
             writer,
