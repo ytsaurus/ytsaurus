@@ -287,15 +287,15 @@ class DynamicTablesBase(YTEnvSetup):
 
         class Wrapper:
             def __init__(self):
-                self.input = 0
-                self.filtered_out = 0
-                self.false_positive = 0
-                self.input_delta = 0
-                self.filtered_out_delta = 0
-                self.false_positive_delta = 0
                 self.method = method
                 self.entry = "range" if self.method == "select" else "key"
                 self.tablet_profiling = self_._get_table_profiling(table, user)
+                self.input = self._get_counter("input")
+                self.filtered_out = self._get_counter("filtered_out")
+                self.false_positive = self._get_counter("false_positive")
+                self.input_delta = 0
+                self.filtered_out_delta = 0
+                self.false_positive_delta = 0
 
             def _get_counter(self, counter):
                 return self.tablet_profiling.get_counter(

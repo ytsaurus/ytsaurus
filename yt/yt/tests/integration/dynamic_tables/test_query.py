@@ -1699,7 +1699,6 @@ class TestQuery(DynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        profiling = self._get_key_filter_profiling_wrapper("select", "//tmp/t")
         rows = [
             {"a": 1, "b": 1, "c": 1, "d": 1},
             {"a": 3, "b": 3, "c": 3, "d": 3},
@@ -1708,6 +1707,8 @@ class TestQuery(DynamicTablesBase):
         insert_rows("//tmp/t", rows)
 
         sync_flush_table("//tmp/t")
+
+        profiling = self._get_key_filter_profiling_wrapper("select", "//tmp/t")
 
         def _check_query(expected, predicate, min_input):
             def _check_counters():
