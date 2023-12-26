@@ -96,20 +96,21 @@ TFuture<void> TLocationManager::FailDiskByName(
 
 void TLocationManager::PopulateAlerts(std::vector<TError>* alerts)
 {
-    for (const auto* alertHolder : {&DiskFailedAlert_}) {
-        if (auto alert = alertHolder->Load(); !alert.IsOK()) {
+    for (auto alert : DiskFailedAlerts_.Load()) {
+        if (!alert.IsOK()) {
             alerts->push_back(std::move(alert));
         }
     }
 }
 
-void TLocationManager::SetDiskAlert(TError alert)
+void TLocationManager::SetDiskAlerts(std::vector<TError> alerts)
 {
-    if (DiskFailedAlert_.Load().IsOK() && !alert.IsOK()) {
-        DiskFailedAlert_.Store(alert);
-    } else if (!DiskFailedAlert_.Load().IsOK() && alert.IsOK()) {
-        DiskFailedAlert_.Store(alert);
-    }
+    DiskFailedAlerts_.Store(alerts);
+}
+
+void TLocationManager::SetUnlinkedDiskIds(std::vector<TString> diskIds)
+{
+    UnlinkedDiskIds_.Store(diskIds);
 }
 
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
@@ -157,6 +158,11 @@ TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLivene
         .AsyncVia(ControlInvoker_));
 }
 
+TFuture<bool> TLocationManager::IsHotSwapEnabled()
+{
+    return DiskInfoProvider_->IsHotSwapEnabled();
+}
+
 TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
 {
     return DiskInfoProvider_->GetYTDiskInfos();
@@ -200,7 +206,7 @@ std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& l
     return locationsForDisable;
 }
 
-std::vector<TGuid> TLocationManager::DoDestroyLocations(bool /*recoverUnlinkedDisks*/, const THashSet<TGuid>& locationUuids)
+std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk, const THashSet<TGuid>& locationUuids)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -212,6 +218,16 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool /*recoverUnlinkedDi
             if (location->StartDestroy()) {
                 locationsForDestroy.push_back(location->GetUuid());
             }
+        }
+    }
+
+    if (recoverUnlinkedDisk) {
+        auto unlinkedDiskIds = UnlinkedDiskIds_.Exchange(std::vector<TString>());
+        for (const auto& diskId : unlinkedDiskIds) {
+            RecoverDisk(diskId)
+                .Apply(BIND([] (const TError& result) {
+                    YT_LOG_ERROR_IF(!result.IsOK(), result);
+                }));
         }
     }
 
@@ -345,11 +361,7 @@ void TLocationHealthChecker::OnHealthCheck()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    auto config = DynamicConfig_.Acquire();
-
-    if (config->Enabled) {
-        OnLocationsHealthCheck();
-    }
+    OnLocationsHealthCheck();
 }
 
 void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& diskInfos)
@@ -398,6 +410,19 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
+    auto hotSwapEnabled = WaitFor(LocationManager_->IsHotSwapEnabled());
+
+    // Fast path.
+    if (!hotSwapEnabled.IsOK()) {
+        YT_LOG_ERROR(hotSwapEnabled, "Failed to get hotswap creds");
+        return;
+    }
+
+    if (!hotSwapEnabled.Value()) {
+        YT_LOG_DEBUG(hotSwapEnabled, "Hot swap disabled");
+        return;
+    }
+
     auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
 
     // Fast path.
@@ -407,23 +432,19 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
     }
 
     auto diskInfos = diskInfosOrError.Value();
-    auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos);
 
-    auto diskAlert = TError();
-    std::optional<TString> diskAlertId;
-    for (const auto& diskInfo : diskInfos) {
-        if (diskInfo.State == NContainers::EDiskState::Failed) {
-            diskAlertId = diskInfo.DiskId;
-            diskAlert = TError("Disk failed, need hot swap")
-                << TErrorAttribute("disk_id", diskInfo.DiskId)
-                << TErrorAttribute("disk_model", diskInfo.DiskModel)
-                << TErrorAttribute("disk_state", diskInfo.State)
-                << TErrorAttribute("disk_path", diskInfo.DevicePath)
-                << TErrorAttribute("disk_name", diskInfo.DeviceName);
-            break;
-        }
+    auto config = DynamicConfig_.Acquire();
+
+    if (config->Enabled) {
+        HandleHotSwap(diskInfos);
     }
 
+    PushCounters(diskInfos);
+    OnDiskHealthCheck(diskInfos);
+}
+
+void TLocationHealthChecker::PushCounters(std::vector<TDiskInfo> diskInfos)
+{
     TEnumIndexedVector<NContainers::EDiskState, TEnumIndexedVector<NContainers::EStorageClass, i64>> counters;
 
     for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
@@ -441,29 +462,43 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
             Gauges_[diskState][storageClass].Update(counters[diskState][storageClass]);
         }
     }
+}
 
-    LocationManager_->SetDiskAlert(diskAlert);
+void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
+{
+    auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos);
 
-    if (diskAlertId) {
+    THashMap<TString, TError> diskAlertsMap;
+    std::vector<TString> unlinkedDiskIds;
+
+    for (const auto& diskInfo : diskInfos) {
+        if (diskInfo.State == NContainers::EDiskState::Failed) {
+            diskAlertsMap[diskInfo.DiskId] = TError("Disk failed, need hot swap")
+                << TErrorAttribute("disk_id", diskInfo.DiskId)
+                << TErrorAttribute("disk_model", diskInfo.DiskModel)
+                << TErrorAttribute("disk_state", diskInfo.State)
+                << TErrorAttribute("disk_path", diskInfo.DevicePath)
+                << TErrorAttribute("disk_name", diskInfo.DeviceName);
+        }
+    }
+
+    for (const auto& [diskAlertId, _] : diskAlertsMap) {
         bool diskLinkedWithLocation = false;
 
         for (const auto& livenessInfo : livenessInfos) {
-            if (livenessInfo.DiskId == diskAlertId.value()) {
+            if (livenessInfo.DiskId == diskAlertId) {
                 diskLinkedWithLocation = true;
                 break;
             }
         }
 
         if (!diskLinkedWithLocation) {
-            auto result = WaitFor(LocationManager_->RecoverDisk(diskAlertId.value()));
-
-            YT_LOG_ERROR_IF(!result.IsOK(), result);
+            unlinkedDiskIds.push_back(diskAlertId);
         }
     }
 
-    if (DynamicConfig_.Acquire()->EnableNewDiskChecker) {
-        OnDiskHealthCheck(diskInfos);
-    }
+    LocationManager_->SetDiskAlerts(GetValues(diskAlertsMap));
+    LocationManager_->SetUnlinkedDiskIds(unlinkedDiskIds);
 
     THashSet<TString> diskWithLivenessLocations;
     THashSet<TString> diskWithNotDestroyingLocations;

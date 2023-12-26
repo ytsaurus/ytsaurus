@@ -59,6 +59,11 @@ TFuture<void> TDiskInfoProvider::FailDisk(
     return DiskManagerProxy_->FailDiskById(diskId, reason);
 }
 
+TFuture<bool> TDiskInfoProvider::IsHotSwapEnabled()
+{
+    return DiskManagerProxy_->IsHotSwapEnabled();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NContainers

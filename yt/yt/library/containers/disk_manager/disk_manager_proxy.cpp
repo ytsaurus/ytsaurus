@@ -27,6 +27,11 @@ struct TDiskManagerProxyMock
         THROW_ERROR_EXCEPTION("Disk manager library is not available under this build configuration");
     }
 
+    virtual TFuture<bool> IsHotSwapEnabled()
+    {
+        return MakeFuture(false);
+    }
+
     virtual void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& /*newConfig*/)
     {
         // Do nothing

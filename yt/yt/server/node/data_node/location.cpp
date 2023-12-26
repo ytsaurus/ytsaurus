@@ -1165,11 +1165,6 @@ void TChunkLocation::MarkLocationDiskFailed()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!IsLocationDiskOK()) {
-        // do nothing
-        return;
-    }
-
     YT_LOG_WARNING("Disk with store location failed (LocationUuid: %v, DiskName: %v)",
         GetUuid(),
         StaticConfig_->DeviceName);
