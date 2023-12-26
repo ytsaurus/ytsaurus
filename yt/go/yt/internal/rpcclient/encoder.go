@@ -1425,14 +1425,12 @@ func (e *Encoder) DisableChunkLocations(
 func (e *Encoder) DestroyChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	recoverUnlinkedDisks bool,
 	locationUUIDs []guid.GUID,
 	opts *yt.DestroyChunkLocationsOptions,
 ) (response *yt.DestroyChunkLocationsResponse, err error) {
 	req := &rpc_proxy.TReqDestroyChunkLocations{
-		NodeAddress:          &nodeAddress,
-		RecoverUnlinkedDisks: &recoverUnlinkedDisks,
-		LocationUuids:        convertGUIDs(locationUUIDs),
+		NodeAddress:   &nodeAddress,
+		LocationUuids: convertGUIDs(locationUUIDs),
 	}
 
 	call := e.newCall(MethodDestroyChunkLocations, NewDestroyChunkLocationsRequest(req), nil)

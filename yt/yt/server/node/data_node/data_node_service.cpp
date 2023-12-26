@@ -2057,16 +2057,11 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DestroyChunkLocations)
     {
         auto locationManager = Bootstrap_->GetLocationManager();
-        auto recoverUnlinkedDisks = request->recover_unlinked_disks();
         auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
 
-        context->SetRequestInfo("RecoverUnlinkedDisks: %v, LocationUuids: %v",
-            recoverUnlinkedDisks,
-            locationUuids);
+        context->SetRequestInfo("LocationUuids: %v", locationUuids);
 
-        context->ReplyFrom(locationManager->DestroyChunkLocations(
-            recoverUnlinkedDisks,
-            {locationUuids.begin(), locationUuids.end()})
+        context->ReplyFrom(locationManager->DestroyChunkLocations({locationUuids.begin(), locationUuids.end()})
             .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
                 context->SetResponseInfo("LocationUuids: %v", locationUuids);
 

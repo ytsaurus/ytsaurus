@@ -440,10 +440,9 @@ public:
 
     IMPLEMENT_METHOD(TDestroyChunkLocationsResult, DestroyChunkLocations, (
         const TString& nodeAddress,
-        bool recoverUnlinkedDisks,
         const std::vector<TGuid>& locationUuids,
         const TDestroyChunkLocationsOptions& options),
-        (nodeAddress, recoverUnlinkedDisks, locationUuids, options))
+        (nodeAddress, locationUuids, options))
 
     IMPLEMENT_METHOD(TResurrectChunkLocationsResult, ResurrectChunkLocations, (
         const TString& nodeAddress,
@@ -996,7 +995,6 @@ private:
 
     TDestroyChunkLocationsResult DoDestroyChunkLocations(
         const TString& nodeAddress,
-        bool recoverUnlinkedDisks,
         const std::vector<TGuid>& locationUuids,
         const TDestroyChunkLocationsOptions& options);
 

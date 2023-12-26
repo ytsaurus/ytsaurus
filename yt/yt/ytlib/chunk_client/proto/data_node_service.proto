@@ -576,7 +576,6 @@ message TRspDisableChunkLocations
 message TReqDestroyChunkLocations
 {
     repeated NYT.NProto.TGuid location_uuids = 1;
-    optional bool recover_unlinked_disks = 2 [default = false];
 }
 
 message TRspDestroyChunkLocations

@@ -289,7 +289,6 @@ struct IAdminClient
 
     virtual TFuture<TDestroyChunkLocationsResult> DestroyChunkLocations(
         const TString& nodeAddress,
-        bool recoverUnlinkedDisks,
         const std::vector<TGuid>& locationUuids,
         const TDestroyChunkLocationsOptions& options = {}) = 0;
 

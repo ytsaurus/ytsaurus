@@ -200,7 +200,7 @@ std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& l
     return locationsForDisable;
 }
 
-std::vector<TGuid> TLocationManager::DoDestroyLocations(bool /*recoverUnlinkedDisks*/, const THashSet<TGuid>& locationUuids)
+std::vector<TGuid> TLocationManager::DoDestroyLocations(const THashSet<TGuid>& locationUuids)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -237,13 +237,11 @@ std::vector<TGuid> TLocationManager::DoResurrectLocations(const THashSet<TGuid>&
     return locationsForResurrect;
 }
 
-TFuture<std::vector<TGuid>> TLocationManager::DestroyChunkLocations(
-    bool recoverUnlinkedDisks,
-    const THashSet<TGuid>& locationUuids)
+TFuture<std::vector<TGuid>> TLocationManager::DestroyChunkLocations(const THashSet<TGuid>& locationUuids)
 {
     return BIND(&TLocationManager::DoDestroyLocations, MakeStrong(this))
         .AsyncVia(ControlInvoker_)
-        .Run(recoverUnlinkedDisks, locationUuids);
+        .Run(locationUuids);
 }
 
 TFuture<std::vector<TGuid>> TLocationManager::DisableChunkLocations(const THashSet<TGuid>& locationUuids)
