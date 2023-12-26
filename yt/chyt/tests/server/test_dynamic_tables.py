@@ -226,6 +226,65 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select * from concatYtTables(`//tmp/dt`, `//tmp/st`) order by data") == sorted(data * 2, key=lambda row: row["data"])
             assert clique.make_query("select * from concatYtTables(`//tmp/st`, `//tmp/dt`) order by data") == sorted(data * 2, key=lambda row: row["data"])
 
+    @authors("dakovalkov")
+    def test_ordered_table_insert(self):
+        create(
+            "table",
+            "//tmp/dt",
+            attributes={
+                "dynamic": True,
+                "schema": [{"name": "data", "type": "string"}],
+                "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            },
+        )
+        sync_mount_table("//tmp/dt")
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            clique.make_query("insert into `//tmp/dt` select 'abcd' as data")
+            assert clique.make_query("select data from `//tmp/dt`") == [{"data": "abcd"}]
+
+    @authors("dakovalkov")
+    @pytest.mark.skipif(True, reason="CHYT-506")
+    def test_ordered_table_virtual_columns(self):
+        schema = [
+            {"name": "data", "type": "string"},
+        ]
+
+        create(
+            "table",
+            "//tmp/dt",
+            attributes={
+                "dynamic": True,
+                "schema": schema,
+                "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            },
+        )
+        sync_mount_table("//tmp/dt")
+
+        insert_rows("//tmp/dt", [{"data": "abcd_1"}])
+        sync_flush_table("//tmp/dt")
+
+        insert_rows("//tmp/dt", [{"data": "abcd_2"}])
+
+        # One chunks + dynamic stores.
+
+        create("table", "//tmp/st", attributes={"schema": schema}, force=True)
+        write_table("//tmp/st", [{"data": "abcd_3"}])
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            query = '''
+                select data, $table_name, $table_path, $table_index
+                from ytTables('//tmp/dt', '//tmp/st')
+                order by data
+            '''
+            assert clique.make_query(query) == [
+                {"data": "abcd_1", "$table_name": "dt", "$table_path": "//tmp/dt", "$table_index": 0},
+                {"data": "abcd_2", "$table_name": "dt", "$table_path": "//tmp/dt", "$table_index": 0},
+                {"data": "abcd_3", "$table_name": "st", "$table_path": "//tmp/st", "$table_index": 1},
+            ]
+
     # Tests below are obtained from similar already existing tests on dynamic tables.
 
     @authors("max42")
