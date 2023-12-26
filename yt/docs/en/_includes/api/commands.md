@@ -466,13 +466,16 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Value: ID of the created lock.
+- Value: ID of the created lock and ID of the branched node.
 
 Example:
 
 ```bash
 PARAMETERS { "path" = "//tmp/node" }
-OUTPUT "0-1-c8-ab45cdfa"
+OUTPUT { 
+OUTPUT   "lock_id" = "0-1-3fe00c8-353e9ba4";
+OUTPUT   "node_id" = "0-1-3fe012f-9ad48d90";
+OUTPUT }
 ```
 
 ### unlock
