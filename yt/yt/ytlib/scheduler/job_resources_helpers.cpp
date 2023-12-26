@@ -80,7 +80,7 @@ void SerializeJobResourcesWithQuota(
             #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
-            .Do(std::bind(SerializeDiskQuotaImpl, resources.GetDiskQuota(), mediumDirectory, std::placeholders::_1))
+            .Do(std::bind(SerializeDiskQuotaImpl, resources.DiskQuota(), mediumDirectory, std::placeholders::_1))
         .EndMap();
 }
 
@@ -147,7 +147,7 @@ TString FormatResources(const TJobResourcesWithQuota& resources)
         resources.GetGpu(),
         resources.GetMemory() / 1_MB,
         resources.GetNetwork(),
-        resources.GetDiskQuota()
+        resources.DiskQuota()
     );
 
 }
@@ -283,7 +283,7 @@ void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const N
     protoResources->set_memory(resources.GetMemory());
     protoResources->set_network(resources.GetNetwork());
 
-    auto diskQuota = resources.GetDiskQuota();
+    auto diskQuota = resources.DiskQuota();
     ToProto(protoResources->mutable_disk_quota(), diskQuota);
 }
 
@@ -297,7 +297,7 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 
     NScheduler::TDiskQuota diskQuota;
     FromProto(&diskQuota, protoResources.disk_quota());
-    resources->SetDiskQuota(diskQuota);
+    resources->DiskQuota() = diskQuota;
 }
 
 } // namespace NProto

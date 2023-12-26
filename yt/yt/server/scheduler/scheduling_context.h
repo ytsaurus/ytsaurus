@@ -70,12 +70,16 @@ struct ISchedulingContext
     virtual const TJobResources& ResourceLimits() const = 0;
     virtual TJobResources& ResourceUsage() = 0;
     virtual const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const = 0;
+    virtual const std::vector<TDiskQuota>& DiskRequests() const = 0;
+
     //! Used during preemption to allow second-chance scheduling.
-    virtual void ResetUsageDiscounts() = 0;
-    virtual TJobResources& UnconditionalResourceUsageDiscount() = 0;
-    virtual void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount) = 0;
-    virtual TJobResources GetConditionalDiscountForOperation(TOperationId operationId) const = 0;
-    virtual TJobResources GetMaxConditionalUsageDiscount() const = 0;
+    virtual void ResetDiscounts() = 0;
+    virtual const TJobResourcesWithQuota& UnconditionalDiscount() const = 0;
+    virtual void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& jobResources) = 0;
+    virtual TJobResourcesWithQuota GetMaxConditionalDiscount() const = 0;
+    virtual TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationId operationId) const = 0;
+    virtual void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discount) = 0;
+    virtual NNodeTrackerClient::NProto::TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const = 0;
     virtual TJobResources GetNodeFreeResourcesWithoutDiscount() const = 0;
     virtual TJobResources GetNodeFreeResourcesWithDiscount() const = 0;
     virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const = 0;
@@ -87,7 +91,8 @@ struct ISchedulingContext
     //! Returns |true| if node has enough resources to start job with given limits.
     virtual bool CanStartJobForOperation(const TJobResourcesWithQuota& jobResources, TOperationId operationId) const = 0;
     //! Returns |true| if any more new jobs can be scheduled at this node.
-    virtual bool CanStartMoreJobs(const std::optional<TJobResources>& customMinSpareJobResources = {}) const = 0;
+    virtual bool CanStartMoreJobs(
+        const std::optional<TJobResources>& customMinSpareJobResources = {}) const = 0;
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const = 0;
 

@@ -953,6 +953,8 @@ public:
 
     bool SendPreemptionReasonInNodeHeartbeat;
 
+    bool ConsiderDiskQuotaInPreemptiveSchedulingDiscount;
+
     //! Duration of ScheduleJob call to log this result.
     TDuration ScheduleJobDurationLoggingThreshold;
 

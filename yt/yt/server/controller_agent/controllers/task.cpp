@@ -610,9 +610,9 @@ void TTask::ScheduleJob(
 
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec && userJobSpec->DiskRequest) {
-        neededResources.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
+        neededResources.DiskQuota() = CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory());
         joblet->DiskRequestAccount = userJobSpec->DiskRequest->Account;
-        joblet->DiskQuota = neededResources.GetDiskQuota();
+        joblet->DiskQuota = neededResources.DiskQuota();
     }
 
     if (userJobSpec) {
@@ -632,7 +632,7 @@ void TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources.ToJobResources()) ||
-        !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.GetDiskQuota()}))
+        !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.DiskQuota()}))
     {
         YT_LOG_DEBUG("Job actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
             jobLimits,
@@ -1925,7 +1925,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
     auto resultWithQuota = TJobResourcesWithQuota(result);
     if (auto userJobSpec = GetUserJobSpec()) {
         if (userJobSpec->DiskRequest) {
-            resultWithQuota.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
+            resultWithQuota.DiskQuota() = CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory());
         }
     }
     return resultWithQuota;

@@ -36,6 +36,8 @@ TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs);
 
 bool operator==(const TDiskQuota& lhs, const TDiskQuota& rhs);
 
+TDiskQuota Max(const TDiskQuota& lhs, const TDiskQuota& rhs);
+
 void Serialize(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,11 +46,12 @@ class TJobResourcesWithQuota
     : public TJobResources
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TDiskQuota, DiskQuota);
+    DEFINE_BYREF_RW_PROPERTY(TDiskQuota, DiskQuota);
 
 public:
     TJobResourcesWithQuota() = default;
     TJobResourcesWithQuota(const TJobResources& jobResources);
+    TJobResourcesWithQuota(const TJobResources& jobResources, TDiskQuota diskQuota);
     TJobResourcesWithQuota(TJobResourcesWithQuota&&) noexcept = default;
     TJobResourcesWithQuota(const TJobResourcesWithQuota&) = default;
 
@@ -58,9 +61,18 @@ public:
     static TJobResourcesWithQuota Infinite();
 
     TJobResources ToJobResources() const;
+    void SetJobResources(const TJobResources& jobResources);
 
     void Persist(const TStreamPersistenceContext& context);
 };
+
+TJobResourcesWithQuota  operator +  (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
+TJobResourcesWithQuota& operator += (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
+
+TJobResourcesWithQuota  operator -  (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
+TJobResourcesWithQuota& operator -= (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
+
+TJobResourcesWithQuota Max(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
 using TJobResourcesWithQuotaList = TCompactVector<TJobResourcesWithQuota, 8>;
 

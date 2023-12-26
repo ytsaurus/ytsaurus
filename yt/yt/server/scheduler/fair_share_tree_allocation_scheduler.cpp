@@ -1089,7 +1089,7 @@ void TScheduleJobsContext::AnalyzePreemptibleJobs(
                 LocalUnconditionalUsageDiscountMap_[parent->GetTreeIndex()] += job->ResourceUsage();
                 parent = parent->GetParent();
             }
-            SchedulingContext_->UnconditionalResourceUsageDiscount() += job->ResourceUsage();
+            SchedulingContext_->IncreaseUnconditionalDiscount(TJobResourcesWithQuota(job->ResourceUsage(), job->DiskQuota()));
             unconditionallyPreemptibleJobs->push_back(jobInfo);
         } else if (isConditionalPreemptionAllowed) {
             ConditionallyPreemptibleJobSetMap_[preemptionBlockingAncestor->GetTreeIndex()].insert(jobInfo);
@@ -1108,8 +1108,8 @@ void TScheduleJobsContext::AnalyzePreemptibleJobs(
     StageState_->AnalyzeJobsDuration += timer.GetElapsedTime();
 
     SchedulingStatistics_.UnconditionallyPreemptibleJobCount = unconditionallyPreemptibleJobs->size();
-    SchedulingStatistics_.UnconditionalResourceUsageDiscount = SchedulingContext_->UnconditionalResourceUsageDiscount();
-    SchedulingStatistics_.MaxConditionalResourceUsageDiscount = SchedulingContext_->GetMaxConditionalUsageDiscount();
+    SchedulingStatistics_.UnconditionalResourceUsageDiscount = SchedulingContext_->UnconditionalDiscount().ToJobResources();
+    SchedulingStatistics_.MaxConditionalResourceUsageDiscount = SchedulingContext_->GetMaxConditionalDiscount().ToJobResources();
     SchedulingStatistics_.TotalConditionallyPreemptibleJobCount = totalConditionallyPreemptibleJobCount;
     SchedulingStatistics_.MaxConditionallyPreemptibleJobCountInPool = maxConditionallyPreemptibleJobCountInPool;
 }
@@ -1145,7 +1145,7 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
     std::reverse(preemptibleJobs.begin(), preemptibleJobs.end());
 
     // Reset discounts.
-    SchedulingContext_->ResetUsageDiscounts();
+    SchedulingContext_->ResetDiscounts();
     LocalUnconditionalUsageDiscountMap_.clear();
     ConditionallyPreemptibleJobSetMap_.clear();
 
@@ -1184,7 +1184,9 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
 
     int currentJobIndex = 0;
     for (; currentJobIndex < std::ssize(preemptibleJobs); ++currentJobIndex) {
-        if (Dominates(SchedulingContext_->ResourceLimits(), SchedulingContext_->ResourceUsage())) {
+        if (Dominates(SchedulingContext_->ResourceLimits(), SchedulingContext_->ResourceUsage()) &&
+            CanSatisfyDiskQuotaRequests(SchedulingContext_->DiskResources(), SchedulingContext_->DiskRequests()))
+        {
             break;
         }
 
@@ -1660,9 +1662,9 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
         DynamicAttributesOf(element).SatisfactionRatio,
         SchedulingContext_->GetNodeDescriptor()->Id,
         FormatResourceUsage(SchedulingContext_->ResourceUsage(), SchedulingContext_->ResourceLimits()),
-        FormatResources(SchedulingContext_->UnconditionalResourceUsageDiscount() +
+        FormatResources(SchedulingContext_->UnconditionalDiscount() +
             SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
-        FormatResources(SchedulingContext_->UnconditionalResourceUsageDiscount()),
+        FormatResources(SchedulingContext_->UnconditionalDiscount()),
         FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
         GetStageType());
 
@@ -1707,13 +1709,13 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
     if (!HasJobsSatisfyingResourceLimits(element)) {
         YT_ELEMENT_LOG_DETAILED(element,
             "No pending jobs can satisfy available resources on node ("
-            "FreeResources: %v, DiscountResources: {Total: %v, Unconditional: %v, Conditional: %v}, "
+            "FreeJobResources: %v, DiskResources: %v, DiscountResources: {Total: %v, Unconditional: %v, Conditional: %v}, "
             "MinNeededResources: %v, DetailedMinNeededResources: %v, "
             "Address: %v)",
             FormatResources(SchedulingContext_->GetNodeFreeResourcesWithoutDiscount()),
-            FormatResources(SchedulingContext_->UnconditionalResourceUsageDiscount() +
-                SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
-            FormatResources(SchedulingContext_->UnconditionalResourceUsageDiscount()),
+            SchedulingContext_->DiskResources(),
+            FormatResources(SchedulingContext_->UnconditionalDiscount() + SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
+            FormatResources(SchedulingContext_->UnconditionalDiscount()),
             FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
             FormatResources(element->AggregatedMinNeededJobResources()),
             MakeFormattableView(
@@ -1732,14 +1734,16 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
     }
 
     TJobResources precommittedResources;
-    TJobResources availableResources;
+    TJobResources availableJobResources;
+    NNodeTrackerClient::NProto::TDiskResources availableDiskResources;
 
     auto scheduleJobEpoch = element->GetControllerEpoch();
 
     auto deactivationReason = TryStartScheduleJob(
         element,
         &precommittedResources,
-        &availableResources);
+        &availableJobResources,
+        &availableDiskResources);
     if (deactivationReason) {
         deactivateOperationElement(*deactivationReason);
         return false;
@@ -1771,7 +1775,7 @@ bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool
     {
         NProfiling::TWallTimer timer;
 
-        scheduleJobResult = DoScheduleJob(element, availableResources, &precommittedResources);
+        scheduleJobResult = DoScheduleJob(element, availableJobResources, availableDiskResources, &precommittedResources);
 
         auto scheduleJobDuration = timer.GetElapsedTime();
         StageState_->TotalScheduleJobDuration += scheduleJobDuration;
@@ -1850,9 +1854,9 @@ void TScheduleJobsContext::PrepareConditionalUsageDiscountsAtCompositeElement(
     const TSchedulerCompositeElement* element,
     TPrepareConditionalUsageDiscountsContext* context)
 {
-    TJobResources deltaConditionalDiscount;
+    TJobResourcesWithQuota deltaConditionalDiscount;
     for (const auto& jobInfo : GetConditionallyPreemptibleJobsInPool(element)) {
-        deltaConditionalDiscount += jobInfo.Job->ResourceUsage();
+        deltaConditionalDiscount += TJobResourcesWithQuota(jobInfo.Job->ResourceUsage(), jobInfo.Job->DiskQuota());
     }
 
     context->CurrentConditionalDiscount += deltaConditionalDiscount;
@@ -1869,14 +1873,14 @@ void TScheduleJobsContext::PrepareConditionalUsageDiscountsAtOperation(
     if (GetOperationPreemptionPriority(element) != context->TargetOperationPreemptionPriority) {
         return;
     }
-
     SchedulingContext_->SetConditionalDiscountForOperation(element->GetOperationId(), context->CurrentConditionalDiscount);
 }
 
 std::optional<EDeactivationReason> TScheduleJobsContext::TryStartScheduleJob(
     TSchedulerOperationElement* element,
     TJobResources* precommittedResourcesOutput,
-    TJobResources* availableResourcesOutput)
+    TJobResources* availableResourcesOutput,
+    NNodeTrackerClient::NProto::TDiskResources* availableDiskResourcesOutput)
 {
     const auto& minNeededResources = element->AggregatedMinNeededJobResources();
 
@@ -1906,12 +1910,14 @@ std::optional<EDeactivationReason> TScheduleJobsContext::TryStartScheduleJob(
     *availableResourcesOutput = Min(
         availableResourceLimits,
         SchedulingContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetOperationId()));
+    *availableDiskResourcesOutput = SchedulingContext_->GetDiskResourcesWithDiscountForOperation(element->GetOperationId());
     return {};
 }
 
 TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
     TSchedulerOperationElement* element,
     const TJobResources& availableResources,
+    const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
     TJobResources* precommittedResources)
 {
     ++SchedulingStatistics_.ControllerScheduleJobCount;
@@ -1919,6 +1925,7 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
     auto scheduleJobResult = element->ScheduleJob(
         SchedulingContext_,
         availableResources,
+        availableDiskResources,
         TreeSnapshot_->ControllerConfig()->ScheduleJobTimeLimit,
         element->GetTreeId(),
         TreeSnapshot_->TreeConfig());
@@ -2374,10 +2381,10 @@ void TScheduleJobsContext::LogStageStatistics()
 EJobPreemptionLevel TScheduleJobsContext::GetJobPreemptionLevel(const TJobWithPreemptionInfo& jobWithPreemptionInfo) const
 {
     const auto& [job, preemptionStatus, operationElement] = jobWithPreemptionInfo;
-
     bool isEligibleForSsdPriorityPreemption = SsdPriorityPreemptionEnabled_ &&
         IsEligibleForSsdPriorityPreemption(GetDiskQuotaMedia(job->DiskQuota()));
     auto aggressivePreemptionAllowed = StaticAttributesOf(operationElement).EffectiveAggressivePreemptionAllowed;
+
     switch (preemptionStatus) {
         case EJobPreemptionStatus::NonPreemptible:
             return isEligibleForSsdPriorityPreemption
@@ -2686,7 +2693,7 @@ void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOper
     const auto& operationSharedState = GetOperationSharedState(element->GetOperationId());
     for (const auto& job : jobs) {
         TJobResourcesWithQuota resourceUsageWithQuota = job->ResourceUsage();
-        resourceUsageWithQuota.SetDiskQuota(job->DiskQuota());
+        resourceUsageWithQuota.DiskQuota() = job->DiskQuota();
         operationSharedState->OnJobStarted(
             element,
             job->GetId(),
@@ -3385,7 +3392,7 @@ void TFairShareTreeJobScheduler::RunPreemptiveSchedulingStage(const TPreemptiveS
             "Scheduling new jobs with preemption "
             "(UnconditionallyPreemptibleJobs: %v, UnconditionalResourceUsageDiscount: %v, TargetOperationPreemptionPriority: %v)",
             unconditionallyPreemptibleJobs,
-            FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
+            FormatResources(context->SchedulingContext()->UnconditionalDiscount()),
             parameters.TargetOperationPreemptionPriority);
 
         while (context->ShouldContinueScheduling()) {

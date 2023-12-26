@@ -22,23 +22,35 @@ public:
 
     int GetNodeShardId() const override;
 
-    TJobResources& UnconditionalResourceUsageDiscount() override;
-    TJobResources GetMaxConditionalUsageDiscount() const override;
+    void ResetDiscounts() override;
+
+    const TJobResourcesWithQuota& UnconditionalDiscount() const override;
+    void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& jobResources) override;
+
+    TJobResourcesWithQuota GetMaxConditionalDiscount() const override;
+    TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationId operationId) const override;
+    void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discountForOperation) override;
+
+    NNodeTrackerClient::NProto::TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const override;
+    TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
+    TJobResources GetNodeFreeResourcesWithDiscount() const override;
+    TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const override;
 
     const TJobResources& ResourceLimits() const override;
-
     const TJobResources& ResourceUsage() const;
     TJobResources& ResourceUsage() override;
 
     const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override;
     NNodeTrackerClient::NProto::TDiskResources& DiskResources();
+    const std::vector<TDiskQuota>& DiskRequests() const override;
 
     const TExecNodeDescriptorPtr& GetNodeDescriptor() const override;
 
     bool CanStartJobForOperation(
         const TJobResourcesWithQuota& jobResourcesWithQuota,
         TOperationId operationId) const override;
-    bool CanStartMoreJobs(const std::optional<TJobResources>& customMinSpareJobResources) const override;
+    bool CanStartMoreJobs(
+        const std::optional<TJobResources>& customMinSpareJobResources) const override;
     bool CanSchedule(const TSchedulingTagFilter& filter) const override;
     bool ShouldAbortJobsSinceResourcesOvercommit() const override;
 
@@ -58,13 +70,6 @@ public:
 
     void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) override;
 
-    void ResetUsageDiscounts() override;
-    void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount) override;
-    TJobResources GetConditionalDiscountForOperation(TOperationId operationId) const override;
-    TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
-    TJobResources GetNodeFreeResourcesWithDiscount() const override;
-    TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const override;
-
     TScheduleJobsStatistics GetSchedulingStatistics() const override;
     void SetSchedulingStatistics(TScheduleJobsStatistics statistics) override;
 
@@ -80,20 +85,24 @@ private:
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
     const TJobResources DefaultMinSpareJobResources_;
 
-    TJobResources UnconditionalResourceUsageDiscount_;
-    TJobResources MaxConditionalUsageDiscount_;
+    TJobResourcesWithQuota UnconditionalDiscount_;
+    TJobResourcesWithQuota MaxConditionalDiscount_;
+
     TJobResources ResourceUsage_;
     TJobResources ResourceLimits_;
+
     NNodeTrackerClient::NProto::TDiskResources DiskResources_;
+    std::optional<int> DiscountMediumIndex_;
 
     std::vector<TJobPtr> StartedJobs_;
     std::vector<TJobPtr> RunningJobs_;
     std::vector<TPreemptedJob> PreemptedJobs_;
 
     std::vector<TDiskQuota> DiskRequests_;
+    THashMap<TJobId, int> DiskRequestIndexPerJobId_;
 
     // TODO(eshcherbin): Should we optimize and use tree index instead of operation ID here?
-    THashMap<TOperationId, TJobResources> ConditionalUsageDiscountMap_;
+    THashMap<TOperationId, TJobResourcesWithQuota> ConditionalDiscountMap_;
 
     TScheduleJobsStatistics SchedulingStatistics_;
 
@@ -102,6 +111,8 @@ private:
     bool CanSatisfyResourceRequest(
         const TJobResources& jobResources,
         const TJobResources& conditionalDiscount) const;
+
+    TDiskQuota GetDiskQuotaWithCompactedDefaultMedium(TDiskQuota diskQuota) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,6 +38,7 @@ public:
     MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
@@ -250,7 +251,7 @@ protected:
     {
         NNodeTrackerClient::NProto::TDiskResources diskResources;
         diskResources.mutable_disk_location_resources()->Add();
-        diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota().DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex]);
+        diskResources.mutable_disk_location_resources(0)->set_limit(GetOrDefault(nodeResources.DiskQuota().DiskSpacePerMedium, NChunkClient::DefaultSlotsMediumIndex));
 
         auto nodeId = ExecNodeId_;
         ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);
@@ -289,9 +290,9 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobCalls
     std::atomic<int> concurrentScheduleJobCalls = 0;
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             ++concurrentScheduleJobCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleJobResultPtr>(
@@ -329,6 +330,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobCalls
             return controller->ScheduleJob(
                 context,
                 nodeResources,
+                context->DiskResources(),
                 /*timeLimit*/ TDuration::Days(1),
                 /*treeId*/ "tree",
                 /*poolPath*/ "/pool",
@@ -370,15 +372,15 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecD
     std::atomic<int> concurrentScheduleJobCalls = 0;
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount + 1)
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             auto result = New<TControllerScheduleJobResult>();
             result->NextDurationEstimate = TDuration::MilliSeconds(100);
             return MakeFuture<TControllerScheduleJobResultPtr>(
                 TErrorOr<TControllerScheduleJobResultPtr>(result));
         }))
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             ++concurrentScheduleJobCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             auto result = New<TControllerScheduleJobResult>();
@@ -405,6 +407,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecD
         controller->ScheduleJob(
             context,
             nodeResources,
+            context->DiskResources(),
             /*timeLimit*/ TDuration::Days(1),
             /*treeId*/ "tree",
             /*poolPath*/ "/pool",
@@ -438,6 +441,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecD
             return controller->ScheduleJob(
                 context,
                 nodeResources,
+                context->DiskResources(),
                 /*timeLimit*/ TDuration::Days(1),
                 /*treeId*/ "tree",
                 /*poolPath*/ "/pool",
@@ -479,9 +483,9 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     std::atomic<int> concurrentScheduleJobCalls = 0;
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2 * JobCount)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             ++concurrentScheduleJobCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleJobResultPtr>(
@@ -520,6 +524,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
             return controller->ScheduleJob(
                 context,
                 nodeResources,
+                context->DiskResources(),
                 /*timeLimit*/ TDuration::Days(1),
                 /*treeId*/ "tree",
                 /*poolPath*/ "/pool",
@@ -558,8 +563,8 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
     auto secondJobId = TJobId(TGuid::Create());
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
@@ -568,7 +573,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
         }))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
@@ -579,7 +584,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
         }))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             return BIND([&] {
                 Sleep(TDuration::MilliSeconds(10));
 
@@ -606,6 +611,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
         auto result = controller->ScheduleJob(
             context,
             nodeResources,
+            context->DiskResources(),
             /*timeLimit*/ TDuration::Seconds(1),
             /*treeId*/ "tree",
             /*poolPath*/ "/pool",
@@ -620,6 +626,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
         auto result = controller->ScheduleJob(
             context,
             nodeResources,
+            context->DiskResources(),
             /*timeLimit*/ TDuration::Seconds(10),
             /*treeId*/ "tree",
             /*poolPath*/ "/pool",
