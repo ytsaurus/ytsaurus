@@ -109,6 +109,9 @@ struct ITabletSlot
     virtual TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() = 0;
 
     virtual bool IsTabletEpochActive() const = 0;
+
+    virtual int EstimateChangelogMediumBytes(int payloadBytes) const = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)

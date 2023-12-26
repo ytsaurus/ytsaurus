@@ -42,6 +42,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
+#include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -88,8 +90,10 @@
 namespace NYT::NTabletNode {
 
 using namespace NApi;
-using namespace NCellarClient;
 using namespace NCellarAgent;
+using namespace NCellarClient;
+using namespace NCellarNode;
+using namespace NDistributedThrottler;
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NHiveClient;
@@ -113,6 +117,61 @@ using NHydra::EPeerState;
 static const TString TabletCellHydraTracker = "TabletCellHydra";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static TThroughputThrottlerConfigPtr GetChangelogThrottlerConfig(
+    const NTabletClient::TTabletCellOptionsPtr& tabletCellOptions,
+    const TBundleDynamicConfigPtr& bundleConfig)
+{
+    auto result = New<TThroughputThrottlerConfig>();
+    if (!tabletCellOptions || !bundleConfig) {
+        return result;
+    }
+
+    const auto& mediumThrottlerConfig = bundleConfig->MediumThroughputLimits;
+
+    auto it = mediumThrottlerConfig.find(tabletCellOptions->ChangelogPrimaryMedium);
+    if (it != mediumThrottlerConfig.end()) {
+        result->Limit = it->second->WriteByteRate;
+    } else {
+        static constexpr auto UnlimitedThroughput = 1024_TB;
+        result->Limit = UnlimitedThroughput;
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSubscriptionGuard final
+{
+public:
+    using TDynamicConfigCallback = TCallback<void(
+        const TBundleDynamicConfigPtr& oldConfig,
+        const TBundleDynamicConfigPtr& newConfig)>;
+
+    TSubscriptionGuard(
+        TBundleDynamicConfigManagerPtr manager,
+        TDynamicConfigCallback callback)
+        : Manager_(std::move(manager))
+        , Callback_(std::move(callback))
+    {
+        Manager_->SubscribeConfigChanged(Callback_);
+    }
+
+    ~TSubscriptionGuard()
+    {
+        Manager_->UnsubscribeConfigChanged(Callback_);
+    }
+
+private:
+    TBundleDynamicConfigManagerPtr Manager_;
+    TDynamicConfigCallback Callback_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSubscriptionGuard);
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 class TTabletSlot
     : public TAutomatonInvokerHood<EAutomatonThreadQueue>
@@ -469,6 +528,8 @@ public:
             GetAutomaton(),
             GetAutomatonInvoker(),
             GetMutationForwarder());
+
+        ReconfigureChangelogWriteThrottler();
     }
 
     void Initialize() override
@@ -595,6 +656,13 @@ public:
             });
     }
 
+    int EstimateChangelogMediumBytes(int payload) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Occupant_->EstimateChangelogMediumBytes(payload);
+    }
+
 private:
     const TTabletNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -626,6 +694,8 @@ private:
     NRpc::IServicePtr TabletService_;
 
     const int SlotIndex_;
+    IReconfigurableThroughputThrottlerPtr ChangelogMediumWriteThrottler_;
+    TSubscriptionGuardPtr BundleDynamicConfigSubscription_;
 
 
     void OnStartEpoch()
@@ -668,6 +738,50 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    void ReconfigureChangelogWriteThrottler()
+    {
+        auto throttlerManager = GetDistributedThrottlerManager();
+        auto tabletCellOptions = GetOptions();
+        auto bundlePath = Format("//sys/tablet_cell_bundles/%v", GetTabletCellBundleName());
+        auto profiler = TabletNodeProfiler.WithPrefix("/distributed_throttlers")
+            .WithRequiredTag("tablet_cell_bundle", GetTabletCellBundleName())
+            .WithTag("cell_id", ToString(GetCellId()), -1);
+
+        auto getOrCreateThrottler = [=] (const TBundleDynamicConfigPtr& bundleConfig) {
+            return throttlerManager->GetOrCreateThrottler(
+                bundlePath,
+                /*cellTag*/ {},
+                GetChangelogThrottlerConfig(tabletCellOptions, bundleConfig),
+                "changelog_medium_write",
+                EDistributedThrottlerMode::Adaptive,
+                WriteThrottlerRpcTimeout,
+                /* admitUnlimitedThrottler */ true,
+                profiler);
+        };
+
+        const auto& dynamicConfigManager = Bootstrap_->GetBundleDynamicConfigManager();
+        ChangelogMediumWriteThrottler_ = getOrCreateThrottler(dynamicConfigManager->GetConfig());
+
+        auto configChangeHandler = BIND([reconfigureThrottler = getOrCreateThrottler] (
+            const TBundleDynamicConfigPtr& /*oldConfig*/,
+            const TBundleDynamicConfigPtr& newConfig) {
+                // TODO(capone212): do we really need to reconfigure like this here?
+                reconfigureThrottler(newConfig);
+            })
+            .Via(GetAutomatonInvoker());
+
+        BundleDynamicConfigSubscription_ = New<TSubscriptionGuard>(
+            Bootstrap_->GetBundleDynamicConfigManager(),
+            std::move(configChangeHandler));
+    }
+
+    IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return ChangelogMediumWriteThrottler_;
+    }
 };
 
 ITabletSlotPtr CreateTabletSlot(

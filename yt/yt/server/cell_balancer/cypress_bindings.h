@@ -45,6 +45,7 @@ DECLARE_REFCOUNTED_STRUCT(TAccountResources)
 DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
 DECLARE_REFCOUNTED_STRUCT(TNodeTagFilterOperationState)
 DECLARE_REFCOUNTED_STRUCT(TDataCenterInfo)
+DECLARE_REFCOUNTED_STRUCT(TMediumThroughputLimits)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
@@ -198,6 +199,7 @@ struct TBundleConfig
     NBundleControllerClient::TInstanceResourcesPtr RpcProxyResourceGuarantee;
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
+    THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -678,11 +680,27 @@ DEFINE_REFCOUNTED_TYPE(TRpcProxyInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMediumThroughputLimits
+    : public NYTree::TYsonStruct
+{
+    i64 WriteByteRate;
+    i64 ReadByteRate;
+
+    REGISTER_YSON_STRUCT(TMediumThroughputLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumThroughputLimits)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBundleDynamicConfig
     : public NYTree::TYsonStruct
 {
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
+    THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

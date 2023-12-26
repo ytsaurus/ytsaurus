@@ -460,6 +460,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TSubscriptionGuard);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public TObjectBase
     , public TRefTracked<TTablet>
@@ -803,7 +807,6 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
 
     TTabletCounters TabletCounters_;
-
     i64 CumulativeDataWeight_ = 0;
 
     void Initialize();
@@ -823,6 +826,8 @@ private:
     void ReconfigureRowCache(const ITabletSlotPtr& slot);
     void InvalidateChunkReaders();
     void ReconfigureHedgingManagerRegistry();
+    void ResetRowDigestRequestTime();
+    void ReconfigureChangelogWriteThrottler(const ITabletSlotPtr& slot);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

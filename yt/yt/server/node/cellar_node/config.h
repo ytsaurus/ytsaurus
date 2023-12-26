@@ -131,12 +131,28 @@ DEFINE_REFCOUNTED_TYPE(TMemoryLimits)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TMediumThroughputLimits
+    : public NYTree::TYsonStruct
+{
+    i64 WriteByteRate;
+    i64 ReadByteRate;
+
+    REGISTER_YSON_STRUCT(TMediumThroughputLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumThroughputLimits)
+
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct TBundleDynamicConfig
     : public NYTree::TYsonStruct
 {
     TCpuLimitsPtr CpuLimits;
-
     TMemoryLimitsPtr MemoryLimits;
+    THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

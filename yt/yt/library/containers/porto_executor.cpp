@@ -133,12 +133,12 @@ public:
         PollExecutor_->Start();
     }
 
-    void SubscribeFailed(const TCallback<void (const TError&)>& callback) override
+    void SubscribeFailed(const TCallback<void(const TError&)>& callback) override
     {
         Failed_.Subscribe(callback);
     }
 
-    void UnsubscribeFailed(const TCallback<void (const TError&)>& callback) override
+    void UnsubscribeFailed(const TCallback<void(const TError&)>& callback) override
     {
         Failed_.Unsubscribe(callback);
     }

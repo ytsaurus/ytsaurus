@@ -1962,6 +1962,11 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             EDistributedThrottlerMode::Adaptive,
             WriteThrottlerRpcTimeout,
             /* admitUnlimitedThrottler */ false);
+
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite] =
+        slot->GetChangelogMediumWriteThrottler();
+
+    YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite]);
 }
 
 void TTablet::ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot)

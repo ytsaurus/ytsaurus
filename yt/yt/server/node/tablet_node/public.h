@@ -20,6 +20,9 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
     (Select)
     (CompactionRead)
     (Write)
+
+    // Disk IO.
+    (ChangelogMediumWrite)
 );
 
 DEFINE_ENUM(EHunkCompactionReason,
@@ -75,7 +78,7 @@ DEFINE_ENUM(EChunkViewSizeStatus,
 
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
-    NConcurrency::IThroughputThrottlerPtr>;
+    NConcurrency::IReconfigurableThroughputThrottlerPtr>;
 using THunkStoreId = NChunkClient::TChunkId;
 
 struct IBootstrap;

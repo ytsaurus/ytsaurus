@@ -852,6 +852,26 @@ DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMediumThrottlersConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool EnableChangelogThrottling;
+
+    // Defines throttling time as a fraction of the request timeout.
+    double ThrottleTimeoutFraction;
+    // Max allowed throttling time for a request.
+    TDuration MaxThrottlingTime;
+
+    REGISTER_YSON_STRUCT(TMediumThrottlersConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumThrottlersConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -893,6 +913,8 @@ public:
     TStatisticsReporterConfigPtr StatisticsReporter;
 
     bool EnableChunkFragmentReaderThrottling;
+
+    TMediumThrottlersConfigPtr MediumThrottlers;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 
