@@ -1136,7 +1136,11 @@ void TSlotLocation::ReleaseDiskSpace(int slotIndex)
 {
     auto guard = WriterGuard(DiskResourcesLock_);
 
-    ReservedDiskSpacePerSlot_.erase(slotIndex);
+    if (auto it = ReservedDiskSpacePerSlot_.find(slotIndex); it != std::end(ReservedDiskSpacePerSlot_)) {
+        auto reservedDiskSpace = it->second;
+        DiskResources_.set_usage(DiskResources_.usage() - reservedDiskSpace);
+        ReservedDiskSpacePerSlot_.erase(it);
+    }
 }
 
 NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocationStatistics() const

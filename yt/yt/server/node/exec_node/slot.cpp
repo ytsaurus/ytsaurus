@@ -74,6 +74,12 @@ public:
         }
     }
 
+    ~TUserSlot()
+    {
+        Location_->ReleaseDiskSpace(SlotIndex_);
+        Location_->DecreaseSessionCount();
+    }
+
     TFuture<void> CleanProcesses() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -97,8 +103,6 @@ public:
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
             .ThrowOnError();
-        Location_->ReleaseDiskSpace(SlotIndex_);
-        Location_->DecreaseSessionCount();
     }
 
     void CancelPreparation() override
