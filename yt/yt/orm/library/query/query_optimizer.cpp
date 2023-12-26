@@ -1,5 +1,7 @@
 #include "query_optimizer.h"
 
+#include <yt/yt/library/query/base/helpers.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
 #include <util/generic/hash.h>
@@ -52,6 +54,8 @@ protected:
 
     virtual bool Optimize(TExpressionPtr& expr)
     {
+        NQueryClient::CheckStackDepth();
+
         if (auto* typedExpr = expr->As<TLiteralExpression>()) {
             return Optimize(*typedExpr);
         } else if (auto* typedExpr = expr->As<TReferenceExpression>()) {
@@ -191,6 +195,8 @@ protected:
 
     virtual bool IsOptimizationAllowed(const TExpressionPtr& expr) const
     {
+        NQueryClient::CheckStackDepth();
+
         if (expr->As<TLiteralExpression>()) {
             return true;
         } else if (auto* typedExpr = expr->As<TReferenceExpression>()) {

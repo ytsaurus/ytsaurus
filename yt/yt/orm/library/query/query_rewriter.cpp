@@ -1,5 +1,7 @@
 #include "query_rewriter.h"
 
+#include <yt/yt/library/query/base/helpers.h>
+
 namespace NYT::NOrm::NQuery {
 
 using namespace NQueryClient::NAst;
@@ -32,6 +34,8 @@ TExpressionPtr TQueryRewriter::Run(const TExpressionPtr& expr)
 
 void TQueryRewriter::Visit(TExpressionPtr* expr)
 {
+    NQueryClient::CheckStackDepth();
+
     if ((*expr)->As<TLiteralExpression>()) {
         // Do nothing.
     } else if (auto* typedExpr = (*expr)->As<TReferenceExpression>()) {
