@@ -3,7 +3,7 @@ import yatest.common as yatest_common
 import pytest
 
 import json
-import imp
+import importlib.util
 
 
 def test_configuration():
@@ -21,7 +21,9 @@ def test_configuration_canonical():
 
 def test_deep_merge():
     path = yatest_common.source_path("yt/odin/checks/config/make_config.py")
-    module = imp.load_source("make_config", path)
+    spec = importlib.util.spec_from_file_location("make_config", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     deep_merge = module.deep_merge
 
     assert deep_merge(dict(a="1"), dict(b="2")) == dict(a="1", b="2")
