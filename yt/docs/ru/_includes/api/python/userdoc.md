@@ -509,7 +509,7 @@ class Row:
 ```python
 import yt.type_info.typing as ti
 
-schema = yt.TableSchema() \
+schema = yt.schema.TableSchema() \
     .add_column("id", ti.Int64, sort_order="ascending") \
     .add_column("name", ti.Utf8) \
     .add_column("clicks", ti.List[

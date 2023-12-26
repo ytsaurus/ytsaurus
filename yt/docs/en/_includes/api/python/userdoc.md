@@ -504,12 +504,12 @@ The data classes support inheritance. For more information, see the [Data classe
 
 #### Schemas { #table_schema }
 
-Each table in {{product-name}} has a [schema](../../../user-guide/storage/static-schema.md). The Python  API has a dedicated [TableSchema](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.schema.table_schema.TableSchema) class. Most often, a schema is created from a [data class](#dataclass): `schema = TableSchema.from_row_type(Row)`, for example, a schema can be created automatically when writing a table.  Sometimes, you need to build a schema manually. To do this easily, use a builder interface such as:
+Each table in {{product-name}} has a [schema](../../../user-guide/storage/static-schema.md). The Python  API has a dedicated [TableSchema](https://pydoc.ytsaurus.tech/yt.wrapper.schema.html#yt.wrapper.schema.table_schema.TableSchema) class. Most often, a schema is created from a [data class](#dataclass): `schema = TableSchema.from_row_type(Row)`, for example, a schema can be created automatically when writing a table.  Sometimes, you need to build a schema manually. To do this easily, use a builder interface such as:
 
 ```python
-import yandex.type_info.typing as ti
+import yt.type_info.typing as ti
 
-schema = yt.TableSchema() \
+schema = yt.schema.TableSchema() \
     .add_column("id", ti.Int64, sort_order="ascending") \
     .add_column("name", ti.Utf8) \
     .add_column("clicks", ti.List[
