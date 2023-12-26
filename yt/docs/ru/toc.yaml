@@ -152,6 +152,12 @@ items:
       - name: Обработка данных
         expanded: true
         items:
+        - name: Обзор
+          when: audience == "public"
+          href: user-guide/data-processing/overview.md
+        - name: Отказоустойчивость
+          when: audience == "public"
+          href: user-guide/data-processing/reliability.md
         - name: Планировщик и пулы
           when: audience == "public"
           items:
