@@ -1307,6 +1307,9 @@ TLookupSession::~TLookupSession()
         TDuration::MicroSeconds(DecompressionCpuTime_.load(std::memory_order::relaxed)));
     if (CpuTime_) {
         counters->CpuTime.Add(*CpuTime_);
+        tabletSnapshot->PerformanceCounters->LookupCpuTime.Counter.fetch_add(
+            CpuTime_->MicroSeconds(),
+            std::memory_order::relaxed);
     }
 
     counters->RetryCount.Increment(RetryCount_.load(std::memory_order::relaxed));

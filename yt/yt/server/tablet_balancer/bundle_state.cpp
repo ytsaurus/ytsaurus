@@ -120,9 +120,15 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString> TBundleState::DefaultPerformanceCountersKeys{
+const std::vector<TString> DefaultPerformanceCountersKeys{
     #define XX(name, Name) #name,
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+    #undef XX
+};
+
+const std::vector<TString> AdditionalPerformanceCountersKeys{
+    #define XX(name, Name) #name,
+    ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
 };
 
@@ -326,6 +332,8 @@ void TBundleState::DoFetchStatistics(
         table->Tablets.clear();
     }
 
+    PerformanceCountersKeys_ = DefaultPerformanceCountersKeys;
+
     YT_LOG_DEBUG("Started fetching table statistics (TableCount: %v)", tableIdsToFetch.size());
     Counters_->TableStatisticsRequestCount.Increment(tableIdsToFetch.size());
 
@@ -335,6 +343,10 @@ void TBundleState::DoFetchStatistics(
 
     if (useStatisticsReporter) {
         FetchPerformanceCountersFromTable(&tableIdToStatistics, statisticsTablePath);
+        PerformanceCountersKeys_.insert(
+            PerformanceCountersKeys_.end(),
+            AdditionalPerformanceCountersKeys.begin(),
+            AdditionalPerformanceCountersKeys.end());
     }
 
     THashSet<TTableId> missingTables;

@@ -50,6 +50,7 @@ const auto NameTable = TNameTable::FromSchema(TTableSchema({
     {"tablet_id", EValueType::String, ESortOrder::Ascending},
     #define XX(name, Name) {#name, PerformanceCounterStruct},
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+    ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
     {"uncompressed_data_size", EValueType::Int64},
     {"compressed_data_size", EValueType::Int64},
@@ -126,6 +127,7 @@ void TStatisticsReporter::DoReportStatistics()
 
         #define XX(name, Name) performanceCounters->Name.UpdateEma();
         ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+        ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
         #undef XX
 
         i64 uncompressedDataSize = 0;
@@ -166,6 +168,7 @@ void TStatisticsReporter::DoReportStatistics()
             .EndList(); \
         builder.AddValue(MakeUnversionedCompositeValue(yson##Name.AsStringBuf(), NameTable->GetId(#name)));
         ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+        ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
         #undef XX
 
         builder.AddValue(MakeUnversionedInt64Value(uncompressedDataSize, NameTable->GetId("uncompressed_data_size")));

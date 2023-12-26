@@ -25,11 +25,15 @@ namespace NYT::NTabletNode {
     XX(lookup_error,                            LookupError) \
     XX(write_error,                             WriteError)
 
+#define ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX) \
+    XX(lookup_cpu_time,                         LookupCpuTime)
+
 struct TTabletPerformanceCounters
 {
     static const TEmaCounter::TWindowDurations TabletPerformanceWindowDurations;
     #define XX(name, Name) TEmaCounter Name = TEmaCounter(TabletPerformanceWindowDurations);
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+    ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
 };
 
