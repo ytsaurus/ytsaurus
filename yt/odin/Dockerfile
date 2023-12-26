@@ -126,6 +126,10 @@ ENV ODIN_RUNTIME_ROOT $ODIN_RUNTIME_ROOT
 COPY --from=odin-installer ${VIRTUAL_ENV}/ ${VIRTUAL_ENV}/
 COPY --from=odin-installer ${ODIN_RUNTIME_ROOT}/ ${ODIN_RUNTIME_ROOT}/
 
+RUN mkdir -p ${ODIN_RUNTIME_ROOT}/log \
+    && ln -sf /dev/stdout ${ODIN_RUNTIME_ROOT}/log/odin.log \
+    && ln -sf /dev/stdout ${ODIN_RUNTIME_ROOT}/log/webservice.log
+
 ENV PATH "${VIRTUAL_ENV}/bin:${PATH}"
 
 WORKDIR ${ODIN_RUNTIME_ROOT}
