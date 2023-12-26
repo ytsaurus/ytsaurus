@@ -8348,7 +8348,7 @@ void TOperationControllerBase::AttachToLivePreview(
         return;
     }
 
-    YT_VERIFY((*LivePreviews_)[tableName]->Chunks().insert(std::move(chunk)).second);
+    InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
 }
 
 void TOperationControllerBase::AttachToLivePreview(

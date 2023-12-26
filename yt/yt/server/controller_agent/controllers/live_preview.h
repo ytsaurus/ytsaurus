@@ -18,8 +18,6 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TLivePreview)
-
 class TLivePreview
     : public TRefCounted
 {
