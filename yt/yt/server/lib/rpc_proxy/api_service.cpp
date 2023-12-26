@@ -4667,11 +4667,15 @@ private:
     {
         auto nodeAddress = request->node_address();
         auto locationUuids = request->location_uuids();
+        auto recoverUnlinkedDisks = request->recover_unlinked_disks();
 
         TDestroyChunkLocationsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("NodeAddress: %v, LocationUuids: %v", nodeAddress, locationUuids);
+        context->SetRequestInfo("NodeAddress: %v, RecoverUnlinkedDisks: %v, LocationUuids: %v",
+            nodeAddress,
+            recoverUnlinkedDisks,
+            locationUuids);
 
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -4680,6 +4684,7 @@ private:
             [=] {
                 return client->DestroyChunkLocations(
                     nodeAddress,
+                    recoverUnlinkedDisks,
                     FromProto<std::vector<TGuid>>(request->location_uuids()),
                     options);
             },

@@ -712,10 +712,11 @@ func (e *Encoder) DisableChunkLocations(
 func (e *Encoder) DestroyChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
+	recoverUnlinkedDisks bool,
 	locationUUIDs []guid.GUID,
 	options *yt.DestroyChunkLocationsOptions,
 ) (response *yt.DestroyChunkLocationsResponse, err error) {
-	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, locationUUIDs, options))
+	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, recoverUnlinkedDisks, locationUUIDs, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})
