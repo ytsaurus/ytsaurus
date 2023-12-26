@@ -85,8 +85,8 @@ public:
             .RequiredArgument("CLUSTER")
             .Optional();
         Opts_
-            .AddLongOption("skip-tvm-service-env-validation", "don't validate tvm service files")
-            .SetFlag(&SkipTVMServiceEnvValidation_)
+            .AddLongOption("skip-tvm-service-env-validation", "don't validate TVM service files")
+            .SetFlag(&SkipTvmServiceEnvValidation_)
             .NoArgument();
         Opts_
             .AddLongOption("sleep-after-initialize", "sleep for 10s after calling TBootstrap::Initialize()")
@@ -192,7 +192,7 @@ protected:
             YT_VERIFY(localSnapshotStoreConfig->StoreType == NHydra::ESnapshotStoreType::Local);
             config->TabletNode->Snapshots  = localSnapshotStoreConfig;
 
-            if (SkipTVMServiceEnvValidation_) {
+            if (SkipTvmServiceEnvValidation_) {
                 const auto& nativeAuthenticationManager = config->NativeAuthenticationManager;
                 nativeAuthenticationManager->EnableValidation = false;
                 nativeAuthenticationManager->EnableSubmission = false;
@@ -280,7 +280,7 @@ private:
     TString SnapshotBuildDirectory_;
     NYson::TYsonString DryRunSnapshotMeta_;
     TString RemoteClusterProxy_;
-    bool SkipTVMServiceEnvValidation_ = false;
+    bool SkipTvmServiceEnvValidation_ = false;
     bool SleepAfterInitialize_ = false;
 };
 
