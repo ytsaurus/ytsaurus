@@ -955,6 +955,7 @@ if __name__ == "__main__":
         .output_table_paths("//tmp/output_table") \
         .begin_mapper() \
             .command("cat") \
+            .format(yt.YsonFormat()) \
         .end_mapper()
 
     yt.run_operation(spec_builder)
