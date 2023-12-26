@@ -979,10 +979,11 @@ type AdminClient interface {
 	) (result *DisableChunkLocationsResponse, err error)
 
 	// http:verb:"destroy_chunk_locations"
-	// http:params:"node_address","location_uuids"
+	// http:params:"node_address","recover_unlinked_disks","location_uuids"
 	DestroyChunkLocations(
 		ctx context.Context,
 		nodeAddress string,
+		recoverUnlinkedDisks bool,
 		locationUUIDs []guid.GUID,
 		options *DestroyChunkLocationsOptions,
 	) (result *DestroyChunkLocationsResponse, err error)

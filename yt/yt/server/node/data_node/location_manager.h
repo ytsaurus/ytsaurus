@@ -47,7 +47,9 @@ public:
 
     TFuture<std::vector<TGuid>> DisableChunkLocations(const THashSet<TGuid>& locationUuids);
 
-    TFuture<std::vector<TGuid>> DestroyChunkLocations(const THashSet<TGuid>& locationUuids);
+    TFuture<std::vector<TGuid>> DestroyChunkLocations(
+        bool recoverUnlinkedDisks,
+        const THashSet<TGuid>& locationUuids);
 
     TFuture<void> FailDiskByName(
         const TString& diskName,
@@ -87,7 +89,7 @@ private:
 
     std::vector<TGuid> DoDisableLocations(const THashSet<TGuid>& locationUuids);
 
-    std::vector<TGuid> DoDestroyLocations(const THashSet<TGuid>& locationUuids);
+    std::vector<TGuid> DoDestroyLocations(bool recoverUnlinkedDisks, const THashSet<TGuid>& locationUuids);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

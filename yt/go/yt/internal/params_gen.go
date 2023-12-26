@@ -3220,14 +3220,16 @@ func (p *DisableChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
 }
 
 type DestroyChunkLocationsParams struct {
-	verb          Verb
-	nodeAddress   string
-	locationUUIDs []guid.GUID
-	options       *yt.DestroyChunkLocationsOptions
+	verb                 Verb
+	nodeAddress          string
+	recoverUnlinkedDisks bool
+	locationUUIDs        []guid.GUID
+	options              *yt.DestroyChunkLocationsOptions
 }
 
 func NewDestroyChunkLocationsParams(
 	nodeAddress string,
+	recoverUnlinkedDisks bool,
 	locationUUIDs []guid.GUID,
 	options *yt.DestroyChunkLocationsOptions,
 ) *DestroyChunkLocationsParams {
@@ -3238,6 +3240,7 @@ func NewDestroyChunkLocationsParams(
 	return &DestroyChunkLocationsParams{
 		Verb("destroy_chunk_locations"),
 		nodeAddress,
+		recoverUnlinkedDisks,
 		locationUUIDs,
 		&optionsCopy,
 	}
@@ -3252,6 +3255,7 @@ func (p *DestroyChunkLocationsParams) YPath() (ypath.YPath, bool) {
 func (p *DestroyChunkLocationsParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("nodeAddress", p.nodeAddress),
+		log.Any("recoverUnlinkedDisks", p.recoverUnlinkedDisks),
 		log.Any("locationUUIDs", p.locationUUIDs),
 	}
 }
@@ -3259,6 +3263,8 @@ func (p *DestroyChunkLocationsParams) Log() []log.Field {
 func (p *DestroyChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("node_address")
 	w.Any(p.nodeAddress)
+	w.MapKeyString("recover_unlinked_disks")
+	w.Any(p.recoverUnlinkedDisks)
 	w.MapKeyString("location_uuids")
 	w.Any(p.locationUUIDs)
 	writeDestroyChunkLocationsOptions(w, p.options)
