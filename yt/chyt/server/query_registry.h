@@ -36,8 +36,6 @@ public:
 
     void WriteStateToStderr() const;
 
-    void SaveState();
-
     void Start();
     void Stop();
 
