@@ -11,9 +11,6 @@ namespace NYT::NTabletBalancer {
 struct IReshardIteration
     : public TRefCounted
 {
-public:
-    IReshardIteration() = default;
-
     virtual void StartIteration() = 0;
     virtual void Prepare(
         const TBundleStatePtr& bundleState,

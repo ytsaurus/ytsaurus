@@ -29,11 +29,11 @@ class TReshardIterationBase
 {
 public:
     TReshardIterationBase(
-        const TString& bundleName,
-        const TString& groupName,
+        TString bundleName,
+        TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
-        : BundleName_(bundleName)
-        , GroupName_(groupName)
+        : BundleName_(std::move(bundleName))
+        , GroupName_(std::move(groupName))
         , DynamicConfig_(std::move(dynamicConfig))
     { }
 
@@ -75,10 +75,13 @@ class TSizeReshardIteration
 {
 public:
     TSizeReshardIteration(
-        const TString& bundleName,
-        const TString& groupName,
+        TString bundleName,
+        TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
-        : TReshardIterationBase(bundleName, groupName, std::move(dynamicConfig))
+        : TReshardIterationBase(
+            std::move(bundleName),
+            std::move(groupName),
+            std::move(dynamicConfig))
     { }
 
     void StartIteration() override
@@ -179,10 +182,13 @@ class TParameterizedReshardIteration
 {
 public:
     TParameterizedReshardIteration(
-        const TString& bundleName,
-        const TString& groupName,
+        TString bundleName,
+        TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
-        : TReshardIterationBase(bundleName, groupName, std::move(dynamicConfig))
+        : TReshardIterationBase(
+            std::move(bundleName),
+            std::move(groupName),
+            std::move(dynamicConfig))
     { }
 
     void StartIteration() override

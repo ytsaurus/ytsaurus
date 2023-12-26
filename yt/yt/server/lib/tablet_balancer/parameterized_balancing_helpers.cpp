@@ -123,7 +123,7 @@ protected:
 
             default:
                 THROW_ERROR_EXCEPTION(
-                    "Tablet metric value type is not numerical: got %v",
+                    "Tablet metric value type is not numerical: got %Qlv",
                     value.Type)
                     << TErrorAttribute("metric_formula", Metric_);
         }
@@ -472,7 +472,7 @@ bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
     return cell->Node->Address == tablet->Cell->Node->Address || cell->Node->FreeNodeMemory >= size;
 }
 
-void TParameterizedReassignSolver:: TryMoveTablet(
+void TParameterizedReassignSolver::TryMoveTablet(
     TTabletInfo* tablet,
     TTabletCellInfo* cell)
 {
@@ -1175,7 +1175,8 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         .Tablets = std::move(tabletsToMerge),
         .TabletCount = 1,
         .DataSize = enlargedTabletSize,
-        .CorrelationId = correlationId};
+        .CorrelationId = correlationId
+    };
 }
 
 bool TParameterizedResharder::AreMoreTabletsNeeded(
