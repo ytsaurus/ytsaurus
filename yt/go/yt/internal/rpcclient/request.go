@@ -965,6 +965,7 @@ func NewDestroyChunkLocationsRequest(r *rpc_proxy.TReqDestroyChunkLocations) *De
 func (r DestroyChunkLocationsRequest) Log() []log.Field {
 	return []log.Field{
 		log.String("node_address", r.GetNodeAddress()),
+		log.Bool("recover_unlinked_disks", r.GetRecoverUnlinkedDisks()),
 		log.Any("location_uuids", r.GetLocationUuids()),
 	}
 }

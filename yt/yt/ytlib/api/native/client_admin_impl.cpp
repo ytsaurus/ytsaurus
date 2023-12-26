@@ -790,6 +790,7 @@ TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
 
 TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
     const TString& nodeAddress,
+    bool recoverUnlinkedDisks,
     const std::vector<TGuid>& locationUuids,
     const TDestroyChunkLocationsOptions& options)
 {
@@ -800,6 +801,7 @@ TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
     TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
 
     auto req = proxy.DestroyChunkLocations();
+    req->set_recover_unlinked_disks(recoverUnlinkedDisks);
     ToProto(req->mutable_location_uuids(), locationUuids);
     req->SetTimeout(options.Timeout);
 
