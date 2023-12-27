@@ -43,6 +43,7 @@ target_sources(yt-systest PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/operation/reduce.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/operation/util.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/reduce_dataset.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/rpc_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/run.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/runner.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/sort_dataset.cpp

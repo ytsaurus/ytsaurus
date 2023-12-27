@@ -22,6 +22,8 @@
 #include <yt/systest/validator_job.h>
 #include <yt/systest/validator_service.h>
 
+#include <yt/systest/table_dataset.h>
+
 #include <util/stream/file.h>
 
 #include <libgen.h>
@@ -182,6 +184,19 @@ TFuture<typename NRpc::TTypedClientResponse<NProto::TRspCompareSorted>::TResult>
     request->set_path_b(pathB);
     ToProto(request->mutable_table(), table);
     return request->Invoke();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void TValidatorConfig::RegisterOptions(NLastGetopt::TOpts* opts)
+{
+    opts->AddLongOption("validator-jobs")
+        .StoreResult(&NumJobs)
+        .DefaultValue(4);
+
+    opts->AddLongOption("validator-interval-bytes")
+        .StoreResult(&IntervalBytes)
+        .DefaultValue(64 << 20);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

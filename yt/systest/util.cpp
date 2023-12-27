@@ -75,13 +75,6 @@ std::vector<TNode> ExtractInputValues(TRange<TNode> values, TRange<int> input)
     return result;
 }
 
-TString DebugString(const TNode& node)
-{
-    TTempBufOutput outputStream;
-    node.Save(&outputStream);
-    return TString(outputStream.Data(), outputStream.Filled());
-}
-
 int CompareRowPrefix(int prefixLength, TRange<TNode> lhs, TRange<TNode> rhs)
 {
     for (int i = 0; i < prefixLength; ++i) {

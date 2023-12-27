@@ -66,6 +66,8 @@ static void ApplySortOperationInternal(
             THROW_ERROR_EXCEPTION("Sort column %v missing from input schema", sortColumn);
         }
         output->DataColumns.push_back(table.DataColumns[position->second]);
+        output->DataColumns.back().StableName = std::nullopt;
+
         (*sortedMask)[position->second] = true;
         sortByIndices->push_back(position->second);
     }
@@ -146,12 +148,7 @@ bool TMergeSortedDatasetIterator::IteratorCmp(const IDatasetIterator* lhs, const
         return false;
     }
 
-    for (int i = 0; i < SortColumns_; ++i) {
-        if (lhs->Values()[i] < rhs->Values()[i]) {
-            return true;
-        }
-    }
-    return false;
+    return CompareRowPrefix(SortColumns_, lhs->Values(), rhs->Values()) < 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

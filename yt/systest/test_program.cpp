@@ -22,54 +22,14 @@
 #include <yt/systest/test_home.h>
 #include <yt/systest/table.h>
 
+#include <yt/systest/rpc_client.h>
 #include <yt/systest/test_program.h>
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
-#include <yt/yt/library/auth/auth.h>
-
-#include <yt/yt/library/program/config.h>
-#include <yt/yt/library/program/program.h>
-#include <yt/yt/library/program/helpers.h>
-
-#include <util/system/env.h>
-
 namespace NYT::NTest {
-
-class TRpcConfig : public TSingletonsConfig
-{
-};
-
-DEFINE_REFCOUNTED_TYPE(TRpcConfig);
-
-NApi::IClientPtr CreateRpcClient(const TConfig& config) {
-    auto proxyAddress = GetEnv("YT_PROXY");
-    if (proxyAddress.empty()) {
-        THROW_ERROR_EXCEPTION("YT_PROXY environment variable must be set");
-    }
-    auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
-    connectionConfig->ClusterUrl = proxyAddress;
-    connectionConfig->ProxyListUpdatePeriod = TDuration::Seconds(5);
-
-    auto singletonsConfig = New<TRpcConfig>();
-    if (config.Ipv4) {
-        singletonsConfig->AddressResolver->EnableIPv4 = true;
-        singletonsConfig->AddressResolver->EnableIPv6 = false;
-    }
-    ConfigureSingletons(singletonsConfig);
-
-    auto connection = NApi::NRpcProxy::CreateConnection(connectionConfig);
-
-    auto token = NAuth::LoadToken();
-    if (!token) {
-        THROW_ERROR_EXCEPTION("YT_TOKEN environment variable must be set");
-    }
-
-    NApi::TClientOptions clientOptions = NAuth::TAuthenticationOptions::FromToken(*token);
-    return connection->CreateClient(clientOptions);
-}
 
 TProgram::TProgram()
 {
@@ -85,7 +45,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
     YT_LOG_INFO("Starting tester");
 
     auto client = NYT::CreateClientFromEnv();
-    auto rpcClient = CreateRpcClient(Config_);
+    auto rpcClient = CreateRpcClient(Config_.Network);
 
     TTestHome testHome(client, Config_.HomeDirectory);
     testHome.Init();

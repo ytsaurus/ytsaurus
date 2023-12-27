@@ -1,5 +1,7 @@
 #pragma once
 
+#include <library/cpp/getopt/last_getopt.h>
+
 #include <yt/systest/dataset.h>
 #include <yt/systest/table_dataset.h>
 #include <yt/systest/test_home.h>
@@ -20,6 +22,7 @@ struct TRunnerConfig
     bool EnableDeletes;
 
     TRunnerConfig();
+    void RegisterOptions(NLastGetopt::TOpts* opts);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,6 +17,7 @@ SRCS(
     operation/util.cpp
 
     reduce_dataset.cpp
+    rpc_client.cpp
     run.cpp
     runner.cpp
     sort_dataset.cpp

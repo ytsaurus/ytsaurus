@@ -1,5 +1,6 @@
 #pragma once
 
+#include <library/cpp/getopt/last_getopt.h>
 #include <library/cpp/yt/logging/logger.h>
 #include <yt/cpp/mapreduce/interface/client.h>
 
@@ -16,6 +17,8 @@ struct TValidatorConfig
 {
     int NumJobs;
     int64_t IntervalBytes;
+
+    void RegisterOptions(NLastGetopt::TOpts* opts);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

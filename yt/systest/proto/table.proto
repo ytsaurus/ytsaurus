@@ -15,6 +15,7 @@ enum EColumnType {
 message TDataColumn {
     optional string name = 1;
     optional EColumnType type = 2;
+    optional string stable_name = 3;
 }
 
 message TTable {

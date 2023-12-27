@@ -19,6 +19,13 @@ bool equals(TRange<TNode> lhs, TRange<TNode> rhs)
     return true;
 }
 
+TString DebugString(const TNode& node)
+{
+    TTempBufOutput outputStream;
+    node.Save(&outputStream);
+    return TString(outputStream.Data(), outputStream.Filled());
+}
+
 TString ToString(TRange<TNode> nodes)
 {
     TString ret;

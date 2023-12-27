@@ -1,6 +1,9 @@
 
-#include <yt/systest/table.h>
 #include <library/cpp/yt/yson/consumer.h>
+
+#include <yt/systest/table.h>
+#include <yt/yt/client/api/public.h>
+#include <yt/yt/client/api/table_reader.h>
 
 namespace NYT::NTest {
 
@@ -68,6 +71,26 @@ NTableClient::ESimpleLogicalValueType GetType(NProto::EColumnType type)
     }
 }
 
+NProto::EColumnType GetType(NTableClient::ESimpleLogicalValueType type)
+{
+    switch (type) {
+        case NTableClient::ESimpleLogicalValueType::Null:
+            return NProto::EColumnType::ENone;
+        case NTableClient::ESimpleLogicalValueType::Int8:
+            return NProto::EColumnType::EInt8;
+        case NTableClient::ESimpleLogicalValueType::Int16:
+            return NProto::EColumnType::EInt16;
+        case NTableClient::ESimpleLogicalValueType::Int64:
+            return NProto::EColumnType::EInt64;
+        case NTableClient::ESimpleLogicalValueType::String:
+            return NProto::EColumnType::EBytes64K;
+        case NTableClient::ESimpleLogicalValueType::Double:
+            return NProto::EColumnType::EDouble;
+        default:
+            THROW_ERROR_EXCEPTION("Unexpected logical value type %v", type);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString BuildAttributes(const TTable& table)
@@ -104,12 +127,18 @@ void ToProto(NProto::TDataColumn* proto, const TDataColumn& column)
 {
     proto->set_name(column.Name);
     proto->set_type(column.Type);
+    if (column.StableName) {
+        proto->set_stable_name(*column.StableName);
+    }
 }
 
 void FromProto(TDataColumn* column, const NProto::TDataColumn& proto)
 {
     column->Name = proto.name();
     column->Type = proto.type();
+    if (proto.has_stable_name()) {
+        column->StableName = proto.stable_name();
+    }
 }
 
 void FromProto(TTable* table, const NProto::TTable& proto)
@@ -148,5 +177,20 @@ void AlterTable(NApi::IClientPtr client, const TString& path, const TTable& tabl
     client->AlterTable(path, options).Get().ThrowOnError();
 }
 
+void FromTablePath(TTable* table, NApi::IClientPtr client, const TString& path)
+{
+    auto reader = client->CreateTableReader(path).Get().ValueOrThrow();
+    auto schema = reader->GetTableSchema();
+
+    for (const auto& column : schema->Columns()) {
+        TDataColumn dataColumn{column.Name(),
+            GetType(*column.LogicalType()->AsOptionalTypeRef().Simplify()),
+            std::nullopt};
+        if (column.StableName().Get() != column.Name()) {
+            dataColumn.StableName = column.StableName().Get();
+        }
+        table->DataColumns.push_back(dataColumn);
+    }
+}
 
 }  // namespace NYT::NTest

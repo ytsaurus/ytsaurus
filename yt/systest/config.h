@@ -6,11 +6,17 @@
 
 namespace NYT::NTest {
 
+struct TNetworkConfig {
+    bool Ipv4;
+    void RegisterOptions(NLastGetopt::TOpts* opts);
+};
+
 struct TConfig {
     TRunnerConfig RunnerConfig;
     TValidatorConfig ValidatorConfig;
+    TNetworkConfig Network;
+
     TString HomeDirectory;
-    bool Ipv4;
     TString Pool;
 
     TConfig();

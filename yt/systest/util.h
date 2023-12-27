@@ -20,5 +20,6 @@ std::vector<TNode> ExtractInputValues(TRange<TNode> values, TRange<int> input);
 int CompareRowPrefix(int prefixLength, TRange<TNode> lhs, TRange<TNode> rhs);
 
 TString DebugString(const TNode& node);
+TString DebugString(TRange<TNode> row);
 
 }  // namespace NYT::NTest

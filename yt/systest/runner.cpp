@@ -80,9 +80,40 @@ static std::vector<int> allIndicesExcept(int start, int limit, std::vector<int> 
     return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
 TRunnerConfig::TRunnerConfig()
 {
 }
+
+void TRunnerConfig::RegisterOptions(NLastGetopt::TOpts* opts)
+{
+    opts->AddCharOption('n')
+        .StoreResult(&NumOperations)
+        .DefaultValue(4);
+
+    opts->AddLongOption("num-bootstrap-records")
+        .StoreResult(&NumBootstrapRecords)
+        .DefaultValue(10000);
+
+    opts->AddLongOption("seed")
+        .StoreResult(&Seed)
+        .DefaultValue(42);
+
+    opts->AddLongOption("enable-reduce")
+        .StoreResult(&EnableReduce)
+        .DefaultValue(false);
+
+    opts->AddLongOption("enable-renames")
+        .StoreResult(&EnableRenames)
+        .DefaultValue(false);
+
+    opts->AddLongOption("enable-deletes")
+        .StoreResult(&EnableDeletes)
+        .DefaultValue(false);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 TRunner::TRunner(
     const TString& pool,
@@ -282,6 +313,7 @@ void TRunner::RunSortAndReduce(std::mt19937& randomEngine, const TDatasetInfo& i
 {
     std::vector<TString> reduceColumns;
     TString sumColumn;
+
     std::tie(reduceColumns, sumColumn) = GetSortAndReduceColumnsAndIndex(
         randomEngine, info.ShallowDataset->table_schema());
 
