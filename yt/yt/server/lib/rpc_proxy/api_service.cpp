@@ -2594,8 +2594,14 @@ private:
         options.CheckpointCheckTimeout = FromProto<TDuration>(request->checkpoint_check_timeout());
         options.Force = request->force();
 
-        // TODO(dave11ar): Add request info.
-        context->SuppressMissingRequestInfoCheck();
+        context->SetRequestInfo(
+            "ClusterCount: %v, CheckpointTimestampDelay: %v, CheckpointCheckPeriod: %v, "
+            "CheckpointCheckTimeout: %v, Force: %v",
+            manifest->Clusters.size(),
+            options.CheckpointTimestampDelay,
+            options.CheckpointCheckPeriod,
+            options.CheckpointCheckTimeout,
+            options.Force);
 
         ExecuteCall(
             context,
@@ -2617,8 +2623,12 @@ private:
         options.Mount = request->mount();
         options.EnableReplicas = request->enable_replicas();
 
-        // TODO(dave11ar): Add request info.
-        context->SuppressMissingRequestInfoCheck();
+        context->SetRequestInfo(
+            "ClusterCount: %v, Force: %v, Mount: %v, EnableReplicas: %v",
+            manifest->Clusters.size(),
+            options.Force,
+            options.Mount,
+            options.EnableReplicas);
 
         ExecuteCall(
             context,
