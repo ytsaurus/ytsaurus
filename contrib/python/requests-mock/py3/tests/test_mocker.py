@@ -219,7 +219,7 @@ class MockerTests(base.TestCase):
         @requests_mock.Mocker()
         def inner(arg1, m):
             self._do_test(m)
-            self.assertEquals(
+            self.assertEqual(
                 len(m.request_history), 1,
                 "Failed to provide clean mock on subsequent calls"
             )
