@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - stable/23\.2-next
 
 jobs:
   start-vm:
