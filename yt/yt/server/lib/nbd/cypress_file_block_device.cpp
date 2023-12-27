@@ -104,6 +104,13 @@ public:
             .Update(FileBlockDeviceCount().Decrement(TagSet_));
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/removed")
             .Increment(1);
+
+        YT_LOG_INFO("Destroying cypress file block device (Path: %v, ReadBytes: %v, ReadBlockBytesFromCache: %v, ReadBlockBytesFromDisk: %v, ReadBlockMetaBytesFromDisk: %v)",
+            Config_->Path,
+            ReadBytes_.load(),
+            ReadBlockBytesFromCache_.load(),
+            ReadBlockBytesFromDisk_.load(),
+            ReadBlockMetaBytesFromDisk_.load());
     }
 
     virtual i64 GetTotalSize() const override
@@ -132,6 +139,7 @@ public:
     {
         auto readId = TGuid::Create();
 
+        ReadBytes_ += length;
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
         NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
@@ -324,16 +332,26 @@ private:
         }
 
         auto readFuture = chunk.Reader->ReadBlocks(chunk.ReadBlocksOptions, blockIndexes);
-        return readFuture.Apply(BIND([=, tagSet = TagSet_, Logger = Logger] (const std::vector<NChunkClient::TBlock>& blocks) mutable {
+        return readFuture.Apply(BIND([=, tagSet = TagSet_, Logger = Logger, this_ = MakeStrong(this)] (const std::vector<NChunkClient::TBlock>& blocks) mutable {
             YT_VERIFY(blocks.size() == blockIndexes.size());
 
             // Update read block counters.
+            auto& chunkReaderStatistics = chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics;
+
+            i64 readBlockBytesFromCache = chunkReaderStatistics->DataBytesReadFromCache.exchange(0);
+            this_->ReadBlockBytesFromCache_ += readBlockBytesFromCache;
             TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_bytes_from_cache")
-                .Increment(chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics->DataBytesReadFromCache.exchange(0));
+                .Increment(readBlockBytesFromCache);
+
+            i64 readBlockBytesFromDisk = chunkReaderStatistics->DataBytesReadFromDisk.exchange(0);
+            this_->ReadBlockBytesFromDisk_ += readBlockBytesFromDisk;
             TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_bytes_from_disk")
-                .Increment(chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics->DataBytesReadFromDisk.exchange(0));
+                .Increment(readBlockBytesFromDisk);
+
+            i64 readBlockMetaBytesFromDisk = chunkReaderStatistics->MetaBytesReadFromDisk.exchange(0);
+            this_->ReadBlockMetaBytesFromDisk_ += readBlockMetaBytesFromDisk;
             TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_meta_bytes_from_disk")
-                .Increment(chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics->MetaBytesReadFromDisk.exchange(0));
+                .Increment(readBlockMetaBytesFromDisk);
 
             std::vector<TSharedRef> refs;
             for (auto i = 0u; i < blockIndexes.size(); ++i) {
@@ -414,7 +432,6 @@ private:
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
                 {} /* seedReplicas */);
 
-            //chunk.ReadBlocksOptions = std::make_shared<IChunkReader::TReadBlocksOptions>();
             chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
 
             YT_LOG_INFO("Created chunk reader (File: %v, Chunk: %v)",
@@ -466,6 +483,11 @@ private:
     std::vector<TChunk> Chunks_;
     i64 FileSize_ = 0;
     const NProfiling::TTagSet TagSet_;
+
+    std::atomic<i64> ReadBytes_;
+    std::atomic<i64> ReadBlockBytesFromCache_;
+    std::atomic<i64> ReadBlockBytesFromDisk_;
+    std::atomic<i64> ReadBlockMetaBytesFromDisk_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
