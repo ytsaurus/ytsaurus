@@ -51,6 +51,7 @@
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
@@ -653,6 +654,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
     YT_VERIFY(Config_->OriginalClusterConnection);
     NLogging::TLogger proxyLogger("RpcProxy");
     auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
+    connection->GetNodeDirectorySynchronizer()->Start();
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     auto proxyCoordinator = CreateProxyCoordinator();
