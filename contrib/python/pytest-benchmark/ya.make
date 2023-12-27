@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 VERSION(4.0.0)
 
-LICENSE(BSD AND BSD-2-Clause AND BSD-3-Clause)
+LICENSE(BSD-2-Clause)
 
 PEERDIR(
     contrib/python/py-cpuinfo
