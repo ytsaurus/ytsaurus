@@ -39,9 +39,13 @@ public:
 
     const std::vector<TString>& GetConfigDiskIds();
 
-    void SetDiskAlert(TError alert);
+    void SetDiskAlerts(std::vector<TError> alerts);
+
+    void SetUnlinkedDiskIds(std::vector<TString> diskIds);
 
     TFuture<std::vector<NContainers::TDiskInfo>> GetDiskInfos();
+
+    TFuture<bool> IsHotSwapEnabled();
 
     TFuture<std::vector<TGuid>> ResurrectChunkLocations(const THashSet<TGuid>& locationUuids);
 
@@ -76,7 +80,8 @@ private:
     const NYTree::IYPathServicePtr OrchidService_;
 
     std::atomic<bool> DiskIdsMismatched_;
-    TAtomicObject<TError> DiskFailedAlert_;
+    TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
+    TAtomicObject<std::vector<TString>> UnlinkedDiskIds_;
     THashSet<TString> OldDiskIds_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
@@ -133,6 +138,10 @@ private:
     void OnDiskHealthCheck(const std::vector<NContainers::TDiskInfo>& diskInfos);
 
     void OnLocationsHealthCheck();
+
+    void PushCounters(std::vector<NContainers::TDiskInfo> diskInfos);
+
+    void HandleHotSwap(std::vector<NContainers::TDiskInfo> disks);
 
     void OnDiskHealthCheckFailed(
         const TStoreLocationPtr& location,
