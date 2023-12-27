@@ -139,6 +139,9 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
         .Default();
+
+    registrar.Parameter("default_nvidia_driver_capabilities", &TThis::DefaultNvidiaDriverCapabilities)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

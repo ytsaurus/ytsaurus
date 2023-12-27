@@ -95,7 +95,7 @@ struct TUserJobEnvironmentOptions
 
     std::optional<NContainers::TRootFS> RootFS;
 
-    std::vector<TString> GpuDevices;
+    std::vector<int> GpuIndexes;
 
     std::optional<TString> HostName;
     std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;

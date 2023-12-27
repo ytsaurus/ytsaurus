@@ -107,6 +107,8 @@ public:
 
     NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
 
+    TString DefaultNvidiaDriverCapabilities;
+
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

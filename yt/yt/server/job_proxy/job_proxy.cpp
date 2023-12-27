@@ -1123,7 +1123,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
     TUserJobEnvironmentOptions environmentOptions {
         .RootFS = createRootFS(),
-        .GpuDevices = Config_->GpuDevices,
+        .GpuIndexes = Config_->GpuIndexes,
         .HostName = Config_->HostName,
         .NetworkAddresses = Config_->NetworkAddresses,
         .EnableNat64 = Config_->EnableNat64,

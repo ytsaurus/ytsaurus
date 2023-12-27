@@ -2443,7 +2443,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
 
     for (const auto& gpuSlot : GpuSlots_) {
         auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
-        proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
+        proxyConfig->GpuIndexes.push_back(slot->GetDeviceIndex());
     }
 
     proxyConfig->MakeRootFSWritable = UserJobSpec_ && UserJobSpec_->make_rootfs_writable();
@@ -3194,6 +3194,11 @@ bool TJob::ShouldCleanSandboxes()
 
 bool TJob::NeedGpuLayers()
 {
+    auto jobEnvironmentType = Bootstrap_->GetJobEnvironmentType();
+    if (jobEnvironmentType != EJobEnvironmentType::Porto) {
+        return false;
+    }
+
     if (JobSpecExt_->has_user_job_spec()) {
         const auto& userJobSpec = JobSpecExt_->user_job_spec();
         if (userJobSpec.has_cuda_toolkit_version()) {

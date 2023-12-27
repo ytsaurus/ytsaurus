@@ -307,10 +307,10 @@ public:
 
         std::vector<TDevice> devices;
         for (const auto& descriptor : ListGpuDevices()) {
-            const auto& deviceName = descriptor.DeviceName;
-            if (std::find(Options_.GpuDevices.begin(), Options_.GpuDevices.end(), deviceName) == Options_.GpuDevices.end()) {
+            const auto& deviceIndex = descriptor.DeviceIndex;
+            if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
-                    .DeviceName = deviceName,
+                    .DeviceName = GetGpuDeviceName(deviceIndex),
                     .Enabled = false});
             }
         }
@@ -735,7 +735,7 @@ public:
             THROW_ERROR_EXCEPTION("Root FS isolation is not supported in simple job environment");
         }
 
-        if (!options.GpuDevices.empty()) {
+        if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
             YT_LOG_WARNING("GPU devices are not supported in simple job environment");
         }
@@ -799,7 +799,7 @@ public:
             THROW_ERROR_EXCEPTION("Root FS isolation is not supported in testing job environment");
         }
 
-        if (!options.GpuDevices.empty()) {
+        if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
             YT_LOG_WARNING("GPU devices are not supported in testing job environment");
         }
@@ -1011,7 +1011,7 @@ public:
             THROW_ERROR_EXCEPTION("Root FS isolation is not supported in CRI job environment");
         }
 
-        if (!options.GpuDevices.empty()) {
+        if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
             YT_LOG_WARNING("GPU devices are not supported in CRI job environment");
         }
