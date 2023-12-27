@@ -11,6 +11,7 @@ struct TConfig {
     TValidatorConfig ValidatorConfig;
     TString HomeDirectory;
     bool Ipv4;
+    TString Pool;
 
     TConfig();
 

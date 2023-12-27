@@ -187,11 +187,13 @@ TFuture<typename NRpc::TTypedClientResponse<NProto::TRspCompareSorted>::TResult>
 ///////////////////////////////////////////////////////////////////////////////
 
 TValidator::TValidator(
+    const TString& pool,
     TValidatorConfig config,
     IClientPtr client,
     NApi::IClientPtr rpcClient,
     TTestHome& testHome)
-    : Config_(config)
+    : Pool_(pool)
+    , Config_(config)
     , Client_(client)
     , RpcClient_(rpcClient)
     , TestHome_(testHome)
@@ -227,15 +229,6 @@ void TValidator::PollVanillaWorkers()
 void TValidator::Start()
 {
     auto dir = TestHome_.ValidatorsDir();
-
-    auto userSpec = TUserJobSpec()
-        .AddEnvironment("YT_PROXY", getenv("YT_PROXY"))
-        .AddEnvironment("YT_LOG_LEVEL", "error");
-
-    auto tokenFilepath = getenv("YT_TOKEN_PATH");
-    userSpec.AddLocalFile(tokenFilepath);
-
-    userSpec.AddEnvironment("YT_TOKEN_PATH", basename(tokenFilepath));
 
     StartValidatorOperation();
 
@@ -498,6 +491,7 @@ void TValidator::StartValidatorOperation()
     options.SecureVault(secureEnv);
 
     auto spec = TVanillaOperationSpec()
+            .Pool(Pool_)
             .CoreTablePath(TestHome_.CoreTable())
             .TimeLimit(TDuration::Hours(48))
             .AddTask(

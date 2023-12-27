@@ -24,6 +24,7 @@ class TValidator
 {
 public:
     TValidator(
+        const TString& pool,
         TValidatorConfig config,
         IClientPtr client,
         NApi::IClientPtr rpcClient,
@@ -52,6 +53,7 @@ public:
         const TSortOperation& operation);
 
 private:
+    TString Pool_;
     TValidatorConfig Config_;
     IClientPtr Client_;
     NApi::IClientPtr RpcClient_;

@@ -7,15 +7,15 @@
 
 namespace NYT::NTest {
 
-void RunMap(IClientPtr client, const TTestHome& home,
+void RunMap(IClientPtr client, const TString& pool, const TTestHome& home,
             const TString& inputPath, const TString& outputPath,
             const TTable& inputTable, const TTable& outputTable, const IMultiMapper& operation);
 
-void RunReduce(IClientPtr client, const TTestHome& home,
+void RunReduce(IClientPtr client, const TString& pool, const TTestHome& home,
                const TString& inputPath, const TString& outputPath,
                const TTable& table, const TTable& outputTable, const TReduceOperation& operation);
 
-void RunSort(IClientPtr client,
+void RunSort(IClientPtr client, const TString& pool,
              const TString& inputPath, const TString& outputPath,
              const TSortColumns& sortColumns);
 

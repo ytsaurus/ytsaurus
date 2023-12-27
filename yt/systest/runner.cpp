@@ -84,8 +84,15 @@ TRunnerConfig::TRunnerConfig()
 {
 }
 
-TRunner::TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr rpcClient, TTestHome& testHome, TValidator& validator)
+TRunner::TRunner(
+    const TString& pool,
+    TRunnerConfig runnerConfig,
+    IClientPtr client,
+    NApi::IClientPtr rpcClient,
+    TTestHome& testHome,
+    TValidator& validator)
     : Logger("test")
+    , Pool_(pool)
     , RunnerConfig_(runnerConfig)
     , Client_(client)
     , RpcClient_(rpcClient)
@@ -133,9 +140,16 @@ void TRunner::Run()
         auto dataset = Map(*currentInfo.ShallowDataset, *operation);
         auto path = TestHome_.CreateRandomTablePath();
 
-        RunMap(Client_, TestHome_, currentInfo.Stored.Path, path, currentInfo.Dataset->table_schema(), dataset->table_schema(), *operation);
-        auto shallowDataset = std::make_unique<TTableDataset>(dataset->table_schema(), Client_, path);
+        RunMap(Client_,
+               Pool_,
+               TestHome_,
+               currentInfo.Stored.Path,
+               path,
+               currentInfo.Dataset->table_schema(),
+               dataset->table_schema(),
+               *operation);
 
+        auto shallowDataset = std::make_unique<TTableDataset>(dataset->table_schema(), Client_, path);
         TStoredDataset storedDataset = Validator_.VerifyMap(
             currentInfo.Stored.Path,
             path,
@@ -192,7 +206,7 @@ void TRunner::RenameColumn(const TDatasetInfo& info)
     auto identityOp = std::make_unique<TSingleMultiMapper>(dataset.table_schema(),
         std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(0, numIndices, {})));
     auto forkedPath = TestHome_.CreateRandomTablePath();
-    RunMap(Client_, TestHome_, path, forkedPath, dataset.table_schema(), dataset.table_schema(),
+    RunMap(Client_, Pool_, TestHome_, path, forkedPath, dataset.table_schema(), dataset.table_schema(),
         *identityOp);
 
     AlterTable(RpcClient_, forkedPath, renameColumnDataset->table_schema());
@@ -237,8 +251,14 @@ void TRunner::RenameAndDeleteColumn(const TDatasetInfo& info)
     auto identityOp = std::make_unique<TSingleMultiMapper>(dataset.table_schema(),
         std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(0, numIndices, {})));
     auto forkedPath = TestHome_.CreateRandomTablePath();
-    RunMap(Client_, TestHome_, path, forkedPath, dataset.table_schema(), dataset.table_schema(),
-        *identityOp);
+    RunMap(Client_,
+           Pool_,
+           TestHome_,
+           path,
+           forkedPath,
+           dataset.table_schema(),
+           dataset.table_schema(),
+           *identityOp);
 
     AlterTable(RpcClient_, forkedPath, deleteColumnDataset->table_schema());
     auto alterShallowDataset = std::make_unique<TTableDataset>(deleteColumnDataset->table_schema(),
@@ -281,7 +301,7 @@ void TRunner::RunSortAndReduce(const TDatasetInfo& info, const std::vector<TStri
     auto sortedPath = TestHome_.CreateRandomTablePath();
     YT_LOG_INFO("Performing sort (InputTable: %v, Columns: %v, OutputTable: %v)", info.Stored.Path, sortColumnsString, sortedPath);
 
-    RunSort(Client_, info.Stored.Path, sortedPath,
+    RunSort(Client_, Pool_, info.Stored.Path, sortedPath,
         TSortColumns(TVector<TString>(columns.begin(), columns.end())));
 
     TSortOperation sortOperation{columns};
@@ -315,7 +335,14 @@ void TRunner::RunSortAndReduce(const TDatasetInfo& info, const std::vector<TStri
         sortedPath, sumColumn, sumIndex, sortColumnsString, reducePath);
 
     auto reduceDataset = std::make_unique<TReduceDataset>(*sortedDataset, reduceOperation);
-    RunReduce(Client_, TestHome_, sortedPath, reducePath, sortedDataset->table_schema(), reduceDataset->table_schema(), reduceOperation);
+    RunReduce(Client_,
+              Pool_,
+              TestHome_,
+              sortedPath,
+              reducePath,
+              sortedDataset->table_schema(),
+              reduceDataset->table_schema(),
+              reduceOperation);
 
     Validator_.VerifyReduce(sortedPath, reducePath, sortedDataset->table_schema(), reduceOperation);
     VerifyTable(Client_, reducePath, *reduceDataset);

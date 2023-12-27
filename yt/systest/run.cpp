@@ -200,7 +200,7 @@ void TTestOperationMapper::Do(TTableReader<TNode>* input, TTableWriter<TNode>* o
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunMap(IClientPtr client, const TTestHome& home,
+void RunMap(IClientPtr client, const TString& pool, const TTestHome& home,
             const TString& inputPath, const TString& outputPath,
             const TTable& table, const TTable& outputTable, const IMultiMapper& operation)
 {
@@ -208,6 +208,7 @@ void RunMap(IClientPtr client, const TTestHome& home,
     NYT::NLogging::TLogger Logger("test");
     YT_LOG_INFO("Map (OutputTable: %v)", attributePath);
     TMapOperationSpec spec;
+    spec.Pool(pool);
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
     spec.StderrTablePath(home.StderrTable());
@@ -222,7 +223,7 @@ void RunMap(IClientPtr client, const TTestHome& home,
     client->Map(spec, new TTestOperationMapper(serializedOperation));
 }
 
-void RunReduce(IClientPtr client, const TTestHome& home,
+void RunReduce(IClientPtr client, const TString& pool, const TTestHome& home,
                const TString& inputPath, const TString& outputPath,
                const TTable& table, const TTable& outputTable, const TReduceOperation& operation)
 {
@@ -232,6 +233,7 @@ void RunReduce(IClientPtr client, const TTestHome& home,
     YT_LOG_INFO("Reduce (OutputTable: %v)", attributePath);
 
     TReduceOperationSpec spec;
+    spec.Pool(pool);
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
     spec.StderrTablePath(home.StderrTable());
@@ -251,11 +253,12 @@ void RunReduce(IClientPtr client, const TTestHome& home,
     client->Reduce(spec, new TTestOperationReducer(serializedOperation));
 }
 
-void RunSort(IClientPtr client,
+void RunSort(IClientPtr client, const TString& pool,
              const TString& inputPath, const TString& outputPath,
              const TSortColumns& sortColumns)
 {
     TSortOperationSpec spec;
+    spec.Pool(pool);
     spec.AddInput(inputPath);
     spec.Output(outputPath);
     spec.SortBy(sortColumns);

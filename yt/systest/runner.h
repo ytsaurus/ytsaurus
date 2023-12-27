@@ -27,7 +27,13 @@ struct TRunnerConfig
 class TRunner
 {
 public:
-    TRunner(TRunnerConfig runnerConfig, IClientPtr client, NApi::IClientPtr rpcClient, TTestHome& testHome, TValidator& validator);
+    TRunner(const TString& pool,
+            TRunnerConfig runnerConfig,
+            IClientPtr client,
+            NApi::IClientPtr rpcClient,
+            TTestHome& testHome,
+            TValidator& validator);
+
     void Run();
 
 private:
@@ -40,6 +46,7 @@ private:
     };
 
     NYT::NLogging::TLogger Logger;
+    TString Pool_;
     TRunnerConfig RunnerConfig_;
     IClientPtr Client_;
     NApi::IClientPtr RpcClient_;

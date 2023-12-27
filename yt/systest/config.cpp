@@ -16,13 +16,17 @@ void TConfig::RegisterOptions(NLastGetopt::TOpts* opts)
         .StoreResult(&HomeDirectory)
         .DefaultValue("//home");
 
+    opts->AddLongOption("ipv4")
+        .StoreResult(&Ipv4)
+        .DefaultValue(false);
+
     opts->AddLongOption("num-bootstrap-records")
         .StoreResult(&RunnerConfig.NumBootstrapRecords)
         .DefaultValue(10000);
 
-    opts->AddLongOption("ipv4")
-        .StoreResult(&Ipv4)
-        .DefaultValue(false);
+    opts->AddLongOption("pool")
+        .StoreResult(&Pool)
+        .DefaultValue("systest");
 
     opts->AddLongOption("seed")
         .StoreResult(&RunnerConfig.Seed)

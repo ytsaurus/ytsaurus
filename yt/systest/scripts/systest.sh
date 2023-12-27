@@ -80,7 +80,7 @@ kubectl get pod -A | cut -d' ' -f1 | grep -E '[0-9]{8}-[0-9]{4}' && exit 1
 helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} --set SpytImagePath=${spyt_image} ${ytsaurus_source_path}/yt/systest/helm/cluster
 
 # Wait for Cypress
-helm install ${nsflags} ${name_tester} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/tester
+helm install ${nsflags} ${name_tester} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/tester
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_flags}
 
 helm install ${nsflags} ${name_systest} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/systest

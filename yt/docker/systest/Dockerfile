@@ -36,4 +36,5 @@ RUN set -eux; \
 
 RUN python3.8 -m pip install numpy
 
+COPY ./init.sh /usr/bin/
 COPY ./systest /usr/bin/systest
