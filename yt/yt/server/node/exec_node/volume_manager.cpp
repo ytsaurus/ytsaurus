@@ -241,9 +241,9 @@ private:
     THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
 };
 
-TTaggedCounters<int>& VolumeCounters()
+NProfiling::TTaggedCounters<int>& VolumeCounters()
 {
-    static TTaggedCounters<int> result;
+    static NProfiling::TTaggedCounters<int> result;
     return result;
 }
 

@@ -6,7 +6,7 @@
 
 #include <util/generic/hash.h>
 
-namespace NYT {
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +27,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NProfiling
 
 #define TAGGED_COUNTERS_INL_H_
 #include "tagged_counters-inl.h"
