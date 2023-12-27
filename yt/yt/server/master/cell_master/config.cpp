@@ -140,6 +140,9 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("remove_secondary_cell_default_roles", &TThis::RemoveSecondaryCellDefaultRoles)
         .Default(false);
 
+    registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
+        .Default(TDuration::Seconds(10));
+
     registrar.Postprocessor([] (TThis* config) {
         THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
         for (auto& [cellTag, descriptor] : config->CellDescriptors) {

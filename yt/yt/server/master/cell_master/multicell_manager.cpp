@@ -93,6 +93,7 @@ public:
         TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraStartSecondaryMasterRegistration, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetCellStatistics, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetMulticellStatistics, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSyncHiveClocks, Unretained(this)));
 
         RegisterLoader(
             "MulticellManager.Values",
@@ -507,6 +508,7 @@ private:
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
     TPeriodicExecutorPtr CellStatisticsGossipExecutor_;
+    TPeriodicExecutorPtr SyncHiveClocksExecutor_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelCacheLock_);
@@ -615,7 +617,13 @@ private:
             BIND(&TMulticellManager::OnCellStatisticsGossip, MakeWeak(this)));
         CellStatisticsGossipExecutor_->Start();
 
-        if (IsSecondaryMaster()) {
+        if (IsPrimaryMaster()) {
+            SyncHiveClocksExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                BIND(&TMulticellManager::OnSyncHiveClocks, MakeWeak(this)),
+                RegisterRetryPeriod);
+            SyncHiveClocksExecutor_->Start();
+        } else {
             RegisterAtPrimaryMasterExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
                 BIND(&TMulticellManager::OnStartSecondaryMasterRegistration, MakeWeak(this)),
@@ -647,6 +655,11 @@ private:
         if (CellStatisticsGossipExecutor_) {
             CellStatisticsGossipExecutor_->Stop();
             CellStatisticsGossipExecutor_.Reset();
+        }
+
+        if (SyncHiveClocksExecutor_) {
+            SyncHiveClocksExecutor_->Stop();
+            SyncHiveClocksExecutor_.Reset();
         }
 
         OnStopEpoch();
@@ -866,6 +879,22 @@ private:
         RecomputeClusterCellStatistics();
     }
 
+    void HydraSyncHiveClocks(NProto::TReqSyncHiveClocks* request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (request->returned()) {
+            return;
+        }
+
+        if (IsPrimaryMaster()) {
+            PostToSecondaryMasters(*request, /*reliable*/ true);
+        } else {
+            request->set_returned(true);
+            PostToPrimaryMaster(*request, /*reliable*/ true);
+        }
+    }
+
     void RecomputeClusterCellStatistics()
     {
         ClusterCellStatisics_ = {};
@@ -1047,6 +1076,13 @@ private:
         }
     }
 
+    void OnSyncHiveClocks()
+    {
+        NProto::TReqSyncHiveClocks request;
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger);
+    }
+
     NProto::TReqSetCellStatistics GetTransientLocalCellStatistics()
     {
         NProto::TReqSetCellStatistics result;
@@ -1210,6 +1246,9 @@ private:
 
         if (CellStatisticsGossipExecutor_) {
             CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
+        }
+        if (SyncHiveClocksExecutor_) {
+            SyncHiveClocksExecutor_->SetPeriod(GetDynamicConfig()->SyncHiveClocksPeriod);
         }
         RecomputeMasterCellRoles();
         RecomputeMasterCellNames();

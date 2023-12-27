@@ -491,6 +491,38 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    class TLamportClock
+    {
+    public:
+        TLogicalTime Tick(TLogicalTime requestTime = 0)
+        {
+            LocalTime_ = std::max(LocalTime_, requestTime);
+            return ++LocalTime_;
+        }
+
+        TLogicalTime GetTime() const
+        {
+            return LocalTime_;
+        }
+
+        void Save(TSaveContext& context) const
+        {
+            using NYT::Save;
+            Save(context, LocalTime_);
+        }
+
+        void Load(TLoadContext& context)
+        {
+            using NYT::Load;
+            Load(context, LocalTime_);
+        }
+
+    private:
+        TLogicalTime LocalTime_ = 0;
+
+    };
+
+    TLamportClock LamportClock_;
 
     // RPC handlers.
 
@@ -860,6 +892,7 @@ private:
             SelfCellId_);
 
         auto* traceContext = NTracing::TryGetCurrentTraceContext();
+        auto logicalTime = LamportClock_.Tick();
 
         auto* mutationContext = TryGetCurrentMutationContext();
 
@@ -876,9 +909,10 @@ private:
                 mutationContext->CombineStateHash(messageId, mailbox->GetEndpointId());
             }
 
-            mailbox->OutcomingMessages().push_back({
-                message,
-                traceContext
+            mailbox->OutcomingMessages().push_back(TPersistentMailboxState::TOutcomingMessage{
+                .SerializedMessage = message,
+                .TraceContext = traceContext,
+                .Time = logicalTime
             });
             mailbox->UpdateLastOutcomingMessageId();
 
@@ -906,7 +940,9 @@ private:
             SchedulePostOutcomingMessages(mailbox);
         }
 
-        logMessageBuilder.AppendString(TStringBuf("})"));
+        logMessageBuilder.AppendFormat("}, SequenceNumber: %v, LogicalTime: %v)",
+            mutationContext->GetSequenceNumber(),
+            logicalTime);
         YT_LOG_DEBUG(logMessageBuilder.Flush());
     }
 
@@ -1622,6 +1658,7 @@ private:
                         if (message.TraceContext) {
                             ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
                         }
+                        protoMessage->set_logical_time(message.Time);
                     }
                 };
 
@@ -1904,11 +1941,16 @@ private:
                 ConcatToString(TStringBuf("HiveManager:"), message.type()));
             traceContextGuard.emplace(std::move(traceContext));
         }
+        auto logicalTime = LamportClock_.Tick(message.logical_time());
 
-        YT_LOG_DEBUG("Applying reliable incoming message (%v, MessageId: %v, MutationType: %v)",
+        auto* mutationContext = GetCurrentMutationContext();
+        YT_LOG_DEBUG("Applying reliable incoming message (%v, "
+            "MessageId: %v, MutationType: %v, SequenceNumber: %v, LogicalTime: %v)",
             FormatIncomingMailboxEndpoints(mailbox),
             messageId,
-            message.type());
+            message.type(),
+            mutationContext->GetSequenceNumber(),
+            logicalTime);
 
         ApplyMessage(message, mailbox->GetEndpointId());
 
@@ -2115,12 +2157,13 @@ private:
     {
         return version == 5 ||
             version == 6 || // COMPAT(ifsmirnov): Avenues.
+            version == 7 ||
             false;
     }
 
     int GetCurrentSnapshotVersion() override
     {
-        return 6;
+        return 7;
     }
 
 
@@ -2150,6 +2193,7 @@ private:
         CellMailboxMap_.SaveValues(context);
         AvenueMailboxMap_.SaveValues(context);
         Save(context, RemovedCellIds_);
+        Save(context, LamportClock_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -2169,6 +2213,10 @@ private:
             AvenueMailboxMap_.LoadValues(context);
         }
         Load(context, RemovedCellIds_);
+        // COMPAT(danilalexeev)
+        if (context.GetVersion() >= 7) {
+            Load(context, LamportClock_);
+        }
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
@@ -2189,6 +2237,13 @@ private:
         return RemovedCellIds_.size();
     }
 
+    int GetLamportTimestamp() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return LamportClock_.GetTime();
+    }
+
     IYPathServicePtr CreateOrchidService()
     {
         auto invoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
@@ -2201,6 +2256,9 @@ private:
                 &THiveManager::AvenueMailboxes))
             ->AddChild("removed_cell_count", IYPathService::FromMethod(
                 &THiveManager::GetRemovedCellIdCount,
+                MakeWeak(this)))
+            ->AddChild("lamport_timestamp", IYPathService::FromMethod(
+                &THiveManager::GetLamportTimestamp,
                 MakeWeak(this)))
             ->Via(invoker);
     }

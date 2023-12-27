@@ -21,6 +21,7 @@ void TPersistentMailboxState::TOutcomingMessage::Save(TStreamSaveContext& contex
 
     Save(context, SerializedMessage->Type);
     Save(context, SerializedMessage->Data);
+    Save(context, Time);
 }
 
 void TPersistentMailboxState::TOutcomingMessage::Load(TStreamLoadContext& context)
@@ -30,6 +31,9 @@ void TPersistentMailboxState::TOutcomingMessage::Load(TStreamLoadContext& contex
     SerializedMessage = New<TSerializedMessage>();
     Load(context, SerializedMessage->Type);
     Load(context, SerializedMessage->Data);
+    if (context.GetVersion() >= 7) {
+        Load(context, Time);
+    }
 }
 
 void TPersistentMailboxState::Save(TSaveContext& context) const

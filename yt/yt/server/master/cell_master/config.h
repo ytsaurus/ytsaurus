@@ -174,6 +174,8 @@ public:
     // COMPAT(aleksandra-zh)
     bool RemoveSecondaryCellDefaultRoles;
 
+    TDuration SyncHiveClocksPeriod;
+
     REGISTER_YSON_STRUCT(TDynamicMulticellManagerConfig);
 
     static void Register(TRegistrar registrar);

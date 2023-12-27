@@ -42,4 +42,9 @@ message TReqSetMulticellStatistics
     repeated TReqSetCellStatistics statistics = 1;
 }
 
+message TReqSyncHiveClocks
+{
+    required bool returned = 1 [default = false];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
