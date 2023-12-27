@@ -144,9 +144,11 @@ private:
         ContainerDescriptor_ = WaitFor(Executor_->CreateContainer(ContainerSpec_, PodDescriptor_, PodSpec_))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Spawning process (Command: %v, Container: %v)",
+        YT_LOG_DEBUG("Spawning process (Command: %v, Container: %v, Environment: %v)",
             ContainerSpec_->Command[0],
-            ContainerDescriptor_);
+            ContainerDescriptor_,
+            ContainerSpec_->Environment);
+
         WaitFor(Executor_->StartContainer(ContainerDescriptor_))
             .ThrowOnError();
 
