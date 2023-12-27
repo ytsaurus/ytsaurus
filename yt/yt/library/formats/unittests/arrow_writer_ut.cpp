@@ -134,6 +134,24 @@ ISchemalessFormatWriterPtr CreateArrowWriter(TNameTablePtr nameTable,
         0);
 }
 
+ISchemalessFormatWriterPtr CreateArrowWriteWithSystemColumns(TNameTablePtr nameTable,
+    IOutputStream* outputStream,
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas)
+{
+    auto controlAttributes = NYT::New<TControlAttributesConfig>();
+    controlAttributes->EnableTableIndex = true;
+    controlAttributes->EnableRowIndex = true;
+    controlAttributes->EnableRangeIndex = true;
+    controlAttributes->EnableTabletIndex = true;
+    return CreateWriterForArrow(
+        nameTable,
+        schemas,
+        NConcurrency::CreateAsyncAdapter(static_cast<IOutputStream*>(outputStream)),
+        false,
+        controlAttributes,
+        0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<arrow::RecordBatch> MakeBatch(const TStringStream& outputStream)
@@ -754,6 +772,139 @@ TEST(Simple, Null)
     EXPECT_EQ(ReadInteger64Array(batch->column(0))[1], 3);
 }
 
+TEST(Simple, MultiTable)
+{
+    // First table
+    std::vector<std::string> columnNames1 = {"string"};
+    std::vector<TTableSchemaPtr> tableSchemas;
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames1[0]), EValueType::String),
+    }));
+
+    // Second table
+    std::vector<std::string> columnNames2 = {"int"};
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames2[0]), EValueType::Int64),
+    }));
+
+    // Third table
+    std::vector<std::string> columnNames3 = {"int2", "string2"};
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(TString(columnNames3[0]), EValueType::Int64),
+        TColumnSchema(TString(columnNames3[1]), EValueType::String),
+    }));
+
+    TStringStream outputStream;
+
+    // Register names
+    auto nameTable = New<TNameTable>();
+    auto stringId1 = nameTable->RegisterName(columnNames1[0]);
+    auto intId1 = nameTable->RegisterName(columnNames2[0]);
+    auto intId2 = nameTable->RegisterName(columnNames3[0]);
+    auto stringId2 = nameTable->RegisterName(columnNames3[1]);
+    auto tableId = nameTable->RegisterName("$table_index");
+
+    auto writer = CreateArrowWriteWithSystemColumns(nameTable, &outputStream, tableSchemas);
+
+    std::vector<TUnversionedOwningRow> owningRows;
+    std::vector<TUnversionedRow> rows;
+
+    size_t firstBatchSize = 0;
+
+    // First batch
+
+    std::vector<std::string> stringColumn1 = {MakeRandomString(7), MakeRandomString(3), MakeRandomString(10)};
+    firstBatchSize += std::ssize(stringColumn1);
+    for(int rowIndex = 0; rowIndex < std::ssize(stringColumn1); ++rowIndex) {
+        TUnversionedOwningRowBuilder rowsBuilders;
+        rowsBuilders.AddValue(MakeUnversionedStringValue(stringColumn1[rowIndex], stringId1));
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(0, tableId));
+        owningRows.push_back(rowsBuilders.FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+
+    // Second batch
+
+    std::vector<int64_t> intColumn1 = {1, 2, 3, 4, 5};
+    firstBatchSize += std::ssize(intColumn1);
+    for(int rowIndex = 0; rowIndex < std::ssize(intColumn1); ++rowIndex) {
+        TUnversionedOwningRowBuilder rowsBuilders;
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(intColumn1[rowIndex], intId1));
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(1, tableId));
+        owningRows.push_back(rowsBuilders.FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+
+    // Third batch
+
+    std::vector<int64_t> intColumn2= {1, 2, 3};
+    std::vector<std::string> stringColumn2 = {MakeRandomString(4), MakeRandomString(12), MakeRandomString(2)};
+    firstBatchSize += std::ssize(stringColumn2);
+    for(int rowIndex = 0; rowIndex < std::ssize(stringColumn2); ++rowIndex) {
+        TUnversionedOwningRowBuilder rowsBuilders;
+        rowsBuilders.AddValue(MakeUnversionedStringValue(stringColumn2[rowIndex], stringId2));
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(intColumn2[rowIndex], intId2));
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(2, tableId));
+        owningRows.push_back(rowsBuilders.FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+
+    // Fourth batch
+
+    std::vector<std::string> stringColumn3 = {MakeRandomString(5), MakeRandomString(6)};
+    for(int rowIndex = 0; rowIndex < std::ssize(stringColumn3); ++rowIndex) {
+        TUnversionedOwningRowBuilder rowsBuilders;
+        rowsBuilders.AddValue(MakeUnversionedStringValue(stringColumn3[rowIndex], stringId1));
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(0, tableId));
+        owningRows.push_back(rowsBuilders.FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+
+    // Fifth batch
+
+    std::vector<int64_t> intColumn3 = {42, 128};
+    for(int rowIndex = 0; rowIndex < std::ssize(intColumn3); ++rowIndex) {
+        TUnversionedOwningRowBuilder rowsBuilders;
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(intColumn3[rowIndex], intId1));
+        rowsBuilders.AddValue(MakeUnversionedInt64Value(1, tableId));
+        owningRows.push_back(rowsBuilders.FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+
+    auto rangeRows = TRange(rows);
+
+    EXPECT_TRUE(writer->Write(rangeRows.Slice(0, firstBatchSize)));
+    EXPECT_TRUE(writer->Write(rangeRows.Slice(firstBatchSize, rangeRows.Size())));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batches = MakeAllBatch(outputStream, 5);
+
+    // Check first batch
+
+    EXPECT_EQ(ReadStringArray(batches[0]->column(0)), stringColumn1);
+
+    // Check second batch
+
+    EXPECT_EQ(ReadInteger64Array(batches[1]->column(0)), intColumn1);
+
+    // Check third batch
+
+    EXPECT_EQ(ReadInteger64Array(batches[2]->column(1)), intColumn2);
+    EXPECT_EQ(ReadStringArray(batches[2]->column(0)), stringColumn2);
+
+    // Check fourth batch
+
+    EXPECT_EQ(ReadStringArray(batches[3]->column(0)), stringColumn3);
+
+    // Check fifth batch
+
+    EXPECT_EQ(ReadInteger64Array(batches[4]->column(0)), intColumn3);
+
+}
+
 TEST(Simple, String)
 {
     std::vector<std::string> columnNames = {"string"};
@@ -874,7 +1025,6 @@ TEST(Simple, EnumString)
 
     size_t batchIndex = 0;
     for (auto& batch : batches) {
-        std::cout << batch->ToString() << std::endl;
         CheckColumnNames(batch, columnNames);
 
         auto column = ReadAnyStringArray(batch->column(0));
