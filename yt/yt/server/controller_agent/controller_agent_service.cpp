@@ -40,7 +40,6 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOperationInfo));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(InitializeOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareOperation));
@@ -88,25 +87,6 @@ private:
         response->set_controller_memory_usage(result.MemoryUsage);
         response->set_controller_state(static_cast<i32>(result.ControllerState));
         response->set_alerts(result.Alerts.ToString());
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetJobInfo)
-    {
-        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        controllerAgent->ValidateConnected();
-
-        auto operationId = FromProto<TOperationId>(request->operation_id());
-        auto jobId = FromProto<TJobId>(request->job_id());
-
-        context->SetRequestInfo("OperationId: %v, JobId: %v",
-            operationId,
-            jobId);
-
-        auto info = WaitFor(controllerAgent->BuildJobInfo(operationId, jobId))
-            .ValueOrThrow();
-        response->set_info(info.ToString());
 
         context->Reply();
     }

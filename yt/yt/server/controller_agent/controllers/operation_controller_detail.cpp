@@ -3739,10 +3739,10 @@ void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDura
 void TOperationControllerBase::BuildJobAttributes(
     const TJobletPtr& joblet,
     EJobState state,
-    bool outputStatistics,
     i64 stderrSize,
     TFluentMap fluent) const
 {
+    YT_LOG_DEBUG("Building job attributes");
     fluent
         .Item("job_type").Value(joblet->JobType)
         .Item("state").Value(state)
@@ -3754,12 +3754,8 @@ void TOperationControllerBase::BuildJobAttributes(
         // We use Int64 for `stderr_size' to be consistent with
         // compressed_data_size / uncompressed_data_size attributes.
         .Item("stderr_size").Value(stderrSize)
-        .Item("brief_statistics")
-            .Value(joblet->BriefStatistics)
-        .DoIf(outputStatistics, [&] (TFluentMap fluent) {
-            fluent
-                .Item("statistics").Value(joblet->BuildCombinedStatistics());
-        })
+        .Item("brief_statistics").Value(joblet->BriefStatistics)
+        .Item("statistics").Value(joblet->BuildCombinedStatistics())
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
@@ -3779,7 +3775,6 @@ void TOperationControllerBase::BuildJobAttributes(
 void TOperationControllerBase::BuildFinishedJobAttributes(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary,
-    bool outputStatistics,
     bool hasStderr,
     bool hasFailContext,
     TFluentMap fluent) const
@@ -3791,7 +3786,7 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 
     i64 failContextSize = hasFailContext ? 1 : 0;
 
-    BuildJobAttributes(joblet, jobSummary->State, outputStatistics, stderrSize, fluent);
+    BuildJobAttributes(joblet, jobSummary->State, stderrSize, fluent);
 
     fluent
         .Item("finish_time").Value(joblet->FinishTime)
@@ -5406,7 +5401,6 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
                 BuildFinishedJobAttributes(
                     joblet,
                     summary.get(),
-                    /*outputStatistics*/ true,
                     hasStderr,
                     hasFailContext,
                     fluent);
@@ -9192,34 +9186,6 @@ TYsonString TOperationControllerBase::GetBriefProgress() const
     return BriefProgressString_;
 }
 
-TYsonString TOperationControllerBase::BuildJobYson(TJobId id, bool outputStatistics) const
-{
-    TCallback<void(TFluentMap)> attributesBuilder;
-
-    // Case of running job.
-    {
-        auto joblet = FindJoblet(id);
-        if (joblet) {
-            attributesBuilder = BIND(
-                &TOperationControllerBase::BuildJobAttributes,
-                MakeStrong(this),
-                joblet,
-                EJobState::Running,
-                outputStatistics,
-                joblet->StderrSize);
-        } else {
-            attributesBuilder = BIND([] (TFluentMap) {});
-        }
-    }
-
-    YT_VERIFY(attributesBuilder);
-
-    return BuildYsonStringFluently()
-        .BeginMap()
-            .Do(attributesBuilder)
-        .EndMap();
-}
-
 IYPathServicePtr TOperationControllerBase::GetOrchid() const
 {
     return Orchid_.Acquire();
@@ -9249,7 +9215,6 @@ NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
                         BuildJobAttributes(
                             joblet,
                             *joblet->JobState,
-                            /*outputStatistics*/ false,
                             joblet->StderrSize,
                             fluent);
                     })

@@ -1005,7 +1005,7 @@ TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId)
 
     ValidateConnected();
 
-    auto job = FindJob(jobId);
+    const auto& job = FindJob(jobId);
 
     if (job) {
         return job->GetNode()->NodeDescriptor();
@@ -1019,6 +1019,41 @@ TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId)
 
         return node->NodeDescriptor();
     }
+}
+
+TAllocationDescription TNodeShard::GetAllocationDescription(TAllocationId allocationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
+
+    TAllocationDescription result;
+
+    auto jobId = JobIdFromAllocationId(allocationId);
+
+    result.NodeId = NodeIdFromJobId(jobId);
+
+    if (const auto& node = FindNodeByJob(jobId)) {
+        result.NodeAddress = node->GetDefaultAddress();
+    }
+
+    if (const auto& job = FindJob(jobId)) {
+        result.Running = true;
+        result.Properties = TAllocationDescription::TAllocationProperties{
+            .OperationId = job->GetOperationId(),
+            .StartTime = job->GetStartTime(),
+            .State = job->GetAllocationState(),
+            .TreeId = job->GetTreeId(),
+            .Preempted = job->GetPreempted(),
+            .PreemptionReason = job->GetPreemptionReason(),
+            .PreemptionTimeout = CpuDurationToDuration(job->GetPreemptionTimeout()),
+            .PreemptibleProgressTime = job->GetPreemptibleProgressTime(),
+        };
+    } else {
+        result.Running = false;
+    }
+
+    return result;
 }
 
 void TNodeShard::AbortJob(TJobId jobId, const TError& error, EAbortReason abortReason)

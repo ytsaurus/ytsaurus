@@ -988,20 +988,6 @@ public:
             .Run();
     }
 
-    TFuture<TYsonString> BuildJobInfo(
-        TOperationId operationId,
-        TJobId jobId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(Connected_);
-
-        auto operation = GetOperationOrThrow(operationId);
-        auto controller = operation->GetController();
-        return BIND(&IOperationController::BuildJobYson, controller)
-            .AsyncVia(controller->GetCancelableInvoker())
-            .Run(jobId, /* outputStatistics */ true);
-    }
-
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly = false) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -2381,13 +2367,6 @@ TFuture<std::vector<TErrorOr<TJobStartInfo>>> TControllerAgent::SettleJobs(
 TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(TOperationId operationId)
 {
     return Impl_->BuildOperationInfo(operationId);
-}
-
-TFuture<TYsonString> TControllerAgent::BuildJobInfo(
-    TOperationId operationId,
-    TJobId jobId)
-{
-    return Impl_->BuildJobInfo(operationId, jobId);
 }
 
 int TControllerAgent::GetOnlineExecNodeCount() const

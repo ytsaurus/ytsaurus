@@ -66,6 +66,30 @@ THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAllocationDescription
+{
+    bool Running;
+    NNodeTrackerClient::TNodeId NodeId;
+
+    std::optional<TString> NodeAddress;
+
+    struct TAllocationProperties
+    {
+        TOperationId OperationId;
+        TInstant StartTime;
+        EAllocationState State;
+        TString TreeId;
+        bool Preempted;
+        TString PreemptionReason;
+        TDuration PreemptionTimeout;
+        TDuration PreemptibleProgressTime;
+    };
+
+    std::optional<TAllocationProperties> Properties;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYsonMapFragmentBatcher final
     : public NYson::TForwardingYsonConsumer
     , public NYson::IFlushableYsonConsumer

@@ -56,19 +56,6 @@ message TRspGetOperationInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetJobInfo
-{
-    required NYT.NProto.TGuid operation_id = 1;
-    required NYT.NProto.TGuid job_id = 2;
-}
-
-message TRspGetJobInfo
-{
-    required bytes info = 1; // YSON
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TPoolTreeControllerSettings
 {
     required string tree_name = 1;

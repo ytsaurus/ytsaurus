@@ -1237,6 +1237,21 @@ def get_operation_cypress_path(op_id):
 ##################################################################
 
 
+def get_scheduler_version():
+    return get("//sys/scheduler/orchid/build_info/binary_version")
+
+
+##################################################################
+
+
+# Allocation id is currently equal to job id
+def get_allocation_id_from_job_id(job_id):
+    return job_id
+
+
+##################################################################
+
+
 class Operation(object):
     def __init__(self, driver=None):
         self._tmpdir = ""
@@ -1247,8 +1262,13 @@ class Operation(object):
         return get_operation_cypress_path(self.id)
 
     def get_node(self, job_id):
-        job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
-        return get(job_path + "/address", verbose=False, driver=self._driver)
+        if get_scheduler_version().startswith("23.2"):
+            job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
+            return get(job_path + "/address", verbose=False, driver=self._driver)
+
+        allocation_path = "//sys/scheduler/orchid/scheduler/allocations/{0}".format(
+            get_allocation_id_from_job_id(job_id))
+        return get(allocation_path + "/node_address", verbose=True, driver=self._driver)
 
     def get_job_node_orchid_path(self, job_id):
         return "//sys/cluster_nodes/{0}/orchid".format(

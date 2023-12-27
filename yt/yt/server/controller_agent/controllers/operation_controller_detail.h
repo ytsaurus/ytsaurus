@@ -422,8 +422,6 @@ public:
 
     TOperationInfo BuildOperationInfo() override;
 
-    NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override;
-
     NYTree::IYPathServicePtr GetOrchid() const override;
 
     void ZombifyOrchid() final;
@@ -1410,14 +1408,12 @@ private:
     void BuildJobAttributes(
         const TJobletPtr& joblet,
         EJobState state,
-        bool outputStatistics,
         i64 stderrSize,
         NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
         const TJobletPtr& joblet,
         TJobSummary* jobSummary,
-        bool outputStatistics,
         bool hasStderr,
         bool hasFailContext,
         NYTree::TFluentMap fluent) const;

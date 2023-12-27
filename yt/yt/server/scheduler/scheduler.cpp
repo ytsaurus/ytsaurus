@@ -3714,9 +3714,15 @@ private:
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
-        dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
+        dynamicOrchidService->AddChild("allocations", New<TAllocationsService>(this));
         dynamicOrchidService->AddChild("node_shards", GetNodesOrchidService());
         return dynamicOrchidService;
+    }
+
+    TAllocationDescription GetAllocationDescription(TAllocationId allocationId) const
+    {
+        return WaitFor(NodeManager_->GetAllocationDescription(allocationId))
+            .ValueOrThrow();
     }
 
     void ValidateConfig()
@@ -4255,11 +4261,11 @@ private:
         const TScheduler::TImpl* const Scheduler_;
     };
 
-    class TJobsService
+    class TAllocationsService
         : public TVirtualMapBase
     {
     public:
-        explicit TJobsService(const TScheduler::TImpl* scheduler)
+        explicit TAllocationsService(const TScheduler::TImpl* scheduler)
             : TVirtualMapBase(/*owningNode*/ nullptr)
             , Scheduler_(scheduler)
         { }
@@ -4292,35 +4298,58 @@ private:
 
         IYPathServicePtr FindItemService(TStringBuf key) const override
         {
-            auto jobId = TJobId(TGuid::FromString(key));
-            auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
-            auto jobYPathService = IYPathService::FromProducer(buildJobYsonCallback)
+            auto allocationId = TAllocationId(TGuid::FromString(key));
+            auto buildAllocationYsonCallback = BIND(
+                &TAllocationsService::BuildAllocationYson,
+                MakeStrong(this),
+                allocationId);
+
+            return IYPathService::FromProducer(buildAllocationYsonCallback)
                 ->Via(Scheduler_->GetControlInvoker(EControlQueue::DynamicOrchid));
-            return jobYPathService;
         }
 
     private:
-        void BuildControllerJobYson(TJobId jobId, IYsonConsumer* consumer) const
+        void BuildAllocationYson(TAllocationId allocationId, IYsonConsumer* consumer) const
         {
-            auto operationId = WaitFor(Scheduler_->FindOperationIdByJobId(jobId))
-                .ValueOrThrow();
+            auto allocationDescription = Scheduler_->GetAllocationDescription(allocationId);
 
-            if (!operationId) {
-                THROW_ERROR_EXCEPTION("Job %v is missing", jobId);
-            }
+            auto allocationYson = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("running").Value(allocationDescription.Running)
+                    .Item("node_id").Value(allocationDescription.NodeId)
+                    .OptionalItem("node_address", allocationDescription.NodeAddress)
+                    .DoIf(allocationDescription.Properties.has_value(), [&] (TFluentMap fluent) {
+                        const auto& allocationProperties = *allocationDescription.Properties;
 
-            auto operation = Scheduler_->GetOperationOrThrow(operationId);
-            auto agent = operation->GetAgentOrThrow();
+                        YT_VERIFY(allocationProperties.OperationId);
+                        fluent
+                            .Item("operation_id").Value(allocationProperties.OperationId)
+                            .Item("start_time").Value(allocationProperties.StartTime)
+                            .Item("state").Value(allocationProperties.State)
+                            .Item("tree_id").Value(allocationProperties.TreeId)
+                            .Item("preempted").Value(allocationProperties.Preempted)
+                            .Item("preemption_reason").Value(allocationProperties.PreemptionReason)
+                            .Item("preemption_timeout").Value(allocationProperties.PreemptionTimeout)
+                            .Item("preemptible_progress_time").Value(allocationProperties.PreemptibleProgressTime);
 
-            NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
-            auto req = proxy.GetJobInfo();
-            req->SetTimeout(Scheduler_->Config_->ControllerAgentTracker->LightRpcTimeout);
-            ToProto(req->mutable_operation_id(), operationId);
-            ToProto(req->mutable_job_id(), jobId);
-            auto rsp = WaitFor(req->Invoke())
-                .ValueOrThrow();
+                        auto const& operation = Scheduler_->FindOperation(allocationProperties.OperationId);
+                        if (operation) {
+                            const auto& agent = operation->GetAgentOrThrow();
 
-            consumer->OnRaw(TYsonString(rsp->info()));
+                            if (agent) {
+                                fluent
+                                    .Item("controller_agent")
+                                        .BeginMap()
+                                            .Item("address").Value(agent->GetAgentAddresses())
+                                            .Item("id").Value(agent->GetId())
+                                            .Item("incarnation_id").Value(agent->GetIncarnationId())
+                                        .EndMap();
+                            }
+                        }
+                    })
+                .EndMap();
+
+            consumer->OnRaw(allocationYson);
         }
 
         const TScheduler::TImpl* Scheduler_;

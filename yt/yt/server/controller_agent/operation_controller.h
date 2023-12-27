@@ -611,12 +611,6 @@ struct IOperationController
      */
     virtual TOperationInfo BuildOperationInfo() = 0;
 
-    //! Builds job info, used for orchid.
-    /*!
-     *  \note Invoker affinity: Controller invoker.
-     */
-    virtual NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const = 0;
-
     //! Return a YPath service representing this controller in controller agent Orchid.
     /*!
      *  \note Invoker affinity: Controller invoker.

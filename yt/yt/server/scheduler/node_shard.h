@@ -129,6 +129,8 @@ public:
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId);
 
+    TAllocationDescription GetAllocationDescription(TAllocationId allocationId);
+
     void AbortJob(TJobId jobId, const TError& error, EAbortReason abortReason);
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
 

@@ -1743,7 +1743,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         job_id = jobs[0]
         wait(
             lambda: get(
-                "//sys/scheduler/orchid/scheduler/jobs/{0}/progress".format(job_id),
+                op.get_path() + "/controller_orchid/running_jobs/{}/progress".format(job_id),
                 default=0,
             )
             >= 0.1

@@ -68,6 +68,8 @@ public:
 
     TFuture<NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId);
 
+    TFuture<TAllocationDescription> GetAllocationDescription(TAllocationId allocationId);
+
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
 
     TNodeYsonList BuildNodeYsonList() const;

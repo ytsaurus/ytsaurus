@@ -153,7 +153,6 @@ public:
     TFuture<std::vector<TErrorOr<TJobStartInfo>>> SettleJobs(const std::vector<TSettleJobRequest>& requests);
 
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId);
-    TFuture<NYson::TYsonString> BuildJobInfo(TOperationId operationId, TJobId jobId);
 
     //! Returns the total number of online exec nodes.
     /*!

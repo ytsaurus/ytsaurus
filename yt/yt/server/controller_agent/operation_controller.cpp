@@ -446,11 +446,6 @@ public:
         return DoExecuteGuarded(&IOperationController::GetBriefProgress);
     }
 
-    TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override
-    {
-        return DoExecuteGuarded(&IOperationController::BuildJobYson, std::move(jobId), outputStatistics);
-    }
-
     TJobStartInfo SettleJob(TAllocationId allocationId) override
     {
         return DoExecuteGuarded(&IOperationController::SettleJob, std::move(allocationId));

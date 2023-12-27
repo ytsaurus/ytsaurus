@@ -2341,21 +2341,21 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         time.sleep(1)
 
-        suspicious1 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job1_id))
-        suspicious2 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job2_id))
+        suspicious1 = get(op1.get_path() + "/controller_orchid/running_jobs/{}/suspicious".format(job1_id))
+        suspicious2 = get(op2.get_path() + "/controller_orchid/running_jobs/{}/suspicious".format(job2_id))
 
         if suspicious1 or suspicious2:
             print_debug("Some of jobs considered suspicious, their brief statistics are:")
             for i in range(50):
-                if suspicious1 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id)):
+                if suspicious1 and exists(op1.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job1_id)):
                     print_debug(
                         "job1 brief statistics:",
-                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id)),
+                        get(op1.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job1_id)),
                     )
-                if suspicious2 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id)):
+                if suspicious2 and exists(op2.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job2_id)):
                     print_debug(
                         "job2 brief statistics:",
-                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id)),
+                        get(op2.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job2_id)),
                     )
 
         assert not suspicious1
@@ -2404,7 +2404,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         # Most part of the time we should be suspicious, let's check that
         for i in range(30):
-            suspicious = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job_id))
+            suspicious = get(op.get_path() + "/controller_orchid/running_jobs/{}/suspicious".format(job_id))
             if suspicious:
                 break
             time.sleep(0.1)
@@ -2412,10 +2412,10 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         if not suspicious:
             print_debug("Job is not considered suspicious, its brief statistics are:")
             for i in range(50):
-                if exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
+                if exists(op.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job_id)):
                     print_debug(
                         "job brief statistics:",
-                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)),
+                        get(op.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job_id)),
                     )
 
         assert suspicious
@@ -2468,12 +2468,12 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         job_id = next(iter(running_jobs.keys()))
 
         for i in range(20):
-            suspicious = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job_id))
+            suspicious = get(op.get_path() + "/controller_orchid/running_jobs/{}/suspicious".format(job_id))
             if not suspicious:
                 time.sleep(1.0)
 
-            if exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
-                print_debug(get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)))
+            if exists(op.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job_id)):
+                print_debug(get(op.get_path() + "/controller_orchid/running_jobs/{}/brief_statistics".format(job_id)))
 
         assert suspicious
 

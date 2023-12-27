@@ -324,6 +324,15 @@ TFuture<TNodeDescriptor> TNodeManager::GetJobNode(TJobId jobId)
         .Run();
 }
 
+TFuture<TAllocationDescription> TNodeManager::GetAllocationDescription(TAllocationId allocationId)
+{
+    const auto& nodeShard = GetNodeShardByAllocationId(allocationId);
+
+    return BIND(&TNodeShard::GetAllocationDescription, nodeShard, allocationId)
+        .AsyncVia(nodeShard->GetInvoker())
+        .Run();
+}
+
 void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason)
 {
     std::vector<std::vector<TJobId>> jobIdsPerShard(NodeShards_.size());

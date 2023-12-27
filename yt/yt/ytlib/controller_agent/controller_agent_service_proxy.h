@@ -16,7 +16,6 @@ public:
         .SetProtocolVersion(17));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetOperationInfo);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetJobInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterOperation);
     DEFINE_RPC_PROXY_METHOD(NProto, InitializeOperation);
     DEFINE_RPC_PROXY_METHOD(NProto, PrepareOperation);
