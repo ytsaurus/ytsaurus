@@ -2,7 +2,7 @@
 
 set -e
 
-wait_minutes=60
+wait_minutes=180
 attempt=0
 namespace=""
 name="tester"

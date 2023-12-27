@@ -21,6 +21,16 @@ EOF
     exit 1
 }
 
+print_pods() {
+    kubectl get pod $@
+    exit 1
+}
+
+print_systest_logs() {
+    kubectl $@ logs systest
+    exit 1
+}
+
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
@@ -81,10 +91,11 @@ helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} --set S
 
 # Wait for Cypress
 helm install ${nsflags} ${name_tester} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/tester
-bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_flags}
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_flags} || print_pods $nsflags
 
 helm install ${nsflags} ${name_systest} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/systest
-bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name systest ${tester_flags}
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name systest ${tester_flags} || print_systest_logs $nsflags
 
 helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
+
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name newstresstest ${tester_flags}
