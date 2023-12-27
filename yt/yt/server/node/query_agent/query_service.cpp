@@ -2,6 +2,7 @@
 #include "query_service.h"
 #include "public.h"
 #include "private.h"
+#include "replication_log_batch_reader.h"
 #include "session_manager.h"
 #include "session.h"
 #include "helpers.h"
@@ -156,6 +157,32 @@ void ValidateColumnFilterContainsAllKeyColumns(
                 columnIndex);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTypeErasedRow ReadVersionedReplicationRow(
+    const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+    const IReplicationLogParserPtr& logParser,
+    const TRowBufferPtr& rowBuffer,
+    TUnversionedRow replicationLogRow,
+    TTimestamp* timestamp)
+{
+    TTypeErasedRow replicationRow;
+    NApi::ERowModificationType modificationType;
+    i64 rowIndex;
+
+    logParser->ParseLogRow(
+        tabletSnapshot,
+        replicationLogRow,
+        rowBuffer,
+        &replicationRow,
+        &modificationType,
+        &rowIndex,
+        timestamp,
+        /*isVersioned*/ true);
+
+    return replicationRow;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1732,6 +1759,244 @@ private:
         }
     }
 
+    class TTabletBatchFetcher
+        : public IReplicationLogBatchFetcher
+    {
+    public:
+        TTabletBatchFetcher(
+            TLegacyOwningKey lower,
+            TLegacyOwningKey upper,
+            const TColumnFilter& columnFilter,
+            const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+            const TClientChunkReadOptions& chunkReaderOptions,
+            const TRowBatchReadOptions& rowBatchReadOptions,
+            const NTabletClient::TTabletId& tabletId,
+            const NLogging::TLogger& logger)
+            : TabletId_(tabletId)
+            , RowBatchReadOptions_(rowBatchReadOptions)
+            , Reader_(CreateSchemafulRangeTabletReader(
+                tabletSnapshot,
+                columnFilter,
+                std::move(lower),
+                std::move(upper),
+                /* timestampRange */ {},
+                chunkReaderOptions,
+                /* tabletThrottlerKind */ std::nullopt,
+                EWorkloadCategory::SystemTabletReplication))
+            , Logger(logger)
+        { }
+
+        IUnversionedRowBatchPtr ReadNextRowBatch(i64 currentRowIndex) override final
+        {
+            IUnversionedRowBatchPtr batch;
+            while (true) {
+                batch = Reader_->Read(RowBatchReadOptions_);
+                if (!batch || !batch->IsEmpty()) {
+                    break;
+                }
+
+                YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (TabletId: %v, StartRowIndex: %v)",
+                    TabletId_,
+                    currentRowIndex);
+
+                WaitFor(Reader_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
+            return batch;
+        }
+
+    private:
+        const NTabletClient::TTabletId& TabletId_;
+        const TRowBatchReadOptions& RowBatchReadOptions_;
+        const ISchemafulUnversionedReaderPtr Reader_;
+        const NLogging::TLogger& Logger;
+    };
+
+    class TTabletRowBatchReader
+        : public TReplicationLogBatchReaderBase
+    {
+    public:
+        TTabletRowBatchReader(
+            const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+            const TClientChunkReadOptions& chunkReaderOptions,
+            const TRowBatchReadOptions& rowBatchReadOptions,
+            const TReplicationProgress& progress,
+            IWireProtocolWriter* writer,
+            const NLogging::TLogger& logger)
+            : TReplicationLogBatchReaderBase(
+                tabletSnapshot->Settings.MountConfig,
+                tabletSnapshot->TabletId,
+                logger)
+            , TablerSnapshotPtr_(std::move(tabletSnapshot))
+            , ChunkReadOptions_(chunkReaderOptions)
+            , RowBatchReadOptions_(rowBatchReadOptions)
+            , Progress_(progress)
+            , Writer_(writer)
+        { }
+
+    protected:
+        const NTabletNode::TTabletSnapshotPtr TablerSnapshotPtr_;
+        const TClientChunkReadOptions& ChunkReadOptions_;
+        const TRowBatchReadOptions& RowBatchReadOptions_;
+        const TReplicationProgress& Progress_;
+        IWireProtocolWriter* Writer_;
+
+        std::unique_ptr<IReplicationLogBatchFetcher> MakeBatchFetcher(
+            TLegacyOwningKey lower,
+            TLegacyOwningKey upper,
+            const TColumnFilter& columnFilter) const override final
+        {
+            return std::make_unique<TTabletBatchFetcher>(
+                    std::move(lower),
+                    std::move(upper),
+                    columnFilter,
+                    TablerSnapshotPtr_,
+                    ChunkReadOptions_,
+                    RowBatchReadOptions_,
+                    TabletId_,
+                    Logger);
+        }
+    };
+
+    class TOrderedRowBatchReader
+        : public TTabletRowBatchReader
+    {
+    public:
+        TOrderedRowBatchReader(
+            const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+            const TClientChunkReadOptions& chunkReaderOptions,
+            const TRowBatchReadOptions& rowBatchReadOptions,
+            const TReplicationProgress& progress,
+            const IReplicationLogParserPtr& logParser,
+            IWireProtocolWriter* writer,
+            const NLogging::TLogger& logger)
+            : TTabletRowBatchReader(
+                tabletSnapshot,
+                chunkReaderOptions,
+                rowBatchReadOptions,
+                progress,
+                writer,
+                logger)
+        {
+            ValidateOrderedTabletReplicationProgress(progress);
+
+            if (!logParser->GetTimestampColumnId()) {
+                THROW_ERROR_EXCEPTION("Invalid table schema: %Qlv column is absent",
+                    TimestampColumnName);
+            }
+
+            TimestampColumnIndex_ = *logParser->GetTimestampColumnId() + 1;
+            TabletIndex_ = progress.Segments[0].LowerKey.GetCount() > 0
+                ? FromUnversionedValue<i64>(progress.Segments[0].LowerKey[0])
+                : 0;
+        }
+
+    protected:
+        TColumnFilter CreateColumnFilter() const override final
+        {
+            // Without a filter first two columns are (tablet index, row index). Add tablet index column to row.
+            TColumnFilter::TIndexes columnFilterIndexes{0};
+            for (int id = 0; id < TablerSnapshotPtr_->TableSchema->GetColumnCount(); ++id) {
+                columnFilterIndexes.push_back(id + 2);
+            }
+            return TColumnFilter(std::move(columnFilterIndexes));
+        }
+
+        TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override final
+        {
+            return MakeRowBound(currentRowIndex, TabletIndex_);
+        }
+
+        bool ToTypeErasedRow(
+            const TUnversionedRow& row,
+            TTypeErasedRow* replicationRow,
+            TTimestamp* timestamp,
+            i64* rowDataWeight) const override final
+        {
+            auto rowTimestamp = row[TimestampColumnIndex_].Data.Uint64;
+
+            // Check that row has greater timestamp than progress.
+            if (rowTimestamp <= Progress_.Segments[0].Timestamp) {
+                return false;
+            }
+
+            *timestamp = rowTimestamp;
+            *replicationRow = row.ToTypeErasedRow();
+            *rowDataWeight = GetDataWeight(TUnversionedRow(*replicationRow));
+            return true;
+        }
+
+        void WriteTypeErasedRow(const TTypeErasedRow& row) override final
+        {
+            Writer_->WriteSchemafulRow(TUnversionedRow(row));
+        }
+
+    private:
+        int TimestampColumnIndex_ = 0;
+        long TabletIndex_ = 0;
+    };
+
+    class TSortedRowBatchReader
+        : public TTabletRowBatchReader
+    {
+    public:
+        TSortedRowBatchReader(
+            const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+            const TClientChunkReadOptions& chunkReaderOptions,
+            const TRowBatchReadOptions& rowBatchReadOptions,
+            const TReplicationProgress& progress,
+            const TRowBufferPtr& rowBuffer,
+            const IReplicationLogParserPtr& logParser,
+            IWireProtocolWriter* writer,
+            const NLogging::TLogger& logger)
+            : TTabletRowBatchReader(
+                tabletSnapshot,
+                chunkReaderOptions,
+                rowBatchReadOptions,
+                progress,
+                writer,
+                logger)
+            , LogParser_(logParser)
+            , RowBuffer_(rowBuffer)
+        { }
+
+        TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override final
+        {
+            return MakeRowBound(currentRowIndex);
+        }
+
+        bool ToTypeErasedRow(
+            const TUnversionedRow& row,
+            TTypeErasedRow* replicationRow,
+            TTimestamp* timestamp,
+            i64* rowDataWeight) const override final
+        {
+            *replicationRow = ReadVersionedReplicationRow(
+                TablerSnapshotPtr_,
+                LogParser_,
+                RowBuffer_,
+                row,
+                timestamp);
+
+            auto versionedRow = TVersionedRow(*replicationRow);
+            *rowDataWeight = GetDataWeight(versionedRow);
+
+            // Check that row fits into replication progress key range and has greater timestamp than progress.
+            auto progressTimestamp = FindReplicationProgressTimestampForKey(Progress_, versionedRow.Keys());
+            return progressTimestamp && *progressTimestamp < *timestamp;
+        }
+
+        void WriteTypeErasedRow(const TTypeErasedRow& row) override final
+        {
+            Writer_->WriteVersionedRow(TVersionedRow(row));
+        }
+
+    private:
+        const IReplicationLogParserPtr LogParser_;
+        const TRowBufferPtr RowBuffer_;
+    };
+
     void ReadReplicationBatch(
         const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -1748,205 +2013,44 @@ private:
         TTimestamp* maxTimestamp,
         bool* readAllRows)
     {
-        int timestampColumnIndex = 0;
-        TColumnFilter columnFilter;
-        TLegacyOwningKey lower;
-        TLegacyOwningKey upper;
-
         if (tabletSnapshot->TableSchema->IsSorted()) {
-            lower = MakeRowBound(*currentRowIndex);
-            upper = MakeRowBound(std::numeric_limits<i64>::max());
+            TSortedRowBatchReader(
+                tabletSnapshot,
+                chunkReadOptions,
+                rowBatchReadOptions,
+                progress,
+                rowBuffer,
+                logParser,
+                writer,
+                Logger)
+                .ReadReplicationBatch(
+                currentRowIndex,
+                upperTimestamp,
+                totalRowCount,
+                batchRowCount,
+                batchDataWeight,
+                maxTimestamp,
+                readAllRows);
         } else {
-            ValidateOrderedTabletReplicationProgress(progress);
-
-            if (!logParser->GetTimestampColumnId()) {
-                THROW_ERROR_EXCEPTION("Invalid table schema: %Qlv column is absent",
-                    TimestampColumnName);
-            }
-
-            timestampColumnIndex = *logParser->GetTimestampColumnId() + 1;
-
-            // Without a filter first two columns are (tablet index, row index). Add tablet index column to row.
-            TColumnFilter::TIndexes columnFilterIndexes{0};
-            for (int id = 0; id < tabletSnapshot->TableSchema->GetColumnCount(); ++id) {
-                columnFilterIndexes.push_back(id + 2);
-            }
-            columnFilter = TColumnFilter(std::move(columnFilterIndexes));
-
-            auto tabletIndex = progress.Segments[0].LowerKey.GetCount() > 0
-                ? FromUnversionedValue<i64>(progress.Segments[0].LowerKey[0])
-                : 0;
-            lower = MakeRowBound(*currentRowIndex, tabletIndex);
-            upper = MakeRowBound(std::numeric_limits<i64>::max(), tabletIndex);
+            TOrderedRowBatchReader(
+                tabletSnapshot,
+                chunkReadOptions,
+                rowBatchReadOptions,
+                progress,
+                logParser,
+                writer,
+                Logger)
+                .ReadReplicationBatch(
+                currentRowIndex,
+                upperTimestamp,
+                totalRowCount,
+                batchRowCount,
+                batchDataWeight,
+                maxTimestamp,
+                readAllRows);
         }
-
-        auto reader = CreateSchemafulRangeTabletReader(
-            tabletSnapshot,
-            columnFilter,
-            lower,
-            upper,
-            /* timestampRange */ {},
-            chunkReadOptions,
-            /* tabletThrottlerKind */ std::nullopt,
-            EWorkloadCategory::SystemTabletReplication);
-
-        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-        TTimestamp prevTimestamp = MinTimestamp;
-        int timestampCount = 0;
-        int discardedByProgress = 0;
-        auto startRowIndex = *currentRowIndex;
-
-        *readAllRows = true;
-        while (*readAllRows) {
-            auto batch = reader->Read(rowBatchReadOptions);
-            if (!batch) {
-                YT_LOG_DEBUG("Received empty batch from tablet reader (TabletId: %v, StartRowIndex: %v)",
-                    tabletSnapshot->TabletId,
-                    *currentRowIndex);
-                break;
-            }
-
-            if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (TabletId: %v, StartRowIndex: %v)",
-                    tabletSnapshot->TabletId,
-                    *currentRowIndex);
-
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-                continue;
-            }
-
-            auto range = batch->MaterializeRows();
-            auto readerRows = std::vector<TUnversionedRow>(range.begin(), range.end());
-
-            for (const auto& replicationLogRow : readerRows) {
-                TTypeErasedRow replicationRow;
-                TTimestamp timestamp;
-                i64 rowDataWeight;
-
-                if (tabletSnapshot->TableSchema->IsSorted()) {
-                    replicationRow = ReadVersionedReplicationRow(
-                        tabletSnapshot,
-                        logParser,
-                        rowBuffer,
-                        replicationLogRow,
-                        &timestamp);
-
-                    auto row = TVersionedRow(replicationRow);
-                    rowDataWeight = GetDataWeight(row);
-
-                    // Check that row fits into replication progress key range and has greater timestamp than progress.
-                    if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.Keys());
-                        !progressTimestamp || timestamp <= *progressTimestamp)
-                    {
-                        ++*currentRowIndex;
-                        ++discardedByProgress;
-                        continue;
-                    }
-                } else {
-                    replicationRow = replicationLogRow.ToTypeErasedRow();
-                    timestamp = replicationLogRow[timestampColumnIndex].Data.Uint64;
-                    rowDataWeight = GetDataWeight(TUnversionedRow(replicationRow));
-
-                    // Check that row has greater timestamp than progress.
-                    if (timestamp <= progress.Segments[0].Timestamp) {
-                        ++*currentRowIndex;
-                        ++discardedByProgress;
-                        continue;
-                    }
-                }
-
-                if (timestamp != prevTimestamp) {
-                    // TODO(savrus): Throttle pulled data.
-
-                    // Upper timestamp should be some era start ts, so no tx should have it as a commit ts.
-                    YT_VERIFY(upperTimestamp == NullTimestamp || timestamp != upperTimestamp);
-
-                    if (upperTimestamp != NullTimestamp && timestamp > upperTimestamp) {
-                        *maxTimestamp = std::max(*maxTimestamp, upperTimestamp);
-                        *readAllRows = false;
-
-                        YT_LOG_DEBUG("Stopped reading replication batch because upper timestamp has been reached "
-                            "(TabletId: %v, Timestamp: %v, UpperTimestamp: %v, LastTimestamp: %v)",
-                            tabletSnapshot->TabletId,
-                            timestamp,
-                            upperTimestamp,
-                            *maxTimestamp);
-
-                        break;
-                    }
-
-                    if (*batchRowCount >= mountConfig->MaxRowsPerReplicationCommit ||
-                        *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
-                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
-                    {
-                        *readAllRows = false;
-
-                        YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
-                            "(TabletId: %v, Timestamp: %v, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
-                            tabletSnapshot->TabletId,
-                            timestamp,
-                            *batchRowCount >= mountConfig->MaxRowsPerReplicationCommit,
-                            *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit,
-                            timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit);
-
-                        break;
-                    }
-
-                    ++timestampCount;
-                }
-
-                if (tabletSnapshot->TableSchema->IsSorted()) {
-                    writer->WriteVersionedRow(TVersionedRow(replicationRow));
-                } else {
-                    writer->WriteSchemafulRow(TUnversionedRow(replicationRow));
-                }
-
-                *maxTimestamp = std::max(*maxTimestamp, timestamp);
-                *batchRowCount += 1;
-                *batchDataWeight += rowDataWeight;
-                prevTimestamp = timestamp;
-                ++*currentRowIndex;
-            }
-
-            *totalRowCount += readerRows.size();
-        }
-
-        YT_LOG_DEBUG("Read replication batch (TabletId: %v, StartRowIndex: %v, EndRowIndex: %v, ReadRowCount: %v, "
-            "ResponseRowCount: %v, ResponseDataWeight: %v, RowsDiscardedByProgress: %v, TimestampCount: %v)",
-            tabletSnapshot->TabletId,
-            startRowIndex,
-            *currentRowIndex,
-            *totalRowCount,
-            *batchRowCount,
-            *batchDataWeight,
-            discardedByProgress,
-            timestampCount);
     }
 
-    TTypeErasedRow ReadVersionedReplicationRow(
-        const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
-        const IReplicationLogParserPtr& logParser,
-        const TRowBufferPtr& rowBuffer,
-        TUnversionedRow replicationLogRow,
-        TTimestamp* timestamp)
-    {
-        TTypeErasedRow replicationRow;
-        NApi::ERowModificationType modificationType;
-        i64 rowIndex;
-
-        logParser->ParseLogRow(
-            tabletSnapshot,
-            replicationLogRow,
-            rowBuffer,
-            &replicationRow,
-            &modificationType,
-            &rowIndex,
-            timestamp,
-            /*isVersioned*/ true);
-
-        return replicationRow;
-    }
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,

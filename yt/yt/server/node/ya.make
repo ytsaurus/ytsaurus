@@ -89,6 +89,7 @@ SRCS(
     query_agent/multiread_request_queue_provider.cpp
     query_agent/query_executor.cpp
     query_agent/query_service.cpp
+    query_agent/replication_log_batch_reader.cpp
     query_agent/session.cpp
     query_agent/session_manager.cpp
 
@@ -216,5 +217,6 @@ END()
 
 RECURSE_FOR_TESTS(
     data_node/unittests
+    query_agent/unittests
     tablet_node/unittests
 )

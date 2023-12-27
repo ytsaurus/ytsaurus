@@ -1055,6 +1055,8 @@
   "yt/yt/server/node/chaos_node/CMakeLists.txt":"",
   "yt/yt/server/node/data_node/CMakeLists.txt":"",
   "yt/yt/server/node/data_node/unittests/CMakeLists.txt":"",
+  "yt/yt/server/node/query_agent/CMakeLists.txt":"",
+  "yt/yt/server/node/query_agent/unittests/CMakeLists.txt":"",
   "yt/yt/server/node/tablet_node/CMakeLists.txt":"",
   "yt/yt/server/node/tablet_node/unittests/CMakeLists.txt":"",
   "yt/yt/server/query_tracker/CMakeLists.txt":"",
