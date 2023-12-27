@@ -2,9 +2,9 @@
 
 #include "operation_controller_detail.h"
 
-
 namespace NYT::NControllerAgent::NControllers {
 
+////////////////////////////////////////////////////////////////////////////////
 
 //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
 class TSink
@@ -36,5 +36,6 @@ private:
     int OutputTableIndex_ = -1;
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers

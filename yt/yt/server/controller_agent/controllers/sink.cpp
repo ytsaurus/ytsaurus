@@ -4,6 +4,8 @@ namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkPools;
 
+////////////////////////////////////////////////////////////////////////////////
+
 TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)
     : Controller_(controller)
     , OutputTableIndex_(outputTableIndex)
@@ -89,5 +91,7 @@ void TSink::Persist(const TPersistenceContext& context)
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSink);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
