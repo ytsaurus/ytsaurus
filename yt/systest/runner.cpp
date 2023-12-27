@@ -66,7 +66,7 @@ static std::pair<std::vector<TString>, TString> GetSortAndReduceColumnsAndIndex(
     return std::make_pair(reduceColumns, schema.DataColumns[summable[0]].Name);
 }
 
-static std::vector<int> allIndicesExcept(int start, int limit, std::vector<int> excepted) {
+static std::vector<int> indexRangeExcept(int start, int limit, std::vector<int> excepted) {
     std::sort(excepted.begin(), excepted.end());
     std::vector<int> result;
     int index = 0;
@@ -171,43 +171,38 @@ void TRunner::Run()
         auto dataset = Map(*currentInfo.ShallowDataset, *operation);
         auto path = TestHome_.CreateRandomTablePath();
 
-        RunMap(Client_,
-               Pool_,
-               TestHome_,
-               currentInfo.Stored.Path,
-               path,
-               currentInfo.Dataset->table_schema(),
-               dataset->table_schema(),
-               *operation);
-
-        auto shallowDataset = std::make_unique<TTableDataset>(dataset->table_schema(), Client_, path);
-        TStoredDataset storedDataset = Validator_.VerifyMap(
+        RunMap(
+            Client_,
+            Pool_,
+            TestHome_,
             currentInfo.Stored.Path,
             path,
             currentInfo.Dataset->table_schema(),
+            dataset->table_schema(),
             *operation);
 
-        Infos_.push_back(TDatasetInfo{
-            dataset.get(),
-            shallowDataset.get(),
-            storedDataset
+        VerifyAndKeep(TMappedDataset{
+            std::move(dataset),
+            std::move(operation),
+            currentInfo.Stored.Path,
+            path,
+            &currentInfo.Dataset->table_schema()
         });
-
-        OperationPtrs_.push_back(std::move(operation));
-        DatasetPtrs_.push_back(std::move(dataset));
-        DatasetPtrs_.push_back(std::move(shallowDataset));
 
         if (RunnerConfig_.EnableReduce) {
             RunSortAndReduce(RandomEngine, Infos_.back());
         }
 
         if (RunnerConfig_.EnableRenames) {
+            TMappedDataset alteredDataset;
 
             if (RunnerConfig_.EnableDeletes) {
-                RenameAndDeleteColumn(Infos_.back());
+                alteredDataset = RenameAndDeleteColumn(Infos_.back());
             } else {
-                RenameColumn(Infos_.back());
+                alteredDataset = RenameColumn(Infos_.back());
             }
+
+            VerifyAndKeep(std::move(alteredDataset));
 
             if (RunnerConfig_.EnableReduce) {
                 RunSortAndReduce(RandomEngine, Infos_.back());
@@ -216,7 +211,29 @@ void TRunner::Run()
     }
 }
 
-void TRunner::RenameColumn(const TDatasetInfo& info)
+void TRunner::VerifyAndKeep(TMappedDataset mapped)
+{
+    auto stored = Validator_.VerifyMap(
+        mapped.SourcePath,
+        mapped.TargetPath,
+        *mapped.SourceSchema,
+        *mapped.Operation);
+
+    auto shallowDataset = std::make_unique<TTableDataset>(
+        mapped.Dataset->table_schema(), Client_, mapped.TargetPath);
+
+    Infos_.push_back(TDatasetInfo{
+        mapped.Dataset.get(),
+        shallowDataset.get(),
+        stored
+    });
+
+    DatasetPtrs_.push_back(std::move(shallowDataset));
+    DatasetPtrs_.push_back(std::move(mapped.Dataset));
+    OperationPtrs_.push_back(std::move(mapped.Operation));
+}
+
+TRunner::TMappedDataset TRunner::RenameColumn(const TDatasetInfo& info)
 {
     const int renameIndex = 5;
     const int numIndices = 10;
@@ -225,40 +242,27 @@ void TRunner::RenameColumn(const TDatasetInfo& info)
     const auto& path = info.Stored.Path;
 
     std::vector<std::unique_ptr<IRowMapper>> columnOperations;
-    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(0, 5, {})));
+    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), indexRangeExcept(0, 5, {})));
     columnOperations.push_back(std::make_unique<TRenameColumnRowMapper>(dataset.table_schema(), renameIndex, "Y" + std::to_string(renameIndex)));
-    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(6, numIndices, {})));
+    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), indexRangeExcept(6, numIndices, {})));
 
     auto renameColumnOperation = std::make_unique<TSingleMultiMapper>(
         dataset.table_schema(), std::make_unique<TConcatenateColumnsRowMapper>(dataset.table_schema(), std::move(columnOperations)));
 
     auto renameColumnDataset = Map(dataset, *renameColumnOperation);
+    auto targetPath = CloneTableViaMap(dataset.table_schema(), path);
+    AlterTable(RpcClient_, targetPath, renameColumnDataset->table_schema());
 
-    auto identityOp = std::make_unique<TSingleMultiMapper>(dataset.table_schema(),
-        std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(0, numIndices, {})));
-    auto forkedPath = TestHome_.CreateRandomTablePath();
-    RunMap(Client_, Pool_, TestHome_, path, forkedPath, dataset.table_schema(), dataset.table_schema(),
-        *identityOp);
-
-    AlterTable(RpcClient_, forkedPath, renameColumnDataset->table_schema());
-    auto alterShallowDataset = std::make_unique<TTableDataset>(renameColumnDataset->table_schema(),
-        Client_, forkedPath);
-
-    auto storedAlterDataset = VerifyTable(Client_, forkedPath, *renameColumnDataset);
-
-    Infos_.push_back(TDatasetInfo{
-        renameColumnDataset.get(),
-        alterShallowDataset.get(),
-        storedAlterDataset
-    });
-
-    OperationPtrs_.push_back(std::move(renameColumnOperation));
-    OperationPtrs_.push_back(std::move(identityOp));
-    DatasetPtrs_.push_back(std::move(renameColumnDataset));
-    DatasetPtrs_.push_back(std::move(alterShallowDataset));
+    return TMappedDataset{
+        std::move(renameColumnDataset),
+        std::move(renameColumnOperation),
+        path,
+        targetPath,
+        &dataset.table_schema()
+    };
 }
 
-void TRunner::RenameAndDeleteColumn(const TDatasetInfo& info)
+TRunner::TMappedDataset TRunner::RenameAndDeleteColumn(const TDatasetInfo& info)
 {
     const int deleteIndex = 3;
     const int renameIndex = 5;
@@ -269,9 +273,9 @@ void TRunner::RenameAndDeleteColumn(const TDatasetInfo& info)
 
     std::vector<std::unique_ptr<IRowMapper>> columnOperations;
     columnOperations.push_back(std::make_unique<TDeleteColumnRowMapper>(dataset.table_schema(), deleteIndex));
-    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(0, 5, {3})));
+    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), indexRangeExcept(0, 5, {3})));
     columnOperations.push_back(std::make_unique<TRenameColumnRowMapper>(dataset.table_schema(), renameIndex, "Y" + std::to_string(renameIndex)));
-    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(6, numIndices, {})));
+    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), indexRangeExcept(6, numIndices, {})));
 
     auto deleteColumnOperation = std::make_unique<TSingleMultiMapper>(
         dataset.table_schema(), std::make_unique<TConcatenateColumnsRowMapper>(dataset.table_schema(), std::move(columnOperations)));
@@ -279,34 +283,45 @@ void TRunner::RenameAndDeleteColumn(const TDatasetInfo& info)
     auto deleteColumnDataset = std::make_unique<TDecorateDataset>(
         Map(dataset, *deleteColumnOperation), std::vector<TString>{"X3"});
 
-    auto identityOp = std::make_unique<TSingleMultiMapper>(dataset.table_schema(),
-        std::make_unique<TIdentityRowMapper>(dataset.table_schema(), allIndicesExcept(0, numIndices, {})));
-    auto forkedPath = TestHome_.CreateRandomTablePath();
+    auto targetPath = CloneTableViaMap(dataset.table_schema(), path);
+
+    AlterTable(RpcClient_, targetPath, deleteColumnDataset->table_schema());
+    auto alterShallowDataset = std::make_unique<TTableDataset>(deleteColumnDataset->table_schema(),
+        Client_, targetPath);
+
+    return TMappedDataset{
+        std::move(deleteColumnDataset),
+        std::move(deleteColumnOperation),
+        path,
+        targetPath,
+        &dataset.table_schema()
+    };
+}
+
+TString TRunner::CloneTableViaMap(const TTable& table, const TString& sourcePath)
+{
+    auto targetPath = TestHome_.CreateRandomTablePath();
+
+    auto identityOp = std::make_unique<TSingleMultiMapper>(
+        table,
+        std::make_unique<TIdentityRowMapper>(
+            table,
+            indexRangeExcept(0, std::ssize(table.DataColumns), {})
+        )
+    );
+
     RunMap(Client_,
            Pool_,
            TestHome_,
-           path,
-           forkedPath,
-           dataset.table_schema(),
-           dataset.table_schema(),
+           sourcePath,
+           targetPath,
+           table,
+           table,
            *identityOp);
 
-    AlterTable(RpcClient_, forkedPath, deleteColumnDataset->table_schema());
-    auto alterShallowDataset = std::make_unique<TTableDataset>(deleteColumnDataset->table_schema(),
-        Client_, forkedPath);
-
-    auto storedAlterDataset = VerifyTable(Client_, forkedPath, *deleteColumnDataset);
-
-    Infos_.push_back(TDatasetInfo{
-        deleteColumnDataset.get(),
-        alterShallowDataset.get(),
-        storedAlterDataset
-    });
-
-    OperationPtrs_.push_back(std::move(deleteColumnOperation));
     OperationPtrs_.push_back(std::move(identityOp));
-    DatasetPtrs_.push_back(std::move(deleteColumnDataset));
-    DatasetPtrs_.push_back(std::move(alterShallowDataset));
+
+    return targetPath;
 }
 
 void TRunner::RunSortAndReduce(std::mt19937& randomEngine, const TDatasetInfo& info)
@@ -377,7 +392,6 @@ void TRunner::RunSortAndReduce(const TDatasetInfo& info, const std::vector<TStri
               reduceOperation);
 
     Validator_.VerifyReduce(sortedPath, reducePath, sortedDataset->table_schema(), reduceOperation);
-    VerifyTable(Client_, reducePath, *reduceDataset);
 }
 
 }  // namespace NYT::NTest

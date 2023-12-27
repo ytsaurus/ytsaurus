@@ -37,6 +37,5 @@ void ToProto(NProto::TTable* proto, const TTable& table);
 void FromProto(TTable* table, const NProto::TTable& proto);
 
 void AlterTable(NApi::IClientPtr client, const TString& path, const TTable& table);
-void FromTablePath(TTable* table, NApi::IClientPtr client, const TString& path);
 
 }  // namespace NYT::NTest

@@ -71,26 +71,6 @@ NTableClient::ESimpleLogicalValueType GetType(NProto::EColumnType type)
     }
 }
 
-NProto::EColumnType GetType(NTableClient::ESimpleLogicalValueType type)
-{
-    switch (type) {
-        case NTableClient::ESimpleLogicalValueType::Null:
-            return NProto::EColumnType::ENone;
-        case NTableClient::ESimpleLogicalValueType::Int8:
-            return NProto::EColumnType::EInt8;
-        case NTableClient::ESimpleLogicalValueType::Int16:
-            return NProto::EColumnType::EInt16;
-        case NTableClient::ESimpleLogicalValueType::Int64:
-            return NProto::EColumnType::EInt64;
-        case NTableClient::ESimpleLogicalValueType::String:
-            return NProto::EColumnType::EBytes64K;
-        case NTableClient::ESimpleLogicalValueType::Double:
-            return NProto::EColumnType::EDouble;
-        default:
-            THROW_ERROR_EXCEPTION("Unexpected logical value type %v", type);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TString BuildAttributes(const TTable& table)
@@ -175,22 +155,6 @@ void AlterTable(NApi::IClientPtr client, const TString& path, const TTable& tabl
 
     YT_LOG_INFO("Alter table (Path: %v, Schema: %v", path, options.Schema);
     client->AlterTable(path, options).Get().ThrowOnError();
-}
-
-void FromTablePath(TTable* table, NApi::IClientPtr client, const TString& path)
-{
-    auto reader = client->CreateTableReader(path).Get().ValueOrThrow();
-    auto schema = reader->GetTableSchema();
-
-    for (const auto& column : schema->Columns()) {
-        TDataColumn dataColumn{column.Name(),
-            GetType(*column.LogicalType()->AsOptionalTypeRef().Simplify()),
-            std::nullopt};
-        if (column.StableName().Get() != column.Name()) {
-            dataColumn.StableName = column.StableName().Get();
-        }
-        table->DataColumns.push_back(dataColumn);
-    }
 }
 
 }  // namespace NYT::NTest

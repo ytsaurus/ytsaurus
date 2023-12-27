@@ -40,6 +40,15 @@ public:
     void Run();
 
 private:
+    struct TMappedDataset
+    {
+        std::unique_ptr<IDataset> Dataset;
+        std::unique_ptr<IMultiMapper> Operation;
+        TString SourcePath;
+        TString TargetPath;
+        const TTable* SourceSchema;
+    };
+
     struct TDatasetInfo
     {
         const IDataset* Dataset;
@@ -64,11 +73,15 @@ private:
     std::vector<std::unique_ptr<IDataset>> DatasetPtrs_;
     std::vector<std::unique_ptr<IOperation>> OperationPtrs_;
 
-    void RenameAndDeleteColumn(const TDatasetInfo& info);
-    void RenameColumn(const TDatasetInfo& info);
+    TMappedDataset RenameAndDeleteColumn(const TDatasetInfo& info);
+    TMappedDataset RenameColumn(const TDatasetInfo& info);
 
     void RunSortAndReduce(const TDatasetInfo& info, const std::vector<TString>& columns, const TString& sumColumn);
     void RunSortAndReduce(std::mt19937& randomEngine, const TDatasetInfo& info);
+
+    void VerifyAndKeep(TMappedDataset mapped);
+
+    TString CloneTableViaMap(const TTable& table, const TString& path);
 };
 
 }  // namespace NYT::NTest
