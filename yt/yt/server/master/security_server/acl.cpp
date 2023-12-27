@@ -200,8 +200,7 @@ static void DoDeserializeAclOrThrow(
             // NB: Missing subjects should be listed inside the error message
             // (not attributes) lest the scheduler conflates distinct errors.
             // See TError::GetSkeleton.
-            THROW_ERROR_EXCEPTION("Some subjects mentioned in ACL are missing "
-                "(MissingSubjects: %v)",
+            THROW_ERROR_EXCEPTION("Some subjects mentioned in ACL are missing: %v",
                 tmpMissingSubjects);
         }
     }
