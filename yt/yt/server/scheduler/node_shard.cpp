@@ -640,7 +640,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     ProcessScheduledAndPreemptedJobs(
         schedulingContext,
-        /*requestContext*/ context);
+        response);
 
     ProcessOperationInfoHeartbeat(request, response);
     SetMinSpareResources(response);
@@ -1671,11 +1671,10 @@ void TNodeShard::LogOngoingJobsOnHeartbeat(
     }
 }
 
-template <class TRspHeartbeat, class TStatus>
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
-    TRspHeartbeat* response,
-    TStatus* jobStatus)
+    NProto::NNode::TRspHeartbeat* response,
+     NProto::TAllocationStatus* jobStatus)
 {
     auto allocationId = FromProto<TAllocationId>(jobStatus->allocation_id());
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
@@ -1962,13 +1961,10 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
     }
 }
 
-template <class TCtxNodeHeartbeatPtr>
 void TNodeShard::ProcessScheduledAndPreemptedJobs(
     const ISchedulingContextPtr& schedulingContext,
-    const TCtxNodeHeartbeatPtr& rpcContext)
+    NProto::NNode::TRspHeartbeat* response)
 {
-    auto* response = &rpcContext->Response();
-
     std::vector<TJobId> startedJobs;
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());
@@ -2049,8 +2045,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
     }
 }
 
-template <class TJobStatus>
-void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
+void TNodeShard::OnJobRunning(const TJobPtr& job, NProto::TAllocationStatus* status)
 {
     YT_VERIFY(status);
 

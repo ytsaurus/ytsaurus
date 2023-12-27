@@ -336,11 +336,10 @@ private:
         std::vector<TJobPtr>* runningJobs,
         bool* hasWaitingJobs);
 
-    template <class TRspHeartbeat, class TStatus>
     TJobPtr ProcessJobHeartbeat(
         const TExecNodePtr& node,
-        TRspHeartbeat* response,
-        TStatus* jobStatus);
+        NProto::NNode::TRspHeartbeat* response,
+        NProto::TAllocationStatus* jobStatus);
 
     bool IsHeartbeatThrottlingWithComplexity(
         const TExecNodePtr& node,
@@ -366,18 +365,16 @@ private:
 
     void SubmitJobsToStrategy();
 
-    template <class TCtxNodeHeartbeatPtr>
     void ProcessScheduledAndPreemptedJobs(
         const ISchedulingContextPtr& schedulingContext,
-        const TCtxNodeHeartbeatPtr& rpcContext);
+        NProto::NNode::TRspHeartbeat* response);
 
     void OnJobFinished(const TJobPtr& job);
     void OnJobAborted(
         const TJobPtr& job,
         const TError& error,
         EAbortReason abortReason);
-    template <class TJobStatus>
-    void OnJobRunning(const TJobPtr& job, TJobStatus* status);
+    void OnJobRunning(const TJobPtr& job, NProto::TAllocationStatus* status);
 
     void UpdateProfilingCounter(const TJobPtr& job, int value);
 
