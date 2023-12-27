@@ -62,6 +62,7 @@ static const auto& Logger = CypressProxyLogger;
 class TNodeProxyBase
     : public TYPathServiceBase
     , public virtual TSupportsSet
+    , public virtual TSupportsRemove
 {
 public:
     TNodeProxyBase(
@@ -94,7 +95,6 @@ protected:
     const ISequoiaTransactionPtr Transaction_;
 
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, Get);
-    DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, Remove);
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
@@ -236,17 +236,6 @@ protected:
         return CellTagFromId(rootstockId);
     }
 
-    void VerifyRemovalOfNodeWithNonSequoiaParent(const TYPath& parentPath)
-    {
-        // Only scion node can have non-Sequoia parent.
-        if (TypeFromId(Id_) != EObjectType::Scion) {
-            YT_LOG_FATAL("Attempted to remove Sequoia node with non-Sequoia parent (ParentPath: %v, NodePath: %v, NodeId: %v)",
-                parentPath,
-                Path_,
-                Id_);
-        }
-    }
-
     void DetachFromParent(TNodeId parentId, const TString& childKey)
     {
         NCypressServer::NProto::TReqDetachChild reqDetachChild;
@@ -255,51 +244,6 @@ protected:
         Transaction_->AddTransactionAction(
             CellTagFromId(parentId),
             MakeTransactionActionData(reqDetachChild));
-    }
-
-    void HandleUnresolvedSuffixOnRemoval(
-        const TCtxRemovePtr& context,
-        const TReqRemove* request,
-        TRspRemove* response,
-        TYPathBuf unresolvedSuffix)
-    {
-        YT_VERIFY(!unresolvedSuffix.empty());
-
-        // Try to reproduce Cypress behavior.
-
-        auto type = TypeFromId(Id_);
-        // TODO(kvk1920): Support documents.
-        if (!IsSequoiaCompositeNodeType(type)) {
-            THROW_ERROR_EXCEPTION("Node %v cannot have children", Path_);
-        }
-
-        TTokenizer tokenizer(unresolvedSuffix);
-        tokenizer.Advance();
-
-        if (tokenizer.GetType() == ETokenType::At) {
-            // Just redirect to an appropriate master cell.
-            auto newRequest = TYPathProxy::Remove(Path_ + unresolvedSuffix);
-            newRequest->CopyFrom(*request);
-            SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + unresolvedSuffix);
-
-            auto objectWriteProxy = CreateObjectServiceWriteProxy(
-                Bootstrap_->GetNativeRootClient(),
-                CellTagFromId(Id_));
-
-            auto masterResponse = WaitFor(objectWriteProxy.Execute(std::move(newRequest)))
-                .ValueOrThrow();
-            response->CopyFrom(*masterResponse);
-            context->Reply();
-            return;
-        }
-
-        tokenizer.Expect(ETokenType::Slash);
-        tokenizer.Advance();
-        tokenizer.Expect(ETokenType::Literal);
-
-        // There is no composite node type other than Sequoia map node. If we
-        // have unresolved suffix it can be either attribute or non-existent child.
-        ThrowNoSuchChild(Path_, tokenizer.GetToken());
     }
 
     void LockRowInPathToIdTable(
@@ -352,6 +296,68 @@ protected:
         context->Reply();
     }
 
+    void RemoveSelf(
+        TReqRemove* request,
+        TRspRemove* /*response*/,
+        const TCtxRemovePtr& context) override
+    {
+        auto recursive = request->recursive();
+        auto force = request->force();
+
+        context->SetRequestInfo("Recursive: %v, Force: %v",
+            recursive,
+            force);
+
+        if (force) {
+            // TODO(kvk1920): Current Cypress behaviour is just to ignore some errors.
+            THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
+        }
+
+        TCellTag subtreeRootCell;
+        if (TypeFromId(Id_) == EObjectType::Scion) {
+            subtreeRootCell = RemoveRootstock();
+        } else {
+            auto [parentPath, thisName] = DirNameAndBaseName(Path_);
+            LockRowInPathToIdTable(parentPath);
+
+            auto parentId = LookupNodeId(parentPath, Transaction_);
+            DetachFromParent(parentId, thisName);
+            subtreeRootCell = CellTagFromId(parentId);
+        }
+
+        auto mangledPath = MangleSequoiaPath(Path_);
+
+        // NB: For non-recursive removal we have to check if directory is empty.
+        // This can be done via requesting just 2 rows.
+        auto selectedRowsLimit = recursive ? std::nullopt : std::optional(2);
+
+        auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TPathToNodeIdKey>(
+            {
+                Format("path >= %Qv", mangledPath),
+                Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+            },
+            selectedRowsLimit))
+            .ValueOrThrow();
+        YT_VERIFY(nodesToRemove.size() >= 1);
+
+        if (!recursive && nodesToRemove.size() > 1) {
+            THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
+        }
+
+        for (const auto& node : nodesToRemove) {
+            RemoveNode(node.NodeId, node.Key.Path);
+        }
+
+        WaitFor(Transaction_->Commit({
+            .CoordinatorCellId = CellIdFromCellTag(subtreeRootCell),
+            .Force2PC = true,
+            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+        }))
+            .ThrowOnError();
+
+        context->Reply();
+    }
+
     void SetAttribute(
         const TYPath& /*path*/,
         TReqSet* request,
@@ -360,6 +366,18 @@ protected:
     {
         context->SetRequestInfo();
         auto newRequest = TYPathProxy::Set();
+        newRequest->CopyFrom(*request);
+        ForwardRequest(std::move(newRequest), response, context);
+    }
+
+    void RemoveAttribute(
+        const TYPath& /*path*/,
+        TReqRemove* request,
+        TRspRemove* response,
+        const TCtxRemovePtr& context) override
+    {
+        context->SetRequestInfo();
+        auto newRequest = TYPathProxy::Remove();
         newRequest->CopyFrom(*request);
         ForwardRequest(std::move(newRequest), response, context);
     }
@@ -394,76 +412,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
     auto newRequest = TYPathProxy::Get();
     newRequest->CopyFrom(*request);
     ForwardRequest(std::move(newRequest), response, context);
-}
-
-DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Remove)
-{
-    auto recursive = request->recursive();
-    auto force = request->force();
-
-    context->SetRequestInfo("Recursive: %v, Force: %v",
-        recursive,
-        force);
-
-    if (auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader()); !unresolvedSuffix.empty()) {
-        HandleUnresolvedSuffixOnRemoval(context, request, response, unresolvedSuffix);
-        return;
-    }
-
-    if (force) {
-        // TODO(kvk1920): Current Cypress behaviour is just to ignore some errors.
-        THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
-    }
-
-    auto [parentPath, thisName] = DirNameAndBaseName(Path_);
-    LockRowInPathToIdTable(parentPath);
-
-    auto parent = ResolvePath(Transaction_, parentPath);
-    // Ensure that every case is handled.
-    static_assert(std::variant_size<decltype(parent)>() == 2);
-
-    TCellTag subtreeRootCell;
-    if (std::holds_alternative<TCypressResolveResult>(parent)) {
-        // Only scion node can have non-Sequoia parent.
-        VerifyRemovalOfNodeWithNonSequoiaParent(parentPath);
-        subtreeRootCell = RemoveRootstock();
-    } else {
-        auto parentId = GetOrCrash<TSequoiaResolveResult>(parent).ResolvedPrefixNodeId;
-        DetachFromParent(parentId, thisName);
-        subtreeRootCell = CellTagFromId(parentId);
-    }
-
-    auto mangledPath = MangleSequoiaPath(Path_);
-
-    // NB: For non-recursive removal we have to check if directory is empty.
-    // This can be done via requesting just 2 rows.
-    auto selectedRowsLimit = recursive ? std::nullopt : std::optional(2);
-
-    auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TPathToNodeIdKey>(
-        {
-            Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
-        },
-        selectedRowsLimit))
-        .ValueOrThrow();
-    YT_VERIFY(nodesToRemove.size() >= 1);
-
-    if (!recursive && nodesToRemove.size() > 1) {
-        THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
-    }
-
-    for (const auto& node : nodesToRemove) {
-        RemoveNode(node.NodeId, node.Key.Path);
-    }
-
-    WaitFor(Transaction_->Commit({
-            .CoordinatorCellId = CellIdFromCellTag(subtreeRootCell),
-            .Force2PC = true,
-            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-        }))
-        .ThrowOnError();
-
-    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -917,6 +865,28 @@ private:
 
         context->Reply();
     }
+
+    void RemoveRecursive(
+        const TYPath& path,
+        TReqRemove* request,
+        TRspRemove* /*response*/,
+        const TCtxRemovePtr& context) override
+    {
+        auto recursive = request->recursive();
+        auto force = request->force();
+
+        context->SetRequestInfo("Recursive: %v, Force: %v",
+            recursive,
+            force);
+
+        TTokenizer tokenizer(path);
+        tokenizer.Advance();
+        tokenizer.Expect(ETokenType::Literal);
+
+        // There is no composite node type other than Sequoia map node. If we
+        // have unresolved suffix it can be either attribute or non-existent child.
+        ThrowNoSuchChild(Path_, tokenizer.GetToken());
+    }
 };
 
 DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
@@ -1223,10 +1193,10 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
     AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey);
 
     WaitFor(Transaction_->Commit({
-            .CoordinatorCellId = CellIdFromObjectId(parentId),
-            .Force2PC = true,
-            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-        }))
+        .CoordinatorCellId = CellIdFromObjectId(parentId),
+        .Force2PC = true,
+        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+    }))
         .ThrowOnError();
 
     ToProto(response->mutable_node_id(), destinationId);
