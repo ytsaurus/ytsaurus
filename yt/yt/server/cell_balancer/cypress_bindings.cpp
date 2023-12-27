@@ -156,11 +156,12 @@ void TBundleConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("rpc_proxy_resource_guarantee", &TThis::RpcProxyResourceGuarantee)
         .DefaultNew();
-
     registrar.Parameter("cpu_limits", &TThis::CpuLimits)
         .DefaultNew();
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
+    registrar.Parameter("medium_throughput_limits", &TThis::MediumThroughputLimits)
+        .Default();
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)
@@ -484,12 +485,24 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
+void TMediumThroughputLimits::Register(TRegistrar registrar)
+{
+    registrar.Parameter("write_byte_rate", &TThis::WriteByteRate)
+        .Default();
+
+    registrar.Parameter("read_byte_rate", &TThis::ReadByteRate)
+        .Default();
+}
+
 void TBundleDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cpu_limits", &TThis::CpuLimits)
         .DefaultNew();
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .Default();
+
+    registrar.Parameter("medium_throughput_limits", &TThis::MediumThroughputLimits)
         .Default();
 }
 

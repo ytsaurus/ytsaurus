@@ -84,6 +84,15 @@ TMemoryLimitsEnumIndexedVector TMemoryLimits::AsEnumIndexedVector() const
     return result;
 }
 
+void TMediumThroughputLimits::Register(TRegistrar registrar)
+{
+    registrar.Parameter("write_byte_rate", &TThis::WriteByteRate)
+        .Default();
+
+    registrar.Parameter("read_byte_rate", &TThis::ReadByteRate)
+        .Default();
+}
+
 void TMemoryLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_static", &TThis::TabletStatic)
@@ -111,6 +120,9 @@ void TBundleDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
+
+    registrar.Parameter("medium_throughput_limits", &TThis::MediumThroughputLimits)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

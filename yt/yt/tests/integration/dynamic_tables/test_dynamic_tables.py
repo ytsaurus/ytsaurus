@@ -26,7 +26,7 @@ from yt_commands import (
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_domestic_medium, raises_yt_error, get_tablet_errors,
-    suspend_tablet_cells, resume_tablet_cells,
+    suspend_tablet_cells, resume_tablet_cells, update_nodes_dynamic_config,
     ban_node, unban_node, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
 
 from yt_type_helpers import make_schema, optional_type
@@ -2610,6 +2610,76 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t")
 
         assert _insert(False)
+
+    def _get_orchid_memory_limits(self, node, category):
+        return get(
+            "//sys/cluster_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
+            .format(node, category))
+
+    @authors("capone212")
+    def test_changelog_write_throttler(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "tablet_node" : {
+                "medium_throttlers" : {
+                    "enable_changelog_throttling" : True,
+                }
+            }
+        })
+
+        def _get_insert_time(rows_count):
+            start_time = time.time()
+            for i in range(rows_count):
+                insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+            return time.time() - start_time
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        node_address = get_tablet_leader_address(tablet_id)
+        old_tablet_static = self._get_orchid_memory_limits(node_address, "tablet_static")
+        new_tablet_static = old_tablet_static + 1024
+
+        bundle_dynamic_config = {
+            "%true": {
+                "config_annotation": "foo",
+                "memory_limits": {
+                    "tablet_static" : new_tablet_static,
+                },
+                "medium_throughput_limits" : {
+                    "default" : {
+                        "write_byte_rate" : 10
+                    }
+                }
+            }
+        }
+        set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
+        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == new_tablet_static)
+
+        # Wait while changes actually take place
+        wait(lambda: _get_insert_time(10) > 5)
+
+        # Verify that timings are consistent
+        assert _get_insert_time(10) > 5
+
+        bundle_dynamic_config = {
+            "%true": {
+                "config_annotation": "foo",
+                "memory_limits": {
+                    "tablet_static" : old_tablet_static,
+                }
+            }
+        }
+        set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
+        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == new_tablet_static)
+
+        # Wait while changes actually take place
+        wait(lambda: _get_insert_time(10) < 5)
+        # Verify that timings are consistent
+        assert _get_insert_time(10) < 5
+
+        update_nodes_dynamic_config({})
 
     @authors("savrus")
     def test_mounted_table_attributes_update_validation(self):

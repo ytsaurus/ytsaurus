@@ -11,14 +11,15 @@ namespace NYT::NTabletNode {
 struct IDistributedThrottlerManager
     : public virtual TRefCounted
 {
-    virtual NConcurrency::IThroughputThrottlerPtr GetOrCreateThrottler(
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const NYPath::TYPath& tablePath,
         NObjectClient::TCellTag cellTag,
         const NConcurrency::TThroughputThrottlerConfigPtr& config,
         const TString& throttlerId,
         NDistributedThrottler::EDistributedThrottlerMode mode,
         TDuration rpcTimeout,
-        bool admitUnlimitedThrottler) = 0;
+        bool admitUnlimitedThrottler,
+        NProfiling::TProfiler profiler = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerManager)

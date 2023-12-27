@@ -17,6 +17,7 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
@@ -101,6 +102,47 @@ public:
 private:
     const ITabletSlotPtr Slot_;
     IBootstrap* const Bootstrap_;
+
+
+    void SyncThrottleChangelogs(
+        const IThroughputThrottlerPtr& throttler,
+        i64 count,
+        std::optional<TDuration> requestTimeout)
+    {
+        if (!throttler) {
+            return;
+        }
+
+        const auto throttlersConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()
+            ->TabletNode->MediumThrottlers;
+
+        if (!throttlersConfig->EnableChangelogThrottling) {
+            return;
+        }
+
+        auto maxThrottleTime = requestTimeout.value_or(throttlersConfig->MaxThrottlingTime) *
+            throttlersConfig->ThrottleTimeoutFraction;
+
+        maxThrottleTime = std::min(maxThrottleTime, throttlersConfig->MaxThrottlingTime);
+
+        if (auto waitTime = throttler->GetEstimatedOverdraftDuration(); waitTime > maxThrottleTime) {
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
+                "Journal media write is throttled")
+                << TErrorAttribute("request_max_throttle_time", maxThrottleTime)
+                << TErrorAttribute("estimated_throttler_wait_time", waitTime);
+        }
+
+        auto throttlerFuture = throttler->Throttle(count)
+            .WithTimeout(maxThrottleTime);
+
+        auto throttleResult = WaitForFast(throttlerFuture);
+        if (!throttleResult.IsOK()) {
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
+                "Journal media write is throttled")
+                << TErrorAttribute("max_throttle_wait_timeout", maxThrottleTime)
+                << throttleResult;
+        }
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
@@ -244,18 +286,25 @@ private:
                 slotOptions->SnapshotAccount,
                 slotOptions->SnapshotPrimaryMedium);
 
-            auto throttlerKind = ETabletDistributedThrottlerKind::Write;
-            const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[throttlerKind];
+            auto tableWriteThrottler = ETabletDistributedThrottlerKind::Write;
+            const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[tableWriteThrottler];
             if (writeThrottler && !writeThrottler->TryAcquire(params.DataWeight)) {
-                tabletSnapshot->TableProfiler->GetThrottlerCounter(throttlerKind)
+                tabletSnapshot->TableProfiler->GetThrottlerCounter(tableWriteThrottler)
                     ->Increment();
 
                 THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
                     "Write to tablet %v is throttled",
                     tabletId)
-                    << TErrorAttribute("throttler_kind", throttlerKind)
+                    << TErrorAttribute("throttler_kind", tableWriteThrottler)
                     << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalAmount());
             }
+
+            // Throttling changelog medium write
+            auto changelogWriteThrottlerType = ETabletDistributedThrottlerKind::ChangelogMediumWrite;
+            SyncThrottleChangelogs(
+                tabletSnapshot->DistributedThrottlers[changelogWriteThrottlerType],
+                Slot_->EstimateChangelogMediumBytes(params.DataWeight),
+                context->GetTimeout());
         } catch (const std::exception& ex) {
             THROW_ERROR ex
                 << TErrorAttribute("tablet_id", tabletId)

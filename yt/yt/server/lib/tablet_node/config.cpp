@@ -833,6 +833,18 @@ void TStatisticsReporterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMediumThrottlersConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_changelog_throttling", &TThis::EnableChangelogThrottling)
+        .Default(false);
+    registrar.Parameter("throttle_timeout_fraction", &TThis::ThrottleTimeoutFraction)
+        .Default(0.5);
+    registrar.Parameter("max_throttling_time", &TThis::MaxThrottlingTime)
+        .Default(TDuration::Minutes(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slots", &TThis::Slots)
@@ -893,6 +905,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_chunk_fragment_reader_throttling", &TThis::EnableChunkFragmentReaderThrottling)
         .Default(false);
+
+    registrar.Parameter("medium_throttlers", &TThis::MediumThrottlers)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

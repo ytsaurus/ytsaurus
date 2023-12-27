@@ -194,12 +194,25 @@ private:
             YT_VERIFY(!Closing_);
 
             auto result = VoidFuture;
+            int payloadBytes = 0;
+
             for (const auto& row : rows) {
                 YT_VERIFY(row);
                 auto batch = EnsureCurrentBatch();
                 // NB: We can form a handful of batches but since flushes are monotonic,
                 // the last one will do.
                 result = AppendToBatch(batch, row);
+
+                payloadBytes += row.Size();
+            }
+
+            if (auto writeObserver = Counters_.JournalWritesObserver) {
+                result.Subscribe(BIND([writeObserver, payloadBytes] (TError error) {
+                    if (!error.IsOK()) {
+                        return;
+                    }
+                    writeObserver->RegisterPayloadWrite(payloadBytes);
+                }));
             }
 
             QueueTrace_.Join(CurrentRowIndex_);
@@ -1518,6 +1531,10 @@ private:
             Counters_.JournalWrittenBytes.Increment(flushDataSize);
             Counters_.MediumWrittenBytes.Increment(response->statistics().data_bytes_written_to_medium());
             Counters_.IORequestCount.Increment(response->statistics().io_requests());
+
+            if (const auto& writeObserver = Counters_.JournalWritesObserver; writeObserver) {
+                writeObserver->RegisterJournalWrite(flushDataSize, response->statistics().data_bytes_written_to_medium());
+            }
 
             YT_LOG_DEBUG("Journal replica written (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, "
                 "MediumWrittenBytes: %v, JournalWrittenBytes: %v)",

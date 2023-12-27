@@ -2514,6 +2514,7 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         auto bundleConfig = New<TBundleDynamicConfig>();
         bundleConfig->CpuLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->CpuLimits);
         bundleConfig->MemoryLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->MemoryLimits);
+        bundleConfig->MediumThroughputLimits = NYTree::CloneYsonStructs(bundleInfo->TargetConfig->MediumThroughputLimits);
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 

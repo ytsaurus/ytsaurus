@@ -38,14 +38,15 @@ public:
         , MemberId_(ToString(cellId))
     { }
 
-    IThroughputThrottlerPtr GetOrCreateThrottler(
+    IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TYPath& tablePath,
         TCellTag cellTag,
         const TThroughputThrottlerConfigPtr& config,
         const TString& throttlerId,
         EDistributedThrottlerMode mode,
         TDuration rpcTimeout,
-        bool admitUnlimitedThrottler) override
+        bool admitUnlimitedThrottler,
+        NProfiling::TProfiler profiler) override
     {
         if (!config->Limit) {
             return admitUnlimitedThrottler
@@ -68,7 +69,7 @@ public:
                     rpcTimeout,
                     factoryName);
 
-                factory = DoCreateFactory(factoryName, cellTag, mode);
+                factory = DoCreateFactory(factoryName, cellTag, mode, profiler);
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
                     "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v)",
@@ -105,7 +106,8 @@ private:
     NDistributedThrottler::IDistributedThrottlerFactoryPtr DoCreateFactory(
         const TString& factoryName,
         NObjectClient::TCellTag /*cellTag*/,
-        NDistributedThrottler::EDistributedThrottlerMode mode)
+        NDistributedThrottler::EDistributedThrottlerMode mode,
+        NProfiling::TProfiler profiler)
     {
         auto config = New<TDistributedThrottlerConfig>();
         config->Mode = mode;
@@ -123,7 +125,8 @@ private:
             Bootstrap_->GetRpcServer(),
             BuildServiceAddress(GetLocalHostName(), Bootstrap_->GetConfig()->RpcPort),
             TabletNodeLogger,
-            Bootstrap_->GetNativeAuthenticator());
+            Bootstrap_->GetNativeAuthenticator(),
+            profiler);
     }
 };
 

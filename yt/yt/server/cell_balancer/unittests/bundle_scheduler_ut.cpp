@@ -1462,6 +1462,51 @@ TEST_P(TBundleSchedulerTest, CheckDynamicConfig)
     CheckEmptyAlerts(mutations);
 }
 
+TEST_P(TBundleSchedulerTest, CheckMediumThroughputLimits)
+{
+    auto input = GenerateInputContext(5 * GetDataCenterCount(), 5);
+    auto dataCenters = GetDataCenters(input);
+    input.Bundles["bigd"]->EnableTabletNodeDynamicConfig = true;
+
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
+
+    for (const auto& dataCenter : dataCenters) {
+        GenerateNodesForBundle(input, "bigd", 5, {.DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.DC = dataCenter});
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    // Check that new dynamic config is set for bundles.
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    EXPECT_TRUE(mutations.DynamicConfig);
+
+    input.DynamicConfig = *mutations.DynamicConfig;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Dynamic config did not change.
+    EXPECT_FALSE(mutations.DynamicConfig);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    input.Bundles["bigd"]->TargetConfig->MediumThroughputLimits = {
+        {"ssd_journals",  New<TMediumThroughputLimits>()},
+    };
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Dynamic config is changed.
+    EXPECT_TRUE(mutations.DynamicConfig);
+    CheckEmptyAlerts(mutations);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFooBarStruct

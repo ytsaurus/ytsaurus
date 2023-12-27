@@ -105,6 +105,65 @@ static const auto& Profiler = CellarAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChangelogMediumUsageTracker
+    : public IJournalWritesObserver
+{
+public:
+    explicit TChangelogMediumUsageTracker(NProfiling::TProfiler profiler)
+        : Profiler(profiler.WithPrefix("/changelog_medium_usage"))
+        , PayloadWrittenBytesCounter_(profiler.Counter("/payload_written_bytes_counter"))
+        , MediaWrittenBytesCounter_(profiler.Counter("/media_written_bytes_counter"))
+        , EstimatedInBytesCounter_(profiler.Counter("/estimated_in_bytes_counter"))
+        , EstimatedOutBytesCounter_(profiler.Counter("/estimated_out_bytes_counter"))
+    { }
+
+    void RegisterPayloadWrite(int payload) override
+    {
+        PayloadWrittenBytes_.fetch_add(payload, std::memory_order::relaxed);
+        PayloadWrittenBytesCounter_.Increment(payload);
+    }
+
+    void RegisterJournalWrite(int /*journalWrittenBytes*/, int mediaWrittenBytes) override
+    {
+        MediaWrittenBytes_.fetch_add(mediaWrittenBytes, std::memory_order::relaxed);
+        MediaWrittenBytesCounter_.Increment(mediaWrittenBytes);
+    }
+
+    int EstimateMediaBytes(int payloadBytes) const
+    {
+        static constexpr auto AccumulatedStatisticsThreshold = 1_MBs;
+
+        double totalPayloadBytes = PayloadWrittenBytes_.load(std::memory_order::relaxed);
+        double mediaWrittenBytes = MediaWrittenBytes_.load(std::memory_order::relaxed);
+
+        if (totalPayloadBytes < AccumulatedStatisticsThreshold || mediaWrittenBytes < AccumulatedStatisticsThreshold) {
+            return payloadBytes;
+        }
+
+        auto results = static_cast<i64>(mediaWrittenBytes * payloadBytes / totalPayloadBytes);
+
+        EstimatedInBytesCounter_.Increment(payloadBytes);
+        EstimatedOutBytesCounter_.Increment(results);
+
+        return results;
+    }
+
+private:
+    NProfiling::TProfiler Profiler;
+    NProfiling::TCounter PayloadWrittenBytesCounter_;
+    NProfiling::TCounter MediaWrittenBytesCounter_;
+
+    NProfiling::TCounter EstimatedInBytesCounter_;
+    NProfiling::TCounter EstimatedOutBytesCounter_;
+
+    std::atomic<i64> PayloadWrittenBytes_ = 0;
+    std::atomic<i64> MediaWrittenBytes_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TChangelogMediumUsageTracker);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellarOccupant
     : public ICellarOccupant
 {
@@ -124,6 +183,7 @@ public:
         , CellBundleName_(createInfo.cell_bundle())
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(MakeLogger())
+        , ChangelogMediumUsageTracker_(New<TChangelogMediumUsageTracker>(Occupier_.Acquire()->GetProfiler()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetOccupier()->GetOccupierAutomatonInvoker(), AutomatonThread);
     }
@@ -386,6 +446,9 @@ public:
         auto storesPath = GetStoresPath();
 
         auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
+        TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
+        performanceCounters.JournalWritesObserver = ChangelogMediumUsageTracker_;
+
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
@@ -393,7 +456,7 @@ public:
             changelogClient,
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
-            TJournalWriterPerformanceCounters{changelogProfiler});
+            std::move(performanceCounters));
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
         bool independent = Options_->IndependentPeers;
@@ -661,6 +724,11 @@ public:
         return SnapshotLocalIOQueue_->GetInvoker();
     }
 
+    int EstimateChangelogMediumBytes(int payload) const override
+    {
+        return ChangelogMediumUsageTracker_->EstimateMediaBytes(payload);
+    }
+
 private:
     const TCellarOccupantConfigPtr Config_;
     const ICellarBootstrapProxyPtr Bootstrap_;
@@ -717,6 +785,8 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    const TIntrusivePtr<TChangelogMediumUsageTracker> ChangelogMediumUsageTracker_;
 
 
     TYPath GetStoresPath()
@@ -779,7 +849,6 @@ private:
         return PrerequisiteTransactionId_;
     }
 
-
     static TFuture<void> OnLeaderLeaseCheckThunk(TWeakPtr<TCellarOccupant> weakThis)
     {
         auto this_ = weakThis.Lock();
@@ -800,7 +869,6 @@ private:
             return MakeFuture<void>(TError("No prerequisite transaction is attached"));
         }
     }
-
 
     void DoFinalize()
     {
