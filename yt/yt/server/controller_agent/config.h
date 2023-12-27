@@ -1150,11 +1150,8 @@ public:
 
     bool EnableColumnarStatisticsEarlyFinish;
 
-    //COMPAT(levysotsky): See YT-16507
+    // COMPAT(levysotsky): See YT-16507
     bool EnableTableColumnRenaming;
-
-    // TODO(eshcherbin): Remove this option, when we're sure aggregation is never needed. See: YT-17479.
-    bool AggregateMinNeededResourcesPerJobType;
 
     // Supposed to be used in tests.
     std::optional<i64> FootprintMemory;

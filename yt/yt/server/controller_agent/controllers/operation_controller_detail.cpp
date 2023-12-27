@@ -5041,7 +5041,6 @@ void TOperationControllerBase::SafeUpdateMinNeededJobResources()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
-    THashMap<EJobType, TJobResourcesWithQuota> minNeededJobResourcesPerJobType;
     THashMap<TString, TJobResourcesWithQuota> minNeededJobResourcesPerTask;
     for (const auto& task : Tasks) {
         if (task->HasNoPendingJobs()) {
@@ -5059,28 +5058,10 @@ void TOperationControllerBase::SafeUpdateMinNeededJobResources()
             return;
         }
 
-        if (Config->AggregateMinNeededResourcesPerJobType) {
-            auto jobType = task->GetJobType();
-            auto it = minNeededJobResourcesPerJobType.find(jobType);
-            if (it == minNeededJobResourcesPerJobType.end()) {
-                EmplaceOrCrash(minNeededJobResourcesPerJobType, jobType, resources);
-            } else {
-                // NB(eshcherbin): This aggregation loses disk quota. We are going to remove it completely. See: YT-17479.
-                it->second = Min(it->second, resources);
-            }
-        } else {
-            EmplaceOrCrash(minNeededJobResourcesPerTask, task->GetTitle(), resources);
-        }
+        EmplaceOrCrash(minNeededJobResourcesPerTask, task->GetTitle(), resources);
     }
 
     TJobResourcesWithQuotaList minNeededResources;
-    for (const auto& [jobType, resources] : minNeededJobResourcesPerJobType) {
-        minNeededResources.push_back(resources);
-
-        YT_LOG_DEBUG("Aggregated minimum needed resources for jobs (JobType: %v, MinNeededResources: %v)",
-            jobType,
-            FormatResources(resources));
-    }
     for (const auto& [taskTitle, resources] : minNeededJobResourcesPerTask) {
         minNeededResources.push_back(resources);
 
