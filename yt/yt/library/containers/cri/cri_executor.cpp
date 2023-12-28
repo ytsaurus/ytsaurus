@@ -89,6 +89,7 @@ public:
         , PodDescriptor_(podDescriptor)
         , PodSpec_(std::move(podSpec))
         , PollPeriod_(pollPeriod)
+        , Logger(NCri::Logger)
     {
         // Just for symmetry with sibling classes.
         AddArgument(Path_);
@@ -96,6 +97,7 @@ public:
 
     void Kill(int /*signal*/) override
     {
+        YT_LOG_DEBUG("Killing process");
         WaitFor(Executor_->StopContainer(ContainerDescriptor_))
             .ThrowOnError();
     }
@@ -122,6 +124,8 @@ private:
     const TCriPodSpecPtr PodSpec_;
     const TDuration PollPeriod_;
 
+    NLogging::TLogger Logger;
+
     TCriDescriptor ContainerDescriptor_;
 
     TPeriodicExecutorPtr AsyncWaitExecutor_;
@@ -141,12 +145,18 @@ private:
             }
         }
 
+        Logger.AddTag("Pod: %v", PodDescriptor_);
+
+        YT_LOG_DEBUG("Creating container (Container: %v)",
+            ContainerSpec_->Name);
+
         ContainerDescriptor_ = WaitFor(Executor_->CreateContainer(ContainerSpec_, PodDescriptor_, PodSpec_))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Spawning process (Command: %v, Container: %v, Environment: %v)",
+        Logger.AddTag("Container: %v", ContainerDescriptor_);
+
+        YT_LOG_DEBUG("Spawning process (Command: %v, Environment: %v)",
             ContainerSpec_->Command[0],
-            ContainerDescriptor_,
             ContainerSpec_->Environment);
 
         WaitFor(Executor_->StartContainer(ContainerDescriptor_))
@@ -176,7 +186,7 @@ private:
         auto status = response->status();
         if (status.state() == NProto::CONTAINER_EXITED) {
             auto error = DecodeExitCode(status.exit_code(), status.reason());
-            YT_LOG_DEBUG(error, "Process finished (Container: %v)", ContainerDescriptor_);
+            YT_LOG_DEBUG(error, "Process finished");
             YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
             FinishedPromise_.TrySet(error);
         }
