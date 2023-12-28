@@ -471,8 +471,6 @@ inline void set_file_statuses(DWORD attrs, const ULONG* reparse_point_tag, fs::p
     }
 }
 
-#if !defined(UNDER_CE)
-
 //! FILE_ID_128 definition from Windows SDK
 struct file_id_128
 {
@@ -981,86 +979,13 @@ done:
     return error_code();
 }
 
-#else // !defined(UNDER_CE)
-
-inline system::error_code dir_itr_close(dir_itr_imp& imp) BOOST_NOEXCEPT
-{
-    if (imp.handle != NULL)
-    {
-        if (BOOST_LIKELY(imp.close_handle))
-            ::FindClose(imp.handle);
-        imp.handle = NULL;
-    }
-
-    return error_code();
-}
-
-error_code dir_itr_increment(dir_itr_imp& imp, fs::path& filename, fs::file_status& sf, fs::file_status& symlink_sf)
-{
-    WIN32_FIND_DATAW data;
-    if (::FindNextFileW(imp.handle, &data) == 0) // fails
-    {
-        DWORD error = ::GetLastError();
-        dir_itr_close(imp);
-        if (error == ERROR_NO_MORE_FILES)
-            goto done;
-        return error_code(error, system_category());
-    }
-
-    filename = data.cFileName;
-    set_file_statuses(data.dwFileAttributes, NULL, filename, sf, symlink_sf);
-
-done:
-    return error_code();
-}
-
-error_code dir_itr_create(boost::intrusive_ptr< detail::dir_itr_imp >& imp, fs::path const& dir, unsigned int opts, directory_iterator_params*, fs::path& first_filename, fs::file_status& sf, fs::file_status& symlink_sf)
-{
-    boost::intrusive_ptr< detail::dir_itr_imp > pimpl(new (static_cast< std::size_t >(0u)) detail::dir_itr_imp());
-    if (BOOST_UNLIKELY(!pimpl))
-        return make_error_code(system::errc::not_enough_memory);
-
-    // use a form of search Sebastian Martel reports will work with Win98
-    fs::path dirpath(dir);
-    dirpath.make_preferred();
-    dirpath /= L"*";
-
-    WIN32_FIND_DATAW data;
-    pimpl->handle = ::FindFirstFileW(dirpath.c_str(), &data);
-    if (BOOST_UNLIKELY(pimpl->handle == INVALID_HANDLE_VALUE))
-    {
-        pimpl->handle = NULL; // signal eof
-
-        // Note: an empty root directory has no "." or ".." entries, so this
-        // causes a ERROR_FILE_NOT_FOUND error which we do not consider an
-        // error. It is treated as eof instead.
-        // Windows Mobile returns ERROR_NO_MORE_FILES; see ticket #3551
-        DWORD error = ::GetLastError();
-        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_NO_MORE_FILES)
-            goto done;
-
-        return error_code(error, system_category());
-    }
-
-    pimpl->close_handle = true;
-
-    first_filename = data.cFileName;
-    set_file_statuses(data.dwFileAttributes, NULL, first_filename, sf, symlink_sf);
-
-done:
-    imp.swap(pimpl);
-    return error_code();
-}
-
-#endif // !defined(UNDER_CE)
-
 BOOST_CONSTEXPR_OR_CONST err_t not_found_error_code = ERROR_PATH_NOT_FOUND;
 
 #endif // BOOST_WINDOWS_API
 
 } // namespace
 
-#if defined(BOOST_WINDOWS_API) && !defined(UNDER_CE)
+#if defined(BOOST_WINDOWS_API)
 
 //! Initializes directory iterator implementation
 void init_directory_iterator_impl() BOOST_NOEXCEPT
@@ -1073,7 +998,7 @@ void init_directory_iterator_impl() BOOST_NOEXCEPT
     }
 }
 
-#endif // defined(BOOST_WINDOWS_API) && !defined(UNDER_CE)
+#endif // defined(BOOST_WINDOWS_API)
 
 BOOST_FILESYSTEM_DECL
 dir_itr_imp::~dir_itr_imp() BOOST_NOEXCEPT

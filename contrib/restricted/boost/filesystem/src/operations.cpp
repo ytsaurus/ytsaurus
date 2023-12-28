@@ -244,10 +244,10 @@ namespace detail {
 void init_fill_random_impl(unsigned int major_ver, unsigned int minor_ver, unsigned int patch_ver);
 #endif // defined(linux) || defined(__linux) || defined(__linux__)
 
-#if defined(BOOST_WINDOWS_API) && !defined(UNDER_CE)
+#if defined(BOOST_WINDOWS_API)
 //! Initializes directory iterator implementation. Implemented in directory.cpp.
 void init_directory_iterator_impl() BOOST_NOEXCEPT;
-#endif // defined(BOOST_WINDOWS_API) && !defined(UNDER_CE)
+#endif // defined(BOOST_WINDOWS_API)
 
 //--------------------------------------------------------------------------------------//
 //                                                                                      //
@@ -765,7 +765,11 @@ struct copy_file_data_sendfile
             if (size_left < static_cast< uintmax_t >(max_batch_size))
                 size_to_copy = static_cast< std::size_t >(size_left);
             ssize_t sz = ::sendfile(outfile, infile, NULL, size_to_copy);
-            if (BOOST_UNLIKELY(sz < 0))
+            if (BOOST_LIKELY(sz > 0))
+            {
+                offset += sz;
+            }
+            else if (sz < 0)
             {
                 int err = errno;
                 if (err == EINTR)
@@ -789,8 +793,11 @@ struct copy_file_data_sendfile
 
                 return err;
             }
-
-            offset += sz;
+            else
+            {
+                // EOF: the input file was truncated while copying was in progress
+                break;
+            }
         }
 
         return 0;
@@ -819,7 +826,11 @@ struct copy_file_data_copy_file_range
             // Note: Use syscall directly to avoid depending on libc version. copy_file_range is added in glibc 2.27.
             // uClibc-ng does not have copy_file_range as of the time of this writing (the latest uClibc-ng release is 1.0.33).
             loff_t sz = ::syscall(__NR_copy_file_range, infile, (loff_t*)NULL, outfile, (loff_t*)NULL, size_to_copy, (unsigned int)0u);
-            if (BOOST_UNLIKELY(sz < 0))
+            if (BOOST_LIKELY(sz > 0))
+            {
+                offset += sz;
+            }
+            else if (sz < 0)
             {
                 int err = errno;
                 if (err == EINTR)
@@ -864,8 +875,11 @@ struct copy_file_data_copy_file_range
 
                 return err;
             }
-
-            offset += sz;
+            else
+            {
+                // EOF: the input file was truncated while copying was in progress
+                break;
+            }
         }
 
         return 0;
@@ -1293,10 +1307,8 @@ SetFileInformationByHandle_t* set_file_information_by_handle_api = NULL;
 
 GetFileInformationByHandleEx_t* get_file_information_by_handle_ex_api = NULL;
 
-#if !defined(UNDER_CE)
 NtCreateFile_t* nt_create_file_api = NULL;
 NtQueryDirectoryFile_t* nt_query_directory_file_api = NULL;
-#endif // !defined(UNDER_CE)
 
 namespace {
 
@@ -1332,7 +1344,6 @@ BOOST_FILESYSTEM_INIT_FUNC init_winapi_func_ptrs()
         }
     }
 
-#if !defined(UNDER_CE)
     h = boost::winapi::GetModuleHandleW(L"ntdll.dll");
     if (BOOST_LIKELY(!!h))
     {
@@ -1341,7 +1352,6 @@ BOOST_FILESYSTEM_INIT_FUNC init_winapi_func_ptrs()
     }
 
     init_directory_iterator_impl();
-#endif // !defined(UNDER_CE)
 
     return BOOST_FILESYSTEM_INITRETSUCCESS_V;
 }
@@ -1395,8 +1405,6 @@ const winapi_func_ptrs_initializer winapi_func_ptrs_init;
 #endif // defined(_MSC_VER)
 
 
-// Windows CE has no environment variables
-#if !defined(UNDER_CE)
 inline std::wstring wgetenv(const wchar_t* name)
 {
     // use a separate buffer since C++03 basic_string is not required to be contiguous
@@ -1410,7 +1418,6 @@ inline std::wstring wgetenv(const wchar_t* name)
 
     return std::wstring();
 }
-#endif // !defined(UNDER_CE)
 
 inline bool not_found_error(int errval) BOOST_NOEXCEPT
 {
@@ -1424,26 +1431,43 @@ inline bool not_found_error(int errval) BOOST_NOEXCEPT
 }
 
 // these constants come from inspecting some Microsoft sample code
-inline std::time_t to_time_t(FILETIME const& ft) BOOST_NOEXCEPT
+inline DWORD to_time_t(FILETIME const& ft, std::time_t& t)
 {
-    uint64_t t = (static_cast< uint64_t >(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
-    t -= 116444736000000000ull;
-    t /= 10000000u;
-    return static_cast< std::time_t >(t);
+    uint64_t ut = (static_cast< uint64_t >(ft.dwHighDateTime) << 32u) | ft.dwLowDateTime;
+    if (BOOST_UNLIKELY(ut > static_cast< uint64_t >((std::numeric_limits< int64_t >::max)())))
+        return ERROR_INVALID_DATA;
+
+    // On Windows, time_t is signed, and negative values are possible since FILETIME epoch is earlier than POSIX epoch
+    int64_t st = static_cast< int64_t >(ut) / 10000000 - 11644473600ll;
+    if (BOOST_UNLIKELY(st < static_cast< int64_t >((std::numeric_limits< std::time_t >::min)()) ||
+        st > static_cast< int64_t >((std::numeric_limits< std::time_t >::max)())))
+    {
+        return ERROR_INVALID_DATA;
+    }
+
+    t = static_cast< std::time_t >(st);
+    return 0u;
 }
 
-inline void to_FILETIME(std::time_t t, FILETIME& ft) BOOST_NOEXCEPT
+inline DWORD to_FILETIME(std::time_t t, FILETIME& ft)
 {
-    uint64_t temp = t;
-    temp *= 10000000u;
-    temp += 116444736000000000ull;
-    ft.dwLowDateTime = static_cast< DWORD >(temp);
-    ft.dwHighDateTime = static_cast< DWORD >(temp >> 32);
+    // On Windows, time_t is signed, and negative values are possible since FILETIME epoch is earlier than POSIX epoch
+    int64_t st = static_cast< int64_t >(t);
+    if (BOOST_UNLIKELY(st < ((std::numeric_limits< int64_t >::min)() / 10000000 - 11644473600ll) ||
+        st > ((std::numeric_limits< int64_t >::max)() / 10000000 - 11644473600ll)))
+    {
+        return ERROR_INVALID_DATA;
+    }
+
+    st = (st + 11644473600ll) * 10000000;
+    uint64_t ut = static_cast< uint64_t >(st);
+    ft.dwLowDateTime = static_cast< DWORD >(ut);
+    ft.dwHighDateTime = static_cast< DWORD >(ut >> 32u);
+
+    return 0u;
 }
 
 } // unnamed namespace
-
-#if !defined(UNDER_CE)
 
 //! The flag indicates whether OBJ_DONT_REPARSE flag is not supported by the kernel
 static bool g_no_obj_dont_reparse = false;
@@ -1508,8 +1532,6 @@ boost::winapi::NTSTATUS_ nt_create_file_handle_at(HANDLE& out, HANDLE basedir_ha
 
     return status;
 }
-
-#endif // !defined(UNDER_CE)
 
 ULONG get_reparse_point_tag_ioctl(HANDLE h, path const& p, error_code* ec)
 {
@@ -1955,8 +1977,6 @@ inline bool remove_impl(path const& p, error_code* ec)
     }
 }
 
-#if !defined(UNDER_CE)
-
 //! remove_all() by handle implementation for Windows Vista and newer
 uintmax_t remove_all_nt6_by_handle(HANDLE h, path const& p, error_code* ec)
 {
@@ -2071,8 +2091,6 @@ uintmax_t remove_all_nt6_by_handle(HANDLE h, path const& p, error_code* ec)
     return count;
 }
 
-#endif // !defined(UNDER_CE)
-
 //! remove_all() implementation for Windows XP and older
 uintmax_t remove_all_nt5_impl(path const& p, error_code* ec)
 {
@@ -2143,7 +2161,6 @@ uintmax_t remove_all_nt5_impl(path const& p, error_code* ec)
 //! remove_all() implementation
 inline uintmax_t remove_all_impl(path const& p, error_code* ec)
 {
-#if !defined(UNDER_CE)
     remove_impl_type impl = fs::detail::atomic_load_relaxed(g_remove_impl_type);
     if (BOOST_LIKELY(impl != remove_nt5))
     {
@@ -2167,7 +2184,6 @@ inline uintmax_t remove_all_impl(path const& p, error_code* ec)
 
         return fs::detail::remove_all_nt6_by_handle(h.handle, p, ec);
     }
-#endif // !defined(UNDER_CE)
 
     return fs::detail::remove_all_nt5_impl(p, ec);
 }
@@ -3366,7 +3382,7 @@ void create_symlink(path const& to, path const& from, error_code* ec)
 BOOST_FILESYSTEM_DECL
 path current_path(error_code* ec)
 {
-#if defined(UNDER_CE) || defined(BOOST_FILESYSTEM_USE_WASI)
+#if defined(BOOST_FILESYSTEM_USE_WASI)
     // Windows CE has no current directory, so everything's relative to the root of the directory tree.
     // WASI also does not support current path.
     emit_error(BOOST_ERROR_NOT_SUPPORTED, ec, "boost::filesystem::current_path");
@@ -3436,7 +3452,7 @@ path current_path(error_code* ec)
 BOOST_FILESYSTEM_DECL
 void current_path(path const& p, system::error_code* ec)
 {
-#if defined(UNDER_CE) || defined(BOOST_FILESYSTEM_USE_WASI)
+#if defined(BOOST_FILESYSTEM_USE_WASI)
     emit_error(BOOST_ERROR_NOT_SUPPORTED, p, ec, "boost::filesystem::current_path");
 #else
     error(!BOOST_SET_CURRENT_DIRECTORY(p.c_str()) ? BOOST_ERRNO : 0, p, ec, "boost::filesystem::current_path");
@@ -3784,18 +3800,26 @@ std::time_t creation_time(path const& p, system::error_code* ec)
         OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS));
 
+    DWORD err;
     if (BOOST_UNLIKELY(hw.handle == INVALID_HANDLE_VALUE))
     {
+    fail_errno:
+        err = BOOST_ERRNO;
     fail:
-        emit_error(BOOST_ERRNO, p, ec, "boost::filesystem::creation_time");
+        emit_error(err, p, ec, "boost::filesystem::creation_time");
         return (std::numeric_limits< std::time_t >::min)();
     }
 
     FILETIME ct;
     if (BOOST_UNLIKELY(!::GetFileTime(hw.handle, &ct, NULL, NULL)))
+        goto fail_errno;
+
+    std::time_t t;
+    err = to_time_t(ct, t);
+    if (BOOST_UNLIKELY(err != 0u))
         goto fail;
 
-    return to_time_t(ct);
+    return t;
 
 #endif // defined(BOOST_POSIX_API)
 }
@@ -3844,18 +3868,26 @@ std::time_t last_write_time(path const& p, system::error_code* ec)
         OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS));
 
+    DWORD err;
     if (BOOST_UNLIKELY(hw.handle == INVALID_HANDLE_VALUE))
     {
+    fail_errno:
+        err = BOOST_ERRNO;
     fail:
-        emit_error(BOOST_ERRNO, p, ec, "boost::filesystem::last_write_time");
+        emit_error(err, p, ec, "boost::filesystem::last_write_time");
         return (std::numeric_limits< std::time_t >::min)();
     }
 
     FILETIME lwt;
     if (BOOST_UNLIKELY(!::GetFileTime(hw.handle, NULL, NULL, &lwt)))
+        goto fail_errno;
+
+    std::time_t t;
+    err = to_time_t(lwt, t);
+    if (BOOST_UNLIKELY(err != 0u))
         goto fail;
 
-    return to_time_t(lwt);
+    return t;
 
 #endif // defined(BOOST_POSIX_API)
 }
@@ -3910,18 +3942,23 @@ void last_write_time(path const& p, const std::time_t new_time, system::error_co
         OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS));
 
+    DWORD err;
     if (BOOST_UNLIKELY(hw.handle == INVALID_HANDLE_VALUE))
     {
+    fail_errno:
+        err = BOOST_ERRNO;
     fail:
-        emit_error(BOOST_ERRNO, p, ec, "boost::filesystem::last_write_time");
+        emit_error(err, p, ec, "boost::filesystem::last_write_time");
         return;
     }
 
     FILETIME lwt;
-    to_FILETIME(new_time, lwt);
+    err = to_FILETIME(new_time, lwt);
+    if (BOOST_UNLIKELY(err != 0u))
+        goto fail;
 
     if (BOOST_UNLIKELY(!::SetFileTime(hw.handle, NULL, NULL, &lwt)))
-        goto fail;
+        goto fail_errno;
 
 #endif // defined(BOOST_POSIX_API)
 }
@@ -4264,7 +4301,7 @@ space_info space(path const& p, error_code* ec)
         str.push_back(path::preferred_separator);
 
     ULARGE_INTEGER avail, total, free;
-    if (!error(::GetDiskFreeSpaceExW(str.c_str(), &avail, &total, &free) == 0, p, ec, "boost::filesystem::space"))
+    if (!error(::GetDiskFreeSpaceExW(str.c_str(), &avail, &total, &free) == 0 ? BOOST_ERRNO : 0, p, ec, "boost::filesystem::space"))
     {
         info.capacity = static_cast< uintmax_t >(total.QuadPart);
         info.free = static_cast< uintmax_t >(free.QuadPart);
@@ -4302,6 +4339,7 @@ path temp_directory_path(system::error_code* ec)
         ec->clear();
 
 #ifdef BOOST_POSIX_API
+
     const char* val = NULL;
 
     (val = std::getenv("TMPDIR")) ||
@@ -4332,9 +4370,8 @@ path temp_directory_path(system::error_code* ec)
     return p;
 
 #else // Windows
-#if !defined(UNDER_CE)
 
-    static const wchar_t* env_list[] = { L"TMP", L"TEMP", L"LOCALAPPDATA", L"USERPROFILE" };
+    static const wchar_t* const env_list[] = { L"TMP", L"TEMP", L"LOCALAPPDATA", L"USERPROFILE" };
     static const wchar_t temp_dir[] = L"Temp";
 
     path p;
@@ -4375,39 +4412,6 @@ path temp_directory_path(system::error_code* ec)
 
     return p;
 
-#else // Windows CE
-
-    // Windows CE has no environment variables, so the same code as used for
-    // regular Windows, above, doesn't work.
-
-    DWORD size = ::GetTempPathW(0, NULL);
-    if (size == 0u)
-    {
-    fail:
-        int errval = ::GetLastError();
-        error(errval, ec, "boost::filesystem::temp_directory_path");
-        return path();
-    }
-
-    boost::scoped_array< wchar_t > buf(new wchar_t[size]);
-    if (::GetTempPathW(size, buf.get()) == 0)
-        goto fail;
-
-    path p(buf.get());
-    p.remove_trailing_separator();
-
-    file_status status = detail::status_impl(p, ec);
-    if (ec && *ec)
-        return path();
-    if (!is_directory(status))
-    {
-        error(ERROR_PATH_NOT_FOUND, p, ec, "boost::filesystem::temp_directory_path");
-        return path();
-    }
-
-    return p;
-
-#endif // !defined(UNDER_CE)
 #endif
 }
 
@@ -4424,6 +4428,7 @@ path system_complete(path const& p, system::error_code* ec)
     return res;
 
 #else
+
     if (p.empty())
     {
         if (ec)
@@ -4445,6 +4450,7 @@ path system_complete(path const& p, system::error_code* ec)
     boost::scoped_array< wchar_t > big_buf(new wchar_t[len]);
 
     return error(get_full_path_name(p, len, big_buf.get(), &pfn) == 0 ? BOOST_ERRNO : 0, p, ec, "boost::filesystem::system_complete") ? path() : path(big_buf.get());
+
 #endif
 }
 

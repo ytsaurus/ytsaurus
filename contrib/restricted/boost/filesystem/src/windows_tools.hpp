@@ -88,8 +88,6 @@ inline bool is_reparse_point_tag_a_symlink(ULONG reparse_point_tag)
         || reparse_point_tag == IO_REPARSE_TAG_MOUNT_POINT; // aka "directory junction" or "junction"
 }
 
-#if !defined(UNDER_CE)
-
 //! Platform-specific parameters for directory iterator construction
 struct directory_iterator_params
 {
@@ -212,8 +210,6 @@ typedef boost::winapi::NTSTATUS_ (NTAPI NtQueryDirectoryFile_t)(
 
 extern NtQueryDirectoryFile_t* nt_query_directory_file_api;
 
-#endif // !defined(UNDER_CE)
-
 //! FILE_INFO_BY_HANDLE_CLASS enum entries
 enum file_info_by_handle_class
 {
@@ -267,10 +263,8 @@ inline HANDLE create_file_handle(boost::filesystem::path const& p, DWORD dwDesir
     return ::CreateFileW(p.c_str(), dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
 }
 
-#if !defined(UNDER_CE)
 //! Creates a file handle for a file relative to a previously opened base directory. The file path must be relative and in preferred format.
 boost::winapi::NTSTATUS_ nt_create_file_handle_at(HANDLE& out, HANDLE basedir_handle, boost::filesystem::path const& p, ULONG FileAttributes, ACCESS_MASK DesiredAccess, ULONG ShareMode, ULONG CreateDisposition, ULONG CreateOptions);
-#endif // !defined(UNDER_CE)
 
 } // namespace detail
 } // namespace filesystem

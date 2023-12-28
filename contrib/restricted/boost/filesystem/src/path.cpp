@@ -399,7 +399,7 @@ BOOST_FILESYSTEM_DECL void path_algorithms::append_v4(path& p, const value_type*
             // if (p.is_absolute())
             if
             (
-#if defined(BOOST_WINDOWS_API) && !defined(UNDER_CE)
+#if defined(BOOST_WINDOWS_API)
                 that_root_name_size > 0 &&
 #endif
                 that_root_dir_pos < that_size
