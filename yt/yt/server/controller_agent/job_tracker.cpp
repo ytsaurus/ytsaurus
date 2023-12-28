@@ -1933,7 +1933,9 @@ void TJobTracker::DoRequestJobGracefulAbort(
     Visit(
         requestedActionInfo,
         [&] (TNoActionRequested) {
-            requestedActionInfo = TGracefulAbortRequestOptions(reason);
+            requestedActionInfo = TGracefulAbortRequestOptions{
+                .Reason = reason,
+            };
         },
         [&] (const TInterruptionRequestOptions& /*requestOptions*/) {
             YT_LOG_DEBUG(
@@ -1941,7 +1943,9 @@ void TJobTracker::DoRequestJobGracefulAbort(
                 jobId,
                 operationId);
 
-            requestedActionInfo = TGracefulAbortRequestOptions(reason);
+            requestedActionInfo = TGracefulAbortRequestOptions{
+                .Reason = reason,
+            };
         },
         [&] (TGracefulAbortRequestOptions& /*requestOptions*/) { });
 }
