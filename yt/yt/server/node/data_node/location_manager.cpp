@@ -118,11 +118,11 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    THashMap<TString, TString> diskNameToId;
+    THashMap<TString, TDiskInfo> diskNameToDisk;
     THashSet<TString> failedDisks;
 
     for (const auto& disk : disks) {
-        diskNameToId.emplace(std::make_pair(disk.DeviceName, disk.DiskId));
+        diskNameToDisk.emplace(std::make_pair(disk.DeviceName, disk));
         if (disk.State == NContainers::EDiskState::Failed) {
             failedDisks.insert(disk.DeviceName);
         }
@@ -133,17 +133,18 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     locationLivenessInfos.reserve(locations.size());
 
     for (const auto& location : locations) {
-        auto it = diskNameToId.find(location->GetStaticConfig()->DeviceName);
+        auto it = diskNameToDisk.find(location->GetStaticConfig()->DeviceName);
 
-        if (it == diskNameToId.end()) {
+        if (it == diskNameToDisk.end()) {
             YT_LOG_WARNING("Unknown location disk (DeviceName: %v)",
                 location->GetStaticConfig()->DeviceName);
         } else {
             locationLivenessInfos.push_back(TLocationLivenessInfo{
                 .Location = location,
-                .DiskId = it->second,
+                .DiskId = it->second.DiskId,
                 .LocationState = location->GetState(),
-                .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName)
+                .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName),
+                .DiskState = it->second.State
             });
         }
     }
@@ -510,7 +511,11 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
         if (livenessInfo.IsDiskAlive) {
             diskWithLivenessLocations.insert(livenessInfo.DiskId);
         } else {
-            location->MarkLocationDiskFailed();
+            if (livenessInfo.DiskState == NContainers::EDiskState::Failed) {
+                location->MarkLocationDiskFailed();
+            } else if (livenessInfo.DiskState == NContainers::EDiskState::RecoverWait) {
+                location->MarkLocationDiskWaitingReplacement();
+            }
         }
 
         if (livenessInfo.LocationState == ELocationState::Destroying) {
