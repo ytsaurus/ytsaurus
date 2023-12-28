@@ -277,7 +277,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 			},
 		},
 		{
-			Title:  "Advanced options",
+			Title:  "Advanced",
 			Hidden: true,
 			Options: []strawberry.OptionDescriptor{
 				{
