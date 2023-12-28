@@ -523,7 +523,7 @@ public:
 
     NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
 
-    //! This option is specific for nvidia-container-runtime.
+    //! This option is specific to nvidia-container-runtime.
     TString DefaultNvidiaDriverCapabilities;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
