@@ -1058,6 +1058,27 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
             {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
         ])
 
+        self._assert_rows_contain(pull_consumer("//tmp/c", "//tmp/q", partition_index=0, offset=None), [
+            {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ])
+
+        advance_consumer("//tmp/c", "//tmp/q", partition_index=0, old_offset=None, new_offset=1)
+
+        self._assert_rows_contain(pull_consumer("//tmp/c", "//tmp/q", partition_index=0, offset=None), [
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ])
+
+        with raises_yt_error("Invalid tablet index for table"):
+            pull_consumer("//tmp/c", "//tmp/q", partition_index=1, offset=None)
+
+        register_queue_consumer("abc://tmp/q", "//tmp/c", vital=False)
+        with raises_yt_error("Queue cluster"):
+            pull_consumer("//tmp/c", "abc://tmp/q", partition_index=0, offset=None)
+
+        with raises_yt_error("Queue cluster"):
+            pull_consumer("//tmp/c", "abc://tmp/q", partition_index=0, offset=0)
+
     @authors("achulkov2")
     @pytest.mark.parametrize("create_consumer", [
         _create_consumer,

@@ -148,7 +148,8 @@ def pull_consumer(consumer_path, queue_path, offset, partition_index,
         "queue_path": TablePath(queue_path, client=client),
         "output_format": format.to_yson_type(),
     }
-    set_param(params, "offset", offset)
+    if offset is not None:
+        set_param(params, "offset", offset)
     set_param(params, "partition_index", partition_index)
     set_param(params, "max_row_count", max_row_count)
     set_param(params, "max_data_weight", max_data_weight)

@@ -98,7 +98,8 @@ void TListQueueConsumerRegistrationsCommand::DoExecute(ICommandContextPtr contex
 TPullQueueCommand::TPullQueueCommand()
 {
     RegisterParameter("queue_path", QueuePath);
-    RegisterParameter("offset", Offset);
+    RegisterParameter("offset", Offset)
+        .Optional();
     RegisterParameter("partition_index", PartitionIndex);
 
     RegisterParameter("max_row_count", RowBatchReadOptions.MaxRowCount)
