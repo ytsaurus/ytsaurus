@@ -2,9 +2,11 @@
 #include <library/cpp/yt/memory/new.h>
 
 #include <library/cpp/yt/logging/logger.h>
-#include <yt/cpp/mapreduce/interface/logging/logger.h>
 
+#include <yt/cpp/mapreduce/interface/errors.h>
 #include <yt/cpp/mapreduce/interface/operation.h>
+
+#include <yt/cpp/mapreduce/interface/logging/logger.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -244,8 +246,25 @@ void TValidator::PollVanillaWorkers()
 void TValidator::Start()
 {
     auto dir = TestHome_.ValidatorsDir();
+    int iteration = 0;
+    int backoffSec = 0;
 
-    StartValidatorOperation();
+    // TODO(orlovorlov) switch everything to fibers and implement a generic retry loop.
+    while (true) {
+        sleep(backoffSec);
+        try {
+            StartValidatorOperation();
+        } catch (const TErrorResponse& exception) {
+            if (IsRetriableError(exception)) {
+                backoffSec = std::min(2 * iteration, 30);
+            }
+            YT_LOG_ERROR("Failed to start validator operation, will backoff "
+                "(Error: %v, BackoffSec: %v)", yexception(exception), backoffSec);
+            ++iteration;
+            continue;
+        }
+        break;
+    }
 
     BIND(&TValidator::PollVanillaWorkers, this)
         .AsyncVia(ThreadPool_->GetInvoker())
@@ -601,7 +620,6 @@ TValidator::TableIntervalInfo TValidator::GetReduceIntervalBoundaries(
 
     return result;
 }
-
 
 }  // namespace NYT::NTest
 

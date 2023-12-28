@@ -75,6 +75,9 @@ public:
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) -> IChannelPtr {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
                 if (rsp.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {
+                    // NOTE: when updating this message, also change IsRetriableError() in
+                    // yt/systest/util.cpp
+                    // TODO YT-20792 make it visible to the client that the server is not ready.
                     THROW_ERROR_EXCEPTION("No scheduler is configured");
                 }
 

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <library/cpp/yson/node/node.h>
+
+#include <yt/cpp/mapreduce/interface/errors.h>
+
 #include <yt/systest/table.h>
 
 namespace NYT::NTest {
@@ -21,5 +24,7 @@ int CompareRowPrefix(int prefixLength, TRange<TNode> lhs, TRange<TNode> rhs);
 
 TString DebugString(const TNode& node);
 TString DebugString(TRange<TNode> row);
+
+bool IsRetriableError(const TErrorResponse& ex);
 
 }  // namespace NYT::NTest

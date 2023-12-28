@@ -89,4 +89,14 @@ int CompareRowPrefix(int prefixLength, TRange<TNode> lhs, TRange<TNode> rhs)
     return 0;
 }
 
+bool IsRetriableError(const TErrorResponse& ex)
+{
+    const TYtError& inner = ex.GetError();
+    if (inner.GetCode() == 1 && inner.GetMessage().Contains("No scheduler is configured")) {
+        return true;
+    }
+
+    return false;
+}
+
 }  // namespace NYT::NTest
